@@ -215,57 +215,10 @@ def _build_x64_text_section() -> Tuple[bytes, Dict[str, int]]:
         b"\xC3"                                      # ret
     )
 
-    # 7. neoveg_get_timeline_render_status(rcx=projHandle, edx=startFrame, r8d=endFrame, r9d=fxCount, [rsp+0x28]=tracks, [rsp+0x30]=cachedFlag, [rsp+0x38]=outPtr, [rsp+0x40]=maxLen)
+    # The synthesized PE fallback cannot safely implement this 8-argument ABI.
+    # Return 0 so RustCoreInterop uses its managed render-status fallback.
     mark("neoveg_get_timeline_render_status")
-    fill_loop = (
-        b"\x31\xC9"                  # xor ecx, ecx
-        b"\x41\x88\x14\x0A"          # .loop: mov byte ptr [r10+rcx], dl
-        b"\xFF\xC1"                  # inc ecx
-        b"\x39\xC1"                  # cmp ecx, eax
-        b"\x7C\xF7"                  # jl .loop (-9)
-        b"\xC3"                      # ret (eax = count)
-    )
-    select_state = (
-        b"\xB2\x02"                  # mov dl, 2 (default Yellow #F1C40F)
-        b"\x8B\x4C\x24\x30"          # mov ecx, dword ptr [rsp+0x30] (cached_mask_flag)
-        b"\x83\xF9\x01"              # cmp ecx, 1
-        b"\x75\x04"                  # jnz +4
-        b"\xB2\x01"                  # mov dl, 1 (Green #2ECC71)
-        b"\xEB\x11"                  # jmp .fill (+17)
-        b"\x83\xF9\x02"              # cmp ecx, 2
-        b"\x74\x0C"                  # jz .fill (+12)
-        b"\x45\x85\xC9"              # test r9d, r9d (active_fx_count >= 1?)
-        b"\x7F\x06"                  # jg .set_red (+6)
-        b"\x83\x7C\x24\x28\x02"      # cmp dword ptr [rsp+0x28], 2 (connected_tracks >= 2?)
-        b"\x7C\x02"                  # jl .fill (+2)
-        b"\xB2\x03"                  # .set_red: mov dl, 3 (Red #E74C3C)
-    )
-    body_after_ptr = select_state + fill_loop
-    jz_null_ptr = bytes([0x74, len(body_after_ptr)])
-    check_ptr = (
-        b"\x39\xC8"                  # cmp eax, ecx
-        b"\x0F\x4F\xC1"              # cmovg eax, ecx
-        b"\x4C\x8B\x54\x24\x38"      # mov r10, qword ptr [rsp+0x38] (out_status_ptr)
-        b"\x4D\x85\xD2"              # test r10, r10
-        + jz_null_ptr
-        + body_after_ptr
-    )
-    jle_maxlen = bytes([0x7E, len(check_ptr)])
-    check_maxlen = (
-        b"\x8B\x4C\x24\x40"          # mov ecx, dword ptr [rsp+0x40] (max_out_len)
-        b"\x85\xC9"                  # test ecx, ecx
-        + jle_maxlen
-        + check_ptr
-    )
-    jle_count = bytes([0x7E, len(check_maxlen)])
-    code.extend(
-        b"\x44\x89\xC0"              # mov eax, r8d (end_frame)
-        b"\x29\xD0"                  # sub eax, edx (count = end_frame - start_frame)
-        b"\x85\xC0"                  # test eax, eax
-        + jle_count
-        + check_maxlen
-        + b"\x31\xC0\xC3"            # .ret0: xor eax, eax; ret
-    )
+    code.extend(b"\x31\xC0\xC3")  # xor eax, eax; ret
 
     # 8. neoveg_compute_pancrop_matrix(xmm0=srcW, xmm1=srcH, xmm2=cropW, xmm3=cropH, [rsp+0x28]=xC, [rsp+0x30]=yC, [rsp+0x38]=rotDeg, [rsp+0x40]=outMat6)
     mark("neoveg_compute_pancrop_matrix")
