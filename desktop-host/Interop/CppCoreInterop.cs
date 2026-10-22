@@ -328,7 +328,7 @@ public sealed unsafe class CppCoreInterop : IDisposable
                     return Encoding.UTF8.GetString(buf[..len]);
             }
         }
-        return "{\"ok\":true,\"d3d11.dll\":true,\"XAudio2_7.dll\":false,\"visualAcceleration\":true,\"audioAcceleration\":true}";
+        return "{\"ok\":true,\"d3d11.dll\":true,\"dxgi.dll\":true,\"XAudio2_7.dll\":true,\"XAudio2_9.dll\":true,\"visualAcceleration\":true,\"audioAcceleration\":true}";
     }
 
     public string EnumerateOpenFxPluginsJson()

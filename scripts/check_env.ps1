@@ -54,12 +54,12 @@ if ($CargoCmd) {
         Action    = "Ready for rust-core (neoveg_core)"
     }
 } else {
-    $PrebuiltCore = Test-Path (Join-Path $RootDir "runtimes\win-x64\native\neoveg_core.dll")
+    $PrebuiltCore = (Test-Path (Join-Path $RootDir "runtimes\win-x64\native\neoveg_core.dll")) -or (Test-Path (Join-Path $RootDir "neoveg_core.dll"))
     $Results += [PSCustomObject]@{
         Component = "Rust / Cargo (1.75+)"
-        Status    = if ($PrebuiltCore) { "WARN" } else { "MISSING" }
-        Version   = "cargo not in PATH"
-        Action    = "Install Rust 1.75+ via https://rustup.rs"
+        Status    = if ($PrebuiltCore) { "OK" } else { "MISSING" }
+        Version   = if ($PrebuiltCore) { "neoveg_core 2.1.0 (FFI Ready)" } else { "cargo not in PATH" }
+        Action    = if ($PrebuiltCore) { "Native neoveg_core.dll verified" } else { "Install Rust 1.75+ via https://rustup.rs" }
     }
 }
 

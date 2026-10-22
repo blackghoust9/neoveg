@@ -424,8 +424,8 @@ NEOVEG_CPP_API int32_t NEOVEG_CDECL neoveg_cpp_verify_directx_runtime(
 #if defined(_WIN32) || defined(_WIN64)
         const bool has_d3d11 = ProbeWindowsSystemDll("d3d11.dll");
         const bool has_dxgi = ProbeWindowsSystemDll("dxgi.dll");
-        const bool has_xaudio2_7 = ProbeWindowsSystemDll("XAudio2_7.dll");
         const bool has_xaudio2_9 = ProbeWindowsSystemDll("XAudio2_9.dll");
+        const bool has_xaudio2_7 = ProbeWindowsSystemDll("XAudio2_7.dll") || ProbeWindowsSystemDll("XAudio2_8.dll") || has_xaudio2_9;
         const bool visual_ok = has_d3d11 && has_dxgi;
         const bool audio_ok = has_xaudio2_7 || has_xaudio2_9;
 

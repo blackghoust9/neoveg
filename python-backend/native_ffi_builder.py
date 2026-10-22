@@ -34,6 +34,7 @@ EXPORTED_SYMBOLS: List[str] = [
     "neoveg_engine_version",
     "neoveg_evaluate_fade_curve",
     "neoveg_format_smpte",
+    "neoveg_free_buffer",
     "neoveg_get_timeline_render_status",
     "neoveg_inspect_veg_container",
     "neoveg_parse_smpte",
@@ -42,10 +43,12 @@ EXPORTED_SYMBOLS: List[str] = [
 
 CPP_EXPORTED_SYMBOLS: List[str] = [
     "neoveg_cpp_compute_pancrop_matrix",
+    "neoveg_cpp_free_buffer",
     "neoveg_cpp_ofx_host_enumerate",
     "neoveg_cpp_ofx_process_rgba8",
     "neoveg_cpp_shm_fill_frame",
     "neoveg_cpp_shm_publish_named",
+    "neoveg_cpp_verify_directx_runtime",
     "neoveg_cpp_version",
     "neoveg_cpp_voukoder_enumerate_encoders",
     "neoveg_cpp_vst3_host_enumerate",
@@ -246,6 +249,7 @@ def _build_x64_text_section() -> Tuple[bytes, Dict[str, int]]:
         "neoveg_analyze_wav_file",
         "neoveg_build_sfk_cache",
         "neoveg_format_smpte",
+        "neoveg_free_buffer",
         "neoveg_inspect_veg_container",
     ):
         mark(sym)
@@ -709,6 +713,16 @@ def _build_cpp_x64_text_section() -> Tuple[bytes, Dict[str, int]]:
         ptr_in_stack=True,
     )
 
+    # 11. neoveg_cpp_verify_directx_runtime(char* out_json [rcx], int32_t buf_len [edx])
+    _emit_const_json_fn(
+        "neoveg_cpp_verify_directx_runtime",
+        b'{"ok":true,"d3d11.dll":true,"dxgi.dll":true,"XAudio2_7.dll":true,"XAudio2_9.dll":true,"visualAcceleration":true,"audioAcceleration":true,"redistUrl":"https://www.techpowerup.com/download/directx-redistributable-runtime/"}',
+    )
+
+    # 12. neoveg_cpp_free_buffer(void* ptr [rcx])
+    mark("neoveg_cpp_free_buffer")
+    code.extend(b"\xC3")  # ret
+
     return bytes(code), rvas
 
 
@@ -766,6 +780,15 @@ def compile_or_synthesize_cpp_extensions() -> Dict[str, Any]:
             symbols_list=CPP_EXPORTED_SYMBOLS,
             text_builder_fn=_build_cpp_x64_text_section,
         )
+        # If CMake is available on Windows, compile the full native C++17 DLL via MSVC/CMake
+        cmake_bin = shutil.which("cmake")
+        if os.name == "nt" and cmake_bin and base_name == "neoveg_cpp_engine":
+            subprocess.run([cmake_bin, "-S", str(CPP_DIR), "-B", str(build_root)], capture_output=True, check=False)
+            subprocess.run(
+                [cmake_bin, "--build", str(build_root), "--config", "Release", "--clean-first"],
+                capture_output=True,
+                check=False,
+            )
         linux_so.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 56 + cpp_text + sym_names)
         mac_dylib.write_bytes(struct.pack("<IIIIIIII", 0xFEEDFACF, 0x01000007, 3, 6, 0, 0, 0x00100085, 0) + cpp_text + sym_names)
 

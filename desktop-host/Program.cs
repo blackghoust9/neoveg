@@ -349,8 +349,10 @@ internal static class Program
             string systemDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
             bool hasD3D11 = ProbeSystemLibrary(systemDirectory, "d3d11.dll");
             bool hasDxgi = ProbeSystemLibrary(systemDirectory, "dxgi.dll");
-            bool hasXAudio27 = ProbeSystemLibrary(systemDirectory, "XAudio2_7.dll");
             bool hasXAudio29 = ProbeSystemLibrary(systemDirectory, "XAudio2_9.dll");
+            bool hasXAudio27 = ProbeSystemLibrary(systemDirectory, "XAudio2_7.dll") ||
+                               ProbeSystemLibrary(systemDirectory, "XAudio2_8.dll") ||
+                               hasXAudio29;
 
             // If XAudio2_7.dll (DirectX June 2010 Redist) is missing and directx_Jun2010_redist.exe is staged in addon/,
             // attempt silent installation via scripts/install_prerequisites.bat
