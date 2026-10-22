@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neoveg", "desktop-host\Neoveg.csproj", "{B6011E31-53D7-4925-94D6-CBCD90B5A053}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neoveg.Tests", "desktop-host.Tests\Neoveg.Tests.csproj", "{682D98BD-C68B-4F52-B5F2-68294FD9ECF3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{B6011E31-53D7-4925-94D6-CBCD90B5A053}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B6011E31-53D7-4925-94D6-CBCD90B5A053}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B6011E31-53D7-4925-94D6-CBCD90B5A053}.Release|Any CPU.Build.0 = Release|Any CPU
+		{682D98BD-C68B-4F52-B5F2-68294FD9ECF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{682D98BD-C68B-4F52-B5F2-68294FD9ECF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{682D98BD-C68B-4F52-B5F2-68294FD9ECF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{682D98BD-C68B-4F52-B5F2-68294FD9ECF3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

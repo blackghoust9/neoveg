@@ -10,6 +10,9 @@ endif()
 
 project(neoveg_cpp_engine VERSION 2.1.0 LANGUAGES C CXX)
 
+option(NEOVEG_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer for QA builds" OFF)
+option(NEOVEG_ENABLE_COVERAGE "Enable compiler coverage instrumentation for QA builds" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -39,6 +42,8 @@ set(NEOVEG_CPP_SOURCES
     src/neoveg_cpp_engine.cpp
     whisper.cpp/src/neoveg_whisper_bridge.cpp
 )
+
+include(CTest)
 
 set(NEOVEG_CPP_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -126,6 +131,26 @@ set_target_properties(neoveg_whisper_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${NEOVEG_BUILD_RELEASE_OUT}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${NEOVEG_BUILD_RELEASE_OUT}"
 )
+
+if(NEOVEG_ENABLE_SANITIZERS OR NEOVEG_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"
+       OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        message(FATAL_ERROR "Neoveg QA sanitizers and coverage require GCC or a GNU-compatible Clang toolchain.")
+    endif()
+
+    foreach(qa_target IN ITEMS neoveg_cpp_engine neoveg_whisper_cli)
+        if(NEOVEG_ENABLE_SANITIZERS)
+            target_compile_options(${qa_target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${qa_target} PRIVATE -fsanitize=address,undefined)
+        endif()
+
+        if(NEOVEG_ENABLE_COVERAGE)
+            target_compile_options(${qa_target} PRIVATE --coverage)
+            target_link_options(${qa_target} PRIVATE --coverage)
+        endif()
+    endforeach()
+endif()
+
 add_custom_command(TARGET neoveg_whisper_cli POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${NEOVEG_NATIVE_OUT}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

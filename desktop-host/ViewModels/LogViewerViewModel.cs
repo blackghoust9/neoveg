@@ -130,10 +130,13 @@ public sealed class LogViewerViewModel : INotifyPropertyChanged
         AppendFileSection(sb, "1. ACTIVE RUNTIME LOG (logs/neoveg.log)", Program.ActiveLogPath);
         AppendFileSection(sb, "2. CRASH & UNHANDLED EXCEPTIONS LOG (logs/crash.log)", Program.CrashLogPath);
 
-        string rootErrLog = Path.Combine(Program.GoogleDriveSyncRoot, "log_erros.txt");
-        if (File.Exists(rootErrLog))
+        if (OperatingSystem.IsWindows() && Directory.Exists(Program.GoogleDriveSyncRoot))
         {
-            AppendFileSection(sb, "3. HISTORICAL DIAGNOSTICS (log_erros.txt)", rootErrLog);
+            string rootErrLog = Path.Combine(Program.GoogleDriveSyncRoot, "log_erros.txt");
+            if (File.Exists(rootErrLog))
+            {
+                AppendFileSection(sb, "3. HISTORICAL DIAGNOSTICS (log_erros.txt)", rootErrLog);
+            }
         }
 
         LogText = sb.ToString();

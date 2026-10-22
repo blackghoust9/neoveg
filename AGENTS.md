@@ -175,8 +175,12 @@ All window layouts, keyboard shortcut mappings (`S` split, `M` marker, `G` group
 
 To guarantee code stability, zero-lag timeline performance, memory safety, and reproducible builds across all architectures:
 
+- **Approved QA & Profiling Toolchain:** Use `Avalonia.Headless.XUnit` for UI tests without a display server, Criterion.rs for Rust benchmarks, GoogleTest for C++ unit tests, AddressSanitizer/UndefinedBehaviorSanitizer for native FFI memory and undefined-behavior checks, and Tracy Profiler for performance investigation. Run `scripts/run_qa_suite.ps1` on Windows or `scripts/run_qa_suite.sh` on Linux/macOS before every release; all static analysis, tests, sanitizer checks, and coverage reporting must pass.
+- **Unified QA Suite:** The scripts run `dotnet format --verify-no-changes`, `cargo clippy`, and `clang-tidy`, then .NET, Rust, Criterion waveform benchmark, CTest, and Python test suites, and finally collect/verify code-coverage reports. QA prerequisites include .NET 8 SDK, Rust/Cargo, GCC or GNU-compatible Clang with ASan/UBSan, CMake, Ninja, `clang-tidy`, `cargo-llvm-cov`, `gcovr`, Python with `pytest-cov`, and CTest. Missing or unsupported tools must fail the suite explicitly rather than silently skipping a check.
 - **Performance & Bottleneck Elimination Benchmarks:**
   - **UI Thread (Avalonia):** The main UI thread must never freeze during timeline zooming, scrubbing, or event dragging. Heavy operations (waveform generation, project parsing, FFmpeg indexing) must be executed asynchronously on background threads or via Rust FFI, with pre-allocated static pens/brushes (`StaticCenterAxisPen`, `BrushCache`) to avoid per-frame GC pressure.
+  - **Profiling & Benchmarks:** Maintain waveform engine benchmarks with Criterion.rs and use Tracy Profiler to capture representative timeline/rendering workloads before release.
+  - **Sanitizers & Native Tests:** Run C++ tests registered with CTest/GoogleTest under AddressSanitizer and UndefinedBehaviorSanitizer in QA builds. Sanitizer/coverage configurations require GCC or GNU-compatible Clang.
   - **Memory & FFI Management:** Zero buffer leaks when transferring frame buffers or audio samples between C# and Rust/C++. All FFI pointer allocations must have explicit deallocation wrappers (`neoveg_free_buffer`, `neoveg_cpp_free_buffer`, `FreeNativeBuffer`, `IDisposable`).
   - **Drive I/O Optimization:** Ensure execution from `%LOCALAPPDATA%\Neoveg\AppCache\` with fast fingerprint verification (`appcache_sync.stamp` / `ComputeFastCacheFingerprint`) to prevent Google Drive lockouts and latency spikes.
 - **Docker Integration & Containerization (`Dockerfile` / `docker-compose.yml`):**
@@ -252,7 +256,24 @@ To guarantee that `Neoveg.exe` loads native shared libraries seamlessly in porta
 
 ---
 
-## 16. Cross-Platform OS Detection & Launcher Protocol
+## 16. ISO/IEC Software Quality & Standards Compliance Protocol
+
+To ensure industrial-grade software reliability, maintainability, and cross-platform performance, Neoveg strictly aligns its development, QA, and architectural practices with recognized ISO/IEC standards:
+
+- **ISO/IEC 25010 (Software Quality Model):**
+  - **Performance Efficiency:** Timeline scrubbing and audio waveform generation must maintain low-latency async execution (Rust Core) without blocking the UI thread.
+  - **Reliability:** Fault-tolerant execution across C#, Rust, C++, and Python subsystems with structured logging (`logs/neoveg.log` / `logs/crash.log`), `std::panic::catch_unwind` FFI boundaries, and graceful fallback modes.
+  - **Usability:** Historical and contemporary VEGAS UI fidelity, multi-language runtime localization (`pt-BR` default across 8 locales), accessible keyboard shortcuts, and visual diagnostic feedback.
+  - **Portability:** Codebase must build natively on Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`) using abstraction layers (`OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, `OperatingSystem.IsMacOS()`, `Path.Combine`) without hardcoded Windows-only paths.
+  - **Maintainability:** Code structure must maintain clean modular isolation between C# Avalonia, Rust FFI, C++ Extensions, and Python backend.
+- **ISO/IEC 29119 (Software Testing Standard):**
+  - All features must pass automated unit, integration, and headless UI tests (`Avalonia.Headless`) before being merged or packaged for release, with QA reports (`scripts/run_qa_suite.ps1` and `docs/index.html`) categorized by ISO/IEC 25010 quality pillars.
+- **ISO/IEC 27001 / Memory Safety Assurance:**
+  - Dynamic memory allocations across FFI boundaries must use explicit ownership and cleanup models (AddressSanitizer and LeakSanitizer validated, explicit `neoveg_free_buffer` / `neoveg_cpp_free_buffer` / `IDisposable` deallocators, and 64-bit integer overflow guards).
+
+---
+
+## 17. Cross-Platform OS Detection & Launcher Protocol
 
 To guarantee seamless execution across Windows, Linux, and macOS:
 

@@ -56,7 +56,10 @@ impl AudacityWaveformMipmap {
     /// Downsamples a fine stereo block slice into a coarser LOD level using Audacity's
     /// exact summary reduction rules: `min = min(child.min)`, `max = max(child.max)`,
     /// `rms = sqrt(mean(child.rms^2))`.
-    pub fn downsample_blocks(source: &[StereoWaveformBlock], target_buckets: usize) -> Vec<StereoWaveformBlock> {
+    pub fn downsample_blocks(
+        source: &[StereoWaveformBlock],
+        target_buckets: usize,
+    ) -> Vec<StereoWaveformBlock> {
         let count = target_buckets.max(1);
         if source.is_empty() {
             return vec![StereoWaveformBlock::default(); count];
@@ -64,7 +67,9 @@ impl AudacityWaveformMipmap {
         let mut out = Vec::with_capacity(count);
         for b in 0..count {
             let start = (b * source.len()) / count;
-            let end = (((b + 1) * source.len()) / count).max(start + 1).min(source.len());
+            let end = (((b + 1) * source.len()) / count)
+                .max(start + 1)
+                .min(source.len());
             let slice = &source[start..end];
 
             let mut min_l = 1.0_f32;
@@ -75,12 +80,20 @@ impl AudacityWaveformMipmap {
             let mut sum_sq_r = 0.0_f32;
 
             for blk in slice {
-                if blk.min_left < min_l { min_l = blk.min_left; }
-                if blk.max_left > max_l { max_l = blk.max_left; }
+                if blk.min_left < min_l {
+                    min_l = blk.min_left;
+                }
+                if blk.max_left > max_l {
+                    max_l = blk.max_left;
+                }
                 sum_sq_l += blk.rms_left * blk.rms_left;
 
-                if blk.min_right < min_r { min_r = blk.min_right; }
-                if blk.max_right > max_r { max_r = blk.max_right; }
+                if blk.min_right < min_r {
+                    min_r = blk.min_right;
+                }
+                if blk.max_right > max_r {
+                    max_r = blk.max_right;
+                }
                 sum_sq_r += blk.rms_right * blk.rms_right;
             }
 
@@ -121,7 +134,9 @@ impl AudacityWaveformMipmap {
             let frames_per_bucket = (total_frames / buckets).max(1);
             for b in 0..buckets {
                 let start_f = b * frames_per_bucket;
-                let end_f = ((b + 1) * frames_per_bucket).min(total_frames).max(start_f + 1);
+                let end_f = ((b + 1) * frames_per_bucket)
+                    .min(total_frames)
+                    .max(start_f + 1);
                 let mut min_l = 0.0_f32;
                 let mut max_l = 0.0_f32;
                 let mut sum_sq_l = 0.0_f32;
@@ -138,12 +153,20 @@ impl AudacityWaveformMipmap {
                     let sl = (pcm.get(idx_l).copied().unwrap_or(0) as f32) / 32768.0;
                     let sr_val = (pcm.get(idx_r).copied().unwrap_or(0) as f32) / 32768.0;
 
-                    if sl < min_l { min_l = sl; }
-                    if sl > max_l { max_l = sl; }
+                    if sl < min_l {
+                        min_l = sl;
+                    }
+                    if sl > max_l {
+                        max_l = sl;
+                    }
                     sum_sq_l += sl * sl;
 
-                    if sr_val < min_r { min_r = sr_val; }
-                    if sr_val > max_r { max_r = sr_val; }
+                    if sr_val < min_r {
+                        min_r = sr_val;
+                    }
+                    if sr_val > max_r {
+                        max_r = sr_val;
+                    }
                     sum_sq_r += sr_val * sr_val;
 
                     let abs_max = sl.abs().max(sr_val.abs()) as f64;
@@ -171,7 +194,9 @@ impl AudacityWaveformMipmap {
         let lod_medium = Self::downsample_blocks(&lod_fine, (buckets / 2).max(16));
         let lod_coarse = Self::downsample_blocks(&lod_fine, (buckets / 4).max(8));
         let peak_db = 20.0 * global_peak.log10();
-        let rms_val = (global_sum_sq / (global_count.max(1) as f64)).sqrt().max(0.00001);
+        let rms_val = (global_sum_sq / (global_count.max(1) as f64))
+            .sqrt()
+            .max(0.00001);
         let rms_db = 20.0 * rms_val.log10();
 
         Self {
@@ -199,7 +224,12 @@ impl AudacityWaveformMipmap {
         buf.extend_from_slice(&(count as u32).to_le_bytes());
 
         for blk in &self.lod_fine {
-            let max_amp = blk.max_left.abs().max(blk.min_left.abs()).max(blk.max_right.abs()).max(blk.min_right.abs());
+            let max_amp = blk
+                .max_left
+                .abs()
+                .max(blk.min_left.abs())
+                .max(blk.max_right.abs())
+                .max(blk.min_right.abs());
             buf.extend_from_slice(&max_amp.to_le_bytes());
         }
 

@@ -129,11 +129,11 @@ pub struct TimelineEvent {
     pub media_path: String,
     pub media_type: String, // "video", "audio", "generator"
     pub track_index: usize,
-    pub start: f64,         // Timeline start time in seconds
-    pub duration: f64,      // Timeline duration in seconds
-    pub trim_in: f64,       // Media source in-point in seconds
-    pub fade_in: f64,       // Fade-in duration in seconds
-    pub fade_out: f64,      // Fade-out duration in seconds
+    pub start: f64,    // Timeline start time in seconds
+    pub duration: f64, // Timeline duration in seconds
+    pub trim_in: f64,  // Media source in-point in seconds
+    pub fade_in: f64,  // Fade-in duration in seconds
+    pub fade_out: f64, // Fade-out duration in seconds
     pub fade_in_curve: FadeCurve,
     pub fade_out_curve: FadeCurve,
     pub gain: f64,          // Opacity (0..1) for video or linear gain (0..2) for audio
@@ -230,9 +230,11 @@ impl Timecode {
 /// Detects all overlapping clips on the same track and computes Vegas automatic crossfades.
 pub fn detect_auto_crossfades(events: &mut [TimelineEvent]) -> Vec<CrossfadeRegion> {
     events.sort_by(|a, b| {
-        a.track_index
-            .cmp(&b.track_index)
-            .then_with(|| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal))
+        a.track_index.cmp(&b.track_index).then_with(|| {
+            a.start
+                .partial_cmp(&b.start)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     });
 
     let mut crossfades = Vec::new();
@@ -330,7 +332,8 @@ pub fn analyze_wav_peaks(path: &Path, num_buckets: usize) -> Result<WaveformAnal
     let mut data_size: usize = 0;
     while file.read_exact(&mut chunk_hdr).is_ok() {
         let cid = &chunk_hdr[0..4];
-        let csize = u32::from_le_bytes([chunk_hdr[4], chunk_hdr[5], chunk_hdr[6], chunk_hdr[7]]) as usize;
+        let csize =
+            u32::from_le_bytes([chunk_hdr[4], chunk_hdr[5], chunk_hdr[6], chunk_hdr[7]]) as usize;
         if cid == b"data" {
             data_size = csize;
             break;
@@ -584,7 +587,11 @@ static INIT_RUST_LOGGER: std::sync::Once = std::sync::Once::new();
 pub fn append_rust_log_entry(file_rel: &str, level: &str, message: &str) {
     let _ = std::fs::create_dir_all("logs");
     let path = Path::new("logs").join(file_rel);
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
         use std::io::Write;
         let _ = writeln!(f, "[RUST/neoveg_core] [{}] {}", level, message);
     }
@@ -593,7 +600,10 @@ pub fn append_rust_log_entry(file_rel: &str, level: &str, message: &str) {
 pub fn init_neoveg_rust_logging_and_panic_hook() {
     INIT_RUST_LOGGER.call_once(|| {
         std::panic::set_hook(Box::new(|panic_info| {
-            let msg = format!("Rust FFI panic intercepted via std::panic::set_hook: {}", panic_info);
+            let msg = format!(
+                "Rust FFI panic intercepted via std::panic::set_hook: {}",
+                panic_info
+            );
             append_rust_log_entry("neoveg.log", "FATAL", &msg);
             append_rust_log_entry("crash.log", "FATAL", &msg);
         }));
@@ -626,7 +636,11 @@ unsafe fn write_c_string_to_buf(s: &str, out_buf: *mut c_char, buf_len: i32) -> 
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_engine_version(out_buf: *mut c_char, buf_len: i32) -> i32 {
     init_neoveg_rust_logging_and_panic_hook();
-    write_c_string_to_buf("neoveg-core 2.0.0 (Rust C-ABI FFI: SMPTE + DSP + Cuts)", out_buf, buf_len)
+    write_c_string_to_buf(
+        "neoveg-core 2.0.0 (Rust C-ABI FFI: SMPTE + DSP + Cuts)",
+        out_buf,
+        buf_len,
+    )
 }
 
 /// Formats `seconds` into SMPTE Timecode (`HH:MM:SS;FF` or `HH:MM:SS:FF`) and writes to `out_buf`.
@@ -680,7 +694,11 @@ pub unsafe extern "C" fn neoveg_split_clip(
     if split_time <= clip_start + min_clip_len || split_time >= clip_end - min_clip_len {
         return 0;
     }
-    let rate = if playback_rate <= 0.01 { 1.0 } else { playback_rate };
+    let rate = if playback_rate <= 0.01 {
+        1.0
+    } else {
+        playback_rate
+    };
     let left_dur = split_time - clip_start;
     let right_dur = clip_end - split_time;
     let right_trim = clip_trim_in + left_dur * rate;
@@ -814,19 +832,26 @@ pub unsafe extern "C" fn neoveg_analyze_wav_file(
 pub struct SfkPeakCache;
 
 impl SfkPeakCache {
-    pub fn build_or_load_sfk(wav_path: &Path, num_buckets: usize) -> Result<WaveformAnalysis, String> {
+    pub fn build_or_load_sfk(
+        wav_path: &Path,
+        num_buckets: usize,
+    ) -> Result<WaveformAnalysis, String> {
         let sfk_path = wav_path.with_extension("wav.sfk");
         if sfk_path.exists() {
             if let Ok(bytes) = fs::read(&sfk_path) {
                 if bytes.len() >= 32 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"SFPK" {
-                    let duration_sec = f64::from_le_bytes(bytes[12..20].try_into().unwrap_or([0; 8]));
+                    let duration_sec =
+                        f64::from_le_bytes(bytes[12..20].try_into().unwrap_or([0; 8]));
                     let peak_db = f64::from_le_bytes(bytes[20..28].try_into().unwrap_or([0; 8]));
-                    let count = u32::from_le_bytes(bytes[28..32].try_into().unwrap_or([0; 4])) as usize;
+                    let count =
+                        u32::from_le_bytes(bytes[28..32].try_into().unwrap_or([0; 4])) as usize;
                     if bytes.len() >= 32 + count * 4 && count > 0 {
                         let mut peaks = Vec::with_capacity(count);
                         for i in 0..count {
                             let off = 32 + i * 4;
-                            let v = f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap_or([0; 4]));
+                            let v = f32::from_le_bytes(
+                                bytes[off..off + 4].try_into().unwrap_or([0; 4]),
+                            );
                             peaks.push(v);
                         }
                         return Ok(WaveformAnalysis {
@@ -1066,10 +1091,44 @@ mod tests {
     #[test]
     fn test_null_pointer_ffi_safety() {
         unsafe {
-            assert_eq!(neoveg_analyze_wav_file(std::ptr::null(), 64, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()), -1);
-            assert_eq!(neoveg_build_sfk_cache(std::ptr::null(), 64, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()), -1);
-            assert_eq!(neoveg_get_timeline_render_status(0, 0, 100, 1, 1, 0, std::ptr::null_mut(), 100), 0);
-            assert_eq!(neoveg_compute_pancrop_matrix(1920.0, 1080.0, 960.0, 540.0, 960.0, 540.0, 0.0, std::ptr::null_mut()), 0);
+            assert_eq!(
+                neoveg_analyze_wav_file(
+                    std::ptr::null(),
+                    64,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut()
+                ),
+                -1
+            );
+            assert_eq!(
+                neoveg_build_sfk_cache(
+                    std::ptr::null(),
+                    64,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut()
+                ),
+                -1
+            );
+            assert_eq!(
+                neoveg_get_timeline_render_status(0, 0, 100, 1, 1, 0, std::ptr::null_mut(), 100),
+                0
+            );
+            assert_eq!(
+                neoveg_compute_pancrop_matrix(
+                    1920.0,
+                    1080.0,
+                    960.0,
+                    540.0,
+                    960.0,
+                    540.0,
+                    0.0,
+                    std::ptr::null_mut()
+                ),
+                0
+            );
             neoveg_free_buffer(std::ptr::null_mut(), 0);
         }
     }
@@ -1109,4 +1168,3 @@ pub mod cpp_sdk_ffi {
         ) -> i32;
     }
 }
-

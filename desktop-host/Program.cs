@@ -913,7 +913,7 @@ internal static class Program
     {
         try
         {
-            string? targetRoot = Directory.Exists(GoogleDriveSyncRoot)
+            string? targetRoot = (OperatingSystem.IsWindows() && Directory.Exists(GoogleDriveSyncRoot))
                 ? GoogleDriveSyncRoot
                 : Environment.GetEnvironmentVariable("NEOVEG_SOURCE_DRIVE_DIR");
 
