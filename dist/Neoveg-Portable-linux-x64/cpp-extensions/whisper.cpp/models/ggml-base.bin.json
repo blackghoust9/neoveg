@@ -1,8 +1,0 @@
-{
-  "model": "ggml-base.bin",
-  "architecture": "whisper.cpp-ggml",
-  "languages": ["pt", "en", "es", "fr", "de", "zh", "ja", "ru"],
-  "sample_rate": 16000,
-  "license": "MIT",
-  "repository": "https://github.com/ggerganov/whisper.cpp"
-}

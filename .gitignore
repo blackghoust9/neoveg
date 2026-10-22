@@ -7,6 +7,16 @@ AppCache/
 temp/
 docs/coverage/
 
+# Generated release and publish outputs
+/dist/
+/artifacts/
+/publish/
+/runtimes/
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
 # Operating system artifacts
 .DS_Store
 Thumbs.db

@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -e
-HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/bin/runtimes/linux-x64/native:${HERE}/usr/bin/runtimes/linux-x64/ffmpeg/lib:${LD_LIBRARY_PATH}"
-export PATH="${HERE}/usr/bin/runtimes/linux-x64/ffmpeg/bin:${HERE}/usr/bin:${PATH}"
-export FREI0R_PATH="${HERE}/usr/bin/plugins/frei0r:${FREI0R_PATH}"
-export LADSPA_PATH="${HERE}/usr/bin/plugins/ladspa:${LADSPA_PATH}"
-exec "${HERE}/usr/bin/Neoveg" "$@"
