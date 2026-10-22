@@ -166,14 +166,19 @@ def probe_plugin_environment() -> Dict[str, Any]:
         except Exception as exc:
             log_exception("FFMPEG_PROBE", exc)
 
+    program_files = os.environ.get("ProgramFiles", "") if os.name == "nt" else ""
     frei0r_dirs = [
         os.environ.get("FREI0R_PATH", ""),
-        r"C:\Program Files\frei0r-1",
+        os.path.join(program_files, "frei0r-1") if program_files else "",
+        "/usr/lib/frei0r-1",
+        "/usr/local/lib/frei0r-1",
         str(ROOT_DIR / "plugins" / "frei0r"),
     ]
     ladspa_dirs = [
         os.environ.get("LADSPA_PATH", ""),
-        r"C:\Program Files\LADSPA",
+        os.path.join(program_files, "LADSPA") if program_files else "",
+        "/usr/lib/ladspa",
+        "/usr/local/lib/ladspa",
         str(ROOT_DIR / "plugins" / "ladspa"),
     ]
 

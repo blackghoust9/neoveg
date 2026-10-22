@@ -401,6 +401,46 @@
     }
     .bench-meter > div { height: 100%; background: linear-gradient(90deg, #2ecc71, #3498db); }
 
+    /* ISO/IEC 25010 & ABNT NBR Compliance Panel */
+    .iso-panel {
+      padding: 20px;
+      margin-bottom: 26px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas-subtle);
+    }
+    .iso-panel .qa-top-banner { border-bottom-color: var(--border-muted); }
+    .abnt-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .abnt-badge {
+      display: inline-flex;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+    }
+    .abnt-badge span { padding: 3px 8px; }
+    .abnt-badge span:first-child { background: #21262d; color: #c9d1d9; }
+    .abnt-badge span:last-child { background: rgba(52, 152, 219, 0.18); color: #79c0ff; }
+    .pillar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .pillar-card {
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--muted);
+      border-radius: 7px;
+      background: rgba(13, 17, 23, 0.82);
+    }
+    .pillar-card[data-status="pass"] { border-left-color: var(--green-gh); }
+    .pillar-card[data-status="fail"] { border-left-color: var(--red); }
+    .pillar-card h3 { margin: 0 0 2px; font-size: 13px; color: #f0f6fc; }
+    .pillar-card .pillar-iso { font-size: 10.5px; color: var(--muted); font-family: ui-monospace, monospace; }
+    .pillar-card ul { margin: 8px 0 0; padding-left: 16px; font-size: 11.5px; color: #b1bac4; line-height: 1.5; }
+    .pillar-status { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700; color: var(--muted); }
+    .pillar-card[data-status="pass"] .pillar-status { color: #7ee787; }
+    .pillar-card[data-status="fail"] .pillar-status { color: #ff7b72; }
+    .iso-note { margin: 14px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
     /* Language Progress Bars Section */
     .lang-progress-panel {
       padding: 18px 20px;
@@ -830,6 +870,61 @@
           </div>
         </section>
 
+        <!-- 2b. Conformidade ISO/IEC 25010 & ABNT NBR (alimentado por scripts/run_qa_suite.* → docs/qa_report.js) -->
+        <section id="conformidade-iso" aria-labelledby="iso-title">
+          <div class="iso-panel">
+            <div class="qa-top-banner">
+              <div>
+                <h2 id="iso-title">Auditoria de Qualidade — ABNT NBR ISO/IEC</h2>
+                <span class="eyebrow">Resultados da suíte de QA categorizados pelos pilares da ISO/IEC 25010 (Seções 11, 16 e 18 do AGENTS.md)</span>
+              </div>
+              <span class="qa-status-pill" id="iso-run-pill">Aguardando execução de <code>run_qa_suite</code></span>
+            </div>
+
+            <div class="abnt-badges" aria-label="Normas ABNT NBR ISO/IEC adotadas">
+              <span class="abnt-badge"><span>ABNT NBR ISO/IEC</span><span>25010 · Qualidade</span></span>
+              <span class="abnt-badge"><span>ABNT NBR ISO/IEC/IEEE</span><span>29119 · Testes</span></span>
+              <span class="abnt-badge"><span>ABNT NBR ISO/IEC</span><span>12207 · Ciclo de Vida</span></span>
+              <span class="abnt-badge"><span>ABNT NBR ISO/IEC</span><span>14764 · Manutenção</span></span>
+              <span class="abnt-badge"><span>ABNT NBR ISO/IEC</span><span>27001 · Segurança</span></span>
+            </div>
+
+            <div class="pillar-grid">
+              <div class="pillar-card" data-pillar="Performance" data-status="not_run">
+                <h3>Eficiência de Desempenho</h3>
+                <div class="pillar-iso">25010</div>
+                <ul><li>Benchmark Criterion <code>audio_peaks</code></li></ul>
+                <span class="pillar-status">Não executado</span>
+              </div>
+              <div class="pillar-card" data-pillar="Reliability" data-status="not_run">
+                <h3>Confiabilidade</h3>
+                <div class="pillar-iso">29119 · 27001</div>
+                <ul><li><code>cargo test</code> · <code>pytest</code></li><li>C++ ASan/UBSan + <code>ctest</code></li></ul>
+                <span class="pillar-status">Não executado</span>
+              </div>
+              <div class="pillar-card" data-pillar="Usability" data-status="not_run">
+                <h3>Usabilidade</h3>
+                <div class="pillar-iso">29119 · 25010</div>
+                <ul><li><code>dotnet test</code> (incl. <code>Avalonia.Headless</code>)</li></ul>
+                <span class="pillar-status">Não executado</span>
+              </div>
+              <div class="pillar-card" data-pillar="Portability" data-status="not_run">
+                <h3>Portabilidade</h3>
+                <div class="pillar-iso">25010</div>
+                <ul><li>Configuração CMake/Ninja multiplataforma</li></ul>
+                <span class="pillar-status">Não executado</span>
+              </div>
+              <div class="pillar-card" data-pillar="Maintainability" data-status="not_run">
+                <h3>Manutenibilidade</h3>
+                <div class="pillar-iso">14764 · 12207 · 29119</div>
+                <ul><li><code>dotnet format</code> · <code>clippy</code> · <code>clang-tidy</code></li><li>Cobertura .NET/Rust/C++/Python</li></ul>
+                <span class="pillar-status">Não executado</span>
+              </div>
+            </div>
+            <p class="iso-note" id="iso-note">Os selos indicam as normas às quais o Neoveg declara alinhamento; não representam certificação emitida por organismo acreditado. Execute <code>scripts/run_qa_suite.ps1</code> ou <code>scripts/run_qa_suite.sh</code> para gerar <code>docs/qa_report.js</code> e preencher este painel. Cada etapa registra a norma correspondente em <code>logs/neoveg.log</code>.</p>
+          </div>
+        </section>
+
         <!-- 3. Barras de Progresso por Linguagem -->
         <section id="linguagens" aria-labelledby="lang-title">
           <div class="lang-progress-panel">
@@ -1183,6 +1278,8 @@
     </footer>
   </main>
 
+  <!-- Generated by scripts/run_qa_suite.*; absent until the suite runs. -->
+  <script src="qa_report.js"></script>
   <script>
     const searchInput = document.getElementById("file-search");
     const fileRows = Array.from(document.querySelectorAll(".file-row"));
@@ -1199,6 +1296,24 @@
     const closePreviewBtn = document.getElementById("close-preview-btn");
 
     let activeCategory = "all";
+
+    const qaReport = window.NEOVEG_QA_REPORT || null;
+    const pillarStatusText = { pass: "Aprovado", fail: "Reprovado", not_run: "Não executado" };
+
+    function renderIsoReport() {
+      if (!qaReport || !qaReport.pillars) return;
+      for (const card of document.querySelectorAll(".pillar-card")) {
+        const pillar = qaReport.pillars[card.dataset.pillar];
+        if (!pillar) continue;
+        card.dataset.status = pillar.status;
+        const label = pillarStatusText[pillar.status] || pillar.status;
+        card.querySelector(".pillar-status").textContent = pillar.total > 0 ? `${label} · ${pillar.passed}/${pillar.total} etapas` : label;
+      }
+      const runPill = document.getElementById("iso-run-pill");
+      const when = new Date(qaReport.generated_at).toLocaleString("pt-BR");
+      runPill.textContent = `QA ${qaReport.outcome === "pass" ? "APROVADO" : "REPROVADO"} · ${qaReport.platform} · ${when}`;
+    }
+    renderIsoReport();
 
     function applyFilters() {
       const query = searchInput.value.trim().toLocaleLowerCase("pt-BR");
@@ -1301,7 +1416,10 @@
         "- UI Thread 60 FPS Scrubbing: 1.42 ms (100% Async .sfk Mipmap Pyramid + Static Frozen Pens)",
         "- Sub-Frame Stress Test: 5,000 FFI ops in ~30.26 ms",
         "- Memory Safety: 0 Leaks (catch_unwind + neoveg_free_buffer + neoveg_cpp_free_buffer + IDisposable)",
-        "- Docker Pipeline: Dockerfile (3 stages) + docker-compose.yml (neoveg-qa, neoveg-builder, neoveg-dashboard)"
+        "- Docker Pipeline: Dockerfile (3 stages) + docker-compose.yml (neoveg-qa, neoveg-builder, neoveg-dashboard)",
+        ...(qaReport && qaReport.pillars
+          ? Object.values(qaReport.pillars).map(p => `- ISO/IEC 25010 ${p.label}: ${p.status} (${p.passed}/${p.total})`)
+          : ["- ISO/IEC 25010 pillars: run scripts/run_qa_suite to generate docs/qa_report.js"])
       ].join("\n");
       try {
         await navigator.clipboard.writeText(summary);

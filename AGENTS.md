@@ -177,6 +177,7 @@ To guarantee code stability, zero-lag timeline performance, memory safety, and r
 
 - **Approved QA & Profiling Toolchain:** Use `Avalonia.Headless.XUnit` for UI tests without a display server, Criterion.rs for Rust benchmarks, GoogleTest for C++ unit tests, AddressSanitizer/UndefinedBehaviorSanitizer for native FFI memory and undefined-behavior checks, and Tracy Profiler for performance investigation. Run `scripts/run_qa_suite.ps1` on Windows or `scripts/run_qa_suite.sh` on Linux/macOS before every release; all static analysis, tests, sanitizer checks, and coverage reporting must pass.
 - **Unified QA Suite:** The scripts run `dotnet format --verify-no-changes`, `cargo clippy`, and `clang-tidy`, then .NET, Rust, Criterion waveform benchmark, CTest, and Python test suites, and finally collect/verify code-coverage reports. QA prerequisites include .NET 8 SDK, Rust/Cargo, GCC or GNU-compatible Clang with ASan/UBSan, CMake, Ninja, `clang-tidy`, `cargo-llvm-cov`, `gcovr`, Python with `pytest-cov`, and CTest. Missing or unsupported tools must fail the suite explicitly rather than silently skipping a check.
+- **QA Reporting & Standards Traceability:** Every QA step is tagged with an ISO/IEC 25010 pillar (Performance Efficiency, Reliability, Usability, Portability, Maintainability) and the ABNT NBR / ISO/IEC requirement it evidences. Each step logs `START` / `PASS` / `FAIL` lines with that requirement to `logs/neoveg.log` (`[QA/<Pillar>]` source), and the suite always writes `coverage/qa/qa_report.json` plus `docs/qa_report.js` (also on failure), which `docs/index.html` renders in its ISO/ABNT compliance panel.
 - **Performance & Bottleneck Elimination Benchmarks:**
   - **UI Thread (Avalonia):** The main UI thread must never freeze during timeline zooming, scrubbing, or event dragging. Heavy operations (waveform generation, project parsing, FFmpeg indexing) must be executed asynchronously on background threads or via Rust FFI, with pre-allocated static pens/brushes (`StaticCenterAxisPen`, `BrushCache`) to avoid per-frame GC pressure.
   - **Profiling & Benchmarks:** Maintain waveform engine benchmarks with Criterion.rs and use Tracy Profiler to capture representative timeline/rendering workloads before release.
@@ -267,7 +268,7 @@ To ensure industrial-grade software reliability, maintainability, and cross-plat
   - **Portability:** Codebase must build natively on Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`) using abstraction layers (`OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, `OperatingSystem.IsMacOS()`, `Path.Combine`) without hardcoded Windows-only paths.
   - **Maintainability:** Code structure must maintain clean modular isolation between C# Avalonia, Rust FFI, C++ Extensions, and Python backend.
 - **ISO/IEC 29119 (Software Testing Standard):**
-  - All features must pass automated unit, integration, and headless UI tests (`Avalonia.Headless`) before being merged or packaged for release, with QA reports (`scripts/run_qa_suite.ps1` and `docs/index.html`) categorized by ISO/IEC 25010 quality pillars.
+  - All features must pass automated unit, integration, and headless UI tests (`Avalonia.Headless`) before being merged or packaged for release, with QA reports (`scripts/run_qa_suite.ps1`, `scripts/run_qa_suite.sh`, `coverage/qa/qa_report.json`, and `docs/index.html`) categorized by ISO/IEC 25010 quality pillars. See Section 18 for the ABNT NBR harmonization.
 - **ISO/IEC 27001 / Memory Safety Assurance:**
   - Dynamic memory allocations across FFI boundaries must use explicit ownership and cleanup models (AddressSanitizer and LeakSanitizer validated, explicit `neoveg_free_buffer` / `neoveg_cpp_free_buffer` / `IDisposable` deallocators, and 64-bit integer overflow guards).
 
@@ -290,3 +291,21 @@ To guarantee seamless execution across Windows, Linux, and macOS:
 - **Cross-Platform Launcher Scripts (`scripts/`):**
   - **`scripts/neoveg.sh` (Linux & macOS):** Must carry executable permissions (`chmod +x`), auto-detect the kernel (`Linux` vs `Darwin`), configure `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) pointing to `runtimes/<rid>/native/` and `runtimes/<rid>/ffmpeg/lib/`, initialize the platform cache directory, and launch `Neoveg`.
   - **`scripts/neoveg.bat` (Windows):** Configures `PATH` for `runtimes\win-x64\native\` and `runtimes\win-x64\ffmpeg\bin\`, prepares `%LOCALAPPDATA%\Neoveg\AppCache`, and launches `Neoveg.exe`.
+
+---
+
+## 18. ABNT NBR & ISO/IEC Technical Standards Compliance
+
+Neoveg aligns its software architecture, quality assurance protocols, and life-cycle management with Brazilian technical standards (ABNT NBR) harmonized with the international ISO/IEC specifications. This is a declared alignment for engineering practice, not a certification issued by an accredited body:
+
+- **ABNT NBR ISO/IEC 25010 (Quality Model for Software Products):**
+  - **Performance Efficiency:** Sub-millisecond audio peak calculations (Rust Core, Criterion `audio_peaks` benchmark) and smooth timeline rendering (Avalonia UI) without thread contention.
+  - **Functional Suitability:** Full parity with VEGAS Pro editing workflows, keyboard shortcuts, and signal routing topology (Section 10).
+  - **Portability:** Native build capability across Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`); Windows-only paths (e.g., the Google Drive mirror) must be guarded by `OperatingSystem.IsWindows()` / `os.name == "nt"` or be overridable through environment variables.
+- **ABNT NBR ISO/IEC/IEEE 29119 (Software Testing Framework):**
+  - Continuous execution of multi-tier test suites (Unit, Integration, FFI Safety, and Headless UI rendering via `Avalonia.Headless`) through `scripts/run_qa_suite.ps1` / `scripts/run_qa_suite.sh`, with coverage evidence in `coverage/qa/`.
+- **ABNT NBR ISO/IEC 12207 & 14764 (Life Cycle Processes & Maintenance):**
+  - Strict modular separation across C# frontend, Rust core, C++ extensions, and Python backend to support long-term maintainability, enforced by `dotnet format`, `cargo clippy`, and `clang-tidy`.
+- **ABNT NBR ISO/IEC 27001 (Information & Memory Security):**
+  - Memory-safe FFI boundaries (caller-owned buffers with explicit lengths, `catch_unwind`, `neoveg_free_buffer` / `neoveg_cpp_free_buffer`), zero buffer overruns validated under ASan/UBSan, and isolated local caching (`%LOCALAPPDATA%\Neoveg\AppCache\`).
+- **Traceability in Logs & Reports:** Every automated check must reference its corresponding ABNT NBR / ISO/IEC requirement in `logs/neoveg.log` and in `coverage/qa/qa_report.json`; `docs/index.html` displays the ABNT NBR ISO/IEC badges and the per-pillar QA results.
