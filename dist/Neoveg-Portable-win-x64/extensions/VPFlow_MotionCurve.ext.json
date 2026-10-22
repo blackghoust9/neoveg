@@ -1,0 +1,8 @@
+{
+  "id": "vpflow_extension",
+  "name": "VPFlow 2.4 — Motion Curve & Velocity Graph Editor",
+  "vendor": "VPFlow Community / Neoveg Dockable Extension",
+  "version": "2.4.0",
+  "category": "View.WindowExtensions",
+  "description": "Editor interativo de curvas Bezier (Ease In/Out, Elastic, Exponential) para Keyframes de Event Pan/Crop, Velocity Envelopes e Auto-Crossfades."
+}

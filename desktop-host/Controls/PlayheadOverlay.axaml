@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Neoveg.Controls"
+             x:Class="Neoveg.Controls.PlayheadOverlay"
+             IsHitTestVisible="False"
+             ClipToBounds="True">
+    <!--
+        Neoveg Playhead Overlay & Classic VEGAS Pro Edit Cursor Blink (`PlayheadOverlay.axaml` / `TimelineCursor.cs`):
+        - Dedicated 60 FPS Overlay Layer above the Multi-Track Timeline (`MultiTrackTimelineControl`).
+        - Pentagonal Blue Head (#2980B9 / #3498DB) with pointed bottom beak and right horizontal flag.
+        - SMPTE Timecode Readout Box (00;00;50;00 Drop-Frame / 00:00:50:00 Non-Drop-Frame) above the marker tip.
+        - 1px Vertical Blue Guide Line with VEGAS Pro Edit Cursor Blink:
+          * Paused / Stopped (IsPlaying == false): DispatcherTimer (~500ms) alternates VerticalLineOpacity between 1.0 and 0.0.
+          * Playing (IsPlaying == true) or Scrubbing: Stops blink timer immediately, locks VerticalLineOpacity = 1.0, updates X at 60 FPS.
+          * Keyboard Frame Stepping (Left / Right Arrow Keys): Resets blink timer and holds VerticalLineOpacity = 1.0 during movement,
+            resuming the 500ms blink 500ms after the last key press.
+    -->
+    <controls:PlayheadOverlayCanvas x:Name="PART_PlayheadOverlayCanvas" />
+</UserControl>

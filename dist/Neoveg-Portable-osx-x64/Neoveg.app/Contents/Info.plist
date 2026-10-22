@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Neoveg</string>
+    <key>CFBundleDisplayName</key>
+    <string>Neoveg Pro 21 Studio</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.neoveg.studio</string>
+    <key>CFBundleVersion</key>
+    <string>21.2.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>Neoveg</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>

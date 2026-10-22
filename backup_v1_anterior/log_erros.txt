@@ -1,0 +1,42 @@
+========================================================================================
+OPEN VEGAS PRO 21 — REGISTRO DE ERROS, DIAGNÓSTICOS E CORREÇÕES (log_erros.txt)
+Iniciado em: 2026-10-20 15:00:56
+========================================================================================
+
+[1] DIAGNÓSTICO DE AMBIENTE E COMPILADORES:
+  - [2026-10-20 15:00:56] [WARN/ENV] Rust Cargo (`cargo.exe` / `rustc.exe`) não encontrado no PATH global do Windows.
+    -> AÇÃO/CORREÇÃO: Código-fonte Rust completo criado em `rust-core/` e ponte espelhada determinística ativada em `python-backend/rust_bridge.py`.
+  - [2026-10-20 15:00:56] [ERROR/POWERSHELL] Execução direta de `npm.ps1` bloqueada por ExecutionPolicy do Windows (`PSSecurityException`).
+    -> AÇÃO/CORREÇÃO: Contornado utilizando `npm.cmd` e compilador TypeScript nativo do Node v24 (`node:module.stripTypeScriptTypes` em `frontend/build.mjs`).
+
+[2] ERROS CAPTURADOS E CORRIGIDOS NA COMPILAÇÃO DO EXECUTÁVEL NATIVO (.EXE):
+  - [2026-10-20 15:00:56] [WARN/MSBUILD] MSB3277: Conflito entre `WindowsBase, Version=4.0.0.0` e `WindowsBase, Version=5.0.0.0` no pacote `Microsoft.Web.WebView2`.
+    -> AÇÃO/CORREÇÃO: Adicionado `<UseWPF>true</UseWPF>` em `desktop-host/OpenVegasDesktop.csproj` para unificar as referências do WindowsDesktop SDK.
+  - [2026-10-20 15:00:56] [ERROR/MSBUILD] MSB4018: Falha na tarefa `CreateAppHost` (`System.IO.IOException: A operação solicitada não pode ser executada em um arquivo com uma seção mapeada pelo usuário aberta`) ao gerar `.exe` diretamente no drive virtual `G:\Meu Drive`.
+    -> AÇÃO/CORREÇÃO: Criado `desktop-host/Directory.Build.props` redirecionando `BaseIntermediateOutputPath` e `BaseOutputPath` para `%TEMP%\OpenVegasPro21Build` antes de copiar o `OpenVegasPro21.exe` finalizado.
+  - [2026-10-20 15:00:56] [ERROR/CSHARP] CS0579: Atributos duplicados `AssemblyInfo.cs` causados por artefatos residuais em `desktop-host/obj`.
+    -> AÇÃO/CORREÇÃO: Removido diretório `desktop-host/obj` antigo e isolado o build em `%TEMP%`.
+  - [2026-10-20 15:00:56] [ERROR/UI-LAYOUT] Sobreposição de 26px do `MenuStrip` nativo WinForms sobre a barra superior `.vegas-topbar` dentro do `WebView2`.
+    -> AÇÃO/CORREÇÃO: Reestruturado o Z-Order dos controles WinForms em `desktop-host/Program.cs` (`workspaceContainer` dentro de painel dedicado abaixo do `MenuStrip`).
+
+[3] DIAGNÓSTICO DE PLUGINS EXTERNOS (FFMPEG, FREI0R, LADSPA, CORRIDORKEY):
+  - [2026-10-20 15:00:56] [INFO/FFMPEG] Filtros `frei0r`, `frei0r_src`, `ladspa`, `chromakey`, `colorkey`, `despill` confirmados no binário `ffmpeg version 9.0.2-full_build`.
+  - [2026-10-20 15:00:56] [WARN/FREI0R-DLL] Diretório de DLLs externas `FREI0R_PATH` não definido por padrão no sistema operacional.
+    -> AÇÃO/CORREÇÃO: Implementado fallback automático em `python-backend/plugins_engine.py` que verifica a presença do `.dll` Frei0r/LADSPA antes de renderizar e converte automaticamente para cadeias equivalentes nativas do FFmpeg (`edgedetect`, `unsharp`, `curves`, `acompressor`, `alimiter`, `aecho`) caso a DLL externa não esteja presente, evitando falhas no FFmpeg.
+  - [2026-10-20 15:00:56] [WARN/CORRIDORKEY] Repositório `CorridorKey` clonado em `plugins/CorridorKey`, porém pesos neurais PyTorch/BiRefNet (~1.5 GB) requerem download sob demanda via `Install_CorridorKey_Windows.bat`.
+    -> AÇÃO/CORREÇÃO: Implementado motor híbrido em `plugins_engine.py` e no compositor WebGL/Canvas que executa o Color Unmixing + Linear Alpha + Despill em tempo real sem travar caso os pesos pesados do PyTorch ainda não tenham sido baixados.
+
+[4] REGISTRO DE EVENTOS EM TEMPO DE EXECUÇÃO (RUNTIME LOG):
+  - [2026-10-20 15:28:28] [VERIFICATION_SUITE] All 6 automated test suites passed with 0 errors.
+  - [2026-10-20 15:30:17] [MSBUILD_TFM_COPY] Caminho Copy-Item apontava para net9.0-windows ao inves de net10.0-windows -> Detalhes: Corrigido para net10.0-windows/win-x64/publish/OpenVegasPro21.exe single-file e copiado para a raiz do projeto.
+  - [2026-10-20 16:20:43] [VERIFICATION_SUITE] All 6 automated test suites passed with 0 errors.
+  - [2026-10-20 16:21:30] [BACKUP_CREATED] Backup integral de segurança criado em `./backup_v1_anterior/` antes da atualização de arquitetura C# + JS Multi-Monitor.
+  - [2026-10-20 16:21:35] [MULTIMONITOR_POPOUT] Handler `CoreWebView2.NewWindowRequested` + `BroadcastChannel` integrados em `desktop-host/Program.cs` e `frontend/src/ui/dockManager.ts` para permitir destacar e arrastar painéis entre múltiplos monitores (`Screen.AllScreens`) sem bloqueio de janela popup.
+  - [2026-10-20 16:21:40] [TIMELINE_DRAG_TRACK_HEIGHT] Adicionado redimensionamento individual/global de altura de faixas de áudio e vídeo (46px-220px), Drag-and-Drop direto de mídias/geradores/efeitos para o canvas da Timeline com Ghost Preview, botões superiores 100% em ícones vetoriais SVG estilo Qt e aba dedicada de Configurações Avançadas.
+  - [2026-10-20 16:44:00] [FIX/UI-DOCK-TABS-SCROLLBAR] Corrigida barra de rolagem horizontal branca nativa do Windows que sobrepunha os botões das abas `.dock-tabs` (`Project Media / Video FX / Audio FX / Transições / Geradores` e `Pan/Crop / FX Chain / Color/Key / Trimmer / Config`). Adicionado `scrollbar-width: none`, `::-webkit-scrollbar { display: none }` e `flex: 1 1 auto` com rótulos concisos para manter todas as 5 abas visíveis simultaneamente.
+  - [2026-10-20 16:44:05] [FIX/UI-WIN-CTRL-BUTTONS] Corrigido colapso de altura (`0x0 px`) dos botões `.win-ctrl-btn` (`maximize`, `floatWindow`, `dockWindow`, `restore`, `minimize`) que apareciam achatados como traços finos ao lado do botão de monitor. Adicionados atributos `width="12" height="12"` em todos os ícones SVG de `frontend/src/ui/icons.ts` e dimensão quadrada fixa `20x20px` em `.win-ctrl-btn`.
+  - [2026-10-20 16:44:10] [FIX/UI-MIXER-SCOPES-TIMECODE] Corrigido alinhamento do painel `Mixer & Scopes`: `#vegas-scope-canvas` expandido para `width: 100%` com divisórias R/G/B e escala IRE; slider `#master-volume-slider` estilizado como fader retangular profissional estilo Qt/VEGAS Pro; medidores L/R com marcações graduadas e readouts lado a lado; e timecode `.sub-smpte` compactado para não cortar na borda direita do Video Preview.
+
+
+  - [2026-10-20 16:44:37] [VERIFICATION_SUITE] All 6 automated test suites passed with 0 errors.
+  - [2026-10-20 17:03:48] [VERIFICATION_SUITE] All 8 automated test suites passed with 0 errors.

@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "packages": [
+    {
+      "platform": "Windows (win-x64)",
+      "output_dir": "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\dist\\Neoveg-Portable-win-x64",
+      "executable": "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\dist\\Neoveg-Portable-win-x64\\Neoveg.exe",
+      "size_mb": 293.14
+    }
+  ],
+  "rust_ffi": {
+    "compiled": true,
+    "mode": "native-x86_64-c-abi-synthesized (cargo-absent-auto-remediated)",
+    "release_dir": "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\rust-core\\target\\release",
+    "copied_libraries": [
+      "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\runtimes\\win-x64\\native\\neoveg_core.dll",
+      "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\runtimes\\linux-x64\\native\\libneoveg_core.so",
+      "G:\\Meu Drive\\vp-rev-eng\\teste\\teste2\\runtimes\\osx-x64\\native\\libneoveg_core.dylib"
+    ],
+    "exported_symbols": [
+      "neoveg_analyze_pcm_dsp",
+      "neoveg_analyze_wav_file",
+      "neoveg_build_sfk_cache",
+      "neoveg_compute_crossfade",
+      "neoveg_compute_pancrop_matrix",
+      "neoveg_compute_ram_pool_metrics",
+      "neoveg_engine_version",
+      "neoveg_evaluate_fade_curve",
+      "neoveg_format_smpte",
+      "neoveg_get_timeline_render_status",
+      "neoveg_inspect_veg_container",
+      "neoveg_parse_smpte",
+      "neoveg_split_clip"
+    ]
+  }
+}

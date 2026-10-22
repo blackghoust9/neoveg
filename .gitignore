@@ -1,0 +1,79 @@
+# Neoveg app data, logs, and local caches
+logs/
+*.log
+*.sfk
+*.sfvp0
+AppCache/
+temp/
+docs/coverage/
+
+# Operating system artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# C# / .NET / Avalonia
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+[Tt]est[Rr]esult*/
+
+# Rust
+target/
+**/*.rs.bk
+
+# C++ / CMake
+build/
+out/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+*.dir/
+*.VC.db
+*.opendb
+*.ipch
+*.idb
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.o
+*.lib
+*.a
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+.coverage
+
+# IDEs and editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/cmake-kits.json
+*.swp
+*.swo
+
+# Google Drive shortcuts
+*.gslides
+*.gdoc
+*.gsheet

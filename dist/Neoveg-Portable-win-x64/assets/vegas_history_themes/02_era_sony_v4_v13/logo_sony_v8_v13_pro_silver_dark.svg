@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="sony_pro" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#93C5FD"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="12" fill="#3B3D42" stroke="#9CA3AF" stroke-width="5"/>
+  <polygon points="46,60 94,60 128,168 162,60 210,60 148,212 108,212" fill="url(#sony_pro)" stroke="#E5E7EB" stroke-width="3"/>
+  <rect x="42" y="218" width="172" height="8" fill="#F37021"/>
+  <text x="128" y="44" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="19" fill="#E5E7EB" letter-spacing="3">SONY VEGAS PRO</text>
+</svg>

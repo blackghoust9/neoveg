@@ -1,0 +1,1378 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="Painel interativo de progresso do projeto Neoveg: arquitetura multi-linguagem (C#, Rust, C++, Python), etapas concluídas, pipeline de áudio/vídeo e suíte de validação 32/32.">
+  <title>Neoveg — Painel de Progresso &amp; Arquitetura</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Noto Sans, Helvetica, Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --canvas: #0d1117;
+      --canvas-subtle: #161b22;
+      --canvas-elevated: #1c2128;
+      --border: #30363d;
+      --border-muted: #21262d;
+      --muted: #8b949e;
+      --link: #58a6ff;
+      --blue: #3498db;
+      --green: #2ecc71;
+      --green-gh: #3fb950;
+      --yellow: #f1c40f;
+      --orange: #e67e22;
+      --red: #e74c3c;
+      --purple: #9b59b6;
+      --cyan: #1abc9c;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); color: #e6edf3; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button, input { font: inherit; }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    /* Topbar */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 24px;
+      background: rgba(1, 4, 9, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .menu-button, .icon-button, .search input {
+      color: #c9d1d9;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .menu-button:hover, .icon-button:hover {
+      border-color: #8b949e;
+      background: var(--canvas-subtle);
+      cursor: pointer;
+    }
+    .menu-button, .icon-button {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #3498db;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #1b4f72, #0d1117);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(52, 152, 219, 0.28);
+    }
+    .crumb { color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .crumb strong { color: #f0f6fc; }
+    .version-pill {
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(52, 152, 219, 0.15);
+      border: 1px solid rgba(52, 152, 219, 0.45);
+      color: #58a6ff;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .top-spacer { flex: 1; }
+    .search { position: relative; width: min(340px, 34vw); }
+    .search input {
+      width: 100%;
+      height: 34px;
+      padding: 0 32px 0 12px;
+      font-size: 13px;
+    }
+    .search input:focus {
+      outline: none;
+      border-color: var(--link);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+    }
+    .search-kbd {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 1px 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .top-actions { display: flex; gap: 8px; }
+
+    /* Navigation Tabs */
+    .repo-nav {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 0 24px;
+      background: #010409;
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: thin;
+    }
+    .repo-nav a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 12px 12px;
+      color: #c9d1d9;
+      white-space: nowrap;
+      font-size: 13px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .repo-nav a:hover { color: #f0f6fc; text-decoration: none; }
+    .repo-nav a.active { border-color: #f78166; color: #f0f6fc; font-weight: 600; }
+    .repo-nav .count {
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: #21262d;
+      color: #c9d1d9;
+      font-size: 11px;
+    }
+    .repo-nav .count.green {
+      background: rgba(46, 204, 113, 0.18);
+      color: #7ee787;
+      border: 1px solid rgba(46, 204, 113, 0.35);
+    }
+
+    /* Main Container */
+    .container { width: min(1280px, calc(100% - 48px)); margin: 26px auto 64px; }
+    .repo-heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 0 0 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .repo-heading h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    .visibility {
+      border: 1px solid #238636;
+      background: rgba(46, 160, 67, 0.15);
+      border-radius: 20px;
+      padding: 3px 10px;
+      color: #7ee787;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .os-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .os-badge {
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--canvas-subtle);
+      color: #c9d1d9;
+      font-size: 11px;
+    }
+    .repo-heading .updated { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+    /* Render Status Ruler Simulator (Tri-color bar from Neoveg Timeline) */
+    .render-ruler-card {
+      margin-top: 20px;
+      padding: 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #11161d;
+    }
+    .render-ruler-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .render-ruler-bar {
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 78% 15% 7%;
+      gap: 2px;
+      background: #010409;
+    }
+    .seg-green { background: var(--green); }
+    .seg-yellow { background: var(--yellow); }
+    .seg-red { background: var(--red); }
+    .ruler-legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 9px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .ruler-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+    /* Layout Grid */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 30px;
+      padding-top: 24px;
+    }
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 0 0 14px;
+    }
+    h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .eyebrow { color: var(--muted); font-size: 12px; }
+
+    /* Overview Card */
+    .overview {
+      padding: 22px;
+      margin-bottom: 26px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: linear-gradient(120deg, #161b22 0%, #101720 65%, #132232 100%);
+    }
+    .overview-top { display: flex; align-items: flex-start; gap: 14px; }
+    .status-dot {
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.22);
+    }
+    .overview h2 { font-size: 18px; }
+    .overview p { margin: 7px 0 0; color: #b1bac4; font-size: 14px; line-height: 1.55; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 14px;
+      padding-top: 18px;
+      margin-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .stat {
+      padding: 10px 12px;
+      border: 1px solid var(--border-muted);
+      border-radius: 7px;
+      background: rgba(13, 17, 23, 0.55);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .stat strong { display: block; color: #f0f6fc; font-size: 17px; margin-bottom: 3px; }
+    .stat strong.accent-green { color: #7ee787; }
+    .stat strong.accent-blue { color: #58a6ff; }
+
+    /* Filter Bar */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .filter-btn {
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--canvas-subtle);
+      color: #c9d1d9;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .filter-btn:hover { border-color: #8b949e; color: #fff; }
+    .filter-btn.active {
+      background: #1f6feb;
+      border-color: #388bfd;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Milestones Grid */
+    .milestones { display: grid; gap: 10px; margin-bottom: 30px; }
+    .milestone {
+      display: grid;
+      grid-template-columns: 6px 36px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 13px;
+      padding: 14px 16px 14px 0;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--canvas);
+      overflow: hidden;
+      transition: border-color 0.15s ease, transform 0.12s ease;
+    }
+    .milestone:hover { border-color: #58a6ff; }
+    .milestone[hidden] { display: none; }
+    .track-accent {
+      width: 4px;
+      height: 100%;
+      min-height: 44px;
+      border-radius: 0 3px 3px 0;
+    }
+    .milestone-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: #c9d1d9;
+      background: var(--canvas-subtle);
+      font-size: 15px;
+    }
+    .milestone h3 { margin: 0; font-size: 14px; font-weight: 600; color: #f0f6fc; }
+    .milestone p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.48; }
+    .milestone-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 7px;
+    }
+    .meta-tag {
+      padding: 1px 7px;
+      border-radius: 4px;
+      background: #161b22;
+      border: 1px solid var(--border-muted);
+      color: #8b949e;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: #c9d1d9;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .badge.done { color: #7ee787; border-color: #238636; background: rgba(46, 160, 67, 0.1); }
+    .badge.done::before { background: var(--green-gh); }
+    .badge.progress { color: #eac55f; border-color: #9e6a03; background: rgba(210, 153, 34, 0.1); }
+    .badge.progress::before { background: var(--yellow); }
+
+    /* Architecture Pipeline Cards */
+    .arch-box {
+      padding: 18px;
+      margin-bottom: 30px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas-subtle);
+    }
+    .fx-chain {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 18px;
+    }
+    .fx-node {
+      flex: 1 1 120px;
+      padding: 10px 12px;
+      border: 1px solid #2b4c7e;
+      border-radius: 7px;
+      background: #0d1826;
+      text-align: center;
+    }
+    .fx-node strong { display: block; font-size: 12px; color: #58a6ff; }
+    .fx-node span { font-size: 11px; color: var(--muted); }
+    .fx-arrow { color: #58a6ff; font-weight: 700; font-size: 14px; }
+
+    .platform-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    .platform-table th, .platform-table td {
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    .platform-table th {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-weight: 600;
+    }
+
+    /* File Browser */
+    .file-browser {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      margin-bottom: 30px;
+    }
+    .file-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 11px 14px;
+      background: var(--canvas-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .branch {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #0d1117;
+      color: #e6edf3;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .file-hint { color: var(--muted); font-size: 12px; }
+    .file-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.1fr) minmax(200px, 1.6fr) 130px;
+      gap: 12px;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      transition: background 0.12s ease;
+    }
+    .file-row:hover { background: rgba(22, 27, 34, 0.75); }
+    .file-row:last-child { border-bottom: 0; }
+    .file-row[hidden] { display: none; }
+    .file-name { overflow: hidden; color: #e6edf3; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .file-name span { margin-right: 8px; color: #58a6ff; }
+    .file-note { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .file-status { justify-self: end; color: #7ee787; font-size: 11px; font-family: ui-monospace, monospace; }
+    .empty-state { display: none; padding: 20px; color: var(--muted); text-align: center; font-size: 13px; }
+
+    /* QA Test Suite Explorer (32 Tests) */
+    .qa-box {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    .qa-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 15px;
+      background: var(--canvas-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .qa-list {
+      max-height: 420px;
+      overflow-y: auto;
+      divide-y: 1px solid var(--border);
+    }
+    .qa-item {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border-muted);
+      font-size: 12px;
+    }
+    .qa-item:last-child { border-bottom: 0; }
+    .qa-item[hidden] { display: none; }
+    .qa-pass {
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(46, 204, 113, 0.16);
+      border: 1px solid rgba(46, 204, 113, 0.4);
+      color: #7ee787;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+    }
+    .qa-lang {
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #161b22;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    /* Sidebar */
+    aside h2 { margin-bottom: 11px; }
+    .about { padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .about p { margin: 0 0 13px; color: #b1bac4; font-size: 13px; line-height: 1.55; }
+    .about-link { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; }
+    .side-section { padding: 17px 0; border-bottom: 1px solid var(--border); }
+    .side-section h3 { margin: 0 0 11px; color: #c9d1d9; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 4px 9px;
+      border: 1px solid #1f3a5f;
+      border-radius: 20px;
+      background: #101d2f;
+      color: #58a6ff;
+      font-size: 11px;
+    }
+    .side-link { display: flex; align-items: center; gap: 8px; margin: 9px 0; color: #b1bac4; font-size: 12px; }
+    .side-link span { color: var(--muted); }
+
+    /* Language Breakdown Bar */
+    .lang-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      gap: 2px;
+      margin-bottom: 10px;
+    }
+    .lang-legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 11px;
+      color: #c9d1d9;
+    }
+    .lang-legend div { display: flex; align-items: center; gap: 6px; }
+
+    /* Quick Commands Box */
+    .cmd-block {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 9px;
+      margin-bottom: 7px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #010409;
+      font-size: 11px;
+    }
+    .cmd-block code {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #c9d1d9;
+    }
+    .copy-btn {
+      flex: 0 0 auto;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--canvas-subtle);
+      color: #c9d1d9;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .copy-btn:hover { border-color: #58a6ff; color: #fff; }
+    .copy-btn.copied { border-color: #238636; background: rgba(46, 160, 67, 0.2); color: #7ee787; }
+
+    .validation-note {
+      padding: 12px;
+      border: 1px solid #238636;
+      border-radius: 7px;
+      background: rgba(46, 160, 67, 0.1);
+      color: #7ee787;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* Shortcuts Grid */
+    .shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      font-size: 11px;
+    }
+    .sc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 8px;
+      border: 1px solid var(--border-muted);
+      border-radius: 5px;
+      background: var(--canvas-subtle);
+    }
+    .sc-item kbd {
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #0d1117;
+      color: #58a6ff;
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+    }
+
+    footer {
+      padding: 26px 0 0;
+      border-top: 1px solid var(--border-muted);
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+      aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+      .about { grid-column: 1 / -1; }
+    }
+    @media (max-width: 620px) {
+      .topbar { gap: 10px; padding: 0 14px; }
+      .topbar .top-actions { display: none; }
+      .search { width: 42vw; }
+      .repo-nav { padding: 0 10px; }
+      .container { width: calc(100% - 28px); margin-top: 18px; }
+      .repo-heading h1 { font-size: 18px; }
+      .repo-heading .updated { display: none; }
+      .milestone { grid-template-columns: 4px 32px minmax(0, 1fr); padding-right: 12px; }
+      .milestone .badge { grid-column: 3; justify-self: start; margin-top: 6px; }
+      .file-row { grid-template-columns: minmax(0, 1fr) 95px; gap: 8px; padding: 9px 11px; }
+      .file-note { display: none; }
+      aside { grid-template-columns: minmax(0, 1fr); }
+      .about { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <button class="menu-button" id="reset-filters-btn" title="Mostrar todos os itens" aria-label="Menu">☰</button>
+    <a class="brand-mark" href="./progresso.html" aria-label="Neoveg">N</a>
+    <div class="crumb">
+      <span>Neoveg</span>
+      <span aria-hidden="true">/</span>
+      <strong>progresso.html</strong>
+      <span class="version-pill">v2.1.0</span>
+    </div>
+    <div class="top-spacer"></div>
+    <label class="search">
+      <input id="file-search" type="search" placeholder="⌕  Filtrar subsistemas, arquivos ou testes..." aria-label="Filtrar subsistemas, arquivos ou testes">
+      <span class="search-kbd">/</span>
+    </label>
+    <div class="top-actions">
+      <button class="icon-button" id="copy-report-btn" title="Copiar resumo de progresso para a área de transferência">📋</button>
+    </div>
+  </header>
+
+  <nav class="repo-nav" aria-label="Navegação do projeto">
+    <a href="#etapas" class="active" data-nav="etapas"><span>◷</span> Etapas &amp; Subsistemas <span class="count">12</span></a>
+    <a href="#arquitetura" data-nav="arquitetura"><span>▦</span> Arquitetura &amp; FX Pipeline</a>
+    <a href="#validacao" data-nav="validacao"><span>✓</span> Suíte QA Automatizada <span class="count green">33/33 PASS</span></a>
+    <a href="#estrutura" data-nav="estrutura"><span>◇</span> Código &amp; Estrutura <span class="count">17</span></a>
+    <a href="./docs/index.html"><span>⬡</span> GitHub Dashboard (docs/index.html)</a>
+    <a href="./AGENTS.md"><span>⚙</span> AGENTS.md</a>
+    <a href="./README.md"><span>▤</span> README</a>
+  </nav>
+
+  <main class="container">
+    <div class="repo-heading">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <h1>Neoveg — NLE Multiplataforma</h1>
+      <span class="visibility">33/33 Testes Aprovados</span>
+      <div class="os-badges">
+        <span class="os-badge">Windows x64 (.dll / Self-Contained)</span>
+        <span class="os-badge">Linux x64 (.so / AppDir)</span>
+        <span class="os-badge">macOS x64 &amp; arm64 (.dylib / .app)</span>
+      </div>
+      <span class="updated">Snapshot sincronizado · 22 out 2026</span>
+    </div>
+
+    <!-- Barra de Status de Pré-Renderização (RenderStatusRuler.axaml) -->
+    <div class="render-ruler-card" role="region" aria-label="Status de Prerender e Validação da Arquitetura">
+      <div class="render-ruler-header">
+        <strong>Barra de Status de Pré-Renderização &amp; Maturidade dos Subsistemas (RenderStatusRuler)</strong>
+        <span class="eyebrow">C# Avalonia UI 11 • Rust FFI (neoveg_core) • C++17 (neoveg_cpp_engine) • Python (neoveg)</span>
+      </div>
+      <div class="render-ruler-bar" title="Verde: RAM Cache 60 FPS | Amarelo: Fila Simples | Vermelho: Efeitos Complexos">
+        <div class="seg-green"></div>
+        <div class="seg-yellow"></div>
+        <div class="seg-red"></div>
+      </div>
+      <div class="ruler-legend">
+        <span><i class="dot" style="background:#2ECC71"></i> <strong>#2ECC71 Verde:</strong> Cache RAM / Prerender 60 FPS &amp; Subsistemas Verificados (100% da suíte principal)</span>
+        <span><i class="dot" style="background:#F1C40F"></i> <strong>#F1C40F Amarelo:</strong> Decodificação Simples / Fila de Pré-Renderização Seletiva (Shift+B / Shift+M)</span>
+        <span><i class="dot" style="background:#E74C3C"></i> <strong>#E74C3C Vermelho:</strong> Segmentos com Múltiplas Camadas OpenFX / VST3 antes do Prerender</span>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div>
+        <!-- Visão Geral -->
+        <section class="overview" aria-labelledby="overview-title">
+          <div class="overview-top">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div>
+              <h2 id="overview-title">Arquitetura Híbrida de Edição Não-Linear de Vídeo &amp; Áudio</h2>
+              <p>
+                O <strong>Neoveg</strong> combina interface reativa em <strong>C# (.NET 8.0 Self-Contained + Avalonia UI 11)</strong>,
+                processamento matemático e cache de picos de áudio (<code>.sfk</code>) em <strong>Rust (<code>neoveg_core</code>)</strong>,
+                hospedagem de plugins profissionais <strong>OpenFX 1.4, VST3 3.7, Voukoder e Whisper.cpp</strong> com isolamento em memória compartilhada (<code>NVSH</code>) em
+                <strong>C++17 (<code>neoveg_cpp_engine</code>)</strong> e automação/intercâmbio em <strong>Python (<code>neoveg</code>)</strong>.
+              </p>
+            </div>
+          </div>
+          <div class="stats" aria-label="Resumo quantitativo do projeto">
+            <div class="stat"><strong class="accent-green">32 / 32</strong>Testes QA aprovados</div>
+            <div class="stat"><strong class="accent-blue">.NET 8.0</strong>Self-Contained (win-x64)</div>
+            <div class="stat"><strong>13 + 11</strong>Exports FFI (Rust + C++)</div>
+            <div class="stat"><strong>8 Idiomas</strong>i18n (pt-BR padrão)</div>
+            <div class="stat"><strong>4 Temas</strong>1999 Sonic Foundry → 2026</div>
+          </div>
+        </section>
+
+        <!-- Etapas e Subsistemas -->
+        <section id="etapas" aria-labelledby="milestones-title">
+          <div class="section-heading">
+            <h2 id="milestones-title">Etapas do Projeto &amp; Subsistemas Concluídos</h2>
+            <span class="eyebrow" id="milestone-counter">Exibindo 12 de 12 subsistemas</span>
+          </div>
+
+          <div class="filter-bar" role="toolbar" aria-label="Filtrar subsistemas por linguagem">
+            <button class="filter-btn active" data-filter="all">Todos (12)</button>
+            <button class="filter-btn" data-filter="csharp">C# / Avalonia UI</button>
+            <button class="filter-btn" data-filter="rust">Rust Core (FFI)</button>
+            <button class="filter-btn" data-filter="cpp">C++17 Engine &amp; DirectX</button>
+            <button class="filter-btn" data-filter="python">Python &amp; IA</button>
+            <button class="filter-btn" data-filter="infra">Multi-OS &amp; Packaging</button>
+          </div>
+
+          <div class="milestones" id="milestones-list">
+            <article class="milestone" data-category="csharp" data-search="avalonia ui c# timeline event header pan crop gizmo docking">
+              <div class="track-accent" style="background:#3498DB"></div>
+              <div class="milestone-icon" aria-hidden="true">▣</div>
+              <div>
+                <h3>Frontend Desktop C# (.NET 8.0 + Avalonia UI 11) &amp; Docking</h3>
+                <p>Janelas acopláveis/flutuantes (Project Media, Trimmer, Video Preview, Audio Mixer, Track Motion, Event Pan/Crop de 3 zonas com Gizmo 'F'), Event Header com 4 botões SVG e menu hambúrguer (☰).</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">MainWindow.cs</span>
+                  <span class="meta-tag">MultiTrackTimelineControl.cs</span>
+                  <span class="meta-tag">EventPanCropWindow.cs</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+
+            <article class="milestone" data-category="csharp" data-search="playhead cti cursor blink 500ms 60fps renderstatusruler cores faixas">
+              <div class="track-accent" style="background:#2ECC71"></div>
+              <div class="milestone-icon" aria-hidden="true">▶</div>
+              <div>
+                <h3>Playhead (CTI) com Blink 500ms, Régua Tri-Color &amp; Paleta Automática de Faixas</h3>
+                <p>Agulha azul pentagonal (#2980B9) com piscar suave de 500ms em pausa e trava sólida a 60 FPS durante reprodução/scrubbing. Barra lateral de 4px com paleta automática (TrackColorPaletteService) e propagação de tint para os clipes.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">PlayheadOverlay.axaml</span>
+                  <span class="meta-tag">RenderStatusRuler.axaml</span>
+                  <span class="meta-tag">TrackColorPaletteService.cs</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+
+            <article class="milestone" data-category="rust" data-search="rust neoveg_core ffi smpte sfk audacity waveform peaks crossfade">
+              <div class="track-accent" style="background:#E67E22"></div>
+              <div class="milestone-icon" aria-hidden="true">⌘</div>
+              <div>
+                <h3>Motor Rust FFI (<code>neoveg_core</code>) &amp; Motor de Forma de Onda Audacity (<code>.sfk</code>)</h3>
+                <p>13 funções C-ABI exportadas com segurança <code>catch_unwind</code>: cálculo SMPTE Drop/Non-Drop Frame, 5 curvas de fade, split sub-quadro, amostragem estéreo Min/Max/RMS estilo Audacity e geração assíncrona de cache <code>.sfk</code>.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">rust-core/src/lib.rs</span>
+                  <span class="meta-tag">rust-core/src/audio_peaks.rs</span>
+                  <span class="meta-tag">AudioWaveformRenderer.cs</span>
+                </div>
+              </div>
+              <span class="badge done">13 Exports C-ABI</span>
+            </article>
+
+            <article class="milestone" data-category="cpp" data-search="c++ neoveg_cpp_engine cmake openfx vst3 voukoder whisper nvsh shared memory">
+              <div class="track-accent" style="background:#9B59B6"></div>
+              <div class="milestone-icon" aria-hidden="true">⚙</div>
+              <div>
+                <h3>Engine C/C++17 (<code>neoveg_cpp_engine</code>) &amp; Isolamento Shared Memory (<code>NVSH</code>)</h3>
+                <p>Ponte nativa CMake para OpenFX 1.4, Steinberg VST3 3.7, Voukoder Broadcast Encoder e Whisper.cpp (legendas IA), com protocolo IPC Out-of-Process via Memory-Mapped Files (cabeçalho binário <code>NVSH</code> de 32 bytes).</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">cpp-extensions/CMakeLists.txt</span>
+                  <span class="meta-tag">neoveg_cpp_engine.cpp</span>
+                  <span class="meta-tag">CppCoreInterop.cs</span>
+                </div>
+              </div>
+              <span class="badge done">11 Exports C-ABI</span>
+            </article>
+
+            <article class="milestone" data-category="cpp" data-search="directx d3d11 xaudio2_7 vcredist techpowerup install_prerequisites.bat">
+              <div class="track-accent" style="background:#1ABC9C"></div>
+              <div class="milestone-icon" aria-hidden="true">⚡</div>
+              <div>
+                <h3>Verificação de Aceleração DirectX &amp; Pré-Requisitos Silenciosos</h3>
+                <p>Instalador silencioso unificado (<code>scripts/install_prerequisites.bat</code>) para Visual C++ Redistributable (<code>/q /norestart</code>) e DirectX End-User Runtimes June 2010 (<code>DXSETUP.exe /silent</code>), com diagnóstico de boot de <code>d3d11.dll</code> e <code>XAudio2_7.dll</code> em C# e C++.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">install_prerequisites.bat</span>
+                  <span class="meta-tag">VerifyDirectXVisualAndAudioAcceleration</span>
+                  <span class="meta-tag">neoveg_cpp_verify_directx_runtime</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado no Boot</span>
+            </article>
+
+            <article class="milestone" data-category="infra" data-search="multiplataforma operatingsystem windows linux macos neoveg.sh neoveg.bat appcache">
+              <div class="track-accent" style="background:#E74C3C"></div>
+              <div class="milestone-icon" aria-hidden="true">🌐</div>
+              <div>
+                <h3>Detecção Multiplataforma de SO, Local App Cache &amp; Lançadores</h3>
+                <p>Detecção via <code>OperatingSystem.IsWindows()</code>, <code>IsLinux()</code> e <code>IsMacOS()</code>, cache local automático para execução em nuvem/Google Drive (<code>%LOCALAPPDATA%\Neoveg\AppCache</code>, <code>~/.cache/neoveg/</code>, <code>~/Library/Caches/neoveg/</code>) e lançadores <code>neoveg.bat</code> e <code>neoveg.sh</code> (<code>chmod +x</code>).</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">desktop-host/Program.cs</span>
+                  <span class="meta-tag">scripts/neoveg.sh</span>
+                  <span class="meta-tag">scripts/neoveg.bat</span>
+                </div>
+              </div>
+              <span class="badge done">Windows • Linux • macOS</span>
+            </article>
+
+            <article class="milestone" data-category="python" data-search="python ffmpeg ffprobe media relinker missing media sfk">
+              <div class="track-accent" style="background:#F1C40F"></div>
+              <div class="milestone-icon" aria-hidden="true">🔍</div>
+              <div>
+                <h3>Protocolo Search &amp; Relink de Mídias Offline (3 Estágios) &amp; FFmpeg Isolado</h3>
+                <p>Modal <code>MissingMediaWindow.axaml</code> com busca automática em 3 estágios: (1) correspondência exata + auto-relink de irmãos na mesma pasta, (2) correspondência difusa (fuzzy), (3) validação de metadados via FFprobe + regeneração de <code>.sfk</code>.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">MissingMediaWindow.axaml</span>
+                  <span class="meta-tag">MediaRelinker.cs</span>
+                  <span class="meta-tag">media_relinker.py</span>
+                </div>
+              </div>
+              <span class="badge done">3/3 Relinkados</span>
+            </article>
+
+            <article class="milestone" data-category="python" data-search="neoveg zip xml fcpxml edl cmx3600 davinci premiere">
+              <div class="track-accent" style="background:#3498DB"></div>
+              <div class="milestone-icon" aria-hidden="true">⇄</div>
+              <div>
+                <h3>Formato Nativo <code>.neoveg</code> (ZIP) &amp; Intercâmbio XML / FCPX / EDL</h3>
+                <p>Contêiner nativo <code>.neoveg</code> estruturado com <code>project.json</code>, <code>media_pool.json</code> e <code>history.json</code>, além de importação/exportação sem perdas para FCP7 XML (<code>.xml</code>), Final Cut Pro X (<code>.fcpxml</code>), CMX3600 (<code>.edl</code>) e inspeção legada <code>.veg</code>.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">NeovegProjectArchiveService.cs</span>
+                  <span class="meta-tag">ProjectInterchangeService.cs</span>
+                </div>
+              </div>
+              <span class="badge done">Round-Trip 100%</span>
+            </article>
+
+            <article class="milestone" data-category="csharp" data-search="scripting roslyn c# python vpflow datamosh vegasaur">
+              <div class="track-accent" style="background:#2ECC71"></div>
+              <div class="milestone-icon" aria-hidden="true">⟨/⟩</div>
+              <div>
+                <h3>Motor de Scripting Dinâmico (Roslyn C# <code>.cs</code> &amp; Python <code>.py</code>)</h3>
+                <p>API completa em <code>Neoveg.Scripting</code> espelhando objetos clássicos (<code>Vegas</code>, <code>Project</code>, <code>Track</code>, <code>TrackEvent</code>, <code>Take</code>, <code>Effect</code>) e suporte a extensões acopláveis (VPFlow, Datamosh, Vegasaur).</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">NeovegScriptingApi.cs</span>
+                  <span class="meta-tag">ScriptingEngineService.cs</span>
+                  <span class="meta-tag">vegas_scripting.py</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+
+            <article class="milestone" data-category="csharp" data-search="audio fx chain eq 8 bandas parametrico vst3 lv2">
+              <div class="track-accent" style="background:#E67E22"></div>
+              <div class="milestone-icon" aria-hidden="true">🎚</div>
+              <div>
+                <h3>Pipeline de Efeitos de Áudio &amp;Vídeo (5 Estágios) + EQ Paramétrico de 8 Bandas</h3>
+                <p>Roteamento hierárquico <code>Media FX → Take FX → Event FX → Track FX → Master FX</code> com equalizador paramétrico nativo de 8 bandas e integração com plugins VST3/LV2/LADSPA/Frei0r.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">HierarchicalFxPipeline.cs</span>
+                  <span class="meta-tag">AudioFxChain.cs</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+
+            <article class="milestone" data-category="infra" data-search="logs crash.log neoveg.log logviewerwindow clipboard copiar logs">
+              <div class="track-accent" style="background:#9B59B6"></div>
+              <div class="milestone-icon" aria-hidden="true">📋</div>
+              <div>
+                <h3>Diagnóstico Multi-Linguagem de Logs &amp; <code>LogViewerWindow</code> com Clipboard</h3>
+                <p>Rotação automática de até 5 arquivos de 10 MB em <code>logs/neoveg.log</code> e <code>logs/crash.log</code> integrando C#, Rust (<code>tracing</code>), C++ e Python, com botão <strong>Copiar Logs</strong> (seleção parcial ou total e confirmação <code>Copiado!</code> por 2s).</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">LogViewerWindow.axaml</span>
+                  <span class="meta-tag">LogViewerViewModel.cs</span>
+                  <span class="meta-tag">error_logger.py</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+
+            <article class="milestone" data-category="infra" data-search="i18n internacionalizacao 8 idiomas temas historicos vegas build_portable">
+              <div class="track-accent" style="background:#1ABC9C"></div>
+              <div class="milestone-icon" aria-hidden="true">🎨</div>
+              <div>
+                <h3>Internacionalização (8 Idiomas), 4 Temas Históricos &amp; Empacotamento Portátil</h3>
+                <p>Tradução em tempo real (<code>pt-BR</code>, <code>en-US</code>, <code>es-ES</code>, <code>fr-FR</code>, <code>de-DE</code>, <code>zh-CN</code>, <code>ja-JP</code>, <code>ru-RU</code>), 4 temas clássicos/modernos e geração de pacotes portáteis em <code>dist/</code> com <code>AUTHORS.md</code> e <code>LICENSE</code>.</p>
+                <div class="milestone-meta">
+                  <span class="meta-tag">LocalizationManager.cs</span>
+                  <span class="meta-tag">VegasThemeManager.cs</span>
+                  <span class="meta-tag">build_portable.py</span>
+                </div>
+              </div>
+              <span class="badge done">Verificado</span>
+            </article>
+          </div>
+        </section>
+
+        <!-- Arquitetura e Fluxo de Sinal -->
+        <section id="arquitetura" aria-labelledby="arch-title">
+          <div class="section-heading">
+            <h2 id="arch-title">Arquitetura de Processamento &amp; Resolução Multiplataforma</h2>
+            <span class="eyebrow">Especificação técnica conforme manuais de referência VEGAS 10–21 e AGENTS.md</span>
+          </div>
+          <div class="arch-box">
+            <strong style="font-size:13px;color:#f0f6fc;">Topologia Hierárquica de Efeitos (5 Estágios — Vídeo &amp; Áudio DSP)</strong>
+            <div class="fx-chain" aria-label="Fluxo de 5 estágios de efeitos">
+              <div class="fx-node"><strong>1. Media FX</strong><span>Fonte no Project Media</span></div>
+              <span class="fx-arrow">→</span>
+              <div class="fx-node"><strong>2. Take FX</strong><span>Take ativo do clipe</span></div>
+              <span class="fx-arrow">→</span>
+              <div class="fx-node"><strong>3. Event FX</strong><span>Clipe na Timeline + Pan/Crop</span></div>
+              <span class="fx-arrow">→</span>
+              <div class="fx-node"><strong>4. Track FX</strong><span>Inserção e EQ da Faixa</span></div>
+              <span class="fx-arrow">→</span>
+              <div class="fx-node"><strong>5. Master FX</strong><span>Bus Mestre + Limiter -1.0 dBTP</span></div>
+            </div>
+
+            <strong style="font-size:13px;color:#f0f6fc;">Matriz de Resolução Nativa por Sistema Operacional (<code>Program.cs</code>)</strong>
+            <table class="platform-table">
+              <thead>
+                <tr>
+                  <th>Sistema Operacional</th>
+                  <th>Detecção C#</th>
+                  <th>Bibliotecas FFI</th>
+                  <th>Diretório de Cache &amp; Logs</th>
+                  <th>Lançador</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Windows (win-x64)</strong></td>
+                  <td><code>OperatingSystem.IsWindows()</code></td>
+                  <td><code>neoveg_core.dll</code><br><code>neoveg_cpp_engine.dll</code></td>
+                  <td><code>%LOCALAPPDATA%\Neoveg\AppCache</code><br><code>%LOCALAPPDATA%\Neoveg\logs</code></td>
+                  <td><code>scripts\neoveg.bat</code></td>
+                </tr>
+                <tr>
+                  <td><strong>Linux (linux-x64)</strong></td>
+                  <td><code>OperatingSystem.IsLinux()</code></td>
+                  <td><code>libneoveg_core.so</code><br><code>libneoveg_cpp_engine.so</code></td>
+                  <td><code>~/.cache/neoveg/app_cache</code><br><code>~/.cache/neoveg/logs</code></td>
+                  <td><code>scripts/neoveg.sh</code></td>
+                </tr>
+                <tr>
+                  <td><strong>macOS (osx-x64 / arm64)</strong></td>
+                  <td><code>OperatingSystem.IsMacOS()</code></td>
+                  <td><code>libneoveg_core.dylib</code><br><code>libneoveg_cpp_engine.dylib</code></td>
+                  <td><code>~/Library/Caches/neoveg/app_cache</code><br><code>~/Library/Caches/neoveg/logs</code></td>
+                  <td><code>scripts/neoveg.sh</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Suíte QA Automatizada (32/32 PASS) -->
+        <section id="validacao" aria-labelledby="qa-title">
+          <div class="section-heading">
+            <h2 id="qa-title">Suíte de Validação Automatizada (<code>python-backend/test_vegas_engine.py</code>)</h2>
+            <span class="eyebrow">32 verificações end-to-end executadas e aprovadas</span>
+          </div>
+          <div class="qa-box">
+            <div class="qa-header">
+              <span><strong>Status Global:</strong> <span style="color:#7ee787">ALL 32 NEOVEG CROSS-PLATFORM TESTS PASSED SUCCESSFULLY</span></span>
+              <span class="eyebrow">Use a barra de busca no topo para filtrar testes</span>
+            </div>
+            <div class="qa-list" id="qa-list">
+              <div class="qa-item" data-search="1 backup_v1_anterior"><span class="qa-pass">[PASS] 01</span><span>Backup de segurança preservado em <code>backup_v1_anterior/</code></span><span class="qa-lang">Infra</span></div>
+              <div class="qa-item" data-search="2 rust ffi cdylib neoveg_core.dll 13 exportacoes"><span class="qa-pass">[PASS] 02</span><span>Motor Rust FFI (<code>cdylib: neoveg_core.dll</code> + 13 exportações C-ABI)</span><span class="qa-lang">Rust</span></div>
+              <div class="qa-item" data-search="3 python isolado ffmpeg ffprobe 9.0.2"><span class="qa-pass">[PASS] 03</span><span>Gerenciador Python isolado de FFmpeg/FFprobe (<code>win-x64</code> / v9.0.2)</span><span class="qa-lang">Python</span></div>
+              <div class="qa-item" data-search="4 migracao c# avalonia ui 11 rustcoreinterop"><span class="qa-pass">[PASS] 04</span><span>Frontend C# Avalonia UI 11 + Ponte FFI (<code>RustCoreInterop.cs</code>)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="5 scripts python rust renomear agrupar faixas frei0r ladspa corridorkey"><span class="qa-pass">[PASS] 05</span><span>Scripts reciclados (Agrupar Faixas V+A, Frei0r, LADSPA, CorridorKey)</span><span class="qa-lang">Python</span></div>
+              <div class="qa-item" data-search="6 build portatil temas historicos vegas 1999 2026"><span class="qa-pass">[PASS] 06</span><span>Build portátil + Acervo histórico de temas (1999–2026)</span><span class="qa-lang">Multi-OS</span></div>
+              <div class="qa-item" data-search="7 luts 3d cube proxy gpu otio"><span class="qa-pass">[PASS] 07</span><span>4 LUTs 3D (<code>.cube</code>), Perfis Proxy GPU e OpenTimelineIO (OTIO)</span><span class="qa-lang">Assets</span></div>
+              <div class="qa-item" data-search="8 auditoria qa 4k 96khz vfr sfk 5000 ops"><span class="qa-pass">[PASS] 08</span><span>Auditoria QA (SD/HD/4K/9:16/24-bit 96kHz/VFR, 5.000 ops sub-quadro em ~31ms)</span><span class="qa-lang">Rust/QA</span></div>
+              <div class="qa-item" data-search="9 modulo c++ cmakelists neoveg_cpp_engine shared memory nvsh"><span class="qa-pass">[PASS] 09</span><span>Módulo C/C++ (<code>CMakeLists.txt</code> + <code>neoveg_cpp_engine</code> + Shared Memory <code>NVSH</code>)</span><span class="qa-lang">C++17</span></div>
+              <div class="qa-item" data-search="10 cabecalho de evento event header 4 icones svg hamburger"><span class="qa-pass">[PASS] 10</span><span>Cabeçalho de Evento (Barra por cor da faixa + 4 ícones SVG + Menu ☰)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="11 event pan crop 3 zonas gizmo f keyframes"><span class="qa-pass">[PASS] 11</span><span>Ferramenta Event Pan/Crop (3 Zonas: Gizmo 'F' + PropertyGrid + Keyframes)</span><span class="qa-lang">C#/C++</span></div>
+              <div class="qa-item" data-search="12 internacionalizacao i18n 8 idiomas localizationmanager"><span class="qa-pass">[PASS] 12</span><span>Internacionalização (8 idiomas oficiais + <code>Assets/i18n/*.axaml</code> + <code>LocalizationManager.cs</code>)</span><span class="qa-lang">C#/i18n</span></div>
+              <div class="qa-item" data-search="13 extensoes scripts neoveg.scripting roslyn c# python"><span class="qa-pass">[PASS] 13</span><span>Motor de Extensões e Scripts (<code>Neoveg.Scripting</code> Roslyn C# + Python + VPFlow/Datamosh)</span><span class="qa-lang">C#/Py</span></div>
+              <div class="qa-item" data-search="14 search relink missing media 3 estagios ffprobe sfk"><span class="qa-pass">[PASS] 14</span><span>Search &amp; Relink Missing Media (<code>MissingMediaWindow.axaml</code> + Varredura 3 estágios)</span><span class="qa-lang">C#/Py</span></div>
+              <div class="qa-item" data-search="15 barra pre-renderizacao renderstatusruler dynamic ram preview"><span class="qa-pass">[PASS] 15</span><span>Barra de Pré-Renderização Seletiva e Dynamic RAM Preview (<code>RenderStatusRuler.axaml</code>)</span><span class="qa-lang">C#/Rust</span></div>
+              <div class="qa-item" data-search="16 third-party openfx vst3 voukoder whisper.cpp subtitlegenerator"><span class="qa-pass">[PASS] 16</span><span>Ecossistema Third-Party (OpenFX, VST3, Voukoder, Whisper.cpp + <code>SubtitleGeneratorService.cs</code>)</span><span class="qa-lang">C++/C#</span></div>
+              <div class="qa-item" data-search="17 auditoria authors.md license dist"><span class="qa-pass">[PASS] 17</span><span>Auditoria de Créditos e Licenças (<code>AUTHORS.md</code> &amp; <code>LICENSE</code> em <code>dist/</code>)</span><span class="qa-lang">Legal</span></div>
+              <div class="qa-item" data-search="18 escaneamento rea ui string tables rcw com"><span class="qa-pass">[PASS] 18</span><span>Mapeamento de UI &amp; String Tables (4 Assemblies + 25 Interfaces + 6 Seções de UI)</span><span class="qa-lang">Docs</span></div>
+              <div class="qa-item" data-search="19 formato nativo .neoveg zip fcp7 xml fcpxml edl cmx3600"><span class="qa-pass">[PASS] 19</span><span>Formato Nativo <code>.neoveg</code> (ZIP) &amp; <code>Neoveg.ProjectInterchange</code> (XML/FCPX/EDL)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="20 agulha reproducao playhead cti blink 500ms 60fps"><span class="qa-pass">[PASS] 20</span><span>Playhead (CTI) Pentagonal + Edit Cursor Blink (~500ms em pausa / 60 FPS em play)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="21 padronizacao global neoveg"><span class="qa-pass">[PASS] 21</span><span>Padronização Global de Nomenclatura (<code>Neoveg.sln</code>, <code>neoveg_core</code>, <code>neoveg_cpp_engine</code>)</span><span class="qa-lang">Global</span></div>
+              <div class="qa-item" data-search="22 execucao standalone resiliente crash.log tryLoad"><span class="qa-pass">[PASS] 22</span><span>Execução Standalone Resiliente (<code>CopyToOutputDirectory</code>, <code>crash.log</code> e <code>NativeLibrary.TryLoad</code>)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="23 agents.md workspace synchronization protocol google drive"><span class="qa-pass">[PASS] 23</span><span>Protocolo de Sincronização de Workspace (<code>AGENTS.md</code> + <code>workspace_sync.py</code>)</span><span class="qa-lang">Infra</span></div>
+              <div class="qa-item" data-search="24 protocolo multi-linguagem logs crash diagnostics"><span class="qa-pass">[PASS] 24</span><span>Protocolo Multi-Linguagem de Logs &amp; Crash Diagnostics (C#, Rust, C++, Python → <code>logs/neoveg.log</code>)</span><span class="qa-lang">All</span></div>
+              <div class="qa-item" data-search="25 protocolo cache local appcache google drive"><span class="qa-pass">[PASS] 25</span><span>Protocolo de Cache Local de Execução (<code>%LOCALAPPDATA%\Neoveg\AppCache</code>)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="26 janela visualizacao logs logviewerwindow copiar logs clipboard"><span class="qa-pass">[PASS] 26</span><span>Janela de Logs (<code>LogViewerWindow.axaml</code>: Copiar Logs via Clipboard API + feedback <code>Copiado!</code>)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="27 motor forma de onda audacity audio_peaks.rs eq 8 bandas"><span class="qa-pass">[PASS] 27</span><span>Motor de Forma de Onda Audacity (<code>audio_peaks.rs</code>, onda estéreo 0dB + Gain Line + EQ 8 Bandas)</span><span class="qa-lang">Rust/C#</span></div>
+              <div class="qa-item" data-search="28 cores automaticas faixas trackcolorpaletteservice barra lateral 4px"><span class="qa-pass">[PASS] 28</span><span>Cores Automáticas de Faixas (<code>TrackColorPaletteService.cs</code>, barra 4px + Color Picker + Tint)</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="29 manuais referencia vegas 10-21 docking alcas fade atalhos fx pipeline"><span class="qa-pass">[PASS] 29</span><span>Manuais de Referência 10–21, Alças de Fade, Atalhos (S/M/R/G/U/F8) e FX Pipeline de 5 Estágios</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="30 instalacao silenciosa vcredist self-contained .net 8.0"><span class="qa-pass">[PASS] 30</span><span>Instalação Silenciosa VC++ (<code>/q /norestart</code>) e Publicação Self-Contained (<code>.NET 8.0 win-x64</code>)</span><span class="qa-lang">Infra</span></div>
+              <div class="qa-item" data-search="31 directx end-user runtimes dxsetup d3d11.dll xaudio2_7.dll"><span class="qa-pass">[PASS] 31</span><span>DirectX End-User Runtimes (<code>DXSETUP.exe /silent</code> + verificação <code>d3d11.dll</code> / <code>XAudio2_7.dll</code> no boot)</span><span class="qa-lang">C#/C++</span></div>
+              <div class="qa-item" data-search="32 deteccao multiplataforma so operatingsystem neoveg.sh neoveg.bat"><span class="qa-pass">[PASS] 32</span><span>Detecção Multiplataforma de SO (<code>OperatingSystem.IsWindows/IsLinux/IsMacOS</code>) e Lançadores (<code>neoveg.sh</code> / <code>neoveg.bat</code>)</span><span class="qa-lang">Multi-OS</span></div>
+              <div class="qa-item" data-search="33 auditoria qa ui thread zero alloc ffi safety neoveg_free_buffer appcache stamp dockerfile docker-compose docs/index.html"><span class="qa-pass">[PASS] 33</span><span>Auditoria QA (UI Thread Zero-Alloc + FFI Safety + AppCache Stamp &lt;2ms), Docker Multi-Stage e GitHub Dashboard (<code>docs/index.html</code>)</span><span class="qa-lang">QA/Docker</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Estrutura do Repositório -->
+        <section id="estrutura" aria-labelledby="files-title">
+          <div class="section-heading">
+            <h2 id="files-title">Estrutura do Repositório Neoveg</h2>
+            <span class="eyebrow">Diretórios, soluções e scripts principais</span>
+          </div>
+          <div class="file-browser">
+            <div class="file-toolbar">
+              <span class="branch">⌥ main · Neoveg Workspace</span>
+              <span class="file-hint">Sincronizado automaticamente com G:\Meu Drive\vp-rev-eng\teste\teste2</span>
+            </div>
+            <div class="file-row" data-search="docs index.html github dashboard qa docker explorer">
+              <a class="file-name" href="./docs/index.html"><span>📁</span>docs/index.html</a>
+              <span class="file-note">Dashboard Visual Interativo Estilo GitHub (Explorador de Código, Commits, Docker &amp; QA 33/33)</span>
+              <span class="file-status">GitHub UI</span>
+            </div>
+            <div class="file-row" data-search="dockerfile multi-stage rust cpp dotnet runtime container">
+              <a class="file-name" href="./Dockerfile"><span>🐳</span>Dockerfile</a>
+              <span class="file-note">Build Multi-Stage (Rust 1.81 + C++17 CMake + .NET 8.0 SDK + Runtime Isolado Debian Bookworm)</span>
+              <span class="file-status">Docker Build</span>
+            </div>
+            <div class="file-row" data-search="docker-compose.yml neoveg-engine neoveg-qa neoveg-docs">
+              <a class="file-name" href="./docker-compose.yml"><span>🐳</span>docker-compose.yml</a>
+              <span class="file-note">Orquestração de 3 serviços: <code>neoveg-engine</code>, <code>neoveg-qa</code> e <code>neoveg-docs</code> (:8080)</span>
+              <span class="file-status">Compose</span>
+            </div>
+            <div class="file-row" data-search="desktop-host interface avalonia c sharp csproj program.cs">
+              <a class="file-name" href="./desktop-host/"><span>📁</span>desktop-host/</a>
+              <span class="file-note">Frontend C# (.NET 8.0 / Avalonia UI 11), MVVM, Controls, Views e Scripting</span>
+              <span class="file-status">C# / .NET 8.0</span>
+            </div>
+            <div class="file-row" data-search="rust-core rust ffi cdylib audio_peaks.rs sfk">
+              <a class="file-name" href="./rust-core/"><span>📁</span>rust-core/</a>
+              <span class="file-note">Crate <code>neoveg_core</code>: SMPTE, fades, split, cache <code>.sfk</code> Audacity e RAM Preview</span>
+              <span class="file-status">Rust FFI</span>
+            </div>
+            <div class="file-row" data-search="cpp-extensions c++ cmake openfx vst3 voukoder whisper directx">
+              <a class="file-name" href="./cpp-extensions/"><span>📁</span>cpp-extensions/</a>
+              <span class="file-note">Alvo CMake <code>neoveg_cpp_engine</code>: VST3, OpenFX, Voukoder, Whisper.cpp, DirectX e IPC <code>NVSH</code></span>
+              <span class="file-status">C++17 / CMake</span>
+            </div>
+            <div class="file-row" data-search="python-backend python ffmpeg relinker qa test_vegas_engine">
+              <a class="file-name" href="./python-backend/"><span>📁</span>python-backend/</a>
+              <span class="file-note">Pacote <code>neoveg</code>: FFmpeg isolado, Relinker de 3 estágios, sincronização e suíte QA (32 testes)</span>
+              <span class="file-status">Python 3</span>
+            </div>
+            <div class="file-row" data-search="scripts build_portable install_prerequisites neoveg.sh neoveg.bat">
+              <a class="file-name" href="./scripts/"><span>📁</span>scripts/</a>
+              <span class="file-note">Lançadores (<code>neoveg.bat</code>, <code>neoveg.sh</code>), <code>install_prerequisites.bat</code> e scripts Roslyn/Python</span>
+              <span class="file-status">Launchers &amp; Setup</span>
+            </div>
+            <div class="file-row" data-search="addon vcredist directx_redist pre-requisitos">
+              <a class="file-name" href="./addon/"><span>📁</span>addon/</a>
+              <span class="file-note">Pacotes de pré-requisitos Windows (Visual C++ 2015–2022 e DirectX End-User Runtimes June 2010)</span>
+              <span class="file-status">Prerequisites</span>
+            </div>
+            <div class="file-row" data-search="assets i18n luts temas vegas">
+              <a class="file-name" href="./Assets/"><span>📁</span>Assets/</a>
+              <span class="file-note">Dicionários i18n (8 idiomas), janelas AXAML, LUTs 3D (<code>.cube</code>) e temas históricos</span>
+              <span class="file-status">i18n &amp; Themes</span>
+            </div>
+            <div class="file-row" data-search="runtimes win-x64 linux-x64 osx-x64 native ffmpeg">
+              <a class="file-name" href="./runtimes/"><span>📁</span>runtimes/</a>
+              <span class="file-note">Binários FFI compilados (<code>.dll</code>, <code>.so</code>, <code>.dylib</code>) e FFmpeg/FFprobe isolado por RID</span>
+              <span class="file-status">Native Binaries</span>
+            </div>
+            <div class="file-row" data-search="third_party openfx vst3sdk voukoder whisper">
+              <a class="file-name" href="./third_party/"><span>📁</span>third_party/</a>
+              <span class="file-note">Cabeçalhos e SDKs externos (OpenFX 1.4, Steinberg VST3, Voukoder, Whisper.cpp, CorridorKey)</span>
+              <span class="file-status">SDKs</span>
+            </div>
+            <div class="file-row" data-search="logs neoveg.log crash.log">
+              <a class="file-name" href="./logs/"><span>📁</span>logs/</a>
+              <span class="file-note">Logs centralizados de sessão (<code>neoveg.log</code>) e relatórios de falha (<code>crash.log</code>)</span>
+              <span class="file-status">Observability</span>
+            </div>
+            <div class="file-row" data-search="dist portable windows linux macos">
+              <a class="file-name" href="./dist/"><span>📁</span>dist/</a>
+              <span class="file-note">Distribuições portáteis Self-Contained para Windows, Linux (<code>.AppDir</code>) e macOS (<code>.app</code>)</span>
+              <span class="file-status">Packages</span>
+            </div>
+            <div class="file-row" data-search="neoveg.sln solution visual studio">
+              <a class="file-name" href="./Neoveg.sln"><span>📄</span>Neoveg.sln</a>
+              <span class="file-note">Solução raiz .NET / Visual Studio do projeto Neoveg</span>
+              <span class="file-status">Solution</span>
+            </div>
+            <div class="file-row" data-search="agents.md diretrizes regras arquitetura">
+              <a class="file-name" href="./AGENTS.md"><span>📄</span>AGENTS.md</a>
+              <span class="file-note">Diretrizes arquiteturais estritas, convenções de nomes e protocolos multiplataforma (11 seções)</span>
+              <span class="file-status">Governance</span>
+            </div>
+            <div class="file-row" data-search="authors.md licencas creditos audacity ffmpeg">
+              <a class="file-name" href="./AUTHORS.md"><span>📄</span>AUTHORS.md</a>
+              <span class="file-note">Atribuição de autoria e licenças de terceiros (Avalonia, FFmpeg, Audacity, OpenFX, VST3, Whisper.cpp)</span>
+              <span class="file-status">Licensing</span>
+            </div>
+            <div class="empty-state" id="empty-state">Nenhum componente, etapa ou teste corresponde à busca informada.</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Barra Lateral -->
+      <aside>
+        <section class="about">
+          <h2>Sobre o Neoveg</h2>
+          <p>
+            Estação de edição não-linear (NLE) de vídeo e áudio multiplataforma com arquitetura híbrida em 4 linguagens,
+            fidelidade funcional aos manuais clássicos e modernos do VEGAS (versões 10 a 21) e distribuição portátil Self-Contained.
+          </p>
+          <a class="about-link" href="./AGENTS.md"><span aria-hidden="true">↗</span> Diretrizes de Engenharia (AGENTS.md)</a>
+        </section>
+
+        <section class="side-section">
+          <h3>Distribuição de Linguagens</h3>
+          <div class="lang-bar" aria-label="Proporção de linguagens no projeto">
+            <div style="width:46%;background:#178600" title="C# / Avalonia UI (46%)"></div>
+            <div style="width:20%;background:#dea584" title="Rust Core FFI (20%)"></div>
+            <div style="width:18%;background:#f34b7d" title="C++17 Extensions (18%)"></div>
+            <div style="width:16%;background:#3572A5" title="Python Backend & QA (16%)"></div>
+          </div>
+          <div class="lang-legend">
+            <div><i class="dot" style="background:#178600"></i> C# (.NET 8) 46%</div>
+            <div><i class="dot" style="background:#dea584"></i> Rust (FFI) 20%</div>
+            <div><i class="dot" style="background:#f34b7d"></i> C++17 (SDKs) 18%</div>
+            <div><i class="dot" style="background:#3572A5"></i> Python 3 16%</div>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <h3>Comandos Rápidos</h3>
+          <div class="cmd-block">
+            <code title="scripts\neoveg.bat">scripts\neoveg.bat</code>
+            <button class="copy-btn" data-copy="scripts\neoveg.bat">Copiar</button>
+          </div>
+          <div class="cmd-block">
+            <code title="./scripts/neoveg.sh">./scripts/neoveg.sh</code>
+            <button class="copy-btn" data-copy="./scripts/neoveg.sh">Copiar</button>
+          </div>
+          <div class="cmd-block">
+            <code title="dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true">dotnet publish ... --self-contained true</code>
+            <button class="copy-btn" data-copy="dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true">Copiar</button>
+          </div>
+          <div class="cmd-block">
+            <code title="python python-backend/test_vegas_engine.py">python python-backend/test_vegas_engine.py</code>
+            <button class="copy-btn" data-copy="python python-backend/test_vegas_engine.py">Copiar</button>
+          </div>
+          <div class="cmd-block">
+            <code title="scripts\install_prerequisites.bat">scripts\install_prerequisites.bat</code>
+            <button class="copy-btn" data-copy="scripts\install_prerequisites.bat">Copiar</button>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <h3>Atalhos de Edição (NLE)</h3>
+          <div class="shortcuts-grid">
+            <div class="sc-item"><span>Dividir (Split)</span><kbd>S</kbd></div>
+            <div class="sc-item"><span>Marcador</span><kbd>M</kbd></div>
+            <div class="sc-item"><span>Região</span><kbd>R</kbd></div>
+            <div class="sc-item"><span>Agrupar</span><kbd>G</kbd></div>
+            <div class="sc-item"><span>Desagrupar</span><kbd>U</kbd></div>
+            <div class="sc-item"><span>Snapping</span><kbd>F8</kbd></div>
+            <div class="sc-item"><span>RAM Preview</span><kbd>Shift+B</kbd></div>
+            <div class="sc-item"><span>Prerender</span><kbd>Shift+M</kbd></div>
+            <div class="sc-item"><span>Faixa Vídeo</span><kbd>Ctrl+Shift+Q</kbd></div>
+            <div class="sc-item"><span>Faixa Áudio</span><kbd>Ctrl+Q</kbd></div>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <h3>Tecnologias &amp; SDKs</h3>
+          <div class="chips">
+            <span class="chip">avalonia-11</span>
+            <span class="chip">dotnet-8-self-contained</span>
+            <span class="chip">rust-ffi</span>
+            <span class="chip">cpp17-cmake</span>
+            <span class="chip">openfx-1.4</span>
+            <span class="chip">vst3-sdk</span>
+            <span class="chip">whisper-cpp</span>
+            <span class="chip">voukoder</span>
+            <span class="chip">audacity-peaks</span>
+            <span class="chip">directx-11</span>
+            <span class="chip">ffmpeg-isolated</span>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <h3>Status da Build Atual</h3>
+          <div class="validation-note">
+            <strong>✓ Build &amp; Testes 100% Verificados:</strong><br>
+            Compilação C# (<code>0 Avisos / 0 Erros</code>), binários FFI nativos (<code>.dll</code>, <code>.so</code>, <code>.dylib</code>),
+            verificação DirectX (<code>d3d11.dll</code> / <code>XAudio2_7.dll</code>) e <strong>32/32 testes automatizados</strong> aprovados.
+          </div>
+        </section>
+
+        <section class="side-section">
+          <h3>Documentação Oficial</h3>
+          <a class="side-link" href="./README.md"><span>▤</span> README.md</a>
+          <a class="side-link" href="./AGENTS.md"><span>⚙</span> AGENTS.md (11 Seções)</a>
+          <a class="side-link" href="./AUTHORS.md"><span>⚖</span> AUTHORS.md &amp; Licenças</a>
+          <a class="side-link" href="./GUIA_NOVAS_FUNCIONALIDADES.md"><span>★</span> Guia de Funcionalidades</a>
+          <a class="side-link" href="./DOCUMENTACAO_SCRIPTS.md"><span>⟨/⟩</span> Documentação de Scripts</a>
+        </section>
+      </aside>
+    </div>
+
+    <footer>
+      Neoveg v2.1.0 · Painel Interativo de Progresso &amp; Qualidade · Atualizado em 22 de outubro de 2026
+    </footer>
+  </main>
+
+  <script>
+    const searchInput = document.getElementById("file-search");
+    const fileRows = Array.from(document.querySelectorAll(".file-row"));
+    const milestones = Array.from(document.querySelectorAll(".milestone"));
+    const qaItems = Array.from(document.querySelectorAll(".qa-item"));
+    const filterBtns = Array.from(document.querySelectorAll(".filter-btn"));
+    const emptyState = document.getElementById("empty-state");
+    const milestoneCounter = document.getElementById("milestone-counter");
+    const resetBtn = document.getElementById("reset-filters-btn");
+    const copyReportBtn = document.getElementById("copy-report-btn");
+
+    let activeCategory = "all";
+
+    function applyFilters() {
+      const query = searchInput.value.trim().toLocaleLowerCase("pt-BR");
+
+      // Filter Milestones
+      let visibleMilestones = 0;
+      for (const m of milestones) {
+        const catMatch = activeCategory === "all" || m.dataset.category === activeCategory;
+        const textMatch = !query || m.dataset.search.includes(query) || m.textContent.toLocaleLowerCase("pt-BR").includes(query);
+        const show = catMatch && textMatch;
+        m.hidden = !show;
+        if (show) visibleMilestones += 1;
+      }
+      milestoneCounter.textContent = `Exibindo ${visibleMilestones} de ${milestones.length} subsistemas`;
+
+      // Filter File Browser
+      let visibleFiles = 0;
+      for (const row of fileRows) {
+        const matches = !query || row.dataset.search.includes(query) || row.textContent.toLocaleLowerCase("pt-BR").includes(query);
+        row.hidden = !matches;
+        if (matches) visibleFiles += 1;
+      }
+
+      // Filter QA Items
+      let visibleQa = 0;
+      for (const item of qaItems) {
+        const matches = !query || item.dataset.search.includes(query) || item.textContent.toLocaleLowerCase("pt-BR").includes(query);
+        item.hidden = !matches;
+        if (matches) visibleQa += 1;
+      }
+
+      emptyState.style.display = (visibleFiles === 0 && visibleMilestones === 0 && visibleQa === 0) ? "block" : "none";
+    }
+
+    searchInput.addEventListener("input", applyFilters);
+
+    for (const btn of filterBtns) {
+      btn.addEventListener("click", () => {
+        for (const b of filterBtns) b.classList.remove("active");
+        btn.classList.add("active");
+        activeCategory = btn.dataset.filter;
+        applyFilters();
+      });
+    }
+
+    resetBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      activeCategory = "all";
+      for (const b of filterBtns) {
+        b.classList.toggle("active", b.dataset.filter === "all");
+      }
+      applyFilters();
+    });
+
+    // Keyboard shortcut '/' to focus search
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "/" && document.activeElement !== searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+      } else if (e.key === "Escape" && document.activeElement === searchInput) {
+        searchInput.value = "";
+        searchInput.blur();
+        applyFilters();
+      }
+    });
+
+    // Copy command buttons
+    for (const btn of document.querySelectorAll(".copy-btn")) {
+      btn.addEventListener("click", async () => {
+        const cmd = btn.getAttribute("data-copy") || "";
+        try {
+          await navigator.clipboard.writeText(cmd);
+          const original = btn.textContent;
+          btn.textContent = "Copiado!";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove("copied");
+          }, 2000);
+        } catch (_) {}
+      });
+    }
+
+    // Topbar copy summary button
+    copyReportBtn.addEventListener("click", async () => {
+      const summary = [
+        "Neoveg v2.1.0 — Relatório de Progresso",
+        "- Status QA: 32/32 testes multiplataforma aprovados (test_vegas_engine.py)",
+        "- Frontend: C# .NET 8.0 Self-Contained + Avalonia UI 11",
+        "- Core Nativo: Rust (neoveg_core: 13 exports C-ABI) + C++17 (neoveg_cpp_engine: 11 exports C-ABI + NVSH IPC)",
+        "- Backend: Python 3 (neoveg) + FFmpeg 9.0.2 isolado",
+        "- Plataformas: Windows (win-x64 .dll), Linux (linux-x64 .so), macOS (osx-x64/arm64 .dylib)"
+      ].join("\n");
+      try {
+        await navigator.clipboard.writeText(summary);
+        copyReportBtn.textContent = "✓";
+        setTimeout(() => { copyReportBtn.textContent = "📋"; }, 2000);
+      } catch (_) {}
+    });
+  </script>
+</body>
+</html>

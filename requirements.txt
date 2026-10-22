@@ -1,0 +1,9 @@
+# Neoveg — Python Backend Dependencies (Cross-Platform FFmpeg/DSP/REA Bridge)
+# Core runtime uses Python 3.10+ standard library (json, wave, struct, subprocess, ctypes)
+# plus the following verified packages for media inspection, DSP arrays, and PE/ELF packaging:
+numpy>=2.0.0
+pillow>=10.0.0
+pefile>=2024.8.26
+packaging>=24.0
+typing_extensions>=4.10.0
+requests>=2.31.0

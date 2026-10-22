@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+rust-core/target/
+cpp-extensions/build/
+.git/
+__pycache__/
+*.pyc
+logs/*.log
+dist/

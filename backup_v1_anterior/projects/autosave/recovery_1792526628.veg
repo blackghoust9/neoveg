@@ -1,0 +1,364 @@
+{
+  "name": "OpenVegas_Broadcast_Demo.veg",
+  "isDemo": true,
+  "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Vegas, CorridorKey e Áudio Estéreo 120 BPM.",
+  "width": 1280,
+  "height": 720,
+  "fps": 29.97,
+  "pixelAspect": 1.0,
+  "fieldOrder": "none",
+  "pixelFormat": "32bit-float-full",
+  "colorSpace": "Rec.709",
+  "motionBlurType": "gaussian",
+  "deinterlaceMethod": "blend",
+  "resampleMode": "disable",
+  "sampleRate": 48000,
+  "audioBitDepth": 24,
+  "masterBusMode": "stereo",
+  "bpm": 120.0,
+  "playhead": 1.2,
+  "loopStart": 0.0,
+  "loopEnd": 10.0,
+  "loopEnabled": true,
+  "snapEnabled": true,
+  "rippleEnabled": false,
+  "autoCrossfadeEnabled": true,
+  "previewQuality": "best",
+  "splitScreenBypass": false,
+  "showSafeAreas": false,
+  "showGrid": false,
+  "masterVolume": 1.0,
+  "markers": [
+    {
+      "id": "m1",
+      "time": 0.0,
+      "label": "Intro SMPTE",
+      "color": "#f97316"
+    },
+    {
+      "id": "m2",
+      "time": 3.5,
+      "label": "Auto-Crossfade (1.1s)",
+      "color": "#f97316"
+    },
+    {
+      "id": "m3",
+      "time": 7.2,
+      "label": "Broadcast Slate",
+      "color": "#38bdf8"
+    }
+  ],
+  "regions": [
+    {
+      "id": "r1",
+      "start": 0.0,
+      "end": 10.0,
+      "label": "Master Broadcast Cut"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "track_v1",
+      "name": "Titles & PiP Overlay",
+      "type": "video",
+      "color": "#6366f1",
+      "level": 1.0,
+      "pan": 0.0,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0.0,
+          "value": 1.0
+        },
+        {
+          "time": 5.0,
+          "value": 0.92
+        },
+        {
+          "time": 10.0,
+          "value": 1.0
+        }
+      ],
+      "fx": [],
+      "clips": [
+        {
+          "id": "clip_title_1",
+          "name": "VEGAS Lower Third Title",
+          "mediaId": "gen_title",
+          "mediaType": "title",
+          "generatorType": "titleText",
+          "titleText": "OPEN VEGAS PRO 21 STUDIO",
+          "subtitleText": "RUST CORE  •  PYTHON FFMPEG/FREI0R/LADSPA  •  CORRIDORKEY AI",
+          "color": "#6366f1",
+          "start": 0.4,
+          "duration": 5.8,
+          "trimIn": 0.0,
+          "fadeIn": 0.6,
+          "fadeOut": 0.8,
+          "fadeInCurve": "smooth",
+          "fadeOutCurve": "smooth",
+          "gain": 1.0,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": []
+        }
+      ]
+    },
+    {
+      "id": "track_v2",
+      "name": "Main Program Video",
+      "type": "video",
+      "color": "#2563eb",
+      "level": 1.0,
+      "pan": 0.0,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0.0,
+          "value": 1.0
+        },
+        {
+          "time": 10.0,
+          "value": 1.0
+        }
+      ],
+      "fx": [],
+      "clips": [
+        {
+          "id": "clip_v_1",
+          "name": "vegas_smpte_bars.mp4",
+          "mediaId": "media_vegas_smpte_bars",
+          "mediaFile": "vegas_smpte_bars.mp4",
+          "mediaUrl": "/media/vegas_smpte_bars.mp4",
+          "mediaType": "video",
+          "generatorType": "smpteBars",
+          "color": "#2563eb",
+          "start": 0.0,
+          "duration": 4.6,
+          "trimIn": 0.0,
+          "fadeIn": 0.4,
+          "fadeOut": 1.1,
+          "fadeInCurve": "smooth",
+          "fadeOutCurve": "smooth",
+          "transitionType": "crossfade",
+          "gain": 1.0,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": []
+        },
+        {
+          "id": "clip_v_2",
+          "name": "Cyber Horizon B-Roll",
+          "mediaId": "gen_cyber",
+          "mediaType": "generator",
+          "generatorType": "cyberGrid",
+          "color": "#1d4ed8",
+          "start": 3.5,
+          "duration": 4.5,
+          "trimIn": 0.0,
+          "fadeIn": 1.1,
+          "fadeOut": 0.8,
+          "fadeInCurve": "smooth",
+          "fadeOutCurve": "smooth",
+          "transitionType": "crossfade",
+          "gain": 1.0,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": [
+            {
+              "id": "fx_init_1",
+              "type": "vignette",
+              "name": "VEGAS Soft Vignette",
+              "enabled": true,
+              "params": {
+                "strength": 0.55
+              }
+            }
+          ]
+        },
+        {
+          "id": "clip_v_3",
+          "name": "studio_broadcast_slate.mp4",
+          "mediaId": "media_studio_broadcast_slate",
+          "mediaFile": "studio_broadcast_slate.mp4",
+          "mediaUrl": "/media/studio_broadcast_slate.mp4",
+          "mediaType": "video",
+          "generatorType": "smpteBars",
+          "color": "#3b82f6",
+          "start": 7.2,
+          "duration": 2.8,
+          "trimIn": 0.0,
+          "fadeIn": 0.8,
+          "fadeOut": 0.6,
+          "fadeInCurve": "smooth",
+          "fadeOutCurve": "fast",
+          "transitionType": "crossfade",
+          "gain": 1.0,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": []
+        }
+      ]
+    },
+    {
+      "id": "track_a1",
+      "name": "Synth Groove 120 BPM",
+      "type": "audio",
+      "color": "#0891b2",
+      "level": 0.92,
+      "pan": -0.1,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0.0,
+          "value": 0.95
+        },
+        {
+          "time": 10.0,
+          "value": 0.95
+        }
+      ],
+      "fx": [],
+      "clips": [
+        {
+          "id": "clip_a_1",
+          "name": "synth_bass_120bpm.wav",
+          "mediaId": "media_synth_bass_120bpm",
+          "mediaFile": "synth_bass_120bpm.wav",
+          "mediaUrl": "/media/synth_bass_120bpm.wav",
+          "mediaType": "audio",
+          "color": "#0891b2",
+          "start": 0.0,
+          "duration": 8.0,
+          "trimIn": 0.0,
+          "fadeIn": 0.3,
+          "fadeOut": 0.9,
+          "fadeInCurve": "fast",
+          "fadeOutCurve": "smooth",
+          "gain": 0.95,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": [],
+          "freq": 110
+        }
+      ]
+    },
+    {
+      "id": "track_a2",
+      "name": "Ambient Stereo Pad",
+      "type": "audio",
+      "color": "#0d9488",
+      "level": 0.82,
+      "pan": 0.15,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0.0,
+          "value": 0.8
+        },
+        {
+          "time": 10.0,
+          "value": 0.8
+        }
+      ],
+      "fx": [],
+      "clips": [
+        {
+          "id": "clip_a_2",
+          "name": "ambient_pad_chord.wav",
+          "mediaId": "media_ambient_pad_chord",
+          "mediaFile": "ambient_pad_chord.wav",
+          "mediaUrl": "/media/ambient_pad_chord.wav",
+          "mediaType": "audio",
+          "color": "#0d9488",
+          "start": 1.5,
+          "duration": 8.0,
+          "trimIn": 0.0,
+          "fadeIn": 1.2,
+          "fadeOut": 1.4,
+          "fadeInCurve": "smooth",
+          "fadeOutCurve": "smooth",
+          "gain": 0.85,
+          "playbackRate": 1.0,
+          "muted": false,
+          "locked": false,
+          "panCrop": {
+            "x": 0.0,
+            "y": 0.0,
+            "scale": 1.0,
+            "rotation": 0.0,
+            "flipH": false,
+            "flipV": false
+          },
+          "fx": [],
+          "freq": 220
+        }
+      ]
+    }
+  ]
+}

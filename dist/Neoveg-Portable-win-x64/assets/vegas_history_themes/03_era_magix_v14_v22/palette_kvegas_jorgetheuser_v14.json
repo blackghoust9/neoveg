@@ -1,0 +1,61 @@
+{
+  "id": "kvegas_jorgetheuser_v14",
+  "era_folder": "03_era_magix_v14_v22",
+  "era_number": 3,
+  "name": "KVegas: JorgeTheUser / JustTheUser (Vegas 14)",
+  "short_badge": "KVEGAS • JORGETHEUSER V14",
+  "years": "2016–2017",
+  "vendor": "KVegas Fork (src/mainwindow.cpp • JorgeTheUser.qss)",
+  "versions": [
+    "VEGAS Pro 14.0 (JorgeTheUser / JustTheUser)"
+  ],
+  "description": "Perfil JorgeTheUser importado do fork KVegas (mainwindow.cpp + JorgeTheUser.qss): grafite médio #3F434B/#32363F, destaque #7895C8, vídeo #6D87CC e áudio #4D667C.",
+  "palette": {
+    "window_bg": "#3F434B",
+    "menu_bg": "#343842",
+    "toolbar_bg": "#343842",
+    "dock_header_bg": "#2B2F37",
+    "dock_panel_bg": "#32363F",
+    "dock_border": "#2A2E36",
+    "timeline_bg": "#2B2F37",
+    "ruler_bg": "#232323",
+    "track_video_bg": "#4D5F8E",
+    "track_audio_bg": "#3D5163",
+    "clip_header_bg": "#1F2329",
+    "accent_primary": "#6D87CC",
+    "accent_secondary": "#7895C8",
+    "timecode_bg": "#232323",
+    "timecode_fg": "#4F8C98",
+    "playhead_color": "#57A976",
+    "waveform_color": "#57A976",
+    "button_bg": "#484D57",
+    "button_fg": "#F0F0F0",
+    "text_primary": "#ECECEC",
+    "text_secondary": "#CBD5E1",
+    "status_bar_bg": "#2B2F37"
+  },
+  "reference_files": [
+    "beginner-tips-for-vegas-pro-3.png"
+  ],
+  "assets": {
+    "logo_svg": "03_era_magix_v14_v22/logo_kvegas_jorgetheuser_v14.svg",
+    "logo_png": "03_era_magix_v14_v22/logo_kvegas_jorgetheuser_v14.png",
+    "icons_svg": "03_era_magix_v14_v22/icons_kvegas_jorgetheuser_v14.svg",
+    "swatch_png": "03_era_magix_v14_v22/swatch_kvegas_jorgetheuser_v14.png",
+    "palette_json": "03_era_magix_v14_v22/palette_kvegas_jorgetheuser_v14.json"
+  },
+  "curated_references": [
+    {
+      "file": "beginner-tips-for-vegas-pro-3.png",
+      "relative_path": "03_era_magix_v14_v22/references/beginner-tips-for-vegas-pro-3.png",
+      "sampled_dominant_hex": [
+        "#D7DCE5",
+        "#B0ABAB",
+        "#97999A",
+        "#979594",
+        "#878B8A",
+        "#7D7877"
+      ]
+    }
+  ]
+}

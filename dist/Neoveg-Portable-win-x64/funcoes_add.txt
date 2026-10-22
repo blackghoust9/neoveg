@@ -1,0 +1,196 @@
+================================================================================
+OPEN VEGAS PRO 21 / NEOVEG — RELATÓRIO DE FUNCIONALIDADES & ARQUITETURA
+Arquivo: funcoes_add.txt
+Data de Atualização: 2026-10-21
+Arquitetura Definitiva 100% Multiplataforma:
+  • Interface Gráfica Desktop: C# (.NET 10 + Avalonia UI 11.2.3 — Windows, Linux X11/Wayland, macOS Cocoa/Metal)
+  • Motor Nativo DSP & Edição (FFI): Rust (`neoveg_core` cdylib — `.dll` / `.so` / `.dylib`)
+  • Orquestração Isolada de Mídia & Plugins: Python (`ffmpeg_manager.py`, `plugins_engine.py`, `vegas_scripting.py`, `rust_bridge.py`)
+Backup Completo da Versão Anterior: ./backup_v1_anterior/
+================================================================================
+
+0. MIGRAÇÃO DEFINITIVA PARA ARQUITETURA MULTIPLATAFORMA NEOVEG (AVALONIA UI + RUST FFI + PYTHON)
+--------------------------------------------------------------------------------
+[x] BACKUP COMPLETO DE TUDO EM `./backup_v1_anterior/` E RECICLAGEM SELETIVA DE RUST E PYTHON:
+    - Todo o código anterior foi preservado integralmente em `backup_v1_anterior/`.
+    - Foram reciclados e refatorados os scripts de Rust (`rust-core/src/lib.rs`) e Python
+      (`python-backend/rust_bridge.py`, `plugins_engine.py`, `vegas_scripting.py`,
+      `error_logger.py`), descartando dependências exclusivas do Windows (WPF/WinForms)
+      no host desktop.
+[x] SUBSTITUIÇÃO DO ANTIGO CÓDIGO WPF/WINFORMS PELO AVALONIA UI 11.2.3 (`desktop-host/`):
+    - O projeto `desktop-host/Neoveg.csproj` (`AssemblyName: Neoveg`) foi
+      migrado para `<TargetFramework>net10.0</TargetFramework>` com `Avalonia`,
+      `Avalonia.Desktop`, `Avalonia.Themes.Fluent` e `Avalonia.Fonts.Inter` (zero WPF!).
+    - Mantida 100% da ergonomia clássica do VEGAS Pro:
+      • Painel Superior Esquerdo (`BuildLeftMediaAndFxDock`): Project Media Bin,
+        Video FX (CorridorKey AI, Frei0r, Resolve 3-Wheel Color), Audio FX (LADSPA) e
+        Media Generators.
+      • Painel Superior Central (`BuildCenterInspectorDock`): Event Pan/Crop, FX Chain
+        e atalho para a Janela Separada de Configurações Avançadas.
+      • Painel Superior Direito (`VideoPreviewControl` + `MasterScopeControl`):
+        Monitor de Preview em tempo real (Skia/Avalonia `DrawingContext`) com gizmo `F`
+        interativo do Pan/Crop, Split-Screen FX Bypass, Safe Areas, barras SMPTE e
+        ator CorridorKey, além do escopo RGB Parade e medidores Master Stereo dBFS.
+      • Painel Inferior (`MultiTrackTimelineControl` + `Track Headers`): Timeline
+        multi-pista interativa com régua SMPTE, formas de onda PCM WAV, curvas de fade,
+        auto-crossfade, renomeação inline de faixas (`✎`), agrupamento de faixas V+A
+        (`Agrupar V+A` / `G` / `Desagrupar`) e ajuste de altura (`-` / `+`).
+[x] PONTE DE COMUNICAÇÃO FFI EM C# (`desktop-host/Interop/RustCoreInterop.cs`):
+    - Carregamento dinâmico multiplataforma via `NativeLibrary.TryLoad` e ponteiros
+      `[UnmanagedFunctionPointer(CallingConvention.Cdecl)]` para:
+      • Windows: `neoveg_core.dll`
+      • Linux:   `libneoveg_core.so`
+      • macOS:   `libneoveg_core.dylib`
+    - Funções C-ABI exportadas em `rust-core/src/lib.rs`:
+      • `neoveg_format_smpte` e `neoveg_parse_smpte` (Timecode SMPTE Drop/Non-Drop Frame)
+      • `neoveg_evaluate_fade_curve` (5 curvas de fade do VEGAS Pro)
+      • `neoveg_split_clip` e `neoveg_compute_crossfade` (Cortes `S` e Auto-Crossfade)
+      • `neoveg_analyze_pcm_dsp` e `neoveg_analyze_wav_file` (DSP de picos e RMS dBFS)
+[x] GERENCIADOR PYTHON ISOLADO DE FFMPEG E FFPROBE POR SO (`python-backend/ffmpeg_manager.py`):
+    - Controle isolado de `ffmpeg` e `ffprobe` para Windows (`win-x64`), Linux (`linux-x64`)
+      e macOS (`osx-x64` / `osx-arm64`), configurando `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`,
+      `PATH`, `FREI0R_PATH`, `LADSPA_PATH` e grupos de processo isolados sem janela de console.
+[x] ROTINA DE BUILD AUTOMATIZADA PORTÁTIL (~300MB) (`build_portable.py`, `scripts/build-portable.ps1`, `scripts/build-portable.sh`):
+    - Gera automaticamente os pacotes portáteis em `dist/`:
+      • Windows: `dist/Neoveg-Portable-win-x64/Neoveg.exe`
+      • Linux:   `dist/Neoveg-Portable-linux-x64/Neoveg.AppDir` (estrutura `.AppImage` com `AppRun` e `neoveg.desktop`)
+      • macOS:   `dist/Neoveg-Portable-osx-x64/Neoveg.app` (bundle Apple com `Contents/Info.plist` e `Contents/MacOS/Neoveg`)
+
+1. NOVAS FUNCIONALIDADES IMPLEMENTADAS NESTA ATUALIZAÇÃO
+--------------------------------------------------------------------------------
+[x] BACKUP COMPLETO DE SEGURANÇA ANTES DAS MODIFICAÇÕES (`./backup_v1_anterior/`):
+    - Cópia integral preservada de `desktop-host/`, `frontend/`, `python-backend/`,
+      `rust-core/`, `projects/`, `media/`, `renders/`, `Neoveg.exe`,
+      `funcoes_add.txt` e `log_erros.txt`.
+[x] ARRASTAR JANELAS PARA OUTROS MONITORES (MULTI-MONITOR OS POPOUT WINDOWS):
+    - Cada painel (`pane-media`, `pane-inspector`, `pane-preview`, `pane-mixer`,
+      `pane-timeline`) possui agora o botão de destacar para outro monitor na barra
+      de título (`[data-win-action="popout"]`).
+    - Além disso, ao soltar um painel no modo flutuante e arrastá-lo até a borda
+      externa da janela principal, ele se destaca automaticamente em uma janela
+      nativa real do Windows (`Form` C# com `CoreWebView2NewWindowRequested`),
+      podendo ser movido livremente para qualquer monitor secundário/terciário
+      (`Screen.AllScreens`) com sincronização em tempo real via `BroadcastChannel`.
+    - Ao fechar a janela do monitor secundário, o painel retorna automaticamente
+      acoplado (docked) para a janela principal.
+[x] AUMENTAR E DIMINUIR A ALTURA DAS FAIXAS (TRACKS) DE ÁUDIO E VÍDEO:
+    - Botões individuais `-` e `+` no cabeçalho de cada faixa de áudio/vídeo.
+    - Arraste direto da borda inferior de qualquer faixa (no cabeçalho ou na
+      própria timeline) com cursor `ns-resize` (de 46px até 220px por faixa).
+    - Botões globais de diminuir/aumentar todas as faixas na barra da Timeline
+      (`#btn-tracks-shrink`, `#btn-tracks-expand`) e atalho `Alt + Roda do Mouse`.
+[x] ARRASTAR MÍDIA, GERADORES, EFEITOS E TRANSIÇÕES DIRETAMENTE PARA A TIMELINE:
+    - Suporte completo a Drag & Drop nativo dos cartões de Mídia (MP4/WAV),
+      Geradores (SMPTE, Synthwave, Títulos, CorridorKey Actor), Efeitos de Vídeo
+      (VEGAS FX, Frei0r, CorridorKey), Plugins de Áudio LADSPA e Transições
+      diretamente sobre o canvas `#vegas-timeline-canvas`.
+    - Ghost Preview em tempo real na timeline mostrando a posição exata (com Snap
+      magnético SMPTE) e a faixa alvo durante o arraste.
+    - Suporte a arrastar arquivos `.mp4`, `.wav`, `.mp3` diretamente do Windows
+      Explorer para dentro da Timeline.
+[x] BARRA SUPERIOR COM APENAS ÍCONES VETORIAIS DESENHADOS (ESTILO QT COMPACTO):
+    - Os botões de Boas-Vindas, Salvar `.veg`, Importar Mídia, Configurações,
+      Ferramentas de Edição (Normal, Razor, Slip, Rate Stretch), Split, Snap,
+      Ripple, Auto-Crossfade, Marker, Region, Delete, Multi-Monitor, Diagnóstico,
+      Scripting e Render As exibem exclusivamente ícones SVG vetoriais desenhados
+      em molduras quadradas estilo Qt (`border-radius: 0px`), com tooltips completos.
+[x] ABA DEDICADA DE CONFIGURAÇÕES (`Configurações`) COM OPÇÕES AVANÇADAS:
+    - Nova aba `Configurações` no painel central e atalho de engrenagem na barra
+      superior, reunindo todas as configurações avançadas:
+      • Vídeo & Ciência de Cor: Resolução (720p a 4K/Vertical), FPS (23.976 a 60),
+        8-bit vs 32-bit Floating Point (Full Linear ACES 1.3), ACEScct / Rec.2020 HDR10,
+        Optical Flow / Disable Resample.
+      • Áudio Master & Drivers: WASAPI Low-Latency / ASIO 2.3 Neoveg Driver,
+        44.1kHz a 192kHz, Stereo / 5.1 Surround / 7.1 Dolby Atmos Bed, Alvo LUFS.
+      • Hardware, Multi-Monitor & CorridorKey AI: Botões rápidos para destacar
+        qualquer janela para o Monitor 2, modo seguro `so4compoundplug`, e controle
+        global de altura das faixas.
+
+[x] REUTILIZAÇÃO E INTEGRAÇÃO DOS SCRIPTS PYTHON E RUST (`backup_v1_anterior/`):
+    - Os módulos em Rust (`rust-core/src/lib.rs`) e Python (`python-backend/rust_bridge.py`,
+      `vegas_scripting.py`, `plugins_engine.py`, `corridorkey_engine.py`, `server.py`)
+      foram integrados e expandidos com `TrackGroupEngine`, `TrackHeaderNode`,
+      endpoints `/api/tracks/rename` e `/api/tracks/group`, e o script de automação
+      `group_av_tracks` estilo Vegasaur / Happy Otter Scripts.
+[x] OPÇÃO DE RENOMEAR AS FAIXAS (TRACKS) DE ÁUDIO E VÍDEO:
+    - Edição inline direta no campo `.track-name-input` (com bloqueio de propagação
+      para não perder o foco ao clicar no cabeçalho) e botão dedicado `✎` (`data-track-rename`)
+      em cada faixa de áudio e vídeo, sincronizado com `POST /api/tracks/rename` no
+      backend Python/Rust.
+[x] OPÇÃO DE AGRUPAR AS FAIXAS (TRACKS) DE ÁUDIO E VÍDEO (`Track Grouping`):
+    - Botão `"Agrupar V+A"` e `"Desagrupar"` na barra de ferramentas da Timeline,
+      além do botão individual `G` (`data-track-group`) em cada cabeçalho de faixa.
+    - Indicador visual com colchete lateral colorido (`border-left`) e badge do grupo
+      (`Grupo V+A 1`), sincronizando automaticamente `Mute (M)` e `Solo (S)` entre
+      todas as faixas pertencentes ao mesmo grupo via `TrackGroupEngine` (Rust/Python).
+[x] JANELA DE BOAS-VINDAS SIMPLIFICADA + CONFIGURAÇÕES AVANÇADAS EM OUTRA JANELA:
+    - A janela de Boas-Vindas (`#modal-welcome`) foi simplificada com foco na lista
+      de Projetos Criados (`.veg`) e criação rápida de projeto vazio/demo.
+    - Adicionado o botão `"Configurações Avançadas (Abrir em Outra Janela)..."` que
+      abre a janela independente `#modal-advanced-settings` e permite destacá-la
+      como uma janela nativa independente do Windows (`Neoveg_AdvancedSettings_Window`)
+      para outro monitor.
+[x] ENCICLOPÉDIA COMPLETA DO VEGAS PRO EM `KEEPS.md` (INCLUINDO WIKIPEDIA E FONTES):
+    - Criado o documento `KEEPS.md` contendo toda a história (Sonic Foundry 1999,
+      Sony Creative Software 2003, MAGIX 2016, Boris FX 2026), tabela de todas as
+      versões (Vegas 1.0 até VEGAS Pro 22), extensões e scripts mais usados
+      (Vegasaur, Happy Otter Scripts, Voukoder, Excalibur, CorridorKey), problemas
+      constantes debatidos em comunidades (`r/VegasPro`, Creative COW) e referências
+      oficiais da Wikipedia (`https://en.wikipedia.org/wiki/Vegas_Pro`).
+
+================================================================================
+2. O QUE É NECESSÁRIO PARA DAR CONTINUIDADE AO PROJETO (PRÓXIMAS ETAPAS)
+================================================================================
+
+Para evoluir o **Neoveg** de um estúdio híbrido funcional para um NLE de
+produção comercial em larga escala mantendo a arquitetura **C# (.NET 10) + TypeScript/JS + Rust + Python**,
+os seguintes passos técnicos e componentes são recomendados:
+
+A) CAMADA C# (.NET 10 DESKTOP HOST & INTEGRAÇÃO NATIVA WINDOWS)
+--------------------------------------------------------------------------------
+1. **Shared Memory Frame RingBuffer (`CoreWebView2.AddHostObjectToScript` / SharedBuffer)**:
+   - Hoje o preview em tempo real roda via compositor HTML5 Canvas/WebGL2 e o render
+     final roda via FFmpeg. Para reproduzir 4K 60fps ProRes/RAW sem cópia de memória,
+     o host C# pode usar `CoreWebView2Environment.CreateSharedBuffer` para mapear
+     quadros decodificados em C#/Rust diretamente em texturas WebGL2 no JavaScript.
+2. **Suporte Nativo a Controladoras de Hardware ( Mackie Control / USB Jog Wheels )**:
+   - Adicionar biblioteca `NAudio.Midi` no projeto C# (`Neoveg.csproj`) para
+     ler superfícies de controle físicas e enviar eventos instantâneos ao JS.
+3. **ASIO Nativo em C# / Rust (`cpal` ou `NAudio.Asio`)**:
+   - Conectar o mixer de áudio a interfaces de áudio profissionais Focusrite/Steinberg
+     com latência abaixo de 5ms via driver ASIO direto do executável C#.
+
+B) CAMADA CORRIDORKEY AI & REDES NEURAIS (PYTHON / PYTORCH / ONNX RUNTIME)
+--------------------------------------------------------------------------------
+4. **Pesos Oficiais do CorridorKey (`CorridorKey_v1.0.pth` — ViT-L + CNN)**:
+   - O módulo `python-backend/corridorkey_engine.py` já está integrado ao projeto
+     e opera em modo híbrido (Matemática de Desmixagem Linear de Cor em Tempo Real +
+     suporte automático ao repositório oficial `nikopueringer/CorridorKey`).
+   - Para ativar a inferência neural pesada em placas NVIDIA RTX:
+     a) Clonar `https://github.com/nikopueringer/CorridorKey.git` em `./CorridorKey`
+     b) Baixar `CorridorKey_v1.0.pth` na pasta `./CorridorKey/checkpoints/`
+     c) Instalar `torch torchvision --index-url https://download.pytorch.org/whl/cu124`
+     - Ou converter o checkpoint para **ONNX Runtime DirectML (`Microsoft.ML.OnnxRuntime.DirectML`)**
+       diretamente no C# para rodar em GPUs NVIDIA, AMD e Intel sem depender de PyTorch!
+
+C) CAMADA DE PLUGINS DE EFEITOS E ÁUDIO (OFX / VST3 / FREI0R / LADSPA)
+--------------------------------------------------------------------------------
+5. **Host OpenFX (OFX C++ / Rust ABI)**:
+   - Implementar carregamento dinâmico de pacotes `.ofx.bundle` em `rust-core` para
+     abrir plugins comerciais de terceiros (Boris FX Sapphire, Twixtor, Neat Video).
+6. **Host VST3 de 64-bits**:
+   - Permitir abrir interfaces gráficas nativas de plugins VST3 (FabFilter, iZotope RX)
+     em janelas filhas WinForms do `Neoveg.exe`.
+
+D) CAMADA DE EDIÇÃO AVANÇADA & WORKFLOW BROADCAST (TYPESCRIPT / JS UI)
+--------------------------------------------------------------------------------
+7. **Edição Multicam (4 a 16 Ângulos Sincronizados por Áudio)**:
+   - Dividir o Video Preview em grade 2x2 ou 3x3 permitindo trocar de câmera em
+     tempo real com as teclas `1` a `9` durante a reprodução.
+8. **Curvas Bézier de Automação e Keyframes no Inspetor**:
+   - Expandir o timeline de keyframes do Pan/Crop e de Efeitos com alças de tangente
+     Bézier para aceleração suave (*Ease In / Ease Out*).
+9. **Importação / Exportação XML, EDL (CMX3600) e AAF (Pro Tools / Resolve)**:
+   - Permitir intercâmbio completo de timelines entre Neoveg, DaVinci
+     Resolve, Adobe Premiere Pro e Avid Pro Tools.
+================================================================================

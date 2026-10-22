@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Neoveg - MSVC 2022 x64",
+    "visualStudio": "Visual Studio Build Tools 2022",
+    "visualStudioArchitecture": "amd64",
+    "preferredGenerator": {
+      "name": "Visual Studio 17 2022",
+      "platform": "x64"
+    }
+  }
+]

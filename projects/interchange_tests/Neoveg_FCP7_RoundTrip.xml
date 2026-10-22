@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="5">
+  <sequence id="seq_Neoveg_XML_Interchange_Master">
+    <name>Neoveg_XML_Interchange_Master</name>
+    <duration>255</duration>
+    <rate>
+      <timebase>30</timebase>
+      <ntsc>TRUE</ntsc>
+    </rate>
+    <timecode>
+      <rate>
+        <timebase>30</timebase>
+        <ntsc>TRUE</ntsc>
+      </rate>
+      <string>00:00:00:00</string>
+      <frame>0</frame>
+      <displayformat>DF</displayformat>
+    </timecode>
+    <media>
+      <video>
+        <format>
+          <samplecharacteristics>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <width>1920</width>
+            <height>1080</height>
+            <anamorphic>FALSE</anamorphic>
+            <pixelaspectratio>square</pixelaspectratio>
+            <fielddominance>none</fielddominance>
+            <colordepth>24</colordepth>
+            <colorSpace>Rec.709 Standard</colorSpace>
+          </samplecharacteristics>
+        </format>
+        <track MZ.TrackName="Program Video A-Cam" neovegId="tr_v1" neovegColor="#155e75" neovegHeight="82.00" neovegLevel="0.950000" neovegPan="0.000000" neovegBlendMode="sourceAlpha" solo="TRUE" groupId="grp_av_main" groupName="Main A/V Sync Group" groupColor="#f59e0b">
+          <name>Program Video A-Cam</name>
+          <enabled>TRUE</enabled>
+          <locked>FALSE</locked>
+          <clipitem id="clip_v1_partA" neovegStartSec="0.000000" neovegDurationSec="2.400000" neovegTrimInSec="1.000000" neovegFadeInSec="0.300000" neovegFadeOutSec="0.250000" neovegPlaybackRate="1.0000" neovegColor="#0e7490" neovegMediaType="video">
+            <name>Interview_CamA_Part1</name>
+            <enabled>TRUE</enabled>
+            <duration>72</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>0</start>
+            <end>72</end>
+            <in>30</in>
+            <out>102</out>
+            <file id="med_cam_a">
+              <name>qa_hd_1080p.mp4</name>
+              <pathurl>file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_hd_1080p.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>TRUE</ntsc>
+              </rate>
+              <duration>102</duration>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion / Opacity</name>
+                <effectid>opacity</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter>
+                  <parameterid>opacity</parameterid>
+                  <name>opacity</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>100</valuemax>
+                  <value>92.0000</value>
+                </parameter>
+              </effect>
+            </filter>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <effecttype>audiolevels</effecttype>
+                <mediatype>audio</mediatype>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>4</valuemax>
+                  <value>1.000000</value>
+                  <valueDb>0.000</valueDb>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clip_v1_partB" neovegStartSec="2.400000" neovegDurationSec="3.600000" neovegTrimInSec="3.400000" neovegFadeInSec="0.250000" neovegFadeOutSec="0.500000" neovegPlaybackRate="1.0000" neovegColor="#0e7490" neovegMediaType="video">
+            <name>Interview_CamA_Part2_SplitS</name>
+            <enabled>TRUE</enabled>
+            <duration>108</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>72</start>
+            <end>180</end>
+            <in>102</in>
+            <out>210</out>
+            <file id="med_cam_a">
+              <name>qa_hd_1080p.mp4</name>
+              <pathurl>file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_hd_1080p.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>TRUE</ntsc>
+              </rate>
+              <duration>210</duration>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion / Opacity</name>
+                <effectid>opacity</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter>
+                  <parameterid>opacity</parameterid>
+                  <name>opacity</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>100</valuemax>
+                  <value>78.0000</value>
+                </parameter>
+              </effect>
+            </filter>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <effecttype>audiolevels</effecttype>
+                <mediatype>audio</mediatype>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>4</valuemax>
+                  <value>1.000000</value>
+                  <valueDb>0.000</valueDb>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <transitionitem>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>150</start>
+            <end>180</end>
+            <alignment>center</alignment>
+            <effect>
+              <name>Cross Dissolve</name>
+              <effectid>Cross Dissolve</effectid>
+              <effectcategory>Dissolve</effectcategory>
+              <effecttype>transition</effecttype>
+              <mediatype>video</mediatype>
+            </effect>
+          </transitionitem>
+          <clipitem id="clip_v1_broll" neovegStartSec="5.000000" neovegDurationSec="3.500000" neovegTrimInSec="0.500000" neovegFadeInSec="1.000000" neovegFadeOutSec="0.400000" neovegPlaybackRate="1.0000" neovegColor="#16a34a" neovegMediaType="video">
+            <name>B_Roll_4K_Drone_XFade</name>
+            <enabled>TRUE</enabled>
+            <duration>105</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>150</start>
+            <end>255</end>
+            <in>15</in>
+            <out>120</out>
+            <file id="med_broll_4k">
+              <name>qa_uhd_4k.mp4</name>
+              <pathurl>file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_uhd_4k.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>TRUE</ntsc>
+              </rate>
+              <duration>120</duration>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion / Opacity</name>
+                <effectid>opacity</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter>
+                  <parameterid>opacity</parameterid>
+                  <name>opacity</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>100</valuemax>
+                  <value>85.0000</value>
+                </parameter>
+              </effect>
+            </filter>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <effecttype>audiolevels</effecttype>
+                <mediatype>audio</mediatype>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>4</valuemax>
+                  <value>0.900000</value>
+                  <valueDb>-0.915</valueDb>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+        </track>
+        <track MZ.TrackName="Alt Angle Backup (Muted)" neovegId="tr_v2_muted" neovegColor="#4f46e5" neovegHeight="74.00" neovegLevel="0.800000" neovegPan="0.000000" neovegBlendMode="sourceAlpha" solo="FALSE">
+          <name>Alt Angle Backup (Muted)</name>
+          <enabled>FALSE</enabled>
+          <locked>FALSE</locked>
+        </track>
+      </video>
+      <audio>
+        <numOutputChannels>2</numOutputChannels>
+        <format>
+          <samplecharacteristics>
+            <depth>24</depth>
+            <samplerate>48000</samplerate>
+          </samplecharacteristics>
+        </format>
+        <track MZ.TrackName="Master Stereo Dialogue &amp; Bed" neovegId="tr_a1" neovegColor="#881337" neovegHeight="78.00" neovegLevel="0.880000" neovegPan="-0.100000" neovegBlendMode="sourceAlpha" solo="FALSE" groupId="grp_av_main" groupName="Main A/V Sync Group" groupColor="#f59e0b">
+          <name>Master Stereo Dialogue &amp; Bed</name>
+          <enabled>TRUE</enabled>
+          <locked>FALSE</locked>
+          <clipitem id="clip_a1_dialogue" neovegStartSec="0.000000" neovegDurationSec="4.200000" neovegTrimInSec="0.250000" neovegFadeInSec="0.200000" neovegFadeOutSec="0.300000" neovegPlaybackRate="1.0000" neovegColor="#0891b2" neovegMediaType="audio">
+            <name>Dialogue_Boom_24bit_96kHz</name>
+            <enabled>TRUE</enabled>
+            <duration>126</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>0</start>
+            <end>126</end>
+            <in>7</in>
+            <out>133</out>
+            <file id="med_aud_hq">
+              <name>qa_audio_24bit_96khz.wav</name>
+              <pathurl>file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_audio_24bit_96khz.wav</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>TRUE</ntsc>
+              </rate>
+              <duration>133</duration>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion / Opacity</name>
+                <effectid>opacity</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter>
+                  <parameterid>opacity</parameterid>
+                  <name>opacity</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>100</valuemax>
+                  <value>100.0000</value>
+                </parameter>
+              </effect>
+            </filter>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <effecttype>audiolevels</effecttype>
+                <mediatype>audio</mediatype>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>4</valuemax>
+                  <value>1.250000</value>
+                  <valueDb>1.938</valueDb>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clip_a1_synth" neovegStartSec="4.200000" neovegDurationSec="4.300000" neovegTrimInSec="1.500000" neovegFadeInSec="0.300000" neovegFadeOutSec="0.600000" neovegPlaybackRate="1.0000" neovegColor="#881337" neovegMediaType="audio">
+            <name>Ambient_Bed_Stem</name>
+            <enabled>TRUE</enabled>
+            <duration>129</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>TRUE</ntsc>
+            </rate>
+            <start>126</start>
+            <end>255</end>
+            <in>45</in>
+            <out>174</out>
+            <file id="med_aud_bed">
+              <name>qa_audio_24bit_96khz.wav</name>
+              <pathurl>file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_audio_24bit_96khz.wav</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>TRUE</ntsc>
+              </rate>
+              <duration>174</duration>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion / Opacity</name>
+                <effectid>opacity</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter>
+                  <parameterid>opacity</parameterid>
+                  <name>opacity</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>100</valuemax>
+                  <value>100.0000</value>
+                </parameter>
+              </effect>
+            </filter>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <effecttype>audiolevels</effecttype>
+                <mediatype>audio</mediatype>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>4</valuemax>
+                  <value>0.620000</value>
+                  <valueDb>-4.152</valueDb>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+        </track>
+      </audio>
+    </media>
+    <marker neovegTimeSec="2.400000" neovegColor="#f97316">
+      <name>Split Cut (S) Sync Point</name>
+      <comment>Split Cut (S) Sync Point</comment>
+      <in>72</in>
+      <out>-1</out>
+    </marker>
+    <marker neovegTimeSec="5.000000" neovegColor="#10b981">
+      <name>Cross Dissolve Entry</name>
+      <comment>Cross Dissolve Entry</comment>
+      <in>150</in>
+      <out>-1</out>
+    </marker>
+  </sequence>
+</xmeml>

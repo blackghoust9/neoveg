@@ -1,0 +1,113 @@
+{
+  "name": "Neoveg_MovedMedia_RelinkTest",
+  "isDemo": false,
+  "description": "Projeto com Mídias Movidas/Renomeadas para Teste do Search & Relink (Neoveg.Core.MediaRelinker)",
+  "width": 1920,
+  "height": 1080,
+  "fps": 29.97,
+  "playhead": 1.2,
+  "loopStart": 0.0,
+  "loopEnd": 8.0,
+  "loopEnabled": true,
+  "autoCrossfadeEnabled": true,
+  "mediaPool": [
+    {
+      "id": "media_rel_1",
+      "name": "Seafront - 4743 (SMPTE Master)",
+      "fileName": "vegas_smpte_bars.mp4",
+      "filePath": "C:\\Old_Neoveg_Archive\\Camera_A\\vegas_smpte_bars.mp4",
+      "type": "video",
+      "duration": 4.0,
+      "width": 1280,
+      "height": 720,
+      "fps": 29.97
+    },
+    {
+      "id": "media_rel_2",
+      "name": "Broadcast Slate Camera A (Renomeado)",
+      "fileName": "CAM01_neoveg_broadcast_slate_FINAL.mp4",
+      "filePath": "D:\\External_SSD_2025\\Rushes\\CAM01_neoveg_broadcast_slate_FINAL.mp4",
+      "type": "video",
+      "duration": 4.0,
+      "width": 1280,
+      "height": 720,
+      "fps": 29.97
+    },
+    {
+      "id": "media_rel_3",
+      "name": "Neoveg Synth Bass 120BPM (48kHz PCM WAV)",
+      "fileName": "synth_bass_120bpm.wav",
+      "filePath": "E:\\Audio_Backup_Drive\\Stems\\synth_bass_120bpm.wav",
+      "type": "audio",
+      "duration": 4.0,
+      "sampleRate": 48000
+    }
+  ],
+  "tracks": [
+    {
+      "id": "track_v1",
+      "name": "Program Video Track",
+      "type": "video",
+      "color": "#0e7490",
+      "height": 82.0,
+      "clips": [
+        {
+          "id": "clip_vid_1",
+          "name": "Seafront - 4743",
+          "mediaId": "media_rel_1",
+          "mediaFile": "C:\\Old_Neoveg_Archive\\Camera_A\\vegas_smpte_bars.mp4",
+          "mediaType": "video",
+          "generatorType": "smpteBars",
+          "color": "#0e7490",
+          "start": 0.0,
+          "duration": 4.0,
+          "fadeIn": 0.3,
+          "fadeOut": 0.8
+        },
+        {
+          "id": "clip_vid_2",
+          "name": "CAM01_neoveg_broadcast_slate_FINAL",
+          "mediaId": "media_rel_2",
+          "mediaFile": "D:\\External_SSD_2025\\Rushes\\CAM01_neoveg_broadcast_slate_FINAL.mp4",
+          "mediaType": "video",
+          "generatorType": "greenScreenActor",
+          "color": "#16a34a",
+          "start": 3.2,
+          "duration": 4.5,
+          "fadeIn": 0.8,
+          "fadeOut": 0.5
+        }
+      ]
+    },
+    {
+      "id": "track_a1",
+      "name": "Master Stereo Bus Track",
+      "type": "audio",
+      "color": "#881337",
+      "height": 78.0,
+      "clips": [
+        {
+          "id": "clip_aud_1",
+          "name": "Neoveg Synth Bass 120BPM (48kHz PCM WAV)",
+          "mediaId": "media_rel_3",
+          "mediaFile": "E:\\Audio_Backup_Drive\\Stems\\synth_bass_120bpm.wav",
+          "mediaType": "audio",
+          "color": "#881337",
+          "start": 0.0,
+          "duration": 6.5,
+          "fadeIn": 0.4,
+          "fadeOut": 0.6
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "id": "mk_relink_1",
+      "time": 0.0,
+      "label": "Relink Test Start",
+      "color": "#f97316"
+    }
+  ],
+  "regions": []
+}

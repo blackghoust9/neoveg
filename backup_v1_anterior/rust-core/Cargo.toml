@@ -1,0 +1,19 @@
+[package]
+name = "openvegas-core"
+version = "1.0.0"
+edition = "2021"
+authors = ["OpenVegas Studio"]
+description = "Core NLE Engine for OpenVegas Pro: SMPTE Timecode, Auto-Crossfade Solver, Audio PCM DSP & FFmpeg Filtergraph Compiler"
+
+[lib]
+name = "openvegas_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "openvegas-core"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

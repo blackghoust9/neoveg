@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Neoveg (Avalonia UI)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/dist/Neoveg-Portable-win-x64/Neoveg.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "SEE_MASK_NOZONECHECKS": "1"
+      }
+    }
+  ]
+}

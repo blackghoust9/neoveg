@@ -1,0 +1,125 @@
+{
+  "name": "Novo_Projeto_Vazio.veg",
+  "isDemo": false,
+  "width": 1920,
+  "height": 1080,
+  "fps": 29.97,
+  "pixelAspect": 1,
+  "fieldOrder": "none",
+  "pixelFormat": "8bit-rec709",
+  "colorSpace": "Rec.709",
+  "motionBlurType": "gaussian",
+  "deinterlaceMethod": "blend",
+  "resampleMode": "disable",
+  "sampleRate": 48000,
+  "audioBitDepth": 24,
+  "masterBusMode": "stereo",
+  "bpm": 120,
+  "playhead": 0,
+  "loopStart": 0,
+  "loopEnd": 6,
+  "loopEnabled": false,
+  "snapEnabled": true,
+  "rippleEnabled": false,
+  "autoCrossfadeEnabled": true,
+  "previewQuality": "best",
+  "splitScreenBypass": false,
+  "showSafeAreas": false,
+  "showGrid": false,
+  "masterVolume": 1,
+  "markers": [
+    {
+      "id": "mk_1792521399736",
+      "time": 1,
+      "label": "Marker 1",
+      "color": "#f97316"
+    },
+    {
+      "id": "mk_1792521404449",
+      "time": 4.208,
+      "label": "Marker 2",
+      "color": "#f97316"
+    }
+  ],
+  "regions": [],
+  "tracks": [
+    {
+      "id": "track_v1",
+      "name": "Video Overlay / Titles",
+      "type": "video",
+      "color": "#3daee9",
+      "level": 1,
+      "pan": 0,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0,
+          "value": 1
+        },
+        {
+          "time": 8,
+          "value": 1
+        }
+      ],
+      "fx": [],
+      "clips": []
+    },
+    {
+      "id": "track_v2",
+      "name": "Video Main Program",
+      "type": "video",
+      "color": "#2563eb",
+      "level": 1,
+      "pan": 0,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0,
+          "value": 1
+        },
+        {
+          "time": 8,
+          "value": 1
+        }
+      ],
+      "fx": [],
+      "clips": []
+    },
+    {
+      "id": "track_a1",
+      "name": "Audio Stereo Master",
+      "type": "audio",
+      "color": "#0891b2",
+      "level": 1,
+      "pan": 0,
+      "blendMode": "sourceAlpha",
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "armed": false,
+      "showEnvelope": false,
+      "envelopePoints": [
+        {
+          "time": 0,
+          "value": 1
+        },
+        {
+          "time": 8,
+          "value": 1
+        }
+      ],
+      "fx": [],
+      "clips": []
+    }
+  ]
+}

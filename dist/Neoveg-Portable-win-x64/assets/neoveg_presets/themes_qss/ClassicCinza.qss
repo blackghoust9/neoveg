@@ -1,0 +1,4 @@
+QMainWindow,QDialog{background:#d0d0d0;color:#1a1a1a;}
+QToolBar,QMenuBar{background:#bfbfbf;border:1px solid #a7a7a7;}
+QMenu{background:#d8d8d8;border:1px solid #9f9f9f;}
+QPushButton,QToolButton{background:#c5c5c5;border:1px solid #9a9a9a;padding:2px;}

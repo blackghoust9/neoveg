@@ -1,0 +1,129 @@
+$ErrorActionPreference = "Stop"
+
+$Source = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$Destination = "G:\Meu Drive\vp-rev-eng\teste\teste2"
+$Robocopy = Join-Path $env:SystemRoot "System32\robocopy.exe"
+
+if (-not (Test-Path -LiteralPath $Robocopy -PathType Leaf)) {
+    throw "Robocopy was not found at '$Robocopy'."
+}
+
+$Arguments = @(
+    $Source
+    $Destination
+    "/MIR"
+    "/R:2"
+    "/W:2"
+    "/NFL"
+    "/NDL"
+    "/NP"
+    "/NJH"
+    "/NJS"
+    "/XD"
+    ".git"
+    "bin"
+    "obj"
+    "Debug"
+    "Release"
+    "*TestResult*"
+    "target"
+    "build"
+    "out"
+    "CMakeFiles"
+    "logs"
+    "AppCache"
+    "temp"
+    "coverage"
+    "__pycache__"
+    ".venv"
+    "venv"
+    "env"
+    ".pytest_cache"
+    "*.egg-info"
+    ".vs"
+    ".idea"
+    ".vscode"
+    "*.dir"
+    "/XF"
+    "*.tmp"
+    "*.log"
+    "*.sfk"
+    "*.sfvp0"
+    ".DS_Store"
+    "Thumbs.db"
+    "desktop.ini"
+    "*.user"
+    "*.userosscache"
+    "*.sln.docstates"
+    "*.rs.bk"
+    "CMakeCache.txt"
+    "Makefile"
+    "cmake_install.cmake"
+    "*.VC.db"
+    "*.opendb"
+    "*.ipch"
+    "*.idb"
+    "*.pdb"
+    "*.ilk"
+    "*.exp"
+    "*.obj"
+    "*.o"
+    "*.lib"
+    "*.a"
+    "*.exe"
+    "*.dll"
+    "*.so"
+    "*.dylib"
+    "*.pyc"
+    "*.pyo"
+    "*.pyd"
+    "*.class"
+    "*`$py.class"
+    ".coverage"
+    "*.swp"
+    "*.swo"
+    "*.gslides"
+    "*.gdoc"
+    "*.gsheet"
+)
+
+Write-Host "Mirroring '$Source' to '$Destination'..."
+& $Robocopy @Arguments
+$RobocopyExitCode = $LASTEXITCODE
+
+if ($RobocopyExitCode -ge 8) {
+    throw "Robocopy failed with exit code $RobocopyExitCode."
+}
+
+$AllowedVsCodeFiles = @(
+    "settings.json"
+    "tasks.json"
+    "launch.json"
+    "cmake-kits.json"
+)
+$VsCodeSource = Join-Path $Source ".vscode"
+$VsCodeDestination = Join-Path $Destination ".vscode"
+
+if (Test-Path -LiteralPath $VsCodeSource -PathType Container) {
+    $StagingDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("neoveg-vscode-sync-" + [guid]::NewGuid())
+    try {
+        New-Item -ItemType Directory -Path $StagingDirectory | Out-Null
+        foreach ($FileName in $AllowedVsCodeFiles) {
+            $SourceFile = Join-Path $VsCodeSource $FileName
+            if (Test-Path -LiteralPath $SourceFile -PathType Leaf) {
+                Copy-Item -LiteralPath $SourceFile -Destination $StagingDirectory
+            }
+        }
+
+        & $Robocopy $StagingDirectory $VsCodeDestination "/MIR" "/R:2" "/W:2" "/NFL" "/NDL" "/NP" "/NJH" "/NJS"
+        $VsCodeRobocopyExitCode = $LASTEXITCODE
+        if ($VsCodeRobocopyExitCode -ge 8) {
+            throw "Robocopy failed to synchronize allowed VS Code files with exit code $VsCodeRobocopyExitCode."
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $StagingDirectory -Recurse -Force
+    }
+}
+
+Write-Host "Google Drive synchronization completed (Robocopy exit code $RobocopyExitCode)."

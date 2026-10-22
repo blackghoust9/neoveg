@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Neoveg Studio 21
+Comment=Cross-Platform Non-Linear Video & Audio Editor (Avalonia UI + Rust FFI + Python FFmpeg)
+Exec=Neoveg
+Icon=neoveg
+Categories=AudioVideo;Video;AudioVideoEditing;
+Terminal=false

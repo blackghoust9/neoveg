@@ -1,0 +1,8 @@
+{
+  "id": "hos_extension",
+  "name": "HOS (Happy Otter Scripts) — Proxy, Audio Trim & FFmpeg Bridge",
+  "vendor": "Happy Otter Scripts Compatible Host",
+  "version": "1.0.4",
+  "category": "View.WindowExtensions",
+  "description": "Assistente acoplável de transcodificação rápida, normalização True-Peak LADSPA e sincronização de faixas V+A."
+}

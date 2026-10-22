@@ -1,0 +1,8 @@
+{
+  "id": "vegasaur_extension",
+  "name": "Vegasaur 4.0 Toolkit — Batch Auditor, Smart Trim & Markers",
+  "vendor": "Vegasaur Compatible Dockable Host",
+  "version": "4.0.1",
+  "category": "View.WindowExtensions",
+  "description": "Automação em lote para fechar lacunas (Ripple Delete Gaps), criar marcadores de batida BPM, auditar faixas e aplicar presets de FX."
+}

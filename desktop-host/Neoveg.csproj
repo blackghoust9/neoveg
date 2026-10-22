@@ -1,0 +1,103 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Neoveg</AssemblyName>
+    <RootNamespace>Neoveg</RootNamespace>
+    <Version>2.1.0</Version>
+    <FileVersion>2.1.0.0</FileVersion>
+    <AssemblyVersion>2.1.0.0</AssemblyVersion>
+    <Company>Neoveg</Company>
+    <Authors>Neoveg Contributors</Authors>
+    <Product>Neoveg</Product>
+    <Description>Neoveg Cross-Platform Non-Linear Video &amp; Audio Editor</Description>
+    <Copyright>Copyright (c) 2026 Neoveg</Copyright>
+    <ApplicationIcon>Neoveg.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**</DefaultItemExcludes>
+    <NoWarn>NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="bin\**\*.cs;obj\**\*.cs" />
+    <AvaloniaXaml Remove="bin\**\*.axaml;obj\**\*.axaml" />
+    <AvaloniaResource Remove="bin\**\*;obj\**\*" />
+    <None Remove="bin\**\*;obj\**\*" />
+    <AvaloniaXaml Remove="Controls\PlayheadOverlay.axaml" />
+    <AvaloniaXaml Remove="Controls\ClipControl.axaml" />
+    <AvaloniaXaml Remove="Controls\TrackHeaderControl.axaml" />
+    <AvaloniaXaml Remove="Views\LogViewerWindow.axaml" />
+    <AvaloniaXaml Remove="Assets\**\*.axaml" />
+    <None Remove="Assets\**\*" />
+    <None Include="Controls\PlayheadOverlay.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Controls\ClipControl.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Controls\TrackHeaderControl.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Views\LogViewerWindow.axaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Copy Native Rust FFI (neoveg_core.dll) and C++ Engine (neoveg_cpp_engine.dll) to $(OutputPath) -->
+  <ItemGroup>
+    <None Include="..\runtimes\win-x64\native\neoveg_core.dll"
+          Condition="Exists('..\runtimes\win-x64\native\neoveg_core.dll')"
+          Link="neoveg_core.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\runtimes\win-x64\native\neoveg_cpp_engine.dll"
+          Condition="Exists('..\runtimes\win-x64\native\neoveg_cpp_engine.dll')"
+          Link="neoveg_cpp_engine.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\runtimes\win-x64\native\WebView2Loader.dll"
+          Condition="Exists('..\runtimes\win-x64\native\WebView2Loader.dll')"
+          Link="WebView2Loader.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Copy Assets/ and scripts/ folders to $(OutputPath) -->
+  <ItemGroup>
+    <None Include="..\Assets\**\*"
+          Exclude="..\Assets\RenderStatusRuler.axaml"
+          Link="Assets\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\scripts\**\*"
+          Exclude="..\scripts\__pycache__\**\*"
+          Link="scripts\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\addon\vcredist_all_in_one\**\*"
+          Condition="Exists('..\addon\vcredist_all_in_one')"
+          Link="addon\vcredist_all_in_one\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\addon\vcredist2022-2015_14.36.32532\**\*"
+          Condition="Exists('..\addon\vcredist2022-2015_14.36.32532')"
+          Link="addon\vcredist2022-2015_14.36.32532\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="EnsureNativeRuntimesCopied" AfterTargets="Build">
+    <ItemGroup>
+      <_NativeRuntimes Include="..\runtimes\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NativeRuntimes)"
+          DestinationFiles="@(_NativeRuntimes->'$(OutputPath)runtimes\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

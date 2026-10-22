@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Neoveg.ViewModels"
+        x:Class="Neoveg.Views.LogViewerWindow"
+        x:DataType="vm:LogViewerViewModel"
+        Title="Neoveg — Visualizador Centralizado de Diagnóstico e Logs (logs/neoveg.log &amp; logs/crash.log)"
+        Width="920"
+        Height="620"
+        WindowStartupLocation="CenterOwner"
+        Background="#0f141d"
+        Foreground="#f1f5f9">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="14">
+    <!-- Top Header & Toolbar -->
+    <Border Grid.Row="0"
+            Background="#161d2a"
+            BorderBrush="#2563eb"
+            BorderThickness="1"
+            Padding="12,8"
+            Margin="0,0,0,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="2">
+          <SelectableTextBlock Text="DIAGNÓSTICO E LOGS EM TEMPO DE EXECUÇÃO (C# • Rust FFI • C++ • Python)"
+                               FontSize="13"
+                               FontWeight="Bold"
+                               Foreground="#38bdf8" />
+          <SelectableTextBlock Text="Selecione qualquer trecho de texto abaixo ou clique em 'Copiar Logs' para copiar todo o conteúdo para a Área de Transferência."
+                               FontSize="11"
+                               Foreground="#94a3b8" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button x:Name="PART_ToolbarCopyButton"
+                  Content="{Binding CopyButtonLabel}"
+                  Command="{Binding CopyToClipboardCommand}"
+                  Background="#2563eb"
+                  Foreground="#ffffff"
+                  FontWeight="Bold"
+                  Padding="12,6" />
+          <Button x:Name="PART_RefreshLogsButton"
+                  Content="Atualizar Logs"
+                  Command="{Binding RefreshLogsCommand}"
+                  Background="#1e293b"
+                  Foreground="#e2e8f0"
+                  Padding="10,6" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Main Log Display Area (Selectable TextBox) -->
+    <TextBox x:Name="PART_LogTextBox"
+             Grid.Row="1"
+             Text="{Binding LogText}"
+             SelectedText="{Binding SelectedLogText, Mode=TwoWay}"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             TextWrapping="NoWrap"
+             FontFamily="Consolas, monospace"
+             FontSize="11.5"
+             Background="#0b0f17"
+             Foreground="#e2e8f0"
+             BorderBrush="#334155"
+             BorderThickness="1"
+             Padding="10" />
+
+    <!-- Footer Status & Action Buttons -->
+    <Border Grid.Row="2"
+            Background="#161d2a"
+            BorderBrush="#334155"
+            BorderThickness="1"
+            Padding="10,8"
+            Margin="0,10,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <SelectableTextBlock x:Name="PART_StatusTextBlock"
+                             Grid.Column="0"
+                             Text="{Binding StatusMessage}"
+                             VerticalAlignment="Center"
+                             FontSize="11"
+                             Foreground="#cbd5e1" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button x:Name="PART_FooterCopyButton"
+                  Content="{Binding CopyButtonLabel}"
+                  Command="{Binding CopyToClipboardCommand}"
+                  Background="#2563eb"
+                  Foreground="#ffffff"
+                  FontWeight="Bold"
+                  Padding="14,6" />
+          <Button x:Name="PART_CloseButton"
+                  Content="Fechar"
+                  Background="#334155"
+                  Foreground="#ffffff"
+                  Padding="14,6" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

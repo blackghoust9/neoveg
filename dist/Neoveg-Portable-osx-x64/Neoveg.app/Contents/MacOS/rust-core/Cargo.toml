@@ -1,0 +1,22 @@
+[package]
+name = "neoveg-core"
+version = "2.0.0"
+edition = "2021"
+authors = ["Neoveg Cross-Platform Studio"]
+description = "Cross-Platform Native Rust FFI Engine for Neoveg (SMPTE Timecode, 5-Curve Fades, Auto-Crossfade, Audio PCM DSP, Event Split & FFmpeg Filtergraph Compiler)"
+
+[lib]
+name = "neoveg_core"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "neoveg-core-cli"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

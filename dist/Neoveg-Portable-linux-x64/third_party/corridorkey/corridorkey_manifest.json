@@ -1,0 +1,12 @@
+{
+  "module": "CorridorKey",
+  "repository": "https://github.com/CorridorDigital/CorridorKey",
+  "license": "MIT",
+  "version": "2.1.0",
+  "pipeline": {
+    "despill_matrix": "green_channel_clamp_lab",
+    "cleanplate_subtraction": true,
+    "edge_matte_refinement": "guided_alpha_feather_16bit",
+    "neoveg_bridge": "python-backend/corridor_key_green_screen.py"
+  }
+}

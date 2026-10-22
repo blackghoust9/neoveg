@@ -1,0 +1,92 @@
+{
+  "id": "sony_v8_v13_pro_silver_dark",
+  "era_folder": "02_era_sony_v4_v13",
+  "era_number": 2,
+  "name": "Sony Vegas Pro 8–13 Prata/Escuro (2008–2015)",
+  "short_badge": "SONY VEGAS PRO 12",
+  "years": "2008–2015",
+  "vendor": "Sony Creative Software",
+  "versions": [
+    "Vegas Pro 8.0",
+    "Vegas Pro 9.0",
+    "Vegas Pro 10.0",
+    "Vegas Pro 11.0",
+    "Vegas Pro 12.0",
+    "Vegas Pro 13.0"
+  ],
+  "description": "Tema Prata/Escuro (Pro Dark Slate & Silver) introduzido na geração Vegas Pro 9–13 com painéis cinza-ardósia, cabeçalhos azul-aço metálico e marcadores laranja vivo.",
+  "palette": {
+    "window_bg": "#5A5D62",
+    "menu_bg": "#76797E",
+    "toolbar_bg": "#6B6E73",
+    "dock_header_bg": "#4E5156",
+    "dock_panel_bg": "#64676C",
+    "dock_border": "#3B3D42",
+    "timeline_bg": "#787B80",
+    "ruler_bg": "#5E6166",
+    "track_video_bg": "#6B86A2",
+    "track_audio_bg": "#866B74",
+    "clip_header_bg": "#2B3A4A",
+    "accent_primary": "#3B82F6",
+    "accent_secondary": "#F37021",
+    "timecode_bg": "#383A3E",
+    "timecode_fg": "#EAECEF",
+    "playhead_color": "#F37021",
+    "waveform_color": "#1E3A5F",
+    "button_bg": "#52555A",
+    "button_fg": "#F3F4F6",
+    "text_primary": "#F3F4F6",
+    "text_secondary": "#D1D5DB",
+    "status_bar_bg": "#4A4D52"
+  },
+  "reference_files": [
+    "image.png",
+    "2image.png",
+    "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FSony_Vegas_Pro.png"
+  ],
+  "assets": {
+    "logo_svg": "02_era_sony_v4_v13/logo_sony_v8_v13_pro_silver_dark.svg",
+    "logo_png": "02_era_sony_v4_v13/logo_sony_v8_v13_pro_silver_dark.png",
+    "icons_svg": "02_era_sony_v4_v13/icons_sony_v8_v13_pro_silver_dark.svg",
+    "swatch_png": "02_era_sony_v4_v13/swatch_sony_v8_v13_pro_silver_dark.png",
+    "palette_json": "02_era_sony_v4_v13/palette_sony_v8_v13_pro_silver_dark.json"
+  },
+  "curated_references": [
+    {
+      "file": "image.png",
+      "relative_path": "02_era_sony_v4_v13/references/image.png",
+      "sampled_dominant_hex": [
+        "#B8BBB3",
+        "#8D9794",
+        "#888B8A",
+        "#868584",
+        "#7C7F81",
+        "#555152"
+      ]
+    },
+    {
+      "file": "2image.png",
+      "relative_path": "02_era_sony_v4_v13/references/2image.png",
+      "sampled_dominant_hex": [
+        "#FFFFFF",
+        "#F0F0F0",
+        "#DBDBDB",
+        "#BEBAB4",
+        "#8FA19C",
+        "#73635E"
+      ]
+    },
+    {
+      "file": "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FSony_Vegas_Pro.png",
+      "relative_path": "02_era_sony_v4_v13/references/uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FSony_Vegas_Pro.png",
+      "sampled_dominant_hex": [
+        "#B3B7B2",
+        "#949595",
+        "#8A8989",
+        "#868186",
+        "#777972",
+        "#4C463F"
+      ]
+    }
+  ]
+}

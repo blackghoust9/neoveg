@@ -1,0 +1,8 @@
+{
+  "id": "datamosh_extension",
+  "name": "Datamosh Neoveg — I-Frame Drop & P-Vector Glitch",
+  "vendor": "Neoveg Native FX & Scripting Lab",
+  "version": "1.8.2",
+  "category": "View.WindowExtensions",
+  "description": "Painel acoplável para remoção de I-Frames, duplicação de vetores de movimento P-Frame (Optical Bloom) e cortes rítmicos de glitch."
+}

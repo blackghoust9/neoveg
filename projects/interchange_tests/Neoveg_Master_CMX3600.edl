@@ -1,0 +1,28 @@
+TITLE: Neoveg_XML_Interchange_Master
+FCM: DROP FRAME
+
+001  AX       V     C        00:00:01;00 00:00:03;12 00:00:00;00 00:00:02;12
+* FROM CLIP NAME: Interview_CamA_Part1
+* SOURCE FILE: G:\Meu Drive\vp-rev-eng\teste\teste2\media\qa_hd_1080p.mp4
+* TRACK NAME: Program Video A-Cam | OPACITY: 92.0% | AUDIO LEVEL: +0.00 DB
+
+002  AX       V     C        00:00:03;12 00:00:07;00 00:00:02;12 00:00:06;00
+* FROM CLIP NAME: Interview_CamA_Part2_SplitS
+* SOURCE FILE: G:\Meu Drive\vp-rev-eng\teste\teste2\media\qa_hd_1080p.mp4
+* TRACK NAME: Program Video A-Cam | OPACITY: 78.0% | AUDIO LEVEL: +0.00 DB
+
+003  AX       V     C        00:00:00;15 00:00:04;00 00:00:05;00 00:00:08;15
+* FROM CLIP NAME: B_Roll_4K_Drone_XFade
+* SOURCE FILE: G:\Meu Drive\vp-rev-eng\teste\teste2\media\qa_uhd_4k.mp4
+* TRACK NAME: Program Video A-Cam | OPACITY: 85.0% | AUDIO LEVEL: -0.92 DB
+
+004  AX       AA    C        00:00:00;07 00:00:04;13 00:00:00;00 00:00:04;06
+* FROM CLIP NAME: Dialogue_Boom_24bit_96kHz
+* SOURCE FILE: G:\Meu Drive\vp-rev-eng\teste\teste2\media\qa_audio_24bit_96khz.wav
+* TRACK NAME: Master Stereo Dialogue & Bed | OPACITY: 100.0% | AUDIO LEVEL: +1.94 DB
+
+005  AX       AA    C        00:00:01;15 00:00:05;24 00:00:04;06 00:00:08;15
+* FROM CLIP NAME: Ambient_Bed_Stem
+* SOURCE FILE: G:\Meu Drive\vp-rev-eng\teste\teste2\media\qa_audio_24bit_96khz.wav
+* TRACK NAME: Master Stereo Dialogue & Bed | OPACITY: 100.0% | AUDIO LEVEL: -4.15 DB
+

@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  neoveg-qa:
+    container_name: neoveg-qa-runner
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: neoveg-qa
+    environment:
+      - NEOVEG_ENV=docker-qa
+      - LD_LIBRARY_PATH=/workspace/runtimes/linux-x64/native:/workspace
+    volumes:
+      - ./logs:/workspace/logs
+    command: >
+      sh -c "python3 python-backend/qa_audit_suite.py &&
+             python3 python-backend/test_vegas_engine.py"
+
+  neoveg-builder:
+    container_name: neoveg-cross-builder
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dotnet-builder
+    volumes:
+      - ./dist:/workspace/dist
+      - ./runtimes:/workspace/runtimes
+    command: >
+      dotnet publish desktop-host/Neoveg.csproj -c Release -r linux-x64 --self-contained true
+
+  neoveg-dashboard:
+    container_name: neoveg-github-dashboard
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: neoveg-qa
+    ports:
+      - "8080:8080"
+    command: ["python3", "-m", "http.server", "8080", "--directory", "docs"]

@@ -1,0 +1,15 @@
+{
+  "language": "pt-BR",
+  "themeEra": 3,
+  "showWelcomeOnStartup": true,
+  "supportedLanguages": [
+    "pt-BR",
+    "en-US",
+    "es-ES",
+    "fr-FR",
+    "de-DE",
+    "zh-CN",
+    "ja-JP",
+    "ru-RU"
+  ]
+}
