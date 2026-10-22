@@ -1,58 +1,58 @@
-# Neoveg — Editor Não-Linear de Vídeo e Áudio Multiplataforma (`Neoveg.exe`)
+# Neoveg
 
-O **Neoveg** é um editor não-linear de vídeo e áudio (NLE) multiplataforma (**Windows**, **Linux** e **macOS**) construído com **C# Avalonia UI 11**, **Rust FFI (`neoveg_core`)**, **C++17 (`neoveg_cpp_engine`)** e **Python FFmpeg Isolado**.
+Editor não linear de vídeo e áudio multiplataforma, desenvolvido com C# / Avalonia, Rust FFI, C++ e ferramentas Python para mídia.
 
-Veja o [painel de progresso do projeto](./progresso.html) para acompanhar os subsistemas e o estado de validação do workspace.
+Consulte [AGENTS.md](./AGENTS.md) para os protocolos de arquitetura e desenvolvimento, [RELEASE_NOTES.md](./RELEASE_NOTES.md) para o resumo da release 1.0.0 e [REQUIREMENTS.md](./REQUIREMENTS.md) para preparar o ambiente de desenvolvimento.
 
----
+## Executar a versão portátil no Windows
 
-## Como Executar
+O pacote de referência é gerado em `dist\Neoveg-Portable-win-x64\`. Para executá-lo:
 
-No Windows, execute diretamente o binário portátil:
-- **[`dist/Neoveg-Portable-win-x64/Neoveg.exe`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/dist/Neoveg-Portable-win-x64/Neoveg.exe)** ou **[`Neoveg.exe`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/Neoveg.exe)**
-
-Ou pelo terminal:
 ```powershell
 .\dist\Neoveg-Portable-win-x64\Neoveg.exe
 ```
 
-Para compilar todos os pacotes portáteis (`Windows`, `Linux AppDir`, `macOS .app`) e sincronizar as bibliotecas de terceiros:
+Também é possível iniciar pelo `Executar_Neoveg.cmd` na raiz ou na pasta do pacote. Ao detectar execução em unidade sincronizada ou de rede, o bootstrap pode copiar a aplicação para `%LOCALAPPDATA%\Neoveg\AppCache` e iniciá-la dali para evitar problemas de I/O e carregamento de bibliotecas.
+
+## Gerar o pacote portátil
+
+No Windows, com as ferramentas indicadas em [REQUIREMENTS.md](./REQUIREMENTS.md), gere o alvo Windows:
+
 ```powershell
-python scripts/update_third_party.py --offline --build --stage-dist
-python build_portable.py --targets all --framework-dependent
+python .\build_portable.py --targets windows
 ```
 
----
+O pipeline cria o pacote em `dist\Neoveg-Portable-win-x64\`, publica o executável .NET em Release, monta os recursos portáteis e atualiza `dist\build_manifest.json`. No Windows, o pipeline também executa `scripts\sync_gdrive.ps1` para sincronizar o workspace e os pacotes de distribuição com o destino configurado no script. Para outros alvos, o builder aceita `linux`, `macos` ou `all`; a geração de binários nativos de cada plataforma deve ser feita em ambiente compatível.
 
-## Arquitetura Híbrida do Neoveg
+Para uma publicação .NET self-contained separada do pacote portátil completo:
 
-| Camada | Linguagem | Diretório / Alvo | Responsabilidades |
-| :--- | :--- | :--- | :--- |
-| **Interface Desktop Multiplataforma** | **C# / Avalonia UI 11** | [`desktop-host/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host) (`Neoveg`) | Dockable Workspace, Timeline Multi-Faixa com Cabeçalho de Eventos (`Event Header`), Barra de Pré-Renderização Seletiva ([`RenderStatusRuler.axaml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Assets/RenderStatusRuler.axaml)), `Event Pan/Crop` (Gizmo `'F'`), `MissingMediaWindow`, Internacionalização (`i18n` em 8 idiomas) e `Neoveg.Scripting` (Roslyn C#). |
-| **Core NLE & DSP Engine** | **Rust (C-ABI)** | [`rust-core/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/rust-core) (`neoveg_core`) | Cálculo de Timecode SMPTE, 5 curvas de Fade, Split sub-quadro, Auto-Crossfade, análise PCM e cache `.sfk`, métricas de RAM Pool e [`neoveg_get_timeline_render_status`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/rust-core/src/lib.rs). |
-| **Extensões C/C++ & SDKs Nativos** | **C++17 / CMake** | [`cpp-extensions/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/cpp-extensions) (`neoveg_cpp_engine`) | Host **OpenFX 1.4 (`ofxCore.h`)**, **Steinberg VST3 (`ivstaudioprocessor.h`)**, **Voukoder Connector**, **Whisper.cpp (`SubtitleGeneratorService.cs`)** e **Shared Memory Out-of-Process (`NVSH`)**. |
-| **Motor de Mídia, IA & Automação** | **Python 3.10+** | [`python-backend/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend) (`neoveg`) | Gerenciador isolado de `FFmpeg`/`ffprobe`, varredura de 3 estágios de mídias ausentes ([`media_relinker.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/media_relinker.py)), `CorridorKey` Green Screen, `Frei0r`, `LADSPA` e `OpenTimelineIO`. |
+```powershell
+dotnet publish desktop-host\Neoveg.csproj -c Release -r win-x64 --self-contained true -o dist\Neoveg_v1.0.0_win-x64_Portable
+```
 
----
+O projeto copia as DLLs nativas Windows para a saída de build/publicação. Na inicialização, o resolvedor procura primeiro junto ao executável e depois no AppCache; a validação de startup registra os caminhos encontrados. Os pacotes também carregam `Assets/`, scripts, runtimes e arquivos legais necessários ao formato portátil.
 
-## Créditos, Licenciamento e Guia para Forks / Contribuições
+## Arquitetura
 
-O código-fonte original do **Neoveg** é distribuído sob a licença **[`MIT`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/LICENSE)**. O projeto integra-se a bibliotecas, cabeçalhos e ferramentas de código aberto amplamente consolidadas na indústria de áudio e vídeo.
+| Subsistema | Implementação | Responsabilidade |
+| --- | --- | --- |
+| Interface desktop | C# / Avalonia UI | Workspace de edição, timeline multifaixa, cabeçalho de eventos, régua de renderização, painéis e localização. |
+| Núcleo NLE e DSP | Rust (`neoveg_core`) | Operações de timeline, timecode SMPTE, fades, crossfades, análise de áudio e cache de forma de onda. |
+| Extensões nativas | C++17 / CMake (`neoveg_cpp_engine`) | Pontes para processamento de efeitos e áudio, interoperabilidade nativa e transferência de frames. |
+| Mídia e automação | Python | Integração com FFmpeg/ffprobe, análise de mídia, automação e ferramentas de QA. |
 
-- **Mapeamento Completo de Autores e Licenças:** Consulte o ficheiro **[`AUTHORS.md`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/AUTHORS.md)** na raiz do projeto (e **[`third_party/README.md`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/third_party/README.md)**) para verificar os créditos detalhados de todas as dependências utilizadas em:
-  - [`desktop-host/Neoveg.csproj`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Neoveg.csproj) (`Avalonia UI`, `SkiaSharp`, `Microsoft.CodeAnalysis.CSharp.Scripting`, `Inter Font`)
-  - [`rust-core/Cargo.toml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/rust-core/Cargo.toml) (`neoveg_core` & Rust Standard Library)
-  - [`python-backend/requirements.txt`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/requirements.txt) (`NumPy`, `Pillow`, `pefile`, `packaging`, `typing_extensions`, `requests`, `OpenTimelineIO`)
-  - [`cpp-extensions/CMakeLists.txt`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/cpp-extensions/CMakeLists.txt) & [`third_party/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/third_party) (`OpenFX`, `VST3 SDK`, `Voukoder`, `Whisper.cpp`, `CorridorKey`, `Frei0r`, `LADSPA`, `FFmpeg`)
+## QA e estado de validação
 
-### Orientações para Criar Forks, Modificar e Contribuir
+As verificações realizadas nesta máquina Windows encontraram os seguintes limites; portanto, não representam uma aprovação completa da suíte multiplataforma:
 
-1. **Preservação de Créditos e Avisos Legais:**
-   - Ao criar um *fork* ou redistribuir pacotes compilados (`dist/Neoveg-Portable-*`), mantenha sempre os ficheiros [`AUTHORS.md`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/AUTHORS.md), [`LICENSE`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/LICENSE) e [`third_party/README.md`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/third_party/README.md) junto aos binários (o script [`build_portable.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/build_portable.py) realiza essa cópia automaticamente para Windows, Linux `AppDir` e macOS `Contents/Resources/`).
-2. **Conformidade com Componentes Dinâmicos (LGPL / GPL):**
-   - Módulos sob licenças `LGPL-2.1` ou `GPL-2.0/3.0` (`FFmpeg`, `VST3 SDK`, `Voukoder`, `Frei0r`, `LADSPA`) são carregados dinamicamente ou executados fora do processo (*Out-of-Process*). Caso modifique diretamente o código-fonte de algum desses módulos em [`third_party/`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/third_party), disponibilize as alterações sob a respectiva licença original do componente.
-3. **Adição de Novas Dependências:**
-   - Sempre que adicionar um novo pacote NuGet (`.csproj`), crate Rust (`Cargo.toml`), pacote Python (`requirements.txt`) ou SDK C/C++ (`CMakeLists.txt` / `scripts/update_third_party.py`), registe o autor, repositório e identificador SPDX correspondente em [`AUTHORS.md`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/AUTHORS.md) e execute a suíte de validação:
-   ```powershell
-   python python-backend/test_vegas_engine.py
-   ```
+- `cargo test --release` passou com 2 testes no ciclo de QA anterior.
+- `dotnet test Neoveg.sln` terminou com sucesso, mas a solução não contém um projeto de testes .NET.
+- `ctest` não encontrou testes C++ configurados.
+- A coleta completa do `pytest` foi bloqueada por dependências ausentes e conflitos de importação. Testes direcionados de intercâmbio XML passaram; a auditoria Python específica validou operações de mídia/cache e um stress test de 5.000 operações, mas não completou as verificações que exigem bibliotecas nativas Linux/macOS.
+- A publicação self-contained Windows e o smoke test do pacote foram executados. A aplicação abriu uma janela responsiva, carregou as DLLs nativas, foi transferida para o AppCache quando executada do Google Drive e encerrou normalmente.
+
+**Limitação importante do build atual:** Cargo não estava disponível no ambiente usado para gerar o pacote portátil no Google Drive. O builder reportou `native-x86_64-c-abi-synthesized` para o Rust FFI. Assim, o carregamento das DLLs no smoke test foi confirmado, mas isso não substitui a compilação e validação do núcleo Rust real com Cargo. Para uma release de produção, instale o toolchain Rust e repita a compilação e os testes nativos antes da distribuição.
+
+## Créditos e licenciamento
+
+O código do projeto é distribuído sob a licença [MIT](./LICENSE). Consulte [AUTHORS.md](./AUTHORS.md) e [third_party/README.md](./third_party/README.md) para atribuições e licenças das dependências. Preserve esses arquivos ao redistribuir os pacotes.

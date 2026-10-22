@@ -14,8 +14,8 @@
 //! - Multi-Track FFmpeg `filter_complex` Render Graph Compiler
 
 use std::f64::consts::PI;
-use std::ffi::{CStr, CString};
-use std::fs::File;
+use std::ffi::CStr;
+use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -814,7 +814,7 @@ pub unsafe extern "C" fn neoveg_analyze_wav_file(
 pub struct SfkPeakCache;
 
 impl SfkPeakCache {
-    pub fn build_or_load_sfk(wav_path: &Path, num_buckets: usize) -> Result<WavPeakResult, String> {
+    pub fn build_or_load_sfk(wav_path: &Path, num_buckets: usize) -> Result<WaveformAnalysis, String> {
         let sfk_path = wav_path.with_extension("wav.sfk");
         if sfk_path.exists() {
             if let Ok(bytes) = fs::read(&sfk_path) {
@@ -829,10 +829,9 @@ impl SfkPeakCache {
                             let v = f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap_or([0; 4]));
                             peaks.push(v);
                         }
-                        return Ok(WavPeakResult {
+                        return Ok(WaveformAnalysis {
                             sample_rate: 48000,
                             channels: 2,
-                            bits_per_sample: 16,
                             duration_sec,
                             peak_db,
                             rms_db: peak_db - 3.01,
@@ -1110,6 +1109,4 @@ pub mod cpp_sdk_ffi {
         ) -> i32;
     }
 }
-
-
 

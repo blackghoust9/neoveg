@@ -142,6 +142,15 @@ def format_smpte(seconds: float, fps: float = 29.97, drop_frame: bool = True) ->
     return f"{hours:02d}:{mins:02d}:{secs:02d}{sep}{frames:02d}"
 
 
+def _read_wav_format(wav_path: Path) -> Dict[str, int]:
+    with wave.open(str(wav_path), "rb") as wav_file:
+        return {
+            "sample_rate": wav_file.getframerate(),
+            "channels": wav_file.getnchannels(),
+            "bits_per_sample": wav_file.getsampwidth() * 8,
+        }
+
+
 def detect_auto_crossfades(project: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Mirrors `neoveg_core::detect_auto_crossfades`:
@@ -194,7 +203,9 @@ def analyze_wav_peaks(wav_path: Path, num_buckets: int = 128) -> Dict[str, Any]:
                 timeout=5,
                 check=True,
             )
-            return json.loads(proc.stdout.strip())
+            result = json.loads(proc.stdout.strip())
+            result.update(_read_wav_format(wav_path))
+            return result
         except Exception:
             pass
 
@@ -312,6 +323,7 @@ def build_or_load_sfk_cache(wav_path: Path, num_buckets: int = 128) -> Dict[str,
                     "cached": True,
                     "sfk_path": str(sfk_path),
                     "magic": "RIFF/SFPK",
+                    **_read_wav_format(wav_path),
                     "duration_sec": round(duration_sec, 4),
                     "peak_db": round(peak_db, 2),
                     "rms_db": round(peak_db - 3.01, 2),
@@ -777,6 +789,5 @@ def timeline_split_clip(
         "right_trim_in": round(float(clip_trim_in) + left_dur, 6),
         "right_fade_in": round(min(float(default_fade_sec), right_dur * 0.25), 6),
     }
-
 
 

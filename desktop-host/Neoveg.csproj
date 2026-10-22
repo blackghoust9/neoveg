@@ -49,18 +49,18 @@
     <None Include="Views\LogViewerWindow.axaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Copy Native Rust FFI (neoveg_core.dll) and C++ Engine (neoveg_cpp_engine.dll) to $(OutputPath) -->
+  <!-- Bundle the compiled Windows FFI libraries beside Neoveg.exe. -->
   <ItemGroup>
-    <None Include="..\runtimes\win-x64\native\neoveg_core.dll"
-          Condition="Exists('..\runtimes\win-x64\native\neoveg_core.dll')"
-          Link="neoveg_core.dll"
-          CopyToOutputDirectory="PreserveNewest"
-          CopyToPublishDirectory="PreserveNewest" />
-    <None Include="..\runtimes\win-x64\native\neoveg_cpp_engine.dll"
-          Condition="Exists('..\runtimes\win-x64\native\neoveg_cpp_engine.dll')"
-          Link="neoveg_cpp_engine.dll"
-          CopyToOutputDirectory="PreserveNewest"
-          CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\rust-core\target\release\neoveg_core.dll"
+             Condition="'$(RuntimeIdentifier)' == 'win-x64'"
+             Link="neoveg_core.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\cpp-extensions\build\Release\neoveg_cpp_engine.dll"
+             Condition="'$(RuntimeIdentifier)' == 'win-x64'"
+             Link="neoveg_cpp_engine.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\runtimes\win-x64\native\WebView2Loader.dll"
           Condition="Exists('..\runtimes\win-x64\native\WebView2Loader.dll')"
           Link="WebView2Loader.dll"

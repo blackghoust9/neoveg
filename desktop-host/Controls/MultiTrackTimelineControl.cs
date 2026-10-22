@@ -646,7 +646,6 @@ public sealed class MultiTrackTimelineControl : Control
             PlayheadOverlay.RustInterop = RustInterop;
             PlayheadOverlay.PixelsPerSecond = PixelsPerSecond;
             PlayheadOverlay.RulerHeight = RulerHeight;
-            PlayheadOverlay.InvalidateVisual();
         }
         else
         {

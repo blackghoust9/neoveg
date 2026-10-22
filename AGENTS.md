@@ -186,7 +186,72 @@ To guarantee code stability, zero-lag timeline performance, memory safety, and r
 
 ---
 
-## 12. Cross-Platform OS Detection & Launcher Protocol (`## 11. Cross-Platform OS Detection & Launcher Protocol`)
+## 12. QA Audit, Stable Build & Release Deployment Protocol
+
+To ensure software stability, zero runtime regressions, and a production-ready distribution package:
+
+- **Automated QA & Test Suite Execution:**
+  - Execute full unit and integration test suites across all core modules:
+    - **C# / Avalonia (`desktop-host`):** `dotnet test`
+    - **Rust Core (`rust-core`):** `cargo test --release`
+    - **C++ Extensions (`cpp-extensions`):** `ctest` / CMake test targets
+    - **Python Backend (`python-backend`):** `pytest`
+  - Audit FFI bridges for pointer safety, memory leaks, and exception propagation.
+  - Verify that unhandled exceptions, UI freezes, and FFI memory leaks are absent; confirm that `logs/neoveg.log` and in-app error capture operate correctly.
+- **Production Executable Generation (`.exe`):**
+  - Build standalone, optimized Release binaries with `dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true`.
+  - Bundle all required native dependencies (`neoveg_core.dll`, `neoveg_cpp_engine.dll`), `Assets/`, the Bootstrapper/Local AppCache scripts, and prerequisite installers.
+- **Release Packaging & Cloud Mirroring:**
+  - Package the final distribution as `dist/Neoveg_v1.0.0_win-x64/` and `dist/Neoveg_v1.0.0_win-x64.zip`, including `RELEASE_NOTES.md` and `AUTHORS.md`.
+  - Mirror the project and release package to `G:\Meu Drive\vp-rev-eng\teste\teste2` via `scripts/sync_gdrive.ps1`.
+
+## 13. Developer Environment & Dependency Enforcement Protocol
+
+To ensure smooth onboarding and prevent missing dependency errors across dev environments:
+
+- **Dependency Specifications:** Maintain explicit toolchain versions in `REQUIREMENTS.md` and `python-backend/requirements.txt`.
+- **Pre-Flight Environment Check (`desktop-host/Program.cs`):**
+  - Verify presence of required runtimes (.NET 8 runtime/self-contained, C++ VC++ Redistributable on Windows, system shared libraries on Linux/macOS) prior to application launch.
+  - Log diagnostic reports of missing SDKs/toolchains to `logs/neoveg.log` with actionable resolution steps.
+
+---
+
+## 14. Cross-Platform & Portable Release Protocol
+
+To ensure seamless distribution across all major operating systems without requiring system installation privileges:
+
+- **Target Platforms & Runtime Identifiers (RIDs):**
+  - **Windows (x64):** `win-x64`
+  - **Linux (x64):** `linux-x64`
+  - **macOS (Intel x64):** `osx-x64`
+  - **macOS (Apple Silicon M-Series):** `osx-arm64`
+- **Portable Build Standard:**
+  - Build all binaries as **Self-Contained** with embedded .NET runtime (`--self-contained true`).
+  - Bundle platform-native shared libraries alongside the main executable:
+    - Windows: `neoveg_core.dll`, `neoveg_cpp_engine.dll`
+    - Linux: `libneoveg_core.so`, `libneoveg_cpp_engine.so`
+    - macOS: `libneoveg_core.dylib`, `libneoveg_cpp_engine.dylib`
+- **Archive Formats:**
+  - **Windows:** `dist/Neoveg_v1.0.0_win-x64_Portable.zip`
+  - **Linux:** `dist/Neoveg_v1.0.0_linux-x64_Portable.tar.gz` (plus executable launcher script `neoveg.sh`)
+  - **macOS:** `dist/Neoveg_v1.0.0_osx-universal_Portable.tar.gz` (`dist/Neoveg_v1.0.0_osx-x64_Portable.tar.gz` and `dist/Neoveg_v1.0.0_osx-arm64_Portable.tar.gz`, or `.app` bundle)
+
+---
+
+## 15. Native DLL Bundling & Assembly Resolution Protocol
+
+To guarantee that `Neoveg.exe` loads native shared libraries seamlessly in portable mode:
+
+- **Automatic DLL Copying (`desktop-host/Neoveg.csproj`):**
+  - Configure compiled Windows Rust and C++ libraries (`neoveg_core.dll` and `neoveg_cpp_engine.dll`) as content copied beside the executable on build and publish.
+- **Dynamic FFI Resolution (`desktop-host/Program.cs`):**
+  - Register `NativeLibrary.SetDllImportResolver` for the application assembly before startup. Search the executable directory first, then `%LOCALAPPDATA%\Neoveg\AppCache\`, followed by the packaged `runtimes/<RID>/native/` directory; leave unrelated platform/system imports to the runtime.
+- **Validation on Startup:**
+  - Verify the required Rust and C++ libraries are available beside `Neoveg.exe`, in AppCache, or in the packaged runtime directory, and log their resolved paths to `logs/neoveg.log`.
+
+---
+
+## 16. Cross-Platform OS Detection & Launcher Protocol
 
 To guarantee seamless execution across Windows, Linux, and macOS:
 

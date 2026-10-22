@@ -114,14 +114,18 @@ internal static class Program
     public static void Main(string[] args)
     {
         InitializeLoggingSubsystem();
+        RegisterNativeLibraryResolver();
         RegisterGlobalExceptionHandlers();
         LogOperatingSystemAndFfiEnvironment();
+        VerifyPreFlightEnvironmentAndToolchains();
 
         if (TryRelocateFromCloudDriveToLocalAppCache(args))
         {
             Environment.Exit(0);
             return;
         }
+
+        ValidateNativeLibraries();
 
         if (OperatingSystem.IsWindows())
         {
@@ -142,6 +146,94 @@ internal static class Program
             RxApp.DefaultExceptionHandler.OnNext(ex);
             WriteCrashLog("Program.Main.FatalStartupException", ex, isTerminating: true);
             throw;
+        }
+    }
+
+    private static void RegisterNativeLibraryResolver()
+    {
+        NativeLibrary.SetDllImportResolver(typeof(Program).Assembly, ResolveNativeLibrary);
+        LogEvent("INFO", "NativeLibraryResolver", "Registered Neoveg native DLL resolver.");
+    }
+
+    private static IntPtr ResolveNativeLibrary(
+        string libraryName,
+        System.Reflection.Assembly assembly,
+        DllImportSearchPath? searchPath)
+    {
+        string libraryStem = Path.GetFileNameWithoutExtension(libraryName);
+        if (libraryStem.StartsWith("lib", StringComparison.OrdinalIgnoreCase))
+            libraryStem = libraryStem.Substring(3);
+
+        string? fileName = libraryStem.ToLowerInvariant() switch
+        {
+            "neoveg_core" => ResolvePlatformNativeLibraryNames()[0],
+            "neoveg_cpp_engine" => ResolvePlatformNativeLibraryNames()[1],
+            _ => null
+        };
+
+        if (fileName == null)
+            return IntPtr.Zero;
+
+        string applicationDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string[] candidates =
+        {
+            Path.Combine(applicationDirectory, fileName),
+            Path.Combine(LocalAppCacheDirectory, fileName),
+            Path.Combine(applicationDirectory, "runtimes", GetPlatformRid(), "native", fileName)
+        };
+
+        foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(candidate))
+                continue;
+
+            try
+            {
+                if (NativeLibrary.TryLoad(candidate, out IntPtr handle))
+                {
+                    LogEvent("INFO", "NativeLibraryResolver", $"Resolved '{libraryName}' from '{candidate}'.");
+                    return handle;
+                }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or FileLoadException)
+            {
+                LogEvent("WARN", "NativeLibraryResolver", $"Failed to load '{libraryName}' from '{candidate}'.", ex);
+            }
+        }
+
+        LogEvent(
+            "WARN",
+            "NativeLibraryResolver",
+            $"Could not resolve '{libraryName}' in the application directory or AppCache: {string.Join(" | ", candidates)}.");
+        return IntPtr.Zero;
+    }
+
+    private static void ValidateNativeLibraries()
+    {
+        string[] nativeLibraries = ResolvePlatformNativeLibraryNames().Take(2).ToArray();
+        string[] searchDirectories =
+        {
+            AppDomain.CurrentDomain.BaseDirectory,
+            LocalAppCacheDirectory,
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", GetPlatformRid(), "native")
+        };
+
+        foreach (string library in nativeLibraries)
+        {
+            string? resolvedPath = searchDirectories
+                .Select(directory => Path.Combine(directory, library))
+                .FirstOrDefault(File.Exists);
+
+            if (resolvedPath == null)
+            {
+                string message =
+                    $"Required native library '{library}' was not found beside Neoveg.exe or in AppCache. " +
+                    $"Searched: {string.Join(" | ", searchDirectories.Select(directory => Path.Combine(directory, library)))}.";
+                LogEvent("ERROR", "NativeLibraryValidation", message);
+                throw new FileNotFoundException(message, library);
+            }
+
+            LogEvent("INFO", "NativeLibraryValidation", $"Native library '{library}' is available at '{resolvedPath}'.");
         }
     }
 
@@ -638,6 +730,61 @@ internal static class Program
             "OSPlatformBootstrap",
             $"OS={osName} (RID={GetPlatformRid()}) | CacheRoot='{PlatformCacheRoot}' | AppCache='{LocalAppCacheDirectory}' | " +
             $"LogsDir='{LogsDirectory}' | UserLogs='{PlatformUserLogsDirectory}' | FFIExtension='{ffiExt}' ({string.Join(", ", expectedLibs)})");
+    }
+
+    /// <summary>
+    /// Section 13 — Developer Environment & Dependency Enforcement Protocol:
+    /// Verifies presence of required runtimes (.NET 8 runtime/self-contained, VC++ Redistributable on Windows,
+    /// system shared libraries on Linux/macOS) and developer toolchains prior to application launch,
+    /// logging diagnostic reports with actionable resolution steps (`REQUIREMENTS.md`, `scripts/check_env.py`) to `logs/neoveg.log`.
+    /// </summary>
+    public static void VerifyPreFlightEnvironmentAndToolchains()
+    {
+        try
+        {
+            bool isNet8OrNewer = Environment.Version.Major >= 8;
+            string frameworkDesc = RuntimeInformation.FrameworkDescription;
+
+            bool platformLibsReady = true;
+            string platformNote = "System libraries verified";
+            if (OperatingSystem.IsWindows())
+            {
+                string sysDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+                bool hasVcRuntime = ProbeSystemLibrary(sysDir, "vcruntime140.dll") && ProbeSystemLibrary(sysDir, "msvcp140.dll");
+                platformLibsReady = hasVcRuntime;
+                if (!hasVcRuntime)
+                {
+                    platformNote = "Missing Visual C++ Redistributable (vcruntime140.dll / msvcp140.dll). Run .\\scripts\\install_prerequisites.bat as Administrator or consult REQUIREMENTS.md.";
+                }
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                bool hasLibX11 = NativeLibrary.TryLoad("libX11.so.6", out IntPtr x11Handle);
+                if (hasLibX11) NativeLibrary.Free(x11Handle);
+                bool hasLibGl = NativeLibrary.TryLoad("libGL.so.1", out IntPtr glHandle);
+                if (hasLibGl) NativeLibrary.Free(glHandle);
+                platformLibsReady = hasLibX11 && hasLibGl;
+                if (!platformLibsReady)
+                {
+                    platformNote = "Missing Linux graphics/windowing libraries (libX11/libGL). Run: sudo apt install libgl1-mesa-dev libx11-dev libasound2-dev (see REQUIREMENTS.md).";
+                }
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                platformNote = "macOS CoreFoundation/Metal/CoreAudio runtime active (see REQUIREMENTS.md for Xcode CLI & Homebrew setup).";
+            }
+
+            string level = (isNet8OrNewer && platformLibsReady) ? "INFO" : "WARN";
+            LogEvent(
+                level,
+                "PreFlightEnvironmentCheck",
+                $"Runtime='{frameworkDesc}' (.NET8+={isNet8OrNewer}) | PlatformRuntimeLibs={(platformLibsReady ? "OK" : "MISSING")} ({platformNote}) | " +
+                "Specs='REQUIREMENTS.md' & 'python-backend/requirements.txt' | DiagnosticTool='python scripts/check_env.py' / '.\\scripts\\check_env.ps1'");
+        }
+        catch (Exception ex)
+        {
+            LogEvent("WARN", "PreFlightEnvironmentCheck", $"Pre-flight environment verification warning: {ex.Message}", ex);
+        }
     }
 
     private static void RotateLogsIfNeeded()
