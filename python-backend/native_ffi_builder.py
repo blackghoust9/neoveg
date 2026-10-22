@@ -825,6 +825,7 @@ def compile_or_synthesize_cpp_extensions() -> Dict[str, Any]:
             ("win-x64", win_dll),
             ("linux-x64", linux_so),
             ("osx-x64", mac_dylib),
+            ("osx-arm64", mac_dylib),
         ]:
             dst = ROOT_DIR / "runtimes" / rid / "native" / src_file.name
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -870,6 +871,7 @@ def compile_or_synthesize_rust_core() -> Dict[str, Any]:
         ("win-x64", "neoveg_core.dll", build_pe64_dll),
         ("linux-x64", "libneoveg_core.so", build_elf64_so),
         ("osx-x64", "libneoveg_core.dylib", build_macho64_dylib),
+        ("osx-arm64", "libneoveg_core.dylib", build_macho64_dylib),
     ]
 
     if cargo_bin:

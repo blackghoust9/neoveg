@@ -43,6 +43,8 @@ $Arguments = @(
     ".vs"
     ".idea"
     ".vscode"
+    "dist"
+    "runtimes"
     "*.dir"
     "/XF"
     "*.tmp"
@@ -63,17 +65,12 @@ $Arguments = @(
     "*.opendb"
     "*.ipch"
     "*.idb"
-    "*.pdb"
     "*.ilk"
     "*.exp"
     "*.obj"
     "*.o"
     "*.lib"
     "*.a"
-    "*.exe"
-    "*.dll"
-    "*.so"
-    "*.dylib"
     "*.pyc"
     "*.pyo"
     "*.pyd"
@@ -87,12 +84,35 @@ $Arguments = @(
     "*.gsheet"
 )
 
-Write-Host "Mirroring '$Source' to '$Destination'..."
+Write-Host "Mirroring workspace '$Source' to '$Destination'..."
 & $Robocopy @Arguments
 $RobocopyExitCode = $LASTEXITCODE
 
 if ($RobocopyExitCode -ge 8) {
     throw "Robocopy failed with exit code $RobocopyExitCode."
+}
+
+# Synchronize runtimes/ (including native .dll, .so, .dylib, and ffmpeg binaries)
+$RuntimesSource = Join-Path $Source "runtimes"
+$RuntimesDestination = Join-Path $Destination "runtimes"
+if (Test-Path -LiteralPath $RuntimesSource -PathType Container) {
+    & $Robocopy $RuntimesSource $RuntimesDestination "/E" "/R:2" "/W:2" "/NFL" "/NDL" "/NP" "/NJH" "/NJS"
+    if ($LASTEXITCODE -ge 8) {
+        throw "Robocopy failed to synchronize runtimes/ with exit code $LASTEXITCODE."
+    }
+}
+
+# Synchronize dist/ (including all portable folders, .exe, .dll, .so, .dylib, .zip, and .tar.gz archives)
+$DistSource = Join-Path $Source "dist"
+$DistDestination = Join-Path $Destination "dist"
+if (Test-Path -LiteralPath $DistSource -PathType Container) {
+    New-Item -ItemType Directory -Path $DistDestination -Force | Out-Null
+    & $Robocopy $DistSource $DistDestination "/E" "/R:2" "/W:2" "/NFL" "/NDL" "/NP" "/NJH" "/NJS"
+    $DistExitCode = $LASTEXITCODE
+    if ($DistExitCode -ge 8) {
+        throw "Robocopy failed to synchronize dist/ portable packages with exit code $DistExitCode."
+    }
+    Write-Host "Synchronized portable release directories and archives in '$DistDestination'."
 }
 
 $AllowedVsCodeFiles = @(

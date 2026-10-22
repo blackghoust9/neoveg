@@ -924,6 +924,44 @@ def run_all_tests() -> None:
         assert gh_tok in docs_index_text, f"Missing {gh_tok} in docs/index.html"
 
     print("[PASS] 33. Auditoria QA (UI Thread Zero-Alloc + Async .sfk, FFI Memory Safety neoveg_free_buffer / neoveg_cpp_free_buffer, AppCache Stamp <2ms), Docker Multi-Stage (Dockerfile + docker-compose.yml) e GitHub Dashboard (docs/index.html) verificados")
+
+    # 34. Verify Developer Environment & Dependency Enforcement Protocol (`REQUIREMENTS.md`, `python-backend/requirements.txt`, `scripts/check_env.py`, `scripts/check_env.ps1`, `AGENTS.md` Section 13 & `Program.cs` Pre-Flight Check)
+    req_md_path = ROOT_DIR / "REQUIREMENTS.md"
+    py_req_path = ROOT_DIR / "python-backend" / "requirements.txt"
+    check_env_py = ROOT_DIR / "scripts" / "check_env.py"
+    check_env_ps1 = ROOT_DIR / "scripts" / "check_env.ps1"
+    assert req_md_path.exists(), "Missing REQUIREMENTS.md at project root"
+    assert py_req_path.exists(), "Missing python-backend/requirements.txt"
+    assert check_env_py.exists() and check_env_ps1.exists(), "Missing scripts/check_env.py or scripts/check_env.ps1"
+
+    req_md_text = req_md_path.read_text(encoding="utf-8")
+    for req_tok in (
+        "# Neoveg - Developer Dependencies & Environment Setup",
+        "**.NET SDK**",
+        "**Rust Toolchain**",
+        "**C++ Compiler**",
+        "**CMake**",
+        "**Python**",
+        "**Docker**",
+        "install_prerequisites.bat",
+        "python-backend/requirements.txt",
+    ):
+        assert req_tok in req_md_text, f"Missing {req_tok} in REQUIREMENTS.md"
+
+    py_req_text = py_req_path.read_text(encoding="utf-8")
+    for pkg_tok in ("pytest>=7.4.0", "pytest-asyncio>=0.21.0", "numpy>=1.24.0", "scipy>=1.10.0", "Pillow>=10.0.0", "requests>=2.31.0"):
+        assert pkg_tok in py_req_text, f"Missing {pkg_tok} in python-backend/requirements.txt"
+
+    for s13_tok in (
+        "## 13. Developer Environment & Dependency Enforcement Protocol",
+        "REQUIREMENTS.md",
+        "python-backend/requirements.txt",
+        "Pre-Flight Environment Check (`desktop-host/Program.cs`)",
+    ):
+        assert s13_tok in agents_dx, f"Missing {s13_tok} in AGENTS.md"
+
+    assert "VerifyPreFlightEnvironmentAndToolchains" in prog_dx_cs, "Missing VerifyPreFlightEnvironmentAndToolchains in Program.cs"
+    print("[PASS] 34. Padronizacao de Dependencias & Ambiente (REQUIREMENTS.md, python-backend/requirements.txt, scripts/check_env.py & .ps1, AGENTS.md Secao 13 e Pre-Flight Check em Program.cs) verificada")
     print("=== ALL NEOVEG CROSS-PLATFORM TESTS PASSED SUCCESSFULLY ===")
 
 

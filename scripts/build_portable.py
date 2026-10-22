@@ -188,6 +188,7 @@ def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
     for doc in (
         "AUTHORS.md",
         "LICENSE",
+        "REQUIREMENTS.md",
         "KEEPS.md",
         "README.md",
         "GUIA_NOVAS_FUNCIONALIDADES.md",
