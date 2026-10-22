@@ -244,6 +244,7 @@ To guarantee that `Neoveg.exe` loads native shared libraries seamlessly in porta
 
 - **Automatic DLL Copying (`desktop-host/Neoveg.csproj`):**
   - Configure compiled Windows Rust and C++ libraries (`neoveg_core.dll` and `neoveg_cpp_engine.dll`) as content copied beside the executable on build and publish.
+  - Copy the Windows Avalonia rendering runtime libraries (`libSkiaSharp.dll`, `libHarfBuzzSharp.dll`, and `av_libglesv2.dll`) beside the executable as well; direct launches must not depend on an inherited `PATH`.
 - **Dynamic FFI Resolution (`desktop-host/Program.cs`):**
   - Register `NativeLibrary.SetDllImportResolver` for the application assembly before startup. Search the executable directory first, then `%LOCALAPPDATA%\Neoveg\AppCache\`, followed by the packaged `runtimes/<RID>/native/` directory; leave unrelated platform/system imports to the runtime.
 - **Validation on Startup:**

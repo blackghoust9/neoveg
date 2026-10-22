@@ -100,4 +100,32 @@
           DestinationFiles="@(_NativeRuntimes->'$(OutputPath)runtimes\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
+
+  <Target Name="CopyWindowsRenderingLibrariesToOutput"
+          AfterTargets="Build"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <_WindowsRenderingLibraries Include="@(RuntimeCopyLocalItems)"
+          Condition="'%(RuntimeCopyLocalItems.Filename)' == 'libSkiaSharp'
+                  Or '%(RuntimeCopyLocalItems.Filename)' == 'libHarfBuzzSharp'
+                  Or '%(RuntimeCopyLocalItems.Filename)' == 'av_libglesv2'" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WindowsRenderingLibraries)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyWindowsRenderingLibrariesToPublish"
+          AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <_WindowsRenderingLibraries Include="@(RuntimeCopyLocalItems)"
+          Condition="'%(RuntimeCopyLocalItems.Filename)' == 'libSkiaSharp'
+                  Or '%(RuntimeCopyLocalItems.Filename)' == 'libHarfBuzzSharp'
+                  Or '%(RuntimeCopyLocalItems.Filename)' == 'av_libglesv2'" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WindowsRenderingLibraries)"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
