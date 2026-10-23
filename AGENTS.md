@@ -364,3 +364,24 @@ To keep behavioral fidelity with the reference NLE workflows (Section 10) even w
   - When no source documents a detail, write `NOT DOCUMENTED` and record the rule as a Neoveg design decision instead of presenting it as reference behavior.
   - Consult this file before implementing or changing any parity behavior, and update it when new evidence contradicts an entry.
   - Research notes follow Section 19: third-party product names, trademarks and their URLs stay out of the repository (keep them only in local, untracked notes).
+
+---
+
+## 22. Pure Rust Architecture & Single-Toolchain Protocol
+
+To permanently eliminate FFI memory overhead, multi-language build complexity, and cross-platform binary inconsistencies:
+
+- **Scope:** This section supersedes any earlier section that requires C#, C++, Python or FFI for the core (sections 2, 3.1-3.4, 11-15 and 18). The legacy directories (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) are a porting reference only and are removed once their features are ported.
+- **100% Rust Ecosystem Standard:**
+  - Neoveg is strictly constructed as a pure Rust Cargo Workspace (`crates/neoveg_ui`, `crates/neoveg_engine`, `crates/neoveg_audio`, `crates/neoveg_video`, `crates/neoveg_common`).
+  - Prohibit introduction of C#, C++, Python, or external FFI bindings for core editing features.
+- **UI & Graphics Architecture:**
+  - UI is rendered using `egui` with `egui_dock` for Classic NLE-style dockable panels.
+  - Video and timeline rendering is handled via `wgpu` (WebGPU) for cross-platform GPU acceleration.
+- **Audio & Media Pipelines:**
+  - Audio playback uses `cpal` for cross-platform hardware output and `symphonia` for audio decoding.
+  - Video frame extraction uses native Rust bindings for FFmpeg (`ffmpeg-next`), behind the optional `ffmpeg` feature of `neoveg_video` so a plain `cargo build --workspace` needs no system FFmpeg.
+- **Unified Build & QA:**
+  - Build entire project across all target OSs: `cargo build --workspace --release`
+  - Run full test suite & linter: `cargo test --workspace` && `cargo clippy --workspace -- -D warnings`
+- **Carried-over rules:** Sections 1 (naming), 19 (trademark neutrality) and the behavioral rules of 3.1 and 10 (meters driven only by real samples and zeroed when stopped, 1-physical-pixel playhead line, sample-accurate waveforms, adaptive frame grid, square precision sliders, bottom dock tabs) still apply and are implemented in the crates above.

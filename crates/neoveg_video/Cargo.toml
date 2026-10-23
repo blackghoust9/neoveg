@@ -1,0 +1,17 @@
+[package]
+name = "neoveg_video"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Neoveg video: frame buffers, procedural generators, wgpu upload and optional FFmpeg decoding"
+
+[features]
+default = []
+# Native FFmpeg decoding (needs FFmpeg development libraries; see REQUIREMENTS.md)
+ffmpeg = ["dep:ffmpeg-next"]
+
+[dependencies]
+neoveg_common.workspace = true
+tracing.workspace = true
+wgpu = "22"
+ffmpeg-next = { version = "7", optional = true }

@@ -1,0 +1,10 @@
+[package]
+name = "neoveg_engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Neoveg editing engine: timeline, tracks, events, split/move edits and undo/redo"
+
+[dependencies]
+neoveg_common.workspace = true
+serde.workspace = true

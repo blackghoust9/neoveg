@@ -1,0 +1,12 @@
+[package]
+name = "neoveg_audio"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Neoveg audio: symphonia decoding, cpal output, real peak meters and sample-accurate waveforms"
+
+[dependencies]
+neoveg_common.workspace = true
+tracing.workspace = true
+symphonia = { version = "0.5", features = ["all"] }
+cpal = "0.15"

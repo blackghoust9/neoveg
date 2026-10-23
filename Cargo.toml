@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/neoveg_common",
+    "crates/neoveg_audio",
+    "crates/neoveg_video",
+    "crates/neoveg_engine",
+    "crates/neoveg_ui",
+]
+# Legacy FFI core, kept only until every feature is ported to the crates above
+exclude = ["rust-core"]
+
+[workspace.package]
+version = "2.1.0"
+edition = "2021"
+authors = ["Neoveg Contributors"]
+
+[workspace.dependencies]
+neoveg_common = { path = "crates/neoveg_common" }
+neoveg_audio = { path = "crates/neoveg_audio" }
+neoveg_video = { path = "crates/neoveg_video" }
+neoveg_engine = { path = "crates/neoveg_engine" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
