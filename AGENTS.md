@@ -34,12 +34,14 @@ This document defines the architectural standards, naming conventions, coding gu
 Neoveg Workspace
 ├── Neoveg.sln            # Root Visual Studio / .NET Solution
 ├── desktop-host/         # C# (.NET / Avalonia UI) — Frontend UI and MVVM (Neoveg.csproj)
+├── desktop-host.Tests/   # C# (Avalonia.Headless.XUnit) — Automated Headless UI & Unit Tests (Neoveg.Tests.csproj)
 ├── rust-core/            # Rust (neoveg_core) — High-performance video/audio processing, FFI decoding, and .sfk cache
 ├── cpp-extensions/       # C/C++ (CMake: neoveg_cpp_engine) — VST3 hosting, OpenFX, Voukoder, Whisper.cpp, and Shared Memory IPC
 ├── python-backend/       # Python (neoveg) — Automation, AI (Whisper.cpp, CorridorKey), XML interchange, and user scripting
-├── scripts/              # Dynamic C# (.cs) and Python (.py) scripts + build_portable.py
+├── scripts/              # Dynamic C# (.cs) and Python (.py) scripts, QA runners, launchers + build_portable.py
 ├── extensions/           # Third-party dockable window extensions
 ├── third_party/          # External dependencies, SDKs, and open-source libraries
+├── docs/                 # Project QA compliance dashboard (index.html) and VEGAS Pro research knowledge base
 └── Assets/i18n/          # Runtime localization resources (pt-BR default)
 ```
 
@@ -50,11 +52,36 @@ Neoveg Workspace
 ### 3.1. C# / Avalonia UI (Frontend)
 - Use clean **MVVM** patterns and reactive bindings in Avalonia UI (`.axaml`).
 - Maintain visual fidelity with historical VEGAS themes (Sonic Foundry, Sony Classic, MAGIX Modern Dark, and Boris FX Contemporary).
+- **Icon-Only Buttons & Toolbars (`NeovegIcons.cs` / `MainWindow.cs`):** All toolbar and panel buttons render graphical vector icons (`StreamGeometry` / `PathIcon`), exposing their names, shortcuts, and descriptions exclusively as `ToolTip` on hover.
+- **Floating & Undockable Panels (`DetachableDockPanel.cs`):** All primary workspace panels (**Timeline**, **Video Preview**, **Trimmer / Project Media**, and **Master Bus Mixer**) can be detached and dragged into independent floating windows (closing a floating window docks it back into its workspace slot).
+- **Main Toolbar Below Timeline:** The primary icon toolbar (`BuildMainIconToolbar`) is positioned directly below the Multi-Track Timeline (`BuildTimelineWorkspace`).
+- **Clean Video Preview (`VideoPreviewControl.cs`):** All graphical overlays and on-screen tools (`SMPTE HUD`, `Safe Areas`, `Grid`, `'F' Pan/Crop Gizmo`, `Split-Screen FX Bypass`, `Clip Overlay Labels`) start disabled by default (`false`) and are exposed optionally via the Preview Overlays menu/flyout or context menu.
+- **Video Preview Toolbar (`MainWindow.cs` / `VideoPreviewControl.cs`):** Keep the compact, flat, square-cornered, icon-only toolbar equipped with Project Video Properties (resolution, FPS, pixel/display aspect), a single Preview Quality selector offering only `Draft`, `Preview`, `Good`, `Best` and `Auto` (each quality implies the preview resolution: Draft = 1/4, Preview = 1/2, Good/Best = full, Auto = fit to the preview window; no separate resolution selector), project video FX bypass, Split-Screen, overlays, PNG/JPEG frame snapshot save and clipboard copy, external-monitor pop-out, and full-screen preview (`Esc` closes). Tooltips describe every icon and selector. Show live project dimensions/bit depth/frame rate and effective preview dimensions in the preview status strip; refresh it when project settings, preview resolution, or viewport size changes.
+- **Docked Panel Tabs (`desktop-host/Styles/NeovegDockTabStyles.cs`):** Every Neoveg docked window with tabs (Project Media, Trimmer, Video FX, Audio FX, Transitions, Generators, dockable extensions) must use the VEGAS Pro compact footer tab pattern via `NeovegDockTabStyles.Apply(tabControl)`: tab strip at the bottom of the window (`TabStripPlacement = Bottom`), compact flat headers (`FontSize = 11`, `Padding = 6,2,6,2`, 22px height, no Fluent selection pipe), and a horizontally scrolling tab strip with left/right `RepeatButton` arrows (plus mouse-wheel scrolling) that appear only when the tabs do not fit the panel width. The selected tab is always scrolled into view. Tabs remain undockable by dragging them out of the strip (`DetachableDockPanel.EnableTabUndocking`).
+- **Track Header Number Box Blinking Indicator (`MainWindow.cs` / `TrackHeaderControl.axaml` / `TrackViewModels.cs`):** The blinking indicator dot inside the track identification number box (`numBadge` / `PART_TrackNumberBox`, e.g. `• 1`, `• 2`) is **exclusive to the currently active/selected track** (`SelectedTrackId` / `TrackViewModelBase.IsSelected == true`): only that track's dot alternates between White (`#FFFFFF`) and Black (`#000000`) on a `500ms` `DispatcherTimer`. Unselected tracks keep a static neutral dot with no animation (hidden in `TrackHeaderControl.axaml` via `IsVisible="{Binding IsSelected}"`), and the timer is stopped whenever no track is selected. A track becomes selected by clicking its header or any point of its timeline lane.
+- **Clean Startup (`VegasProject.CreateEmpty`):** Neoveg starts directly in the main workspace with an empty project (0 tracks, 0 demo media clips, and `ShowWelcomeOnStartup = false`).
+- **Event Pan/Crop & Inspector Restructuring (`EventPanCropWindow.cs` / `MainWindow.cs`):**
+  - Event Pan/Crop is not docked beside the main Preview; it opens as a pop-up window (`EventPanCropWindow`) from the video clip's Event Header button and includes an embedded side-by-side live Video Preview toggle (`ShowSidePreview` / `SetSidePreviewVisible`) right next to the `'F'` gizmo canvas.
+  - The **Inspector** panel is accessed via the **Ferramentas** (`_Ferramentas` / `Tools`) drop-down menu item **Inspetor** (`OpenInspectorWindow`). Do not embed input controls (e.g. a `ComboBox`) inside menus; the Roslyn console and dockable extension manager stay as regular menu items (Tools > Scripts, View > Window Extensions).
+- **Menus & Preferences (`AdvancedSettingsWindow.cs` / `LocalizationManager.cs`):**
+  - **Preferências** (`OpenAdvancedSettingsDialog`) is located inside the **Editar** (`_Editar`) menu, housing the interface **Idioma** (`Language`) selector (removed from the `Ferramentas` menu and main toolbar).
+  - Automatic fade-in and fade-out on media import (audio, video, and image) are disabled by default (`AutoFadeOnImport = false`, `FadeIn = 0.0`, `FadeOut = 0.0`) and configurable via checkbox in **Editar -> Preferências**.
 - **Event Header:** Every timeline clip (`MultiTrackTimelineControl`) must render an event header with the following buttons: *Generated Media*, *Event Pan/Crop*, *Video/Audio FX*, and *Hamburger Menu (☰)*.
 - **Playhead (CTI) & Edit Cursor Blink (`PlayheadOverlay.axaml` / `TimelineCursor.cs` / `PlayheadOverlayCanvas.cs`):**
   - Blue pentagonal head (`#2980B9` / `#3498DB`) with pointed bottom beak and horizontal right-extending flag, `1px` vertical blue guide line across all tracks, and SMPTE Drop-Frame (`;`) / Non-Drop-Frame (`:`) timecode box above the marker tip.
   - Smooth caret blink animation (`DispatcherTimer` ~`500ms` alternating `VerticalLineOpacity` between `1.0` and `0.0`) when playback is paused (`IsPlaying == false`), locking to `1.0` (solid) at `60 FPS` during playback or scrubbing, and resetting on keyboard frame navigation (`Left` / `Right` arrow keys).
-- **Render Status Ruler (`RenderStatusRuler.axaml`):** A tri-color bar above the timeline displaying *Green* (`#2ECC71`, RAM/Prerender 60 FPS), *Yellow* (`#F1C40F`, Simple/Queued), and *Red* (`#E74C3C`, Complex/Unrendered) segments.
+  - **1px Ultra-Fine, Pixel-Snapped Guide Line:** the vertical guide line is exactly one *physical* pixel wide at every zoom level, scroll offset and monitor DPI: pen thickness `1 / RenderScaling`, X centered on a device pixel via `TimelineFrameGrid.SnapToDevicePixel`, drawn under `RenderOptions.EdgeMode = Aliased` (`UseLayoutRounding = true` on the overlay). Never scale the line with `PixelsPerSecond`.
+- **Sample-Accurate Audio Waveform (`rust-core/src/waveform_source.rs` / `desktop-host/Interop/NeovegWaveformSource.cs` / `AudioWaveformRenderer.cs`):** Timeline waveforms come from the real PCM samples, never from interpolated peak summaries:
+  - Rust FFI `neoveg_waveform_open` / `_info` / `_query_columns` / `_read_samples` / `_close` (handle-based, null-checked, `catch_unwind`, explicit close) keeps the WAV PCM payload plus 256-frame min/max/sum-of-squares summaries; a managed C# fallback implements the same algorithm when the native library is unavailable. Non-WAV media is decoded once to a cached 16-bit WAV with the bundled FFmpeg (`%LOCALAPPDATA%\Neoveg\waveforms\`, `~/.cache/neoveg/waveforms/`, `~/Library/Caches/neoveg/waveforms/`). Sources open asynchronously; the UI thread never decodes audio.
+  - ≥ 1 sample per pixel: exact min/max (outer) and RMS (inner) of every visible pixel column, drawn as one filled polygon per channel; a single-sample transient is never averaged away. < 1 sample per pixel: the individual samples joined by lines, with sample dots/stems once samples are ≥ 6px apart (Audacity style). Only the visible range is computed; clip `TrimIn`, `PlaybackRate`, gain and fades are honored.
+  - Timeline zoom ranges from `MultiTrackTimelineControl.MinPixelsPerSecond` (15) to `MaxPixelsPerSecond` (480,000 px/s = 10px per sample at 48 kHz); mouse-wheel zoom is anchored at the pointer and toolbar zoom at the edit cursor. Event widths/fades use `DurationToWidth` (never `TimeToX`, which includes the scroll offset), and off-screen events are culled / clamped to ±10,000px for float precision.
+- **Dynamic Timeline Frame Grid (`desktop-host/Controls/TimelineFrameGrid.cs` / `MultiTrackTimelineControl.cs`):** Grid density adapts to zoom using the step ladder `1, 2, 5, 10 frames → 1 s, 2 s, 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 5 min…`: minor lines use the smallest step at least `8px` apart (one line per frame — 1/24, 1/25, 1/30, 1/60 s from the project FPS — at close zoom), major lines the smallest step at least `90px` apart and carry the SMPTE ruler labels. Minor (frame) lines are `#2C3038`, major (second/ruler) lines `#4A505E`; both are 1 physical pixel, pixel-snapped and aliased, drawn over the lane background and behind events, only for the visible time range. Grid times are always derived from integer frame indices (never accumulated floats); second steps land on the frame where the SMPTE timecode reads `HH:MM:SS;00`, honoring drop-frame (`00:01:00;02` at dropped minute boundaries). Covered by `desktop-host.Tests/TimelineFrameGridTests.cs`; research notes in `docs/research/vegas_features_research.txt` (entries 4–5).
+- **Timeline Scrolling (`MainWindow.cs` / `MultiTrackTimelineControl.cs` / `PlayheadOverlayCanvas.cs`):** Keep horizontal navigation bidirectionally synchronized between the timeline scrollbar, SMPTE ruler, event canvas, and playhead using one time-based horizontal offset; update the scrollbar thumb from the visible time range at the current zoom and clamp it to the project duration. Keep track headers and event lanes synchronized through one vertical pixel offset, including when either side is scrolled, track heights change, or the viewport is resized. Timeline scrollbars use compact, flat, square-cornered dark-theme styling and provide adjacent zoom-out / zoom-in controls.
+- **Render Status Ruler (`RenderStatusRuler.axaml` / `desktop-host/Controls/RenderStatusRuler.cs`):** A tri-color bar above the timeline displaying *Green* (`#2ECC71`, RAM/Prerender 60 FPS), *Yellow* (`#F1C40F`, Simple/Queued), and *Red* (`#E74C3C`, Complex/Unrendered) segments.
+- **Audio Master Bus & Real-Time FFI Audio Metering (`MasterBusView.axaml` / `MasterBusView.cs` / `MasterBusViewModel.cs` / `MasterScopeControl.cs`):**
+  - The Audio Master Bus panel renders exclusively the stereo Left (`L`) and Right (`R`) dBFS peak meters, dBFS scale (`0`, `-6`, `-12`, `-24`, `-48`, `-∞`), real-time `L`/`R` dBFS digital readouts, and the Master Volume fader (`MASTER BUS: +0.0 dB`). It must **never** include a video RGB Parade / Scope control in its top area.
+  - All audio meters (VU / Peak meters) in Neoveg must respond **strictly** to the real-time FFI audio pipeline (`rust-core` / `neoveg_sample_wav_stereo_peak_at` and `cpp-extensions`), without timers, random number generators, trigonometric wave oscillators (`Math.Sin` / `Math.Cos`), or mock/test data in production builds.
+  - When playback is stopped (`IsPlaying == false`) or when there is no active unmuted audio media on the timeline at the current playhead, all VU meters must remain completely zeroed and static (`0.0` linear / $-\infty\text{ dB}$).
 - **Internationalization (i18n):** Managed via `LocalizationManager.cs` in `Assets/i18n/`. Default language is Brazilian Portuguese (`pt-BR`), with runtime support for `en-US`, `de-DE`, `es-ES`, `fr-FR`, `zh-CN`, `ja-JP`, and `ru-RU`.
 
 ### 3.2. Rust Core (`rust-core/`)
@@ -84,8 +111,8 @@ Neoveg Workspace
 ## 5. Missing Media Protocol (Relink Engine)
 
 Upon opening a project with disconnected media:
-1. Trigger the `MissingMediaWindow.axaml` modal.
-2. Execute the 3-step search algorithm via Rust/Python (`Neoveg.Core.MediaRelinker` / `media_relinker.py`):
+1. Trigger the `MissingMediaWindow.axaml` (`desktop-host/Views/MissingMediaWindow.cs`) modal.
+2. Execute the 3-step search algorithm via Rust/Python (`Neoveg.Core.MediaRelinker` in `desktop-host/Services/MediaRelinker.cs` / `python-backend/media_relinker.py`):
    - *Step 1:* Exact filename match + Same-Directory Sibling Auto-Relink.
    - *Step 2:* Fuzzy filename match.
    - *Step 3:* Metadata validation (`FFprobe`) checking framerate, channels, and original duration + Rust FFI `.sfk` regeneration.
@@ -127,7 +154,7 @@ To ensure full observability during runtime and diagnose crashes or silent failu
 - **Centralized Log Directory:** All logs must be written to `logs/neoveg.log` (active session) and `logs/crash.log` (unhandled crashes) inside the application root directory.
 - **Log Rotation & Retention:** Retain up to 5 historical log files (`logs/neoveg.YYYY-MM-DD.log`) with a 10MB file size limit per log file.
 - **Subsystem Integration:**
-  - **C# / .NET (Frontend):** Use `Serilog` (or `Microsoft.Extensions.Logging`) with File and Console sinks. Intercept global unhandled exceptions via `AppDomain.CurrentDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`, and Avalonia's `RxApp.DefaultExceptionHandler`.
+  - **C# / .NET (Frontend):** Use structured rotating file + console logging (`Program.LogEvent` / `WriteCrashLog`, compatible with `Serilog` or `Microsoft.Extensions.Logging` sinks). Intercept global unhandled exceptions via `AppDomain.CurrentDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`, and Avalonia's `RxApp.DefaultExceptionHandler`.
   - **Rust Backend (`rust-core`):** Use the `tracing` / `tracing-subscriber` crate, capturing Rust panics via `std::panic::set_hook` and piping logs to the central file.
   - **C++ Extensions (`cpp-extensions`):** Log VST3/OpenFX plugin initialization, FFI calls, and native exceptions to `logs/neoveg.log`.
   - **Python Backend (`python-backend`):** Configure Python's standard `logging` module with a file handler pointing to `logs/neoveg.log`.
@@ -167,7 +194,7 @@ Neoveg's UI/UX layout, editing mechanics, shortcut keys, and signal routing pipe
 - **VEGAS Pro 21 Reference (Contemporary Feature Parity & AI Tools):** `https://pt.scribd.com/document/908733746/Manual-Vegaspro21-en-47zge9`
 
 **Implementation Mandate:**
-All window layouts, keyboard shortcut mappings (`S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), and event manipulation behaviors in Neoveg must mirror the specifications defined in these reference manuals.
+All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ctrl+Shift+Q` insert Video Track, `S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), high-zoom sample-accurate audio waveform rendering (`lod_ultra` + Catmull-Rom cubic Hermite interpolation), and event manipulation behaviors in Neoveg must mirror the specifications defined in these reference manuals.
 
 ---
 
@@ -309,3 +336,18 @@ To guarantee seamless execution across Windows, Linux, and macOS:
 - **Cross-Platform Launcher Scripts (`scripts/`):**
   - **`scripts/neoveg.sh` (Linux & macOS):** Must carry executable permissions (`chmod +x`), auto-detect the kernel (`Linux` vs `Darwin`), configure `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) pointing to `runtimes/<rid>/native/` and `runtimes/<rid>/ffmpeg/lib/`, initialize the platform cache directory, and launch `Neoveg`.
   - **`scripts/neoveg.bat` (Windows):** Configures `PATH` for `runtimes\win-x64\native\` and `runtimes\win-x64\ffmpeg\bin\`, prepares `%LOCALAPPDATA%\Neoveg\AppCache`, and launches `Neoveg.exe`.
+
+---
+
+## 19. Fallback Web Research & VEGAS Pro Knowledge Base Protocol
+
+To ensure 100% behavioral fidelity with VEGAS Pro even when local manuals lack specific implementation details:
+
+- **Missing Manual Specification Fallback:**
+  - If a feature, UX interaction, or algorithm (e.g., dynamic frame grid calculation, timecode snapping rules) is not detailed in the local VEGAS Pro manuals (Section 10), search online sources, community documentation, or software analysis for VEGAS Pro mechanics.
+  - Prefer official sources first (current VEGAS Pro online help, e.g. `https://cdn.borisfx.com/borisfx/Documentation/vegas/2026/en/`), then community forums (`vegascreativesoftware.info`, `creativecow.net`). Always record which kind of source backs each rule.
+- **Knowledge Base Persistence:**
+  - Automatically save all discovered specifications, rules, and research notes into `docs/research/vegas_features_research.txt`.
+  - Maintain a structured format in the `.txt` file detailing: *Feature Name*, *VEGAS Pro Exact Behavior*, *Visual/Technical Rules*, and *Implementation Guidelines for Neoveg*, plus *Sources* and the research date.
+  - When no source documents a detail, write that explicitly (`NOT DOCUMENTED`) and mark the Neoveg rule as a Neoveg design decision instead of presenting it as VEGAS Pro behavior.
+  - Consult this file before implementing or changing any VEGAS-parity behavior, and update it when new evidence contradicts an entry.

@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Neoveg.Controls;
 using Neoveg.Interop;
 using Neoveg.Models;
 using Neoveg.Services;
@@ -799,6 +800,16 @@ public sealed class EventPanCropWindow : Window
     private static readonly StreamGeometry SvgSizeCenter = StreamGeometry.Parse("M 8,2 L 8,14 M 2,8 L 14,8 M 5,5 L 11,5 L 11,11 L 5,11 Z");
     private static readonly StreamGeometry SvgMoveAxis = StreamGeometry.Parse("M 8,1.5 L 8,14.5 M 1.5,8 L 14.5,8 M 6,3.5 L 8,1.5 L 10,3.5 M 12.5,6 L 14.5,8 L 12.5,10");
     private static readonly StreamGeometry SvgRestoreBox = StreamGeometry.Parse("M 3,3 L 13,3 L 13,13 L 3,13 Z M 5.5,8 L 10.5,8");
+    private static readonly StreamGeometry SvgSidePreview = StreamGeometry.Parse("M 1.5,2.5 L 14.5,2.5 L 14.5,13.5 L 1.5,13.5 Z M 8,2.5 L 8,13.5 M 10,6 L 13,8 L 10,10 Z");
+    private static readonly StreamGeometry SvgCenterBox = StreamGeometry.Parse("M 8,1.5 L 8,14.5 M 1.5,8 L 14.5,8 M 5,5 L 11,5 L 11,11 L 5,11 Z");
+    private static readonly StreamGeometry SvgFlipHoriz = StreamGeometry.Parse("M 8,1.5 L 8,14.5 M 2,5 L 6,8 L 2,11 Z M 14,5 L 10,8 L 14,11 Z");
+    private static readonly StreamGeometry SvgKfFirst = StreamGeometry.Parse("M 3,3 L 3,13 M 12,3 L 6,8 L 12,13 Z");
+    private static readonly StreamGeometry SvgKfPrev = StreamGeometry.Parse("M 11,3 L 5,8 L 11,13 Z");
+    private static readonly StreamGeometry SvgKfNext = StreamGeometry.Parse("M 5,3 L 11,8 L 5,13 Z");
+    private static readonly StreamGeometry SvgKfLast = StreamGeometry.Parse("M 13,3 L 13,13 M 4,3 L 10,8 L 4,13 Z");
+    private static readonly StreamGeometry SvgKfAdd = StreamGeometry.Parse("M 8,2 L 13,8 L 8,14 L 3,8 Z M 8,5.5 L 8,10.5 M 5.5,8 L 10.5,8");
+    private static readonly StreamGeometry SvgKfDelete = StreamGeometry.Parse("M 8,2 L 13,8 L 8,14 L 3,8 Z M 5.5,8 L 10.5,8");
+    private static readonly StreamGeometry SvgSyncCursor = StreamGeometry.Parse("M 5,10 L 3,10 A 3,3 0 0 1 3,4 L 6,4 M 11,4 L 13,4 A 3,3 0 0 1 13,10 L 10,10 M 5.5,7 L 10.5,7");
 
     private readonly VegasProject _project;
     private readonly TimelineClip _clip;
@@ -807,8 +818,15 @@ public sealed class EventPanCropWindow : Window
     private readonly Action _onPanCropChanged;
 
     private readonly PanCropGizmoCanvasControl _gizmoCanvas;
+    private readonly VideoPreviewControl _sidePreviewControl;
     private readonly PanCropKeyframeTimelineControl _keyframeTimeline;
     private Control? _workspaceControl;
+    private Border? _sidePreviewBorder;
+    private GridSplitter? _sidePreviewSplitter;
+    private Grid? _centerCanvasAndPreviewGrid;
+    private CheckBox? _chkShowSidePreview;
+    private Button? _btnToggleSidePreview;
+    public bool ShowSidePreview { get; private set; } = false;
 
     // Property Grid Numeric / Combo Controls (synchronized bidirectionally in real time)
     private readonly TextBox _txtPosWidth;
@@ -875,6 +893,16 @@ public sealed class EventPanCropWindow : Window
             Clip = _clip,
             RustInterop = _rustInterop,
             CppInterop = _cppInterop
+        };
+
+        _sidePreviewControl = new VideoPreviewControl
+        {
+            Project = _project,
+            SelectedClip = _clip,
+            RustInterop = _rustInterop,
+            CppInterop = _cppInterop,
+            ShowPanCropGizmo = false,
+            ShowHudOverlay = false
         };
 
         _keyframeTimeline = new PanCropKeyframeTimelineControl
@@ -1103,6 +1131,7 @@ public sealed class EventPanCropWindow : Window
             _txtWsGridSpacing.Text = pc.WorkspaceGridSpacing.ToString(CultureInfo.InvariantCulture);
 
             UpdateToolbarButtonVisuals();
+            _sidePreviewControl.InvalidateVisual();
 
             if (_lblMatrixStatus != null)
             {
@@ -1164,8 +1193,38 @@ public sealed class EventPanCropWindow : Window
             BorderThickness = new Thickness(1),
             Child = _gizmoCanvas
         };
-        Grid.SetColumn(canvasBorder, 2);
-        midGrid.Children.Add(canvasBorder);
+
+        _sidePreviewSplitter = new GridSplitter
+        {
+            Background = new SolidColorBrush(Color.Parse("#263042")),
+            ResizeDirection = GridResizeDirection.Columns,
+            IsVisible = ShowSidePreview
+        };
+
+        _sidePreviewBorder = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.Parse("#2a3446")),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.Parse("#080a0f")),
+            IsVisible = ShowSidePreview,
+            Child = _sidePreviewControl
+        };
+
+        _centerCanvasAndPreviewGrid = new Grid
+        {
+            ColumnDefinitions = ShowSidePreview
+                ? new ColumnDefinitions("*,4,*")
+                : new ColumnDefinitions("*,0,0")
+        };
+        Grid.SetColumn(canvasBorder, 0);
+        Grid.SetColumn(_sidePreviewSplitter, 1);
+        Grid.SetColumn(_sidePreviewBorder, 2);
+        _centerCanvasAndPreviewGrid.Children.Add(canvasBorder);
+        _centerCanvasAndPreviewGrid.Children.Add(_sidePreviewSplitter);
+        _centerCanvasAndPreviewGrid.Children.Add(_sidePreviewBorder);
+
+        Grid.SetColumn(_centerCanvasAndPreviewGrid, 2);
+        midGrid.Children.Add(_centerCanvasAndPreviewGrid);
 
         Grid.SetRow(midGrid, 1);
         outerGrid.Children.Add(midGrid);
@@ -1309,12 +1368,36 @@ public sealed class EventPanCropWindow : Window
         {
             _clip.PanCrop.FlipH = !_clip.PanCrop.FlipH;
             _gizmoCanvas.InvalidateVisual();
+            _sidePreviewControl.InvalidateVisual();
             _onPanCropChanged();
         });
+
+        _btnToggleSidePreview = CreateVerticalToolButton(
+            SvgSidePreview,
+            loc.T("PanCrop.ToggleSidePreview", "Exibir Preview de Vídeo ao Lado (Live Side-by-Side Video Preview)"),
+            () => SetSidePreviewVisible(!ShowSidePreview),
+            ShowSidePreview);
+
+        _chkShowSidePreview = new CheckBox
+        {
+            IsChecked = ShowSidePreview,
+            Content = loc.T("PanCrop.ShowSidePreviewLabel", "Preview ao Lado"),
+            FontSize = 10.5,
+            Foreground = new SolidColorBrush(Color.Parse("#e2e8f0")),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0)
+        };
+        ToolTip.SetTip(_chkShowSidePreview, "Exibir ou ocultar a janela de Preview do vídeo em tempo real ao lado do quadro 'F' dentro do Pan/Crop.");
+        _chkShowSidePreview.IsCheckedChanged += (_, _) =>
+        {
+            SetSidePreviewVisible(_chkShowSidePreview.IsChecked ?? false);
+        };
 
         quickBtns.Children.Add(btnRestore);
         quickBtns.Children.Add(btnCenter);
         quickBtns.Children.Add(btnFlipH);
+        quickBtns.Children.Add(_btnToggleSidePreview);
+        quickBtns.Children.Add(_chkShowSidePreview);
         Grid.SetColumn(quickBtns, 2);
         grid.Children.Add(quickBtns);
 
@@ -1703,6 +1786,27 @@ public sealed class EventPanCropWindow : Window
         _onPanCropChanged();
     }
 
+    public void SetSidePreviewVisible(bool visible)
+    {
+        ShowSidePreview = visible;
+        if (_sidePreviewSplitter != null)
+            _sidePreviewSplitter.IsVisible = visible;
+        if (_sidePreviewBorder != null)
+            _sidePreviewBorder.IsVisible = visible;
+        if (_centerCanvasAndPreviewGrid != null)
+        {
+            _centerCanvasAndPreviewGrid.ColumnDefinitions = visible
+                ? new ColumnDefinitions("*,4,*")
+                : new ColumnDefinitions("*,0,0");
+        }
+        if (_chkShowSidePreview != null && _chkShowSidePreview.IsChecked != visible)
+            _chkShowSidePreview.IsChecked = visible;
+        if (_btnToggleSidePreview != null)
+            _btnToggleSidePreview.Background = new SolidColorBrush(Color.Parse(visible ? "#2563eb" : "#1e293b"));
+        _gizmoCanvas.InvalidateVisual();
+        _sidePreviewControl.InvalidateVisual();
+    }
+
     private void UpdateToolbarButtonVisuals()
     {
         var pc = _clip.PanCrop;
@@ -1717,9 +1821,10 @@ public sealed class EventPanCropWindow : Window
         if (_btnSyncCursor != null)
         {
             var loc = LocalizationManager.Instance;
-            _btnSyncCursor.Content = pc.SyncCursor
+            string syncTip = pc.SyncCursor
                 ? loc.T("PanCrop.Keyframe.SyncCursorOn", "🔗 Sync Cursor: ON")
                 : loc.T("PanCrop.Keyframe.SyncCursorOff", "🔗 Sync Cursor: OFF");
+            ToolTip.SetTip(_btnSyncCursor, syncTip);
             _btnSyncCursor.Background = new SolidColorBrush(Color.Parse(pc.SyncCursor ? "#0e7490" : "#1e293b"));
         }
     }
@@ -1843,20 +1948,45 @@ public sealed class EventPanCropWindow : Window
         return btn;
     }
 
+    private static StreamGeometry ResolveActionButtonIcon(string label)
+    {
+        string lower = (label ?? "").ToLowerInvariant();
+        if (lower.Contains("restaurar") || lower.Contains("restore")) return SvgRestoreBox;
+        if (lower.Contains("centralizar") || lower.Contains("center")) return SvgCenterBox;
+        if (lower.Contains("flip")) return SvgFlipHoriz;
+        if (lower.Contains("|<") || lower.Contains("primeiro") || lower.Contains("first")) return SvgKfFirst;
+        if (lower.Contains("< ") || lower.Contains("anterior") || lower.Contains("prev")) return SvgKfPrev;
+        if (lower.Contains(">|") || lower.Contains("último") || lower.Contains("last")) return SvgKfLast;
+        if (lower.Contains("seguinte") || lower.Contains("next") || lower.EndsWith(">")) return SvgKfNext;
+        if (lower.Contains("+♦") || lower.Contains("adicionar") || lower.Contains("add")) return SvgKfAdd;
+        if (lower.Contains("-♦") || lower.Contains("apagar") || lower.Contains("delete")) return SvgKfDelete;
+        if (lower.Contains("sync")) return SvgSyncCursor;
+        return SvgToolSelect;
+    }
+
     private static Button CreateActionButton(string label, string bgHex, string fgHex, Action onClick)
     {
         var btn = new Button
         {
-            Content = label,
-            FontSize = 10,
-            FontWeight = FontWeight.SemiBold,
+            Width = 28,
+            Height = 26,
             Background = new SolidColorBrush(Color.Parse(bgHex)),
             Foreground = new SolidColorBrush(Color.Parse(fgHex)),
             BorderBrush = new SolidColorBrush(Color.Parse("#475569")),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(0),
-            Padding = new Thickness(8, 3)
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Content = new PathIcon
+            {
+                Data = ResolveActionButtonIcon(label),
+                Width = 13,
+                Height = 13,
+                Foreground = new SolidColorBrush(Color.Parse(fgHex))
+            }
         };
+        ToolTip.SetTip(btn, label);
         btn.Click += (_, _) => onClick();
         return btn;
     }

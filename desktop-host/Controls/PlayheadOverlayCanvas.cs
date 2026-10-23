@@ -36,6 +36,7 @@ public sealed class PlayheadOverlayCanvas : Control
     public VegasProject? Project { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public double PixelsPerSecond { get; set; } = 105.0;
+    public double HorizontalOffsetSeconds { get; set; }
     public double RulerHeight { get; set; } = MultiTrackTimelineControl.RulerHeight;
 
     /// <summary>
@@ -62,6 +63,7 @@ public sealed class PlayheadOverlayCanvas : Control
     {
         IsHitTestVisible = false;
         ClipToBounds = true;
+        UseLayoutRounding = true;
 
         EditCursor.OnCursorVisualChanged += () => InvalidateVisual();
     }
@@ -120,8 +122,11 @@ public sealed class PlayheadOverlayCanvas : Control
         var b = Bounds;
         if (b.Width < 4 || b.Height < 4) return;
 
-        EditCursor.UpdatePosition(Project.Playhead, PixelsPerSecond);
+        EditCursor.UpdatePosition(Project.Playhead, PixelsPerSecond, HorizontalOffsetSeconds);
         double px = EditCursor.CursorX;
+        if (px < 0.0 || px > b.Width)
+            return;
+
         double lineOpacity = (IsPlaying || IsScrubbing) ? 1.0 : EditCursor.VerticalLineOpacity;
 
         DrawPremierePlayhead(
@@ -134,7 +139,8 @@ public sealed class PlayheadOverlayCanvas : Control
             Project.Fps,
             RustInterop,
             ForceDropFrame,
-            lineOpacity);
+            lineOpacity,
+            TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0);
     }
 
     /// <summary>
@@ -153,9 +159,16 @@ public sealed class PlayheadOverlayCanvas : Control
         double fps,
         RustCoreInterop? rustInterop,
         bool? forceDropFrame = null,
-        double verticalLineOpacity = 1.0)
+        double verticalLineOpacity = 1.0,
+        double renderScaling = 1.0)
     {
-        double px = Math.Clamp(Math.Round(playheadX) + 0.5, 0.5, Math.Max(1.5, viewportWidth - 0.5));
+        // Pixel-snapped: the guide line is centered on one physical pixel so it is exactly 1px wide
+        // (never blurred/thickened) at any timeline zoom, scroll offset or monitor DPI scaling.
+        double scale = renderScaling > 0.0 ? renderScaling : 1.0;
+        double px = Math.Clamp(
+            TimelineFrameGrid.SnapToDevicePixel(playheadX, scale),
+            0.5 / scale,
+            Math.Max(1.5 / scale, viewportWidth - 0.5 / scale));
 
         var primaryBlue = PrimaryBlueColor;     // #2980B9
         var highlightBlue = HighlightBlueColor; // #3498DB
@@ -171,8 +184,11 @@ public sealed class PlayheadOverlayCanvas : Control
         {
             byte lineAlpha = (byte)Math.Clamp(Math.Round(clampedLineOpacity * 255.0), 0, 255);
             var lineColor = Color.FromArgb(lineAlpha, highlightBlue.R, highlightBlue.G, highlightBlue.B);
-            var guideLinePen = new Pen(new SolidColorBrush(lineColor), 1.0);
-            context.DrawLine(guideLinePen, new Point(px, tipY), new Point(px, viewportHeight));
+            var guideLinePen = new Pen(new SolidColorBrush(lineColor), 1.0 / scale);
+            using (context.PushRenderOptions(new RenderOptions { EdgeMode = EdgeMode.Aliased }))
+            {
+                context.DrawLine(guideLinePen, new Point(px, tipY), new Point(px, viewportHeight));
+            }
         }
 
         // ---------------------------------------------------------------------

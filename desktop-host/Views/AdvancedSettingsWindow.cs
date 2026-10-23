@@ -159,9 +159,31 @@ public sealed class AdvancedSettingsWindow : Window
         };
         chkShowWelcome.IsCheckedChanged += (_, _) =>
         {
-            WelcomeWindow.ShowWelcomeOnStartup = chkShowWelcome.IsChecked ?? true;
+            WelcomeWindow.ShowWelcomeOnStartup = chkShowWelcome.IsChecked ?? false;
+            loc.ShowWelcomeOnStartup = WelcomeWindow.ShowWelcomeOnStartup;
         };
         langStack.Children.Add(chkShowWelcome);
+
+        var chkAutoFadeOnImport = new CheckBox
+        {
+            IsChecked = project.AutoFadeOnImport || loc.AutoFadeOnImport,
+            Content = loc.T(
+                "Settings.AutoFadeOnImport",
+                "Aplicar Fade-In e Fade-Out Automaticamente ao Importar Mídias (Áudio, Vídeo e Imagem)"),
+            Foreground = new SolidColorBrush(Color.Parse("#e2e8f0")),
+            FontSize = 11.5
+        };
+        ToolTip.SetTip(
+            chkAutoFadeOnImport,
+            "Desativado por padrão. Quando marcado, cria fades suaves automáticos de entrada e saída ao importar clipes de áudio, vídeo ou imagem.");
+        chkAutoFadeOnImport.IsCheckedChanged += (_, _) =>
+        {
+            bool enabled = chkAutoFadeOnImport.IsChecked ?? false;
+            project.AutoFadeOnImport = enabled;
+            loc.AutoFadeOnImport = enabled;
+            loc.SaveSettings();
+        };
+        langStack.Children.Add(chkAutoFadeOnImport);
 
         // TAB 2: Vídeo, Áudio & Engine
         var formGrid = new Grid
@@ -290,9 +312,15 @@ public sealed class AdvancedSettingsWindow : Window
         var btnApply = CreateSquareButton(loc.T("Settings.ApplyBtn", "Aplicar e Salvar Configurações"), "#2563eb", "#ffffff");
         btnApply.Click += (_, _) =>
         {
+            project.AutoFadeOnImport = chkAutoFadeOnImport.IsChecked ?? false;
+            loc.AutoFadeOnImport = project.AutoFadeOnImport;
             if (cmbLanguage.SelectedItem is LanguageOption selectedLang)
             {
                 loc.SetLanguage(selectedLang.Code, persistToSettings: true);
+            }
+            else
+            {
+                loc.SaveSettings();
             }
 
             string resText = (cmbRes.SelectedItem as string) ?? "1920x1080";

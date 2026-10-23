@@ -24,7 +24,7 @@ namespace Neoveg.Views;
 /// </summary>
 public sealed class WelcomeWindow : Window
 {
-    public static bool ShowWelcomeOnStartup { get; set; } = true;
+    public static bool ShowWelcomeOnStartup { get; set; } = false;
 
     private readonly VegasProject _currentProject;
     private readonly FFmpegPythonService _pythonService;

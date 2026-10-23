@@ -42,6 +42,10 @@ public sealed class MultiTrackTimelineControl : Control
     public const double EventHeaderHeight = 19.0;
     public const double HeaderButtonSlotWidth = 18.0;
 
+    /// <summary>Zoom range: far overview up to sample level (10px per sample at 48 kHz).</summary>
+    public const double MinPixelsPerSecond = 15.0;
+    public const double MaxPixelsPerSecond = 480_000.0;
+
     // Small White Vector SVG Geometries (12x12 coordinate space) for the VEGAS Pro Event Header
     private static readonly StreamGeometry SvgGeneratedMedia = StreamGeometry.Parse(
         "M 1.5,2 L 10.5,2 L 10.5,10 L 1.5,10 Z M 3.5,2 L 3.5,10 M 8.5,2 L 8.5,10 M 1.5,4.5 L 3.5,4.5 M 8.5,4.5 L 10.5,4.5 M 1.5,7.5 L 3.5,7.5 M 8.5,7.5 L 10.5,7.5");
@@ -62,10 +66,13 @@ public sealed class MultiTrackTimelineControl : Control
     public VegasHistoryTheme ActiveTheme { get; set; } = new();
     public EditToolMode ActiveTool { get; set; } = EditToolMode.Normal;
     public double PixelsPerSecond { get; set; } = 105.0;
+    public double HorizontalOffsetSeconds { get; set; }
+    public double VerticalOffset { get; set; }
     public string? SelectedClipId { get; set; }
     public string? SelectedTrackId { get; set; }
     public List<CrossfadeOverlap> Crossfades { get; private set; } = new();
 
+    public event Action? OnZoomChanged;
     public event Action<double>? OnPlayheadScrubbed;
     public event Action<TimelineClip?>? OnClipSelected;
     public event Action<string>? OnTimelineMutated;
@@ -190,8 +197,14 @@ public sealed class MultiTrackTimelineControl : Control
         }
     }
 
-    private double XToTime(double x) => Math.Max(0.0, x / Math.Max(20.0, PixelsPerSecond));
-    private double TimeToX(double sec) => sec * Math.Max(20.0, PixelsPerSecond);
+    private double XToTime(double x) =>
+        Math.Max(0.0, HorizontalOffsetSeconds + x / Math.Max(20.0, PixelsPerSecond));
+
+    private double TimeToX(double sec) =>
+        (sec - HorizontalOffsetSeconds) * Math.Max(20.0, PixelsPerSecond);
+
+    /// <summary>Width in pixels of a time span (durations must not include the horizontal scroll offset).</summary>
+    private double DurationToWidth(double seconds) => seconds * Math.Max(20.0, PixelsPerSecond);
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -248,7 +261,7 @@ public sealed class MultiTrackTimelineControl : Control
         }
 
         // 2. Find Track and Clip at Y coordinate
-        double yCursor = TotalHeaderHeight;
+        double yCursor = TotalHeaderHeight - VerticalOffset;
         foreach (var track in Project.Tracks)
         {
             double th = Math.Clamp(track.Height, 46.0, 220.0);
@@ -521,13 +534,20 @@ public sealed class MultiTrackTimelineControl : Control
         }
         else
         {
-            double factor = e.Delta.Y > 0 ? 1.12 : 0.89;
-            PixelsPerSecond = Math.Clamp(PixelsPerSecond * factor, 35.0, 320.0);
+            // Zoom anchored at the mouse pointer: the time under the cursor stays under the cursor
+            double factor = e.Delta.Y > 0 ? 1.15 : 0.87;
+            double anchorX = e.GetPosition(this).X;
+            double anchorTime = XToTime(anchorX);
+            PixelsPerSecond = Math.Clamp(PixelsPerSecond * factor, MinPixelsPerSecond, MaxPixelsPerSecond);
+            HorizontalOffsetSeconds = Math.Max(0.0, anchorTime - anchorX / Math.Max(20.0, PixelsPerSecond));
+            if (PlayheadOverlay != null)
+                PlayheadOverlay.HorizontalOffsetSeconds = HorizontalOffsetSeconds;
             if (PlayheadOverlay != null)
             {
                 PlayheadOverlay.PixelsPerSecond = PixelsPerSecond;
                 PlayheadOverlay.InvalidateVisual();
             }
+            OnZoomChanged?.Invoke();
             InvalidateVisual();
         }
     }
@@ -561,20 +581,34 @@ public sealed class MultiTrackTimelineControl : Control
             context.DrawLine(new Pen(new SolidColorBrush(accCol), 2.0), new Point(lx1, 0), new Point(lx2, 0));
         }
 
-        // Ruler ticks & SMPTE labels via Rust FFI
-        var tickPen = new Pen(new SolidColorBrush(Color.Parse(ActiveTheme.TextSecondary)), 1.0);
-        var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 100, 116, 139)), 1.0);
-        int maxSec = (int)Math.Ceiling(b.Width / Math.Max(25.0, PixelsPerSecond)) + 2;
+        // Adaptive frame/second grid (zoom-aware) aligned with the SMPTE ruler labels
+        double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        var grid = TimelineFrameGrid.Compute(Project.Fps, PixelsPerSecond, HorizontalOffsetSeconds, b.Width);
+        var minorTickPen = new Pen(new SolidColorBrush(Color.Parse(ActiveTheme.TextSecondary)), 1.0 / renderScaling);
+        var majorTickPen = new Pen(new SolidColorBrush(Color.Parse(ActiveTheme.TextPrimary)), 1.0 / renderScaling);
 
-        for (int s = 0; s <= maxSec; s++)
+        using (context.PushRenderOptions(new RenderOptions { EdgeMode = EdgeMode.Aliased }))
         {
-            double x = TimeToX(s);
-            context.DrawLine(tickPen, new Point(x, RulerHeight - 10), new Point(x, RulerHeight));
-            context.DrawLine(gridPen, new Point(x, RulerHeight), new Point(x, b.Height));
+            foreach (double t in grid.MinorTimes)
+            {
+                double x = TimelineFrameGrid.SnapToDevicePixel(TimeToX(t), renderScaling);
+                context.DrawLine(minorTickPen, new Point(x, RulerHeight - 4), new Point(x, RulerHeight));
+            }
+            foreach (double t in grid.MajorTimes)
+            {
+                double x = TimelineFrameGrid.SnapToDevicePixel(TimeToX(t), renderScaling);
+                context.DrawLine(majorTickPen, new Point(x, RulerHeight - 10), new Point(x, RulerHeight));
+            }
+        }
 
+        foreach (double t in grid.MajorTimes)
+        {
+            double x = TimeToX(t);
+            // Quarter-frame bias: t is an exact frame boundary, floating-point error must not show the previous frame
+            double labelT = t + 0.25 / Math.Max(1.0, Project.Fps);
             string tc = RustInterop != null
-                ? RustInterop.FormatSmpte(s, Project.Fps, true)
-                : $"00:00:{s:D2};00";
+                ? RustInterop.FormatSmpte(labelT, Project.Fps, true)
+                : PlayheadOverlayCanvas.FormatPlayheadSmpte(labelT, Project.Fps, null);
             DrawText(context, tc, new Point(x + 4, 6), 9.5, Color.Parse(ActiveTheme.TextPrimary), false);
         }
 
@@ -593,7 +627,7 @@ public sealed class MultiTrackTimelineControl : Control
         RenderStatusRuler.DrawStatusBarSegments(context, statusBarRect, Project, PrerenderService, PixelsPerSecond);
 
         // 2. Draw Tracks & Clip Events
-        double y = TotalHeaderHeight;
+        double y = TotalHeaderHeight - VerticalOffset;
         for (int tIdx = 0; tIdx < Project.Tracks.Count; tIdx++)
         {
             var track = Project.Tracks[tIdx];
@@ -602,6 +636,7 @@ public sealed class MultiTrackTimelineControl : Control
 
             var laneBg = track.Type == "video" ? Color.Parse(ActiveTheme.TrackVideoBg) : Color.Parse(ActiveTheme.TrackAudioBg);
             context.FillRectangle(new SolidColorBrush(laneBg), laneRect);
+            DrawGridLinesInLane(context, grid, laneRect, renderScaling);
 
             // Track Accent Color left 4px indicator on lane
             var trackAccentCol = ResolveTrackHeaderBaseColor(track);
@@ -645,11 +680,15 @@ public sealed class MultiTrackTimelineControl : Control
             PlayheadOverlay.Project = Project;
             PlayheadOverlay.RustInterop = RustInterop;
             PlayheadOverlay.PixelsPerSecond = PixelsPerSecond;
+            PlayheadOverlay.HorizontalOffsetSeconds = HorizontalOffsetSeconds;
             PlayheadOverlay.RulerHeight = RulerHeight;
         }
         else
         {
             double px = TimeToX(Project.Playhead);
+            if (px < 0.0 || px > b.Width)
+                return;
+
             PlayheadOverlayCanvas.DrawPremierePlayhead(
                 context,
                 px,
@@ -658,15 +697,55 @@ public sealed class MultiTrackTimelineControl : Control
                 RulerHeight,
                 Project.Playhead,
                 Project.Fps,
-                RustInterop);
+                RustInterop,
+                null,
+                1.0,
+                renderScaling);
+        }
+    }
+
+    private static readonly Pen GridMinorPenTemplate = new(new SolidColorBrush(TimelineFrameGrid.MinorLineColor), 1.0);
+    private static readonly Pen GridMajorPenTemplate = new(new SolidColorBrush(TimelineFrameGrid.MajorLineColor), 1.0);
+
+    /// <summary>
+    /// Draws the frame grid behind the events of one lane: minor lines (frames or grouped intervals, #2C3038)
+    /// and major lines aligned with the ruler labels (#4A505E), 1 device pixel wide and pixel-snapped.
+    /// </summary>
+    private void DrawGridLinesInLane(DrawingContext context, TimelineFrameGrid grid, Rect laneRect, double renderScaling)
+    {
+        double thickness = 1.0 / renderScaling;
+        var minorPen = Math.Abs(thickness - 1.0) < 1e-6 ? GridMinorPenTemplate : new Pen(GridMinorPenTemplate.Brush, thickness);
+        var majorPen = Math.Abs(thickness - 1.0) < 1e-6 ? GridMajorPenTemplate : new Pen(GridMajorPenTemplate.Brush, thickness);
+
+        using (context.PushRenderOptions(new RenderOptions { EdgeMode = EdgeMode.Aliased }))
+        {
+            foreach (double t in grid.MinorTimes)
+            {
+                double x = TimelineFrameGrid.SnapToDevicePixel(TimeToX(t), renderScaling);
+                context.DrawLine(minorPen, new Point(x, laneRect.Top), new Point(x, laneRect.Bottom));
+            }
+            foreach (double t in grid.MajorTimes)
+            {
+                double x = TimelineFrameGrid.SnapToDevicePixel(TimeToX(t), renderScaling);
+                context.DrawLine(majorPen, new Point(x, laneRect.Top), new Point(x, laneRect.Bottom));
+            }
         }
     }
 
     private void DrawClipEvent(DrawingContext context, TimelineTrack track, TimelineClip clip, double laneY, double laneH)
     {
         double x = TimeToX(clip.Start);
-        double w = Math.Max(18.0, TimeToX(clip.Duration));
-        var clipRect = new Rect(x, laneY + 4, w, laneH - 8);
+        double w = Math.Max(18.0, DurationToWidth(clip.Duration));
+        // Skip events outside the viewport; at deep (sample-level) zoom an event can be hundreds of millions of
+        // pixels wide, so the drawn rectangle is limited to ±10,000px around the viewport (float precision in Skia).
+        // The true start X is kept for the sample-accurate waveform mapping.
+        if (x + w < -1.0 || x > Bounds.Width + 1.0)
+            return;
+        const double drawMarginPx = 10_000.0;
+        double drawLeft = Math.Max(x, -drawMarginPx);
+        double drawRight = Math.Min(x + w, Bounds.Width + drawMarginPx);
+        double trueClipStartX = x;
+        var clipRect = new Rect(drawLeft, laneY + 4, Math.Max(1.0, drawRight - drawLeft), laneH - 8);
 
         var trackBaseCol = clip.IsOffline
             ? Color.Parse("#b91c1c")
@@ -817,35 +896,41 @@ public sealed class MultiTrackTimelineControl : Control
                     trackDb,
                     wvCol,
                     RustInterop,
-                    InvalidateVisual);
+                    InvalidateVisual,
+                    visibleLeft: 0.0,
+                    visibleRight: Bounds.Width,
+                    pixelsPerSecond: Math.Max(20.0, PixelsPerSecond),
+                    clipStartX: trueClipStartX);
             }
 
             // 4. Sub-frame 5-Curve Fade-In & Fade-Out Envelopes (evaluated via Rust FFI) + Top Corner Handles + Opacity/Gain Line
             var fadePen = new Pen(new SolidColorBrush(Color.Parse(ActiveTheme.AccentSecondary)), 1.6);
             const int curveSegs = 12;
-            double fadeInEndX = clipRect.X;
+            // Fades use the true event edges (clipRect may be limited to the viewport margin at deep zoom)
+            double trueClipRightX = trueClipStartX + w;
+            double fadeInEndX = trueClipStartX;
             if (clip.FadeIn > 0.005)
             {
-                double fw = Math.Min(clipRect.Width * 0.5, TimeToX(clip.FadeIn));
-                fadeInEndX = clipRect.X + fw;
-                Point prevPt = new Point(clipRect.X, clipRect.Bottom);
+                double fw = Math.Min(w * 0.5, DurationToWidth(clip.FadeIn));
+                fadeInEndX = trueClipStartX + fw;
+                Point prevPt = new Point(trueClipStartX, clipRect.Bottom);
                 for (int seg = 1; seg <= curveSegs; seg++)
                 {
                     double p = seg / (double)curveSegs;
                     double env = RustInterop != null
                         ? RustInterop.EvaluateFadeCurve(clip.FadeInCurve, p)
                         : p;
-                    var nextPt = new Point(clipRect.X + fw * p, clipRect.Bottom - env * clipRect.Height);
+                    var nextPt = new Point(trueClipStartX + fw * p, clipRect.Bottom - env * clipRect.Height);
                     context.DrawLine(fadePen, prevPt, nextPt);
                     prevPt = nextPt;
                 }
             }
 
-            double fadeOutStartX = clipRect.Right;
+            double fadeOutStartX = trueClipRightX;
             if (clip.FadeOut > 0.005)
             {
-                double fw = Math.Min(clipRect.Width * 0.5, TimeToX(clip.FadeOut));
-                double startX = clipRect.Right - fw;
+                double fw = Math.Min(w * 0.5, DurationToWidth(clip.FadeOut));
+                double startX = trueClipRightX - fw;
                 fadeOutStartX = startX;
                 Point prevPt = new Point(startX, clipRect.Y);
                 for (int seg = 1; seg <= curveSegs; seg++)

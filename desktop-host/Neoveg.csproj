@@ -41,12 +41,14 @@
     <AvaloniaXaml Remove="Controls\ClipControl.axaml" />
     <AvaloniaXaml Remove="Controls\TrackHeaderControl.axaml" />
     <AvaloniaXaml Remove="Views\LogViewerWindow.axaml" />
+    <AvaloniaXaml Remove="Views\MasterBusView.axaml" />
     <AvaloniaXaml Remove="Assets\**\*.axaml" />
     <None Remove="Assets\**\*" />
     <None Include="Controls\PlayheadOverlay.axaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Controls\ClipControl.axaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Controls\TrackHeaderControl.axaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Views\LogViewerWindow.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Views\MasterBusView.axaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Bundle the compiled Windows FFI libraries beside Neoveg.exe. -->

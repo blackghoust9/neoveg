@@ -21,7 +21,12 @@ public sealed class VideoPreviewControl : Control
     public TimelineClip? SelectedClip { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public CppCoreInterop? CppInterop { get; set; }
-    public bool ShowPanCropGizmo { get; set; } = true;
+    public bool ShowPanCropGizmo { get; set; } = false;
+    public bool ShowHudOverlay { get; set; } = false;
+    public bool ShowClipOverlayLabels { get; set; } = false;
+    public bool VideoFxBypassed { get; set; }
+    public string PreviewQuality { get; set; } = "Good";
+    public string PreviewResolution { get; set; } = "Auto";
     public event Action? OnPanCropUpdated;
 
     private bool _draggingGizmo;
@@ -30,7 +35,77 @@ public sealed class VideoPreviewControl : Control
     public VideoPreviewControl()
     {
         ClipToBounds = true;
-        Cursor = new Cursor(StandardCursorType.Cross);
+        Cursor = new Cursor(StandardCursorType.Arrow);
+        BuildPreviewOverlaysContextMenu();
+    }
+
+    public void BuildPreviewOverlaysContextMenu()
+    {
+        var menu = new ContextMenu();
+        menu.Opening += (_, _) =>
+        {
+            var items = new System.Collections.Generic.List<object>();
+
+            var miHud = new MenuItem
+            {
+                Header = $"{(ShowHudOverlay || (Project?.ShowPreviewHud ?? false) ? "✓ " : "   ")}Exibir HUD de Timecode & Resolução (SMPTE Overlay)"
+            };
+            miHud.Click += (_, _) =>
+            {
+                ShowHudOverlay = !ShowHudOverlay;
+                if (Project != null) Project.ShowPreviewHud = ShowHudOverlay;
+                InvalidateVisual();
+            };
+            items.Add(miHud);
+
+            var miSafe = new MenuItem
+            {
+                Header = $"{(Project?.ShowSafeAreas == true ? "✓ " : "   ")}Exibir Áreas Seguras (Safe Areas 80% / 90%)"
+            };
+            miSafe.Click += (_, _) =>
+            {
+                if (Project != null) Project.ShowSafeAreas = !Project.ShowSafeAreas;
+                InvalidateVisual();
+            };
+            items.Add(miSafe);
+
+            var miGrid = new MenuItem
+            {
+                Header = $"{(Project?.ShowGrid == true ? "✓ " : "   ")}Exibir Grade de Terços (Rule of Thirds Grid)"
+            };
+            miGrid.Click += (_, _) =>
+            {
+                if (Project != null) Project.ShowGrid = !Project.ShowGrid;
+                InvalidateVisual();
+            };
+            items.Add(miGrid);
+
+            var miGizmo = new MenuItem
+            {
+                Header = $"{(ShowPanCropGizmo ? "✓ " : "   ")}Exibir Quadro Interativo Pan/Crop ('F' Gizmo)"
+            };
+            miGizmo.Click += (_, _) =>
+            {
+                ShowPanCropGizmo = !ShowPanCropGizmo;
+                Cursor = new Cursor(ShowPanCropGizmo ? StandardCursorType.Cross : StandardCursorType.Arrow);
+                InvalidateVisual();
+            };
+            items.Add(miGizmo);
+
+            var miSplit = new MenuItem
+            {
+                Header = $"{(Project?.SplitScreenBypass == true ? "✓ " : "   ")}Exibir Split-Screen FX Bypass"
+            };
+            miSplit.Click += (_, _) =>
+            {
+                if (Project != null) Project.SplitScreenBypass = !Project.SplitScreenBypass;
+                InvalidateVisual();
+            };
+            items.Add(miSplit);
+
+            menu.ItemsSource = items;
+        };
+        ContextMenu = menu;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -99,7 +174,7 @@ public sealed class VideoPreviewControl : Control
 
         // Compute 16:9 stage rectangle inside control
         double targetAspect = Project != null && Project.Height > 0
-            ? (double)Project.Width / Project.Height
+            ? (double)Project.Width * Math.Max(0.01, Project.PixelAspectRatio) / Project.Height
             : 16.0 / 9.0;
 
         double stageW = bounds.Width - 12;
@@ -174,25 +249,28 @@ public sealed class VideoPreviewControl : Control
                 context.DrawRectangle(safePen, stageRect.Deflate(new Thickness(stageRect.Width * 0.10, stageRect.Height * 0.10)));
             }
 
-            // Event Pan/Crop Interactive `F` Frame Gizmo
+            // Event Pan/Crop Interactive `F` Frame Gizmo (optional overlay, disabled by default on startup)
             if (ShowPanCropGizmo && SelectedClip != null && SelectedClip.MediaType != "audio")
             {
                 DrawPanCropGizmo(context, stageRect, SelectedClip.PanCrop);
             }
 
-            // Top-left SMPTE & Resolution HUD
-            string smpte = RustInterop != null
-                ? RustInterop.FormatSmpte(t, Project.Fps, true)
-                : "00:00:00;00";
-            var hudRect = new Rect(stageRect.X + 8, stageRect.Y + 8, 250, 22);
-            context.FillRectangle(new SolidColorBrush(Color.FromArgb(185, 11, 15, 23)), hudRect);
-            DrawText(
-                context,
-                $"TC {smpte} • {Project.Width}x{Project.Height} @{Project.Fps:0.##}p",
-                new Point(stageRect.X + 14, stageRect.Y + 12),
-                10.5,
-                Color.Parse("#38bdf8"),
-                true);
+            // Optional Top-left SMPTE & Resolution HUD (disabled by default on startup; enabled via menu/toggle)
+            if (ShowHudOverlay || Project.ShowPreviewHud)
+            {
+                string smpte = RustInterop != null
+                    ? RustInterop.FormatSmpte(t, Project.Fps, true)
+                    : "00:00:00;00";
+                var hudRect = new Rect(stageRect.X + 8, stageRect.Y + 8, 250, 22);
+                context.FillRectangle(new SolidColorBrush(Color.FromArgb(185, 11, 15, 23)), hudRect);
+                DrawText(
+                    context,
+                    $"TC {smpte} • {Project.Width}x{Project.Height} @{Project.Fps:0.##}p",
+                    new Point(stageRect.X + 14, stageRect.Y + 12),
+                    10.5,
+                    Color.Parse("#38bdf8"),
+                    true);
+            }
         }
 
         // Outer frame border
@@ -315,9 +393,9 @@ public sealed class VideoPreviewControl : Control
                     Color.FromArgb(alpha, 248, 250, 252),
                     true);
             }
-            else if (gen == "greenScreenActor" || clip.Fx.Any(f => f.Type == "corridorKey" && f.Enabled))
+            else if (gen == "greenScreenActor" || (!VideoFxBypassed && clip.Fx.Any(f => f.Type == "corridorKey" && f.Enabled)))
             {
-                bool corridorKeyActive = clip.Fx.Any(f => f.Type == "corridorKey" && f.Enabled);
+                bool corridorKeyActive = !VideoFxBypassed && clip.Fx.Any(f => f.Type == "corridorKey" && f.Enabled);
                 if (!corridorKeyActive)
                 {
                     // Raw Chroma Green Screen backing
@@ -392,7 +470,9 @@ public sealed class VideoPreviewControl : Control
             }
 
             // Render active Neoveg 3D LUT (.cube) color grading overlay in real time
-            var activeLut = clip.Fx.LastOrDefault(f => f.Enabled && f.Type != null && f.Type.StartsWith("lut3d.", StringComparison.OrdinalIgnoreCase));
+            var activeLut = VideoFxBypassed
+                ? null
+                : clip.Fx.LastOrDefault(f => f.Enabled && f.Type != null && f.Type.StartsWith("lut3d.", StringComparison.OrdinalIgnoreCase));
             if (activeLut != null)
             {
                 Color lutColor = activeLut.Type.ToLowerInvariant() switch

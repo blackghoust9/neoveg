@@ -176,6 +176,7 @@ public sealed class DockableExtensionWindow : Window
             }
         };
 
+        Neoveg.Styles.NeovegDockTabStyles.Apply(_tabs);
         Content = _tabs;
         LoadSelectedScriptIntoEditor();
 

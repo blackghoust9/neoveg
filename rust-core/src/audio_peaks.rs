@@ -33,11 +33,13 @@ pub struct AudacityWaveformMipmap {
     pub duration_sec: f64,
     pub peak_db: f64,
     pub rms_db: f64,
-    /// Fine LOD (e.g., 256 buckets across clip)
+    /// Ultra-Fine LOD (up to 16,384 buckets for high-zoom sample-level precision)
+    pub lod_ultra: Vec<StereoWaveformBlock>,
+    /// Fine LOD (e.g., 2048 buckets across clip)
     pub lod_fine: Vec<StereoWaveformBlock>,
-    /// Medium LOD (e.g., 96 buckets across clip)
+    /// Medium LOD (e.g., 512 buckets across clip)
     pub lod_medium: Vec<StereoWaveformBlock>,
-    /// Coarse LOD (e.g., 32 buckets for zoomed-out timeline overview)
+    /// Coarse LOD (e.g., 128 buckets for zoomed-out timeline overview)
     pub lod_coarse: Vec<StereoWaveformBlock>,
 }
 
@@ -48,8 +50,62 @@ impl AudacityWaveformMipmap {
             &self.lod_coarse
         } else if pixel_width <= 420.0 && !self.lod_medium.is_empty() {
             &self.lod_medium
+        } else if pixel_width <= 1200.0 && !self.lod_fine.is_empty() {
+            &self.lod_fine
+        } else if !self.lod_ultra.is_empty() {
+            &self.lod_ultra
         } else {
             &self.lod_fine
+        }
+    }
+
+    /// Catmull-Rom cubic Hermite interpolation across stereo summary blocks for distortion-free
+    /// rendering at extreme timeline zoom levels (`normalized_t` in `[0.0, 1.0]`).
+    pub fn sample_interpolated_block_at(
+        blocks: &[StereoWaveformBlock],
+        normalized_t: f64,
+    ) -> StereoWaveformBlock {
+        if blocks.is_empty() {
+            return StereoWaveformBlock::default();
+        }
+        if blocks.len() == 1 {
+            return blocks[0];
+        }
+        let max_idx = (blocks.len() - 1) as f64;
+        let pos = (normalized_t.clamp(0.0, 1.0) * max_idx).clamp(0.0, max_idx);
+        let idx1 = (pos.floor() as usize).min(blocks.len() - 1);
+        let idx2 = (idx1 + 1).min(blocks.len() - 1);
+        let idx0 = idx1.saturating_sub(1);
+        let idx3 = (idx2 + 1).min(blocks.len() - 1);
+        let u = (pos - (idx1 as f64)) as f32;
+
+        fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+            let t2 = t * t;
+            let t3 = t2 * t;
+            0.5 * ((2.0 * p1)
+                + (-p0 + p2) * t
+                + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+                + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+        }
+
+        let b0 = blocks[idx0];
+        let b1 = blocks[idx1];
+        let b2 = blocks[idx2];
+        let b3 = blocks[idx3];
+
+        StereoWaveformBlock {
+            min_left: catmull_rom(b0.min_left, b1.min_left, b2.min_left, b3.min_left, u)
+                .clamp(-1.0, 0.0),
+            max_left: catmull_rom(b0.max_left, b1.max_left, b2.max_left, b3.max_left, u)
+                .clamp(0.0, 1.0),
+            rms_left: catmull_rom(b0.rms_left, b1.rms_left, b2.rms_left, b3.rms_left, u)
+                .clamp(0.0, 1.0),
+            min_right: catmull_rom(b0.min_right, b1.min_right, b2.min_right, b3.min_right, u)
+                .clamp(-1.0, 0.0),
+            max_right: catmull_rom(b0.max_right, b1.max_right, b2.max_right, b3.max_right, u)
+                .clamp(0.0, 1.0),
+            rms_right: catmull_rom(b0.rms_right, b1.rms_right, b2.rms_right, b3.rms_right, u)
+                .clamp(0.0, 1.0),
         }
     }
 
@@ -121,20 +177,19 @@ impl AudacityWaveformMipmap {
         let sr = sample_rate.max(1);
         let total_frames = pcm.len() / ch;
         let duration_sec = (total_frames as f64) / (sr as f64);
-        let buckets = fine_buckets.clamp(16, 2048);
+        let buckets = fine_buckets.clamp(16, 16384);
 
-        let mut lod_fine = Vec::with_capacity(buckets);
+        let mut lod_ultra = Vec::with_capacity(buckets);
         let mut global_peak = 0.00001_f64;
         let mut global_sum_sq = 0.0_f64;
         let mut global_count = 0_usize;
 
         if total_frames == 0 {
-            lod_fine.resize(buckets, StereoWaveformBlock::default());
+            lod_ultra.resize(buckets, StereoWaveformBlock::default());
         } else {
-            let frames_per_bucket = (total_frames / buckets).max(1);
             for b in 0..buckets {
-                let start_f = b * frames_per_bucket;
-                let end_f = ((b + 1) * frames_per_bucket)
+                let start_f = (b * total_frames) / buckets;
+                let end_f = (((b + 1) * total_frames) / buckets)
                     .min(total_frames)
                     .max(start_f + 1);
                 let mut min_l = 0.0_f32;
@@ -145,7 +200,8 @@ impl AudacityWaveformMipmap {
                 let mut sum_sq_r = 0.0_f32;
                 let mut n = 0_usize;
 
-                let step = ((end_f - start_f) / 128).max(1);
+                // Scan every sample in the bucket (step = 1 up to 1024 frames/bucket) to preserve exact high-zoom transient peaks
+                let step = ((end_f - start_f) / 1024).max(1);
                 let mut f = start_f;
                 while f < end_f {
                     let idx_l = f * ch;
@@ -180,7 +236,7 @@ impl AudacityWaveformMipmap {
                 }
 
                 let inv_n = 1.0_f32 / (n.max(1) as f32);
-                lod_fine.push(StereoWaveformBlock {
+                lod_ultra.push(StereoWaveformBlock {
                     min_left: min_l.clamp(-1.0, 0.0),
                     max_left: max_l.clamp(0.0, 1.0),
                     rms_left: (sum_sq_l * inv_n).sqrt().clamp(0.0, 1.0),
@@ -191,8 +247,13 @@ impl AudacityWaveformMipmap {
             }
         }
 
-        let lod_medium = Self::downsample_blocks(&lod_fine, (buckets / 2).max(16));
-        let lod_coarse = Self::downsample_blocks(&lod_fine, (buckets / 4).max(8));
+        let lod_fine = if buckets > 1024 {
+            Self::downsample_blocks(&lod_ultra, (buckets / 2).max(256))
+        } else {
+            lod_ultra.clone()
+        };
+        let lod_medium = Self::downsample_blocks(&lod_fine, (lod_fine.len() / 2).max(16));
+        let lod_coarse = Self::downsample_blocks(&lod_fine, (lod_fine.len() / 4).max(8));
         let peak_db = 20.0 * global_peak.log10();
         let rms_val = (global_sum_sq / (global_count.max(1) as f64))
             .sqrt()
@@ -205,6 +266,7 @@ impl AudacityWaveformMipmap {
             duration_sec,
             peak_db,
             rms_db,
+            lod_ultra,
             lod_fine,
             lod_medium,
             lod_coarse,

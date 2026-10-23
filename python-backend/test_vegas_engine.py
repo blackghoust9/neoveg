@@ -540,7 +540,7 @@ def run_all_tests() -> None:
         "NotifyKeyboardCursorMove",
         "pentagonWithFlag",
         "flagRightX",
-        "new Pen(new SolidColorBrush(lineColor), 1.0)",
+        "new Pen(new SolidColorBrush(lineColor), 1.0",
     ):
         assert ph_tok in playhead_cs, f"Missing required Playhead CTI token in PlayheadOverlayCanvas.cs: {ph_tok}"
     assert "PlayheadOverlayCanvas" in timeline_cs and "PlayheadOverlayCanvas" in mainwin_cs

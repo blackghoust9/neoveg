@@ -158,7 +158,7 @@ public sealed class FFmpegPythonService
 
         if (isAudio && ext == ".wav")
         {
-            var dsp = rustInterop.AnalyzeWavFileDsp(filePath, 96);
+            var dsp = rustInterop.AnalyzeWavFileDsp(filePath, 2048);
             item.Peaks = dsp.Peaks;
             item.PeakDb = dsp.PeakDb;
             item.RmsDb = dsp.RmsDb;
@@ -168,9 +168,13 @@ public sealed class FFmpegPythonService
         return item;
     }
 
-    public List<MediaAssetItem> LoadWorkspaceMediaBin(RustCoreInterop rustInterop)
+    public List<MediaAssetItem> LoadWorkspaceMediaBin(RustCoreInterop rustInterop, bool includeDemoAssets = false)
     {
         var list = new List<MediaAssetItem>();
+        if (!includeDemoAssets)
+        {
+            return list;
+        }
         if (Directory.Exists(MediaDir))
         {
             foreach (string file in Directory.GetFiles(MediaDir))
@@ -194,7 +198,7 @@ public sealed class FFmpegPythonService
                 };
                 if (ext == ".wav")
                 {
-                    var dsp = rustInterop.AnalyzeWavFileDsp(file, 96);
+                    var dsp = rustInterop.AnalyzeWavFileDsp(file, 2048);
                     asset.Peaks = dsp.Peaks;
                     asset.PeakDb = dsp.PeakDb;
                     asset.RmsDb = dsp.RmsDb;

@@ -81,6 +81,16 @@ public sealed unsafe class RustCoreInterop : IDisposable
         double* outDuration);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NeovegSampleWavStereoPeakAtFn(
+        byte* wavPathPtr,
+        double timeSec,
+        double windowSec,
+        double* outPeakL,
+        double* outPeakR,
+        double* outDbL,
+        double* outDbR);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int NeovegInspectVegContainerFn(
         byte* vegPathPtr,
         byte* outBuf,
@@ -128,6 +138,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
     private NeovegAnalyzePcmDspFn? _fnAnalyzePcm;
     private NeovegAnalyzeWavFileFn? _fnAnalyzeWavFile;
     private NeovegBuildSfkCacheFn? _fnBuildSfkCache;
+    private NeovegSampleWavStereoPeakAtFn? _fnSampleWavStereoPeakAt;
     private NeovegInspectVegContainerFn? _fnInspectVegContainer;
     private NeovegComputeRamPoolMetricsFn? _fnComputeRamPoolMetrics;
     private NeovegGetTimelineRenderStatusFn? _fnGetTimelineRenderStatus;
@@ -268,6 +279,9 @@ public sealed unsafe class RustCoreInterop : IDisposable
 
         if (NativeLibrary.TryGetExport(handle, "neoveg_build_sfk_cache", out IntPtr pSfk))
             _fnBuildSfkCache = Marshal.GetDelegateForFunctionPointer<NeovegBuildSfkCacheFn>(pSfk);
+
+        if (NativeLibrary.TryGetExport(handle, "neoveg_sample_wav_stereo_peak_at", out IntPtr pStereoPeak))
+            _fnSampleWavStereoPeakAt = Marshal.GetDelegateForFunctionPointer<NeovegSampleWavStereoPeakAtFn>(pStereoPeak);
 
         if (NativeLibrary.TryGetExport(handle, "neoveg_inspect_veg_container", out IntPtr pVeg))
             _fnInspectVegContainer = Marshal.GetDelegateForFunctionPointer<NeovegInspectVegContainerFn>(pVeg);
@@ -530,10 +544,11 @@ public sealed unsafe class RustCoreInterop : IDisposable
 
     /// <summary>
     /// Analyzes a RIFF WAVE PCM audio file via Rust FFI DSP and returns peak envelope + dBFS telemetry.
+    /// Supports up to 32,768 buckets for distortion-free sample-accurate high-zoom waveform rendering.
     /// </summary>
-    public (List<float> Peaks, double PeakDb, double RmsDb, double DurationSec) AnalyzeWavFileDsp(string wavPath, int numBuckets = 96)
+    public (List<float> Peaks, double PeakDb, double RmsDb, double DurationSec) AnalyzeWavFileDsp(string wavPath, int numBuckets = 2048)
     {
-        int buckets = Math.Clamp(numBuckets, 16, 1024);
+        int buckets = Math.Clamp(numBuckets, 16, 32768);
         if (_fnBuildSfkCache != null && File.Exists(wavPath))
         {
             byte[] utf8Path = Encoding.UTF8.GetBytes(wavPath + "\0");
@@ -586,7 +601,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
                         double cachedDur = BitConverter.ToDouble(sfkBytes, 12);
                         double cachedPeakDb = BitConverter.ToDouble(sfkBytes, 20);
                         int count = (int)BitConverter.ToUInt32(sfkBytes, 28);
-                        if (count > 0 && sfkBytes.Length >= 32 + count * 4)
+                        if (count >= buckets && sfkBytes.Length >= 32 + count * 4)
                         {
                             var cachedPeaks = new List<float>(count);
                             for (int i = 0; i < count; i++)
@@ -608,14 +623,14 @@ public sealed unsafe class RustCoreInterop : IDisposable
                     int dataBytes = Math.Max(0, raw.Length - dataOffset);
                     int totalFrames = dataBytes / Math.Max(1, frameSize);
                     durationSec = (double)totalFrames / sampleRate;
-                    int framesPerBucket = Math.Max(1, totalFrames / buckets);
 
                     for (int b = 0; b < buckets; b++)
                     {
                         float maxAmp = 0f;
-                        int startFrame = b * framesPerBucket;
-                        int endFrame = Math.Min(totalFrames, (b + 1) * framesPerBucket);
-                        int stride = Math.Max(1, (endFrame - startFrame) / 64);
+                        int startFrame = (int)((long)b * totalFrames / buckets);
+                        int endFrame = Math.Max(startFrame + 1, (int)((long)(b + 1) * totalFrames / buckets));
+                        endFrame = Math.Min(totalFrames, endFrame);
+                        int stride = Math.Max(1, (endFrame - startFrame) / 512);
                         for (int f = startFrame; f < endFrame; f += stride)
                         {
                             int bytePos = dataOffset + f * frameSize;
@@ -634,7 +649,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
                             if (norm > globalMax) globalMax = norm;
                             sumSq += norm * norm;
                         }
-                        peaks.Add(MathF.Round(Math.Min(1.0f, maxAmp), 3));
+                        peaks.Add(Math.Clamp(maxAmp, 0.0f, 1.0f));
                     }
                     double pDb = Math.Round(20.0 * Math.Log10(Math.Max(1e-5, globalMax)), 2);
                     double rDb = Math.Round(20.0 * Math.Log10(Math.Max(1e-5, Math.Sqrt(sumSq / Math.Max(1, buckets * 32)))), 2);
@@ -842,5 +857,226 @@ public sealed unsafe class RustCoreInterop : IDisposable
             dx * cosA - dy * sinA,
             dx * sinA + dy * cosA
         };
+    }
+
+    /// <summary>
+    /// Samples real-time stereo (L/R) peak amplitudes (`0.0..1.0`) and dBFS (`-∞..0.0`) from a RIFF WAVE PCM file
+    /// at `timeSec` via the Rust FFI (`neoveg_sample_wav_stereo_peak_at`) or direct PCM reading.
+    /// Never generates synthetic, random, or trigonometric dummy signals.
+    /// </summary>
+    public (double PeakL, double PeakR, double DbL, double DbR) SampleWavStereoPeakAt(
+        string? wavPath,
+        double timeSec,
+        double windowSec = 0.01667)
+    {
+        if (string.IsNullOrWhiteSpace(wavPath) || timeSec < 0.0 || !double.IsFinite(timeSec) || !File.Exists(wavPath))
+        {
+            return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+        }
+
+        double win = Math.Clamp(windowSec, 0.004, 0.250);
+        if (_fnSampleWavStereoPeakAt != null)
+        {
+            byte[] utf8Path = Encoding.UTF8.GetBytes(wavPath + "\0");
+            double peakL = 0.0, peakR = 0.0, dbL = double.NegativeInfinity, dbR = double.NegativeInfinity;
+            fixed (byte* pPath = utf8Path)
+            {
+                int rc = _fnSampleWavStereoPeakAt(pPath, timeSec, win, &peakL, &peakR, &dbL, &dbR);
+                if (rc >= 0)
+                {
+                    return (
+                        Math.Clamp(peakL, 0.0, 1.0),
+                        Math.Clamp(peakR, 0.0, 1.0),
+                        peakL > 1e-6 ? dbL : double.NegativeInfinity,
+                        peakR > 1e-6 ? dbR : double.NegativeInfinity);
+                }
+            }
+        }
+
+        try
+        {
+            using var fs = new FileStream(wavPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (fs.Length <= 44)
+                return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+
+            Span<byte> hdr = stackalloc byte[44];
+            if (fs.Read(hdr) < 44)
+                return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+
+            if (hdr[0] != 'R' || hdr[1] != 'I' || hdr[2] != 'F' || hdr[3] != 'F' ||
+                hdr[8] != 'W' || hdr[9] != 'A' || hdr[10] != 'V' || hdr[11] != 'E')
+            {
+                return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+            }
+
+            int channels = Math.Max(1, (int)BitConverter.ToUInt16(hdr[22..24]));
+            int sampleRate = Math.Max(1, (int)BitConverter.ToUInt32(hdr[24..28]));
+            int bitsPerSample = Math.Max(16, (int)BitConverter.ToUInt16(hdr[34..36]));
+            int bytesPerSample = Math.Max(2, bitsPerSample / 8);
+            int frameSize = Math.Max(1, bytesPerSample * channels);
+
+            long dataOffset = 44;
+            long dataBytes = Math.Max(0, fs.Length - dataOffset);
+            long totalFrames = dataBytes / frameSize;
+            long startFrame = (long)Math.Floor(timeSec * sampleRate);
+            if (startFrame < 0 || startFrame >= totalFrames)
+                return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+
+            int framesToRead = (int)Math.Clamp((long)Math.Ceiling(win * sampleRate), 1, totalFrames - startFrame);
+            fs.Seek(dataOffset + startFrame * frameSize, SeekOrigin.Begin);
+            byte[] buf = new byte[framesToRead * frameSize];
+            int bytesRead = fs.Read(buf, 0, buf.Length);
+            int actualFrames = bytesRead / frameSize;
+
+            double maxL = 0.0;
+            double maxR = 0.0;
+            for (int f = 0; f < actualFrames; f++)
+            {
+                int baseOff = f * frameSize;
+                double sL = DecodePcmSampleNormalized(buf, baseOff, bytesPerSample);
+                double sR = channels >= 2
+                    ? DecodePcmSampleNormalized(buf, baseOff + bytesPerSample, bytesPerSample)
+                    : sL;
+                if (sL > maxL) maxL = sL;
+                if (sR > maxR) maxR = sR;
+            }
+
+            double dL = maxL > 1e-6 ? 20.0 * Math.Log10(maxL) : double.NegativeInfinity;
+            double dR = maxR > 1e-6 ? 20.0 * Math.Log10(maxR) : double.NegativeInfinity;
+            return (Math.Clamp(maxL, 0.0, 1.0), Math.Clamp(maxR, 0.0, 1.0), dL, dR);
+        }
+        catch
+        {
+            return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+        }
+    }
+
+    private static double DecodePcmSampleNormalized(byte[] buf, int offset, int bytesPerSample)
+    {
+        if (bytesPerSample == 4 && offset + 4 <= buf.Length)
+        {
+            float sf = BitConverter.ToSingle(buf, offset);
+            if (float.IsFinite(sf) && Math.Abs(sf) <= 2.0f)
+                return Math.Clamp(Math.Abs((double)sf), 0.0, 1.0);
+            int s32 = BitConverter.ToInt32(buf, offset);
+            return Math.Clamp(Math.Abs(s32 / 2147483648.0), 0.0, 1.0);
+        }
+        if (bytesPerSample == 3 && offset + 3 <= buf.Length)
+        {
+            int s24 = buf[offset] | (buf[offset + 1] << 8) | ((sbyte)buf[offset + 2] << 16);
+            return Math.Clamp(Math.Abs(s24 / 8388608.0), 0.0, 1.0);
+        }
+        if (offset + 2 <= buf.Length)
+        {
+            short s16 = BitConverter.ToInt16(buf, offset);
+            return Math.Clamp(Math.Abs(s16 / 32768.0), 0.0, 1.0);
+        }
+        return 0.0;
+    }
+
+    /// <summary>
+    /// Computes real-time Master Bus stereo (Left / Right) peak telemetry strictly from active timeline audio media
+    /// at the current playhead via the native FFI audio pipeline (`rust-core` / `cpp-extensions`).
+    /// When playback is stopped (`isPlaying == false`) or no unmuted audio clips exist at the playhead,
+    /// returns `(0.0, 0.0, -∞ dB, -∞ dB)` with zero oscillation.
+    /// </summary>
+    public (double LeftLinear, double RightLinear, double LeftDb, double RightDb) ComputeMasterBusStereoTelemetry(
+        VegasProject? project,
+        bool isPlaying)
+    {
+        if (!isPlaying || project == null || project.Tracks == null || project.Tracks.Count == 0)
+        {
+            return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+        }
+
+        double masterGain = Math.Clamp(project.MasterVolume, 0.0, 2.0);
+        if (masterGain <= 1e-6)
+        {
+            return (0.0, 0.0, double.NegativeInfinity, double.NegativeInfinity);
+        }
+
+        double playhead = project.Playhead;
+        double windowSec = 1.0 / Math.Max(24.0, project.Fps);
+        bool anySolo = project.Tracks.Any(t => t.Solo);
+
+        double busPeakL = 0.0;
+        double busPeakR = 0.0;
+
+        foreach (var track in project.Tracks)
+        {
+            if (track.Muted || (anySolo && !track.Solo))
+                continue;
+
+            double trackGain = Math.Clamp(track.Level, 0.0, 2.0);
+            if (trackGain <= 1e-6)
+                continue;
+
+            bool isAudioTrack = string.Equals(track.Type, "audio", StringComparison.OrdinalIgnoreCase);
+
+            foreach (var clip in track.Clips)
+            {
+                if (clip.Muted || playhead < clip.Start || playhead >= clip.End || clip.Duration <= 0.001)
+                    continue;
+
+                bool isAudioClip = isAudioTrack || string.Equals(clip.MediaType, "audio", StringComparison.OrdinalIgnoreCase);
+                bool hasWavFile = !string.IsNullOrWhiteSpace(clip.MediaFile) && File.Exists(clip.MediaFile);
+                bool hasAnalyzedPeaks = clip.Peaks != null && clip.Peaks.Count > 0;
+
+                if (!isAudioClip && !hasWavFile && !hasAnalyzedPeaks)
+                    continue;
+
+                double rawL = 0.0;
+                double rawR = 0.0;
+
+                double elapsedInClip = playhead - clip.Start;
+                double localSourceTime = clip.TrimIn + elapsedInClip * Math.Max(0.05, clip.PlaybackRate);
+
+                if (hasWavFile)
+                {
+                    var (pL, pR, _, _) = SampleWavStereoPeakAt(clip.MediaFile, localSourceTime, windowSec);
+                    rawL = pL;
+                    rawR = pR;
+                }
+                else if (hasAnalyzedPeaks)
+                {
+                    var peaks = clip.Peaks!;
+                    double normPos = Math.Clamp(elapsedInClip / clip.Duration, 0.0, 0.999999);
+                    int idx = Math.Clamp((int)(normPos * peaks.Count), 0, peaks.Count - 1);
+                    double p = Math.Clamp((double)peaks[idx], 0.0, 1.0);
+                    rawL = p;
+                    rawR = p;
+                }
+
+                if (rawL <= 1e-6 && rawR <= 1e-6)
+                    continue;
+
+                // Evaluate clip Fade-In and Fade-Out envelopes via Rust FFI
+                double fadeGain = 1.0;
+                if (clip.FadeIn > 0.001 && elapsedInClip < clip.FadeIn)
+                {
+                    fadeGain *= EvaluateFadeCurve(clip.FadeInCurve, elapsedInClip / clip.FadeIn);
+                }
+                double remainingInClip = clip.End - playhead;
+                if (clip.FadeOut > 0.001 && remainingInClip < clip.FadeOut)
+                {
+                    fadeGain *= EvaluateFadeCurve(clip.FadeOutCurve, remainingInClip / clip.FadeOut);
+                }
+
+                // VEGAS Stereo Pan Law (-1.0 Left .. 0.0 Center .. +1.0 Right)
+                double pan = Math.Clamp(track.Pan, -1.0, 1.0);
+                double panGainL = pan <= 0.0 ? 1.0 : Math.Max(0.0, 1.0 - pan);
+                double panGainR = pan >= 0.0 ? 1.0 : Math.Max(0.0, 1.0 + pan);
+
+                busPeakL += rawL * fadeGain * trackGain * panGainL;
+                busPeakR += rawR * fadeGain * trackGain * panGainR;
+            }
+        }
+
+        double finalL = Math.Clamp(busPeakL * masterGain, 0.0, 1.0);
+        double finalR = Math.Clamp(busPeakR * masterGain, 0.0, 1.0);
+        double dbL = finalL > 1e-6 ? 20.0 * Math.Log10(finalL) : double.NegativeInfinity;
+        double dbR = finalR > 1e-6 ? 20.0 * Math.Log10(finalR) : double.NegativeInfinity;
+
+        return (finalL, finalR, dbL, dbR);
     }
 }

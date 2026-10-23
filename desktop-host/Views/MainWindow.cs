@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Neoveg.Controls;
@@ -45,9 +46,15 @@ public sealed class MainWindow : Window
     private readonly string _rootDir;
     private readonly VideoPreviewControl _previewControl;
     private readonly MasterScopeControl _scopeControl;
+    private readonly MasterBusViewModel _masterBusViewModel;
+    private readonly MasterBusView _masterBusView;
     private readonly MultiTrackTimelineControl _timelineControl;
     private readonly PlayheadOverlayCanvas _playheadOverlay;
     private readonly StackPanel _trackHeadersStack;
+    private ScrollViewer? _trackHeadersScroll;
+    private Avalonia.Controls.Primitives.ScrollBar? _timelineHorizontalScrollBar;
+    private Avalonia.Controls.Primitives.ScrollBar? _timelineVerticalScrollBar;
+    private bool _syncingTimelineVerticalScroll;
     private readonly ContentControl _inspectorBodyHost;
     private StackPanel? _projectMediaStack;
     private readonly TextBlock _bigSmpteReadout;
@@ -56,14 +63,11 @@ public sealed class MainWindow : Window
     private readonly TextBlock _engineStatusPill;
     private readonly Button _btnPlayPause;
     private readonly DispatcherTimer _playbackTimer;
-    private ComboBox? _themeSelectorCombo;
-    private ComboBox? _languageSelectorCombo;
-    private TextBlock? _eraBrandBadge;
     private Menu? _topMenu;
     private Border? _mainToolbarBorder;
     private Border? _statusBarBorder;
-    private Border? _centerInspectorDockBorder;
     private TimelineClip? _clipboardClip;
+    private TabControl? _leftDockTabs;
     private TabItem? _tabProjectMedia;
     private TabItem? _tabTrimmer;
     private TabItem? _tabVideoFx;
@@ -71,7 +75,6 @@ public sealed class MainWindow : Window
     private TabItem? _tabTransitions;
     private TabItem? _tabGenerators;
     private double _playbackOriginPlayhead;
-    private Button? _btnTlWelcome;
     private Button? _btnTlSave;
     private Button? _btnTlImport;
     private Button? _btnTlSplit;
@@ -79,22 +82,34 @@ public sealed class MainWindow : Window
     private Button? _btnTlSettings;
     private Button? _btnTlPopout;
     private Button? _btnTlRender;
+    private Button? _btnSnap;
+    private Button? _btnAutoRipple;
+    private Button? _btnLoop;
     private readonly List<Border> _dockHeaderBorders = new();
     private readonly List<Border> _dockPanelBorders = new();
+
+    // Undockable VEGAS Pro windows (drag the header out to float; close the floating window to dock back)
+    private DetachableDockPanel? _dockProjectMedia;
+    private DetachableDockPanel? _dockPreview;
+    private DetachableDockPanel? _dockMixer;
+    private DetachableDockPanel? _dockTimeline;
+    private Border? _previewInfoStrip;
+    private Window? _inspectorWindow;
+    private bool _previewFxBypassed;
+
+    // Track Number Box blinking indicator (one shared brush toggled white/black every 500ms)
+    // Only the selected track blinks; the timer runs only while a track is selected.
+    private readonly SolidColorBrush _trackBlinkBrush = new(Colors.White);
+    private static readonly IBrush TrackIndicatorIdleBrush = new SolidColorBrush(Color.FromArgb(150, 15, 23, 42));
+    private readonly DispatcherTimer _trackBlinkTimer;
+    private readonly Dictionary<string, Avalonia.Controls.Shapes.Ellipse> _trackBlinkDots = new();
+
+    private const string ToggleOnBg = "#0369a1";
+    private const string ToggleOffBg = "#1e293b";
 
     private List<MediaAssetItem> _mediaBin = new();
     private bool _isPlaying;
     private string _ffmpegBanner = "Python Isolated FFmpeg Inicializando...";
-
-    // Vector SVG Geometries (Qt Square Drawn Icons — Zero Emojis)
-    private static readonly StreamGeometry IconWelcome = StreamGeometry.Parse("M 2,2 L 14,2 L 14,14 L 2,14 Z M 2,5.5 L 14,5.5 M 4,8 L 8,8 L 8,12 L 4,12 Z");
-    private static readonly StreamGeometry IconSave = StreamGeometry.Parse("M 2,2 L 11,2 L 14,5 L 14,14 L 2,14 Z M 5,2 L 5,6 L 10,6 L 10,2 M 4,9 L 12,9 L 12,14 L 4,14 Z");
-    private static readonly StreamGeometry IconFolder = StreamGeometry.Parse("M 1.5,3.5 L 6,3.5 L 7.5,5.5 L 14.5,5.5 L 14.5,13.5 L 1.5,13.5 Z");
-    private static readonly StreamGeometry IconSplitRazor = StreamGeometry.Parse("M 8,1 L 8,15 M 2,5 L 6,5 L 6,11 L 2,11 Z M 10,5 L 14,5 L 14,11 L 10,11 Z");
-    private static readonly StreamGeometry IconGroupLink = StreamGeometry.Parse("M 2,2.5 L 7,2.5 L 7,7 L 2,7 Z M 2,9 L 7,9 L 7,13.5 L 2,13.5 Z M 7,4.7 L 12,4.7 L 12,11.3 L 7,11.3");
-    private static readonly StreamGeometry IconGear = StreamGeometry.Parse("M 8,5 A 3,3 0 1 0 8,11 A 3,3 0 1 0 8,5 M 8,1.5 L 8,3.5 M 8,12.5 L 8,14.5 M 1.5,8 L 3.5,8 M 12.5,8 L 14.5,8");
-    private static readonly StreamGeometry IconRender = StreamGeometry.Parse("M 2,2 L 14,2 L 14,14 L 2,14 Z M 5,2 L 5,14 M 11,2 L 11,14 M 2,8 L 14,8");
-    private static readonly StreamGeometry IconPopout = StreamGeometry.Parse("M 2,4 L 11,4 L 11,13 L 2,13 Z M 9,2 L 14,2 L 14,7 M 8,8 L 14,2");
 
     public MainWindow()
     {
@@ -122,11 +137,12 @@ public sealed class MainWindow : Window
             }
         }
 
-        // Load Broadcast Demo Project by default so Event Headers (e.g., 'Seafront - 4743') are immediately visible on the Timeline
-        Project = VegasProject.CreateBroadcastDemo();
-        _mediaBin = PythonService.LoadWorkspaceMediaBin(RustInterop);
+        // Clean start (VEGAS Pro "Untitled" project): no tracks, no demo media. The demo stays available under File.
+        Project = VegasProject.CreateEmpty("Sem título");
+        Project.AutoFadeOnImport = Localization.AutoFadeOnImport;
+        _mediaBin = new List<MediaAssetItem>();
 
-        Title = $"NEOVEG — Cross-Platform NLE ({RustInterop.PlatformRid} • Avalonia UI • Rust FFI • Python FFmpeg)";
+        Title = $"{Project.Name} - Neoveg";
         Width = 1460;
         Height = 900;
         MinWidth = 1080;
@@ -151,10 +167,14 @@ public sealed class MainWindow : Window
             RefreshInspectorUI();
         };
 
+        _masterBusViewModel = new MasterBusViewModel();
         _scopeControl = new MasterScopeControl
         {
-            Project = Project
+            Project = Project,
+            RustInterop = RustInterop,
+            ViewModel = _masterBusViewModel
         };
+        _masterBusView = new MasterBusView(Project, RustInterop, _scopeControl, _masterBusViewModel);
 
         _timelineControl = new MultiTrackTimelineControl
         {
@@ -171,6 +191,7 @@ public sealed class MainWindow : Window
         };
         _timelineControl.PlayheadOverlay = _playheadOverlay;
         _trackHeadersStack = new StackPanel { Spacing = 0 };
+        _timelineControl.OnZoomChanged += RefreshTimelineScrollBars;
         _inspectorBodyHost = new ContentControl();
 
         _bigSmpteReadout = new TextBlock
@@ -209,8 +230,11 @@ public sealed class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        _btnPlayPause = CreateSquareTextButton("Play", "#2563eb", "#ffffff");
-        _btnPlayPause.Click += (_, _) => TogglePlayback();
+        _btnPlayPause = NeovegIcons.CreateButton(NeovegIcons.Play, "Reproduzir / Pausar (Espaço)", () => TogglePlayback(), filled: true);
+
+        _trackBlinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        _trackBlinkTimer.Tick += (_, _) =>
+            _trackBlinkBrush.Color = _trackBlinkBrush.Color == Colors.White ? Colors.Black : Colors.White;
 
         _timelineControl.OnPlayheadScrubbed += newTime =>
         {
@@ -219,6 +243,7 @@ public sealed class MainWindow : Window
         };
         _timelineControl.OnClipSelected += clip =>
         {
+            UpdateTrackSelectionIndicators();
             _previewControl.SelectedClip = clip;
             RefreshInspectorUI();
             _previewControl.InvalidateVisual();
@@ -228,6 +253,7 @@ public sealed class MainWindow : Window
             SetStatus(msg);
             RebuildTrackHeadersUI();
             UpdateTimecodeAndPreview();
+            RefreshTimelineScrollBars();
         };
         _timelineControl.OnGeneratedMediaRequested += OpenGeneratedMediaDialog;
         _timelineControl.OnEventPanCropRequested += FocusEventPanCropPanel;
@@ -403,7 +429,7 @@ public sealed class MainWindow : Window
     {
         var mainGrid = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,5,*,24")
+            RowDefinitions = new RowDefinitions("Auto,*,5,*,Auto,24")
         };
 
         // Row 0: Native Cross-Platform Menu
@@ -411,29 +437,30 @@ public sealed class MainWindow : Window
         Grid.SetRow(menu, 0);
         mainGrid.Children.Add(menu);
 
-        // Row 1: Qt Square Icon Toolbar
-        var toolbar = BuildMainIconToolbar();
-        Grid.SetRow(toolbar, 1);
-        mainGrid.Children.Add(toolbar);
-
-        // Row 2: Upper Dock Workspace (Project Media | Inspector | Video Preview | Master Mixer)
+        // Row 1: Upper Dock Workspace (Project Media/Trimmer/FX tabs | Video Preview | Master Bus Mixer)
         var upperDock = BuildUpperDockWorkspace();
-        Grid.SetRow(upperDock, 2);
+        Grid.SetRow(upperDock, 1);
         mainGrid.Children.Add(upperDock);
 
-        // Row 3: Horizontal Splitter between Upper Docks and Timeline
+        // Row 2: Horizontal Splitter between Upper Docks and Timeline
         var hSplitter = new GridSplitter
         {
             Background = new SolidColorBrush(Color.Parse("#263042")),
             ResizeDirection = GridResizeDirection.Rows
         };
-        Grid.SetRow(hSplitter, 3);
+        Grid.SetRow(hSplitter, 2);
         mainGrid.Children.Add(hSplitter);
 
-        // Row 4: Lower Multi-Track Timeline Workspace (Track Headers + MultiTrackTimelineControl)
-        var timelineDock = BuildTimelineWorkspace();
-        Grid.SetRow(timelineDock, 4);
-        mainGrid.Children.Add(timelineDock);
+        // Row 3: Multi-Track Timeline Workspace (Track Headers + MultiTrackTimelineControl) — undockable
+        _dockTimeline = BuildTimelineWorkspace();
+        Grid.SetRow(_dockTimeline, 3);
+        mainGrid.Children.Add(_dockTimeline);
+        BindDockCollapse(_dockTimeline, mainGrid.RowDefinitions[3], hSplitter);
+
+        // Row 4: Main Icon Toolbar below the Timeline (File • Transport • Edit • Prerender)
+        var toolbar = BuildMainIconToolbar();
+        Grid.SetRow(toolbar, 4);
+        mainGrid.Children.Add(toolbar);
 
         // Row 5: Status Bar
         _statusBarBorder = new Border
@@ -448,22 +475,38 @@ public sealed class MainWindow : Window
                 Children =
                 {
                     _statusFooterText,
-                    new TextBlock
-                    {
-                        Text = "[Space] Play • [S] Split (Rust FFI) • [Shift+B] RAM Preview • [Shift+M] Selective Prerender • [M] Marker",
-                        FontFamily = new FontFamily("Consolas, monospace"),
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        [Grid.ColumnProperty] = 1
-                    }
+                    _engineStatusPill
                 }
             }
         };
+        Grid.SetColumn(_engineStatusPill, 1);
         Grid.SetRow(_statusBarBorder, 5);
         mainGrid.Children.Add(_statusBarBorder);
 
         return mainGrid;
+    }
+
+    /// <summary>
+    /// Collapses the grid slot (column/row + its splitter) while a dock window floats and restores it when docked back.
+    /// </summary>
+    private static void BindDockCollapse(DetachableDockPanel dock, DefinitionBase definition, Control? splitter)
+    {
+        GridLength saved = GridLength.Star;
+        dock.DetachedChanged += detached =>
+        {
+            if (detached)
+            {
+                if (definition is ColumnDefinition col) { saved = col.Width; col.Width = new GridLength(0); }
+                else if (definition is RowDefinition row) { saved = row.Height; row.Height = new GridLength(0); }
+            }
+            else
+            {
+                if (definition is ColumnDefinition col) col.Width = saved;
+                else if (definition is RowDefinition row) row.Height = saved;
+            }
+            if (splitter != null)
+                splitter.IsVisible = !detached;
+        };
     }
 
     private Menu BuildTopMenuBar()
@@ -510,9 +553,8 @@ public sealed class MainWindow : Window
         {
             CreateMenuItem(loc.T("Menu.File.Splash", "Exibir Tela de Carregamento (Splash Screen Vegas Pro 12)..."), NeovegSplashDialog),
             CreateMenuItem(loc.T("Menu.File.Welcome", "Janela de Boas-Vindas Simplificada..."), OpenWelcomeDialog),
-            CreateMenuItem(loc.T("Menu.File.AdvancedSettings", "Configurações Avançadas (Geral / Idioma / Áudio)..."), OpenAdvancedSettingsDialog),
             new Separator(),
-            CreateMenuItem(loc.T("Menu.File.NewEmpty", "Novo Projeto Vazio (.neoveg)"), () => LoadProjectState(VegasProject.CreateEmpty(), "Novo Projeto Vazio (.neoveg) iniciado.")),
+            CreateMenuItem(loc.T("Menu.File.NewEmpty", "Novo Projeto Vazio (.neoveg)"), () => LoadProjectState(VegasProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")),
             CreateMenuItem(loc.T("Menu.File.Open", "Abrir Projeto (.neoveg)... (Ctrl+O)"), async () => await OpenNeovegProjectPickerAsync()),
             CreateMenuItem(loc.T("Menu.File.OpenDemo", "Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.neoveg)"), () => LoadProjectState(VegasProject.CreateBroadcastDemo(), "Projeto Demo Broadcast (.neoveg) carregado.")),
             CreateMenuItem("Abrir Projeto com Mídias Movidas (Teste Search & Relink)...", () => LoadProjectState(VegasProject.CreateMovedMediaRelinkDemo(), "Projeto com Mídias Movidas carregado (Missing Media Relinker).")),
@@ -534,14 +576,16 @@ public sealed class MainWindow : Window
         {
             CreateMenuItem(loc.T("Menu.Edit.PlayPause", "Play / Pause (Space)"), () => TogglePlayback()),
             CreateMenuItem(loc.T("Menu.Edit.Split", "Dividir Evento no Cursor via Rust FFI (S)"), SplitAtPlayheadViaRustFfi),
-            CreateMenuItem(loc.T("Menu.Edit.Delete", "Excluir Evento Selecionado (Del)"), DeleteSelectedClip)
+            CreateMenuItem(loc.T("Menu.Edit.Delete", "Excluir Evento Selecionado (Del)"), DeleteSelectedClip),
+            new Separator(),
+            CreateMenuItem(loc.T("Menu.Edit.Preferences", "Preferências..."), OpenAdvancedSettingsDialog)
         };
 
         var mInsert = new MenuItem { Header = loc.T("Menu.Insert", "_Inserir") };
         mInsert.ItemsSource = new Control[]
         {
-            CreateMenuItem(loc.T("Menu.Insert.VideoTrack", "Inserir Faixa de Vídeo (+ Video)"), () => AddTrack("video")),
-            CreateMenuItem(loc.T("Menu.Insert.AudioTrack", "Inserir Faixa de Áudio (+ Audio)"), () => AddTrack("audio")),
+            CreateMenuItem(loc.T("Menu.Insert.AudioTrack", "Faixa de Áudio"), () => AddTrack("audio"), "Ctrl+Q"),
+            CreateMenuItem(loc.T("Menu.Insert.VideoTrack", "Faixa de Vídeo"), () => AddTrack("video"), "Ctrl+Shift+Q"),
             new Separator(),
             CreateMenuItem(loc.T("Menu.Insert.GroupAV", "Agrupar Faixas de Vídeo + Áudio (Grupo V+A)"), GroupVideoAndAudioTracks),
             CreateMenuItem(loc.T("Menu.Insert.Ungroup", "Desagrupar Faixas"), UngroupAllOrSelectedTracks),
@@ -564,13 +608,30 @@ public sealed class MainWindow : Window
         }
         winExtensionsMenu.ItemsSource = extItems;
 
+        var windowsSubMenu = new MenuItem
+        {
+            Header = loc.T("Menu.View.Windows", "Janelas (Destacar / Acoplar)"),
+            ItemsSource = new Control[]
+            {
+                CreateMenuItem("Timeline", () => OpenFloatingOrDockedPanel("Timeline")),
+                CreateMenuItem("Video Preview", () => OpenFloatingOrDockedPanel("Video Preview")),
+                CreateMenuItem("Trimmer", () => OpenFloatingOrDockedPanel("Trimmer")),
+                CreateMenuItem("Master Bus (Mixer)", () => OpenFloatingOrDockedPanel("Audio Mixer")),
+                CreateMenuItem("Project Media", () => OpenFloatingOrDockedPanel("Project Media"))
+            }
+        };
+
+        var overlaysSubMenu = new MenuItem { Header = loc.T("Menu.View.PreviewOverlays", "Sobreposições da Prévia (Overlays)") };
+        overlaysSubMenu.SubmenuOpened += (_, _) => overlaysSubMenu.ItemsSource = BuildPreviewOverlayMenuItems();
+        overlaysSubMenu.ItemsSource = BuildPreviewOverlayMenuItems();
+
         mView.ItemsSource = new Control[]
         {
             winExtensionsMenu,
             new Separator(),
-            CreateMenuItem("Destacar / Acoplar Project Media [↗]", () => OpenFloatingOrDockedPanel("Project Media")),
-            CreateMenuItem("Destacar / Acoplar Trimmer [↗]", () => OpenFloatingOrDockedPanel("Trimmer")),
-            CreateMenuItem("Destacar / Acoplar Track Motion [↗]", () => OpenFloatingOrDockedPanel("Track Motion")),
+            windowsSubMenu,
+            overlaysSubMenu,
+            CreateMenuItem("Track Motion...", () => OpenFloatingOrDockedPanel("Track Motion")),
             CreateMenuItem(loc.T("Menu.View.PanCrop", "Abrir Event Pan/Crop (Gizmo 'F' + Property Grid + Keyframes) [↗]"), OpenEventPanCropDialogForSelectedClip),
             CreateMenuItem(loc.T("Menu.View.PopoutPreview", "Destacar Video Preview para Outro Monitor [↗]"), PopoutVideoPreviewToMonitor),
             CreateMenuItem(loc.T("Menu.View.PopoutScopes", "Destacar Master Audio Mixer & RGB Scopes para Outro Monitor [↗]"), PopoutMixerScopesToMonitor),
@@ -597,20 +658,10 @@ public sealed class MainWindow : Window
         }
         scriptsSubMenu.ItemsSource = scriptMenuItems;
 
-        var langSubMenu = new MenuItem { Header = loc.T("Menu.Tools.Language", "Idioma da Interface (Language / i18n)") };
-        var langItems = new List<Control>();
-        foreach (var lang in LocalizationManager.SupportedLanguages)
-        {
-            var capturedLang = lang;
-            bool isActive = string.Equals(Localization.CurrentLanguageCode, capturedLang.Code, StringComparison.OrdinalIgnoreCase);
-            langItems.Add(CreateMenuItem(
-                $"{(isActive ? "✓ " : "   ")}{capturedLang.DisplayLabel}",
-                () => Localization.SetLanguage(capturedLang.Code, saveToSettings: true)));
-        }
-        langSubMenu.ItemsSource = langItems;
-
         mTools.ItemsSource = new Control[]
         {
+            CreateMenuItem(loc.T("Menu.Tools.Inspector", "Inspetor (Inspector & FX do Evento)..."), OpenInspectorWindow),
+            new Separator(),
             scriptsSubMenu,
             new Separator(),
             CreateMenuItem("Construir Dynamic RAM Preview (Shift+B) -> Verde #2ECC71 (60 FPS)", async () => await TriggerDynamicRamPreviewAsync()),
@@ -624,10 +675,7 @@ public sealed class MainWindow : Window
             new Separator(),
             CreateMenuItem("Gerar Legendas Automáticas por IA (Whisper.cpp -> Eventos de Texto na Timeline)", async () => await TriggerWhisperSubtitlesGenerationAsync()),
             CreateMenuItem("Localizar e Relinkar Mídias Ausentes (Search & Relink Missing Media)... [↗]", () => OpenMissingMediaDialogForCurrentProject(forceDemoIfNoneMissing: true)),
-            CreateMenuItem(loc.T("Menu.Tools.CppSharedMem", "Testar C++ Shared Memory Frame Transfer (Out-of-Process IPC) [↗]"), async () => await RunCppSharedMemoryTransferDemoAsync()),
-            CreateMenuItem(loc.T("Menu.Tools.Preferences", "Configurações -> Geral / Idioma (Language)... [↗]"), OpenAdvancedSettingsDialog),
-            new Separator(),
-            langSubMenu
+            CreateMenuItem(loc.T("Menu.Tools.CppSharedMem", "Testar C++ Shared Memory Frame Transfer (Out-of-Process IPC) [↗]"), async () => await RunCppSharedMemoryTransferDemoAsync())
         };
 
         var mThemes = new MenuItem { Header = loc.T("Menu.Themes", "_Temas Históricos") };
@@ -663,198 +711,227 @@ public sealed class MainWindow : Window
 
     private Border BuildMainIconToolbar()
     {
-        var row = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto")
-        };
-
-        var leftTools = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 5,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        _eraBrandBadge = new TextBlock
-        {
-            Text = CurrentTheme.ShortBadge,
-            FontWeight = FontWeight.Black,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.Parse(CurrentTheme.AccentSecondary)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 8, 0)
-        };
-        leftTools.Children.Add(_eraBrandBadge);
-
-        // Icon-Only Qt Square Buttons (Welcome, Save .veg, Import Media, Split Rust FFI, Group V+A, Advanced Settings, Popout Monitor, Render As)
         var loc = Localization;
-        _btnTlWelcome = CreateIconButton(IconWelcome, loc.T("Toolbar.Tooltip.Welcome", "Janela de Boas-Vindas Simplificada (Projetos .veg)"), OpenWelcomeDialog);
-        _btnTlSave = CreateIconButton(IconSave, loc.T("Toolbar.Tooltip.Save", "Salvar Projeto (.veg)"), SaveCurrentProject);
-        _btnTlImport = CreateIconButton(IconFolder, loc.T("Toolbar.Tooltip.Import", "Importar Mídia (MP4 / WAV / MP3 via ffprobe isolado)"), async () => await OpenImportMediaDialogAsync());
-        _btnTlSplit = CreateIconButton(IconSplitRazor, loc.T("Toolbar.Tooltip.Split", "Dividir Evento no Playhead via Rust FFI (Atalho: S)"), SplitAtPlayheadViaRustFfi);
-        _btnTlGroup = CreateIconButton(IconGroupLink, loc.T("Toolbar.Tooltip.GroupAV", "Agrupar Faixas de Vídeo + Áudio (Grupo V+A)"), GroupVideoAndAudioTracks);
-        _btnTlSettings = CreateIconButton(IconGear, loc.T("Toolbar.Tooltip.Settings", "Abrir Configurações Avançadas (Geral / Idioma)"), OpenAdvancedSettingsDialog);
-        _btnTlPopout = CreateIconButton(IconPopout, loc.T("Toolbar.Tooltip.Popout", "Destacar Video Preview para Outro Monitor [↗]"), PopoutVideoPreviewToMonitor);
-        _btnTlRender = CreateIconButton(IconRender, loc.T("Toolbar.Tooltip.Render", "Renderizar Master MP4 (Python Isolated FFmpeg)"), async () => await RunIsolatedFFmpegRenderAsync(), "#2563eb");
-
-        leftTools.Children.Add(_btnTlWelcome);
-        leftTools.Children.Add(_btnTlSave);
-        leftTools.Children.Add(_btnTlImport);
-        leftTools.Children.Add(_btnTlSplit);
-        leftTools.Children.Add(_btnTlGroup);
-        leftTools.Children.Add(_btnTlSettings);
-        leftTools.Children.Add(_btnTlPopout);
-        leftTools.Children.Add(_btnTlRender);
-
-        Grid.SetColumn(leftTools, 0);
-        row.Children.Add(leftTools);
-
-        var rightInfo = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        rightInfo.Children.Add(_engineStatusPill);
-
-        // Quick 4-Era Flagship Buttons (Sonic Foundry 1-3 | Sony 4-13 | MAGIX 14-22 | Boris FX 2026)
-        var eraQuickBar = new StackPanel
+        var bar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 3,
             VerticalAlignment = VerticalAlignment.Center
         };
-        var btnEra1 = CreateSquareTextButton("1: Sonic Foundry", "#84827E", "#FFFFFF");
-        ToolTip.SetTip(btnEra1, "Era 1 (Vegas 1–3): Cinza industrial metálico com detalhes em vermelho e bordas chanfradas 3D");
-        btnEra1.Click += (_, _) => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(1));
 
-        var btnEra2 = CreateSquareTextButton("2: Sony Silver/Gold", "#D97706", "#FFFFFF");
-        ToolTip.SetTip(btnEra2, "Era 2 (Vegas 4–13): Prata refinado e clássico degradê flamejante nas barras e ícones");
-        btnEra2.Click += (_, _) => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(2));
-
-        var btnEra3 = CreateSquareTextButton("3: MAGIX Dark", "#0078D7", "#FFFFFF");
-        ToolTip.SetTip(btnEra3, "Era 3 (Vegas 14–22): Cinza escuro profissional com detalhes em azul ciano e flat design");
-        btnEra3.Click += (_, _) => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(3));
-
-        var btnEra4 = CreateSquareTextButton("4: Boris FX 2026", "#00A3FF", "#FFFFFF");
-        ToolTip.SetTip(btnEra4, "Era 4 (Boris FX / Atual 2026): Visual contemporâneo em azul elétrico e fundo totalmente escuro");
-        btnEra4.Click += (_, _) => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(4));
-
-        eraQuickBar.Children.Add(btnEra1);
-        eraQuickBar.Children.Add(btnEra2);
-        eraQuickBar.Children.Add(btnEra3);
-        eraQuickBar.Children.Add(btnEra4);
-        rightInfo.Children.Add(eraQuickBar);
-
-        // Historical Theme Era Selector ComboBox (All 10 Historical + Neoveg Themes)
-        _themeSelectorCombo = new ComboBox
+        void AddGroupSeparator() => bar.Children.Add(new Border
         {
-            ItemsSource = HistoryThemes,
-            SelectedItem = CurrentTheme,
-            Width = 240,
-            FontSize = 10.5,
-            Height = 26,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        ToolTip.SetTip(_themeSelectorCombo, "Seletor de Temas Históricos do VEGAS Pro (Sonic Foundry 1-3, Sony 4-13, MAGIX 14-22, Boris FX 2026 + Neoveg)");
-        _themeSelectorCombo.SelectionChanged += (_, _) =>
+            Width = 1,
+            Height = 20,
+            Margin = new Thickness(5, 0),
+            Background = new SolidColorBrush(Color.Parse("#475569"))
+        });
+
+        // File group
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.NewProject, loc.T("Toolbar.Tooltip.New", "Novo Projeto"), () => LoadProjectState(VegasProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Open, loc.T("Toolbar.Tooltip.Open", "Abrir Projeto (Ctrl+O)"), async () => await OpenNeovegProjectPickerAsync()));
+        _btnTlSave = NeovegIcons.CreateButton(NeovegIcons.Save, loc.T("Toolbar.Tooltip.Save", "Salvar Projeto (Ctrl+S)"), SaveCurrentProject);
+        bar.Children.Add(_btnTlSave);
+        _btnTlImport = NeovegIcons.CreateButton(NeovegIcons.ImportMedia, loc.T("Toolbar.Tooltip.Import", "Importar Mídia"), async () => await OpenImportMediaDialogAsync());
+        bar.Children.Add(_btnTlImport);
+        _btnTlRender = NeovegIcons.CreateButton(NeovegIcons.Render, loc.T("Toolbar.Tooltip.Render", "Renderizar Como... (Python Isolated FFmpeg)"), async () => await RunIsolatedFFmpegRenderAsync());
+        bar.Children.Add(_btnTlRender);
+        _btnTlSettings = NeovegIcons.CreateButton(NeovegIcons.Gear, loc.T("Toolbar.Tooltip.Settings", "Preferências"), OpenAdvancedSettingsDialog);
+        bar.Children.Add(_btnTlSettings);
+        AddGroupSeparator();
+
+        // Transport group (VEGAS Pro transport bar below the timeline)
+        _btnLoop = NeovegIcons.CreateButton(NeovegIcons.Loop, "Reprodução em Loop", ToggleLoopPlayback, Project.LoopEnabled ? ToggleOnBg : ToggleOffBg);
+        bar.Children.Add(_btnLoop);
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.PlayFromStart, "Reproduzir do Início", () =>
         {
-            if (_themeSelectorCombo.SelectedItem is VegasHistoryTheme selectedTheme)
-            {
-                ApplyHistoricalTheme(selectedTheme);
-            }
-        };
-        rightInfo.Children.Add(_themeSelectorCombo);
+            TogglePlayback(false);
+            Project.Playhead = 0;
+            TogglePlayback(true);
+        }, filled: true));
+        bar.Children.Add(_btnPlayPause);
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Stop, "Parar (retorna o cursor ao ponto de início)", StopPlaybackAndReturnCursor, filled: true));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.GoToStart, "Ir para o Início (Home)", () => MovePlayheadTo(0.0), filled: true));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.GoToEnd, "Ir para o Fim (End)", () => MovePlayheadTo(GetProjectDuration()), filled: true));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.PrevFrame, "Quadro Anterior (←)", () => MovePlayheadTo(Project.Playhead - 1.0 / Math.Max(1.0, Project.Fps)), filled: true));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.NextFrame, "Próximo Quadro (→)", () => MovePlayheadTo(Project.Playhead + 1.0 / Math.Max(1.0, Project.Fps)), filled: true));
+        AddGroupSeparator();
 
-        var btnThemesGallery = CreateSquareTextButton("Galeria", "#1e293b", "#facc15");
-        btnThemesGallery.Click += (_, _) => OpenHistoricalThemesGalleryDialog();
-        rightInfo.Children.Add(btnThemesGallery);
-
-        // Live i18n Language Selector ComboBox (pt-BR, en-US, es-ES, fr-FR, de-DE, zh-CN, ja-JP, ru-RU)
-        _languageSelectorCombo = new ComboBox
+        // Edit group
+        _btnTlSplit = NeovegIcons.CreateButton(NeovegIcons.Split, loc.T("Toolbar.Tooltip.Split", "Dividir Evento no Cursor (S)"), SplitAtPlayheadViaRustFfi);
+        bar.Children.Add(_btnTlSplit);
+        _btnTlGroup = NeovegIcons.CreateButton(NeovegIcons.Group, loc.T("Toolbar.Tooltip.GroupAV", "Agrupar (G)"), GroupSelectedEventsOrTracks);
+        bar.Children.Add(_btnTlGroup);
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Ungroup, "Desagrupar (U)", UngroupSelectedEventsOrTracks));
+        _btnSnap = NeovegIcons.CreateButton(NeovegIcons.Snap, "Ativar Snapping (F8)", ToggleTimelineSnapping, Project.SnapEnabled ? ToggleOnBg : ToggleOffBg);
+        bar.Children.Add(_btnSnap);
+        _btnAutoRipple = NeovegIcons.CreateButton(NeovegIcons.AutoRipple, "Auto-Ripple (ajusta eventos adjacentes em cortes e exclusões)", () =>
         {
-            ItemsSource = LocalizationManager.SupportedLanguages,
-            SelectedItem = Localization.GetLanguageMetadata(Localization.CurrentLanguageCode),
-            Width = 175,
-            FontSize = 10.5,
-            Height = 26,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        ToolTip.SetTip(_languageSelectorCombo, loc.T("Toolbar.Tooltip.LanguageSelector", "Seletor de Idioma em Tempo Real (pt-BR, en-US, es-ES, fr-FR, de-DE, zh-CN, ja-JP, ru-RU)"));
-        _languageSelectorCombo.SelectionChanged += (_, _) =>
-        {
-            if (_languageSelectorCombo.SelectedItem is LanguageOption selectedLang &&
-                !string.Equals(selectedLang.Code, Localization.CurrentLanguageCode, StringComparison.OrdinalIgnoreCase))
-            {
-                Localization.SetLanguage(selectedLang.Code, persistToSettings: true);
-            }
-        };
-        rightInfo.Children.Add(_languageSelectorCombo);
+            Project.RippleEnabled = !Project.RippleEnabled;
+            UpdateToolbarToggleStates();
+            SetStatus($"Auto-Ripple {(Project.RippleEnabled ? "ATIVADO" : "DESATIVADO")}.");
+        }, Project.RippleEnabled ? ToggleOnBg : ToggleOffBg);
+        bar.Children.Add(_btnAutoRipple);
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Marker, "Inserir Marcador (M)", AddMarkerAtPlayhead));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Region, "Inserir Região (R)", AddRegionAtLoopOrPlayhead));
+        AddGroupSeparator();
 
-        var btnLoadDemo = CreateSquareTextButton("Demo Broadcast", "#1e293b", "#38bdf8");
-        btnLoadDemo.Click += (_, _) => LoadProjectState(VegasProject.CreateBroadcastDemo(), "Projeto de Demonstração Broadcast carregado.");
-        rightInfo.Children.Add(btnLoadDemo);
+        // Track group
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.AddAudioTrack, "Inserir Faixa de Áudio (Ctrl+Q)", () => AddTrack("audio")));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.AddVideoTrack, "Inserir Faixa de Vídeo (Ctrl+Shift+Q)", () => AddTrack("video")));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackHeightShrink, "Diminuir Altura das Faixas", () => AdjustAllTrackHeights(-12)));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackHeightGrow, "Aumentar Altura das Faixas", () => AdjustAllTrackHeights(12)));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.ZoomOut, "Diminuir Zoom da Timeline", () => ZoomTimeline(1.0 / 1.25)));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.ZoomIn, "Aumentar Zoom da Timeline", () => ZoomTimeline(1.25)));
+        AddGroupSeparator();
 
-        Grid.SetColumn(rightInfo, 2);
-        row.Children.Add(rightInfo);
+        // Prerender / timecode group
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.RamPreview, "Dynamic RAM Preview (Shift+B)", async () => await TriggerDynamicRamPreviewAsync(), fgHex: "#2ECC71"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Prerender, "Pré-Renderização Seletiva (Shift+M)", async () => await TriggerSelectiveDiskPrerenderAsync(), fgHex: "#F1C40F"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Timecode, "Alternar Timecode Drop-Frame / Non-Drop-Frame", ToggleDropFrameTimecode, fgHex: "#3498DB"));
+        AddGroupSeparator();
+
+        // Historical Era Quick Theme Icon Buttons (Tooltips only)
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "1: Sonic Foundry", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(1)), "#84827E", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "2: Sony Silver/Gold", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(2)), "#D97706", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "3: MAGIX Dark", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(3)), "#0078D7", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "4: Boris FX 2026", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(4)), "#00A3FF", "#FFFFFF"));
 
         _mainToolbarBorder = new Border
         {
             Background = VegasThemeManager.CreateToolbarBrush(CurrentTheme),
             BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(10, 5),
-            Child = row
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(6, 3),
+            Child = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = bar
+            }
         };
         return _mainToolbarBorder;
+    }
+
+    private void UpdateToolbarToggleStates()
+    {
+        if (_btnSnap != null) _btnSnap.Background = new SolidColorBrush(Color.Parse(Project.SnapEnabled ? ToggleOnBg : ToggleOffBg));
+        if (_btnAutoRipple != null) _btnAutoRipple.Background = new SolidColorBrush(Color.Parse(Project.RippleEnabled ? ToggleOnBg : ToggleOffBg));
+        if (_btnLoop != null) _btnLoop.Background = new SolidColorBrush(Color.Parse(Project.LoopEnabled ? ToggleOnBg : ToggleOffBg));
+    }
+
+    private void ToggleLoopPlayback()
+    {
+        Project.LoopEnabled = !Project.LoopEnabled;
+        UpdateToolbarToggleStates();
+        _timelineControl.InvalidateVisual();
+        SetStatus($"Reprodução em Loop {(Project.LoopEnabled ? "ATIVADA" : "DESATIVADA")}.");
+    }
+
+    private void StopPlaybackAndReturnCursor()
+    {
+        bool wasPlaying = _isPlaying;
+        TogglePlayback(false);
+        if (wasPlaying)
+            Project.Playhead = _playbackOriginPlayhead;
+        UpdateTimecodeAndPreview();
+        _timelineControl.InvalidateVisual();
+    }
+
+    private void MovePlayheadTo(double seconds)
+    {
+        Project.Playhead = Math.Max(0.0, seconds);
+        _playheadOverlay.NotifyKeyboardCursorMove();
+        UpdateTimecodeAndPreview();
+        _timelineControl.InvalidateVisual();
+    }
+
+    private void ZoomTimeline(double factor)
+    {
+        // Toolbar zoom is anchored at the edit cursor (playhead) when it is visible, otherwise at the view center
+        double oldPps = Math.Max(20.0, _timelineControl.PixelsPerSecond);
+        double viewWidth = Math.Max(1.0, _timelineControl.Bounds.Width);
+        double cursorX = (Project.Playhead - _timelineControl.HorizontalOffsetSeconds) * oldPps;
+        double anchorX = cursorX >= 0.0 && cursorX <= viewWidth ? cursorX : viewWidth * 0.5;
+        double anchorTime = _timelineControl.HorizontalOffsetSeconds + anchorX / oldPps;
+        _timelineControl.PixelsPerSecond = Math.Clamp(
+            _timelineControl.PixelsPerSecond * factor,
+            MultiTrackTimelineControl.MinPixelsPerSecond,
+            MultiTrackTimelineControl.MaxPixelsPerSecond);
+        _timelineControl.HorizontalOffsetSeconds = Math.Max(0.0, anchorTime - anchorX / Math.Max(20.0, _timelineControl.PixelsPerSecond));
+        _playheadOverlay.PixelsPerSecond = _timelineControl.PixelsPerSecond;
+        RefreshTimelineScrollBars();
+        _timelineControl.InvalidateVisual();
+        _playheadOverlay.InvalidateVisual();
+    }
+
+    private void AddMarkerAtPlayhead()
+    {
+        Project.Markers.Add(new TimelineMarker
+        {
+            Time = Math.Round(Project.Playhead, 3),
+            Label = $"Marker {Project.Markers.Count + 1}",
+            Color = "#f97316"
+        });
+        _timelineControl.InvalidateVisual();
+        SetStatus($"Atalho Vegas [M]: Marcador adicionado em {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
+    }
+
+    private void ToggleDropFrameTimecode()
+    {
+        bool curDf = PlayheadOverlayCanvas.ResolveIsDropFrame(Project.Fps, _playheadOverlay.ForceDropFrame);
+        _playheadOverlay.ForceDropFrame = !curDf;
+        UpdateTimecodeAndPreview();
+        _playheadOverlay.InvalidateVisual();
+        string modeLabel = _playheadOverlay.ForceDropFrame == true ? "Drop-Frame (00;00;50;00)" : "Non-Drop-Frame (00:00:50:00)";
+        SetStatus($"Régua de Timecode do Playhead alterada para {modeLabel}.");
     }
 
     private Grid BuildUpperDockWorkspace()
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("1.1*,4,1.0*,4,1.65*,4,0.8*")
+            ColumnDefinitions = new ColumnDefinitions("1.1*,4,1.65*,4,0.8*")
         };
 
-        // 1. Left Dock: Project Media, Video FX (Frei0r + CorridorKey + 3D LUTs), Audio FX (LADSPA), Generators
-        var mediaPane = BuildLeftMediaAndFxDock();
-        mediaPane.MinWidth = 220;
-        Grid.SetColumn(mediaPane, 0);
-        grid.Children.Add(mediaPane);
+        // 1. Left Dock: Project Media, Trimmer, Video FX, Audio FX, Transitions, Generators (each tab undockable)
+        _dockProjectMedia = BuildLeftMediaAndFxDock();
+        _dockProjectMedia.MinWidth = 220;
+        Grid.SetColumn(_dockProjectMedia, 0);
+        grid.Children.Add(_dockProjectMedia);
 
-        grid.Children.Add(CreateVerticalSplitter(1));
+        var splitterLeft = CreateVerticalSplitter(1);
+        grid.Children.Add(splitterLeft);
+        BindDockCollapse(_dockProjectMedia, grid.ColumnDefinitions[0], splitterLeft);
 
-        // 2. Center Dock: Event Pan/Crop, FX Chain & Quick Settings
-        var inspectorPane = BuildCenterInspectorDock();
-        inspectorPane.MinWidth = 210;
-        Grid.SetColumn(inspectorPane, 2);
-        grid.Children.Add(inspectorPane);
+        // 2. Video Preview (clean: overlays are optional and start disabled)
+        _dockPreview = BuildVideoPreviewDock();
+        _dockPreview.MinWidth = 300;
+        Grid.SetColumn(_dockPreview, 2);
+        grid.Children.Add(_dockPreview);
+        BindDockCollapse(_dockPreview, grid.ColumnDefinitions[2], null);
 
-        grid.Children.Add(CreateVerticalSplitter(3));
+        var splitterRight = CreateVerticalSplitter(3);
+        grid.Children.Add(splitterRight);
 
-        // 3. Right-Center Dock: Video Preview Monitor + Transport Bar
-        var previewPane = BuildVideoPreviewDock();
-        previewPane.MinWidth = 300;
-        Grid.SetColumn(previewPane, 4);
-        grid.Children.Add(previewPane);
-
-        grid.Children.Add(CreateVerticalSplitter(5));
-
-        // 4. Rightmost Dock: Master Bus Mixer & RGB Parade Scope
-        var mixerPane = BuildMasterMixerDock();
-        mixerPane.MinWidth = 175;
-        Grid.SetColumn(mixerPane, 6);
-        grid.Children.Add(mixerPane);
+        // 3. Master Bus Mixer & Scopes
+        _dockMixer = BuildMasterMixerDock();
+        _dockMixer.MinWidth = 175;
+        Grid.SetColumn(_dockMixer, 4);
+        grid.Children.Add(_dockMixer);
+        BindDockCollapse(_dockMixer, grid.ColumnDefinitions[4], splitterRight);
 
         return grid;
     }
 
-    private Border BuildLeftMediaAndFxDock()
+    private DetachableDockPanel BuildLeftMediaAndFxDock()
     {
         var tabs = new TabControl
         {
             Background = new SolidColorBrush(Color.Parse("#141923"))
         };
+        _leftDockTabs = tabs;
+        Neoveg.Styles.NeovegDockTabStyles.Apply(tabs);
 
         // Tab 1: Project Media Bin
         _projectMediaStack = new StackPanel { Spacing = 6, Margin = new Thickness(6) };
@@ -933,41 +1010,30 @@ public sealed class MainWindow : Window
         _tabTransitions = new TabItem { Header = loc.T("Tab.Transitions", "Transições"), Content = new ScrollViewer { Content = transStack } };
         _tabGenerators = new TabItem { Header = loc.T("Tab.Generators", "Geradores"), Content = new ScrollViewer { Content = genStack } };
 
-        tabs.ItemsSource = new[]
+        foreach (var tab in new[] { _tabProjectMedia, _tabTrimmer, _tabVideoFx, _tabAudioFx, _tabTransitions, _tabGenerators })
         {
-            _tabProjectMedia,
-            _tabTrimmer,
-            _tabVideoFx,
-            _tabAudioFx,
-            _tabTransitions,
-            _tabGenerators
-        };
+            tabs.Items.Add(tab);
+        }
+        // VEGAS Pro docking: drag any tab header down/out of the tab strip to float it as an independent window
+        DetachableDockPanel.EnableTabUndocking(tabs, t => t.Header?.ToString() ?? "Neoveg");
 
-        return WrapInDockPanel(loc.T("Dock.LeftHeader", "PROJECT MEDIA • TRIMMER • VIDEO/AUDIO FX • GENERATORS"), tabs);
+        return WrapInDockPanel(loc.T("Dock.LeftHeader", "Project Media"), tabs);
     }
 
     private Control BuildTrimmerDockContent()
     {
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(8) };
-        stack.Children.Add(new TextBlock
-        {
-            Text = "VEGAS TRIMMER — Marcação de In [I] / Out [O] e Subclipes",
-            FontSize = 11.5,
-            FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
-        });
-
         var txtIn = new TextBox { Text = "0.000", Watermark = "In Point (s)" };
         var txtOut = new TextBox { Text = "4.000", Watermark = "Out Point (s)" };
 
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var btnMarkIn = CreateSquareTextButton("Marcar In [I]", "#1e293b", "#facc15");
+        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        var btnMarkIn = NeovegIcons.CreateButton(NeovegIcons.MarkIn, "Marcar In (I)", fgHex: "#facc15");
         btnMarkIn.Click += (_, _) => txtIn.Text = Project.Playhead.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
 
-        var btnMarkOut = CreateSquareTextButton("Marcar Out [O]", "#1e293b", "#facc15");
+        var btnMarkOut = NeovegIcons.CreateButton(NeovegIcons.MarkOut, "Marcar Out (O)", fgHex: "#facc15");
         btnMarkOut.Click += (_, _) => txtOut.Text = Math.Max(Project.Playhead + 0.5, 1.0).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
 
-        var btnInsertSubclip = CreateSquareTextButton("Inserir do Trimmer na Timeline", "#2563eb", "#ffffff");
+        var btnInsertSubclip = NeovegIcons.CreateButton(NeovegIcons.InsertToTimeline, "Inserir do Trimmer na Timeline", bgHex: "#2563eb", fgHex: "#ffffff");
         btnInsertSubclip.Click += (_, _) =>
         {
             double.TryParse(txtIn.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double inSec);
@@ -1003,258 +1069,492 @@ public sealed class MainWindow : Window
         return stack;
     }
 
-    private Border BuildCenterInspectorDock()
-    {
-        var loc = Localization;
-        _centerInspectorDockBorder = WrapInDockPanel(
-            $"{loc.T("Tab.PanCrop", "Pan/Crop").ToUpperInvariant()} • {loc.T("Tab.Inspector", "Inspector").ToUpperInvariant()} • FX CHAIN",
-            _inspectorBodyHost);
-        return _centerInspectorDockBorder;
-    }
-
-    private Border BuildVideoPreviewDock()
+    private DetachableDockPanel BuildVideoPreviewDock()
     {
         var grid = new Grid
         {
-            RowDefinitions = new RowDefinitions("*,Auto")
+            RowDefinitions = new RowDefinitions("Auto,*,Auto")
         };
 
-        Grid.SetRow(_previewControl, 0);
-        grid.Children.Add(_previewControl);
-
-        // Transport & SMPTE Bar
-        var transportGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
-            Background = new SolidColorBrush(Color.Parse("#151a24")),
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-
-        var trButtons = new StackPanel
+        // Compact VEGAS-style preview controls: project setup, quality, FX, snapshots, and monitors.
+        var previewBar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Margin = new Thickness(6, 4)
+            Spacing = 2,
+            Margin = new Thickness(4, 3)
         };
 
-        var btnStart = CreateSquareTextButton("|<", "#1e293b", "#e2e8f0");
-        btnStart.Click += (_, _) => { Project.Playhead = 0; UpdateTimecodeAndPreview(); _timelineControl.InvalidateVisual(); };
+        previewBar.Children.Add(NeovegIcons.CreateButton(
+            NeovegIcons.Gear,
+            "Propriedades de Vídeo do Projeto (resolução, FPS e proporção)",
+            OpenProjectVideoPropertiesDialog,
+            size: 22));
 
-        var btnPrev = CreateSquareTextButton("<1F", "#1e293b", "#e2e8f0");
-        btnPrev.Click += (_, _) => { Project.Playhead = Math.Max(0, Project.Playhead - 1.0 / Project.Fps); UpdateTimecodeAndPreview(); _timelineControl.InvalidateVisual(); };
-
-        var btnStop = CreateSquareTextButton("Stop", "#1e293b", "#e2e8f0");
-        btnStop.Click += (_, _) => { TogglePlayback(false); Project.Playhead = 0; UpdateTimecodeAndPreview(); _timelineControl.InvalidateVisual(); };
-
-        var btnNext = CreateSquareTextButton("1F>", "#1e293b", "#e2e8f0");
-        btnNext.Click += (_, _) => { Project.Playhead += 1.0 / Project.Fps; UpdateTimecodeAndPreview(); _timelineControl.InvalidateVisual(); };
-
-        var btnSplitFx = CreateSquareTextButton("Split FX", "#1e293b", "#f59e0b");
-        btnSplitFx.Click += (_, _) => { Project.SplitScreenBypass = !Project.SplitScreenBypass; _previewControl.InvalidateVisual(); };
-
-        var btnSafe = CreateSquareTextButton("Safe", "#1e293b", "#38bdf8");
-        btnSafe.Click += (_, _) => { Project.ShowSafeAreas = !Project.ShowSafeAreas; _previewControl.InvalidateVisual(); };
-
-        var btnPopout = CreateSquareTextButton("Monitor 2 [↗]", "#1e293b", "#38bdf8");
-        btnPopout.Click += (_, _) => PopoutVideoPreviewToMonitor();
-
-        trButtons.Children.Add(btnStart);
-        trButtons.Children.Add(btnPrev);
-        trButtons.Children.Add(_btnPlayPause);
-        trButtons.Children.Add(btnStop);
-        trButtons.Children.Add(btnNext);
-        trButtons.Children.Add(btnSplitFx);
-        trButtons.Children.Add(btnSafe);
-        trButtons.Children.Add(btnPopout);
-
-        Grid.SetColumn(trButtons, 0);
-        transportGrid.Children.Add(trButtons);
-
-        var tcStack = new StackPanel
+        // VEGAS Pro preview quality: one list (Draft, Preview, Good, Best, Auto); each quality implies its
+        // preview resolution (Draft = 1/4, Preview = 1/2, Good/Best = full, Auto = fit to the preview window)
+        _previewControl.PreviewResolution = PreviewResolutionForQuality(_previewControl.PreviewQuality);
+        var qualitySelector = new ComboBox
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 10,
-            Margin = new Thickness(8, 4),
-            VerticalAlignment = VerticalAlignment.Center
+            ItemsSource = new[] { "Draft", "Preview", "Good", "Best", "Auto" },
+            SelectedItem = _previewControl.PreviewQuality,
+            Width = 78,
+            Height = 22,
+            FontSize = 10,
+            Padding = new Thickness(4, 0),
+            CornerRadius = new CornerRadius(0),
+            Background = new SolidColorBrush(Color.Parse("#1e293b")),
+            Foreground = new SolidColorBrush(Color.Parse("#e2e8f0")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#475569"))
         };
-        tcStack.Children.Add(_bigSmpteReadout);
-        tcStack.Children.Add(_subFormatReadout);
-        Grid.SetColumn(tcStack, 2);
-        transportGrid.Children.Add(tcStack);
-
-        Grid.SetRow(transportGrid, 1);
-        grid.Children.Add(transportGrid);
-
-        return WrapInDockPanel("VIDEO PREVIEW MONITOR (SKIA / AVALONIA REALTIME)", grid);
-    }
-
-    private Border BuildMasterMixerDock()
-    {
-        var grid = new Grid
+        ToolTip.SetTip(qualitySelector, "Qualidade da Prévia (Draft, Preview, Good, Best, Auto)");
+        qualitySelector.SelectionChanged += (_, _) =>
         {
-            RowDefinitions = new RowDefinitions("*,Auto"),
-            Margin = new Thickness(6)
-        };
-
-        Grid.SetRow(_scopeControl, 0);
-        grid.Children.Add(_scopeControl);
-
-        var faderStack = new StackPanel
-        {
-            Spacing = 4,
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-
-        var lblDb = new TextBlock
-        {
-            Text = "MASTER BUS: +0.0 dB",
-            FontFamily = new FontFamily("Consolas, monospace"),
-            FontSize = 10.5,
-            FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
-        };
-
-        var sldMaster = new Slider
-        {
-            Minimum = 0.0,
-            Maximum = 1.4,
-            Value = Project.MasterVolume
-        };
-        sldMaster.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name == nameof(Slider.Value))
+            if (qualitySelector.SelectedItem is string quality)
             {
-                Project.MasterVolume = sldMaster.Value;
-                double db = Project.MasterVolume > 0.001 ? 20.0 * Math.Log10(Project.MasterVolume) : -60.0;
-                lblDb.Text = $"MASTER BUS: {(db >= 0 ? "+" : "")}{db:0.0} dB";
-                _scopeControl.InvalidateVisual();
+                _previewControl.PreviewQuality = quality;
+                _previewControl.PreviewResolution = PreviewResolutionForQuality(quality);
+                UpdatePreviewStatus();
+                _previewControl.InvalidateVisual();
             }
         };
+        previewBar.Children.Add(qualitySelector);
 
-        faderStack.Children.Add(lblDb);
-        faderStack.Children.Add(sldMaster);
-        Grid.SetRow(faderStack, 1);
-        grid.Children.Add(faderStack);
+        var btnFxBypass = NeovegIcons.CreateButton(
+            NeovegIcons.Fx,
+            "Ignorar / Ativar Efeitos de Vídeo (FX Bypass)",
+            bgHex: _previewFxBypassed ? ToggleOnBg : ToggleOffBg,
+            size: 22);
+        btnFxBypass.Click += (_, _) =>
+        {
+            _previewFxBypassed = !_previewFxBypassed;
+            _previewControl.VideoFxBypassed = _previewFxBypassed;
+            btnFxBypass.Background = new SolidColorBrush(Color.Parse(_previewFxBypassed ? ToggleOnBg : ToggleOffBg));
+            _previewControl.InvalidateVisual();
+            SetStatus($"Efeitos de vídeo da prévia {(_previewFxBypassed ? "ignorados" : "ativados")}.");
+        };
+        previewBar.Children.Add(btnFxBypass);
 
-        return WrapInDockPanel("MIXER & RGB SCOPES", grid);
+        var btnSplitScreen = NeovegIcons.CreateButton(
+            NeovegIcons.SplitScreen,
+            "Visualização Split-Screen (FX Bypass)",
+            bgHex: Project.SplitScreenBypass ? ToggleOnBg : ToggleOffBg,
+            size: 22);
+        btnSplitScreen.Click += (_, _) =>
+        {
+            Project.SplitScreenBypass = !Project.SplitScreenBypass;
+            btnSplitScreen.Background = new SolidColorBrush(Color.Parse(Project.SplitScreenBypass ? ToggleOnBg : ToggleOffBg));
+            _previewControl.InvalidateVisual();
+        };
+        previewBar.Children.Add(btnSplitScreen);
+
+        var overlaysFlyout = new MenuFlyout();
+        overlaysFlyout.Opening += (_, _) => overlaysFlyout.ItemsSource = BuildPreviewOverlayMenuItems();
+        var btnOverlays = NeovegIcons.CreateButton(NeovegIcons.Overlays, "Sobreposições (Overlays): Grade, Áreas Seguras, Timecode, Pan/Crop...", size: 22);
+        btnOverlays.Flyout = overlaysFlyout;
+        previewBar.Children.Add(btnOverlays);
+
+        previewBar.Children.Add(NeovegIcons.CreateButton(
+            NeovegIcons.Snapshot,
+            "Salvar Snapshot do Frame Atual (PNG/JPEG)",
+            async () => await SavePreviewSnapshotAsync(),
+            size: 22));
+        previewBar.Children.Add(NeovegIcons.CreateButton(
+            NeovegIcons.CopyImage,
+            "Copiar Snapshot do Frame Atual para a Área de Transferência",
+            async () => await CopyPreviewSnapshotAsync(),
+            size: 22));
+
+        _btnTlPopout = NeovegIcons.CreateButton(NeovegIcons.Popout, Localization.T("Toolbar.Tooltip.Popout", "Visualizar em Monitor Externo"), PopoutVideoPreviewToMonitor, size: 22);
+        previewBar.Children.Add(_btnTlPopout);
+        previewBar.Children.Add(NeovegIcons.CreateButton(
+            NeovegIcons.PreviewBeside,
+            "Abrir Prévia em Tela Cheia (pressione Esc para fechar)",
+            OpenFullscreenVideoPreview,
+            size: 22));
+
+        var previewToolbarScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = previewBar
+        };
+        Grid.SetRow(previewToolbarScroll, 0);
+        grid.Children.Add(previewToolbarScroll);
+
+        Grid.SetRow(_previewControl, 1);
+        grid.Children.Add(_previewControl);
+        _previewControl.SizeChanged += (_, _) => UpdatePreviewStatus();
+        UpdatePreviewStatus();
+
+        // Project and effective preview resolution / frame rate status.
+        _previewInfoStrip = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#151a24")),
+            Padding = new Thickness(8, 3),
+            IsVisible = true,
+            Child = _subFormatReadout
+        };
+        Grid.SetRow(_previewInfoStrip, 2);
+        grid.Children.Add(_previewInfoStrip);
+
+        return WrapInDockPanel("Video Preview", grid);
     }
 
-    private Border BuildTimelineWorkspace()
+    private void OpenProjectVideoPropertiesDialog()
     {
-        var outerGrid = new Grid
+        var widthBox = new TextBox { Text = Project.Width.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 130 };
+        var heightBox = new TextBox { Text = Project.Height.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 130 };
+        var fpsBox = new TextBox { Text = Project.Fps.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), Width = 130 };
+        var pixelAspectOptions = new List<string>
         {
-            RowDefinitions = new RowDefinitions("Auto,*")
+            "1.0000 - Square pixels",
+            "1.2121 - NTSC DV widescreen",
+            "1.4568 - PAL DV widescreen"
         };
-
-        // Timeline Action Bar (+ Video, + Audio, Faixas -/+, Agrupar V+A, Desagrupar, Split Rust FFI)
-        var bar = new Border
+        int selectedAspectIndex = Project.PixelAspectRatio switch
         {
-            Background = new SolidColorBrush(Color.Parse("#181e29")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#2a3446")),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4)
+            >= 0.99 and <= 1.01 => 0,
+            >= 1.19 and <= 1.23 => 1,
+            >= 1.43 and <= 1.48 => 2,
+            _ => -1
         };
+        if (selectedAspectIndex < 0)
+        {
+            selectedAspectIndex = pixelAspectOptions.Count;
+            pixelAspectOptions.Add($"{Project.PixelAspectRatio:0.####} - Current custom");
+        }
+        var pixelAspectSelector = new ComboBox
+        {
+            ItemsSource = pixelAspectOptions,
+            Width = 250,
+            SelectedIndex = selectedAspectIndex
+        };
+        var displayAspect = new TextBlock
+        {
+            Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
+            FontSize = 11
+        };
+        void UpdateAspectPreview()
+        {
+            if (int.TryParse(widthBox.Text, out int width) &&
+                int.TryParse(heightBox.Text, out int height) &&
+                width > 0 &&
+                height > 0 &&
+                pixelAspectSelector.SelectedItem is string selectedPixelAspect &&
+                double.TryParse(selectedPixelAspect.Split(' ')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double pixelAspect))
+            {
+                displayAspect.Text = $"Proporção de exibição: {width * pixelAspect / height:0.####}:1";
+            }
+            else
+            {
+                displayAspect.Text = "Informe largura e altura válidas.";
+            }
+        }
+        widthBox.TextChanged += (_, _) => UpdateAspectPreview();
+        heightBox.TextChanged += (_, _) => UpdateAspectPreview();
+        pixelAspectSelector.SelectionChanged += (_, _) => UpdateAspectPreview();
+        UpdateAspectPreview();
 
-        var barStack = new StackPanel
+        var form = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto"),
+            Margin = new Thickness(18)
+        };
+        void AddPropertyRow(int row, string label, Control input)
+        {
+            var text = new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 8),
+                Foreground = new SolidColorBrush(Color.Parse("#cbd5e1"))
+            };
+            Grid.SetRow(text, row);
+            form.Children.Add(text);
+            Grid.SetRow(input, row);
+            Grid.SetColumn(input, 1);
+            input.Margin = new Thickness(0, 0, 0, 8);
+            form.Children.Add(input);
+        }
+
+        AddPropertyRow(0, "Largura do projeto (pixels):", widthBox);
+        AddPropertyRow(1, "Altura do projeto (pixels):", heightBox);
+        AddPropertyRow(2, "Frame rate (FPS):", fpsBox);
+        AddPropertyRow(3, "Proporção do pixel:", pixelAspectSelector);
+        Grid.SetRow(displayAspect, 4);
+        Grid.SetColumnSpan(displayAspect, 2);
+        form.Children.Add(displayAspect);
+
+        var dialog = new Window
+        {
+            Title = "Propriedades de Vídeo do Projeto",
+            Width = 460,
+            Height = 330,
+            MinWidth = 420,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.Parse("#12161f")),
+            Foreground = new SolidColorBrush(Color.Parse("#f1f5f9"))
+        };
+        var cancelButton = CreateSquareTextButton("Cancelar", "#1e293b", "#cbd5e1");
+        cancelButton.Click += (_, _) => dialog.Close();
+        var applyButton = CreateSquareTextButton("Aplicar", "#2563eb", "#ffffff");
+        applyButton.Click += (_, _) =>
+        {
+            int width = 0;
+            int height = 0;
+            double fps = 0;
+            double pixelAspect = 0;
+            bool valid =
+                int.TryParse(widthBox.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out width) &&
+                int.TryParse(heightBox.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out height) &&
+                double.TryParse(fpsBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fps) &&
+                pixelAspectSelector.SelectedItem is string selectedPixelAspect &&
+                double.TryParse(selectedPixelAspect.Split(' ')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pixelAspect) &&
+                width is >= 16 and <= 16384 &&
+                height is >= 16 and <= 16384 &&
+                fps is >= 1 and <= 240 &&
+                pixelAspect > 0;
+            if (!valid)
+            {
+                SetStatus("Propriedades de vídeo inválidas: use resolução entre 16 e 16384 px e FPS entre 1 e 240.");
+                return;
+            }
+
+            Project.Width = width;
+            Project.Height = height;
+            Project.Fps = fps;
+            Project.PixelAspectRatio = pixelAspect;
+            UpdateTimecodeAndPreview();
+            _previewControl.InvalidateVisual();
+            SetStatus($"Propriedades de vídeo atualizadas: {width}x{height}, {fps:0.###} fps, pixel aspect {pixelAspect:0.####}.");
+            dialog.Close();
+        };
+        var footer = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 6
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8,
+            Margin = new Thickness(18, 0, 18, 16),
+            Children = { cancelButton, applyButton }
         };
+        var content = new DockPanel();
+        DockPanel.SetDock(footer, Dock.Bottom);
+        content.Children.Add(footer);
+        content.Children.Add(form);
+        dialog.Content = content;
+        dialog.Show(this);
+    }
 
-        barStack.Children.Add(new TextBlock
+    private async Task SavePreviewSnapshotAsync()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Text = "MULTI-TRACK TIMELINE",
-            FontWeight = FontWeight.Bold,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.Parse("#38bdf8")),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
-        });
-
-        var btnAddV = CreateSquareTextButton("+ Video Track", "#1e293b", "#f8fafc");
-        btnAddV.Click += (_, _) => AddTrack("video");
-
-        var btnAddA = CreateSquareTextButton("+ Audio Track", "#1e293b", "#f8fafc");
-        btnAddA.Click += (_, _) => AddTrack("audio");
-
-        var btnShrink = CreateSquareTextButton("Faixas -", "#1e293b", "#cbd5e1");
-        btnShrink.Click += (_, _) => AdjustAllTrackHeights(-12);
-
-        var btnExpand = CreateSquareTextButton("Faixas +", "#1e293b", "#cbd5e1");
-        btnExpand.Click += (_, _) => AdjustAllTrackHeights(12);
-
-        var btnGroupAv = CreateSquareTextButton("Agrupar V+A", "#1e293b", "#f59e0b");
-        btnGroupAv.Click += (_, _) => GroupVideoAndAudioTracks();
-
-        var btnUngroup = CreateSquareTextButton("Desagrupar", "#1e293b", "#cbd5e1");
-        btnUngroup.Click += (_, _) => UngroupAllOrSelectedTracks();
-
-        var btnSplit = CreateSquareTextButton("Split no Cursor (S) [Rust FFI]", "#2563eb", "#ffffff");
-        btnSplit.Click += (_, _) => SplitAtPlayheadViaRustFfi();
-
-        var btnRamPreview = CreateSquareTextButton("RAM Preview (Shift+B)", "#14532d", "#2ECC71");
-        ToolTip.SetTip(btnRamPreview, "Atalho Shift+B: Carregar o trecho selecionado no Dynamic RAM Preview Pool (converte a barra para Verde #2ECC71 • 60 FPS)");
-        btnRamPreview.Click += async (_, _) => await TriggerDynamicRamPreviewAsync();
-
-        var btnSelPrerender = CreateSquareTextButton("Selective Prerender (Shift+M)", "#713f12", "#F1C40F");
-        ToolTip.SetTip(btnSelPrerender, "Atalho Shift+M: Realizar a Pré-Renderização Seletiva em disco na pasta temporária cache/prerender/ (Verde #2ECC71)");
-        btnSelPrerender.Click += async (_, _) => await TriggerSelectiveDiskPrerenderAsync();
-
-        var btnMarker = CreateSquareTextButton("+ Marker (M)", "#1e293b", "#f97316");
-        btnMarker.Click += (_, _) =>
-        {
-            Project.Markers.Add(new TimelineMarker
+            Title = "Salvar Snapshot da Prévia",
+            SuggestedFileName = $"Neoveg_Frame_{Project.Playhead:0.000}.png",
+            DefaultExtension = "png",
+            FileTypeChoices = new[]
             {
-                Time = Math.Round(Project.Playhead, 3),
-                Label = $"M{Project.Markers.Count + 1}"
-            });
-            _timelineControl.InvalidateVisual();
-        };
+                new FilePickerFileType("PNG Image") { Patterns = new[] { "*.png" } },
+                new FilePickerFileType("JPEG Image") { Patterns = new[] { "*.jpg", "*.jpeg" } }
+            }
+        });
+        if (file == null)
+            return;
 
-        var btnDfToggle = CreateSquareTextButton("TC: DF / NDF", "#0f2942", "#3498DB");
-        ToolTip.SetTip(btnDfToggle, "Alternar formato de Timecode SMPTE da Agulha (Playhead CTI): Drop-Frame (00;00;50;00) vs Non-Drop-Frame (00:00:50:00)");
-        btnDfToggle.Click += (_, _) =>
+        try
         {
-            bool curDf = PlayheadOverlayCanvas.ResolveIsDropFrame(Project.Fps, _playheadOverlay.ForceDropFrame);
-            _playheadOverlay.ForceDropFrame = !curDf;
-            UpdateTimecodeAndPreview();
-            _playheadOverlay.InvalidateVisual();
-            string modeLabel = _playheadOverlay.ForceDropFrame == true ? "Drop-Frame (00;00;50;00)" : "Non-Drop-Frame (00:00:50:00)";
-            SetStatus($"Régua de Timecode do Playhead alterada para {modeLabel}.");
-        };
-
-        var btnAutoRipple = CreateSquareTextButton("Auto-Ripple", Project.RippleEnabled ? "#0369a1" : "#1e293b", "#38bdf8");
-        ToolTip.SetTip(btnAutoRipple, "Alternar Auto-Ripple (Ajuste automático de eventos adjacentes durante cortes ou exclusões)");
-        btnAutoRipple.Click += (_, _) =>
+            using var snapshot = RenderPreviewSnapshot();
+            string extension = System.IO.Path.GetExtension(file.Name);
+            if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            {
+                string? localPath = file.TryGetLocalPath();
+                if (string.IsNullOrEmpty(localPath))
+                    throw new NotSupportedException("O provedor de arquivos atual não permite codificar snapshots JPEG.");
+                snapshot.Save(localPath, 95);
+            }
+            else
+            {
+                await using var output = await file.OpenWriteAsync();
+                snapshot.Save(output);
+            }
+            SetStatus($"Snapshot do frame salvo: {file.Name}");
+        }
+        catch (Exception ex)
         {
-            Project.RippleEnabled = !Project.RippleEnabled;
-            btnAutoRipple.Background = new SolidColorBrush(Color.Parse(Project.RippleEnabled ? "#0369a1" : "#1e293b"));
-            SetStatus($"Auto-Ripple {(Project.RippleEnabled ? "ATIVADO" : "DESATIVADO")} (Ajuste automático de eventos adjacentes).");
+            Program.LogEvent("ERROR", "MainWindow.SavePreviewSnapshot", ex.Message, ex);
+            SetStatus($"Falha ao salvar snapshot: {ex.Message}");
+        }
+    }
+
+    private async Task CopyPreviewSnapshotAsync()
+    {
+        try
+        {
+            using var snapshot = RenderPreviewSnapshot();
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard == null)
+                throw new InvalidOperationException("A área de transferência não está disponível nesta janela.");
+
+            using var pngData = new MemoryStream();
+            snapshot.Save(pngData);
+            var dataObject = new DataObject();
+            dataObject.Set("image/png", pngData.ToArray());
+            await clipboard.SetDataObjectAsync(dataObject);
+            SetStatus("Snapshot do frame copiado para a área de transferência.");
+        }
+        catch (Exception ex)
+        {
+            Program.LogEvent("ERROR", "MainWindow.CopyPreviewSnapshot", ex.Message, ex);
+            SetStatus($"Falha ao copiar snapshot: {ex.Message}");
+        }
+    }
+
+    private RenderTargetBitmap RenderPreviewSnapshot()
+    {
+        var bounds = _previewControl.Bounds;
+        if (bounds.Width < 1 || bounds.Height < 1)
+            throw new InvalidOperationException("A prévia não possui tamanho válido para captura.");
+
+        double scaling = TopLevel.GetTopLevel(_previewControl)?.RenderScaling ?? 1.0;
+        var pixelSize = new PixelSize(
+            Math.Max(1, (int)Math.Ceiling(bounds.Width * scaling)),
+            Math.Max(1, (int)Math.Ceiling(bounds.Height * scaling)));
+        var bitmap = new RenderTargetBitmap(pixelSize, new Vector(96 * scaling, 96 * scaling));
+        bitmap.Render(_previewControl);
+        return bitmap;
+    }
+
+    private void OpenFullscreenVideoPreview()
+    {
+        var fullscreenPreview = new VideoPreviewControl
+        {
+            Project = Project,
+            SelectedClip = _previewControl.SelectedClip,
+            RustInterop = RustInterop,
+            CppInterop = CppInterop,
+            VideoFxBypassed = _previewFxBypassed,
+            PreviewQuality = _previewControl.PreviewQuality,
+            PreviewResolution = _previewControl.PreviewResolution
         };
+        var fullscreenWindow = new Window
+        {
+            Title = "Neoveg — Video Preview (Esc para fechar)",
+            WindowState = WindowState.FullScreen,
+            Background = new SolidColorBrush(Color.Parse("#080a0f")),
+            Content = fullscreenPreview
+        };
+        fullscreenWindow.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape)
+                fullscreenWindow.Close();
+        };
+        fullscreenWindow.Show();
+    }
 
-        var btnSnapF8 = CreateSquareTextButton("Snap (F8)", Project.SnapEnabled ? "#14532d" : "#1e293b", "#4ade80");
-        ToolTip.SetTip(btnSnapF8, "Atalho F8: Ativar/Desativar Snapping Magnético na Timeline");
-        btnSnapF8.Click += (_, _) => ToggleTimelineSnapping();
+    private void UpdatePreviewStatus()
+    {
+        if (_previewControl == null || _subFormatReadout == null)
+            return;
 
-        barStack.Children.Add(btnAddV);
-        barStack.Children.Add(btnAddA);
-        barStack.Children.Add(btnShrink);
-        barStack.Children.Add(btnExpand);
-        barStack.Children.Add(btnGroupAv);
-        barStack.Children.Add(btnUngroup);
-        barStack.Children.Add(btnSplit);
-        barStack.Children.Add(btnAutoRipple);
-        barStack.Children.Add(btnSnapF8);
-        barStack.Children.Add(btnRamPreview);
-        barStack.Children.Add(btnSelPrerender);
-        barStack.Children.Add(btnMarker);
-        barStack.Children.Add(btnDfToggle);
+        int projectWidth = Math.Max(1, Project.Width);
+        int projectHeight = Math.Max(1, Project.Height);
+        double previewWidth;
+        double previewHeight;
+        switch (_previewControl.PreviewResolution)
+        {
+            case "Full":
+                previewWidth = projectWidth;
+                previewHeight = projectHeight;
+                break;
+            case "Half":
+                previewWidth = projectWidth / 2.0;
+                previewHeight = projectHeight / 2.0;
+                break;
+            case "Quarter":
+                previewWidth = projectWidth / 4.0;
+                previewHeight = projectHeight / 4.0;
+                break;
+            default:
+                double scaling = TopLevel.GetTopLevel(_previewControl)?.RenderScaling ?? 1.0;
+                double availableWidth = Math.Max(1.0, _previewControl.Bounds.Width * scaling);
+                double availableHeight = Math.Max(1.0, _previewControl.Bounds.Height * scaling);
+                double aspect = projectWidth * Math.Max(0.01, Project.PixelAspectRatio) / projectHeight;
+                previewWidth = Math.Min(projectWidth, Math.Min(availableWidth, availableHeight * aspect));
+                previewHeight = previewWidth / aspect;
+                break;
+        }
 
-        bar.Child = barStack;
-        Grid.SetRow(bar, 0);
-        outerGrid.Children.Add(bar);
+        int bitsPerPixel = Project.PixelFormat.Contains("Floating", StringComparison.OrdinalIgnoreCase) ? 128 : 32;
+        _subFormatReadout.Text =
+            $"Project: {projectWidth}x{projectHeight}x{bitsPerPixel}, {Project.Fps:0.000} fps  |  " +
+            $"Preview: {(int)Math.Round(previewWidth)}x{(int)Math.Round(previewHeight)} " +
+            $"({ _previewControl.PreviewQuality })";
+    }
 
-        // Split between Left Track Headers (330px) and Right Timeline Canvas (*)
+    private static string PreviewResolutionForQuality(string quality) => quality switch
+    {
+        "Draft" => "Quarter",
+        "Preview" => "Half",
+        "Good" or "Best" => "Full",
+        _ => "Auto"
+    };
+
+    /// <summary>
+    /// Preview overlay toggles (all disabled on startup): shared by the Preview toolbar dropdown and View menu.
+    /// </summary>
+    private List<Control> BuildPreviewOverlayMenuItems()
+    {
+        MenuItem Toggle(string header, bool isChecked, Action toggle)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = isChecked
+            };
+            item.Click += (_, _) =>
+            {
+                toggle();
+                _previewControl.InvalidateVisual();
+            };
+            return item;
+        }
+
+        return new List<Control>
+        {
+            Toggle("Grade de Terços", Project.ShowGrid, () => Project.ShowGrid = !Project.ShowGrid),
+            Toggle("Áreas Seguras (Safe Areas)", Project.ShowSafeAreas, () => Project.ShowSafeAreas = !Project.ShowSafeAreas),
+            Toggle("Timecode e Resolução (HUD)", _previewControl.ShowHudOverlay || Project.ShowPreviewHud, () =>
+            {
+                bool next = !(_previewControl.ShowHudOverlay || Project.ShowPreviewHud);
+                _previewControl.ShowHudOverlay = next;
+                Project.ShowPreviewHud = next;
+            }),
+            Toggle("Quadro Interativo Pan/Crop ('F')", _previewControl.ShowPanCropGizmo, () => _previewControl.ShowPanCropGizmo = !_previewControl.ShowPanCropGizmo),
+            Toggle("Rótulos de Geradores e FX", _previewControl.ShowClipOverlayLabels, () => _previewControl.ShowClipOverlayLabels = !_previewControl.ShowClipOverlayLabels),
+            Toggle("Split-Screen (FX Bypass)", Project.SplitScreenBypass, () => Project.SplitScreenBypass = !Project.SplitScreenBypass),
+            new Separator(),
+            Toggle("Barra de Informações do Vídeo", _previewInfoStrip?.IsVisible == true, () =>
+            {
+                if (_previewInfoStrip != null)
+                    _previewInfoStrip.IsVisible = !_previewInfoStrip.IsVisible;
+            })
+        };
+    }
+
+    private DetachableDockPanel BuildMasterMixerDock()
+    {
+        _masterBusView.Project = Project;
+        _masterBusView.RustInterop = RustInterop;
+        _masterBusView.IsPlaying = _isPlaying;
+        return WrapInDockPanel("Master Bus", _masterBusView);
+    }
+
+    private DetachableDockPanel BuildTimelineWorkspace()
+    {
+        // Split between Left Track Headers and Right Timeline Canvas (*)
         var splitGrid = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("340,4,*")
@@ -1262,34 +1562,46 @@ public sealed class MainWindow : Window
 
         var leftCol = new Grid
         {
-            RowDefinitions = new RowDefinitions($"{MultiTrackTimelineControl.TotalHeaderHeight},*"),
+            RowDefinitions = new RowDefinitions($"{MultiTrackTimelineControl.TotalHeaderHeight},*,24"),
             Background = new SolidColorBrush(Color.Parse("#151a24"))
         };
 
+        // VEGAS Pro time display above the track list (cursor position)
         var hdrTopBanner = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#181e29")),
+            Background = new SolidColorBrush(Color.Parse("#0b0f17")),
             BorderBrush = new SolidColorBrush(Color.Parse("#2e3846")),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(8, 0),
-            Child = new TextBlock
-            {
-                Text = "TRACK HEADERS (✎ Renomear • G Grupo • -/+ Altura • M/S)",
-                FontSize = 9.5,
-                FontWeight = FontWeight.Bold,
-                Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            Child = _bigSmpteReadout
         };
+        ToolTip.SetTip(hdrTopBanner, "Posição do Cursor (Timecode SMPTE)");
         Grid.SetRow(hdrTopBanner, 0);
         leftCol.Children.Add(hdrTopBanner);
 
         var trackScroll = new ScrollViewer
         {
-            Content = _trackHeadersStack
+            Content = _trackHeadersStack,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden
         };
+        _trackHeadersScroll = trackScroll;
+        trackScroll.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == nameof(ScrollViewer.Offset) && !_syncingTimelineVerticalScroll)
+                SetTimelineVerticalOffset(trackScroll.Offset.Y);
+        };
+        trackScroll.SizeChanged += (_, _) => RefreshTimelineScrollBars();
         Grid.SetRow(trackScroll, 1);
         leftCol.Children.Add(trackScroll);
+        var trackHeaderFooter = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#111620")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#263042")),
+            BorderThickness = new Thickness(0, 1, 0, 0)
+        };
+        Grid.SetRow(trackHeaderFooter, 2);
+        leftCol.Children.Add(trackHeaderFooter);
 
         Grid.SetColumn(leftCol, 0);
         splitGrid.Children.Add(leftCol);
@@ -1297,26 +1609,206 @@ public sealed class MainWindow : Window
         splitGrid.Children.Add(CreateVerticalSplitter(1));
 
         // Dedicated 60 FPS Playhead Overlay Canvas stacked over MultiTrackTimelineControl
-        var timelineCanvasOverlayHost = new Grid();
-        timelineCanvasOverlayHost.Children.Add(_timelineControl);
-        timelineCanvasOverlayHost.Children.Add(_playheadOverlay);
+        var timelineCanvasOverlayHost = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,14"),
+            RowDefinitions = new RowDefinitions($"{MultiTrackTimelineControl.TotalHeaderHeight},*,24")
+        };
+        var canvasHost = new Grid();
+        Grid.SetRowSpan(canvasHost, 2);
+        Grid.SetColumn(canvasHost, 0);
+        timelineCanvasOverlayHost.Children.Add(canvasHost);
+        canvasHost.Children.Add(_timelineControl);
+        canvasHost.Children.Add(_playheadOverlay);
+
+        var verticalScrollBar = new Avalonia.Controls.Primitives.ScrollBar
+        {
+            Orientation = Orientation.Vertical,
+            Minimum = 0,
+            Maximum = 0,
+            ViewportSize = 0,
+            SmallChange = 24,
+            LargeChange = 100,
+            Width = 14,
+            Background = new SolidColorBrush(Color.Parse("#111620")),
+            Foreground = new SolidColorBrush(Color.Parse("#64748b")),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+        _timelineVerticalScrollBar = verticalScrollBar;
+        verticalScrollBar.ValueChanged += (_, e) => SetTimelineVerticalOffset(e.NewValue);
+        var verticalScrollBarHost = new Border
+        {
+            CornerRadius = new CornerRadius(0),
+            Background = new SolidColorBrush(Color.Parse("#111620")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#263042")),
+            BorderThickness = new Thickness(1, 0, 0, 0),
+            Child = verticalScrollBar
+        };
+        Grid.SetRow(verticalScrollBarHost, 1);
+        Grid.SetColumn(verticalScrollBarHost, 1);
+        timelineCanvasOverlayHost.Children.Add(verticalScrollBarHost);
+
+        var horizontalControls = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("24,*,24"),
+            Background = new SolidColorBrush(Color.Parse("#111620"))
+        };
+        var zoomOutButton = CreateTimelineScrollButton("-", "Diminuir zoom da linha do tempo", () => ZoomTimeline(1.0 / 1.25));
+        Grid.SetColumn(zoomOutButton, 0);
+        horizontalControls.Children.Add(zoomOutButton);
+
+        var horizontalScrollBar = new Avalonia.Controls.Primitives.ScrollBar
+        {
+            Orientation = Orientation.Horizontal,
+            Minimum = 0,
+            Maximum = 0,
+            ViewportSize = 0,
+            SmallChange = 1,
+            LargeChange = 10,
+            Height = 16,
+            Background = new SolidColorBrush(Color.Parse("#111620")),
+            Foreground = new SolidColorBrush(Color.Parse("#64748b")),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _timelineHorizontalScrollBar = horizontalScrollBar;
+        horizontalScrollBar.ValueChanged += (_, e) => SetTimelineHorizontalOffset(e.NewValue);
+        var horizontalScrollBarHost = new Border
+        {
+            CornerRadius = new CornerRadius(0),
+            Background = new SolidColorBrush(Color.Parse("#111620")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#263042")),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Child = horizontalScrollBar
+        };
+        Grid.SetColumn(horizontalScrollBarHost, 1);
+        horizontalControls.Children.Add(horizontalScrollBarHost);
+
+        var zoomInButton = CreateTimelineScrollButton("+", "Aumentar zoom da linha do tempo", () => ZoomTimeline(1.25));
+        Grid.SetColumn(zoomInButton, 2);
+        horizontalControls.Children.Add(zoomInButton);
+        Grid.SetRow(horizontalControls, 2);
+        timelineCanvasOverlayHost.Children.Add(horizontalControls);
+
+        timelineCanvasOverlayHost.SizeChanged += (_, _) => RefreshTimelineScrollBars();
         Grid.SetColumn(timelineCanvasOverlayHost, 2);
         splitGrid.Children.Add(timelineCanvasOverlayHost);
 
-        Grid.SetRow(splitGrid, 1);
-        outerGrid.Children.Add(splitGrid);
+        RefreshTimelineScrollBars();
+        return WrapInDockPanel("Timeline", splitGrid);
+    }
 
-        return new Border
+    private Button CreateTimelineScrollButton(string text, string tooltip, Action onClick)
+    {
+        var button = new Button
         {
+            Content = text,
+            Width = 23,
+            Height = 21,
+            Padding = new Thickness(0),
+            FontSize = 13,
+            FontWeight = FontWeight.Bold,
+            CornerRadius = new CornerRadius(0),
+            Background = new SolidColorBrush(Color.Parse("#1b2431")),
+            Foreground = new SolidColorBrush(Color.Parse("#cbd5e1")),
             BorderBrush = new SolidColorBrush(Color.Parse("#263042")),
             BorderThickness = new Thickness(1),
-            Child = outerGrid
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
+        ToolTip.SetTip(button, tooltip);
+        button.Click += (_, _) => onClick();
+        return button;
+    }
+
+    private void RefreshTimelineScrollBars()
+    {
+        if (_timelineHorizontalScrollBar == null ||
+            _timelineVerticalScrollBar == null ||
+            _trackHeadersScroll == null)
+            return;
+
+        double duration = GetProjectDuration();
+        double visibleSeconds = _timelineControl.Bounds.Width / Math.Max(20.0, _timelineControl.PixelsPerSecond);
+        double maxHorizontalOffset = Math.Max(0.0, duration - visibleSeconds);
+        _timelineHorizontalScrollBar.ViewportSize = Math.Min(duration, visibleSeconds);
+        _timelineHorizontalScrollBar.Maximum = maxHorizontalOffset;
+        SetTimelineHorizontalOffset(_timelineControl.HorizontalOffsetSeconds);
+
+        double totalTrackHeight = Project.Tracks.Sum(track => Math.Clamp(track.Height, 46.0, 220.0));
+        double visibleTrackHeight = _trackHeadersScroll.Viewport.Height;
+        _timelineVerticalScrollBar.ViewportSize = Math.Min(totalTrackHeight, visibleTrackHeight);
+        _timelineVerticalScrollBar.Maximum = Math.Max(0.0, totalTrackHeight - visibleTrackHeight);
+        SetTimelineVerticalOffset(_timelineControl.VerticalOffset);
+    }
+
+    private void SetTimelineHorizontalOffset(double offsetSeconds)
+    {
+        if (_timelineHorizontalScrollBar == null)
+            return;
+
+        double offset = Math.Clamp(offsetSeconds, 0.0, _timelineHorizontalScrollBar.Maximum);
+        _timelineHorizontalScrollBar.Value = offset;
+        _timelineControl.HorizontalOffsetSeconds = offset;
+        _playheadOverlay.HorizontalOffsetSeconds = offset;
+        _timelineControl.InvalidateVisual();
+        _playheadOverlay.InvalidateVisual();
+    }
+
+    private void SetTimelineVerticalOffset(double offset)
+    {
+        if (_timelineVerticalScrollBar == null || _trackHeadersScroll == null || _syncingTimelineVerticalScroll)
+            return;
+
+        _syncingTimelineVerticalScroll = true;
+        try
+        {
+            double value = Math.Clamp(offset, 0.0, _timelineVerticalScrollBar.Maximum);
+            _timelineVerticalScrollBar.Value = value;
+            _trackHeadersScroll.Offset = new Vector(_trackHeadersScroll.Offset.X, value);
+            _timelineControl.VerticalOffset = value;
+            _timelineControl.InvalidateVisual();
+        }
+        finally
+        {
+            _syncingTimelineVerticalScroll = false;
+        }
+    }
+
+    /// <summary>
+    /// Track Header Indicator: only the selected track's dot blinks (white ⇄ black, 500ms).
+    /// Unselected tracks keep a static neutral dot; with no selected track the blink timer is stopped.
+    /// </summary>
+    private void UpdateTrackSelectionIndicators()
+    {
+        string? selectedId = _timelineControl.SelectedTrackId;
+        bool hasSelection = selectedId != null && _trackBlinkDots.ContainsKey(selectedId);
+
+        foreach (var (trackId, dot) in _trackBlinkDots)
+        {
+            dot.Fill = hasSelection && trackId == selectedId ? _trackBlinkBrush : TrackIndicatorIdleBrush;
+        }
+
+        if (hasSelection)
+        {
+            if (!_trackBlinkTimer.IsEnabled)
+            {
+                _trackBlinkBrush.Color = Colors.White;
+                _trackBlinkTimer.Start();
+            }
+        }
+        else
+        {
+            _trackBlinkTimer.Stop();
+            _trackBlinkBrush.Color = Colors.White;
+        }
     }
 
     public void RebuildTrackHeadersUI()
     {
         _trackHeadersStack.Children.Clear();
+        _trackBlinkDots.Clear();
 
         string? prevAccentHex = null;
         for (int idx = 0; idx < Project.Tracks.Count; idx++)
@@ -1385,23 +1877,44 @@ public sealed class MainWindow : Window
             // Top Row: Index Badge + Inline Rename TextBox + [🎨] + [✥ Motion] + [FX] + [✎] + [G] + [-] + [+] + [M] + [S]
             var topGrid = new Grid
             {
-                ColumnDefinitions = new ColumnDefinitions("24,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto")
+                ColumnDefinitions = new ColumnDefinitions("32,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto")
             };
+
+            // Track Number Box: indicator dot (blinks white ⇄ black only on the selected track) + track number
+            var blinkDot = new Avalonia.Controls.Shapes.Ellipse
+            {
+                Width = 5,
+                Height = 5,
+                Fill = TrackIndicatorIdleBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _trackBlinkDots[track.Id] = blinkDot;
 
             var numBadge = new Border
             {
                 Background = new SolidColorBrush(accentCol),
-                Width = 20,
+                Width = 28,
                 Height = 20,
                 CornerRadius = new CornerRadius(2),
-                Child = new TextBlock
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Child = new StackPanel
                 {
-                    Text = (idx + 1).ToString(),
-                    FontSize = 10,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = Brushes.White,
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 3,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Children =
+                    {
+                        blinkDot,
+                        new TextBlock
+                        {
+                            Text = (idx + 1).ToString(),
+                            FontSize = 10,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = Brushes.White,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    }
                 }
             };
             Grid.SetColumn(numBadge, 0);
@@ -1438,17 +1951,17 @@ public sealed class MainWindow : Window
             Grid.SetColumn(txtName, 1);
             topGrid.Children.Add(txtName);
 
-            var btnColor = CreateMiniTrackButton("🎨", $"Cor da Faixa / Track Color ({accentHex})", "#1e293b", accentHex);
+            var btnColor = CreateMiniTrackButton(NeovegIcons.TrackColor, $"Cor da Faixa / Track Color ({accentHex})", "#1e293b", accentHex);
             btnColor.Click += (_, _) => OpenTrackColorPickerDialog(track, capturedIdx);
             Grid.SetColumn(btnColor, 2);
             topGrid.Children.Add(btnColor);
 
-            var btnTrackMotion = CreateMiniTrackButton("✥", "Track Motion (Movimento 2D/3D da Faixa)", "#1e293b", "#38bdf8");
+            var btnTrackMotion = CreateMiniTrackButton(NeovegIcons.TrackMotion, "Track Motion (Movimento 2D/3D da Faixa)", "#1e293b", "#38bdf8");
             btnTrackMotion.Click += (_, _) => OpenTrackMotionDialog(track);
             Grid.SetColumn(btnTrackMotion, 3);
             topGrid.Children.Add(btnTrackMotion);
 
-            var btnTrackFx = CreateMiniTrackButton("FX", $"Track FX ({track.Fx.Count} ativo(s) — Media FX -> Take FX -> Event FX -> Track FX -> Master FX)", track.Fx.Count > 0 ? "#065f46" : "#1e293b", "#4ade80");
+            var btnTrackFx = CreateMiniTrackButton(NeovegIcons.Fx, $"Track FX ({track.Fx.Count} ativo(s) — Media FX -> Take FX -> Event FX -> Track FX -> Master FX)", track.Fx.Count > 0 ? "#065f46" : "#1e293b", "#4ade80");
             btnTrackFx.Click += (_, _) =>
             {
                 var firstClip = track.Clips.FirstOrDefault() ?? new TimelineClip { Name = track.Name };
@@ -1457,7 +1970,7 @@ public sealed class MainWindow : Window
             Grid.SetColumn(btnTrackFx, 4);
             topGrid.Children.Add(btnTrackFx);
 
-            var btnRename = CreateMiniTrackButton("✎", "Renomear esta faixa de áudio/vídeo", "#1e293b", "#38bdf8");
+            var btnRename = CreateMiniTrackButton(NeovegIcons.Rename, "Renomear esta faixa de áudio/vídeo", "#1e293b", "#38bdf8");
             btnRename.Click += (_, _) =>
             {
                 txtName.Focus();
@@ -1467,12 +1980,12 @@ public sealed class MainWindow : Window
             Grid.SetColumn(btnRename, 5);
             topGrid.Children.Add(btnRename);
 
-            var btnGroup = CreateMiniTrackButton("G", hasGroup ? $"Agrupada ({track.GroupName}) — Clique para desagrupar" : "Agrupar faixa V+A", hasGroup ? "#78350f" : "#1e293b", hasGroup ? "#facc15" : "#cbd5e1");
+            var btnGroup = CreateMiniTrackButton(NeovegIcons.Group, hasGroup ? $"Agrupada ({track.GroupName}) — Clique para desagrupar" : "Agrupar faixa V+A", hasGroup ? "#78350f" : "#1e293b", hasGroup ? "#facc15" : "#cbd5e1");
             btnGroup.Click += (_, _) => ToggleSingleTrackGroup(track);
             Grid.SetColumn(btnGroup, 6);
             topGrid.Children.Add(btnGroup);
 
-            var btnDecH = CreateMiniTrackButton("-", "Diminuir altura desta faixa", "#1e293b", "#cbd5e1");
+            var btnDecH = CreateMiniTrackButton(NeovegIcons.TrackHeightShrink, "Diminuir altura desta faixa", "#1e293b", "#cbd5e1");
             btnDecH.Click += (_, _) =>
             {
                 track.Height = Math.Clamp(track.Height - 14.0, 46.0, 220.0);
@@ -1482,7 +1995,7 @@ public sealed class MainWindow : Window
             Grid.SetColumn(btnDecH, 7);
             topGrid.Children.Add(btnDecH);
 
-            var btnIncH = CreateMiniTrackButton("+", "Aumentar altura desta faixa", "#1e293b", "#cbd5e1");
+            var btnIncH = CreateMiniTrackButton(NeovegIcons.TrackHeightGrow, "Aumentar altura desta faixa", "#1e293b", "#cbd5e1");
             btnIncH.Click += (_, _) =>
             {
                 track.Height = Math.Clamp(track.Height + 14.0, 46.0, 220.0);
@@ -1492,7 +2005,7 @@ public sealed class MainWindow : Window
             Grid.SetColumn(btnIncH, 8);
             topGrid.Children.Add(btnIncH);
 
-            var btnMute = CreateMiniTrackButton("M", "Mute Track (Sincronizado no Grupo V+A)", track.Muted ? "#dc2626" : "#1e293b", "#ffffff");
+            var btnMute = CreateMiniTrackButton(NeovegIcons.Mute, "Mute Track (Sincronizado no Grupo V+A)", track.Muted ? "#dc2626" : "#1e293b", "#ffffff");
             btnMute.Click += (_, _) =>
             {
                 bool nextMute = !track.Muted;
@@ -1508,7 +2021,7 @@ public sealed class MainWindow : Window
             Grid.SetColumn(btnMute, 9);
             topGrid.Children.Add(btnMute);
 
-            var btnSolo = CreateMiniTrackButton("S", "Solo Track (Sincronizado no Grupo V+A)", track.Solo ? "#d97706" : "#1e293b", "#ffffff");
+            var btnSolo = CreateMiniTrackButton(NeovegIcons.Solo, "Solo Track (Sincronizado no Grupo V+A)", track.Solo ? "#d97706" : "#1e293b", "#ffffff");
             btnSolo.Click += (_, _) =>
             {
                 bool nextSolo = !track.Solo;
@@ -1576,6 +2089,7 @@ public sealed class MainWindow : Window
                     lblLevel.Text = track.Type == "video" ? $"Opac: {(int)(track.Level * 100)}%" : $"Vol: {(int)(track.Level * 100)}%";
                     _timelineControl.InvalidateVisual();
                     _previewControl.InvalidateVisual();
+                    _masterBusView.RefreshTelemetry();
                 }
             };
 
@@ -1606,6 +2120,7 @@ public sealed class MainWindow : Window
                     {
                         track.Pan = sldPan.Value;
                         lblPan.Text = $"Pan: {track.Pan:+0.0;-0.0;0.0}";
+                        _masterBusView.RefreshTelemetry();
                     }
                 };
                 botStack.Children.Add(lblPan);
@@ -1618,8 +2133,19 @@ public sealed class MainWindow : Window
 
             rowBorder.Child = outerHeaderGrid;
             rowBorder.ContextMenu = BuildTrackHeaderContextMenu(track, capturedIdx);
+            // Clicking anywhere on the header (including its buttons/name box) selects the track
+            rowBorder.AddHandler(PointerPressedEvent, (_, _) =>
+            {
+                if (_timelineControl.SelectedTrackId == track.Id) return;
+                _timelineControl.SelectedTrackId = track.Id;
+                UpdateTrackSelectionIndicators();
+                _timelineControl.InvalidateVisual();
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
             _trackHeadersStack.Children.Add(rowBorder);
         }
+
+        UpdateTrackSelectionIndicators();
+        RefreshTimelineScrollBars();
     }
 
     private ContextMenu BuildTrackHeaderContextMenu(TimelineTrack track, int trackIndex)
@@ -1809,18 +2335,52 @@ public sealed class MainWindow : Window
         win.Show(this);
     }
 
+    /// <summary>
+    /// Opens the Inspector (active event info + FX chain) as a tool window from the Tools menu.
+    /// Event Pan/Crop is no longer embedded beside the preview: it opens only from the video event header button.
+    /// </summary>
+    public void OpenInspectorWindow()
+    {
+        if (_inspectorWindow != null)
+        {
+            _inspectorWindow.Activate();
+            return;
+        }
+
+        RefreshInspectorUI();
+        var win = new Window
+        {
+            Title = Localization.T("Tab.Inspector", "Inspector"),
+            Width = 380,
+            Height = 520,
+            MinWidth = 280,
+            MinHeight = 260,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.Parse(CurrentTheme.DockPanelBg)),
+            Foreground = new SolidColorBrush(Color.Parse(CurrentTheme.TextPrimary)),
+            Content = _inspectorBodyHost
+        };
+        win.Closing += (_, _) =>
+        {
+            win.Content = null;
+            _inspectorWindow = null;
+        };
+        _inspectorWindow = win;
+        win.Show(this);
+    }
+
     private void RefreshInspectorUI()
     {
         var loc = Localization;
         var clip = _previewControl.SelectedClip ?? Project.Tracks.SelectMany(t => t.Clips).FirstOrDefault();
-        var stack = new StackPanel { Spacing = 8 };
+        var stack = new StackPanel { Spacing = 8, Margin = new Thickness(8) };
 
         if (clip == null)
         {
-            stack.Margin = new Thickness(8);
             stack.Children.Add(new TextBlock
             {
-                Text = loc.T("Inspector.NoSelection", "Nenhum evento selecionado na timeline.\nInsira uma mídia, gerador ou abra o Projeto Demo para editar Pan/Crop e FX."),
+                Text = loc.T("Inspector.NoSelection", "Nenhum evento selecionado na timeline."),
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
                 TextWrapping = TextWrapping.Wrap
@@ -1829,87 +2389,46 @@ public sealed class MainWindow : Window
             return;
         }
 
-        clip.PanCrop.SourceWidth = Math.Max(16, Project.Width);
-        clip.PanCrop.SourceHeight = Math.Max(16, Project.Height);
-        clip.PanCrop.SyncPixelsFromNormalized();
-
-        // Build embedded 3-Zone Event Pan/Crop Workspace directly inside the Upper Center Dock + Pop-out button
-        var embeddedPanCropHost = new EventPanCropWindow(
-            Project,
-            clip,
-            RustInterop,
-            CppInterop,
-            () =>
-            {
-                PrerenderService.InvalidateCacheRange(clip.Start, clip.End);
-                UpdateTimecodeAndPreview();
-                _timelineControl.InvalidateVisual();
-            },
-            deferWorkspaceBuild: true);
-
-        var panCropDockGrid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*")
-        };
-
-        var detachBar = new Border
-        {
-            Background = new SolidColorBrush(Color.Parse("#111620")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#2a3446")),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(6, 3),
-            Child = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = $"{loc.T("Inspector.ActiveEvent", "EVENTO ATIVO:")} {clip.Name}",
-                        FontWeight = FontWeight.Bold,
-                        FontSize = 10.5,
-                        Foreground = new SolidColorBrush(Color.Parse("#38bdf8")),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        [Grid.ColumnProperty] = 0
-                    },
-                    CreateActionBtn(loc.T("Inspector.OpenFullPanCrop", "Destacar Janela Event Pan/Crop [↗]"), "#2563eb", "#ffffff", () => OpenEventPanCropWindow(clip), 1)
-                }
-            }
-        };
-        Grid.SetRow(detachBar, 0);
-        panCropDockGrid.Children.Add(detachBar);
-
-        var workspace3Zones = embeddedPanCropHost.CreateDetachableWorkspaceControl();
-        Grid.SetRow(workspace3Zones, 1);
-        panCropDockGrid.Children.Add(workspace3Zones);
-
-        // Tab 2: Inspector & Active FX Chain
-        stack.Margin = new Thickness(8);
         stack.Children.Add(new TextBlock
         {
             Text = $"{loc.T("Inspector.ActiveEvent", "EVENTO ATIVO:")} {clip.Name}",
             FontWeight = FontWeight.Bold,
             FontSize = 11.5,
+            TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
         });
 
-        var btnOpenFullPanCrop = CreateSquareTextButton(loc.T("Inspector.OpenFullPanCrop", "Abrir Event Pan/Crop Completo (Janela Destacável) [↗]"), "#2563eb", "#ffffff");
-        btnOpenFullPanCrop.Click += (_, _) => OpenEventPanCropWindow(clip);
-        stack.Children.Add(btnOpenFullPanCrop);
-
-        var btnResetCrop = CreateSquareTextButton(loc.T("Inspector.ResetCrop", "Restaurar Quadro 'F' (1920x1080 • 0.0°)"), "#1e293b", "#e2e8f0");
-        btnResetCrop.Click += (_, _) =>
+        stack.Children.Add(new TextBlock
         {
-            clip.PanCrop.Width = clip.PanCrop.SourceWidth;
-            clip.PanCrop.Height = clip.PanCrop.SourceHeight;
-            clip.PanCrop.XCenter = clip.PanCrop.SourceWidth * 0.5;
-            clip.PanCrop.YCenter = clip.PanCrop.SourceHeight * 0.5;
-            clip.PanCrop.Rotation = 0.0;
-            clip.PanCrop.SyncNormalizedFromPixels();
-            _previewControl.InvalidateVisual();
-            RefreshInspectorUI();
-        };
-        stack.Children.Add(btnResetCrop);
+            Text = $"{clip.Start:0.000}s – {clip.End:0.000}s • {clip.Duration:0.000}s • Fade In {clip.FadeIn:0.00}s / Out {clip.FadeOut:0.00}s",
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.Parse("#94a3b8"))
+        });
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        bool isVideoClip = clip.MediaType != "audio";
+        if (isVideoClip)
+        {
+            actions.Children.Add(NeovegIcons.CreateButton(NeovegIcons.PanCrop, loc.T("Inspector.OpenFullPanCrop", "Event Pan/Crop..."), () => OpenEventPanCropWindow(clip)));
+            actions.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Restore, loc.T("Inspector.ResetCrop", "Restaurar Quadro 'F' Padrão"), () =>
+            {
+                clip.PanCrop.Width = clip.PanCrop.SourceWidth;
+                clip.PanCrop.Height = clip.PanCrop.SourceHeight;
+                clip.PanCrop.XCenter = clip.PanCrop.SourceWidth * 0.5;
+                clip.PanCrop.YCenter = clip.PanCrop.SourceHeight * 0.5;
+                clip.PanCrop.Rotation = 0.0;
+                clip.PanCrop.SyncNormalizedFromPixels();
+                _previewControl.InvalidateVisual();
+                RefreshInspectorUI();
+            }));
+        }
+        var ownerTrack = Project.Tracks.FirstOrDefault(t => t.Clips.Contains(clip));
+        if (ownerTrack != null)
+        {
+            actions.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Fx, ownerTrack.Type == "audio" ? "Audio Event FX..." : "Video Event FX...", () => OpenClipFxChainDialog(clip, ownerTrack)));
+        }
+        stack.Children.Add(actions);
 
         stack.Children.Add(new TextBlock
         {
@@ -1937,49 +2456,7 @@ public sealed class MainWindow : Window
             });
         }
 
-        var btnAdvWin = CreateSquareTextButton(loc.T("Inspector.OpenAdvSettings", "Abrir Configurações Avançadas (Geral / Idioma)..."), "#0f172a", "#38bdf8");
-        btnAdvWin.Margin = new Thickness(0, 8, 0, 0);
-        btnAdvWin.Click += (_, _) => OpenAdvancedSettingsDialog();
-        stack.Children.Add(btnAdvWin);
-
-        var centerTabs = new TabControl
-        {
-            Padding = new Thickness(0),
-            ItemsSource = new[]
-            {
-                new TabItem
-                {
-                    Header = loc.T("Tab.PanCrop", "Event Pan/Crop (3 Zonas)"),
-                    Content = panCropDockGrid
-                },
-                new TabItem
-                {
-                    Header = $"{loc.T("Tab.Inspector", "Inspector")} & FX ({clip.Fx.Count})",
-                    Content = new ScrollViewer { Content = stack }
-                }
-            }
-        };
-
-        _inspectorBodyHost.Content = centerTabs;
-    }
-
-    private static Button CreateActionBtn(string text, string bg, string fg, Action onClick, int gridCol)
-    {
-        var b = new Button
-        {
-            Content = text,
-            FontSize = 9.5,
-            FontWeight = FontWeight.Bold,
-            Background = new SolidColorBrush(Color.Parse(bg)),
-            Foreground = new SolidColorBrush(Color.Parse(fg)),
-            BorderBrush = new SolidColorBrush(Color.Parse("#475569")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(0),
-            Padding = new Thickness(7, 2),
-            [Grid.ColumnProperty] = gridCol
-        };
-        b.Click += (_, _) => onClick();
-        return b;
+        _inspectorBodyHost.Content = new ScrollViewer { Content = stack };
     }
 
     public void LoadProjectState(VegasProject newProject, string statusMsg)
@@ -2016,14 +2493,17 @@ public sealed class MainWindow : Window
         _previewControl.Project = Project;
         _previewControl.SelectedClip = Project.Tracks.SelectMany(t => t.Clips).FirstOrDefault();
         _scopeControl.Project = Project;
+        _masterBusView.Project = Project;
         _timelineControl.Project = Project;
         _timelineControl.SelectedClipId = _previewControl.SelectedClip?.Id;
         _timelineControl.RecalculateCrossfades();
         RebuildProjectMediaBinUI();
         RebuildTrackHeadersUI();
         RefreshInspectorUI();
+        UpdateToolbarToggleStates();
         UpdateTimecodeAndPreview();
         _timelineControl.InvalidateVisual();
+        Title = $"{Project.Name} - Neoveg";
         SetStatus(statusMsg);
     }
 
@@ -2056,13 +2536,17 @@ public sealed class MainWindow : Window
         if (_projectMediaStack == null) return;
         _projectMediaStack.Children.Clear();
 
-        var btnRelinkBanner = CreateSquareTextButton(
-            "🔍 Localizar / Relinkar Mídias Ausentes (Missing Media Relinker)...",
-            "#1e293b",
-            "#38bdf8");
-        btnRelinkBanner.HorizontalAlignment = HorizontalAlignment.Stretch;
-        btnRelinkBanner.Click += (_, _) => OpenMissingMediaDialogForCurrentProject(forceDemoIfNoneMissing: true);
-        _projectMediaStack.Children.Add(btnRelinkBanner);
+        // Project Media toolbar (icon-only): Import Media • Search & Relink Missing Media
+        _projectMediaStack.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children =
+            {
+                NeovegIcons.CreateButton(NeovegIcons.ImportMedia, Localization.T("Toolbar.Tooltip.Import", "Importar Mídia"), async () => await OpenImportMediaDialogAsync(), size: 22),
+                NeovegIcons.CreateButton(NeovegIcons.Search, "Localizar / Relinkar Mídias Ausentes...", () => OpenMissingMediaDialogForCurrentProject(forceDemoIfNoneMissing: false), size: 22)
+            }
+        });
 
         // 1. Show Project.MediaPool entries first (including online/offline status & updated paths)
         if (Project?.MediaPool != null && Project.MediaPool.Count > 0)
@@ -2108,19 +2592,33 @@ public sealed class MainWindow : Window
     {
         string targetType = asset.Type == "audio" ? "audio" : "video";
         var track = Project.Tracks.FirstOrDefault(t => t.Type == targetType && !t.Locked);
-        if (track == null) return;
+        if (track == null)
+        {
+            // Empty project (no tracks): VEGAS creates the matching track when media is added
+            AddTrack(targetType);
+            track = Project.Tracks.FirstOrDefault(t => t.Type == targetType && !t.Locked);
+            if (track == null) return;
+        }
+
+        // Imported media (audio/video/image) gets automatic fades only when enabled in Edit > Preferences
+        bool isImportedMedia = asset.Type is not ("generator" or "title");
+        bool autoFade = isImportedMedia && (Localization.AutoFadeOnImport || Project.AutoFadeOnImport);
+        double autoFadeSec = autoFade ? Math.Min(0.35, asset.Duration * 0.25) : 0.0;
 
         var clip = new TimelineClip
         {
             Name = asset.Name,
             MediaId = asset.Id,
-            MediaFile = asset.FileName,
+            // Full path so the Rust FFI waveform/.sfk analysis and the Missing Media relinker can find the file
+            MediaFile = !string.IsNullOrWhiteSpace(asset.FilePath) ? asset.FilePath : asset.FileName,
             MediaType = asset.Type,
             GeneratorType = asset.GeneratorType,
             Color = asset.Color,
             TrackAccentColor = track.TrackAccentColor ?? track.Color,
             Start = Math.Round(Project.Playhead, 3),
             Duration = asset.Duration,
+            FadeIn = autoFadeSec,
+            FadeOut = autoFadeSec,
             Peaks = asset.Peaks
         };
         track.Clips.Add(clip);
@@ -2221,6 +2719,7 @@ public sealed class MainWindow : Window
                 _timelineControl.RecalculateCrossfades();
                 RefreshInspectorUI();
                 UpdateTimecodeAndPreview();
+                RefreshTimelineScrollBars();
                 _timelineControl.InvalidateVisual();
                 SetStatus($"Evento \"{found.Name}\" removido{(Project.RippleEnabled ? " com ajuste Auto-Ripple" : "")} (Cache de pré-renderização invalidado no trecho).");
                 return;
@@ -2278,12 +2777,7 @@ public sealed class MainWindow : Window
         _previewControl.InvalidateVisual();
         _timelineControl.InvalidateVisual();
 
-        if (_centerInspectorDockBorder != null)
-        {
-            _centerInspectorDockBorder.BorderBrush = new SolidColorBrush(Color.Parse("#38bdf8"));
-            _centerInspectorDockBorder.BorderThickness = new Thickness(2);
-        }
-
+        // Event Pan/Crop opens exclusively as its own pop-up window (VEGAS Pro event header button)
         OpenEventPanCropWindow(clip);
     }
 
@@ -2490,7 +2984,7 @@ public sealed class MainWindow : Window
                     [Grid.ColumnProperty] = 1
                 });
 
-                var btnRem = CreateSquareTextButton("Remover", "#7f1d1d", "#ffffff");
+                var btnRem = NeovegIcons.CreateButton(NeovegIcons.Delete, "Remover efeito da cadeia", bgHex: "#7f1d1d", fgHex: "#ffffff", size: 22);
                 btnRem.Click += (_, _) =>
                 {
                     targetList.Remove(capturedFx);
@@ -2642,6 +3136,7 @@ public sealed class MainWindow : Window
         _timelineControl.RecalculateCrossfades();
         RefreshInspectorUI();
         UpdateTimecodeAndPreview();
+        RefreshTimelineScrollBars();
         _timelineControl.InvalidateVisual();
         SetStatus($"Evento \"{pasted.Name}\" colado na faixa \"{track.Name}\" em {pasted.Start:0.00}s.");
     }
@@ -2704,6 +3199,7 @@ public sealed class MainWindow : Window
             _timelineControl.RecalculateCrossfades();
             RefreshInspectorUI();
             UpdateTimecodeAndPreview();
+            RefreshTimelineScrollBars();
             _timelineControl.InvalidateVisual();
             SetStatus($"Propriedades do evento \"{clip.Name}\" atualizadas.");
             propWin.Close();
@@ -2786,12 +3282,13 @@ public sealed class MainWindow : Window
         }
         _isPlaying = nextState;
         _scopeControl.IsPlaying = _isPlaying;
+        _masterBusView.IsPlaying = _isPlaying;
         _playheadOverlay.IsPlaying = _isPlaying;
-        _btnPlayPause.Content = _isPlaying ? "Pause" : "Play";
+        NeovegIcons.SetButtonIcon(_btnPlayPause, _isPlaying ? NeovegIcons.Pause : NeovegIcons.Play, filled: true);
         if (_isPlaying) _playbackTimer.Start();
         else _playbackTimer.Stop();
         _playheadOverlay.InvalidateVisual();
-        _scopeControl.InvalidateVisual();
+        _masterBusView.RefreshTelemetry();
     }
 
     public void PlayOrStopAndReturnCursor()
@@ -2815,6 +3312,7 @@ public sealed class MainWindow : Window
     public void ToggleTimelineSnapping()
     {
         Project.SnapEnabled = !Project.SnapEnabled;
+        UpdateToolbarToggleStates();
         _timelineControl.InvalidateVisual();
         SetStatus($"Atalho Vegas [F8]: Snapping Magnético {(Project.SnapEnabled ? "ATIVADO" : "DESATIVADO")}.");
     }
@@ -2863,17 +3361,32 @@ public sealed class MainWindow : Window
         SetStatus("Atalho Vegas [U]: Eventos e faixas desagrupados.");
     }
 
+    /// <summary>
+    /// Toggles a VEGAS Pro dock window between docked and floating (Timeline, Video Preview, Mixer, Trimmer, Project Media).
+    /// </summary>
     public void OpenFloatingOrDockedPanel(string panelName)
     {
-        if (string.Equals(panelName, "Video Preview", StringComparison.OrdinalIgnoreCase))
+        DetachableDockPanel? dock = panelName.ToLowerInvariant() switch
         {
-            PopoutVideoPreviewToMonitor();
+            "timeline" => _dockTimeline,
+            "video preview" => _dockPreview,
+            "audio mixer" or "mixer de áudio" or "master bus" or "mixer" => _dockMixer,
+            "project media" => _dockProjectMedia,
+            _ => null
+        };
+        if (dock != null)
+        {
+            dock.Toggle();
+            SetStatus($"Janela \"{dock.PanelTitle}\" {(dock.IsDetached ? "destacada (feche a janela flutuante para acoplar de volta)" : "acoplada")}.");
             return;
         }
-        if (string.Equals(panelName, "Audio Mixer", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(panelName, "Mixer de Áudio", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(panelName, "Trimmer", StringComparison.OrdinalIgnoreCase) && _leftDockTabs != null && _tabTrimmer != null)
         {
-            PopoutMixerScopesToMonitor();
+            if (_leftDockTabs.Items.Contains(_tabTrimmer))
+            {
+                DetachableDockPanel.UndockTab(_leftDockTabs, _tabTrimmer, "Trimmer", null, null);
+                SetStatus("Trimmer destacado em janela flutuante (feche-a para acoplar de volta).");
+            }
             return;
         }
         if (string.Equals(panelName, "Event Pan/Crop", StringComparison.OrdinalIgnoreCase))
@@ -2979,12 +3492,12 @@ public sealed class MainWindow : Window
             Project.Fps,
             RustInterop,
             _playheadOverlay.ForceDropFrame);
-        _subFormatReadout.Text = $"{Project.Width}x{Project.Height} @{Project.Fps:0.##}p • {Project.ColorSpace}";
+        UpdatePreviewStatus();
         _playheadOverlay.Project = Project;
         _playheadOverlay.PixelsPerSecond = _timelineControl.PixelsPerSecond;
         _playheadOverlay.InvalidateVisual();
         _previewControl.InvalidateVisual();
-        _scopeControl.InvalidateVisual();
+        _masterBusView.RefreshTelemetry();
     }
 
     private void NeovegSplashDialog()
@@ -3075,8 +3588,9 @@ public sealed class MainWindow : Window
             },
             dockControl =>
             {
+                OpenInspectorWindow();
                 _inspectorBodyHost.Content = dockControl;
-                SetStatus($"Extensão de Janela '{dockControl.DisplayName}' acoplada ao painel central do Neoveg.");
+                SetStatus($"Extensão de Janela '{dockControl.DisplayName}' acoplada à janela Inspector do Neoveg.");
             });
         extWin.Show(this);
         SetStatus($"Extensão de Janela aberta: {extensionId} (VPFlow / Datamosh / Vegasaur / HOS).");
@@ -3118,7 +3632,11 @@ public sealed class MainWindow : Window
         {
             Project = Project,
             SelectedClip = _previewControl.SelectedClip,
-            RustInterop = RustInterop
+            RustInterop = RustInterop,
+            CppInterop = CppInterop,
+            VideoFxBypassed = _previewFxBypassed,
+            PreviewQuality = _previewControl.PreviewQuality,
+            PreviewResolution = _previewControl.PreviewResolution
         };
         var popWin = new Window
         {
@@ -3134,21 +3652,20 @@ public sealed class MainWindow : Window
 
     private void PopoutMixerScopesToMonitor()
     {
-        var popScope = new MasterScopeControl
+        var popMasterBus = new MasterBusView(Project, RustInterop)
         {
-            Project = Project,
             IsPlaying = _isPlaying
         };
         var popWin = new Window
         {
-            Title = "NEOVEG — Secondary Monitor Master Bus Mixer & RGB Scopes (Avalonia Multi-Monitor)",
-            Width = 420,
-            Height = 560,
+            Title = "NEOVEG — Secondary Monitor Master Bus Mixer (Avalonia Multi-Monitor)",
+            Width = 340,
+            Height = 520,
             Background = new SolidColorBrush(Color.Parse(CurrentTheme.DockPanelBg)),
-            Content = popScope
+            Content = popMasterBus
         };
         popWin.Show();
-        SetStatus("Master Bus Mixer & RGB Scopes destacados em uma nova janela para múltiplos monitores!");
+        SetStatus("Master Bus Mixer destacado em uma nova janela para múltiplos monitores!");
     }
 
     private void SaveCurrentProject()
@@ -3334,7 +3851,10 @@ public sealed class MainWindow : Window
 
     private void OnNeovegKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Source is TextBox) return;
+        // Global Ctrl shortcuts (Ctrl+Q / Ctrl+Shift+Q / Ctrl+S / Ctrl+O) also work while a track name TextBox has focus;
+        // plain letter shortcuts are left to the TextBox.
+        bool isGlobalCtrlShortcut = e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key is Key.Q or Key.S or Key.O;
+        if (e.Source is TextBox && !isGlobalCtrlShortcut) return;
         if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             e.Handled = true;
@@ -3483,14 +4003,7 @@ public sealed class MainWindow : Window
         else if (e.Key == Key.M)
         {
             e.Handled = true;
-            Project.Markers.Add(new TimelineMarker
-            {
-                Time = Math.Round(Project.Playhead, 3),
-                Label = $"Marker {Project.Markers.Count + 1}",
-                Color = "#f97316"
-            });
-            _timelineControl.InvalidateVisual();
-            SetStatus($"Atalho Vegas [M]: Marcador adicionado em {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
+            AddMarkerAtPlayhead();
         }
     }
 
@@ -3551,12 +4064,6 @@ public sealed class MainWindow : Window
             _statusBarBorder.Background = new SolidColorBrush(Color.Parse(theme.StatusBarBg));
             _statusBarBorder.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
         }
-        if (_eraBrandBadge != null)
-        {
-            _eraBrandBadge.Text = theme.ShortBadge;
-            _eraBrandBadge.Foreground = new SolidColorBrush(Color.Parse(theme.AccentSecondary));
-        }
-
         _bigSmpteReadout.Foreground = new SolidColorBrush(Color.Parse(theme.TimecodeFg));
         _engineStatusPill.Foreground = new SolidColorBrush(Color.Parse(theme.AccentSecondary));
         _statusFooterText.Foreground = new SolidColorBrush(Color.Parse(theme.TextPrimary));
@@ -3565,8 +4072,6 @@ public sealed class MainWindow : Window
         {
             hdr.Background = VegasThemeManager.CreateDockHeaderBrush(theme);
             hdr.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
-            if (hdr.Child is TextBlock tb)
-                tb.Foreground = new SolidColorBrush(Color.Parse(theme.TextPrimary));
         }
 
         foreach (var pnl in _dockPanelBorders)
@@ -3574,11 +4079,8 @@ public sealed class MainWindow : Window
             pnl.Background = new SolidColorBrush(Color.Parse(theme.DockPanelBg));
             pnl.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
             pnl.BorderThickness = VegasThemeManager.GetDockBorderThickness(theme);
-        }
-
-        if (_themeSelectorCombo != null && !ReferenceEquals(_themeSelectorCombo.SelectedItem, theme))
-        {
-            _themeSelectorCombo.SelectedItem = theme;
+            if (pnl is DetachableDockPanel dock)
+                dock.HeaderTitle.Foreground = new SolidColorBrush(Color.Parse(theme.TextPrimary));
         }
 
         RebuildTrackHeadersUI();
@@ -3593,7 +4095,7 @@ public sealed class MainWindow : Window
     public void RefreshLocalizedUI()
     {
         var loc = Localization;
-        Title = $"{loc.T("App.Title", "NEOVEG — Estúdio NLE Multiplataforma")} ({RustInterop.PlatformRid} • {loc.CurrentLanguageCode})";
+        Title = $"{Project.Name} - Neoveg";
 
         PopulateTopMenuBarItems();
 
@@ -3603,24 +4105,13 @@ public sealed class MainWindow : Window
         if (_tabTransitions != null) _tabTransitions.Header = loc.T("Tab.Transitions", "Transições");
         if (_tabGenerators != null) _tabGenerators.Header = loc.T("Tab.Generators", "Geradores");
 
-        if (_btnTlWelcome != null) ToolTip.SetTip(_btnTlWelcome, loc.T("Toolbar.Tooltip.Welcome", "Janela de Boas-Vindas Simplificada (Projetos .veg)"));
-        if (_btnTlSave != null) ToolTip.SetTip(_btnTlSave, loc.T("Toolbar.Tooltip.Save", "Salvar Projeto (.veg)"));
-        if (_btnTlImport != null) ToolTip.SetTip(_btnTlImport, loc.T("Toolbar.Tooltip.Import", "Importar Mídia (MP4 / WAV / MP3 via ffprobe isolado)"));
-        if (_btnTlSplit != null) ToolTip.SetTip(_btnTlSplit, loc.T("Toolbar.Tooltip.Split", "Dividir Evento no Playhead via Rust FFI (Atalho: S)"));
-        if (_btnTlGroup != null) ToolTip.SetTip(_btnTlGroup, loc.T("Toolbar.Tooltip.GroupAV", "Agrupar Faixas de Vídeo + Áudio (Grupo V+A)"));
-        if (_btnTlSettings != null) ToolTip.SetTip(_btnTlSettings, loc.T("Toolbar.Tooltip.Settings", "Abrir Configurações Avançadas (Geral / Idioma)"));
-        if (_btnTlPopout != null) ToolTip.SetTip(_btnTlPopout, loc.T("Toolbar.Tooltip.Popout", "Destacar Video Preview para Outro Monitor [↗]"));
-        if (_btnTlRender != null) ToolTip.SetTip(_btnTlRender, loc.T("Toolbar.Tooltip.Render", "Renderizar Master MP4 (Python Isolated FFmpeg)"));
-
-        if (_languageSelectorCombo != null)
-        {
-            ToolTip.SetTip(_languageSelectorCombo, loc.T("Toolbar.Tooltip.LanguageSelector", "Seletor de Idioma em Tempo Real"));
-            var expectedMeta = loc.GetLanguageMetadata(loc.CurrentLanguageCode);
-            if (!ReferenceEquals(_languageSelectorCombo.SelectedItem, expectedMeta))
-            {
-                _languageSelectorCombo.SelectedItem = expectedMeta;
-            }
-        }
+        if (_btnTlSave != null) ToolTip.SetTip(_btnTlSave, loc.T("Toolbar.Tooltip.Save", "Salvar Projeto (Ctrl+S)"));
+        if (_btnTlImport != null) ToolTip.SetTip(_btnTlImport, loc.T("Toolbar.Tooltip.Import", "Importar Mídia"));
+        if (_btnTlSplit != null) ToolTip.SetTip(_btnTlSplit, loc.T("Toolbar.Tooltip.Split", "Dividir Evento no Cursor (S)"));
+        if (_btnTlGroup != null) ToolTip.SetTip(_btnTlGroup, loc.T("Toolbar.Tooltip.GroupAV", "Agrupar (G)"));
+        if (_btnTlSettings != null) ToolTip.SetTip(_btnTlSettings, loc.T("Toolbar.Tooltip.Settings", "Preferências"));
+        if (_btnTlPopout != null) ToolTip.SetTip(_btnTlPopout, loc.T("Toolbar.Tooltip.Popout", "Visualizar em Monitor Externo"));
+        if (_btnTlRender != null) ToolTip.SetTip(_btnTlRender, loc.T("Toolbar.Tooltip.Render", "Renderizar Como... (Python Isolated FFmpeg)"));
 
         RefreshInspectorUI();
         RebuildTrackHeadersUI();
@@ -3739,39 +4230,20 @@ public sealed class MainWindow : Window
 
     private void SetStatus(string message) => _statusFooterText.Text = message;
 
-    private Border WrapInDockPanel(string title, Control body)
+    private DetachableDockPanel WrapInDockPanel(string title, Control body)
     {
-        var grid = new Grid { RowDefinitions = new RowDefinitions("24,*") };
-        var hdr = new Border
-        {
-            Background = VegasThemeManager.CreateDockHeaderBrush(CurrentTheme),
-            BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 0),
-            Child = new TextBlock
-            {
-                Text = $"⋮⋮ {title}",
-                FontSize = 10,
-                FontWeight = FontWeight.Bold,
-                Foreground = new SolidColorBrush(Color.Parse(CurrentTheme.TextPrimary)),
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        _dockHeaderBorders.Add(hdr);
-        Grid.SetRow(hdr, 0);
-        Grid.SetRow(body, 1);
-        grid.Children.Add(hdr);
-        grid.Children.Add(body);
-
-        var outer = new Border
+        var dock = new DetachableDockPanel(title, body)
         {
             Background = new SolidColorBrush(Color.Parse(CurrentTheme.DockPanelBg)),
             BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder)),
-            BorderThickness = VegasThemeManager.GetDockBorderThickness(CurrentTheme),
-            Child = grid
+            BorderThickness = VegasThemeManager.GetDockBorderThickness(CurrentTheme)
         };
-        _dockPanelBorders.Add(outer);
-        return outer;
+        dock.HeaderBorder.Background = VegasThemeManager.CreateDockHeaderBrush(CurrentTheme);
+        dock.HeaderBorder.BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder));
+        dock.HeaderTitle.Foreground = new SolidColorBrush(Color.Parse(CurrentTheme.TextPrimary));
+        _dockHeaderBorders.Add(dock.HeaderBorder);
+        _dockPanelBorders.Add(dock);
+        return dock;
     }
 
     private static GridSplitter CreateVerticalSplitter(int col)
@@ -3819,8 +4291,8 @@ public sealed class MainWindow : Window
         };
         Grid.SetColumn(info, 1);
 
-        var btn = CreateSquareTextButton(actionLabel, "#2563eb", "#ffffff");
-        btn.Click += (_, _) => onClick();
+        var btn = NeovegIcons.CreateButton(NeovegIcons.Plus, actionLabel, onClick, "#2563eb", "#ffffff", size: 22);
+        btn.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(btn, 2);
 
         grid.Children.Add(badgeBorder);
@@ -3837,73 +4309,28 @@ public sealed class MainWindow : Window
         };
     }
 
-    private static Button CreateIconButton(StreamGeometry geometry, string tooltip, Action onClick, string bgHex = "#1e293b")
-    {
-        var btn = new Button
-        {
-            Width = 28,
-            Height = 26,
-            Padding = new Thickness(0),
-            Background = new SolidColorBrush(Color.Parse(bgHex)),
-            BorderBrush = new SolidColorBrush(Color.Parse("#475569")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(0),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Content = new PathIcon
-            {
-                Data = geometry,
-                Width = 13,
-                Height = 13,
-                Foreground = new SolidColorBrush(Color.Parse("#f8fafc"))
-            }
-        };
-        ToolTip.SetTip(btn, tooltip);
-        btn.Click += (_, _) => onClick();
-        return btn;
-    }
-
     private static Button CreateSquareTextButton(string text, string bgHex, string fgHex)
     {
-        return new Button
-        {
-            Content = text,
-            FontSize = 10.5,
-            FontWeight = FontWeight.SemiBold,
-            Background = new SolidColorBrush(Color.Parse(bgHex)),
-            Foreground = new SolidColorBrush(Color.Parse(fgHex)),
-            BorderBrush = new SolidColorBrush(Color.Parse("#475569")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(0),
-            Padding = new Thickness(8, 4)
-        };
+        StreamGeometry glyph = text.Contains("Remover", StringComparison.OrdinalIgnoreCase) || text.Contains("Delete", StringComparison.OrdinalIgnoreCase)
+            ? NeovegIcons.Delete
+            : text.Contains("Cor", StringComparison.OrdinalIgnoreCase) || text.Contains("Tema", StringComparison.OrdinalIgnoreCase)
+                ? NeovegIcons.TrackColor
+                : NeovegIcons.Prerender;
+        return NeovegIcons.CreateButton(glyph, text, null, bgHex, fgHex, size: 24);
     }
 
-    private static Button CreateMiniTrackButton(string text, string tooltip, string bgHex, string fgHex)
+    private static Button CreateMiniTrackButton(StreamGeometry icon, string tooltip, string bgHex, string fgHex)
     {
-        var btn = new Button
-        {
-            Content = text,
-            FontSize = 9.5,
-            FontWeight = FontWeight.Bold,
-            Width = 22,
-            Height = 20,
-            Padding = new Thickness(0),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(Color.Parse(bgHex)),
-            Foreground = new SolidColorBrush(Color.Parse(fgHex)),
-            BorderBrush = new SolidColorBrush(Color.Parse("#475569")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(0)
-        };
-        ToolTip.SetTip(btn, tooltip);
+        var btn = NeovegIcons.CreateButton(icon, tooltip, null, bgHex, fgHex, size: 20);
+        btn.Width = 22;
         return btn;
     }
 
-    private static MenuItem CreateMenuItem(string header, Action action)
+    private static MenuItem CreateMenuItem(string header, Action action, string? inputGesture = null)
     {
         var item = new MenuItem { Header = header };
+        if (inputGesture != null)
+            item.InputGesture = KeyGesture.Parse(inputGesture);
         item.Click += (_, _) => action();
         return item;
     }

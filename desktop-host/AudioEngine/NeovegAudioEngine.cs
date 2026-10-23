@@ -86,37 +86,37 @@ public sealed class ParametricEq8BandProcessor : IAudioFxNode
         switch (band.FilterType)
         {
             case EqFilterBandType.LowShelf:
-            {
-                double twoSqrtAAlpha = 2.0 * Math.Sqrt(a) * alpha;
-                b0 = a * ((a + 1.0) - (a - 1.0) * cosW0 + twoSqrtAAlpha);
-                b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cosW0);
-                b2 = a * ((a + 1.0) - (a - 1.0) * cosW0 - twoSqrtAAlpha);
-                a0 = (a + 1.0) + (a - 1.0) * cosW0 + twoSqrtAAlpha;
-                a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cosW0);
-                a2 = (a + 1.0) + (a - 1.0) * cosW0 - twoSqrtAAlpha;
-                break;
-            }
+                {
+                    double twoSqrtAAlpha = 2.0 * Math.Sqrt(a) * alpha;
+                    b0 = a * ((a + 1.0) - (a - 1.0) * cosW0 + twoSqrtAAlpha);
+                    b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cosW0);
+                    b2 = a * ((a + 1.0) - (a - 1.0) * cosW0 - twoSqrtAAlpha);
+                    a0 = (a + 1.0) + (a - 1.0) * cosW0 + twoSqrtAAlpha;
+                    a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cosW0);
+                    a2 = (a + 1.0) + (a - 1.0) * cosW0 - twoSqrtAAlpha;
+                    break;
+                }
             case EqFilterBandType.HighShelf:
-            {
-                double twoSqrtAAlpha = 2.0 * Math.Sqrt(a) * alpha;
-                b0 = a * ((a + 1.0) + (a - 1.0) * cosW0 + twoSqrtAAlpha);
-                b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cosW0);
-                b2 = a * ((a + 1.0) + (a - 1.0) * cosW0 - twoSqrtAAlpha);
-                a0 = (a + 1.0) - (a - 1.0) * cosW0 + twoSqrtAAlpha;
-                a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cosW0);
-                a2 = (a + 1.0) - (a - 1.0) * cosW0 - twoSqrtAAlpha;
-                break;
-            }
+                {
+                    double twoSqrtAAlpha = 2.0 * Math.Sqrt(a) * alpha;
+                    b0 = a * ((a + 1.0) + (a - 1.0) * cosW0 + twoSqrtAAlpha);
+                    b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cosW0);
+                    b2 = a * ((a + 1.0) + (a - 1.0) * cosW0 - twoSqrtAAlpha);
+                    a0 = (a + 1.0) - (a - 1.0) * cosW0 + twoSqrtAAlpha;
+                    a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cosW0);
+                    a2 = (a + 1.0) - (a - 1.0) * cosW0 - twoSqrtAAlpha;
+                    break;
+                }
             default:
-            {
-                b0 = 1.0 + alpha * a;
-                b1 = -2.0 * cosW0;
-                b2 = 1.0 - alpha * a;
-                a0 = 1.0 + alpha / a;
-                a1 = -2.0 * cosW0;
-                a2 = 1.0 - alpha / a;
-                break;
-            }
+                {
+                    b0 = 1.0 + alpha * a;
+                    b1 = -2.0 * cosW0;
+                    b2 = 1.0 - alpha * a;
+                    a0 = 1.0 + alpha / a;
+                    a1 = -2.0 * cosW0;
+                    a2 = 1.0 - alpha / a;
+                    break;
+                }
         }
 
         double invA0 = 1.0 / a0;

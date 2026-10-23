@@ -22,6 +22,7 @@ use std::path::Path;
 use std::slice;
 
 pub mod audio_peaks;
+pub mod waveform_source;
 
 /// Vegas Pro Fade Curve Types
 #[repr(i32)]
@@ -357,21 +358,50 @@ pub fn analyze_wav_peaks(path: &Path, num_buckets: usize) -> Result<WaveformAnal
     let total_frames = raw.len() / frame_size.max(1);
     let duration_sec = (total_frames as f64) / (sample_rate as f64);
 
-    let buckets = num_buckets.clamp(16, 4096);
-    let frames_per_bucket = (total_frames / buckets).max(1);
+    let buckets = num_buckets.clamp(16, 32768);
     let mut peaks = Vec::with_capacity(buckets);
     let mut global_max: f64 = 0.00001;
     let mut sum_sq: f64 = 0.0;
     let mut sample_count: usize = 0;
 
     for b in 0..buckets {
-        let start_frame = b * frames_per_bucket;
-        let end_frame = ((b + 1) * frames_per_bucket).min(total_frames);
+        let start_frame = (b * total_frames) / buckets;
+        let end_frame = (((b + 1) * total_frames) / buckets)
+            .min(total_frames)
+            .max(start_frame + 1);
         let mut max_amp: f32 = 0.0;
 
         for f in start_frame..end_frame {
             let offset = f * frame_size;
-            if bytes_per_sample == 3 && offset + 3 <= raw.len() {
+            if bytes_per_sample == 4 && offset + 4 <= raw.len() {
+                // 32-bit IEEE float or 32-bit PCM
+                let sample_f32 = f32::from_le_bytes([
+                    raw[offset],
+                    raw[offset + 1],
+                    raw[offset + 2],
+                    raw[offset + 3],
+                ]);
+                let norm = if sample_f32.is_finite() && sample_f32.abs() <= 2.0 {
+                    sample_f32.abs()
+                } else {
+                    let s32 = i32::from_le_bytes([
+                        raw[offset],
+                        raw[offset + 1],
+                        raw[offset + 2],
+                        raw[offset + 3],
+                    ]);
+                    (s32 as f64 / 2147483648.0).abs() as f32
+                };
+                if norm > max_amp {
+                    max_amp = norm;
+                }
+                let norm64 = norm as f64;
+                if norm64 > global_max {
+                    global_max = norm64;
+                }
+                sum_sq += norm64 * norm64;
+                sample_count += 1;
+            } else if bytes_per_sample == 3 && offset + 3 <= raw.len() {
                 // 24-bit signed little-endian PCM (e.g. 24-bit/96kHz Broadcast WAV)
                 let b0 = raw[offset] as i32;
                 let b1 = (raw[offset + 1] as i32) << 8;
@@ -401,7 +431,7 @@ pub fn analyze_wav_peaks(path: &Path, num_buckets: usize) -> Result<WaveformAnal
                 sample_count += 1;
             }
         }
-        peaks.push((max_amp * 1000.0).round() / 1000.0);
+        peaks.push(max_amp.clamp(0.0, 1.0));
     }
 
     let peak_db = 20.0 * global_max.log10();
@@ -420,6 +450,132 @@ pub fn analyze_wav_peaks(path: &Path, num_buckets: usize) -> Result<WaveformAnal
         rms_db,
         peaks,
     })
+}
+
+/// Samples real-time stereo (Left / Right) peak amplitudes and dBFS values from a RIFF WAVE PCM file
+/// at `time_sec` over a window of `window_sec` seconds.
+/// Never generates synthetic or random signals: returns `(0.0, 0.0, -inf, -inf)` if out of bounds or silent.
+pub fn sample_wav_stereo_peak_at(
+    path: &Path,
+    time_sec: f64,
+    window_sec: f64,
+) -> Result<(f64, f64, f64, f64), String> {
+    if time_sec < 0.0 || !time_sec.is_finite() {
+        return Ok((0.0, 0.0, f64::NEG_INFINITY, f64::NEG_INFINITY));
+    }
+
+    let mut file = File::open(path).map_err(|e| format!("Failed to open WAV: {}", e))?;
+    let mut header = [0u8; 44];
+    file.read_exact(&mut header)
+        .map_err(|e| format!("Invalid WAV header: {}", e))?;
+
+    if &header[0..4] != b"RIFF" || &header[8..12] != b"WAVE" {
+        return Err("Not a valid RIFF WAVE file".to_string());
+    }
+
+    let channels = u16::from_le_bytes([header[22], header[23]]).max(1) as usize;
+    let sample_rate = u32::from_le_bytes([header[24], header[25], header[26], header[27]]).max(1);
+    let bits_per_sample = u16::from_le_bytes([header[34], header[35]]);
+
+    file.seek(SeekFrom::Start(12)).map_err(|e| e.to_string())?;
+    let mut chunk_hdr = [0u8; 8];
+    let mut data_offset: u64 = 0;
+    let mut data_size: usize = 0;
+    while file.read_exact(&mut chunk_hdr).is_ok() {
+        let cid = &chunk_hdr[0..4];
+        let csize =
+            u32::from_le_bytes([chunk_hdr[4], chunk_hdr[5], chunk_hdr[6], chunk_hdr[7]]) as usize;
+        if cid == b"data" {
+            data_offset = file.stream_position().map_err(|e| e.to_string())?;
+            data_size = csize;
+            break;
+        }
+        let next = if csize % 2 == 1 { csize + 1 } else { csize };
+        if file.seek(SeekFrom::Current(next as i64)).is_err() {
+            break;
+        }
+    }
+
+    if data_size == 0 || data_offset == 0 {
+        return Ok((0.0, 0.0, f64::NEG_INFINITY, f64::NEG_INFINITY));
+    }
+
+    let bytes_per_sample = ((bits_per_sample / 8).max(2)) as usize;
+    let frame_size = (bytes_per_sample * channels).max(1);
+    let total_frames = data_size / frame_size;
+    let start_frame = (time_sec * (sample_rate as f64)).floor() as usize;
+    if start_frame >= total_frames {
+        return Ok((0.0, 0.0, f64::NEG_INFINITY, f64::NEG_INFINITY));
+    }
+
+    let win = window_sec.clamp(0.004, 0.250);
+    let frames_to_read = ((win * (sample_rate as f64)).ceil() as usize)
+        .max(1)
+        .min(total_frames - start_frame);
+
+    let byte_start = data_offset + (start_frame * frame_size) as u64;
+    file.seek(SeekFrom::Start(byte_start))
+        .map_err(|e| e.to_string())?;
+
+    let mut raw = vec![0u8; frames_to_read * frame_size];
+    let bytes_read = file.read(&mut raw).map_err(|e| e.to_string())?;
+    raw.truncate(bytes_read);
+
+    let decode_sample = |slice: &[u8]| -> f64 {
+        if bytes_per_sample == 4 && slice.len() >= 4 {
+            let sf = f32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]);
+            if sf.is_finite() && sf.abs() <= 2.0 {
+                (sf as f64).abs().clamp(0.0, 1.0)
+            } else {
+                let s32 = i32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]);
+                (s32 as f64 / 2147483648.0).abs().clamp(0.0, 1.0)
+            }
+        } else if bytes_per_sample == 3 && slice.len() >= 3 {
+            let b0 = slice[0] as i32;
+            let b1 = (slice[1] as i32) << 8;
+            let b2 = ((slice[2] as i8) as i32) << 16;
+            let s24 = b0 | b1 | b2;
+            (s24 as f64 / 8388608.0).abs().clamp(0.0, 1.0)
+        } else if slice.len() >= 2 {
+            let s16 = i16::from_le_bytes([slice[0], slice[1]]);
+            (s16 as f64 / 32768.0).abs().clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    };
+
+    let mut peak_l: f64 = 0.0;
+    let mut peak_r: f64 = 0.0;
+    let actual_frames = raw.len() / frame_size;
+
+    for f in 0..actual_frames {
+        let base = f * frame_size;
+        let l_val = decode_sample(&raw[base..base + bytes_per_sample]);
+        let r_val = if channels >= 2 {
+            decode_sample(&raw[base + bytes_per_sample..base + 2 * bytes_per_sample])
+        } else {
+            l_val
+        };
+        if l_val > peak_l {
+            peak_l = l_val;
+        }
+        if r_val > peak_r {
+            peak_r = r_val;
+        }
+    }
+
+    let db_l = if peak_l > 1e-6 {
+        20.0 * peak_l.log10()
+    } else {
+        f64::NEG_INFINITY
+    };
+    let db_r = if peak_r > 1e-6 {
+        20.0 * peak_r.log10()
+    } else {
+        f64::NEG_INFINITY
+    };
+
+    Ok((peak_l, peak_r, db_l, db_r))
 }
 
 /// Compiles a list of timeline events into an FFmpeg `filter_complex` string.
@@ -798,7 +954,7 @@ pub unsafe extern "C" fn neoveg_analyze_wav_file(
     let Ok(path_str) = CStr::from_ptr(wav_path_ptr).to_str() else {
         return -2;
     };
-    let buckets = (num_buckets as usize).clamp(16, 4096);
+    let buckets = (num_buckets as usize).clamp(16, 32768);
     match analyze_wav_peaks(Path::new(path_str), buckets) {
         Ok(res) => {
             if !out_peaks_ptr.is_null() {
@@ -815,6 +971,62 @@ pub unsafe extern "C" fn neoveg_analyze_wav_file(
                 *out_duration = res.duration_sec;
             }
             res.peaks.len() as i32
+        }
+        Err(_) => -3,
+    }
+}
+
+/// Samples real-time stereo (L/R) peak amplitudes (`0.0..1.0`) and dBFS (`-inf..0.0`) from a RIFF WAVE file
+/// at `time_sec` over a `window_sec` window via FFI.
+/// Returns `1` if non-silent audio was sampled, `0` if silent/out-of-range, or `< 0` on invalid input/file error.
+#[no_mangle]
+pub unsafe extern "C" fn neoveg_sample_wav_stereo_peak_at(
+    wav_path_ptr: *const c_char,
+    time_sec: f64,
+    window_sec: f64,
+    out_peak_l: *mut f64,
+    out_peak_r: *mut f64,
+    out_db_l: *mut f64,
+    out_db_r: *mut f64,
+) -> i32 {
+    if !out_peak_l.is_null() {
+        *out_peak_l = 0.0;
+    }
+    if !out_peak_r.is_null() {
+        *out_peak_r = 0.0;
+    }
+    if !out_db_l.is_null() {
+        *out_db_l = f64::NEG_INFINITY;
+    }
+    if !out_db_r.is_null() {
+        *out_db_r = f64::NEG_INFINITY;
+    }
+
+    if wav_path_ptr.is_null() {
+        return -1;
+    }
+    let Ok(path_str) = CStr::from_ptr(wav_path_ptr).to_str() else {
+        return -2;
+    };
+    match sample_wav_stereo_peak_at(Path::new(path_str), time_sec, window_sec) {
+        Ok((peak_l, peak_r, db_l, db_r)) => {
+            if !out_peak_l.is_null() {
+                *out_peak_l = peak_l;
+            }
+            if !out_peak_r.is_null() {
+                *out_peak_r = peak_r;
+            }
+            if !out_db_l.is_null() {
+                *out_db_l = db_l;
+            }
+            if !out_db_r.is_null() {
+                *out_db_r = db_r;
+            }
+            if peak_l > 0.0 || peak_r > 0.0 {
+                1
+            } else {
+                0
+            }
         }
         Err(_) => -3,
     }
@@ -845,7 +1057,7 @@ impl SfkPeakCache {
                     let peak_db = f64::from_le_bytes(bytes[20..28].try_into().unwrap_or([0; 8]));
                     let count =
                         u32::from_le_bytes(bytes[28..32].try_into().unwrap_or([0; 4])) as usize;
-                    if bytes.len() >= 32 + count * 4 && count > 0 {
+                    if bytes.len() >= 32 + count * 4 && count >= num_buckets.min(256) && count > 0 {
                         let mut peaks = Vec::with_capacity(count);
                         for i in 0..count {
                             let off = 32 + i * 4;
@@ -854,14 +1066,16 @@ impl SfkPeakCache {
                             );
                             peaks.push(v);
                         }
-                        return Ok(WaveformAnalysis {
-                            sample_rate: 48000,
-                            channels: 2,
-                            duration_sec,
-                            peak_db,
-                            rms_db: peak_db - 3.01,
-                            peaks,
-                        });
+                        if count >= num_buckets {
+                            return Ok(WaveformAnalysis {
+                                sample_rate: 48000,
+                                channels: 2,
+                                duration_sec,
+                                peak_db,
+                                rms_db: peak_db - 3.01,
+                                peaks,
+                            });
+                        }
                     }
                 }
             }
@@ -899,7 +1113,7 @@ pub unsafe extern "C" fn neoveg_build_sfk_cache(
     let Ok(path_str) = CStr::from_ptr(wav_path_ptr).to_str() else {
         return -2;
     };
-    let buckets = (num_buckets as usize).clamp(16, 4096);
+    let buckets = (num_buckets as usize).clamp(16, 32768);
     match SfkPeakCache::build_or_load_sfk(Path::new(path_str), buckets) {
         Ok(res) => {
             if !out_peaks_ptr.is_null() {
@@ -1089,6 +1303,19 @@ mod tests {
     }
 
     #[test]
+    fn test_high_zoom_waveform_catmull_rom_interpolation() {
+        let pcm: Vec<i16> = (0..4800)
+            .map(|i| ((i as f64 * 0.05).sin() * 24000.0) as i16)
+            .collect();
+        let mipmap = audio_peaks::AudacityWaveformMipmap::from_interleaved_pcm_i16(&pcm, 2, 48000, 2048);
+        assert_eq!(mipmap.lod_ultra.len(), 2048);
+        assert_eq!(mipmap.select_lod_for_width(2400.0).len(), 2048);
+        let sample_mid = audio_peaks::AudacityWaveformMipmap::sample_interpolated_block_at(&mipmap.lod_ultra, 0.375);
+        assert!(sample_mid.max_left >= 0.0 && sample_mid.max_left <= 1.0);
+        assert!(sample_mid.min_left <= 0.0 && sample_mid.min_left >= -1.0);
+    }
+
+    #[test]
     fn test_null_pointer_ffi_safety() {
         unsafe {
             assert_eq!(
@@ -1129,6 +1356,26 @@ mod tests {
                 ),
                 0
             );
+            let mut peak_l = 1.0_f64;
+            let mut peak_r = 1.0_f64;
+            let mut db_l = 0.0_f64;
+            let mut db_r = 0.0_f64;
+            assert_eq!(
+                neoveg_sample_wav_stereo_peak_at(
+                    std::ptr::null(),
+                    0.0,
+                    0.016,
+                    &mut peak_l,
+                    &mut peak_r,
+                    &mut db_l,
+                    &mut db_r,
+                ),
+                -1
+            );
+            assert_eq!(peak_l, 0.0);
+            assert_eq!(peak_r, 0.0);
+            assert!(db_l.is_infinite() && db_l.is_sign_negative());
+            assert!(db_r.is_infinite() && db_r.is_sign_negative());
             neoveg_free_buffer(std::ptr::null_mut(), 0);
         }
     }

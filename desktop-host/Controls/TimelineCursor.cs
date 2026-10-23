@@ -134,10 +134,10 @@ public sealed class TimelineCursor
     /// <summary>
     /// Updates the real-time 60 FPS horizontal position (`X`) and time (`seconds`) of the cursor.
     /// </summary>
-    public void UpdatePosition(double timeSeconds, double pixelsPerSecond)
+    public void UpdatePosition(double timeSeconds, double pixelsPerSecond, double horizontalOffsetSeconds = 0.0)
     {
         TimeSeconds = Math.Max(0.0, timeSeconds);
-        CursorX = TimeSeconds * Math.Max(20.0, pixelsPerSecond);
+        CursorX = (TimeSeconds - horizontalOffsetSeconds) * Math.Max(20.0, pixelsPerSecond);
     }
 
     /// <summary>

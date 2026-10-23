@@ -56,7 +56,8 @@ public sealed class LocalizationManager
 
     public string CurrentLanguageCode { get; private set; } = "pt-BR";
     public string SelectedThemeId { get; set; } = "era3_magix_dark";
-    public bool ShowWelcomeOnStartup { get; set; } = true;
+    public bool ShowWelcomeOnStartup { get; set; } = false;
+    public bool AutoFadeOnImport { get; set; } = false;
 
     public LanguageOption CurrentLanguage =>
         Languages.FirstOrDefault(l => l.Code.Equals(CurrentLanguageCode, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
@@ -164,6 +165,11 @@ public sealed class LocalizationManager
             if (File.Exists(SettingsFilePath))
             {
                 using var doc = JsonDocument.Parse(File.ReadAllText(SettingsFilePath));
+                if (doc.RootElement.TryGetProperty("autoFadeOnImport", out var afProp) &&
+                    (afProp.ValueKind == JsonValueKind.True || afProp.ValueKind == JsonValueKind.False))
+                {
+                    AutoFadeOnImport = afProp.GetBoolean();
+                }
                 if (doc.RootElement.TryGetProperty("language", out var langProp))
                 {
                     string? code = langProp.GetString();
@@ -190,7 +196,8 @@ public sealed class LocalizationManager
             {
                 ["language"] = langCode,
                 ["themeEra"] = 3,
-                ["showWelcomeOnStartup"] = true,
+                ["showWelcomeOnStartup"] = ShowWelcomeOnStartup,
+                ["autoFadeOnImport"] = AutoFadeOnImport,
                 ["supportedLanguages"] = Languages.Select(l => l.Code).ToArray(),
                 ["updatedAt"] = DateTime.UtcNow.ToString("O")
             };
@@ -203,6 +210,8 @@ public sealed class LocalizationManager
                     if (existing != null)
                     {
                         existing["language"] = langCode;
+                        existing["showWelcomeOnStartup"] = ShowWelcomeOnStartup;
+                        existing["autoFadeOnImport"] = AutoFadeOnImport;
                         existing["updatedAt"] = DateTime.UtcNow.ToString("O");
                         settingsObj = existing;
                     }

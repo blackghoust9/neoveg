@@ -57,6 +57,25 @@ public abstract class TrackViewModelBase : INotifyPropertyChanged
     public IBrush TrackAccentBrush =>
         new SolidColorBrush(TrackColorPaletteService.ParseSafeColor(_trackAccentColor));
 
+    private bool _isSelected;
+
+    /// <summary>
+    /// Active (selected) track on the timeline. Only the selected track's Track Number Box indicator blinks;
+    /// unselected tracks keep the dot static/hidden.
+    /// </summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected != value)
+            {
+                _isSelected = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public bool PropagateTintToClips
     {
         get => _propagateTintToClips;

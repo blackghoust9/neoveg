@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Neoveg.Controls"
+             xmlns:vm="clr-namespace:Neoveg.ViewModels"
+             x:Class="Neoveg.Views.MasterBusView"
+             x:DataType="vm:MasterBusViewModel"
+             Background="#090d14"
+             Foreground="#f1f5f9">
+  <!--
+    Neoveg Audio Master Bus View (MasterBusView.axaml / MasterBusView.cs)
+    - No RGB Parade / Video Scope is rendered in the audio Master Bus.
+    - Left (L) and Right (R) peak meters are driven strictly by real-time FFI audio telemetry
+      (rust-core / cpp-extensions) and remain at 0.0 (-∞ dB) when playback is stopped or silent.
+  -->
+  <Grid RowDefinitions="*,Auto,Auto" Margin="6">
+    <!-- Stereo L/R dBFS Peak Meters -->
+    <controls:MasterScopeControl x:Name="PART_MasterMeters"
+                                 Grid.Row="0" />
+
+    <!-- Real-Time L/R dBFS Peak Readout (-∞ dB when stopped or without active audio media) -->
+    <Grid Grid.Row="1"
+          ColumnDefinitions="*,*"
+          Margin="0,4,0,2">
+      <TextBlock x:Name="PART_LeftPeakReadout"
+                 Grid.Column="0"
+                 Text="{Binding LeftPeakDbText}"
+                 FontFamily="Consolas, monospace"
+                 FontSize="9.5"
+                 HorizontalAlignment="Center"
+                 Foreground="#94a3b8" />
+      <TextBlock x:Name="PART_RightPeakReadout"
+                 Grid.Column="1"
+                 Text="{Binding RightPeakDbText}"
+                 FontFamily="Consolas, monospace"
+                 FontSize="9.5"
+                 HorizontalAlignment="Center"
+                 Foreground="#94a3b8" />
+    </Grid>
+
+    <!-- Master Bus Fader -->
+    <StackPanel Grid.Row="2" Spacing="4" Margin="0,4,0,0">
+      <TextBlock x:Name="PART_MasterBusDbLabel"
+                 Text="{Binding MasterBusDbLabel}"
+                 FontFamily="Consolas, monospace"
+                 FontSize="10.5"
+                 FontWeight="Bold"
+                 Foreground="#38bdf8" />
+      <Slider x:Name="PART_MasterVolumeSlider"
+              Minimum="0.0"
+              Maximum="1.4"
+              Value="{Binding MasterVolume, Mode=TwoWay}" />
+    </StackPanel>
+  </Grid>
+</UserControl>

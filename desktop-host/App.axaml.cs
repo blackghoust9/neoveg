@@ -43,6 +43,8 @@ public sealed class App : Application
     {
         RegisterAvaloniaExceptionHandlers();
         Styles.Add(new FluentTheme());
+        // VEGAS Pro docked-window tabs: compact footer tab strip with scroll arrows
+        Styles.Add(Neoveg.Styles.NeovegDockTabStyles.Create());
         RequestedThemeVariant = ThemeVariant.Dark;
     }
 

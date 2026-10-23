@@ -412,10 +412,10 @@ public sealed class TimelineClip
     public double TrimIn { get; set; } = 0.0;
 
     [JsonPropertyName("fadeIn")]
-    public double FadeIn { get; set; } = 0.35;
+    public double FadeIn { get; set; } = 0.0;
 
     [JsonPropertyName("fadeOut")]
-    public double FadeOut { get; set; } = 0.35;
+    public double FadeOut { get; set; } = 0.0;
 
     [JsonPropertyName("fadeInCurve")]
     public string FadeInCurve { get; set; } = "smooth";
@@ -706,6 +706,9 @@ public sealed class VegasProject
     [JsonPropertyName("height")]
     public int Height { get; set; } = 1080;
 
+    [JsonPropertyName("pixelAspectRatio")]
+    public double PixelAspectRatio { get; set; } = 1.0;
+
     [JsonPropertyName("fps")]
     public double Fps { get; set; } = 29.97;
 
@@ -755,10 +758,16 @@ public sealed class VegasProject
     public bool SplitScreenBypass { get; set; } = false;
 
     [JsonPropertyName("showSafeAreas")]
-    public bool ShowSafeAreas { get; set; } = true;
+    public bool ShowSafeAreas { get; set; } = false;
 
     [JsonPropertyName("showGrid")]
     public bool ShowGrid { get; set; } = false;
+
+    [JsonPropertyName("showPreviewHud")]
+    public bool ShowPreviewHud { get; set; } = false;
+
+    [JsonPropertyName("autoFadeOnImport")]
+    public bool AutoFadeOnImport { get; set; } = false;
 
     [JsonPropertyName("masterVolume")]
     public double MasterVolume { get; set; } = 1.0;
@@ -800,56 +809,70 @@ public sealed class VegasProject
         return max > 0.1 ? max : Math.Max(6.0, LoopEnd);
     }
 
-    public static VegasProject CreateEmpty(string name = "Novo_Projeto_Neoveg", int width = 1920, int height = 1080, double fps = 29.97)
+    public static VegasProject CreateEmpty(
+        string name = "Novo_Projeto_Neoveg",
+        int width = 1920,
+        int height = 1080,
+        double fps = 29.97,
+        bool includeDefaultTracks = false)
     {
-        return new VegasProject
+        var proj = new VegasProject
         {
             Name = name,
             IsDemo = false,
             Width = width,
             Height = height,
             Fps = fps,
-            Tracks = new List<TimelineTrack>
-            {
-                new TimelineTrack
-                {
-                    Id = "track_v1",
-                    Name = "Titles & Text FX",
-                    Type = "video",
-                    Color = "#0e7490",
-                    Height = 76
-                },
-                new TimelineTrack
-                {
-                    Id = "track_v2",
-                    Name = "Program Video Track",
-                    Type = "video",
-                    Color = "#155e75",
-                    Height = 82
-                },
-                new TimelineTrack
-                {
-                    Id = "track_a1",
-                    Name = "Master Stereo Bus Track",
-                    Type = "audio",
-                    Color = "#881337",
-                    Height = 78
-                },
-                new TimelineTrack
-                {
-                    Id = "track_a2",
-                    Name = "SFX & Voiceover Track",
-                    Type = "audio",
-                    Color = "#7f1d1d",
-                    Height = 74
-                }
-            }
+            ShowSafeAreas = false,
+            ShowGrid = false,
+            ShowPreviewHud = false,
+            AutoFadeOnImport = false,
+            Tracks = new List<TimelineTrack>(),
+            MediaPool = new List<MediaAssetItem>()
         };
+
+        if (includeDefaultTracks)
+        {
+            proj.Tracks.Add(new TimelineTrack
+            {
+                Id = "track_v1",
+                Name = "Titles & Text FX",
+                Type = "video",
+                Color = "#0e7490",
+                Height = 76
+            });
+            proj.Tracks.Add(new TimelineTrack
+            {
+                Id = "track_v2",
+                Name = "Program Video Track",
+                Type = "video",
+                Color = "#155e75",
+                Height = 82
+            });
+            proj.Tracks.Add(new TimelineTrack
+            {
+                Id = "track_a1",
+                Name = "Master Stereo Bus Track",
+                Type = "audio",
+                Color = "#881337",
+                Height = 78
+            });
+            proj.Tracks.Add(new TimelineTrack
+            {
+                Id = "track_a2",
+                Name = "SFX & Voiceover Track",
+                Type = "audio",
+                Color = "#7f1d1d",
+                Height = 74
+            });
+        }
+
+        return proj;
     }
 
     public static VegasProject CreateBroadcastDemo()
     {
-        var proj = CreateEmpty("Neoveg_Broadcast_Demo", 1920, 1080, 29.97);
+        var proj = CreateEmpty("Neoveg_Broadcast_Demo", 1920, 1080, 29.97, includeDefaultTracks: true);
         proj.IsDemo = true;
         proj.Description = "Projeto de Demonstração Broadcast (CorridorKey AI + Frei0r + LADSPA + Auto-Crossfade)";
 
