@@ -84,6 +84,7 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [x] Mixer multifaixa: soma todos os eventos de áudio ativos, com fade-in/out e `trim_in`
 - [x] Medidores L/R reais no Barramento Master, zerados com a reprodução parada
 - [x] Projetos `.neoveg` (ZIP com `project.json`, `media_pool.json`, `history.json`): abrir, salvar, salvar como
+- [x] Autosave (padrão 2 min, configurável em Editar > Preferências) e recuperação após falha: `recovery_*.neoveg` em `%LOCALAPPDATA%\Neoveg\autosave` (Linux `~/.local/share/neoveg/autosave`, macOS `~/Library/Application Support/neoveg/autosave`); aviso de alterações não salvas ao sair e `*` no título
 - [x] Relink de mídia ausente ao abrir: nome exato e depois nome aproximado (passos 1 e 2)
 - [x] Log central em `logs/neoveg.log` e `logs/crash.log`
 
@@ -93,7 +94,6 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [ ] Cache de quadros decodificados e pré-busca durante a reprodução (hoje cada quadro é decodificado sob demanda)
 - [ ] Composição de várias faixas de vídeo na prévia (hoje aparece só a faixa de vídeo mais alta sob o cursor)
 - [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
-- [ ] Autosave e recuperação (`projects/autosave/recovery_*.neoveg`)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
 - [ ] Arrastar, aparar (trim), slip e redimensionar eventos com o mouse; snapping (`F8`), ripple, agrupar (`G`) e desagrupar (`U`)
 - [ ] Marcadores (`M`), regiões e loop
