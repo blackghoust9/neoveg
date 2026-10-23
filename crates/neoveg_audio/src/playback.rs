@@ -7,19 +7,20 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
 use crate::meter::PeakMeter;
+use crate::mixer::{mix_frame, plan_end, MixClip};
 
 /// Shared state between the UI thread and the audio callback.
 struct PlaybackState {
-    /// Interleaved stereo `f32` at `source_rate`.
-    samples: Arc<Vec<f32>>,
-    source_rate: u32,
-    /// Fractional source-frame position (`f64` bits).
+    clips: Vec<MixClip>,
+    end: f64,
+    /// Timeline position in seconds (`f64` bits).
     position: AtomicU64,
     playing: AtomicBool,
+    /// Master gain (`f64` bits).
     volume: AtomicU64,
 }
 
-/// Plays one stereo buffer through the default output device (linear resampling to the device rate).
+/// Plays a mix of clips through the default output device.
 pub struct AudioPlayer {
     // Kept alive for the duration of playback; dropping it closes the device.
     _stream: cpal::Stream,
@@ -28,11 +29,7 @@ pub struct AudioPlayer {
 }
 
 impl AudioPlayer {
-    pub fn new(
-        samples: Arc<Vec<f32>>,
-        source_rate: u32,
-        meter: Arc<PeakMeter>,
-    ) -> Result<Self, String> {
+    pub fn new(clips: Vec<MixClip>, meter: Arc<PeakMeter>) -> Result<Self, String> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -47,12 +44,12 @@ impl AudioPlayer {
             ));
         }
         let config = supported.config();
-        let device_rate = config.sample_rate.0 as f64;
+        let step = 1.0 / config.sample_rate.0 as f64;
         let out_channels = config.channels as usize;
 
         let state = Arc::new(PlaybackState {
-            samples,
-            source_rate,
+            end: plan_end(&clips),
+            clips,
             position: AtomicU64::new(0f64.to_bits()),
             playing: AtomicBool::new(false),
             volume: AtomicU64::new(1.0f64.to_bits()),
@@ -60,7 +57,6 @@ impl AudioPlayer {
 
         let cb_state = Arc::clone(&state);
         let cb_meter = Arc::clone(&meter);
-        let step = source_rate as f64 / device_rate;
 
         let stream = device
             .build_output_stream(
@@ -71,20 +67,14 @@ impl AudioPlayer {
                         cb_meter.reset();
                         return;
                     }
-                    let total = cb_state.samples.len() / 2;
                     let volume = f64::from_bits(cb_state.volume.load(Ordering::Relaxed)) as f32;
                     let mut pos = f64::from_bits(cb_state.position.load(Ordering::Relaxed));
                     let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
 
                     for frame in data.chunks_mut(out_channels) {
-                        let i = pos.floor() as usize;
-                        let (l, r) = if i + 1 < total {
-                            let t = (pos - i as f64) as f32;
-                            let s = &cb_state.samples;
-                            (
-                                (s[i * 2] + (s[(i + 1) * 2] - s[i * 2]) * t) * volume,
-                                (s[i * 2 + 1] + (s[(i + 1) * 2 + 1] - s[i * 2 + 1]) * t) * volume,
-                            )
+                        let (l, r) = if pos < cb_state.end {
+                            let (l, r) = mix_frame(&cb_state.clips, pos);
+                            ((l * volume).clamp(-1.0, 1.0), (r * volume).clamp(-1.0, 1.0))
                         } else {
                             cb_state.playing.store(false, Ordering::Relaxed);
                             (0.0, 0.0)
@@ -119,12 +109,11 @@ impl AudioPlayer {
         })
     }
 
-    /// Starts playback `seconds` into the buffer.
+    /// Starts playback at timeline time `seconds`.
     pub fn play_from(&self, seconds: f64) {
-        let frame = (seconds.max(0.0) * self.state.source_rate as f64).floor();
         self.state
             .position
-            .store(frame.to_bits(), Ordering::Relaxed);
+            .store(seconds.max(0.0).to_bits(), Ordering::Relaxed);
         self.state.playing.store(true, Ordering::Relaxed);
     }
 
@@ -137,9 +126,9 @@ impl AudioPlayer {
         self.state.playing.load(Ordering::Relaxed)
     }
 
-    /// Current position in seconds of the source buffer.
+    /// Current timeline position in seconds.
     pub fn position_seconds(&self) -> f64 {
-        f64::from_bits(self.state.position.load(Ordering::Relaxed)) / self.state.source_rate as f64
+        f64::from_bits(self.state.position.load(Ordering::Relaxed))
     }
 
     pub fn set_volume(&self, linear: f32) {

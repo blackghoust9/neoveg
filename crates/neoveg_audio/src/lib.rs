@@ -2,5 +2,6 @@
 
 pub mod decode;
 pub mod meter;
+pub mod mixer;
 pub mod playback;
 pub mod waveform;

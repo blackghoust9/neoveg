@@ -13,11 +13,14 @@ use eframe::egui::{
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use neoveg_audio::decode::decode_file;
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
+use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::AudioPlayer;
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
+use neoveg_engine::project_file;
+use neoveg_engine::relink::relink_missing;
 use neoveg_engine::{EditCommand, EventId, History, Timeline, TrackEvent, TrackId, TrackKind};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
@@ -74,15 +77,16 @@ struct LoadedMedia {
 }
 
 enum LoadMsg {
-    Loaded(LoadedMedia),
+    Loaded {
+        media: LoadedMedia,
+        /// Media-pool id when reloading a project's media; `None` for a fresh import.
+        existing_id: Option<u64>,
+    },
     Failed(String),
 }
 
 struct ActivePlayer {
     player: AudioPlayer,
-    /// Timeline time at which the media source starts (`event.start - event.trim_in`).
-    timeline_origin: f64,
-    event_end: f64,
 }
 
 struct AppState {
@@ -110,6 +114,7 @@ struct AppState {
     show_preferences: bool,
     show_inspector: bool,
     media_tab: usize,
+    project_path: Option<PathBuf>,
     status: String,
 
     loader_tx: Sender<LoadMsg>,
@@ -144,6 +149,7 @@ impl AppState {
             show_preferences: false,
             show_inspector: false,
             media_tab: 0,
+            project_path: None,
             status: "Projeto vazio".into(),
             loader_tx,
             loader_rx,
@@ -229,24 +235,31 @@ impl AppState {
             return;
         };
         self.status = format!("Importando {}…", path.display());
+        self.spawn_load(path, None, ctx);
+    }
+
+    /// Decodes `path` and builds its waveform on a worker thread (never on the UI thread).
+    fn spawn_load(&self, path: PathBuf, existing_id: Option<u64>, ctx: &egui::Context) {
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
-        // Decoding and summary building never run on the UI thread
         std::thread::spawn(move || {
             let msg = match decode_file(&path) {
                 Ok(audio) => {
                     let stereo = audio.to_stereo();
                     match WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &stereo) {
-                        Ok(waveform) => LoadMsg::Loaded(LoadedMedia {
-                            name: path
-                                .file_name()
-                                .map(|n| n.to_string_lossy().into_owned())
-                                .unwrap_or_default(),
-                            path,
-                            waveform: Arc::new(waveform),
-                            stereo: Arc::new(stereo),
-                            sample_rate: audio.sample_rate,
-                            duration: audio.duration_seconds(),
-                        }),
+                        Ok(waveform) => LoadMsg::Loaded {
+                            media: LoadedMedia {
+                                name: path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_default(),
+                                path,
+                                waveform: Arc::new(waveform),
+                                stereo: Arc::new(stereo),
+                                sample_rate: audio.sample_rate,
+                                duration: audio.duration_seconds(),
+                            },
+                            existing_id,
+                        },
                         Err(e) => LoadMsg::Failed(e),
                     }
                 }
@@ -264,9 +277,119 @@ impl AppState {
                     tracing::error!("[ERROR] import failed: {e}");
                     self.status = format!("Falha ao importar: {e}");
                 }
-                LoadMsg::Loaded(media) => self.place_media(media),
+                LoadMsg::Loaded {
+                    media,
+                    existing_id: Some(id),
+                } => {
+                    self.media.insert(id, media);
+                }
+                LoadMsg::Loaded {
+                    media,
+                    existing_id: None,
+                } => self.place_media(media),
             }
         }
+    }
+
+    // ---- project files (.neoveg) ---------------------------------------------------------------
+
+    fn save_project(&mut self, save_as: bool, ctx: &egui::Context) {
+        let path = match (&self.project_path, save_as) {
+            (Some(p), false) => p.clone(),
+            _ => {
+                let Some(p) = rfd::FileDialog::new()
+                    .add_filter("Projeto Neoveg", &[project_file::EXTENSION])
+                    .set_file_name("projeto.neoveg")
+                    .save_file()
+                else {
+                    return;
+                };
+                p.with_extension(project_file::EXTENSION)
+            }
+        };
+        if let Some(stem) = path.file_stem() {
+            self.project.name = stem.to_string_lossy().into_owned();
+        }
+        match project_file::save(&path, &self.project, &self.timeline) {
+            Ok(()) => {
+                tracing::info!("[INFO] project saved: {}", path.display());
+                self.status = format!("Projeto salvo: {}", path.display());
+                ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
+                    "{} - Neoveg",
+                    self.project.name
+                )));
+                self.project_path = Some(path);
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] save failed: {e}");
+                self.status = format!("Falha ao salvar: {e}");
+            }
+        }
+    }
+
+    fn open_project(&mut self, ctx: &egui::Context) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Projeto Neoveg", &[project_file::EXTENSION])
+            .pick_file()
+        else {
+            return;
+        };
+        let (info, timeline) = match project_file::load(&path) {
+            Ok(loaded) => loaded,
+            Err(e) => {
+                tracing::error!("[ERROR] open failed: {e}");
+                self.status = format!("Falha ao abrir: {e}");
+                return;
+            }
+        };
+        self.stop();
+        self.project = info;
+        self.timeline = timeline;
+        self.history = History::new();
+        self.media.clear();
+        self.selected_track = None;
+        self.selected_event = None;
+        self.playhead = 0.0;
+        self.scroll_seconds = 0.0;
+
+        // Missing media: relink by exact then fuzzy name in the project folder and the old folders
+        let missing = project_file::find_missing(&self.project);
+        let mut dirs: Vec<PathBuf> = path.parent().map(PathBuf::from).into_iter().collect();
+        for m in &self.project.media_pool {
+            if let Some(parent) = std::path::Path::new(&m.path).parent() {
+                if parent.is_dir() {
+                    dirs.push(parent.to_path_buf());
+                }
+            }
+        }
+        let relinked = relink_missing(&mut self.project.media_pool, &missing, &dirs);
+        let still_missing = project_file::find_missing(&self.project);
+
+        let to_load: Vec<(u64, PathBuf)> = self
+            .project
+            .media_pool
+            .iter()
+            .filter(|m| !still_missing.contains(&m.id))
+            .map(|m| (m.id, PathBuf::from(&m.path)))
+            .collect();
+        for (id, media_path) in to_load {
+            self.spawn_load(media_path, Some(id), ctx);
+        }
+
+        self.status = if still_missing.is_empty() {
+            format!("Projeto aberto ({relinked} mídia(s) religada(s))")
+        } else {
+            tracing::warn!("[WARN] {} media file(s) missing", still_missing.len());
+            format!(
+                "Projeto aberto com {} mídia(s) ausente(s)",
+                still_missing.len()
+            )
+        };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
+            "{} - Neoveg",
+            self.project.name
+        )));
+        self.project_path = Some(path);
     }
 
     fn place_media(&mut self, media: LoadedMedia) {
@@ -333,33 +456,39 @@ impl AppState {
         self.active_player = self.start_audio();
     }
 
-    fn start_audio(&mut self) -> Option<ActivePlayer> {
-        // The first audio event under the playhead is played (no multi-track mixer yet)
-        let (event, media) = self
-            .timeline
+    /// Every unmuted audio event with decoded media, ready for the mixer.
+    fn build_clips(&self) -> Vec<MixClip> {
+        self.timeline
             .tracks
             .iter()
             .filter(|t| t.kind == TrackKind::Audio && !t.muted)
-            .find_map(|t| self.timeline.event_at(t.id, self.playhead))
-            .and_then(|e| {
-                e.media_id
-                    .and_then(|id| self.media.get(&id))
-                    .map(|m| (e, m))
-            })?;
+            .flat_map(|t| t.events.iter())
+            .filter_map(|e| {
+                let media = self.media.get(&e.media_id?)?;
+                Some(MixClip {
+                    samples: Arc::clone(&media.stereo),
+                    source_rate: media.sample_rate,
+                    start: e.start,
+                    duration: e.duration,
+                    trim_in: e.trim_in,
+                    gain: 1.0,
+                    fade_in: e.fade_in,
+                    fade_out: e.fade_out,
+                })
+            })
+            .collect()
+    }
 
-        match AudioPlayer::new(
-            Arc::clone(&media.stereo),
-            media.sample_rate,
-            Arc::clone(&self.meter),
-        ) {
+    fn start_audio(&mut self) -> Option<ActivePlayer> {
+        let clips = self.build_clips();
+        if clips.is_empty() {
+            return None;
+        }
+        match AudioPlayer::new(clips, Arc::clone(&self.meter)) {
             Ok(player) => {
                 player.set_volume(self.master_volume);
-                player.play_from(self.playhead - event.start + event.trim_in);
-                Some(ActivePlayer {
-                    player,
-                    timeline_origin: event.start - event.trim_in,
-                    event_end: event.end(),
-                })
+                player.play_from(self.playhead);
+                Some(ActivePlayer { player })
             }
             Err(e) => {
                 tracing::error!("[ERROR] audio output unavailable: {e}");
@@ -385,8 +514,8 @@ impl AppState {
         let dt = ctx.input(|i| i.unstable_dt) as f64;
         let ended = match &self.active_player {
             Some(active) => {
-                self.playhead = active.timeline_origin + active.player.position_seconds();
-                !active.player.is_playing() || self.playhead >= active.event_end
+                self.playhead = active.player.position_seconds();
+                !active.player.is_playing()
             }
             None => {
                 self.playhead += dt;
@@ -405,6 +534,21 @@ impl AppState {
         }
         let now = ctx.input(|i| i.time);
         let fps = self.project.settings.fps;
+        let (save_as, save, open) = ctx.input_mut(|i| {
+            (
+                i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::S),
+                i.consume_key(Modifiers::COMMAND, Key::S),
+                i.consume_key(Modifiers::COMMAND, Key::O),
+            )
+        });
+        if save_as {
+            self.save_project(true, ctx);
+        } else if save {
+            self.save_project(false, ctx);
+        }
+        if open {
+            self.open_project(ctx);
+        }
         // Shifted variants are consumed first so Ctrl+Shift+Q is not read as Ctrl+Q
         let keys = ctx.input_mut(|i| {
             let ctrl_shift = Modifiers::COMMAND | Modifiers::SHIFT;
@@ -530,6 +674,22 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.new_project();
                 ui.close_menu();
             }
+            if ui.button("Abrir…  Ctrl+O").clicked() {
+                let ctx = ui.ctx().clone();
+                state.open_project(&ctx);
+                ui.close_menu();
+            }
+            if ui.button("Salvar  Ctrl+S").clicked() {
+                let ctx = ui.ctx().clone();
+                state.save_project(false, &ctx);
+                ui.close_menu();
+            }
+            if ui.button("Salvar como…  Ctrl+Shift+S").clicked() {
+                let ctx = ui.ctx().clone();
+                state.save_project(true, &ctx);
+                ui.close_menu();
+            }
+            ui.separator();
             if ui.button("Importar áudio…").clicked() {
                 let ctx = ui.ctx().clone();
                 state.import_audio(&ctx);

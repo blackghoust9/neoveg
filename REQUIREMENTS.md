@@ -8,7 +8,7 @@ Neoveg is a pure Rust Cargo workspace. **The only build dependency is the offici
 
 | Tool | Minimum Version | Usage | Installation |
 | :--- | :--- | :--- | :--- |
-| **Rust (`rustup` / `cargo`)** | 1.80+ (stable) | Everything: `crates/neoveg_*` | Windows: `winget install --id Rustlang.Rustup --exact` / Linux & macOS: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| **Rust (`rustup` / `cargo`)** | 1.88+ (stable) | Everything: `crates/neoveg_*` | Windows: `winget install --id Rustlang.Rustup --exact` / Linux & macOS: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | `clippy`, `rustfmt` | bundled | Lint and formatting | `rustup component add clippy rustfmt` |
 
 Optional tools used by QA and coverage:
