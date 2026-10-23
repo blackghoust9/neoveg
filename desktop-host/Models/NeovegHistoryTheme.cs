@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace Neoveg.Models;
 
 /// <summary>
-/// Represents a historical Neoveg UI theme (Sonic Foundry 1-3, Classic NLE 4-13, Modern NLE 14-22, Contemporary NLE 2026)
+/// Represents a historical Neoveg UI theme (Classic Industrial 1-3, Classic NLE 4-13, Modern NLE 14-22, Contemporary NLE 2026)
 /// loaded from `assets/neoveg_history_themes/theme_catalog.json`.
 /// </summary>
 public sealed class NeovegHistoryTheme
@@ -147,13 +147,13 @@ public static class NeovegHistoryThemeCatalog
     {
         new NeovegHistoryTheme
         {
-            Id = "sonic_foundry_v1_v3",
-            EraFolder = "01_era_sonic_foundry_v1_v3",
+            Id = "classic_industrial_v1_v3",
+            EraFolder = "01_era_classic_industrial_v1_v3",
             EraNumber = 1,
-            Name = "Sonic Foundry Neoveg 1–3 (1999–2002)",
-            ShortBadge = "SONIC FOUNDRY V3",
+            Name = "Classic Industrial (Era 1) (1999–2002)",
+            ShortBadge = "NEOVEG - CLASSIC INDUSTRIAL",
             Years = "1999–2002",
-            Vendor = "Sonic Foundry, Inc.",
+            Vendor = "Classic Industrial, Inc.",
             WindowBg = "#B8B5AE", MenuBg = "#D4D0C8", ToolbarBg = "#C6C3BD",
             DockHeaderBg = "#84827E", DockPanelBg = "#CBC8C2", DockBorder = "#42413E",
             TimelineBg = "#A6A39C", RulerBg = "#94918A",

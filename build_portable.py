@@ -232,14 +232,10 @@ def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
         "AUTHORS.md",
         "LICENSE",
         "REQUIREMENTS.md",
-        "KEEPS.md",
         "README.md",
         "GUIA_NOVAS_FUNCIONALIDADES.md",
         "DOCUMENTACAO_SCRIPTS.md",
-        "RELATORIO_REA_NEOVEG.md",
-        "RELATORIO_MAPEAMENTO_UI_NEOVEG.md",
         "funcoes_add.txt",
-        "log_erros.txt",
         "settings.json",
     ):
         if (ROOT_DIR / doc).exists():

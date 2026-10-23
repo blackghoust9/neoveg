@@ -131,7 +131,7 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
       como uma janela nativa independente do Windows (`Neoveg_AdvancedSettings_Window`)
       para outro monitor.
 [x] ENCICLOPÉDIA COMPLETA DO NEOVEG EM `KEEPS.md` (INCLUINDO WIKIPEDIA E FONTES):
-    - Criado o documento `KEEPS.md` contendo toda a história (Sonic Foundry 1999,
+    - Criado o documento `KEEPS.md` contendo toda a história (Classic Industrial 1999,
       Classic NLE Creative Software 2003, Modern NLE 2016, Contemporary NLE 2026), tabela de todas as
       versões (Neoveg 1.0 até Neoveg 22), extensões e scripts mais usados
       (Neoveg Toolkit, Happy Otter Scripts, Voukoder, Excalibur, CorridorKey), problemas

@@ -50,31 +50,5 @@
     "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v8_v13_silver_dark.svg",
     "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v8_v13_silver_dark.png",
     "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v8_v13_silver_dark.json"
-  },
-  "curated_references": [
-    {
-      "file": "image.png",
-      "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
-      "sampled_dominant_hex": [
-        "#B8BBB3",
-        "#8D9794",
-        "#888B8A",
-        "#868584",
-        "#7C7F81",
-        "#555152"
-      ]
-    },
-    {
-      "file": "2image.png",
-      "relative_path": "02_era_classic_silver_v4_v13/references/2image.png",
-      "sampled_dominant_hex": [
-        "#FFFFFF",
-        "#F0F0F0",
-        "#DBDBDB",
-        "#BEBAB4",
-        "#8FA19C",
-        "#73635E"
-      ]
-    }
-  ]
+  }
 }

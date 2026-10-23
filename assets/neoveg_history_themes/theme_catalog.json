@@ -5,13 +5,13 @@
   "comparison_sheet": "neoveg_eras_comparison_sheet.png",
   "themes": [
     {
-      "id": "sonic_foundry_v1_v3",
-      "era_folder": "01_era_sonic_foundry_v1_v3",
+      "id": "classic_industrial_v1_v3",
+      "era_folder": "01_era_classic_industrial_v1_v3",
       "era_number": 1,
-      "name": "Sonic Foundry Neoveg 1–3 (1999–2002)",
-      "short_badge": "SONIC FOUNDRY V3",
+      "name": "Classic Industrial (Era 1) (1999–2002)",
+      "short_badge": "NEOVEG - CLASSIC INDUSTRIAL",
       "years": "1999–2002",
-      "vendor": "Sonic Foundry, Inc. (Madison, WI)",
+      "vendor": "Era 1 - Classic Industrial",
       "versions": [
         "Neoveg 1.0",
         "Neoveg Audio 2.0",
@@ -45,13 +45,12 @@
       },
       "reference_files": [],
       "assets": {
-        "logo_svg": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.svg",
-        "logo_png": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.png",
-        "icons_svg": "01_era_sonic_foundry_v1_v3/icons_sonic_foundry_v1_v3.svg",
-        "swatch_png": "01_era_sonic_foundry_v1_v3/swatch_sonic_foundry_v1_v3.png",
-        "palette_json": "01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json"
-      },
-      "curated_references": []
+        "logo_svg": "01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.svg",
+        "logo_png": "01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.png",
+        "icons_svg": "01_era_classic_industrial_v1_v3/icons_classic_industrial_v1_v3.svg",
+        "swatch_png": "01_era_classic_industrial_v1_v3/swatch_classic_industrial_v1_v3.png",
+        "palette_json": "01_era_classic_industrial_v1_v3/palette_classic_industrial_v1_v3.json"
+      }
     },
     {
       "id": "classic_v4_v7_flaming_gold",
@@ -103,45 +102,7 @@
         "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v4_v7_flaming_gold.svg",
         "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v4_v7_flaming_gold.png",
         "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v4_v7_flaming_gold.json"
-      },
-      "curated_references": [
-        {
-          "file": "maxresdefault.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
-          "sampled_dominant_hex": [
-            "#EBEEE1",
-            "#E4E7D2",
-            "#DDE1D0",
-            "#CED1C7",
-            "#C1C8BE",
-            "#5B6569"
-          ]
-        },
-        {
-          "file": "10image.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
-          "sampled_dominant_hex": [
-            "#F1F1F1",
-            "#E8EAEC",
-            "#DADEE0",
-            "#CAC8C8",
-            "#A2B2B1",
-            "#605653"
-          ]
-        },
-        {
-          "file": "11maxresdefault.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/11maxresdefault.png",
-          "sampled_dominant_hex": [
-            "#EFEFEF",
-            "#EDEDED",
-            "#E6E6E8",
-            "#D4D3D4",
-            "#BEC5CC",
-            "#4B4D52"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "classic_v8_v13_silver_dark",
@@ -195,33 +156,7 @@
         "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v8_v13_silver_dark.svg",
         "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v8_v13_silver_dark.png",
         "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v8_v13_silver_dark.json"
-      },
-      "curated_references": [
-        {
-          "file": "image.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
-          "sampled_dominant_hex": [
-            "#B8BBB3",
-            "#8D9794",
-            "#888B8A",
-            "#868584",
-            "#7C7F81",
-            "#555152"
-          ]
-        },
-        {
-          "file": "2image.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/2image.png",
-          "sampled_dominant_hex": [
-            "#FFFFFF",
-            "#F0F0F0",
-            "#DBDBDB",
-            "#BEBAB4",
-            "#8FA19C",
-            "#73635E"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "modern_v14_v15_flat_gray",
@@ -270,21 +205,7 @@
         "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v14_v15_flat_gray.svg",
         "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v14_v15_flat_gray.png",
         "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v14_v15_flat_gray.json"
-      },
-      "curated_references": [
-        {
-          "file": "5image.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/5image.png",
-          "sampled_dominant_hex": [
-            "#9EA597",
-            "#868786",
-            "#797975",
-            "#717A7D",
-            "#737574",
-            "#5D4E65"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "modern_v16_v22_carbon_cyan",
@@ -344,81 +265,7 @@
         "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v16_v22_carbon_cyan.svg",
         "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v16_v22_carbon_cyan.png",
         "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v16_v22_carbon_cyan.json"
-      },
-      "curated_references": [
-        {
-          "file": "icones-neoveg.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
-          "sampled_dominant_hex": [
-            "#E6CFC9",
-            "#98837E",
-            "#545052",
-            "#363636",
-            "#2D2D2D",
-            "#282929"
-          ]
-        },
-        {
-          "file": "8image.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
-          "sampled_dominant_hex": [
-            "#A2B3BC",
-            "#5A687A",
-            "#484751",
-            "#3B363C",
-            "#2E2E2F",
-            "#192135"
-          ]
-        },
-        {
-          "file": "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/4a839cda-adb3-4375-b651-be8fb3b977c9.png",
-          "sampled_dominant_hex": [
-            "#A9999B",
-            "#806672",
-            "#635255",
-            "#474848",
-            "#493B42",
-            "#242425"
-          ]
-        },
-        {
-          "file": "filmmakers.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/filmmakers.png",
-          "sampled_dominant_hex": [
-            "#627C79",
-            "#3D4B4A",
-            "#3C3939",
-            "#2C3434",
-            "#312B2D",
-            "#222425"
-          ]
-        },
-        {
-          "file": "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
-          "sampled_dominant_hex": [
-            "#97B0B2",
-            "#4A535E",
-            "#3E3F42",
-            "#43333C",
-            "#2E2E30",
-            "#0F101D"
-          ]
-        },
-        {
-          "file": "ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
-          "sampled_dominant_hex": [
-            "#B0BACA",
-            "#5A6682",
-            "#44444C",
-            "#373234",
-            "#2D2D2D",
-            "#1F2531"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "contemporary_2026_electric_dark",
@@ -470,57 +317,7 @@
         "icons_svg": "04_era_contemporary_2026/icons_contemporary_2026_electric_dark.svg",
         "swatch_png": "04_era_contemporary_2026/swatch_contemporary_2026_electric_dark.png",
         "palette_json": "04_era_contemporary_2026/palette_contemporary_2026_electric_dark.json"
-      },
-      "curated_references": [
-        {
-          "file": "3image.png",
-          "relative_path": "04_era_contemporary_2026/references/3image.png",
-          "sampled_dominant_hex": [
-            "#795455",
-            "#384B5D",
-            "#342F33",
-            "#382224",
-            "#262626",
-            "#171B1D"
-          ]
-        },
-        {
-          "file": "4image.png",
-          "relative_path": "04_era_contemporary_2026/references/4image.png",
-          "sampled_dominant_hex": [
-            "#CFC2B4",
-            "#827669",
-            "#3D3A34",
-            "#272522",
-            "#222222",
-            "#1B1D1C"
-          ]
-        },
-        {
-          "file": "6image.png",
-          "relative_path": "04_era_contemporary_2026/references/6image.png",
-          "sampled_dominant_hex": [
-            "#95A6B5",
-            "#464E4C",
-            "#2D302D",
-            "#262626",
-            "#26161D",
-            "#0A0C0F"
-          ]
-        },
-        {
-          "file": "7image.png",
-          "relative_path": "04_era_contemporary_2026/references/7image.png",
-          "sampled_dominant_hex": [
-            "#404142",
-            "#363838",
-            "#412A24",
-            "#132C3E",
-            "#331E20",
-            "#090D17"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "neoveg_ultrawhite_v8",
@@ -568,33 +365,7 @@
         "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_ultrawhite_v8.svg",
         "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_ultrawhite_v8.png",
         "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_ultrawhite_v8.json"
-      },
-      "curated_references": [
-        {
-          "file": "maxresdefault.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
-          "sampled_dominant_hex": [
-            "#EBEEE1",
-            "#E4E7D2",
-            "#DDE1D0",
-            "#CED1C7",
-            "#C1C8BE",
-            "#5B6569"
-          ]
-        },
-        {
-          "file": "10image.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
-          "sampled_dominant_hex": [
-            "#F1F1F1",
-            "#E8EAEC",
-            "#DADEE0",
-            "#CAC8C8",
-            "#A2B2B1",
-            "#605653"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "neoveg_classic_cinza_v10_13",
@@ -644,21 +415,7 @@
         "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_classic_cinza_v10_13.svg",
         "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_classic_cinza_v10_13.png",
         "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_classic_cinza_v10_13.json"
-      },
-      "curated_references": [
-        {
-          "file": "image.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
-          "sampled_dominant_hex": [
-            "#B8BBB3",
-            "#8D9794",
-            "#888B8A",
-            "#868584",
-            "#7C7F81",
-            "#555152"
-          ]
-        }
-      ]
+      }
     },
     {
       "id": "neoveg_jorgetheuser_v14",
@@ -705,8 +462,7 @@
         "icons_svg": "03_era_modern_carbon_v14_v22/icons_neoveg_jorgetheuser_v14.svg",
         "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_jorgetheuser_v14.png",
         "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_jorgetheuser_v14.json"
-      },
-      "curated_references": []
+      }
     },
     {
       "id": "neoveg_actualblack_v15",
@@ -754,33 +510,7 @@
         "icons_svg": "03_era_modern_carbon_v14_v22/icons_neoveg_actualblack_v15.svg",
         "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_actualblack_v15.png",
         "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_actualblack_v15.json"
-      },
-      "curated_references": [
-        {
-          "file": "8image.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
-          "sampled_dominant_hex": [
-            "#A2B3BC",
-            "#5A687A",
-            "#484751",
-            "#3B363C",
-            "#2E2E2F",
-            "#192135"
-          ]
-        },
-        {
-          "file": "icones-neoveg.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
-          "sampled_dominant_hex": [
-            "#E6CFC9",
-            "#98837E",
-            "#545052",
-            "#363636",
-            "#2D2D2D",
-            "#282929"
-          ]
-        }
-      ]
+      }
     }
   ]
 }

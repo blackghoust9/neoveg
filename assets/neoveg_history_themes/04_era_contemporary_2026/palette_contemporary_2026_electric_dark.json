@@ -48,55 +48,5 @@
     "icons_svg": "04_era_contemporary_2026/icons_contemporary_2026_electric_dark.svg",
     "swatch_png": "04_era_contemporary_2026/swatch_contemporary_2026_electric_dark.png",
     "palette_json": "04_era_contemporary_2026/palette_contemporary_2026_electric_dark.json"
-  },
-  "curated_references": [
-    {
-      "file": "3image.png",
-      "relative_path": "04_era_contemporary_2026/references/3image.png",
-      "sampled_dominant_hex": [
-        "#795455",
-        "#384B5D",
-        "#342F33",
-        "#382224",
-        "#262626",
-        "#171B1D"
-      ]
-    },
-    {
-      "file": "4image.png",
-      "relative_path": "04_era_contemporary_2026/references/4image.png",
-      "sampled_dominant_hex": [
-        "#CFC2B4",
-        "#827669",
-        "#3D3A34",
-        "#272522",
-        "#222222",
-        "#1B1D1C"
-      ]
-    },
-    {
-      "file": "6image.png",
-      "relative_path": "04_era_contemporary_2026/references/6image.png",
-      "sampled_dominant_hex": [
-        "#95A6B5",
-        "#464E4C",
-        "#2D302D",
-        "#262626",
-        "#26161D",
-        "#0A0C0F"
-      ]
-    },
-    {
-      "file": "7image.png",
-      "relative_path": "04_era_contemporary_2026/references/7image.png",
-      "sampled_dominant_hex": [
-        "#404142",
-        "#363838",
-        "#412A24",
-        "#132C3E",
-        "#331E20",
-        "#090D17"
-      ]
-    }
-  ]
+  }
 }

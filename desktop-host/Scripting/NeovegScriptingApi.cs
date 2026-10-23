@@ -999,7 +999,7 @@ public sealed class CustomCommand
 
 /// <summary>
 /// Base class for Dockable Window Extensions in Neoveg (`Neoveg.Scripting.DockableControl`),
-/// mirroring `ScriptPortal.Neoveg.DockableControl` so third-party tools like VPFlow, Datamosh, Neoveg Toolkit, and HOS
+/// mirroring `Neoveg.Scripting.Compat.DockableControl` so third-party tools like VPFlow, Datamosh, Neoveg Toolkit, and HOS
 /// can dock directly inside the Avalonia UI workspace or float on secondary monitors.
 /// </summary>
 public class DockableControl : Border

@@ -193,7 +193,7 @@ Neoveg's UI/UX layout, editing mechanics, shortcut keys, and signal routing pipe
 - **Contemporary AI & Native Plugin Ecosystem:** Native C/C++ OpenFX, VST3, Voukoder, Whisper.cpp speech-to-subtitle transcription, and CorridorKey chroma/alpha keying.
 
 **Implementation Mandate:**
-All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ctrl+Shift+Q` insert Video Track, `S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Media FX $\rightarrow$ Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), high-zoom sample-accurate audio waveform rendering (`lod_ultra` + Catmull-Rom cubic Hermite interpolation), and event manipulation behaviors in Neoveg must mirror these specifications and the research notes in `docs/research/nle_features_research.txt`.
+All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ctrl+Shift+Q` insert Video Track, `S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Media FX $\rightarrow$ Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), high-zoom sample-accurate audio waveform rendering (exact per-pixel min/max/RMS from the real PCM samples and individual sample points at sample-level zoom via `rust-core/src/waveform_source.rs`; summarized peaks are never interpolated), and event manipulation behaviors in Neoveg must mirror these specifications and the research notes in `docs/research/nle_features_research.txt`.
 
 ---
 
@@ -337,8 +337,6 @@ To guarantee seamless execution across Windows, Linux, and macOS and preserve re
 - **Cross-Platform Launcher Scripts (`scripts/`):**
   - **`scripts/neoveg.sh` (Linux & macOS):** Must carry executable permissions (`chmod +x`), auto-detect the kernel (`Linux` vs `Darwin`), configure `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) pointing to `runtimes/<rid>/native/` and `runtimes/<rid>/ffmpeg/lib/`, initialize the platform cache directory, and launch `Neoveg`.
   - **`scripts/neoveg.bat` (Windows):** Configures `PATH` for `runtimes\win-x64\native\` and `runtimes\win-x64\ffmpeg\bin\`, prepares `%LOCALAPPDATA%\Neoveg\AppCache`, and launches `Neoveg.exe`.
-- **NLE Research Knowledge Base (`docs/research/nle_features_research.txt`):**
-  - Persist all discovered broadcast NLE specifications, SMPTE timecode rules, and frame-grid notes in `docs/research/nle_features_research.txt`.
 
 ---
 
@@ -352,3 +350,17 @@ To prevent intellectual property conflicts and maintain complete independence:
   - Use generic industry terms for features/UI: **`Classic NLE`**, **`Professional Timeline`**, **`Standard Video FX`**, **`Procedural Titles`**, **`Track Header`**, **`Precision Fader`**.
 - **Automated Sanity Check:**
   - Prior to every release build, the build pipeline must run a string-audit scan to verify zero occurrences of prohibited trademarks in the compiled output and repository.
+
+---
+
+## 20. Fallback Web Research & NLE Knowledge Base Protocol
+
+To keep behavioral fidelity with the reference NLE workflows (Section 10) even when the local manuals lack implementation details:
+
+- **Missing Manual Specification Fallback:**
+  - If a feature, UX interaction, or algorithm (e.g., dynamic frame grid calculation, timecode snapping rules) is not detailed in the local reference manuals, research official online help first, then community documentation, and record which kind of source backs each rule.
+- **Knowledge Base Persistence (`docs/research/nle_features_research.txt`):**
+  - Save every discovered specification, rule, and research note in `docs/research/nle_features_research.txt`, structured as *Feature Name*, *Exact Reference Behavior*, *Visual/Technical Rules*, *Implementation Guidelines for Neoveg*, *Sources* and the research date.
+  - When no source documents a detail, write `NOT DOCUMENTED` and record the rule as a Neoveg design decision instead of presenting it as reference behavior.
+  - Consult this file before implementing or changing any parity behavior, and update it when new evidence contradicts an entry.
+  - Research notes follow Section 19: third-party product names, trademarks and their URLs stay out of the repository (keep them only in local, untracked notes).

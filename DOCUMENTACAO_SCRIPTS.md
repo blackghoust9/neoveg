@@ -1,6 +1,6 @@
 # Documentação Oficial de Scripts e Extensões Acopláveis — Neoveg
 
-Este documento técnico detalha a arquitetura do **Sistema de Extensões e Scripts (Scripting Engine & Dockable Extensions)** do **Neoveg**, projetado para espelhar a API clássica do **Neoveg** (`ScriptPortal.Neoveg` / `Neoveg.Scripting`) e suportar tanto scripts em **C# (`.cs` via Roslyn)** e **Python (`.py`)** quanto **Extensões Compiladas (`.dll` / `DockableControl`)** como **VPFlow**, **Datamosh**, **Neoveg Toolkit** e **HOS (Happy Otter Scripts)**.
+Este documento técnico detalha a arquitetura do **Sistema de Extensões e Scripts (Scripting Engine & Dockable Extensions)** do **Neoveg**, projetado para espelhar a API clássica do **Neoveg** (`Neoveg.Scripting.Compat` / `Neoveg.Scripting`) e suportar tanto scripts em **C# (`.cs` via Roslyn)** e **Python (`.py`)** quanto **Extensões Compiladas (`.dll` / `DockableControl`)** como **VPFlow**, **Datamosh**, **Neoveg Toolkit** e **HOS (Happy Otter Scripts)**.
 
 ---
 
@@ -20,7 +20,7 @@ Neoveg/
 │   └── HOS_RenderProxyBridge.ext.json        # Happy Otter Scripts (Normalização True-Peak & Proxy)
 └── desktop-host/
     ├── Scripting/
-    │   ├── NeovegScriptingApi.cs             # Namespace Neoveg.Scripting + Bridge ScriptPortal.Neoveg
+    │   ├── NeovegScriptingApi.cs             # Namespace Neoveg.Scripting + Bridge Neoveg.Scripting.Compat
     │   └── ScriptingEngineService.cs         # Motor Roslyn C# + Python + Carregador de Assembly .DLL
     └── Views/
         └── DockableExtensionWindow.cs        # Host de Extensões de Janela Acopláveis + Console IDE
@@ -28,7 +28,7 @@ Neoveg/
 
 ---
 
-## 2. Arquitetura da API `Neoveg.Scripting` (`ScriptPortal.Neoveg`)
+## 2. Arquitetura da API `Neoveg.Scripting` (`Neoveg.Scripting.Compat`)
 
 O namespace `Neoveg.Scripting` implementa a hierarquia completa de classes do Neoveg:
 

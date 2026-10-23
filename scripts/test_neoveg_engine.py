@@ -1,7 +1,7 @@
 """
 Automated Verification Suite for Neoveg (Neoveg Cross-Platform Architecture)
 Tests:
-1. Backup verification (`backup_v1_anterior/`)
+1. Workspace hygiene (no legacy backup or reverse-engineering material)
 2. Recycled & upgraded Rust FFI Core (`rust-core/src/lib.rs` with `cdylib` C-ABI exports + `rust_bridge.py`)
 3. Isolated Cross-Platform FFmpeg & FFprobe Manager (`ffmpeg_manager.py` for Windows, Linux, macOS)
 4. Recycled Plugins & Reliability Engine (`plugins_engine.py`, `neoveg_scripting.py`, CorridorKey, Frei0r, LADSPA)
@@ -29,11 +29,11 @@ import neoveg_scripting
 def run_all_tests() -> None:
     print("=== Neoveg Cross-Platform Architecture (Avalonia UI + Rust FFI + Python FFmpeg) Suite ===")
 
-    # 1. Verify backup_v1_anterior exists and preserves previous version
-    backup_dir = ROOT_DIR / "backup_v1_anterior"
-    assert backup_dir.exists(), "backup_v1_anterior missing"
-    assert (backup_dir / "rust-core").exists() and (backup_dir / "python-backend").exists()
-    print("[PASS] 1. Backup completo em backup_v1_anterior/ verificado com sucesso")
+    # 1. Verify the workspace ships no legacy backup nor reverse-engineering material
+    for removed in ("backup_v1_anterior/rust-core", "backup_v1_anterior/python-backend",
+                    "python-backend/rea_ui_scanner.py", "assets/rea_ui_scan_catalog.json"):
+        assert not (ROOT_DIR / removed).exists(), f"Removed material '{removed}' is back in the workspace"
+    print("[PASS] 1. Workspace sem backup legado nem material de engenharia reversa")
 
     # 2. Verify Recycled Rust FFI Core (`cdylib` + C-ABI exports) & Python Bridge
     cargo_toml = (ROOT_DIR / "rust-core" / "Cargo.toml").read_text(encoding="utf-8")
@@ -103,7 +103,7 @@ def run_all_tests() -> None:
     themes_dir = ROOT_DIR / "assets" / "neoveg_history_themes"
     assert (themes_dir / "theme_catalog.json").exists(), "theme_catalog.json missing"
     for era_folder in (
-        "01_era_sonic_foundry_v1_v3",
+        "01_era_classic_industrial_v1_v3",
         "02_era_classic_silver_v4_v13",
         "03_era_modern_carbon_v14_v22",
         "04_era_contemporary_2026",
@@ -129,11 +129,9 @@ def run_all_tests() -> None:
     assert otio_path.exists() and otio_path.suffix == ".neoveg", ".neoveg export failed"
     assert not list((ROOT_DIR / "projects").rglob("*.veg")), "Unexpected .veg files found in projects/"
     assert not list((ROOT_DIR / "projects").rglob("*.otio")), "Unexpected .otio files found in projects/"
-    legacy_backup = ROOT_DIR / "backup_v1_anterior" / "legado_removido"
-    assert legacy_backup.exists(), "backup_v1_anterior/legado_removido missing"
     for removed_dir in ("inutil", "frontend", "win-x64"):
         assert not (ROOT_DIR / removed_dir).exists(), f"Obsolete folder '{removed_dir}' still in workspace root"
-    print(f"[PASS] 7. Integração neoveg_presets ({len(luts)} LUTs 3D .cube, 4 temas QSS/C++, Perfis Proxy GPU, OTIO) + Limpeza/Backup verificados")
+    print(f"[PASS] 7. Integração neoveg_presets ({len(luts)} LUTs 3D .cube, 4 temas QSS/C++, Perfis Proxy GPU, OTIO) + Limpeza verificados")
 
     # 8. Run Comprehensive QA Audit (Multi-Format Media SD/HD/4K/Vertical/24-bit 96kHz/VFR + .sfk Cache + Sub-frame Stress + NeovegThemeManager + Developer Guide)
     qa_report = qa_audit_suite.run_qa_audit()
@@ -464,34 +462,6 @@ def run_all_tests() -> None:
             assert dst_legal.exists(), f"Missing {legal_file} in {dt}"
 
     print(f"[PASS] 17. Auditoria AUTHORS.md & LICENSE ({len(nuget_pkgs)} pacotes NuGet C#, Cargo.toml Rust, {len(py_pkgs)} pacotes Python, CMake C++ SDKs + dist/ Win/Linux/macOS) verificada")
-
-    # 18. Verify REA 6.4.0 UI Resource & String Table Scan + RELATORIO_MAPEAMENTO_UI_NEOVEG.md
-    import rea_ui_scanner
-    rea_catalog = rea_ui_scanner.scan_neoveg_ui_resources()
-    assert len(rea_catalog["assemblies"]) >= 4 and len(rea_catalog["rcw_com_interfaces"]) >= 20
-
-    ui_report_md = (ROOT_DIR / "RELATORIO_MAPEAMENTO_UI_NEOVEG.md").read_text(encoding="utf-8")
-    for req_ui_tok in (
-        "ScriptPortal.MediaSoftware.VideoEffectsUI.dll",
-        "ColorGradingWindow.dll",
-        "ScriptPortal.Neoveg.dll",
-        "1. Barra de Ferramentas Principal e Menus Superiores",
-        "2. Cabeçalhos de Faixa (Track Headers) e Grupos",
-        "3. Cabeçalho de Eventos na Timeline (Event Header)",
-        "4. Janela Event Pan/Crop e FX Chain",
-        "5. Video Preview, Master Scope e Mixer de Áudio",
-        "6. Project Media, Trimmer e Render As",
-        "| [Botão / Controle] | [Ícone / Rótulo] | [Atalho] | [Para que serve / Função] | [Ação Correspondente no Neoveg (Avalonia UI)] |",
-        "Event Pan/Crop",
-        "Generated Media",
-        "Bypass FX",
-        "Ripple Edit",
-        "Quantize to Frames",
-        "Lock Envelopes",
-    ):
-        assert req_ui_tok in ui_report_md, f"Missing required UI mapping section/token in RELATORIO_MAPEAMENTO_UI_NEOVEG.md: {req_ui_tok}"
-
-    print(f"[PASS] 18. Escaneamento REA 6.4.0 de UI & String Tables (RELATORIO_MAPEAMENTO_UI_NEOVEG.md + {len(rea_catalog['assemblies'])} Assemblies + {len(rea_catalog['rcw_com_interfaces'])} Interfaces RCW COM + 6 Secoes de UI) verificado")
 
     # 19. Verify Native `.neoveg` Container (project.json + media_pool.json + history.json) & XML Interchange (FCP7 .xml / FCPX .fcpxml / CMX3600 .edl)
     interchange_cs = (ROOT_DIR / "desktop-host" / "ProjectInterchange" / "NeovegProjectInterchange.cs").read_text(encoding="utf-8")

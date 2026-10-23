@@ -44,31 +44,5 @@
     "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_ultrawhite_v8.svg",
     "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_ultrawhite_v8.png",
     "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_ultrawhite_v8.json"
-  },
-  "curated_references": [
-    {
-      "file": "maxresdefault.png",
-      "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
-      "sampled_dominant_hex": [
-        "#EBEEE1",
-        "#E4E7D2",
-        "#DDE1D0",
-        "#CED1C7",
-        "#C1C8BE",
-        "#5B6569"
-      ]
-    },
-    {
-      "file": "10image.png",
-      "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
-      "sampled_dominant_hex": [
-        "#F1F1F1",
-        "#E8EAEC",
-        "#DADEE0",
-        "#CAC8C8",
-        "#A2B2B1",
-        "#605653"
-      ]
-    }
-  ]
+  }
 }

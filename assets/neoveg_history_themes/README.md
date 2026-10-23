@@ -4,14 +4,14 @@ Esta pasta (`assets/neoveg_history_themes/`) reúne as referências visuais, pal
 
 ---
 
-## 1. Era Sonic Foundry (`01_era_sonic_foundry_v1_v3` — 1999 a 2002)
+## 1. Era Classic Industrial (`01_era_classic_industrial_v1_v3` — 1999 a 2002)
 - **Versões**: Neoveg 1.0 (Audio), Neoveg Video 2.0, Neoveg Video 3.0
 - **Estética**: Industrial utilitária Win32 com cinza metálico escovado (`#B8B5AE` / `#C6C3BD`), bordas chanfradas 3D (`#42413E`) e detalhes em vermelho carmim (`#CC291B`) e laranja incandescente (`#FF6A00`).
 - **Ativos**:
-  - `01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json`
-  - `01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.svg` / `.png`
-  - `01_era_sonic_foundry_v1_v3/icons_sonic_foundry_v1_v3.svg`
-  - `01_era_sonic_foundry_v1_v3/swatch_sonic_foundry_v1_v3.png`
+  - `01_era_classic_industrial_v1_v3/palette_classic_industrial_v1_v3.json`
+  - `01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.svg` / `.png`
+  - `01_era_classic_industrial_v1_v3/icons_classic_industrial_v1_v3.svg`
+  - `01_era_classic_industrial_v1_v3/swatch_classic_industrial_v1_v3.png`
 
 ---
 
@@ -22,7 +22,7 @@ Dividida em duas variantes históricas clássicas:
    - Referências extraídas: `maxresdefault.png`, `10image.png`, `11maxresdefault.png`.
 2. **Classic NLE 8 a 13 — Tema Prata/Escuro Profissional (`classic_v8_v13_silver_dark`)**:
    - Superfície ardósia/prata escura (`#5A5D62` / `#64676C`), faixas azul-aço (`#6B86A2`) e ameixa (`#866B74`), marcadores laranja vivo (`#F37021`) e barra de seleção azul (`#3B82F6`).
-   - Referências extraídas: `image.png` (Neoveg 10.0), `2image.png` (DVD Architect Pro 5.2), `uploads_...Classic NLE_Neoveg_Pro.png` (Neoveg 12.0).
+   - Referências extraídas: `image.png` (Neoveg 10.0), `2image.png`, `uploads_...Classic NLE_Neoveg_Pro.png` (Neoveg 12.0).
 
 ---
 

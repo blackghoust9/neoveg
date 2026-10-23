@@ -1,11 +1,11 @@
 {
-  "id": "sonic_foundry_v1_v3",
-  "era_folder": "01_era_sonic_foundry_v1_v3",
+  "id": "classic_industrial_v1_v3",
+  "era_folder": "01_era_classic_industrial_v1_v3",
   "era_number": 1,
-  "name": "Sonic Foundry Neoveg 1–3 (1999–2002)",
-  "short_badge": "SONIC FOUNDRY V3",
+  "name": "Classic Industrial (Era 1) (1999–2002)",
+  "short_badge": "NEOVEG - CLASSIC INDUSTRIAL",
   "years": "1999–2002",
-  "vendor": "Sonic Foundry, Inc. (Madison, WI)",
+  "vendor": "Era 1 - Classic Industrial",
   "versions": [
     "Neoveg 1.0",
     "Neoveg Audio 2.0",
@@ -39,11 +39,10 @@
   },
   "reference_files": [],
   "assets": {
-    "logo_svg": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.svg",
-    "logo_png": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.png",
-    "icons_svg": "01_era_sonic_foundry_v1_v3/icons_sonic_foundry_v1_v3.svg",
-    "swatch_png": "01_era_sonic_foundry_v1_v3/swatch_sonic_foundry_v1_v3.png",
-    "palette_json": "01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json"
-  },
-  "curated_references": []
+    "logo_svg": "01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.svg",
+    "logo_png": "01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.png",
+    "icons_svg": "01_era_classic_industrial_v1_v3/icons_classic_industrial_v1_v3.svg",
+    "swatch_png": "01_era_classic_industrial_v1_v3/swatch_classic_industrial_v1_v3.png",
+    "palette_json": "01_era_classic_industrial_v1_v3/palette_classic_industrial_v1_v3.json"
+  }
 }

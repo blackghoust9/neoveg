@@ -637,7 +637,7 @@ public sealed class MainWindow : Window
             CreateMenuItem(loc.T("Menu.View.PopoutScopes", "Destacar Master Audio Mixer & RGB Scopes para Outro Monitor [↗]"), PopoutMixerScopesToMonitor),
             new Separator(),
             CreateMenuItem(loc.T("Menu.View.Splash", "Exibir Tela de Carregamento (Splash Screen Neoveg 12) [↗]"), NeovegSplashDialog),
-            CreateMenuItem(loc.T("Menu.View.ThemesGallery", "Abrir Galeria de Temas Históricos (Sonic Foundry / Classic NLE / Modern NLE / Contemporary NLE) [↗]"), OpenHistoricalThemesGalleryDialog)
+            CreateMenuItem(loc.T("Menu.View.ThemesGallery", "Abrir Galeria de Temas Históricos (Classic Industrial / Classic NLE / Modern NLE / Contemporary NLE) [↗]"), OpenHistoricalThemesGalleryDialog)
         };
 
         var mTools = new MenuItem { Header = loc.T("Menu.Tools", "_Ferramentas") };
@@ -792,7 +792,7 @@ public sealed class MainWindow : Window
         AddGroupSeparator();
 
         // Historical Era Quick Theme Icon Buttons (Tooltips only)
-        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "1: Sonic Foundry", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(1)), "#84827E", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "1: Classic Industrial", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(1)), "#84827E", "#FFFFFF"));
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "2: Classic Silver/Gold", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(2)), "#D97706", "#FFFFFF"));
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "3: Modern Carbon Dark", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(3)), "#0078D7", "#FFFFFF"));
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "4: Contemporary 2026", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(4)), "#00A3FF", "#FFFFFF"));
@@ -4218,7 +4218,7 @@ public sealed class MainWindow : Window
 
         var galleryWin = new Window
         {
-            Title = "Galeria Histórica do Neoveg (1999–2026) — Sonic Foundry • Classic NLE • Modern NLE • Contemporary NLE",
+            Title = "Galeria Histórica do Neoveg (1999–2026) — Classic Industrial • Classic NLE • Modern NLE • Contemporary NLE",
             Width = 880,
             Height = 620,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,

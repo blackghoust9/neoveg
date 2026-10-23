@@ -287,7 +287,7 @@ public sealed class ScriptingEngineService
                         "System.Linq",
                         "System.Collections.Generic",
                         "Neoveg.Scripting",
-                        "ScriptPortal.Neoveg");
+                        "Neoveg.Scripting.Compat");
 
                 string runnableScript = NormalizeEntryPointCSharpScript(csharpCode);
                 var globals = new ScriptGlobals(neovegHost);

@@ -45,19 +45,5 @@
     "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v14_v15_flat_gray.svg",
     "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v14_v15_flat_gray.png",
     "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v14_v15_flat_gray.json"
-  },
-  "curated_references": [
-    {
-      "file": "5image.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/5image.png",
-      "sampled_dominant_hex": [
-        "#9EA597",
-        "#868786",
-        "#797975",
-        "#717A7D",
-        "#737574",
-        "#5D4E65"
-      ]
-    }
-  ]
+  }
 }

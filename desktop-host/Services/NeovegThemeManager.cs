@@ -9,7 +9,7 @@ namespace Neoveg.Services;
 
 /// <summary>
 /// Gerenciador de Temas Visuais Baseado na História Oficial do Neoveg (1999–2026) no Avalonia UI:
-/// - Era 1: Tema Sonic Foundry (Neoveg 1–3): Cinza industrial metálico com detalhes em vermelho e bordas chanfradas clássicas (3D bevel).
+/// - Era 1: Tema Classic Industrial (Neoveg 1–3): Cinza industrial metálico com detalhes em vermelho e bordas chanfradas clássicas (3D bevel).
 /// - Era 2: Tema Classic NLE Classic / Silver (Neoveg 4–13): Tons de prata refinado e o clássico degradê flamejante nas barras e ícones.
 /// - Era 3: Tema Modern NLE Modern Dark (Neoveg 14–22): Padrão cinza escuro profissional com detalhes em azul ciano e menus compactos flat design.
 /// - Era 4: Tema Contemporary NLE / Atual (2026): Visual contemporâneo em azul elétrico (#00A3FF) e fundo totalmente escuro (#0E1015).
@@ -33,7 +33,7 @@ public sealed class NeovegThemeManager
     {
         string preferredId = eraNumber switch
         {
-            1 => "sonic_foundry_v1_v3",
+            1 => "classic_industrial_v1_v3",
             2 => "classic_v4_v7_flaming_gold",
             3 => "modern_v16_v22_carbon_cyan",
             4 => "contemporary_2026_electric_dark",
@@ -59,7 +59,7 @@ public sealed class NeovegThemeManager
 
     /// <summary>
     /// Creates the era-authentic brush for dock headers:
-    /// - Era 1 (Sonic Foundry): Industrial Metallic Bevel Gradient (#9A9792 -> #6E6C68)
+    /// - Era 1 (Classic Industrial): Industrial Metallic Bevel Gradient (#9A9792 -> #6E6C68)
     /// - Era 2 (Classic NLE Classic/Silver): Classic Flaming Gold / Silver Accent Gradient
     /// - Era 3 (Modern NLE Modern Dark): Flat Compact Dark Gray (#333337)
     /// - Era 4 (Contemporary NLE 2026): Deep Obsidian + Electric Blue tint (#1B202C -> #111827)
@@ -134,7 +134,7 @@ public sealed class NeovegThemeManager
 
     /// <summary>
     /// Returns the border thickness according to the historical era:
-    /// Sonic Foundry (1-3) uses 2px classic 3D beveled borders; Modern NLE (14-22) and Contemporary NLE (2026) use 1px flat borders.
+    /// Classic Industrial (1-3) uses 2px classic 3D beveled borders; Modern NLE (14-22) and Contemporary NLE (2026) use 1px flat borders.
     /// </summary>
     public static Thickness GetDockBorderThickness(NeovegHistoryTheme theme)
     {

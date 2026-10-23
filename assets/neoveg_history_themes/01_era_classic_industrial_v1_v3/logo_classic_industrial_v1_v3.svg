@@ -13,7 +13,7 @@
   <rect x="8" y="8" width="240" height="240" fill="url(#sf_metal)" stroke="#42413E" stroke-width="8"/>
   <rect x="16" y="16" width="224" height="224" fill="none" stroke="#FFFFFF" stroke-width="3"/>
   <rect x="28" y="32" width="200" height="44" fill="#1E1E1C" stroke="#42413E" stroke-width="2"/>
-  <text x="128" y="61" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="20" fill="#FF6A00" letter-spacing="2">SONIC FOUNDRY</text>
+  <text x="128" y="61" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="20" fill="#FF6A00" letter-spacing="2">NEOVEG</text>
   <polygon points="48,96 92,96 128,186 164,96 208,96 146,220 110,220" fill="url(#sf_fire)" stroke="#181816" stroke-width="4"/>
   <line x1="36" y1="152" x2="220" y2="152" stroke="#181816" stroke-width="4" stroke-dasharray="8,6"/>
 </svg>

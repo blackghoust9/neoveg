@@ -44,31 +44,5 @@
     "icons_svg": "03_era_modern_carbon_v14_v22/icons_neoveg_actualblack_v15.svg",
     "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_actualblack_v15.png",
     "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_actualblack_v15.json"
-  },
-  "curated_references": [
-    {
-      "file": "8image.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
-      "sampled_dominant_hex": [
-        "#A2B3BC",
-        "#5A687A",
-        "#484751",
-        "#3B363C",
-        "#2E2E2F",
-        "#192135"
-      ]
-    },
-    {
-      "file": "icones-neoveg.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
-      "sampled_dominant_hex": [
-        "#E6CFC9",
-        "#98837E",
-        "#545052",
-        "#363636",
-        "#2D2D2D",
-        "#282929"
-      ]
-    }
-  ]
+  }
 }

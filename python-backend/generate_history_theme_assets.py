@@ -1,7 +1,7 @@
 """
 Neoveg — Historical Neoveg Visual References & Dynamic Theme Asset Generator
 Builds `assets/neoveg_history_themes/` covering all 4 historical eras of Neoveg:
-  1. `01_era_sonic_foundry_v1_v3` (1999–2002): Industrial Metallic Gray & Red/Orange accents
+  1. `01_era_classic_industrial_v1_v3` (1999–2002): Industrial Metallic Gray & Red/Orange accents
   2. `02_era_classic_silver_v4_v13`         (2003–2015): Flaming Gold/Orange Gradient (v4–7) & Pro Silver/Dark Slate (v8–13)
   3. `03_era_modern_carbon_v14_v22`       (2016–2024): Modern Cyan Blue, Dark Carbon & Flat Design
   4. `04_era_contemporary_2026`        (2025–2026): Contemporary Electric Blue & Deep Obsidian Dark
@@ -25,13 +25,13 @@ OUT_ROOT = ROOT_DIR / "assets" / "neoveg_history_themes"
 
 THEMES_DATA: List[Dict[str, Any]] = [
     {
-        "id": "sonic_foundry_v1_v3",
-        "era_folder": "01_era_sonic_foundry_v1_v3",
+        "id": "classic_industrial_v1_v3",
+        "era_folder": "01_era_classic_industrial_v1_v3",
         "era_number": 1,
-        "name": "Sonic Foundry Neoveg 1–3 (1999–2002)",
-        "short_badge": "SONIC FOUNDRY V3",
+        "name": "Classic Industrial (Era 1) (1999–2002)",
+        "short_badge": "NEOVEG - CLASSIC INDUSTRIAL",
         "years": "1999–2002",
-        "vendor": "Sonic Foundry, Inc. (Madison, WI)",
+        "vendor": "Era 1 - Classic Industrial",
         "versions": ["Neoveg 1.0", "Neoveg Audio 2.0", "Neoveg Video 2.0", "Neoveg Video 3.0"],
         "description": "Estética industrial clássica Win32 com cinza metálico escovado, bordas chanfradas 3D e detalhes vibrantes em vermelho carmim e laranja incandescente.",
         "palette": {
@@ -296,8 +296,8 @@ def _generate_era_logo_svg(theme: Dict[str, Any]) -> str:
     bg = pal["timecode_bg"]
     tid = theme["id"]
 
-    if tid == "sonic_foundry_v1_v3":
-        # Industrial Sonic Foundry anvil/wave emblem + beveled metallic badge
+    if tid == "classic_industrial_v1_v3":
+        # Industrial Classic Industrial anvil/wave emblem + beveled metallic badge
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
     <linearGradient id="sf_metal" x1="0" y1="0" x2="1" y2="1">
@@ -313,7 +313,7 @@ def _generate_era_logo_svg(theme: Dict[str, Any]) -> str:
   <rect x="8" y="8" width="240" height="240" fill="url(#sf_metal)" stroke="#42413E" stroke-width="8"/>
   <rect x="16" y="16" width="224" height="224" fill="none" stroke="#FFFFFF" stroke-width="3"/>
   <rect x="28" y="32" width="200" height="44" fill="#1E1E1C" stroke="#42413E" stroke-width="2"/>
-  <text x="128" y="61" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="20" fill="#FF6A00" letter-spacing="2">SONIC FOUNDRY</text>
+  <text x="128" y="61" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="20" fill="#FF6A00" letter-spacing="2">NEOVEG</text>
   <polygon points="48,96 92,96 128,186 164,96 208,96 146,220 110,220" fill="url(#sf_fire)" stroke="#181816" stroke-width="4"/>
   <line x1="36" y1="152" x2="220" y2="152" stroke="#181816" stroke-width="4" stroke-dasharray="8,6"/>
 </svg>"""
@@ -581,14 +581,14 @@ Esta pasta (`assets/neoveg_history_themes/`) reúne as referências visuais, pal
 
 ---
 
-## 1. Era Sonic Foundry (`01_era_sonic_foundry_v1_v3` — 1999 a 2002)
+## 1. Era Classic Industrial (`01_era_classic_industrial_v1_v3` — 1999 a 2002)
 - **Versões**: Neoveg 1.0 (Audio), Neoveg Video 2.0, Neoveg Video 3.0
 - **Estética**: Industrial utilitária Win32 com cinza metálico escovado (`#B8B5AE` / `#C6C3BD`), bordas chanfradas 3D (`#42413E`) e detalhes em vermelho carmim (`#CC291B`) e laranja incandescente (`#FF6A00`).
 - **Ativos**:
-  - `01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json`
-  - `01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.svg` / `.png`
-  - `01_era_sonic_foundry_v1_v3/icons_sonic_foundry_v1_v3.svg`
-  - `01_era_sonic_foundry_v1_v3/swatch_sonic_foundry_v1_v3.png`
+  - `01_era_classic_industrial_v1_v3/palette_classic_industrial_v1_v3.json`
+  - `01_era_classic_industrial_v1_v3/logo_classic_industrial_v1_v3.svg` / `.png`
+  - `01_era_classic_industrial_v1_v3/icons_classic_industrial_v1_v3.svg`
+  - `01_era_classic_industrial_v1_v3/swatch_classic_industrial_v1_v3.png`
 
 ---
 
@@ -599,7 +599,7 @@ Dividida em duas variantes históricas clássicas:
    - Referências extraídas: `maxresdefault.png`, `10image.png`, `11maxresdefault.png`.
 2. **Classic NLE 8 a 13 — Tema Prata/Escuro Profissional (`classic_v8_v13_silver_dark`)**:
    - Superfície ardósia/prata escura (`#5A5D62` / `#64676C`), faixas azul-aço (`#6B86A2`) e ameixa (`#866B74`), marcadores laranja vivo (`#F37021`) e barra de seleção azul (`#3B82F6`).
-   - Referências extraídas: `image.png` (Neoveg 10.0), `2image.png` (DVD Architect Pro 5.2), `uploads_...Classic NLE_Neoveg_Pro.png` (Neoveg 12.0).
+   - Referências extraídas: `image.png` (Neoveg 10.0), `2image.png`, `uploads_...Classic NLE_Neoveg_Pro.png` (Neoveg 12.0).
 
 ---
 

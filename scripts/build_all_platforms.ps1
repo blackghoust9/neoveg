@@ -177,11 +177,8 @@ foreach ($Target in $Targets) {
         "REQUIREMENTS.md",
         "RELEASE_NOTES.md",
         "README.md",
-        "KEEPS.md",
         "GUIA_NOVAS_FUNCIONALIDADES.md",
         "DOCUMENTACAO_SCRIPTS.md",
-        "RELATORIO_REA_NEOVEG.md",
-        "RELATORIO_MAPEAMENTO_UI_NEOVEG.md",
         "settings.json"
     )) {
         $DocSrc = Join-Path $RootDir $DocFile

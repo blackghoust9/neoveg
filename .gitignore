@@ -104,3 +104,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Runtime error log written by the app and the test suites
+log_erros.txt

@@ -46,19 +46,5 @@
     "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_classic_cinza_v10_13.svg",
     "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_classic_cinza_v10_13.png",
     "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_classic_cinza_v10_13.json"
-  },
-  "curated_references": [
-    {
-      "file": "image.png",
-      "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
-      "sampled_dominant_hex": [
-        "#B8BBB3",
-        "#8D9794",
-        "#888B8A",
-        "#868584",
-        "#7C7F81",
-        "#555152"
-      ]
-    }
-  ]
+  }
 }

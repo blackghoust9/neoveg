@@ -30,7 +30,7 @@ O Neoveg divide responsabilidades em três camadas desacopladas de alto desempen
 | Diretório / Arquivo | Papel na Arquitetura |
 | :--- | :--- |
 | [`desktop-host/Views/MainWindow.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Views/MainWindow.cs) | Host principal Avalonia UI, docks, menus, barra de ferramentas, atalhos de teclado (`OnNeovegKeyDown`) e catálogo de efeitos. |
-| [`desktop-host/Services/NeovegThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/NeovegThemeManager.cs) | Gerenciador de temas históricos (Sonic Foundry 1–3, Classic NLE 4–13, Modern NLE 14–22, Contemporary NLE 2026). |
+| [`desktop-host/Services/NeovegThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/NeovegThemeManager.cs) | Gerenciador de temas históricos (Classic Industrial 1–3, Classic NLE 4–13, Modern NLE 14–22, Contemporary NLE 2026). |
 | [`desktop-host/Interop/RustCoreInterop.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Interop/RustCoreInterop.cs) | Ponte FFI dinâmica (`NativeLibrary.TryLoad`) que carrega `neoveg_core.dll` / `.so` / `.dylib`. |
 | [`rust-core/src/lib.rs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/rust-core/src/lib.rs) | Motor nativo em Rust com funções exportadas em C-ABI (`#[no_mangle] pub unsafe extern "C" fn`). |
 | [`python-backend/rust_bridge.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/rust_bridge.py) | Compilador do grafo `filter_complex` do FFmpeg, gerador de cache `.sfk` e ponte Python↔Rust. |
@@ -226,7 +226,7 @@ else if (e.Key == Key.G && e.KeyModifiers.HasFlag(KeyModifiers.Control))
 O sistema de temas visuais do Neoveg é gerenciado por [`desktop-host/Services/NeovegThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/NeovegThemeManager.cs) e alimentado pelo catálogo JSON [`assets/neoveg_history_themes/theme_catalog.json`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_history_themes/theme_catalog.json), gerado pelo script [`python-backend/generate_history_theme_assets.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/generate_history_theme_assets.py).
 
 As 4 eras históricas oficiais contam com renderização específica de bordas e gradientes:
-- **Era 1 — Sonic Foundry (Neoveg 1–3)**: `EraNumber = 1` ativa bordas chanfradas 3D (`BorderThickness = 2` e chanfro claro/escuro nos clipes da timeline) e cinza industrial metálico com detalhes em vermelho (`#CC291B`).
+- **Era 1 — Classic Industrial (Neoveg 1–3)**: `EraNumber = 1` ativa bordas chanfradas 3D (`BorderThickness = 2` e chanfro claro/escuro nos clipes da timeline) e cinza industrial metálico com detalhes em vermelho (`#CC291B`).
 - **Era 2 — Classic NLE Classic / Silver (Neoveg 4–13)**: `EraNumber = 2` ativa o clássico degradê flamejante dourado/laranja (`LinearGradientBrush`) nas barras de cabeçalho dos docks e no topo dos eventos da timeline.
 - **Era 3 — Modern NLE Modern Dark (Neoveg 14–22)**: `EraNumber = 3` ativa o modo flat design compacto (`BorderThickness = 1`, `MenuPadding = 4,1`) em cinza escuro (`#232326`) e azul ciano (`#0078D7`).
 - **Era 4 — Contemporary NLE / Atual (2026)**: `EraNumber = 4` ativa o tema escuro profundo (`#0E1015`) com azul elétrico (`#00A3FF` / `#38BDF8`).

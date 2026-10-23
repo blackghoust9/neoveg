@@ -953,7 +953,7 @@ public sealed class MultiTrackTimelineControl : Control
         }
 
         // Era-aware Clip Border:
-        // Era 1 (Sonic Foundry Neoveg 1-3): Classic 3D Beveled Chamfer Border
+        // Era 1 (Classic Industrial (Era 1)): Classic 3D Beveled Chamfer Border
         if (ActiveTheme.EraNumber == 1)
         {
             var bevelLight = new Pen(new SolidColorBrush(Color.Parse("#F5F3EE")), 1.5);
