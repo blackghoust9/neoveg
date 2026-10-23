@@ -184,6 +184,8 @@ fn set_start(tl: &mut Timeline, track_id: TrackId, event_id: EventId, start: f64
 pub struct History {
     undo: Vec<EditCommand>,
     redo: Vec<EditCommand>,
+    /// Bumped by every execute/undo/redo; lets callers detect unsaved changes cheaply.
+    revision: u64,
 }
 
 impl History {
@@ -198,6 +200,7 @@ impl History {
         }
         self.undo.push(command);
         self.redo.clear();
+        self.revision += 1;
         true
     }
 
@@ -206,6 +209,7 @@ impl History {
             Some(cmd) => {
                 cmd.revert(timeline);
                 self.redo.push(cmd);
+                self.revision += 1;
                 true
             }
             None => false,
@@ -217,10 +221,15 @@ impl History {
             Some(cmd) => {
                 cmd.apply(timeline);
                 self.undo.push(cmd);
+                self.revision += 1;
                 true
             }
             None => false,
         }
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     pub fn can_undo(&self) -> bool {
@@ -335,6 +344,28 @@ mod tests {
         assert!(tl.track(track_id).unwrap().events.is_empty());
         history.undo(&mut tl);
         assert_eq!(tl.track(track_id).unwrap().events.len(), 1);
+    }
+
+    #[test]
+    fn revision_changes_with_every_edit() {
+        let (mut tl, mut history, track_id, event_id) = timeline_with_event();
+        let r0 = history.revision();
+        history.execute(
+            &mut tl,
+            EditCommand::MoveEvent {
+                track_id,
+                event_id,
+                old_start: 2.0,
+                new_start: 3.0,
+            },
+        );
+        assert_ne!(history.revision(), r0);
+        let r1 = history.revision();
+        history.undo(&mut tl);
+        assert_ne!(history.revision(), r1);
+        // a rejected command is not a change
+        let r2 = history.revision();
+        assert!(!history.undo(&mut Timeline::new()) || history.revision() != r2);
     }
 
     #[test]

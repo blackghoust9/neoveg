@@ -11,6 +11,8 @@ pub struct Preferences {
     /// Fade in/out applied automatically on media import (disabled by default).
     pub auto_fade_on_import: bool,
     pub show_welcome_on_startup: bool,
+    /// Minutes between automatic recovery saves (0 disables autosave).
+    pub autosave_minutes: u32,
 }
 
 impl Default for Preferences {
@@ -19,6 +21,7 @@ impl Default for Preferences {
             language: "pt-BR".into(),
             auto_fade_on_import: false,
             show_welcome_on_startup: false,
+            autosave_minutes: 2,
         }
     }
 }
@@ -64,6 +67,7 @@ mod tests {
         let p = Preferences::default();
         assert_eq!(p.language, "pt-BR");
         assert!(!p.auto_fade_on_import);
+        assert_eq!(p.autosave_minutes, 2);
     }
 
     #[test]

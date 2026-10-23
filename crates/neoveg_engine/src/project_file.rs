@@ -15,6 +15,15 @@ use crate::timeline::Timeline;
 pub const FORMAT_VERSION: u32 = 1;
 pub const EXTENSION: &str = "neoveg";
 
+/// Extra `recovery.json` entry written only in autosave files.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecoveryMeta {
+    /// File the user was editing when the autosave was written (`None` for an unsaved project).
+    pub original_path: Option<String>,
+    pub project_name: String,
+    pub saved_unix: u64,
+}
+
 #[derive(Serialize, Deserialize)]
 struct ProjectJson {
     format_version: u32,
@@ -56,6 +65,16 @@ fn read_entry<T: for<'de> Deserialize<'de>>(
 
 /// Saves the project atomically (temp file, then rename).
 pub fn save(path: &Path, info: &ProjectInfo, timeline: &Timeline) -> Result<(), String> {
+    save_with_recovery(path, info, timeline, None)
+}
+
+/// Like [`save`], optionally embedding recovery metadata (used by autosave).
+pub fn save_with_recovery(
+    path: &Path,
+    info: &ProjectInfo,
+    timeline: &Timeline,
+    recovery: Option<&RecoveryMeta>,
+) -> Result<(), String> {
     let tmp = path.with_extension("neoveg.tmp");
     {
         let file =
@@ -80,6 +99,9 @@ pub fn save(path: &Path, info: &ProjectInfo, timeline: &Timeline) -> Result<(), 
                 entries: Vec::new(),
             },
         )?;
+        if let Some(meta) = recovery {
+            write_entry(&mut zip, "recovery.json", meta)?;
+        }
         zip.finish()
             .map_err(|e| format!("cannot finish archive: {e}"))?;
     }
@@ -106,6 +128,13 @@ pub fn load(path: &Path) -> Result<(ProjectInfo, Timeline), String> {
         media_pool,
     };
     Ok((info, project.timeline))
+}
+
+/// Recovery metadata of an autosave file (`None` for regular projects).
+pub fn read_recovery_meta(path: &Path) -> Option<RecoveryMeta> {
+    let file = File::open(path).ok()?;
+    let mut zip = ZipArchive::new(file).ok()?;
+    read_entry(&mut zip, "recovery.json").ok()
 }
 
 /// Media-pool entries whose file no longer exists.

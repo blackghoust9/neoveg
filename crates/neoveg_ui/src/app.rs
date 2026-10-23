@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,9 +17,11 @@ use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::AudioPlayer;
 use neoveg_audio::waveform::WaveformSource;
+use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
+use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
 use neoveg_engine::{EditCommand, EventId, History, Timeline, TrackEvent, TrackId, TrackKind};
@@ -127,6 +130,16 @@ struct AppState {
     video_texture: Option<TextureHandle>,
     last_frame_key: Option<(u64, i64, u32)>,
     preview_pane_width: f32,
+    session_id: String,
+    saved_revision: u64,
+    forced_dirty: bool,
+    last_autosave_time: f64,
+    last_autosave_revision: Option<u64>,
+    autosave_busy: Arc<AtomicBool>,
+    pending_recovery: Vec<RecoveryEntry>,
+    confirm_exit: bool,
+    allow_close: bool,
+    window_title: String,
     media_tab: usize,
     project_path: Option<PathBuf>,
     status: String,
@@ -167,6 +180,16 @@ impl AppState {
             video_texture: None,
             last_frame_key: None,
             preview_pane_width: 640.0,
+            session_id: autosave::new_session_id(),
+            saved_revision: 0,
+            forced_dirty: false,
+            last_autosave_time: 0.0,
+            last_autosave_revision: None,
+            autosave_busy: Arc::new(AtomicBool::new(false)),
+            pending_recovery: Vec::new(),
+            confirm_exit: false,
+            allow_close: false,
+            window_title: String::new(),
             media_tab: 0,
             project_path: None,
             status: "Projeto vazio".into(),
@@ -179,6 +202,8 @@ impl AppState {
         self.stop();
         let prefs = self.prefs.clone();
         let worker = self.frame_worker.take();
+        let recovery = std::mem::take(&mut self.pending_recovery);
+        self.discard_own_recovery();
         let (tx, rx) = (
             self.loader_tx.clone(),
             std::mem::replace(&mut self.loader_rx, channel().1),
@@ -186,6 +211,7 @@ impl AppState {
         *self = Self::new();
         self.prefs = prefs;
         self.frame_worker = worker;
+        self.pending_recovery = recovery;
         self.loader_tx = tx;
         self.loader_rx = rx;
     }
@@ -329,7 +355,7 @@ impl AppState {
 
     // ---- project files (.neoveg) ---------------------------------------------------------------
 
-    fn save_project(&mut self, save_as: bool, ctx: &egui::Context) {
+    fn save_project(&mut self, save_as: bool) {
         let path = match (&self.project_path, save_as) {
             (Some(p), false) => p.clone(),
             _ => {
@@ -350,11 +376,8 @@ impl AppState {
             Ok(()) => {
                 tracing::info!("[INFO] project saved: {}", path.display());
                 self.status = format!("Projeto salvo: {}", path.display());
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
-                    "{} - Neoveg",
-                    self.project.name
-                )));
                 self.project_path = Some(path);
+                self.mark_clean();
             }
             Err(e) => {
                 tracing::error!("[ERROR] save failed: {e}");
@@ -370,19 +393,34 @@ impl AppState {
         else {
             return;
         };
-        let (info, timeline) = match project_file::load(&path) {
+        self.load_project_file(&path, Some(path.clone()), ctx);
+    }
+
+    /// Loads `file` and associates the project with `associate` (the file itself for a normal open,
+    /// the original project path when recovering an autosave).
+    fn load_project_file(
+        &mut self,
+        file: &std::path::Path,
+        associate: Option<PathBuf>,
+        ctx: &egui::Context,
+    ) -> bool {
+        let (info, timeline) = match project_file::load(file) {
             Ok(loaded) => loaded,
             Err(e) => {
                 tracing::error!("[ERROR] open failed: {e}");
                 self.status = format!("Falha ao abrir: {e}");
-                return;
+                return false;
             }
         };
         self.stop();
+        self.discard_own_recovery();
         self.project = info;
         self.timeline = timeline;
         self.history = History::new();
         self.media.clear();
+        self.video_info.clear();
+        self.video_texture = None;
+        self.last_frame_key = None;
         self.selected_track = None;
         self.selected_event = None;
         self.playhead = 0.0;
@@ -390,7 +428,10 @@ impl AppState {
 
         // Missing media: relink by exact then fuzzy name in the project folder and the old folders
         let missing = project_file::find_missing(&self.project);
-        let mut dirs: Vec<PathBuf> = path.parent().map(PathBuf::from).into_iter().collect();
+        let mut dirs: Vec<PathBuf> = file.parent().map(PathBuf::from).into_iter().collect();
+        if let Some(parent) = associate.as_deref().and_then(std::path::Path::parent) {
+            dirs.push(parent.to_path_buf());
+        }
         for m in &self.project.media_pool {
             if let Some(parent) = std::path::Path::new(&m.path).parent() {
                 if parent.is_dir() {
@@ -421,11 +462,92 @@ impl AppState {
                 still_missing.len()
             )
         };
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
-            "{} - Neoveg",
+        self.project_path = associate;
+        self.mark_clean();
+        true
+    }
+
+    fn recover_entry(&mut self, entry: &RecoveryEntry, ctx: &egui::Context) {
+        let original = entry.meta.original_path.as_ref().map(PathBuf::from);
+        if self.load_project_file(&entry.path, original, ctx) {
+            autosave::remove(&entry.path);
+            // Recovered work only exists in memory until the user saves it
+            self.forced_dirty = true;
+            self.status = "Projeto recuperado: salve para mantê-lo".into();
+        }
+        self.pending_recovery.retain(|e| e.path != entry.path);
+    }
+
+    // ---- unsaved changes and autosave -----------------------------------------------------------
+
+    fn is_dirty(&self) -> bool {
+        self.forced_dirty || self.history.revision() != self.saved_revision
+    }
+
+    /// The project now matches what is on disk: no unsaved changes, no pending recovery file.
+    fn mark_clean(&mut self) {
+        self.saved_revision = self.history.revision();
+        self.forced_dirty = false;
+        self.last_autosave_revision = None;
+        self.discard_own_recovery();
+    }
+
+    /// Removes this session's recovery file (waits briefly for a write in progress).
+    fn discard_own_recovery(&self) {
+        for _ in 0..200 {
+            if !self.autosave_busy.load(Ordering::SeqCst) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if let Some(dir) = autosave_dir() {
+            autosave::remove(&autosave::recovery_path(&dir, &self.session_id));
+        }
+    }
+
+    fn update_title(&mut self, ctx: &egui::Context) {
+        let title = format!(
+            "{}{} - Neoveg",
+            if self.is_dirty() { "*" } else { "" },
             self.project.name
-        )));
-        self.project_path = Some(path);
+        );
+        if title != self.window_title {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.window_title = title;
+        }
+    }
+
+    /// Writes a recovery file on a worker thread when there are unsaved changes and the
+    /// configured interval has elapsed.
+    fn maybe_autosave(&mut self, now: f64) {
+        let minutes = self.prefs.autosave_minutes;
+        let revision = self.history.revision();
+        if minutes == 0
+            || !self.is_dirty()
+            || self.last_autosave_revision == Some(revision)
+            || now - self.last_autosave_time < f64::from(minutes) * 60.0
+        {
+            return;
+        }
+        let Some(dir) = autosave_dir() else {
+            return;
+        };
+        if self.autosave_busy.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        self.last_autosave_time = now;
+        self.last_autosave_revision = Some(revision);
+
+        let (info, timeline) = (self.project.clone(), self.timeline.clone());
+        let (session, original) = (self.session_id.clone(), self.project_path.clone());
+        let busy = Arc::clone(&self.autosave_busy);
+        std::thread::spawn(move || {
+            match autosave::write_recovery(&dir, &session, &info, &timeline, original.as_deref()) {
+                Ok(path) => tracing::info!("[INFO] autosave written: {}", path.display()),
+                Err(e) => tracing::warn!("[WARN] autosave failed: {e}"),
+            }
+            busy.store(false, Ordering::SeqCst);
+        });
     }
 
     /// Selected track of `kind`, or a new one.
@@ -748,9 +870,9 @@ impl AppState {
             )
         });
         if save_as {
-            self.save_project(true, ctx);
+            self.save_project(true);
         } else if save {
-            self.save_project(false, ctx);
+            self.save_project(false);
         }
         if open {
             self.open_project(ctx);
@@ -832,12 +954,35 @@ impl NeovegApp {
                 state.status = e;
             }
         }
+        if let Some(dir) = autosave_dir() {
+            autosave::prune_older_than(&dir, Duration::from_secs(30 * 86_400));
+            state.pending_recovery = autosave::list_recoveries(&dir);
+            if !state.pending_recovery.is_empty() {
+                tracing::warn!(
+                    "[WARN] {} unsaved project(s) found for recovery",
+                    state.pending_recovery.len()
+                );
+            }
+        }
         Self { dock, state }
     }
 }
 
 impl eframe::App for NeovegApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let now = ctx.input(|i| i.time);
+        self.state.maybe_autosave(now);
+        self.state.update_title(ctx);
+        if ctx.input(|i| i.viewport().close_requested()) && !self.state.allow_close {
+            if self.state.is_dirty() {
+                // Ask before losing unsaved work
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.state.confirm_exit = true;
+            } else {
+                self.state.stop();
+                self.state.discard_own_recovery();
+            }
+        }
         self.state.poll_loader();
         self.state.poll_frames(ctx);
         self.state.request_preview_frame(ctx.pixels_per_point());
@@ -877,6 +1022,8 @@ impl eframe::App for NeovegApp {
             });
 
         preferences_window(ctx, &mut self.state);
+        recovery_window(ctx, &mut self.state);
+        exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
     }
 }
@@ -912,13 +1059,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             if ui.button("Salvar  Ctrl+S").clicked() {
-                let ctx = ui.ctx().clone();
-                state.save_project(false, &ctx);
+                state.save_project(false);
                 ui.close_menu();
             }
             if ui.button("Salvar como…  Ctrl+Shift+S").clicked() {
-                let ctx = ui.ctx().clone();
-                state.save_project(true, &ctx);
+                state.save_project(true);
                 ui.close_menu();
             }
             ui.separator();
@@ -985,6 +1130,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         ui.selectable_value(&mut prefs.language, lang.to_string(), lang);
                     }
                 });
+            ui.horizontal(|ui| {
+                ui.label("Autosave (minutos, 0 = desligado)");
+                ui.add(egui::DragValue::new(&mut prefs.autosave_minutes).range(0..=120));
+            });
             ui.checkbox(
                 &mut prefs.auto_fade_on_import,
                 "Fade-in/out automático ao importar mídia",
@@ -999,6 +1148,102 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
         state.prefs = prefs;
     }
     state.show_preferences = open;
+}
+
+/// "há 5 min", "há 2 h", "há 3 dias".
+fn format_age(saved_unix: u64, now_unix: u64) -> String {
+    let secs = now_unix.saturating_sub(saved_unix);
+    match secs {
+        0..=59 => "agora há pouco".into(),
+        60..=3599 => format!("há {} min", secs / 60),
+        3600..=86_399 => format!("há {} h", secs / 3600),
+        _ => format!("há {} dia(s)", secs / 86_400),
+    }
+}
+
+fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
+    if state.pending_recovery.is_empty() {
+        return;
+    }
+    let (mut recover, mut discard, mut discard_all) = (None, None, false);
+    let now = autosave::unix_now();
+    egui::Window::new("Recuperar projetos")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label("O Neoveg não foi encerrado normalmente. Projetos com alterações não salvas:");
+            ui.separator();
+            for entry in &state.pending_recovery {
+                ui.horizontal(|ui| {
+                    ui.label(format!(
+                        "{} ({})",
+                        entry.meta.project_name,
+                        format_age(entry.meta.saved_unix, now)
+                    ));
+                    if ui.button("Recuperar").clicked() {
+                        recover = Some(entry.clone());
+                    }
+                    if ui.button("Descartar").clicked() {
+                        discard = Some(entry.path.clone());
+                    }
+                });
+            }
+            ui.separator();
+            if ui.button("Descartar todos").clicked() {
+                discard_all = true;
+            }
+        });
+
+    if let Some(entry) = recover {
+        state.recover_entry(&entry, ctx);
+    } else if let Some(path) = discard {
+        autosave::remove(&path);
+        state.pending_recovery.retain(|e| e.path != path);
+    } else if discard_all {
+        for entry in state.pending_recovery.drain(..) {
+            autosave::remove(&entry.path);
+        }
+    }
+}
+
+fn exit_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.confirm_exit {
+        return;
+    }
+    let (mut save, mut discard, mut cancel) = (false, false, false);
+    egui::Window::new("Alterações não salvas")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label(format!(
+                "Salvar as alterações em \"{}\" antes de sair?",
+                state.project.name
+            ));
+            ui.horizontal(|ui| {
+                save = ui.button("Salvar e sair").clicked();
+                discard = ui.button("Sair sem salvar").clicked();
+                cancel = ui.button("Cancelar").clicked();
+            });
+        });
+
+    if save {
+        state.save_project(false);
+        // A cancelled save dialog leaves the project dirty, so the prompt stays open
+        if !state.is_dirty() {
+            state.confirm_exit = false;
+            state.allow_close = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    } else if discard {
+        state.discard_own_recovery();
+        state.confirm_exit = false;
+        state.allow_close = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    } else if cancel {
+        state.confirm_exit = false;
+    }
 }
 
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
@@ -1636,5 +1881,19 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // Repaint for the blink: the selected track dot and the paused caret both toggle every 500 ms
     if state.selected_track.is_some() || !state.playing {
         ui.ctx().request_repaint_after(Duration::from_millis(500));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_age;
+
+    #[test]
+    fn ages_are_human_readable() {
+        assert_eq!(format_age(100, 130), "agora há pouco");
+        assert_eq!(format_age(0, 300), "há 5 min");
+        assert_eq!(format_age(0, 7_300), "há 2 h");
+        assert_eq!(format_age(0, 3 * 86_400 + 5), "há 3 dia(s)");
+        assert_eq!(format_age(500, 100), "agora há pouco");
     }
 }
