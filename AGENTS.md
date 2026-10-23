@@ -139,6 +139,7 @@ Upon opening a project with disconnected media:
 To maintain maximum performance with Git/GitHub while preserving continuous cloud backups:
 
 - **Primary Working Directory:** The local workspace is the source of truth. All development, Git commits, and GitHub synchronization must run from this local path.
+- **Active Branch:** All current development and QA-suite fixes (Clippy, real QA reporting, Slider controls, trademark neutrality, Windows release rebuild) happen on the branch `release/v1.0.0-qa-refactor`, created from `main` at `f96b187`. Commit there and merge back into `main` only after `scripts/run_qa_suite.ps1` passes.
 - **Target Cloud Backup Path:** `G:\Meu Drive\vp-rev-eng\teste\teste2`
 - **Synchronization Rules (`scripts/sync_gdrive.ps1`):**
   - Use Robocopy to mirror the local workspace to the Google Drive target.
