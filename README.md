@@ -28,7 +28,7 @@ Variáveis de ambiente para o build com FFmpeg (Windows, escopo do usuário; abr
 [Environment]::SetEnvironmentVariable('LIBCLANG_PATH', 'C:\Program Files\LLVM\bin', 'User')
 ```
 
-O nome da pasta do FFmpeg muda a cada versão do pacote: confira o caminho real em `%LOCALAPPDATA%\Microsoft\WinGet\Packages`. Em tempo de execução as DLLs do FFmpeg (`bin\`) precisam estar no `PATH`; o pacote do `winget` já faz isso.
+O nome da pasta do FFmpeg muda a cada versão do pacote: confira o caminho real em `%LOCALAPPDATA%\Microsoft\WinGet\Packages`. Em tempo de execução (inclusive `cargo test --features ffmpeg`) as DLLs do FFmpeg (`bin\`) precisam estar no `PATH` do terminal; o pacote do `winget` adiciona essa pasta ao `PATH`, então abra um terminal novo depois de instalar. Os testes de decodificação geram um clipe com o executável `ffmpeg` do `PATH` e são ignorados em silêncio quando ele não existe. Sem a feature `ffmpeg` o Neoveg abre normalmente e avisa na barra de status que vídeo está desabilitado.
 
 **Linux (Debian / Ubuntu):**
 
@@ -50,8 +50,9 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo llvm-cov --workspace --summary-only           # opcional: cobertura
-cargo run --release -p neoveg_ui                    # abre o Neoveg com um projeto vazio
-cargo build -p neoveg_video --features ffmpeg       # opcional: decodificação de vídeo
+cargo run --release -p neoveg_ui                    # abre o Neoveg com um projeto vazio (sem vídeo)
+cargo run --release -p neoveg_ui --features ffmpeg  # com decodificação de vídeo na prévia
+cargo test --workspace --features neoveg_ui/ffmpeg  # inclui os testes de decodificação reais
 ```
 
 Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
@@ -78,6 +79,8 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [x] Slider de precisão (polegar quadrado, duplo clique restaura, `Ctrl` = ajuste fino, menu de contexto)
 - [x] Timeline: faixas de áudio/vídeo, dividir (`S`), mover/remover eventos, Desfazer/Refazer
 - [x] Importação de áudio (WAV, MP3, FLAC, OGG, AAC) em thread de fundo
+- [x] Importação de vídeo (MP4, MOV, MKV, AVI, WebM...) com eventos de vídeo e áudio ligados e formato do projeto definido pelo primeiro clipe
+- [x] Decodificação de vídeo na prévia: thread de fundo, busca por quadro exato, qualidade Draft/Preview/Good/Best/Auto (feature `ffmpeg`)
 - [x] Mixer multifaixa: soma todos os eventos de áudio ativos, com fade-in/out e `trim_in`
 - [x] Medidores L/R reais no Barramento Master, zerados com a reprodução parada
 - [x] Projetos `.neoveg` (ZIP com `project.json`, `media_pool.json`, `history.json`): abrir, salvar, salvar como
@@ -86,8 +89,10 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 
 ### A fazer (em ordem de prioridade)
 
-- [ ] Decodificação de vídeo na prévia, em thread de fundo, com busca por quadro (`neoveg_video`, feature `ffmpeg` já compila)
-- [ ] Importar vídeo e imagens e criar eventos de vídeo com a duração real
+- [ ] Importar imagens estáticas e sequências de imagens
+- [ ] Cache de quadros decodificados e pré-busca durante a reprodução (hoje cada quadro é decodificado sob demanda)
+- [ ] Composição de várias faixas de vídeo na prévia (hoje aparece só a faixa de vídeo mais alta sob o cursor)
+- [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
 - [ ] Autosave e recuperação (`projects/autosave/recovery_*.neoveg`)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
 - [ ] Arrastar, aparar (trim), slip e redimensionar eventos com o mouse; snapping (`F8`), ripple, agrupar (`G`) e desagrupar (`U`)

@@ -22,6 +22,8 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
 use neoveg_engine::{EditCommand, EventId, History, Timeline, TrackEvent, TrackId, TrackKind};
+use neoveg_video::info::{is_video_path, VideoInfo};
+use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::precision_slider::PrecisionSlider;
@@ -82,6 +84,13 @@ enum LoadMsg {
         /// Media-pool id when reloading a project's media; `None` for a fresh import.
         existing_id: Option<u64>,
     },
+    VideoLoaded {
+        path: PathBuf,
+        info: VideoInfo,
+        /// Audio track of the same file, when it has one.
+        audio: Option<LoadedMedia>,
+        existing_id: Option<u64>,
+    },
     Failed(String),
 }
 
@@ -113,6 +122,11 @@ struct AppState {
     quality: usize,
     show_preferences: bool,
     show_inspector: bool,
+    video_info: HashMap<u64, VideoInfo>,
+    frame_worker: Option<FrameWorker>,
+    video_texture: Option<TextureHandle>,
+    last_frame_key: Option<(u64, i64, u32)>,
+    preview_pane_width: f32,
     media_tab: usize,
     project_path: Option<PathBuf>,
     status: String,
@@ -148,6 +162,11 @@ impl AppState {
             quality: 4,
             show_preferences: false,
             show_inspector: false,
+            video_info: HashMap::new(),
+            frame_worker: None,
+            video_texture: None,
+            last_frame_key: None,
+            preview_pane_width: 640.0,
             media_tab: 0,
             project_path: None,
             status: "Projeto vazio".into(),
@@ -159,12 +178,14 @@ impl AppState {
     fn new_project(&mut self) {
         self.stop();
         let prefs = self.prefs.clone();
+        let worker = self.frame_worker.take();
         let (tx, rx) = (
             self.loader_tx.clone(),
             std::mem::replace(&mut self.loader_rx, channel().1),
         );
         *self = Self::new();
         self.prefs = prefs;
+        self.frame_worker = worker;
         self.loader_tx = tx;
         self.loader_rx = rx;
     }
@@ -227,43 +248,39 @@ impl AppState {
 
     // ---- media import --------------------------------------------------------------------------
 
-    fn import_audio(&mut self, ctx: &egui::Context) {
+    fn import_media(&mut self, ctx: &egui::Context) {
+        let mut extensions = vec!["wav", "mp3", "flac", "ogg", "m4a", "aac"];
+        extensions.extend(neoveg_video::info::VIDEO_EXTENSIONS);
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Áudio", &["wav", "mp3", "flac", "ogg", "m4a", "aac"])
+            .add_filter("Mídia", &extensions)
             .pick_file()
         else {
             return;
         };
         self.status = format!("Importando {}…", path.display());
-        self.spawn_load(path, None, ctx);
+        self.spawn_media(path, None, ctx);
     }
 
-    /// Decodes `path` and builds its waveform on a worker thread (never on the UI thread).
-    fn spawn_load(&self, path: PathBuf, existing_id: Option<u64>, ctx: &egui::Context) {
+    /// Loads audio or video media on a worker thread (never on the UI thread).
+    fn spawn_media(&self, path: PathBuf, existing_id: Option<u64>, ctx: &egui::Context) {
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
         std::thread::spawn(move || {
-            let msg = match decode_file(&path) {
-                Ok(audio) => {
-                    let stereo = audio.to_stereo();
-                    match WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &stereo) {
-                        Ok(waveform) => LoadMsg::Loaded {
-                            media: LoadedMedia {
-                                name: path
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().into_owned())
-                                    .unwrap_or_default(),
-                                path,
-                                waveform: Arc::new(waveform),
-                                stereo: Arc::new(stereo),
-                                sample_rate: audio.sample_rate,
-                                duration: audio.duration_seconds(),
-                            },
-                            existing_id,
-                        },
-                        Err(e) => LoadMsg::Failed(e),
-                    }
+            let msg = if is_video_path(&path) {
+                match probe(&path) {
+                    Ok(info) => LoadMsg::VideoLoaded {
+                        // A video without a usable audio track is still a valid video clip
+                        audio: load_audio(&path).ok(),
+                        path,
+                        info,
+                        existing_id,
+                    },
+                    Err(e) => LoadMsg::Failed(e),
                 }
-                Err(e) => LoadMsg::Failed(e),
+            } else {
+                match load_audio(&path) {
+                    Ok(media) => LoadMsg::Loaded { media, existing_id },
+                    Err(e) => LoadMsg::Failed(e),
+                }
             };
             let _ = tx.send(msg);
             ctx.request_repaint();
@@ -287,6 +304,25 @@ impl AppState {
                     media,
                     existing_id: None,
                 } => self.place_media(media),
+                LoadMsg::VideoLoaded {
+                    path,
+                    info,
+                    audio,
+                    existing_id: Some(id),
+                } => {
+                    let _ = path;
+                    self.video_info.insert(id, info);
+                    if let Some(audio) = audio {
+                        self.media.insert(id, audio);
+                    }
+                    self.last_frame_key = None;
+                }
+                LoadMsg::VideoLoaded {
+                    path,
+                    info,
+                    audio,
+                    existing_id: None,
+                } => self.place_video(path, info, audio),
             }
         }
     }
@@ -373,7 +409,7 @@ impl AppState {
             .map(|m| (m.id, PathBuf::from(&m.path)))
             .collect();
         for (id, media_path) in to_load {
-            self.spawn_load(media_path, Some(id), ctx);
+            self.spawn_media(media_path, Some(id), ctx);
         }
 
         self.status = if still_missing.is_empty() {
@@ -390,6 +426,176 @@ impl AppState {
             self.project.name
         )));
         self.project_path = Some(path);
+    }
+
+    /// Selected track of `kind`, or a new one.
+    fn track_of_kind(&mut self, kind: TrackKind) -> TrackId {
+        let reuse = self
+            .selected_track
+            .and_then(|id| self.timeline.track(id))
+            .filter(|t| t.kind == kind)
+            .map(|t| t.id);
+        match reuse {
+            Some(id) => id,
+            None => {
+                self.add_track(kind);
+                self.selected_track.unwrap_or_default()
+            }
+        }
+    }
+
+    fn place_video(&mut self, path: PathBuf, info: VideoInfo, audio: Option<LoadedMedia>) {
+        // The first clip defines the project format
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            let settings = &mut self.project.settings;
+            settings.width = info.width;
+            settings.height = info.height;
+            settings.fps = info.fps;
+        }
+        let media_id = self.timeline.alloc_id();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.project.media_pool.push(MediaRef {
+            id: media_id,
+            path: path.to_string_lossy().into_owned(),
+            duration_seconds: info.duration,
+        });
+
+        let fade = if self.prefs.auto_fade_on_import {
+            0.01
+        } else {
+            0.0
+        };
+        let video_track = self.track_of_kind(TrackKind::Video);
+        let event = TrackEvent {
+            id: self.timeline.alloc_id(),
+            name: name.clone(),
+            media_id: Some(media_id),
+            start: self.playhead,
+            duration: info.duration,
+            trim_in: 0.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+        };
+        self.history.execute(
+            &mut self.timeline,
+            EditCommand::AddEvent {
+                track_id: video_track,
+                event,
+            },
+        );
+
+        if let Some(audio) = audio {
+            let audio_track = self.track_of_kind(TrackKind::Audio);
+            let event = TrackEvent {
+                id: self.timeline.alloc_id(),
+                name: name.clone(),
+                media_id: Some(media_id),
+                start: self.playhead,
+                duration: audio.duration,
+                trim_in: 0.0,
+                fade_in: fade,
+                fade_out: fade,
+            };
+            self.history.execute(
+                &mut self.timeline,
+                EditCommand::AddEvent {
+                    track_id: audio_track,
+                    event,
+                },
+            );
+            self.media.insert(media_id, audio);
+            self.selected_track = Some(video_track);
+        }
+        self.video_info.insert(media_id, info);
+        self.last_frame_key = None;
+        self.status = format!("Importado: {name}");
+    }
+
+    /// Largest decoded width for the current preview quality (Draft 1/4, Preview 1/2, Good/Best full,
+    /// Auto fits the preview pane).
+    fn preview_max_width(&self, ppp: f32) -> u32 {
+        let (_, factor) = QUALITIES[self.quality];
+        let width = if factor > 0.0 {
+            self.project.settings.width as f32 * factor
+        } else {
+            self.preview_pane_width * ppp
+        };
+        (width as u32).max(64)
+    }
+
+    /// Asks the decoder thread for the frame under the playhead (topmost video track wins).
+    fn request_preview_frame(&mut self, ppp: f32) {
+        let max_width = self.preview_max_width(ppp);
+        let target = self
+            .timeline
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Video && !t.muted)
+            .find_map(|t| self.timeline.event_at(t.id, self.playhead))
+            .and_then(|e| Some((e.media_id?, self.playhead - e.start + e.trim_in)));
+        let Some((media_id, seconds)) = target else {
+            self.video_texture = None;
+            self.last_frame_key = None;
+            return;
+        };
+        let Some(worker) = &self.frame_worker else {
+            return;
+        };
+        let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+            return;
+        };
+        let fps = self
+            .video_info
+            .get(&media_id)
+            .map_or(self.project.settings.fps, |i| i.fps);
+        let frame = (seconds * fps).round() as i64;
+        let key = (media_id, frame, max_width);
+        if self.last_frame_key != Some(key) {
+            self.last_frame_key = Some(key);
+            worker.request(FrameRequest {
+                media_id,
+                path: PathBuf::from(&item.path),
+                // frame-aligned so the decoder returns exactly this picture
+                seconds: frame as f64 / fps,
+                max_width,
+            });
+        }
+    }
+
+    fn poll_frames(&mut self, ctx: &egui::Context) {
+        let Some(worker) = &self.frame_worker else {
+            return;
+        };
+        // Only the newest reply matters
+        let mut latest = None;
+        while let Ok(reply) = worker.rx.try_recv() {
+            latest = Some(reply);
+        }
+        let Some(reply) = latest else {
+            return;
+        };
+        match reply.result {
+            Ok(frame) => {
+                let image = egui::ColorImage::from_rgba_unmultiplied(
+                    [frame.width as usize, frame.height as usize],
+                    &frame.rgba,
+                );
+                match &mut self.video_texture {
+                    Some(texture) => texture.set(image, egui::TextureOptions::LINEAR),
+                    None => {
+                        self.video_texture = Some(ctx.load_texture(
+                            "preview_frame",
+                            image,
+                            egui::TextureOptions::LINEAR,
+                        ));
+                    }
+                }
+            }
+            Err(e) => self.status = format!("Falha ao decodificar vídeo: {e}"),
+        }
     }
 
     fn place_media(&mut self, media: LoadedMedia) {
@@ -617,16 +823,24 @@ impl NeovegApp {
         let [preview, _media] = surface.split_left(top, 0.28, vec![Tab::Media]);
         surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
 
-        Self {
-            dock,
-            state: AppState::new(),
+        let mut state = AppState::new();
+        let repaint = cc.egui_ctx.clone();
+        match FrameWorker::spawn(move || repaint.request_repaint()) {
+            Ok(worker) => state.frame_worker = Some(worker),
+            Err(e) => {
+                tracing::warn!("[WARN] {e}");
+                state.status = e;
+            }
         }
+        Self { dock, state }
     }
 }
 
 impl eframe::App for NeovegApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.state.poll_loader();
+        self.state.poll_frames(ctx);
+        self.state.request_preview_frame(ctx.pixels_per_point());
         self.state.handle_shortcuts(ctx);
         self.state.advance_transport(ctx);
         // Master fader drives the live output gain
@@ -667,6 +881,24 @@ impl eframe::App for NeovegApp {
     }
 }
 
+/// Decodes an audio file and builds its waveform source.
+fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
+    let audio = decode_file(path)?;
+    let stereo = audio.to_stereo();
+    let waveform = WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &stereo)?;
+    Ok(LoadedMedia {
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        path: path.to_path_buf(),
+        waveform: Arc::new(waveform),
+        stereo: Arc::new(stereo),
+        sample_rate: audio.sample_rate,
+        duration: audio.duration_seconds(),
+    })
+}
+
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     egui::menu::bar(ui, |ui| {
         ui.menu_button("Arquivo", |ui| {
@@ -690,9 +922,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             ui.separator();
-            if ui.button("Importar áudio…").clicked() {
+            if ui.button("Importar mídia…").clicked() {
                 let ctx = ui.ctx().clone();
-                state.import_audio(&ctx);
+                state.import_media(&ctx);
                 ui.close_menu();
             }
             ui.separator();
@@ -855,6 +1087,15 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, Rounding::ZERO, Color32::from_gray(18));
     painter.rect_filled(frame_rect, Rounding::ZERO, Color32::BLACK);
+    state.preview_pane_width = frame_rect.width();
+    if let Some(texture) = &state.video_texture {
+        painter.image(
+            texture.id(),
+            frame_rect,
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
+    }
 
     if state.show_bars {
         let texture = state.bars_texture.get_or_insert_with(|| {
@@ -936,9 +1177,9 @@ fn media_ui(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
-    if ui.button("Importar áudio…").clicked() {
+    if ui.button("Importar mídia…").clicked() {
         let ctx = ui.ctx().clone();
-        state.import_audio(&ctx);
+        state.import_media(&ctx);
     }
     ui.separator();
     if state.project.media_pool.is_empty() {

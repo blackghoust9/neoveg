@@ -5,6 +5,11 @@ edition.workspace = true
 authors.workspace = true
 description = "Neoveg application: egui/eframe (wgpu) workspace with dockable panels"
 
+[features]
+default = []
+# Native video decoding for the preview (needs FFmpeg 7.1 dev libraries, see README)
+ffmpeg = ["neoveg_video/ffmpeg"]
+
 [[bin]]
 name = "neoveg"
 path = "src/main.rs"

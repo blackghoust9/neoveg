@@ -3,8 +3,11 @@
 pub mod frame;
 pub mod generators;
 pub mod gpu;
+pub mod info;
+pub mod worker;
 
 #[cfg(feature = "ffmpeg")]
 pub mod decode;
 
 pub use frame::FrameBuffer;
+pub use info::VideoInfo;
