@@ -1028,54 +1028,24 @@ def run_all_tests() -> None:
         assert abnt_badge in docs_iso_text, f"Missing {abnt_badge} badge in docs/index.html"
         assert abnt_badge in run_qa_ps1_text, f"Missing {abnt_badge} in scripts/run_qa_suite.ps1"
 
-    # Write traceability entries to logs/neoveg.log and generate coverage/qa/qa_report.json + docs/qa_report.js
-    import time
-    qa_cov_dir = ROOT_DIR / "coverage" / "qa"
-    qa_cov_dir.mkdir(parents=True, exist_ok=True)
-    qa_report_payload = {
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "platform": sys.platform,
-        "outcome": "pass",
-        "standards": [
-            "ABNT NBR ISO/IEC 25010",
-            "ABNT NBR ISO/IEC 29119",
-            "ABNT NBR ISO/IEC 12207",
-            "ABNT NBR ISO/IEC 14764",
-            "ABNT NBR ISO/IEC 27001",
-        ],
-        "pillars": {
-            "Performance": {"label": "Eficiencia de Desempenho", "status": "pass", "passed": 4, "total": 4},
-            "Reliability": {"label": "Confiabilidade", "status": "pass", "passed": 10, "total": 10},
-            "Usability": {"label": "Usabilidade", "status": "pass", "passed": 8, "total": 8},
-            "Portability": {"label": "Portabilidade", "status": "pass", "passed": 7, "total": 7},
-            "Maintainability": {"label": "Manutenibilidade", "status": "pass", "passed": 8, "total": 8},
-        },
-        "steps": [
-            {"name": "Performance Efficiency & Async .sfk Benchmark", "pillar": "Performance", "standard": "ABNT NBR ISO/IEC 25010 (Performance Efficiency)", "status": "pass", "duration_ms": 30},
-            {"name": "Memory Safety & FFI Reliability Audit", "pillar": "Reliability", "standard": "ABNT NBR ISO/IEC 27001 & ABNT NBR ISO/IEC 29119", "status": "pass", "duration_ms": 42},
-            {"name": "VEGAS Pro Functional Suitability & Headless UI", "pillar": "Usability", "standard": "ABNT NBR ISO/IEC 25010 (Functional Suitability & Usability) / ABNT NBR ISO/IEC 29119", "status": "pass", "duration_ms": 35},
-            {"name": "Cross-Platform Portability (win-x64, linux-x64, osx-x64, osx-arm64)", "pillar": "Portability", "standard": "ABNT NBR ISO/IEC 25010 (Portability)", "status": "pass", "duration_ms": 25},
-            {"name": "Life Cycle & Modular Maintainability (C#/Rust/C++/Python)", "pillar": "Maintainability", "standard": "ABNT NBR ISO/IEC 12207 & 14764 / ABNT NBR ISO/IEC 25010", "status": "pass", "duration_ms": 28},
-        ],
-    }
-    qa_json_str = json.dumps(qa_report_payload, indent=2, ensure_ascii=False)
-    (qa_cov_dir / "qa_report.json").write_text(qa_json_str, encoding="utf-8")
-    (ROOT_DIR / "docs" / "qa_report.js").write_text(f"window.NEOVEG_QA_REPORT = {qa_json_str};\n", encoding="utf-8")
+    # The QA report is written ONLY by scripts/run_qa_suite.ps1 / .sh from the steps that really ran.
+    # This test never fabricates results: it checks the writer exists and, if a report is present,
+    # that it is well-formed (real outcome, real steps) and that the suite logs traceability lines.
+    for writer_tok in ("Write-QAReport", "qa_report.json", "qa_report.js", "environment"):
+        assert writer_tok in run_qa_ps1_text, f"Missing {writer_tok} in scripts/run_qa_suite.ps1"
 
-    neoveg_log_file = ROOT_DIR / "logs" / "neoveg.log"
-    neoveg_log_file.parent.mkdir(parents=True, exist_ok=True)
-    ts_now = time.strftime("%Y-%m-%d %H:%M:%S")
-    with neoveg_log_file.open("a", encoding="utf-8") as log_fh:
-        for step in qa_report_payload["steps"]:
-            log_fh.write(
-                f"[{ts_now}.000] [INFO] [QA/{step['pillar']}] PASS '{step['name']}' ({step['duration_ms']} ms) | Requisito: {step['standard']}\n"
-            )
+    qa_report_file = ROOT_DIR / "coverage" / "qa" / "qa_report.json"
+    if qa_report_file.exists():
+        qa_report_data = json.loads(qa_report_file.read_text(encoding="utf-8-sig"))
+        assert qa_report_data.get("outcome") in ("pass", "fail"), "qa_report.json must carry the real suite outcome"
+        report_steps = qa_report_data.get("steps") or []
+        assert all(s.get("status") in ("pass", "fail") and s.get("name") for s in report_steps), \
+            "qa_report.json steps must come from executed QA commands"
+        if qa_report_data["outcome"] == "pass":
+            assert report_steps and all(s["status"] == "pass" for s in report_steps), \
+                "A passing report cannot contain failed or missing steps"
 
-    neoveg_log_content = neoveg_log_file.read_text(encoding="utf-8", errors="ignore")
-    for log_std in ("ABNT NBR ISO/IEC 25010", "ABNT NBR ISO/IEC 29119", "ABNT NBR ISO/IEC 12207 & 14764", "ABNT NBR ISO/IEC 27001"):
-        assert log_std in neoveg_log_content, f"Missing {log_std} traceability in logs/neoveg.log"
-
-    print("[PASS] 37. Conformidade ABNT NBR ISO/IEC (25010, 29119, 12207, 14764, 27001), Selos em docs/index.html, Relatorio coverage/qa/qa_report.json e Rastreabilidade em logs/neoveg.log verificados")
+    print("[PASS] 37. Conformidade ABNT NBR ISO/IEC (25010, 29119, 12207, 14764, 27001), Selos em docs/index.html e Relatorio de QA real (gerado somente por run_qa_suite) verificados")
     print("=== ALL NEOVEG CROSS-PLATFORM TESTS PASSED SUCCESSFULLY ===")
 
 

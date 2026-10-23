@@ -108,6 +108,24 @@ function Assert-QACondition {
     }
 }
 
+function Get-DockerEnvironment {
+    # Real Docker state for the dashboard (never hard-coded): CLI presence + daemon reachability.
+    $docker = Get-Command "docker" -ErrorAction SilentlyContinue
+    if (-not $docker) {
+        return [ordered]@{ installed = $false; daemon_running = $false; client_version = $null; server_version = $null; status = "Not Installed / Optional" }
+    }
+    $clientVersion = (& docker version --format "{{.Client.Version}}" 2>$null | Select-Object -First 1)
+    $serverVersion = (& docker info --format "{{.ServerVersion}}" 2>$null | Select-Object -First 1)
+    $running = ($LASTEXITCODE -eq 0) -and -not [string]::IsNullOrWhiteSpace($serverVersion)
+    return [ordered]@{
+        installed      = $true
+        daemon_running = $running
+        client_version = $clientVersion
+        server_version = $(if ($running) { $serverVersion } else { $null })
+        status         = $(if ($running) { "Running" } else { "Not Running / Optional" })
+    }
+}
+
 function Write-QAReport {
     param([Parameter(Mandatory = $true)][string]$Outcome)
 
@@ -138,6 +156,7 @@ function Write-QAReport {
         )
         pillars      = $byPillar
         steps        = $results
+        environment  = [ordered]@{ docker = (Get-DockerEnvironment) }
     }
     $json = $report | ConvertTo-Json -Depth 6
     Set-Content -Path $qaReportJson -Value $json -Encoding UTF8
@@ -168,6 +187,9 @@ try {
         "-p", $buildDir
     ) $rootDir "Maintainability" "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764"
 
+    # The .NET project bundles rust-core/target/release/neoveg_core.dll: build it from source first
+    Invoke-QACommand "Build Rust native library (release)" "cargo" @("build", "--release", "--manifest-path", (Join-Path $rootDir "rust-core\Cargo.toml")) $rootDir `
+        "Portability" "ABNT NBR ISO/IEC 25010 (Portabilidade) - biblioteca nativa compilada a partir do codigo-fonte"
     Invoke-QACommand ".NET tests with coverage collection (incl. Avalonia.Headless UI)" "dotnet" @(
         "test", (Join-Path $rootDir "Neoveg.sln"),
         "--collect:XPlat Code Coverage",

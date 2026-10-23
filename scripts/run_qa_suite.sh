@@ -48,6 +48,21 @@ json_escape() {
     printf '%s' "${value}"
 }
 
+docker_environment_json() {
+    # Real Docker state for the dashboard (never hard-coded): CLI presence + daemon reachability.
+    local client server
+    if ! command -v docker >/dev/null 2>&1; then
+        printf '{"installed": false, "daemon_running": false, "client_version": null, "server_version": null, "status": "Not Installed / Optional"}'
+        return
+    fi
+    client="$(docker version --format '{{.Client.Version}}' 2>/dev/null | head -n 1)"
+    if server="$(docker info --format '{{.ServerVersion}}' 2>/dev/null)" && [[ -n "${server}" ]]; then
+        printf '{"installed": true, "daemon_running": true, "client_version": "%s", "server_version": "%s", "status": "Running"}'             "$(json_escape "${client}")" "$(json_escape "${server}")"
+    else
+        printf '{"installed": true, "daemon_running": false, "client_version": "%s", "server_version": null, "status": "Not Running / Optional"}'             "$(json_escape "${client}")"
+    fi
+}
+
 write_report() {
     local steps_json="" pillars_json="" i pillar status passed total count=${#STEP_NAMES[@]}
     for ((i = 0; i < count; i++)); do
@@ -82,7 +97,8 @@ write_report() {
   "pillars": {${pillars_json}
   },
   "steps": [${steps_json}
-  ]
+  ],
+  "environment": {"docker": $(docker_environment_json)}
 }
 EOF
 )"
@@ -164,6 +180,10 @@ run "C++ clang-tidy" Maintainability "${MAINT}" "${ROOT_DIR}" clang-tidy \
     "${CPP_DIR}/whisper.cpp/src/neoveg_whisper_bridge.cpp" \
     -p "${BUILD_DIR}"
 
+# The .NET project bundles the native rust-core library: build it from source first
+run "Build Rust native library (release)" Portability \
+    "ABNT NBR ISO/IEC 25010 (Portabilidade) - biblioteca nativa compilada a partir do codigo-fonte" "${ROOT_DIR}" \
+    cargo build --release --manifest-path "${ROOT_DIR}/rust-core/Cargo.toml"
 run ".NET tests with coverage collection (incl. Avalonia.Headless UI)" Usability \
     "ABNT NBR ISO/IEC/IEEE 29119 (testes de UI headless) / ISO/IEC 25010 (Usabilidade)" "${ROOT_DIR}" \
     dotnet test "${ROOT_DIR}/Neoveg.sln" \

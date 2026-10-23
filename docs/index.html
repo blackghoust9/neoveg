@@ -515,6 +515,16 @@
       font-size: 10.5px;
       font-weight: 600;
     }
+    .docker-state[data-state="unknown"], .docker-state[data-state="off"] {
+      background: rgba(139, 148, 158, 0.14);
+      border-color: rgba(139, 148, 158, 0.45);
+      color: #b1bac4;
+    }
+    .docker-state[data-state="stopped"] {
+      background: rgba(241, 196, 15, 0.14);
+      border-color: rgba(241, 196, 15, 0.45);
+      color: #f1c40f;
+    }
     .docker-card p { margin: 4px 0 8px; font-size: 11.5px; color: #b1bac4; line-height: 1.45; }
     .docker-meta { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
 
@@ -720,7 +730,7 @@
     <a href="#codigo" class="active"><span>&lt;&gt;</span> Code <span class="count">16</span></a>
     <a href="#qa-benchmarks"><span>✓</span> QA &amp; Performance Benchmarks <span class="count green">33/33 PASS</span></a>
     <a href="#linguagens"><span>▦</span> Languages &amp; Modules <span class="count">4</span></a>
-    <a href="#docker"><span>🐳</span> Docker Containers <span class="count blue">3 Ready</span></a>
+    <a href="#docker"><span>🐳</span> Docker Containers <span class="count blue" id="docker-nav-count">?</span></a>
     <a href="#etapas"><span>◷</span> Milestones <span class="count">12</span></a>
   </nav>
 
@@ -1029,7 +1039,7 @@
               <div class="docker-card">
                 <div class="docker-card-top">
                   <span class="docker-name">neoveg-qa-runner</span>
-                  <span class="docker-state">● Ready / Healthy</span>
+                  <span class="docker-state" data-state="unknown">● Status desconhecido</span>
                 </div>
                 <p>Executa a compilação nativa em Rust/C++, build .NET 8.0 e roda <code>qa_audit_suite.py</code> + <code>test_vegas_engine.py</code> em modo headless.</p>
                 <div class="docker-meta">Target: neoveg-qa · FFmpeg + .NET 8 + Python 3</div>
@@ -1038,7 +1048,7 @@
               <div class="docker-card">
                 <div class="docker-card-top">
                   <span class="docker-name">neoveg-cross-builder</span>
-                  <span class="docker-state">● Ready / Multi-Stage</span>
+                  <span class="docker-state" data-state="unknown">● Status desconhecido</span>
                 </div>
                 <p>Compila <code>libneoveg_core.so</code> (Cargo), <code>libneoveg_cpp_engine.so</code> (CMake/Clang) e publica o pacote portátil Self-Contained.</p>
                 <div class="docker-meta">Target: dotnet-builder · RID: linux-x64</div>
@@ -1047,7 +1057,7 @@
               <div class="docker-card">
                 <div class="docker-card-top">
                   <span class="docker-name">neoveg-github-dashboard</span>
-                  <span class="docker-state">● Port 8080 Active</span>
+                  <span class="docker-state" data-state="unknown">● Status desconhecido</span>
                 </div>
                 <p>Hospeda este painel interativo estilo GitHub (<code>docs/index.html</code>) para acompanhamento em tempo real de métricas e logs.</p>
                 <div class="docker-meta">Port: 0.0.0.0:8080-&gt;8080/tcp</div>
@@ -1362,6 +1372,35 @@
       runPill.textContent = `QA ${qaReport.outcome === "pass" ? "APROVADO" : "REPROVADO"} · ${qaReport.platform} · ${when}`;
     }
     renderIsoReport();
+
+    // Docker status comes only from the environment probe recorded by scripts/run_qa_suite.* (never hard-coded)
+    function renderDockerStatus() {
+      const docker = qaReport && qaReport.environment ? qaReport.environment.docker : null;
+      let text = "● Status desconhecido (execute a suíte de QA)";
+      let state = "unknown";
+      let nav = "?";
+      if (docker) {
+        if (docker.daemon_running) {
+          text = `● Running · Docker ${docker.server_version}`;
+          state = "running";
+          nav = "Running";
+        } else if (docker.installed) {
+          text = "● Not Running / Optional";
+          state = "stopped";
+          nav = "Parado";
+        } else {
+          text = "● Not Installed / Optional";
+          state = "off";
+          nav = "Ausente";
+        }
+      }
+      for (const badge of document.querySelectorAll(".docker-state")) {
+        badge.textContent = text;
+        badge.dataset.state = state;
+      }
+      document.getElementById("docker-nav-count").textContent = nav;
+    }
+    renderDockerStatus();
 
     function applyFilters() {
       const query = searchInput.value.trim().toLocaleLowerCase("pt-BR");
