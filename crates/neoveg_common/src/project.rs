@@ -13,7 +13,12 @@ pub struct ProjectSettings {
 
 impl Default for ProjectSettings {
     fn default() -> Self {
-        Self { width: 1920, height: 1080, fps: 29.97, sample_rate: 48_000 }
+        Self {
+            width: 1920,
+            height: 1080,
+            fps: 29.97,
+            sample_rate: 48_000,
+        }
     }
 }
 
@@ -35,7 +40,11 @@ pub struct ProjectInfo {
 
 impl ProjectInfo {
     pub fn create_empty() -> Self {
-        Self { name: "Untitled".into(), settings: ProjectSettings::default(), media_pool: Vec::new() }
+        Self {
+            name: "Untitled".into(),
+            settings: ProjectSettings::default(),
+            media_pool: Vec::new(),
+        }
     }
 }
 

@@ -16,7 +16,9 @@ const MIN_PIXELS_PER_SECOND: f64 = 20.0;
 const MAX_LINES_PER_LIST: usize = 4096;
 
 const FRAME_STEP_LADDER: [i64; 4] = [1, 2, 5, 10];
-const SECOND_STEP_LADDER: [f64; 12] = [1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0];
+const SECOND_STEP_LADDER: [f64; 12] = [
+    1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
+];
 
 /// Grid step expressed either in frames or in seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,8 +43,17 @@ pub struct FrameGrid {
 }
 
 impl FrameGrid {
-    pub fn compute(project_fps: f64, pixels_per_second: f64, start_seconds: f64, viewport_width_px: f64) -> Self {
-        let fps = if project_fps > 1.0 { project_fps } else { 29.97 };
+    pub fn compute(
+        project_fps: f64,
+        pixels_per_second: f64,
+        start_seconds: f64,
+        viewport_width_px: f64,
+    ) -> Self {
+        let fps = if project_fps > 1.0 {
+            project_fps
+        } else {
+            29.97
+        };
         let pps = pixels_per_second.max(MIN_PIXELS_PER_SECOND);
         let t_start = start_seconds.max(0.0);
         let t_end = start_seconds + viewport_width_px.max(0.0) / pps;
@@ -65,7 +76,8 @@ impl FrameGrid {
             while mi < grid.major_times.len() && grid.major_times[mi] < t - half_pixel_sec {
                 mi += 1;
             }
-            let on_major = mi < grid.major_times.len() && (grid.major_times[mi] - t).abs() <= half_pixel_sec;
+            let on_major =
+                mi < grid.major_times.len() && (grid.major_times[mi] - t).abs() <= half_pixel_sec;
             if !on_major {
                 grid.minor_times.push(t);
             }
@@ -124,7 +136,11 @@ fn append_times(target: &mut Vec<f64>, step: GridStep, fps: f64, t_start: f64, t
 
 /// Centers a 1-device-pixel line on a physical pixel so it renders crisp (never blurred over two pixels).
 pub fn snap_to_device_pixel(x: f32, pixels_per_point: f32) -> f32 {
-    let scale = if pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
+    let scale = if pixels_per_point > 0.0 {
+        pixels_per_point
+    } else {
+        1.0
+    };
     ((x * scale).floor() + 0.5) / scale
 }
 
@@ -135,14 +151,26 @@ mod tests {
     #[test]
     fn close_zoom_draws_one_minor_line_per_frame() {
         // 24 fps at 480 px/s: one frame = 20 px
-        assert_eq!(choose_step(24.0, 480.0, MIN_MINOR_SPACING_PX), GridStep::Frames(1));
-        assert_eq!(choose_step(24.0, 480.0, MIN_MAJOR_SPACING_PX), GridStep::Frames(5));
+        assert_eq!(
+            choose_step(24.0, 480.0, MIN_MINOR_SPACING_PX),
+            GridStep::Frames(1)
+        );
+        assert_eq!(
+            choose_step(24.0, 480.0, MIN_MAJOR_SPACING_PX),
+            GridStep::Frames(5)
+        );
     }
 
     #[test]
     fn far_zoom_climbs_the_second_ladder() {
-        assert_eq!(choose_step(30.0, 20.0, MIN_MAJOR_SPACING_PX), GridStep::Seconds(5.0));
-        assert_eq!(choose_step(30.0, 1.0, MIN_MAJOR_SPACING_PX), GridStep::Seconds(120.0));
+        assert_eq!(
+            choose_step(30.0, 20.0, MIN_MAJOR_SPACING_PX),
+            GridStep::Seconds(5.0)
+        );
+        assert_eq!(
+            choose_step(30.0, 1.0, MIN_MAJOR_SPACING_PX),
+            GridStep::Seconds(120.0)
+        );
     }
 
     #[test]
@@ -152,7 +180,10 @@ mod tests {
                 let step = choose_step(25.0, pps, min);
                 let spacing = step.seconds(25.0) * pps;
                 let is_last_rung = matches!(step, GridStep::Seconds(s) if s == 3600.0);
-                assert!(spacing >= min || is_last_rung, "pps {pps} min {min} -> {spacing}");
+                assert!(
+                    spacing >= min || is_last_rung,
+                    "pps {pps} min {min} -> {spacing}"
+                );
             }
         }
     }
@@ -162,7 +193,10 @@ mod tests {
         let grid = FrameGrid::compute(24.0, 480.0, 0.0, 400.0);
         for t in grid.minor_times.iter().chain(grid.major_times.iter()) {
             let frame = t * 24.0;
-            assert!((frame - frame.round()).abs() < 1e-9, "{t} is not on a frame");
+            assert!(
+                (frame - frame.round()).abs() < 1e-9,
+                "{t} is not on a frame"
+            );
         }
         assert!(!grid.minor_times.is_empty());
     }

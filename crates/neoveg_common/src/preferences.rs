@@ -15,7 +15,11 @@ pub struct Preferences {
 
 impl Default for Preferences {
     fn default() -> Self {
-        Self { language: "pt-BR".into(), auto_fade_on_import: false, show_welcome_on_startup: false }
+        Self {
+            language: "pt-BR".into(),
+            auto_fade_on_import: false,
+            show_welcome_on_startup: false,
+        }
     }
 }
 

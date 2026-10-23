@@ -4,7 +4,7 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Color32, Key, Response, Rect, Rounding, Sense, TextEdit, Ui, Widget,
+    pos2, vec2, Color32, Key, Rect, Response, Rounding, Sense, TextEdit, Ui, Widget,
 };
 
 const THUMB_WIDTH: f32 = 8.0;
@@ -21,7 +21,13 @@ pub struct PrecisionSlider<'a> {
 
 impl<'a> PrecisionSlider<'a> {
     pub fn new(value: &'a mut f32, range: RangeInclusive<f32>, default: f32) -> Self {
-        Self { value, min: *range.start(), max: *range.end(), default, width: 160.0 }
+        Self {
+            value,
+            min: *range.start(),
+            max: *range.end(),
+            default,
+            width: 160.0,
+        }
     }
 
     pub fn width(mut self, width: f32) -> Self {
@@ -32,8 +38,15 @@ impl<'a> PrecisionSlider<'a> {
 
 impl Widget for PrecisionSlider<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let Self { value, min, max, default, width } = self;
-        let (rect, mut response) = ui.allocate_exact_size(vec2(width, HEIGHT), Sense::click_and_drag());
+        let Self {
+            value,
+            min,
+            max,
+            default,
+            width,
+        } = self;
+        let (rect, mut response) =
+            ui.allocate_exact_size(vec2(width, HEIGHT), Sense::click_and_drag());
         let typed_id = response.id.with("typed_value");
 
         // "Digitar Valor..." replaces the slider with a text box until Enter / Esc / focus loss
@@ -72,7 +85,8 @@ impl Widget for PrecisionSlider<'_> {
             }
         } else if response.dragged() {
             let sensitivity = if fine { FINE_SENSITIVITY } else { 1.0 };
-            *value = (*value + response.drag_delta().x / travel * span * sensitivity).clamp(min, max);
+            *value =
+                (*value + response.drag_delta().x / travel * span * sensitivity).clamp(min, max);
             changed = true;
         }
 
@@ -108,7 +122,10 @@ impl Widget for PrecisionSlider<'_> {
         } else {
             Color32::from_gray(200)
         };
-        let thumb = Rect::from_center_size(pos2(x, rect.center().y), vec2(THUMB_WIDTH, rect.height() - 2.0));
+        let thumb = Rect::from_center_size(
+            pos2(x, rect.center().y),
+            vec2(THUMB_WIDTH, rect.height() - 2.0),
+        );
         painter.rect_filled(thumb, Rounding::ZERO, thumb_color);
 
         response.on_hover_text("Duplo clique: padrão · Ctrl: ajuste fino · Botão direito: opções")

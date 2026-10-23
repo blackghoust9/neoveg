@@ -51,7 +51,12 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, stream, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            stream,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| format!("unsupported media {}: {e}", path.display()))?;
     let mut format = probed.format;
 
@@ -95,7 +100,11 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     if sample_rate == 0 || channels == 0 || samples.is_empty() {
         return Err(format!("{} contains no decodable audio", path.display()));
     }
-    Ok(DecodedAudio { sample_rate, channels, samples })
+    Ok(DecodedAudio {
+        sample_rate,
+        channels,
+        samples,
+    })
 }
 
 #[cfg(test)]
@@ -104,7 +113,11 @@ mod tests {
 
     #[test]
     fn mono_is_mirrored_to_stereo() {
-        let audio = DecodedAudio { sample_rate: 48_000, channels: 1, samples: vec![0.25, -0.5] };
+        let audio = DecodedAudio {
+            sample_rate: 48_000,
+            channels: 1,
+            samples: vec![0.25, -0.5],
+        };
         assert_eq!(audio.to_stereo(), vec![0.25, 0.25, -0.5, -0.5]);
         assert_eq!(audio.frame_count(), 2);
     }

@@ -19,8 +19,10 @@ impl PeakMeter {
 
     /// Stores the linear peaks (absolute values, clamped to `[0, 1]`).
     pub fn set(&self, left: f32, right: f32) {
-        self.left.store(left.abs().min(1.0).to_bits(), Ordering::Relaxed);
-        self.right.store(right.abs().min(1.0).to_bits(), Ordering::Relaxed);
+        self.left
+            .store(left.abs().min(1.0).to_bits(), Ordering::Relaxed);
+        self.right
+            .store(right.abs().min(1.0).to_bits(), Ordering::Relaxed);
     }
 
     /// Zeroes both channels (`-inf dBFS`).
@@ -42,7 +44,11 @@ impl PeakMeter {
         let (mut l, mut r) = (0.0f32, 0.0f32);
         for frame in interleaved.chunks_exact(ch) {
             l = l.max(frame[0].abs());
-            r = r.max(if ch > 1 { frame[1].abs() } else { frame[0].abs() });
+            r = r.max(if ch > 1 {
+                frame[1].abs()
+            } else {
+                frame[0].abs()
+            });
         }
         self.set(l, r);
     }
@@ -52,8 +58,8 @@ impl PeakMeter {
 pub fn peak_of_range(source: &WaveformSource, start_frame: i64, frames: usize) -> (f32, f32) {
     let mut l = vec![0.0f32; frames];
     let mut r = vec![0.0f32; frames];
-    let n = source.read_samples(start_frame, &mut l, &mut r);
-    let max = |v: &[f32]| v.iter().take(n.max(0)).fold(0.0f32, |m, s| m.max(s.abs()));
+    source.read_samples(start_frame, &mut l, &mut r);
+    let max = |v: &[f32]| v.iter().fold(0.0f32, |m, s| m.max(s.abs()));
     (max(&l), max(&r))
 }
 
@@ -95,7 +101,8 @@ mod tests {
 
     #[test]
     fn range_peak_reads_the_source() {
-        let src = WaveformSource::from_interleaved_f32(48_000, 2, &[0.0, 0.0, 0.7, -0.2, 0.1, 0.1]).unwrap();
+        let src = WaveformSource::from_interleaved_f32(48_000, 2, &[0.0, 0.0, 0.7, -0.2, 0.1, 0.1])
+            .unwrap();
         assert_eq!(peak_of_range(&src, 0, 3), (0.7, 0.2));
         assert_eq!(peak_of_range(&src, 10, 3), (0.0, 0.0));
     }

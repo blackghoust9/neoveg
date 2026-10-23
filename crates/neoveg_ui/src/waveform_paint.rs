@@ -19,7 +19,11 @@ pub fn paint_waveform(
     frames_per_pixel: f64,
     color: Color32,
 ) {
-    if rect.width() < 1.0 || rect.height() < 4.0 || frames_per_pixel <= 0.0 || !frames_per_pixel.is_finite() {
+    if rect.width() < 1.0
+        || rect.height() < 4.0
+        || frames_per_pixel <= 0.0
+        || !frames_per_pixel.is_finite()
+    {
         return;
     }
     let painter = painter.with_clip_rect(rect);
@@ -31,14 +35,32 @@ pub fn paint_waveform(
         let mid = rect.top() + lane_h * (lane as f32 + 0.5);
         painter.line_segment(
             [pos2(rect.left(), mid), pos2(rect.right(), mid)],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(148, 163, 184, 90)),
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(148, 163, 184, 90)),
         );
     }
 
     if frames_per_pixel >= 1.0 {
-        paint_columns(&painter, rect, source, start_frame, frames_per_pixel, color, lanes, lane_h);
+        paint_columns(
+            &painter,
+            rect,
+            source,
+            start_frame,
+            frames_per_pixel,
+            color,
+            lanes,
+            lane_h,
+        );
     } else {
-        paint_samples(&painter, rect, source, start_frame, frames_per_pixel, color, lanes, lane_h);
+        paint_samples(
+            &painter,
+            rect,
+            source,
+            start_frame,
+            frames_per_pixel,
+            color,
+            lanes,
+            lane_h,
+        );
     }
 }
 
@@ -80,10 +102,16 @@ fn paint_columns(
                 top = centre - 0.5;
                 bottom = centre + 0.5;
             }
-            outer_mesh.add_colored_rect(Rect::from_min_max(pos2(x, top), pos2(x + 1.0, bottom)), outer);
+            outer_mesh.add_colored_rect(
+                Rect::from_min_max(pos2(x, top), pos2(x + 1.0, bottom)),
+                outer,
+            );
             let r = rms * half;
             if r >= 0.5 {
-                inner_mesh.add_colored_rect(Rect::from_min_max(pos2(x, mid - r), pos2(x + 1.0, mid + r)), inner);
+                inner_mesh.add_colored_rect(
+                    Rect::from_min_max(pos2(x, mid - r), pos2(x + 1.0, mid + r)),
+                    inner,
+                );
             }
         }
     }
@@ -122,17 +150,17 @@ fn paint_samples(
         let data = if lane == 0 { &left } else { &right };
         let mid = rect.top() + lane_h * (lane as f32 + 0.5);
         let mut points = Vec::with_capacity(read);
-        for i in skip..skip + read {
+        for (i, value) in data.iter().enumerate().skip(skip).take(read) {
             let frame = (first + i as i64) as f64;
             let x = rect.left() + ((frame - start_frame) * pixels_per_frame) as f32;
-            points.push(pos2(x, mid - data[i] * half));
+            points.push(pos2(x, mid - value * half));
         }
         if draw_dots {
             for p in &points {
-                painter.line_segment([pos2(p.x, mid), *p], Stroke::new(1.0, stem));
+                painter.line_segment([pos2(p.x, mid), *p], Stroke::new(1.0_f32, stem));
                 painter.circle_filled(*p, 2.5, color);
             }
         }
-        painter.add(Shape::line(points, Stroke::new(1.0, color)));
+        painter.add(Shape::line(points, Stroke::new(1.0_f32, color)));
     }
 }

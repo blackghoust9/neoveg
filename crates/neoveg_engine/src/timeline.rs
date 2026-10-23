@@ -86,7 +86,13 @@ impl Timeline {
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
         };
-        Track { id, kind, name: format!("{label} {number}"), muted: false, events: Vec::new() }
+        Track {
+            id,
+            kind,
+            name: format!("{label} {number}"),
+            muted: false,
+            events: Vec::new(),
+        }
     }
 
     /// The event under `time` on `track_id`, if any.

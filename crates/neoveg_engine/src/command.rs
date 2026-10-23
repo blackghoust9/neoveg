@@ -4,10 +4,24 @@ use crate::timeline::{EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILO
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditCommand {
-    AddTrack { track: Track },
-    AddEvent { track_id: TrackId, event: TrackEvent },
-    RemoveEvent { track_id: TrackId, index: usize, event: TrackEvent },
-    MoveEvent { track_id: TrackId, event_id: EventId, old_start: f64, new_start: f64 },
+    AddTrack {
+        track: Track,
+    },
+    AddEvent {
+        track_id: TrackId,
+        event: TrackEvent,
+    },
+    RemoveEvent {
+        track_id: TrackId,
+        index: usize,
+        event: TrackEvent,
+    },
+    MoveEvent {
+        track_id: TrackId,
+        event_id: EventId,
+        old_start: f64,
+        new_start: f64,
+    },
     SplitEvent {
         track_id: TrackId,
         event_id: EventId,
@@ -20,14 +34,30 @@ pub enum EditCommand {
 
 impl EditCommand {
     /// Builds a split at `at` for the event `event_id`, or `None` when `at` is not strictly inside it.
-    pub fn split(timeline: &mut Timeline, track_id: TrackId, event_id: EventId, at: f64) -> Option<Self> {
-        let event = timeline.track(track_id)?.events.iter().find(|e| e.id == event_id)?;
+    pub fn split(
+        timeline: &mut Timeline,
+        track_id: TrackId,
+        event_id: EventId,
+        at: f64,
+    ) -> Option<Self> {
+        let event = timeline
+            .track(track_id)?
+            .events
+            .iter()
+            .find(|e| e.id == event_id)?;
         if at <= event.start + TIME_EPSILON || at >= event.end() - TIME_EPSILON {
             return None;
         }
         let (original_duration, original_fade_out) = (event.duration, event.fade_out);
         let new_event_id = timeline.alloc_id();
-        Some(Self::SplitEvent { track_id, event_id, new_event_id, at, original_duration, original_fade_out })
+        Some(Self::SplitEvent {
+            track_id,
+            event_id,
+            new_event_id,
+            at,
+            original_duration,
+            original_fade_out,
+        })
     }
 
     fn apply(&self, tl: &mut Timeline) -> bool {
@@ -44,17 +74,34 @@ impl EditCommand {
                 }
                 None => false,
             },
-            Self::RemoveEvent { track_id, event, .. } => match tl.track_mut(*track_id) {
+            Self::RemoveEvent {
+                track_id, event, ..
+            } => match tl.track_mut(*track_id) {
                 Some(t) => {
                     t.events.retain(|e| e.id != event.id);
                     true
                 }
                 None => false,
             },
-            Self::MoveEvent { track_id, event_id, new_start, .. } => set_start(tl, *track_id, *event_id, *new_start),
-            Self::SplitEvent { track_id, event_id, new_event_id, at, .. } => {
-                let Some(t) = tl.track_mut(*track_id) else { return false };
-                let Some(i) = t.events.iter().position(|e| e.id == *event_id) else { return false };
+            Self::MoveEvent {
+                track_id,
+                event_id,
+                new_start,
+                ..
+            } => set_start(tl, *track_id, *event_id, *new_start),
+            Self::SplitEvent {
+                track_id,
+                event_id,
+                new_event_id,
+                at,
+                ..
+            } => {
+                let Some(t) = tl.track_mut(*track_id) else {
+                    return false;
+                };
+                let Some(i) = t.events.iter().position(|e| e.id == *event_id) else {
+                    return false;
+                };
                 let left = &mut t.events[i];
                 let left_duration = at - left.start;
                 let right = TrackEvent {
@@ -83,15 +130,31 @@ impl EditCommand {
                     t.events.retain(|e| e.id != event.id);
                 }
             }
-            Self::RemoveEvent { track_id, index, event } => {
+            Self::RemoveEvent {
+                track_id,
+                index,
+                event,
+            } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.events.insert((*index).min(t.events.len()), event.clone());
                 }
             }
-            Self::MoveEvent { track_id, event_id, old_start, .. } => {
+            Self::MoveEvent {
+                track_id,
+                event_id,
+                old_start,
+                ..
+            } => {
                 set_start(tl, *track_id, *event_id, *old_start);
             }
-            Self::SplitEvent { track_id, event_id, new_event_id, original_duration, original_fade_out, .. } => {
+            Self::SplitEvent {
+                track_id,
+                event_id,
+                new_event_id,
+                original_duration,
+                original_fade_out,
+                ..
+            } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.events.retain(|e| e.id != *new_event_id);
                     if let Some(e) = t.events.iter_mut().find(|e| e.id == *event_id) {
@@ -105,8 +168,12 @@ impl EditCommand {
 }
 
 fn set_start(tl: &mut Timeline, track_id: TrackId, event_id: EventId, start: f64) -> bool {
-    let Some(t) = tl.track_mut(track_id) else { return false };
-    let Some(e) = t.events.iter_mut().find(|e| e.id == event_id) else { return false };
+    let Some(t) = tl.track_mut(track_id) else {
+        return false;
+    };
+    let Some(e) = t.events.iter_mut().find(|e| e.id == event_id) else {
+        return false;
+    };
     e.start = start.max(0.0);
     t.events.sort_by(|a, b| a.start.total_cmp(&b.start));
     true
@@ -206,8 +273,14 @@ mod tests {
 
         let events = &tl.track(track_id).unwrap().events;
         assert_eq!(events.len(), 2);
-        assert_eq!((events[0].start, events[0].duration, events[0].fade_out), (2.0, 3.0, 0.0));
-        assert_eq!((events[1].start, events[1].duration, events[1].trim_in), (5.0, 7.0, 4.0));
+        assert_eq!(
+            (events[0].start, events[0].duration, events[0].fade_out),
+            (2.0, 3.0, 0.0)
+        );
+        assert_eq!(
+            (events[1].start, events[1].duration, events[1].trim_in),
+            (5.0, 7.0, 4.0)
+        );
         assert_eq!(events[1].fade_out, 0.5);
     }
 
@@ -237,13 +310,28 @@ mod tests {
     #[test]
     fn move_and_remove_are_undoable() {
         let (mut tl, mut history, track_id, event_id) = timeline_with_event();
-        history.execute(&mut tl, EditCommand::MoveEvent { track_id, event_id, old_start: 2.0, new_start: 8.0 });
+        history.execute(
+            &mut tl,
+            EditCommand::MoveEvent {
+                track_id,
+                event_id,
+                old_start: 2.0,
+                new_start: 8.0,
+            },
+        );
         assert_eq!(tl.track(track_id).unwrap().events[0].start, 8.0);
         history.undo(&mut tl);
         assert_eq!(tl.track(track_id).unwrap().events[0].start, 2.0);
 
         let event = tl.track(track_id).unwrap().events[0].clone();
-        history.execute(&mut tl, EditCommand::RemoveEvent { track_id, index: 0, event });
+        history.execute(
+            &mut tl,
+            EditCommand::RemoveEvent {
+                track_id,
+                index: 0,
+                event,
+            },
+        );
         assert!(tl.track(track_id).unwrap().events.is_empty());
         history.undo(&mut tl);
         assert_eq!(tl.track(track_id).unwrap().events.len(), 1);
@@ -252,10 +340,26 @@ mod tests {
     #[test]
     fn a_new_edit_clears_redo() {
         let (mut tl, mut history, track_id, event_id) = timeline_with_event();
-        history.execute(&mut tl, EditCommand::MoveEvent { track_id, event_id, old_start: 2.0, new_start: 3.0 });
+        history.execute(
+            &mut tl,
+            EditCommand::MoveEvent {
+                track_id,
+                event_id,
+                old_start: 2.0,
+                new_start: 3.0,
+            },
+        );
         history.undo(&mut tl);
         assert!(history.can_redo());
-        history.execute(&mut tl, EditCommand::MoveEvent { track_id, event_id, old_start: 2.0, new_start: 4.0 });
+        history.execute(
+            &mut tl,
+            EditCommand::MoveEvent {
+                track_id,
+                event_id,
+                old_start: 2.0,
+                new_start: 4.0,
+            },
+        );
         assert!(!history.can_redo());
     }
 }

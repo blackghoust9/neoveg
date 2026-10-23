@@ -24,5 +24,9 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    eframe::run_native("Neoveg", options, Box::new(|cc| Ok(Box::new(app::NeovegApp::new(cc)))))
+    eframe::run_native(
+        "Neoveg",
+        options,
+        Box::new(|cc| Ok(Box::new(app::NeovegApp::new(cc)))),
+    )
 }

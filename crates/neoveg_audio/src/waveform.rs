@@ -114,7 +114,12 @@ impl WaveformSource {
         let mut pos = 12usize;
         while pos + 8 <= bytes.len() {
             let id = &bytes[pos..pos + 4];
-            let size = u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]]) as usize;
+            let size = u32::from_le_bytes([
+                bytes[pos + 4],
+                bytes[pos + 5],
+                bytes[pos + 6],
+                bytes[pos + 7],
+            ]) as usize;
             let body_start = pos + 8;
             // Tolerate truncated files / streaming headers (data size 0 or 0xFFFFFFFF)
             let body_end = if size == 0 || size == u32::MAX as usize {
@@ -240,7 +245,13 @@ impl WaveformSource {
         }
     }
 
-    fn scan_range(&self, channel: usize, summary: &[ChannelSummary], first: usize, last: usize) -> (f32, f32, f32) {
+    fn scan_range(
+        &self,
+        channel: usize,
+        summary: &[ChannelSummary],
+        first: usize,
+        last: usize,
+    ) -> (f32, f32, f32) {
         let mut acc = ColumnAccumulator::new();
         let mut f = first;
         while f < last {
@@ -298,7 +309,9 @@ fn decode_sample(bytes: &[u8], bytes_per_sample: usize, is_float: bool) -> f32 {
             let raw = (bytes[0] as i32) | ((bytes[1] as i32) << 8) | ((bytes[2] as i32) << 16);
             ((raw << 8) >> 8) as f32 / 8_388_608.0
         }
-        (4, false) => i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as f32 / 2_147_483_648.0,
+        (4, false) => {
+            i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as f32 / 2_147_483_648.0
+        }
         _ => 0.0,
     };
     if v.is_finite() {
@@ -308,10 +321,13 @@ fn decode_sample(bytes: &[u8], bytes_per_sample: usize, is_float: bool) -> f32 {
     }
 }
 
-
 impl WaveformSource {
     /// Builds a source from decoded interleaved `f32` samples (1 or 2+ channels; only the first two are kept).
-    pub fn from_interleaved_f32(sample_rate: u32, channels: u16, interleaved: &[f32]) -> Result<Self, String> {
+    pub fn from_interleaved_f32(
+        sample_rate: u32,
+        channels: u16,
+        interleaved: &[f32],
+    ) -> Result<Self, String> {
         if channels == 0 || sample_rate == 0 {
             return Err("invalid channel count or sample rate".into());
         }
@@ -373,7 +389,11 @@ mod tests {
         // 10_000 frames of a deterministic signal with a single spike at frame 4321
         let samples: Vec<(i16, i16)> = (0..10_000)
             .map(|i| {
-                let l = if i == 4321 { 32767 } else { ((i * 37) % 2000) as i16 - 1000 };
+                let l = if i == 4321 {
+                    32767
+                } else {
+                    ((i * 37) % 2000) as i16 - 1000
+                };
                 (l, -l / 2)
             })
             .collect();
@@ -392,8 +412,14 @@ mod tests {
                 continue;
             }
             let slice = &samples[a..b];
-            let min = slice.iter().map(|s| s.0 as f32 / 32768.0).fold(f32::MAX, f32::min);
-            let max = slice.iter().map(|s| s.0 as f32 / 32768.0).fold(f32::MIN, f32::max);
+            let min = slice
+                .iter()
+                .map(|s| s.0 as f32 / 32768.0)
+                .fold(f32::MAX, f32::min);
+            let max = slice
+                .iter()
+                .map(|s| s.0 as f32 / 32768.0)
+                .fold(f32::MIN, f32::max);
             assert_eq!(out[c * COLUMN_STRIDE], min, "min of column {c}");
             assert_eq!(out[c * COLUMN_STRIDE + 1], max, "max of column {c}");
         }
@@ -405,7 +431,9 @@ mod tests {
 
     #[test]
     fn read_samples_returns_raw_values_and_clamps_edges() {
-        let samples: Vec<(i16, i16)> = (0..100).map(|i| (i as i16 * 100, -(i as i16) * 100)).collect();
+        let samples: Vec<(i16, i16)> = (0..100)
+            .map(|i| (i as i16 * 100, -(i as i16) * 100))
+            .collect();
         let src = WaveformSource::from_wav_bytes(wav_16bit_stereo(&samples, 44_100)).unwrap();
         let mut l = vec![9f32; 5];
         let mut r = vec![9f32; 5];
@@ -417,10 +445,11 @@ mod tests {
         assert_eq!(r[4], -200.0 / 32768.0);
     }
 
-
     #[test]
     fn interleaved_f32_source_matches_its_input() {
-        let samples: Vec<f32> = (0..1000).flat_map(|i| [i as f32 / 1000.0, -(i as f32) / 1000.0]).collect();
+        let samples: Vec<f32> = (0..1000)
+            .flat_map(|i| [i as f32 / 1000.0, -(i as f32) / 1000.0])
+            .collect();
         let src = WaveformSource::from_interleaved_f32(48_000, 2, &samples).unwrap();
         assert_eq!(src.frame_count(), 1000);
         let mut out = vec![0f32; COLUMN_STRIDE];

@@ -12,7 +12,11 @@ pub fn init(log_dir: &Path) {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-    match OpenOptions::new().create(true).append(true).open(log_dir.join("neoveg.log")) {
+    match OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_dir.join("neoveg.log"))
+    {
         Ok(file) => {
             let _ = tracing_subscriber::fmt()
                 .with_env_filter(filter)
@@ -28,7 +32,11 @@ pub fn init(log_dir: &Path) {
     let crash_path = log_dir.join("crash.log");
     std::panic::set_hook(Box::new(move |info| {
         tracing::error!("[FATAL] {info}");
-        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&crash_path) {
+        if let Ok(mut f) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&crash_path)
+        {
             let _ = writeln!(f, "[FATAL] {info}");
         }
     }));

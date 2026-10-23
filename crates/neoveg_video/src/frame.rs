@@ -14,11 +14,20 @@ impl FrameBuffer {
         for _ in 0..width as usize * height as usize {
             data.extend_from_slice(&rgba);
         }
-        Self { width, height, rgba: data }
+        Self {
+            width,
+            height,
+            rgba: data,
+        }
     }
 
     pub fn pixel(&self, x: u32, y: u32) -> [u8; 4] {
         let i = (y as usize * self.width as usize + x as usize) * 4;
-        [self.rgba[i], self.rgba[i + 1], self.rgba[i + 2], self.rgba[i + 3]]
+        [
+            self.rgba[i],
+            self.rgba[i + 1],
+            self.rgba[i + 2],
+            self.rgba[i + 3],
+        ]
     }
 }

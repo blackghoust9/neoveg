@@ -28,12 +28,23 @@ pub struct AudioPlayer {
 }
 
 impl AudioPlayer {
-    pub fn new(samples: Arc<Vec<f32>>, source_rate: u32, meter: Arc<PeakMeter>) -> Result<Self, String> {
+    pub fn new(
+        samples: Arc<Vec<f32>>,
+        source_rate: u32,
+        meter: Arc<PeakMeter>,
+    ) -> Result<Self, String> {
         let host = cpal::default_host();
-        let device = host.default_output_device().ok_or("no audio output device")?;
-        let supported = device.default_output_config().map_err(|e| format!("output config: {e}"))?;
+        let device = host
+            .default_output_device()
+            .ok_or("no audio output device")?;
+        let supported = device
+            .default_output_config()
+            .map_err(|e| format!("output config: {e}"))?;
         if supported.sample_format() != SampleFormat::F32 {
-            return Err(format!("unsupported device sample format {:?}", supported.sample_format()));
+            return Err(format!(
+                "unsupported device sample format {:?}",
+                supported.sample_format()
+            ));
         }
         let config = supported.config();
         let device_rate = config.sample_rate.0 as f64;
@@ -97,15 +108,23 @@ impl AudioPlayer {
                 None,
             )
             .map_err(|e| format!("cannot open audio stream: {e}"))?;
-        stream.play().map_err(|e| format!("cannot start audio stream: {e}"))?;
+        stream
+            .play()
+            .map_err(|e| format!("cannot start audio stream: {e}"))?;
 
-        Ok(Self { _stream: stream, state, meter })
+        Ok(Self {
+            _stream: stream,
+            state,
+            meter,
+        })
     }
 
     /// Starts playback `seconds` into the buffer.
     pub fn play_from(&self, seconds: f64) {
         let frame = (seconds.max(0.0) * self.state.source_rate as f64).floor();
-        self.state.position.store(frame.to_bits(), Ordering::Relaxed);
+        self.state
+            .position
+            .store(frame.to_bits(), Ordering::Relaxed);
         self.state.playing.store(true, Ordering::Relaxed);
     }
 
@@ -124,6 +143,8 @@ impl AudioPlayer {
     }
 
     pub fn set_volume(&self, linear: f32) {
-        self.state.volume.store((linear.max(0.0) as f64).to_bits(), Ordering::Relaxed);
+        self.state
+            .volume
+            .store((linear.max(0.0) as f64).to_bits(), Ordering::Relaxed);
     }
 }
