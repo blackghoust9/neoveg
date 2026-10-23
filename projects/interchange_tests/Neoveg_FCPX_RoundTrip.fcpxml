@@ -3,11 +3,11 @@
 <fcpxml version="1.10">
   <resources>
     <format id="r1" name="FFVideoFormat1080p30" frameDuration="1001/30000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" />
-    <asset id="r2" name="qa_hd_1080p.mp4" src="file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_hd_1080p.mp4" start="0s" duration="5000/1000s" hasVideo="1" hasAudio="1" />
-    <asset id="r3" name="qa_hd_1080p.mp4" src="file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_hd_1080p.mp4" start="0s" duration="7000/1000s" hasVideo="1" hasAudio="1" />
-    <asset id="r4" name="qa_uhd_4k.mp4" src="file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_uhd_4k.mp4" start="0s" duration="5000/1000s" hasVideo="1" hasAudio="1" />
-    <asset id="r5" name="qa_audio_24bit_96khz.wav" src="file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_audio_24bit_96khz.wav" start="0s" duration="5000/1000s" hasVideo="0" hasAudio="1" />
-    <asset id="r6" name="qa_audio_24bit_96khz.wav" src="file://localhost/G:/Meu%20Drive/vp-rev-eng/teste/teste2/media/qa_audio_24bit_96khz.wav" start="0s" duration="5800/1000s" hasVideo="0" hasAudio="1" />
+    <asset id="r2" name="qa_hd_1080p.mp4" src="file://localhost/C:/Users/paulomatos/Documents/GitHub/neoveg/media/qa_hd_1080p.mp4" start="0s" duration="5000/1000s" hasVideo="1" hasAudio="1" />
+    <asset id="r3" name="qa_hd_1080p.mp4" src="file://localhost/C:/Users/paulomatos/Documents/GitHub/neoveg/media/qa_hd_1080p.mp4" start="0s" duration="7000/1000s" hasVideo="1" hasAudio="1" />
+    <asset id="r4" name="qa_uhd_4k.mp4" src="file://localhost/C:/Users/paulomatos/Documents/GitHub/neoveg/media/qa_uhd_4k.mp4" start="0s" duration="5000/1000s" hasVideo="1" hasAudio="1" />
+    <asset id="r5" name="qa_audio_24bit_96khz.wav" src="file://localhost/C:/Users/paulomatos/Documents/GitHub/neoveg/media/qa_audio_24bit_96khz.wav" start="0s" duration="5000/1000s" hasVideo="0" hasAudio="1" />
+    <asset id="r6" name="qa_audio_24bit_96khz.wav" src="file://localhost/C:/Users/paulomatos/Documents/GitHub/neoveg/media/qa_audio_24bit_96khz.wav" start="0s" duration="5800/1000s" hasVideo="0" hasAudio="1" />
   </resources>
   <library>
     <event name="Neoveg Export">

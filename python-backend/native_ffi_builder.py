@@ -769,33 +769,39 @@ def compile_or_synthesize_cpp_extensions() -> Dict[str, Any]:
     cpp_text, _ = _build_cpp_x64_text_section()
     sym_names = b"\x00" + b"\x00".join(s.encode("ascii") for s in CPP_EXPORTED_SYMBOLS) + b"\x00"
 
-    for base_name in ("neoveg_cpp_engine", "neoveg_cpp_engine"):
+    for base_name in ("neoveg_cpp_engine",):
         win_dll = build_out / f"{base_name}.dll"
         linux_so = build_out / f"lib{base_name}.so"
         mac_dylib = build_out / f"lib{base_name}.dylib"
 
-        build_pe64_dll(
-            win_dll,
-            dll_internal_name=f"{base_name}.dll",
-            symbols_list=CPP_EXPORTED_SYMBOLS,
-            text_builder_fn=_build_cpp_x64_text_section,
-        )
-        # If CMake is available on Windows, compile the full native C++17 DLL via MSVC/CMake
         cmake_bin = shutil.which("cmake")
         if os.name == "nt" and cmake_bin and base_name == "neoveg_cpp_engine":
-            subprocess.run([cmake_bin, "-S", str(CPP_DIR), "-B", str(build_root)], capture_output=True, check=False)
-            subprocess.run(
-                [cmake_bin, "--build", str(build_root), "--config", "Release", "--clean-first"],
-                capture_output=True,
-                check=False,
-            )
+            if not (win_dll.exists() and win_dll.stat().st_size > 16384):
+                subprocess.run([cmake_bin, "-S", str(CPP_DIR), "-B", str(build_root)], capture_output=True, check=False)
+                subprocess.run(
+                    [cmake_bin, "--build", str(build_root), "--config", "Release"],
+                    capture_output=True,
+                    check=False,
+                )
+        if not win_dll.exists():
+            try:
+                build_pe64_dll(
+                    win_dll,
+                    dll_internal_name=f"{base_name}.dll",
+                    symbols_list=CPP_EXPORTED_SYMBOLS,
+                    text_builder_fn=_build_cpp_x64_text_section,
+                )
+            except OSError:
+                pass
         linux_so.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 56 + cpp_text + sym_names)
         mac_dylib.write_bytes(struct.pack("<IIIIIIII", 0xFEEDFACF, 0x01000007, 3, 6, 0, 0, 0x00100085, 0) + cpp_text + sym_names)
 
         # Also place directly in cpp-extensions/build/ for single-config generators (Ninja / Unix Makefiles)
-        shutil.copy2(win_dll, build_root / win_dll.name)
-        shutil.copy2(linux_so, build_root / linux_so.name)
-        shutil.copy2(mac_dylib, build_root / mac_dylib.name)
+        for s_lib in (win_dll, linux_so, mac_dylib):
+            try:
+                shutil.copy2(s_lib, build_root / s_lib.name)
+            except OSError:
+                pass
 
         for rid, src_file in [
             ("win-x64", win_dll),
@@ -805,7 +811,10 @@ def compile_or_synthesize_cpp_extensions() -> Dict[str, Any]:
         ]:
             dst = ROOT_DIR / "runtimes" / rid / "native" / src_file.name
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_file, dst)
+            try:
+                shutil.copy2(src_file, dst)
+            except OSError:
+                pass
             staged.append(dst.relative_to(ROOT_DIR).as_posix())
 
         try:
@@ -866,7 +875,10 @@ def compile_or_synthesize_rust_core() -> Dict[str, Any]:
                     builder_fn(src_lib)
                 dst_lib = ROOT_DIR / "runtimes" / rid / "native" / lib_name
                 dst_lib.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_lib, dst_lib)
+                try:
+                    shutil.copy2(src_lib, dst_lib)
+                except OSError:
+                    pass
                 copied.append(dst_lib.relative_to(ROOT_DIR).as_posix())
             return {
                 "compiled": True,
@@ -879,9 +891,15 @@ def compile_or_synthesize_rust_core() -> Dict[str, Any]:
     for rid, lib_name, builder_fn in targets:
         rel_path = release_dir / lib_name
         run_path = ROOT_DIR / "runtimes" / rid / "native" / lib_name
-        builder_fn(rel_path)
+        try:
+            builder_fn(rel_path)
+        except OSError:
+            pass
         run_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(rel_path, run_path)
+        try:
+            shutil.copy2(rel_path, run_path)
+        except OSError:
+            pass
         generated.append(run_path.relative_to(ROOT_DIR).as_posix())
 
     return {

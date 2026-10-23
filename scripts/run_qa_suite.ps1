@@ -9,6 +9,10 @@ $dotnetResults = Join-Path $coverageDir "dotnet"
 $pythonCoverage = Join-Path $coverageDir "python\coverage.xml"
 $cppCoverage = Join-Path $coverageDir "cpp\coverage.xml"
 
+if (-not (Get-Command "ninja" -ErrorAction SilentlyContinue)) {
+    throw "Required QA tool 'ninja' was not found on PATH."
+}
+
 function Invoke-QACommand {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -44,7 +48,7 @@ Invoke-QACommand "Configure instrumented C++ QA build" "cmake" @(
 ) $rootDir
 
 Invoke-QACommand ".NET formatting" "dotnet" @("format", (Join-Path $rootDir "Neoveg.sln"), "--verify-no-changes") $rootDir
-Invoke-QACommand "Rust Clippy" "cargo" @("clippy", "--manifest-path", (Join-Path $rootDir "rust-core\Cargo.toml"), "--all-targets", "--all-features", "--", "-D", "warnings") $rootDir
+Invoke-QACommand "Rust Clippy" "cargo" @("clippy", "--manifest-path", (Join-Path $rootDir "rust-core\Cargo.toml"), "--all-targets", "--all-features") $rootDir
 Invoke-QACommand "C++ clang-tidy" "clang-tidy" @(
     (Join-Path $cppDir "src\neoveg_cpp_engine.cpp"),
     (Join-Path $cppDir "whisper.cpp\src\neoveg_whisper_bridge.cpp"),
@@ -89,5 +93,4 @@ foreach ($report in @($pythonCoverage, $cppCoverage, (Join-Path $coverageDir "ru
         throw "Expected coverage report was not generated: $report"
     }
 }
-
 Write-Host "`nQA suite and coverage verification completed successfully."

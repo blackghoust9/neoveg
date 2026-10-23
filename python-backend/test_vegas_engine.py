@@ -962,6 +962,48 @@ def run_all_tests() -> None:
 
     assert "VerifyPreFlightEnvironmentAndToolchains" in prog_dx_cs, "Missing VerifyPreFlightEnvironmentAndToolchains in Program.cs"
     print("[PASS] 34. Padronizacao de Dependencias & Ambiente (REQUIREMENTS.md, python-backend/requirements.txt, scripts/check_env.py & .ps1, AGENTS.md Secao 13 e Pre-Flight Check em Program.cs) verificada")
+
+    # 35. Verify Cross-Platform & Portable Release Protocol (`AGENTS.md` Section 14, `scripts/build_all_platforms.ps1`, `scripts/build_all_platforms.sh`)
+    build_all_ps1 = ROOT_DIR / "scripts" / "build_all_platforms.ps1"
+    build_all_sh = ROOT_DIR / "scripts" / "build_all_platforms.sh"
+    assert build_all_ps1.exists() and build_all_sh.exists(), "Missing scripts/build_all_platforms.ps1 or .sh"
+    for s14_tok in (
+        "## 14. Cross-Platform & Portable Release Protocol",
+        "win-x64",
+        "linux-x64",
+        "osx-x64",
+        "osx-arm64",
+        "Neoveg_v1.0.0_win-x64_Portable.zip",
+        "Neoveg_v1.0.0_linux-x64_Portable.tar.gz",
+    ):
+        assert s14_tok in agents_dx, f"Missing {s14_tok} in AGENTS.md"
+    print("[PASS] 35. Pipeline de Release Portatil Multiplataforma (AGENTS.md Secao 14, scripts/build_all_platforms.ps1 & .sh) verificado")
+
+    # 36. Verify ISO/IEC Software Quality & Standards Compliance Protocol (`AGENTS.md` Section 16, `scripts/run_qa_suite.ps1`, `docs/index.html`, Portability & Memory Safety Static Audit)
+    run_qa_ps1_text = (ROOT_DIR / "scripts" / "run_qa_suite.ps1").read_text(encoding="utf-8")
+    docs_iso_text = (ROOT_DIR / "docs" / "index.html").read_text(encoding="utf-8")
+    for s16_tok in (
+        "## 16. ISO/IEC Software Quality & Standards Compliance Protocol",
+        "ISO/IEC 25010 (Software Quality Model)",
+        "Performance Efficiency",
+        "Portability",
+        "Maintainability",
+        "ISO/IEC 29119 (Software Testing Standard)",
+        "ISO/IEC 27001",
+    ):
+        assert s16_tok in agents_dx, f"Missing {s16_tok} in AGENTS.md"
+
+    for iso_pillar in ("ISO/IEC 25010", "ISO/IEC 29119", "ISO/IEC 27001", "Desempenho", "Confiabilidade", "Usabilidade", "Portabilidade", "Manutenibilidade"):
+        assert iso_pillar in run_qa_ps1_text, f"Missing {iso_pillar} in scripts/run_qa_suite.ps1"
+        assert iso_pillar in docs_iso_text, f"Missing {iso_pillar} in docs/index.html"
+
+    # Static Compliance Audit: Portability (OperatingSystem guards) & Memory Safety (explicit FFI deallocators & catch_unwind)
+    log_vm_cs = (ROOT_DIR / "desktop-host" / "ViewModels" / "LogViewerViewModel.cs").read_text(encoding="utf-8")
+    assert "OperatingSystem.IsWindows()" in prog_dx_cs and "OperatingSystem.IsLinux()" in prog_dx_cs and "OperatingSystem.IsMacOS()" in prog_dx_cs
+    assert "OperatingSystem.IsWindows()" in log_vm_cs
+    assert "fn neoveg_free_buffer" in rust_lib_rs and "catch_unwind" in rust_lib_rs
+    assert "neoveg_cpp_free_buffer" in cpp_dx_src and "FreeNativeBuffer" in rust_interop_cs and "FreeNativeBuffer" in cpp_interop_dx
+    print("[PASS] 36. Conformidade ISO/IEC 25010 (Desempenho, Confiabilidade, Usabilidade, Portabilidade, Manutenibilidade), ISO/IEC 29119 & ISO/IEC 27001 (AGENTS.md Secao 16, run_qa_suite.ps1, docs/index.html e Auditoria Estatica) verificada")
     print("=== ALL NEOVEG CROSS-PLATFORM TESTS PASSED SUCCESSFULLY ===")
 
 

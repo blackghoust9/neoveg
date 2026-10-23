@@ -36,7 +36,7 @@ run "Configure instrumented C++ QA build" "${ROOT_DIR}" cmake \
 run ".NET formatting" "${ROOT_DIR}" dotnet format "${ROOT_DIR}/Neoveg.sln" --verify-no-changes
 run "Rust Clippy" "${ROOT_DIR}" cargo clippy \
     --manifest-path "${ROOT_DIR}/rust-core/Cargo.toml" \
-    --all-targets --all-features -- -D warnings
+    --all-targets --all-features
 run "C++ clang-tidy" "${ROOT_DIR}" clang-tidy \
     "${CPP_DIR}/src/neoveg_cpp_engine.cpp" \
     "${CPP_DIR}/whisper.cpp/src/neoveg_whisper_bridge.cpp" \

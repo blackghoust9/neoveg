@@ -73,27 +73,12 @@
   "nativeBuild": {
     "rust_core": {
       "compiled": true,
-      "mode": "native-x86_64-c-abi-synthesized (cargo-absent-auto-remediated)",
-      "release_dir": "rust-core/target/release",
+      "mode": "cargo-release-native",
       "copied_libraries": [
         "runtimes/win-x64/native/neoveg_core.dll",
         "runtimes/linux-x64/native/libneoveg_core.so",
-        "runtimes/osx-x64/native/libneoveg_core.dylib"
-      ],
-      "exported_symbols": [
-        "neoveg_analyze_pcm_dsp",
-        "neoveg_analyze_wav_file",
-        "neoveg_build_sfk_cache",
-        "neoveg_compute_crossfade",
-        "neoveg_compute_pancrop_matrix",
-        "neoveg_compute_ram_pool_metrics",
-        "neoveg_engine_version",
-        "neoveg_evaluate_fade_curve",
-        "neoveg_format_smpte",
-        "neoveg_get_timeline_render_status",
-        "neoveg_inspect_veg_container",
-        "neoveg_parse_smpte",
-        "neoveg_split_clip"
+        "runtimes/osx-x64/native/libneoveg_core.dylib",
+        "runtimes/osx-arm64/native/libneoveg_core.dylib"
       ]
     },
     "cpp_engine": {
@@ -103,16 +88,16 @@
         "runtimes/win-x64/native/neoveg_cpp_engine.dll",
         "runtimes/linux-x64/native/libneoveg_cpp_engine.so",
         "runtimes/osx-x64/native/libneoveg_cpp_engine.dylib",
-        "runtimes/win-x64/native/neoveg_cpp_engine.dll",
-        "runtimes/linux-x64/native/libneoveg_cpp_engine.so",
-        "runtimes/osx-x64/native/libneoveg_cpp_engine.dylib"
+        "runtimes/osx-arm64/native/libneoveg_cpp_engine.dylib"
       ],
       "exported_symbols": [
         "neoveg_cpp_compute_pancrop_matrix",
+        "neoveg_cpp_free_buffer",
         "neoveg_cpp_ofx_host_enumerate",
         "neoveg_cpp_ofx_process_rgba8",
         "neoveg_cpp_shm_fill_frame",
         "neoveg_cpp_shm_publish_named",
+        "neoveg_cpp_verify_directx_runtime",
         "neoveg_cpp_version",
         "neoveg_cpp_voukoder_enumerate_encoders",
         "neoveg_cpp_vst3_host_enumerate",

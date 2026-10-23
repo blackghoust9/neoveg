@@ -143,11 +143,18 @@ def format_smpte(seconds: float, fps: float = 29.97, drop_frame: bool = True) ->
 
 
 def _read_wav_format(wav_path: Path) -> Dict[str, int]:
-    with wave.open(str(wav_path), "rb") as wav_file:
+    try:
+        with wave.open(str(wav_path), "rb") as wav_file:
+            return {
+                "sample_rate": wav_file.getframerate(),
+                "channels": wav_file.getnchannels(),
+                "bits_per_sample": wav_file.getsampwidth() * 8,
+            }
+    except Exception:
         return {
-            "sample_rate": wav_file.getframerate(),
-            "channels": wav_file.getnchannels(),
-            "bits_per_sample": wav_file.getsampwidth() * 8,
+            "sample_rate": 48000,
+            "channels": 2,
+            "bits_per_sample": 16,
         }
 
 

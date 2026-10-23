@@ -268,7 +268,7 @@ To ensure industrial-grade software reliability, maintainability, and cross-plat
   - **Maintainability:** Code structure must maintain clean modular isolation between C# Avalonia, Rust FFI, C++ Extensions, and Python backend.
 - **ISO/IEC 29119 (Software Testing Standard):**
   - All features must pass automated unit, integration, and headless UI tests (`Avalonia.Headless`) before being merged or packaged for release, with QA reports (`scripts/run_qa_suite.ps1` and `docs/index.html`) categorized by ISO/IEC 25010 quality pillars.
-- **ISO/IEC 27001 / Memory Safety Assurance:**
+- **ISO/IEC 27001 / Memory Safety Assurance (Security & Memory Integrity):**
   - Dynamic memory allocations across FFI boundaries must use explicit ownership and cleanup models (AddressSanitizer and LeakSanitizer validated, explicit `neoveg_free_buffer` / `neoveg_cpp_free_buffer` / `IDisposable` deallocators, and 64-bit integer overflow guards).
 
 ---

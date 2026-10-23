@@ -39,7 +39,11 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 | Pacote Python | Versão Mínima | Autores / Mantenedores | Licença (SPDX) | Utilização no Neoveg |
 | :--- | :--- | :--- | :--- | :--- |
-| **`numpy`** | `>=2.0.0` | Travis Oliphant & NumPy Developers | `BSD-3-Clause` | Processamento matricial de áudio PCM, picos `.sfk`, LUTs 3D e máscaras Chroma Key |
+| **`pytest`** | `>=7.4.0` | Holger Krekel & Pytest-Dev Team | `MIT` | Suíte de testes automatizados e auditoria de conformidade ISO/IEC 29119 |
+| **`pytest-asyncio`** | `>=0.21.0` | Tin Tvrtković & Contributors | `Apache-2.0` | Suporte a testes assíncronos no backend Python |
+| **`pytest-cov`** | `>=5.0.0` | Marc Schlaich & Contributors | `MIT` | Coleta de métricas de cobertura de código (`coverage.xml`) |
+| **`numpy`** | `>=1.24.0` | Travis Oliphant & NumPy Developers | `BSD-3-Clause` | Processamento matricial de áudio PCM, picos `.sfk`, LUTs 3D e máscaras Chroma Key |
+| **`scipy`** | `>=1.10.0` | Travis Oliphant, Pearu Peterson & SciPy Developers | `BSD-3-Clause` | Processamento digital de sinais (DSP), filtros de áudio e interpolação científica |
 | **`pillow` (PIL Fork)** | `>=10.0.0` | Jeffrey A. Clark (Alex) & Contributors | `HPND` (`MIT-CMU`) | Geração de ícones `.ico`/`.png`, quadros de teste e assets de temas históricos |
 | **`pefile`** | `>=2024.8.26` | Ero Carrera | `MIT` | Inspeção de cabeçalhos PE32+/DLL e tabelas de exportação C-ABI no Windows |
 | **`packaging`** | `>=24.0` | Donald Stufft & PyPA Contributors | `Apache-2.0 OR BSD-2-Clause` | Resolução de versões de pacotes e validação de ambiente multiplataforma |
