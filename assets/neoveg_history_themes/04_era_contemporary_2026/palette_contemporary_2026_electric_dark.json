@@ -1,0 +1,126 @@
+{
+  "id": "contemporary_2026_electric_dark",
+  "era_folder": "04_era_contemporary_2026",
+  "era_number": 4,
+  "name": "Contemporary NLE / Neoveg Atual (2025–2026 Electric Blue)",
+  "short_badge": "Contemporary NLE • 2026",
+  "years": "2025–2026",
+  "vendor": "Neoveg Creative Software / Contemporary NLE Ecosystem",
+  "versions": [
+    "Neoveg 23.0",
+    "Neoveg 2026 Neoveg (BCC+ / AI Suite)"
+  ],
+  "description": "Identidade visual contemporânea em preto obsidiana (#0E1015), azul elétrico (#00A3FF / #2563EB), cabeçalhos de faixa multicor de alto contraste e integração nativa BCC+/AI.",
+  "palette": {
+    "window_bg": "#0E1015",
+    "menu_bg": "#13161E",
+    "toolbar_bg": "#161A24",
+    "dock_header_bg": "#1B202C",
+    "dock_panel_bg": "#12161F",
+    "dock_border": "#262F40",
+    "timeline_bg": "#0B0D12",
+    "ruler_bg": "#151922",
+    "track_video_bg": "#172336",
+    "track_audio_bg": "#191D2E",
+    "clip_header_bg": "#090D16",
+    "accent_primary": "#00A3FF",
+    "accent_secondary": "#38BDF8",
+    "timecode_bg": "#090B10",
+    "timecode_fg": "#38BDF8",
+    "playhead_color": "#00A3FF",
+    "waveform_color": "#7DD3FC",
+    "button_bg": "#1E2636",
+    "button_fg": "#F8FAFC",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8",
+    "status_bar_bg": "#10141C"
+  },
+  "reference_files": [
+    "3image.png",
+    "4image.png",
+    "6image.png",
+    "7image.png",
+    "Neoveg_Suite_UI_202.png"
+  ],
+  "assets": {
+    "logo_svg": "04_era_contemporary_2026/logo_contemporary_2026_electric_dark.svg",
+    "logo_png": "04_era_contemporary_2026/logo_contemporary_2026_electric_dark.png",
+    "icons_svg": "04_era_contemporary_2026/icons_contemporary_2026_electric_dark.svg",
+    "swatch_png": "04_era_contemporary_2026/swatch_contemporary_2026_electric_dark.png",
+    "palette_json": "04_era_contemporary_2026/palette_contemporary_2026_electric_dark.json"
+  },
+  "curated_references": [
+    {
+      "file": "3image.png",
+      "relative_path": "04_era_contemporary_2026/references/3image.png",
+      "sampled_dominant_hex": [
+        "#795455",
+        "#384B5D",
+        "#342F33",
+        "#382224",
+        "#262626",
+        "#171B1D"
+      ]
+    },
+    {
+      "file": "4image.png",
+      "relative_path": "04_era_contemporary_2026/references/4image.png",
+      "sampled_dominant_hex": [
+        "#CFC2B4",
+        "#827669",
+        "#3D3A34",
+        "#272522",
+        "#222222",
+        "#1B1D1C"
+      ]
+    },
+    {
+      "file": "6image.png",
+      "relative_path": "04_era_contemporary_2026/references/6image.png",
+      "sampled_dominant_hex": [
+        "#95A6B5",
+        "#464E4C",
+        "#2D302D",
+        "#262626",
+        "#26161D",
+        "#0A0C0F"
+      ]
+    },
+    {
+      "file": "7image.png",
+      "relative_path": "04_era_contemporary_2026/references/7image.png",
+      "sampled_dominant_hex": [
+        "#404142",
+        "#363838",
+        "#412A24",
+        "#132C3E",
+        "#331E20",
+        "#090D17"
+      ]
+    },
+    {
+      "file": "Neoveg_Suite_UI_202.png",
+      "relative_path": "04_era_contemporary_2026/references/Neoveg_Suite_UI_202.png",
+      "sampled_dominant_hex": [
+        "#C9B677",
+        "#8D6940",
+        "#433228",
+        "#391F22",
+        "#222222",
+        "#1E1E1E"
+      ]
+    },
+    {
+      "file": "neoveg_pro_23_fx_scrolling.png",
+      "relative_path": "04_era_contemporary_2026/references/neoveg_pro_23_fx_scrolling.png",
+      "sampled_dominant_hex": [
+        "#727C8E",
+        "#474547",
+        "#2D2C2D",
+        "#282828",
+        "#27282A",
+        "#232323"
+      ]
+    }
+  ]
+}

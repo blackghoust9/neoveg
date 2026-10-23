@@ -1,14 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Neoveg.Controls"
              xmlns:vm="clr-namespace:Neoveg.ViewModels"
              x:Class="Neoveg.Controls.TrackHeaderControl"
              x:DataType="vm:TrackViewModelBase">
   <!--
     Neoveg Timeline Track Header Control (TrackHeaderControl.axaml)
-    Specified per VEGAS Pro 10/11/12/13/18/21 Official Reference Manuals (AGENTS.md Section 10):
+    Specified per NLE Reference Architecture (AGENTS.md Section 10):
     1. 4px Left Vertical Accent Bar painted with TrackAccentColor.
     2. Track Number, Inline Track Name Editor, Track Motion, Track FX, Mute (M), Solo (S), and Track Height (+/-).
-    3. Volume / Opacity Slider and Stereo Pan Slider.
+    3. Precision Volume / Opacity Slider and Stereo Pan Slider (Flat Thumb, Double-Click Reset, Ctrl 1/10 Fine Drag, Context Menu).
     4. Right-Click ContextMenu -> Cor da Faixa (Track Color) with curated dark-theme palette & Color Picker.
   -->
   <Border x:Name="PART_TrackHeaderBorder"
@@ -88,9 +89,9 @@
         <!-- Volume / Level and Pan Sliders -->
         <Grid ColumnDefinitions="Auto,*,Auto,*">
           <TextBlock Grid.Column="0" Text="Vol:" FontSize="9" Foreground="#94a3b8" VerticalAlignment="Center" Margin="0,0,4,0" />
-          <Slider x:Name="PART_TrackVolumeSlider" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" />
+          <controls:NeovegPrecisionSlider x:Name="PART_TrackVolumeSlider" Grid.Column="1" Minimum="0.0" Maximum="1.0" Value="1.0" DefaultValue="1.0" />
           <TextBlock Grid.Column="2" Text="Pan:" FontSize="9" Foreground="#94a3b8" VerticalAlignment="Center" Margin="6,0,4,0" />
-          <Slider x:Name="PART_TrackPanSlider" Grid.Column="3" Minimum="-1.0" Maximum="1.0" Value="0.0" />
+          <controls:NeovegPrecisionSlider x:Name="PART_TrackPanSlider" Grid.Column="3" Minimum="-1.0" Maximum="1.0" Value="0.0" DefaultValue="0.0" />
         </Grid>
       </StackPanel>
     </Grid>

@@ -6,9 +6,9 @@
          MinHeight="4"
          MaxHeight="6"
          ClipToBounds="True"
-         ToolTip.Tip="VEGAS Pro Selective Prerender &amp; Dynamic RAM Preview Status Bar — Verde (#2ECC71): Em Cache (60 FPS) | Amarelo (#F1C40F): Simples/Na Fila | Vermelho (#E74C3C): Efeitos/Transições Sem Cache ([Shift+B] RAM Preview • [Shift+M] Selective Prerender)">
+         ToolTip.Tip="Neoveg Selective Prerender &amp; Dynamic RAM Preview Status Bar — Verde (#2ECC71): Em Cache (60 FPS) | Amarelo (#F1C40F): Simples/Na Fila | Vermelho (#E74C3C): Efeitos/Transições Sem Cache ([Shift+B] RAM Preview • [Shift+M] Selective Prerender)">
   <Control.Resources>
-    <!-- Official VEGAS Pro / Neoveg Render Status Palette -->
+    <!-- Official Neoveg / Neoveg Render Status Palette -->
     <SolidColorBrush x:Key="RenderStatus.CachedGreen" Color="#2ECC71" />
     <SolidColorBrush x:Key="RenderStatus.SimpleOrQueuedYellow" Color="#F1C40F" />
     <SolidColorBrush x:Key="RenderStatus.ComplexUncachedRed" Color="#E74C3C" />

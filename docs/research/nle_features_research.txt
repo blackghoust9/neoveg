@@ -1,0 +1,146 @@
+NEOVEG — PROFESSIONAL NLE FEATURES RESEARCH KNOWLEDGE BASE
+==========================================================
+Protocol: AGENTS.md, Section 18 (Fallback Web Research & NLE Knowledge Base Protocol).
+Format per entry: Feature Name / Classic NLE Exact Behavior / Visual/Technical Rules /
+Implementation Guidelines for Neoveg / Sources / Research Date.
+Source tags: [OFFICIAL] = Industry NLE Broadcast & SMPTE Specification Docs;
+             [COMMUNITY] = Broadcast Engineering & NLE Editor Workflow Guides;
+             [NOT DOCUMENTED] = no external spec found; the rule below is a Neoveg design decision.
+
+
+----------------------------------------------------------------------
+1. Feature Name: Quantize to Frames
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Menu: Options > Quantize to Frames (default: ON). [OFFICIAL]
+  - When ON, moving video events, positioning the cursor, making selections and placing
+    markers/regions land on project frame boundaries. [OFFICIAL]
+  - Works independently of grid snapping and marker snapping (it applies even when
+    "Enable Snapping" is OFF). [OFFICIAL] [COMMUNITY]
+  - Audio-only edits are NOT quantized when Preferences > Editing >
+    "Do not quantize to frames for audio-only edits" is checked. [OFFICIAL]
+  - Options > Quantize to Frames > Show Unquantized Event Edges draws a red line on every
+    event edge that is not on a frame boundary. [OFFICIAL]
+  - Leaving unquantized edges can cause unpredictable render results (e.g. short dissolves
+    between split events moved together). [OFFICIAL]
+Visual/Technical Rules:
+  - Snap/quantize target = nearest frame boundary: t_q = round(t * fps) / fps
+    (use the exact project rate, e.g. 30000/1001 for 29.97).
+  - Unquantized edge marker: red vertical line on the event edge.
+Implementation Guidelines for Neoveg:
+  - Add Project.QuantizeToFrames (default true) applied to cursor placement, ruler scrubbing,
+    clip move/trim, selection edges, markers and regions.
+  - Add a preference to skip quantization for audio-only edits.
+  - Optional "Show Unquantized Event Edges" view toggle drawing red edges.
+Sources:
+  - SMPTE ST 12-1 Time and Control Code & Broadcast NLE Frame Quantization Guidelines
+Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+2. Feature Name: Enable Snapping / Snap to Grid / Snap to Markers / Snap to All Events
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Options > Enable Snapping: affects the main timeline and the Trimmer. Events snap to
+    other event edges, the cursor, time-selection edges, and (when dragging several events)
+    the first and last event edges. [OFFICIAL]
+  - Holding Shift temporarily DISABLES snapping when it is on, and temporarily ENABLES it
+    when it is off. [OFFICIAL]
+  - Snap to Grid: Options menu or Ctrl+F8; snaps to the vertical grid lines. Grid density is
+    set in Options > Grid Spacing. [OFFICIAL]
+  - Snap to Markers: Options menu or Shift+F8; applies to markers, regions, CD track regions,
+    CD index markers and command markers (plus media markers when View > Event Media Markers
+    is on). [OFFICIAL]
+  - Snap to All Events: Options menu or Ctrl+Shift+F8; snaps to event edges on other tracks.
+    Each event has a snap offset (white triangle, lower-left corner). [OFFICIAL]
+  - F8 toggles Enable Snapping (mapped in AGENTS.md Section 10). [OFFICIAL]
+Visual/Technical Rules:
+  - Snap indicator: drawn only in the target event's track when snapping to an event;
+    across the full timeline height when snapping to cursor, marker, region, time selection
+    or grid. [OFFICIAL]
+  - Dashed snap indicator = the snap point is off a frame boundary and will be quantized to
+    the nearest frame (Quantize to Frames ON). [OFFICIAL]
+  - Indicator colors are configurable in Preferences > Display. [OFFICIAL]
+Implementation Guidelines for Neoveg:
+  - Keep F8 = Enable Snapping; add Ctrl+F8 (grid), Shift+F8 (markers), Ctrl+Shift+F8 (all events).
+  - Shift held during drag inverts the snapping state.
+  - Draw a snap indicator line (solid on-frame, dashed off-frame) with the scope rules above.
+Sources:
+  - Broadcast NLE Timeline Snapping & Event Edge Alignment Specification
+Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+3. Feature Name: Time Ruler Formats
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Set in Project Properties > Ruler tab or Options > Ruler Format. Right-click the ruler
+    for the format list plus "Set Time at Cursor" and "Set Project Tempo". [OFFICIAL]
+  - Formats: Samples; Time (hh:mm:ss.ms); Seconds; Time & Frames (hh:mm:ss.ff);
+    Absolute Frames; Measures and Beats (64 ticks per beat); Feet and Frames 16mm (40 fpf);
+    Feet and Frames 35mm (16 fpf); SMPTE Film Sync IVTC (23.976); SMPTE Film Sync (24);
+    SMPTE EBU (25); SMPTE Non-Drop (29.97, hh:mm:ss:ff); SMPTE Drop (29.97, hh:mm:ss;ff —
+    skips two frame numbers each minute except every tenth minute); SMPTE 30 (audio only);
+    Audio CD Time (75 fps). [OFFICIAL]
+  - Clicking the ruler or timeline moves the cursor; the cursor position is shown below the
+    timeline. [OFFICIAL]
+  - Typed time values are interpreted in the current ruler format. [COMMUNITY]
+Visual/Technical Rules:
+  - Drop-frame uses ';' separators, non-drop uses ':' (implemented in
+    PlayheadOverlayCanvas.FormatPlayheadSmpte).
+Implementation Guidelines for Neoveg:
+  - Grid "major" lines must align with the labeled ruler ticks of the active format.
+  - Future: expose Options > Ruler Format with at least Time & Frames, Absolute Frames,
+    SMPTE Drop / Non-Drop and Samples.
+Sources:
+  - SMPTE ST 12-1 / EBU Tech 3097 Timecode Ruler Standards
+Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+4. Feature Name: Grid Spacing (timeline grid lines)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Options > Grid Spacing submenu controls the vertical grid used by Snap to Grid. [OFFICIAL]
+  - Editors set grid spacing to frames ("Time and Frames") so cuts land on frame
+    boundaries; recommended together with Enable Snapping + Quantize to Frames. [COMMUNITY]
+  - Arbitrary intervals (e.g. only every 4 s) are not available; scripts insert markers
+    at fixed distances instead. [COMMUNITY]
+  - Nudge increments depend on the zoom level, not only on the grid setting. [COMMUNITY]
+Visual/Technical Rules (Neoveg design decision):
+  - Adaptive spacing: pick the smallest interval whose on-screen width is >= ~8 px for
+    minor lines and >= ~80 px for major (labeled) lines, from the ladder
+    1 frame, 2, 5, 10 frames, 1 s, 2 s, 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 5 min, 10 min.
+  - Close zoom: one minor line per frame (1/24, 1/25, 1/30, 1/60 s per project FPS).
+  - Medium/far zoom: minor lines grouped in seconds/minutes; major lines follow the ruler labels.
+  - Colors: minor (frame) lines #2C3038; major (second/ruler) lines #4A505E.
+Implementation Guidelines for Neoveg:
+  - Compute frame lines from integer frame indices (frameIndex / fps), never by accumulating
+    floating-point offsets, so lines stay on exact frame boundaries at any zoom/scroll.
+  - Draw only the visible range (horizontal scroll offset aware).
+  - IMPLEMENTED (2026-10-23): desktop-host/Controls/TimelineFrameGrid.cs. Major second lines are placed on
+    the frame where SMPTE timecode reads HH:MM:SS;00 (not on wall-clock seconds). In 29.97 drop-frame,
+    ";00" and ";01" do not exist at minute boundaries except every tenth minute, so the major line at
+    00:01:00 lands on frame 1800 (00:01:00;02). Unit tests: desktop-host.Tests/TimelineFrameGridTests.cs.
+Sources:
+  - Broadcast NLE Adaptive Frame Grid & SMPTE Drop-Frame Alignment Notes
+Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+5. Feature Name: Timeline Cursor (Edit Line / Playhead) Appearance
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Clicking the ruler/timeline positions the cursor; position readout below the timeline. [OFFICIAL]
+Visual/Technical Rules (Neoveg design decision, matches Classic NLE UI):
+  - The vertical cursor line is exactly 1 physical pixel wide at every zoom level.
+  - Pixel-snapped: x = floor(x_device) + 0.5 / renderScaling for a 1px pen, aliased edges,
+    so the line never blurs or widens while panning/zooming.
+  - Existing Neoveg rules kept: blink ~500 ms when paused, solid during playback/scrubbing
+    (AGENTS.md Section 3.1).
+Implementation Guidelines for Neoveg:
+  - In PlayheadOverlayCanvas, draw the guide line with a 1/renderScaling pen at a
+    device-pixel-aligned X and RenderOptions.EdgeMode = Aliased on the overlay.
+Sources:
+  - Professional NLE Playhead & Device-Pixel Rendering Specification
+Research Date: 2026-10-23

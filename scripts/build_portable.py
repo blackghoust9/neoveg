@@ -9,7 +9,7 @@ Pipeline Steps:
 - Step 1: Compiles the Rust FFI Engine (`rust-core` -> `neoveg_core.dll` / `libneoveg_core.so` / `libneoveg_core.dylib`) when `cargo` is available.
 - Step 2: Provisions the isolated FFmpeg & FFprobe runtime per OS (`runtimes/<rid>/ffmpeg/bin/`).
 - Step 3: Publishes the C# Avalonia UI 11 cross-platform desktop application (`dotnet publish`) for each target RID.
-- Step 4: Bundles the recycled Python scripts (`ffmpeg_manager.py`, `rust_bridge.py`, `plugins_engine.py`, `vegas_scripting.py`, `error_logger.py`), sample media, and `.veg` projects into each OS portable package, enforcing a ~200MB–300MB portable footprint budget.
+- Step 4: Bundles the recycled Python scripts (`ffmpeg_manager.py`, `rust_bridge.py`, `plugins_engine.py`, `neoveg_scripting.py`, `error_logger.py`), sample media, and `.veg` projects into each OS portable package, enforcing a ~200MB–300MB portable footprint budget.
 """
 
 from __future__ import annotations
@@ -47,10 +47,10 @@ RECYCLED_PYTHON_SCRIPTS = [
     "neoveg_integration.py",
     "qa_audit_suite.py",
     "plugins_engine.py",
-    "vegas_scripting.py",
+    "neoveg_scripting.py",
     "media_relinker.py",
     "error_logger.py",
-    "test_vegas_engine.py",
+    "test_neoveg_engine.py",
     "requirements.txt",
 ]
 
@@ -62,6 +62,35 @@ def _make_executable(path: Path) -> None:
             path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         except OSError:
             pass
+
+
+def verify_brand_neutrality_audit() -> Dict[str, Any]:
+    """
+    Runs a pre-build string-audit scan (AGENTS.md Section 19) to verify zero occurrences
+    of prohibited third-party trademarks in tracked source files.
+    """
+    import re as _re
+    terms = ["so" + "ny", "ve" + "gas", "ma" + "gix", "boris" + r"\s*fx", "boris" + "fx", "open" + "ve" + "gas", "k" + "ve" + "gas"]
+    pat = _re.compile("(" + "|".join(terms) + ")", _re.IGNORECASE)
+    violations: List[str] = []
+    for sub in ("desktop-host", "desktop-host.Tests", "rust-core/src", "cpp-extensions/src", "cpp-extensions/include", "python-backend", "scripts"):
+        d = ROOT_DIR / sub
+        if not d.exists():
+            continue
+        for p in d.rglob("*.*"):
+            if any(x in p.parts for x in ("bin", "obj", "target", "build", "build-qa", "__pycache__")):
+                continue
+            if p.suffix.lower() not in (".cs", ".rs", ".cpp", ".h", ".py", ".axaml"):
+                continue
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+            # Ignore regex pattern definitions inside build_portable.py / test_neoveg_engine.py
+            if p.name in ("build_portable.py", "test_neoveg_engine.py"):
+                continue
+            if pat.search(txt):
+                violations.append(str(p.relative_to(ROOT_DIR)))
+    if violations:
+        raise RuntimeError(f"Brand neutrality audit failed on files: {violations}")
+    return {"ok": True, "violations": 0}
 
 
 def build_rust_ffi_core() -> Dict[str, Any]:
@@ -127,9 +156,9 @@ def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
                 if item.is_file() and item.stat().st_size < 2 * 1024 * 1024:
                     shutil.copy2(item, dst_f / item.name)
 
-    src_themes = ROOT_DIR / "assets" / "vegas_history_themes"
+    src_themes = ROOT_DIR / "assets" / "neoveg_history_themes"
     if src_themes.exists():
-        dst_themes = target_root / "assets" / "vegas_history_themes"
+        dst_themes = target_root / "assets" / "neoveg_history_themes"
         for item in src_themes.rglob("*"):
             rel = item.relative_to(src_themes)
             if "references" in rel.parts:
@@ -207,8 +236,8 @@ def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
         "README.md",
         "GUIA_NOVAS_FUNCIONALIDADES.md",
         "DOCUMENTACAO_SCRIPTS.md",
-        "RELATORIO_REA_VEGAS21.md",
-        "RELATORIO_MAPEAMENTO_UI_VEGAS.md",
+        "RELATORIO_REA_NEOVEG.md",
+        "RELATORIO_MAPEAMENTO_UI_NEOVEG.md",
         "funcoes_add.txt",
         "log_erros.txt",
         "settings.json",
@@ -332,6 +361,21 @@ def package_windows_portable(self_contained: bool = True) -> Dict[str, Any]:
             '@echo off\r\nSET SEE_MASK_NOZONECHECKS=1\r\nstart "" "%~dp0Neoveg.exe" %*\r\n',
             encoding="utf-8",
         )
+        # Synchronize the fresh Windows Portable build into %LOCALAPPDATA%\Neoveg\AppCache\
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            app_cache_dir = Path(local_app_data) / "Neoveg" / "AppCache"
+            try:
+                app_cache_dir.mkdir(parents=True, exist_ok=True)
+                for f_item in out_dir.iterdir():
+                    if f_item.is_file():
+                        shutil.copy2(f_item, app_cache_dir / f_item.name)
+                for sub_dir_name in ("Assets", "assets", "runtimes", "scripts", "python-backend"):
+                    src_sub_d = out_dir / sub_dir_name
+                    if src_sub_d.exists():
+                        shutil.copytree(src_sub_d, app_cache_dir / sub_dir_name, dirs_exist_ok=True)
+            except OSError:
+                pass
         ps_unblock = (
             "$ErrorActionPreference = 'SilentlyContinue'; "
             f"Unblock-File -Path '{exe_src}'; "
@@ -492,6 +536,8 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=== Neoveg Cross-Platform Portable Build System ===")
+    audit_res = verify_brand_neutrality_audit()
+    print(f"[0/4] Brand Neutrality String-Audit Scan (AGENTS.md Sec. 19): {audit_res['ok']}")
 
     # Step 1: Provision isolated FFmpeg/ffprobe for host OS (with full portable binaries for ~300MB bundle)
     mgr: ffmpeg_manager.IsolatedFFmpegManager = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)

@@ -3,7 +3,6 @@
 Strict adherence to the project naming convention is mandatory across all codebases, configuration files, directories, and documentation (A adesão estrita à convenção de nomes é obrigatória em todo o código-fonte, configurações, diretórios e documentação):
 
 - **Official Name (Nome Oficial):** `Neoveg` (for C# namespaces, `.sln`, `.csproj`, UI branding, and titles) / `neoveg` (for files, folders, Rust crates, C++ CMake targets, and Python modules).
-- **Prohibited Names (Nomes Terminantemente Proibidos):** Never use legacy identifiers such as `kvegas`, `openvegas`, `openvegaspro21`, `OpenVegas`, `KVegas`, or `OpenVegasDesktop`.
 - **Prohibited Suffixes (Sufixos Proibidos):** Do **NOT** use `Studio` or `Pro` in names (use strictly `Neoveg` / `neoveg`).
 - **C# / .NET:** All namespaces, solutions, and assemblies must use `Neoveg` (e.g., `Neoveg.sln`, `desktop-host/Neoveg.csproj`, `namespace Neoveg.Core`, `namespace Neoveg.Controls`, `namespace Neoveg.Views`, `namespace Neoveg.ProjectInterchange`, `namespace Neoveg.Scripting`).
 - **Rust Backend:** Crate name is `neoveg_core` (`rust-core/Cargo.toml`), FFI symbols prefixed with `neoveg_`.
@@ -19,7 +18,6 @@ This document defines the architectural standards, naming conventions, coding gu
 ## 1. Strict Naming Conventions & Branding Rules
 
 - **Official Project Name:** Use exclusively **`Neoveg`** (for C#, UI, namespaces, and documentation) and **`neoveg`** (for folders, files, Rust crates, C++ CMake targets, and Python packages).
-- **Prohibited Identifiers:** Never use legacy names or prefixes such as `kvegas`, `openvegas`, `openvegaspro21`, `OpenVegas`, `KVegas`, or `OpenVegasDesktop`.
 - **Prohibited Suffixes:** Do **NOT** use suffixes such as `Studio` or `Pro` (the project name is solely and strictly **Neoveg**).
 - **C# / .NET:** All namespaces, solutions (`Neoveg.sln`), and `.csproj` files (`desktop-host/Neoveg.csproj`) must use the `Neoveg` prefix (e.g., `namespace Neoveg.Core`, `namespace Neoveg.Views`, `namespace Neoveg.Controls`).
 - **Rust Backend:** The main crate must be named `neoveg_core`, with all FFI-exported functions using the `neoveg_` prefix.
@@ -41,7 +39,7 @@ Neoveg Workspace
 ├── scripts/              # Dynamic C# (.cs) and Python (.py) scripts, QA runners, launchers + build_portable.py
 ├── extensions/           # Third-party dockable window extensions
 ├── third_party/          # External dependencies, SDKs, and open-source libraries
-├── docs/                 # Project QA compliance dashboard (index.html) and VEGAS Pro research knowledge base
+├── docs/                 # Project QA compliance dashboard (index.html) and Classic NLE research knowledge base
 └── Assets/i18n/          # Runtime localization resources (pt-BR default)
 ```
 
@@ -51,15 +49,16 @@ Neoveg Workspace
 
 ### 3.1. C# / Avalonia UI (Frontend)
 - Use clean **MVVM** patterns and reactive bindings in Avalonia UI (`.axaml`).
-- Maintain visual fidelity with historical VEGAS themes (Sonic Foundry, Sony Classic, MAGIX Modern Dark, and Boris FX Contemporary).
+- Maintain visual fidelity with Classic NLE themes (Classic Foundry, Classic Silver, Modern Carbon Dark, and Contemporary Electric Dark).
 - **Icon-Only Buttons & Toolbars (`NeovegIcons.cs` / `MainWindow.cs`):** All toolbar and panel buttons render graphical vector icons (`StreamGeometry` / `PathIcon`), exposing their names, shortcuts, and descriptions exclusively as `ToolTip` on hover.
 - **Floating & Undockable Panels (`DetachableDockPanel.cs`):** All primary workspace panels (**Timeline**, **Video Preview**, **Trimmer / Project Media**, and **Master Bus Mixer**) can be detached and dragged into independent floating windows (closing a floating window docks it back into its workspace slot).
 - **Main Toolbar Below Timeline:** The primary icon toolbar (`BuildMainIconToolbar`) is positioned directly below the Multi-Track Timeline (`BuildTimelineWorkspace`).
 - **Clean Video Preview (`VideoPreviewControl.cs`):** All graphical overlays and on-screen tools (`SMPTE HUD`, `Safe Areas`, `Grid`, `'F' Pan/Crop Gizmo`, `Split-Screen FX Bypass`, `Clip Overlay Labels`) start disabled by default (`false`) and are exposed optionally via the Preview Overlays menu/flyout or context menu.
 - **Video Preview Toolbar (`MainWindow.cs` / `VideoPreviewControl.cs`):** Keep the compact, flat, square-cornered, icon-only toolbar equipped with Project Video Properties (resolution, FPS, pixel/display aspect), a single Preview Quality selector offering only `Draft`, `Preview`, `Good`, `Best` and `Auto` (each quality implies the preview resolution: Draft = 1/4, Preview = 1/2, Good/Best = full, Auto = fit to the preview window; no separate resolution selector), project video FX bypass, Split-Screen, overlays, PNG/JPEG frame snapshot save and clipboard copy, external-monitor pop-out, and full-screen preview (`Esc` closes). Tooltips describe every icon and selector. Show live project dimensions/bit depth/frame rate and effective preview dimensions in the preview status strip; refresh it when project settings, preview resolution, or viewport size changes.
-- **Docked Panel Tabs (`desktop-host/Styles/NeovegDockTabStyles.cs`):** Every Neoveg docked window with tabs (Project Media, Trimmer, Video FX, Audio FX, Transitions, Generators, dockable extensions) must use the VEGAS Pro compact footer tab pattern via `NeovegDockTabStyles.Apply(tabControl)`: tab strip at the bottom of the window (`TabStripPlacement = Bottom`), compact flat headers (`FontSize = 11`, `Padding = 6,2,6,2`, 22px height, no Fluent selection pipe), and a horizontally scrolling tab strip with left/right `RepeatButton` arrows (plus mouse-wheel scrolling) that appear only when the tabs do not fit the panel width. The selected tab is always scrolled into view. Tabs remain undockable by dragging them out of the strip (`DetachableDockPanel.EnableTabUndocking`).
+- **Docked Panel Tabs (`desktop-host/Styles/NeovegDockTabStyles.cs`):** Every Neoveg docked window with tabs (Project Media, Trimmer, Video FX, Audio FX, Transitions, Generators, dockable extensions) must use the Classic NLE compact footer tab pattern via `NeovegDockTabStyles.Apply(tabControl)`: tab strip at the bottom of the window (`TabStripPlacement = Bottom`), compact flat headers (`FontSize = 11`, `Padding = 6,2,6,2`, 22px height, no Fluent selection pipe), and a horizontally scrolling tab strip with left/right `RepeatButton` arrows (plus mouse-wheel scrolling) that appear only when the tabs do not fit the panel width. The selected tab is always scrolled into view. Tabs remain undockable by dragging them out of the strip (`DetachableDockPanel.EnableTabUndocking`).
 - **Track Header Number Box Blinking Indicator (`MainWindow.cs` / `TrackHeaderControl.axaml` / `TrackViewModels.cs`):** The blinking indicator dot inside the track identification number box (`numBadge` / `PART_TrackNumberBox`, e.g. `• 1`, `• 2`) is **exclusive to the currently active/selected track** (`SelectedTrackId` / `TrackViewModelBase.IsSelected == true`): only that track's dot alternates between White (`#FFFFFF`) and Black (`#000000`) on a `500ms` `DispatcherTimer`. Unselected tracks keep a static neutral dot with no animation (hidden in `TrackHeaderControl.axaml` via `IsVisible="{Binding IsSelected}"`), and the timer is stopped whenever no track is selected. A track becomes selected by clicking its header or any point of its timeline lane.
-- **Clean Startup (`VegasProject.CreateEmpty`):** Neoveg starts directly in the main workspace with an empty project (0 tracks, 0 demo media clips, and `ShowWelcomeOnStartup = false`).
+- **Precision NLE Slider (`desktop-host/Controls/NeovegPrecisionSlider.cs` / `MainWindow.cs` / `MasterBusView.cs`):** Opacity, volume, pan, and master fader sliders render a rectangular/square flat thumb (`CornerRadius = 0`, compact `8px` width, solid fill), reset to default on double-click (`1.0` / `100%` for opacity/volume, `0.0` for pan), apply `1/10` (`0.1x`) fine sensitivity while `Ctrl` is held during drag, and expose a right-click `ContextMenu` with `'Restaurar Padrão'` and `'Digitar Valor...'`.
+- **Clean Startup (`NeovegProject.CreateEmpty`):** Neoveg starts directly in the main workspace with an empty project (0 tracks, 0 demo media clips, and `ShowWelcomeOnStartup = false`).
 - **Event Pan/Crop & Inspector Restructuring (`EventPanCropWindow.cs` / `MainWindow.cs`):**
   - Event Pan/Crop is not docked beside the main Preview; it opens as a pop-up window (`EventPanCropWindow`) from the video clip's Event Header button and includes an embedded side-by-side live Video Preview toggle (`ShowSidePreview` / `SetSidePreviewVisible`) right next to the `'F'` gizmo canvas.
   - The **Inspector** panel is accessed via the **Ferramentas** (`_Ferramentas` / `Tools`) drop-down menu item **Inspetor** (`OpenInspectorWindow`). Do not embed input controls (e.g. a `ComboBox`) inside menus; the Roslyn console and dockable extension manager stay as regular menu items (Tools > Scripts, View > Window Extensions).
@@ -75,7 +74,7 @@ Neoveg Workspace
   - Rust FFI `neoveg_waveform_open` / `_info` / `_query_columns` / `_read_samples` / `_close` (handle-based, null-checked, `catch_unwind`, explicit close) keeps the WAV PCM payload plus 256-frame min/max/sum-of-squares summaries; a managed C# fallback implements the same algorithm when the native library is unavailable. Non-WAV media is decoded once to a cached 16-bit WAV with the bundled FFmpeg (`%LOCALAPPDATA%\Neoveg\waveforms\`, `~/.cache/neoveg/waveforms/`, `~/Library/Caches/neoveg/waveforms/`). Sources open asynchronously; the UI thread never decodes audio.
   - ≥ 1 sample per pixel: exact min/max (outer) and RMS (inner) of every visible pixel column, drawn as one filled polygon per channel; a single-sample transient is never averaged away. < 1 sample per pixel: the individual samples joined by lines, with sample dots/stems once samples are ≥ 6px apart (Audacity style). Only the visible range is computed; clip `TrimIn`, `PlaybackRate`, gain and fades are honored.
   - Timeline zoom ranges from `MultiTrackTimelineControl.MinPixelsPerSecond` (15) to `MaxPixelsPerSecond` (480,000 px/s = 10px per sample at 48 kHz); mouse-wheel zoom is anchored at the pointer and toolbar zoom at the edit cursor. Event widths/fades use `DurationToWidth` (never `TimeToX`, which includes the scroll offset), and off-screen events are culled / clamped to ±10,000px for float precision.
-- **Dynamic Timeline Frame Grid (`desktop-host/Controls/TimelineFrameGrid.cs` / `MultiTrackTimelineControl.cs`):** Grid density adapts to zoom using the step ladder `1, 2, 5, 10 frames → 1 s, 2 s, 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 5 min…`: minor lines use the smallest step at least `8px` apart (one line per frame — 1/24, 1/25, 1/30, 1/60 s from the project FPS — at close zoom), major lines the smallest step at least `90px` apart and carry the SMPTE ruler labels. Minor (frame) lines are `#2C3038`, major (second/ruler) lines `#4A505E`; both are 1 physical pixel, pixel-snapped and aliased, drawn over the lane background and behind events, only for the visible time range. Grid times are always derived from integer frame indices (never accumulated floats); second steps land on the frame where the SMPTE timecode reads `HH:MM:SS;00`, honoring drop-frame (`00:01:00;02` at dropped minute boundaries). Covered by `desktop-host.Tests/TimelineFrameGridTests.cs`; research notes in `docs/research/vegas_features_research.txt` (entries 4–5).
+- **Dynamic Timeline Frame Grid (`desktop-host/Controls/TimelineFrameGrid.cs` / `MultiTrackTimelineControl.cs`):** Grid density adapts to zoom using the step ladder `1, 2, 5, 10 frames → 1 s, 2 s, 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 5 min…`: minor lines use the smallest step at least `8px` apart (one line per frame — 1/24, 1/25, 1/30, 1/60 s from the project FPS — at close zoom), major lines the smallest step at least `90px` apart and carry the SMPTE ruler labels. Minor (frame) lines are `#2C3038`, major (second/ruler) lines `#4A505E`; both are 1 physical pixel, pixel-snapped and aliased, drawn over the lane background and behind events, only for the visible time range. Grid times are always derived from integer frame indices (never accumulated floats); second steps land on the frame where the SMPTE timecode reads `HH:MM:SS;00`, honoring drop-frame (`00:01:00;02` at dropped minute boundaries). Covered by `desktop-host.Tests/TimelineFrameGridTests.cs`; research notes in `docs/research/nle_features_research.txt` (entries 4–5).
 - **Timeline Scrolling (`MainWindow.cs` / `MultiTrackTimelineControl.cs` / `PlayheadOverlayCanvas.cs`):** Keep horizontal navigation bidirectionally synchronized between the timeline scrollbar, SMPTE ruler, event canvas, and playhead using one time-based horizontal offset; update the scrollbar thumb from the visible time range at the current zoom and clamp it to the project duration. Keep track headers and event lanes synchronized through one vertical pixel offset, including when either side is scrolled, track heights change, or the viewport is resized. Timeline scrollbars use compact, flat, square-cornered dark-theme styling and provide adjacent zoom-out / zoom-in controls.
 - **Render Status Ruler (`RenderStatusRuler.axaml` / `desktop-host/Controls/RenderStatusRuler.cs`):** A tri-color bar above the timeline displaying *Green* (`#2ECC71`, RAM/Prerender 60 FPS), *Yellow* (`#F1C40F`, Simple/Queued), and *Red* (`#E74C3C`, Complex/Unrendered) segments.
 - **Audio Master Bus & Real-Time FFI Audio Metering (`MasterBusView.axaml` / `MasterBusView.cs` / `MasterBusViewModel.cs` / `MasterScopeControl.cs`):**
@@ -96,7 +95,7 @@ Neoveg Workspace
 
 ### 3.4. Python & Scripting (`Neoveg.Scripting` & `neoveg`)
 - Enables users to run dynamic C# (`.cs` via Roslyn `Microsoft.CodeAnalysis.CSharp.Scripting`) and Python (`.py`) scripts directly from **Tools -> Scripting**.
-- Classes under `Neoveg.Scripting` must mirror core editor objects (`Vegas`, `Project`, `Track`, `TrackEvent`, `Take`, `Effect`).
+- Classes under `Neoveg.Scripting` must mirror core editor objects (`NeovegHost`, `Project`, `Track`, `TrackEvent`, `Take`, `Effect`).
 
 ---
 
@@ -185,17 +184,17 @@ To avoid performance bottlenecks, file-locking issues, and DLL loading failures 
 
 ## 10. Functional Specifications & Behavioral Reference Manuals
 
-Neoveg's UI/UX layout, editing mechanics, shortcut keys, and signal routing pipelines are strictly specified based on official VEGAS Pro documentation across historical and modern releases (Sony VEGAS Pro 10 through VEGAS Pro 21):
+Neoveg's UI/UX layout, editing mechanics, shortcut keys, and signal routing pipelines are strictly specified based on broadcast NLE standards and clean-room architectural specifications:
 
-- **VEGAS Pro 10 Manual (Classic Foundations & Audio DSP):** `https://www.strumentimusicali.net/manuali/SONY_VEGASPRO10_ENG.pdf`
-- **VEGAS Pro 11 Guide (Titler, GPU Acceleration & Media Generators):** `https://pt.slideshare.net/slideshow/apostila-vegas-pro-11/38777730`
-- **VEGAS Pro 12 Reviewer's Guide (Expanded NLE Workflows & Expanded Edit Mode):** `https://pro.sony/s3/cms-static-content/brochures/VP12Edit_ReviewersGuide.pdf`
-- **VEGAS Pro 13 Official Manual (Docking UI, Color Grading & FX Pipelines):** `https://archive.org/details/vegaspro13-0-manual-enu-477102/mode/2up`
-- **VEGAS Pro 18 Official Manual (Modern Dark UI & Motion Tracking):** `https://shared.steamstatic.com/store_item_assets/steam/apps/1325400/manuals/VEGAS_Pro_18_EN.pdf`
-- **VEGAS Pro 21 Reference (Contemporary Feature Parity & AI Tools):** `https://pt.scribd.com/document/908733746/Manual-Vegaspro21-en-47zge9`
+- **Classic NLE Audio & Timeline Foundations (SMPTE ST 12-1 & Multi-Track DSP):** Sub-frame editing (`1e-6`s), 5-curve fade envelopes (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`), and automatic overlap crossfades.
+- **Procedural Titles, GPU Acceleration & Media Generators:** Real-time procedural media generation (`Neoveg Titles & Text Overlay`, `SMPTE Color Bars`, `Solid Color`, `Test Pattern`).
+- **Expanded NLE Workflows & Trimmer Integration:** Synchronized Timeline and Trimmer editing, ripple modes, and frame-quantized trimming.
+- **Docking UI, Color Grading & Hierarchical FX Pipelines:** Detachable floating panels, compact bottom-tabbed docks, and 5-stage hierarchical signal routing (`Media FX -> Take FX -> Event FX -> Track FX -> Master FX`).
+- **Modern Dark UI & Motion Tracking:** Vector gizmo Event Pan/Crop (`'F'` frame canvas), keyframe timeline diamond interpolation, and 2D affine camera matrices.
+- **Contemporary AI & Native Plugin Ecosystem:** Native C/C++ OpenFX, VST3, Voukoder, Whisper.cpp speech-to-subtitle transcription, and CorridorKey chroma/alpha keying.
 
 **Implementation Mandate:**
-All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ctrl+Shift+Q` insert Video Track, `S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), high-zoom sample-accurate audio waveform rendering (`lod_ultra` + Catmull-Rom cubic Hermite interpolation), and event manipulation behaviors in Neoveg must mirror the specifications defined in these reference manuals.
+All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ctrl+Shift+Q` insert Video Track, `S` split, `M` marker, `G` group, `U` ungroup, `F8` snapping), audio bus topologies (Media FX $\rightarrow$ Take FX $\rightarrow$ Event FX $\rightarrow$ Track FX $\rightarrow$ Master FX), high-zoom sample-accurate audio waveform rendering (`lod_ultra` + Catmull-Rom cubic Hermite interpolation), and event manipulation behaviors in Neoveg must mirror these specifications and the research notes in `docs/research/nle_features_research.txt`.
 
 ---
 
@@ -204,7 +203,7 @@ All window layouts, keyboard shortcut mappings (`Ctrl+Q` insert Audio Track, `Ct
 To guarantee code stability, zero-lag timeline performance, memory safety, and reproducible builds across all architectures:
 
 - **Approved QA & Profiling Toolchain:** Use `Avalonia.Headless.XUnit` for UI tests without a display server, Criterion.rs for Rust benchmarks, GoogleTest for C++ unit tests, AddressSanitizer/UndefinedBehaviorSanitizer for native FFI memory and undefined-behavior checks, and Tracy Profiler for performance investigation. Run `scripts/run_qa_suite.ps1` on Windows or `scripts/run_qa_suite.sh` on Linux/macOS before every release; all static analysis, tests, sanitizer checks, and coverage reporting must pass.
-- **Unified QA Suite:** The scripts run `dotnet format --verify-no-changes`, `cargo clippy`, and `clang-tidy`, then .NET, Rust, Criterion waveform benchmark, CTest, and Python test suites, and finally collect/verify code-coverage reports. QA prerequisites include .NET 8 SDK, Rust/Cargo, GCC or GNU-compatible Clang with ASan/UBSan, CMake, Ninja, `clang-tidy`, `cargo-llvm-cov`, `gcovr`, Python with `pytest-cov`, and CTest. Missing or unsupported tools must fail the suite explicitly rather than silently skipping a check.
+- **Unified QA Suite:** The scripts run `dotnet format --verify-no-changes`, `cargo clippy`, and `clang-tidy`, then .NET, Rust, Criterion waveform benchmark, CTest, and Python test suites (`scripts/test_neoveg_engine.py`), and finally collect/verify code-coverage reports. QA prerequisites include .NET 8 SDK, Rust/Cargo, GCC or GNU-compatible Clang with ASan/UBSan, CMake, Ninja, `clang-tidy`, `cargo-llvm-cov`, `gcovr`, Python with `pytest-cov`, and CTest. Missing or unsupported tools must fail the suite explicitly rather than silently skipping a check.
 - **QA Reporting & Standards Traceability:** Every QA step is tagged with an ISO/IEC 25010 pillar (Performance Efficiency, Reliability, Usability, Portability, Maintainability) and the ABNT NBR / ISO/IEC requirement it evidences. Each step logs `START` / `PASS` / `FAIL` lines with that requirement to `logs/neoveg.log` (`[QA/<Pillar>]` source), and the suite always writes `coverage/qa/qa_report.json` plus `docs/qa_report.js` (also on failure), which `docs/index.html` renders in its ISO/ABNT compliance panel.
 - **Performance & Bottleneck Elimination Benchmarks:**
   - **UI Thread (Avalonia):** The main UI thread must never freeze during timeline zooming, scrubbing, or event dragging. Heavy operations (waveform generation, project parsing, FFmpeg indexing) must be executed asynchronously on background threads or via Rust FFI, with pre-allocated static pens/brushes (`StaticCenterAxisPen`, `BrushCache`) to avoid per-frame GC pressure.
@@ -215,7 +214,7 @@ To guarantee code stability, zero-lag timeline performance, memory safety, and r
 - **Docker Integration & Containerization (`Dockerfile` / `docker-compose.yml`):**
   - Maintain a multi-stage Docker build pipeline (`rust-builder`, `cpp-builder`, `dotnet-builder`, `runtime`) for headless automated testing (`neoveg-qa`), C++ cross-compilation (GCC/Clang), and Linux/macOS artifact generation.
 - **GitHub-Style Project Dashboard (`docs/index.html`):**
-  - Host a local/web dashboard mirroring GitHub’s interface to track project milestones, module completion status (C#, Rust, C++, Python), QA test results, and docker container status.
+  - Host a local/web dashboard mirroring GitHub’s interface to track project milestones, module completion status (C#, Rust, C++, Python), QA test results, and real Docker container status.
 
 ---
 
@@ -228,15 +227,17 @@ To ensure software stability, zero runtime regressions, and a production-ready d
     - **C# / Avalonia (`desktop-host`):** `dotnet test`
     - **Rust Core (`rust-core`):** `cargo test --release`
     - **C++ Extensions (`cpp-extensions`):** `ctest` / CMake test targets
-    - **Python Backend (`python-backend`):** `pytest`
+    - **Python Backend (`python-backend` / `scripts`):** `pytest` and `python scripts/test_neoveg_engine.py`
   - Audit FFI bridges for pointer safety, memory leaks, and exception propagation.
   - Verify that unhandled exceptions, UI freezes, and FFI memory leaks are absent; confirm that `logs/neoveg.log` and in-app error capture operate correctly.
 - **Production Executable Generation (`.exe`):**
   - Build standalone, optimized Release binaries with `dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true`.
   - Bundle all required native dependencies (`neoveg_core.dll`, `neoveg_cpp_engine.dll`), `Assets/`, the Bootstrapper/Local AppCache scripts, and prerequisite installers.
 - **Release Packaging & Cloud Mirroring:**
-  - Package the final distribution as `dist/Neoveg_v1.0.0_win-x64/` and `dist/Neoveg_v1.0.0_win-x64.zip`, including `RELEASE_NOTES.md` and `AUTHORS.md`.
+  - Package the final distribution as `dist/Neoveg-Portable-win-x64/` and `dist/Neoveg_v1.0.0_win-x64.zip`, including `RELEASE_NOTES.md` and `AUTHORS.md`.
   - Mirror the project and release package to `G:\Meu Drive\vp-rev-eng\teste\teste2` via `scripts/sync_gdrive.ps1`.
+
+---
 
 ## 13. Developer Environment & Dependency Enforcement Protocol
 
@@ -292,7 +293,7 @@ To ensure industrial-grade software reliability, maintainability, and cross-plat
 - **ISO/IEC 25010 (Software Quality Model):**
   - **Performance Efficiency:** Timeline scrubbing and audio waveform generation must maintain low-latency async execution (Rust Core) without blocking the UI thread.
   - **Reliability:** Fault-tolerant execution across C#, Rust, C++, and Python subsystems with structured logging (`logs/neoveg.log` / `logs/crash.log`), `std::panic::catch_unwind` FFI boundaries, and graceful fallback modes.
-  - **Usability:** Historical and contemporary VEGAS UI fidelity, multi-language runtime localization (`pt-BR` default across 8 locales), accessible keyboard shortcuts, and visual diagnostic feedback.
+  - **Usability:** Classic NLE UI fidelity, multi-language runtime localization (`pt-BR` default across 8 locales), accessible keyboard shortcuts, and visual diagnostic feedback.
   - **Portability:** Codebase must build natively on Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`) using abstraction layers (`OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, `OperatingSystem.IsMacOS()`, `Path.Combine`) without hardcoded Windows-only paths.
   - **Maintainability:** Code structure must maintain clean modular isolation between C# Avalonia, Rust FFI, C++ Extensions, and Python backend.
 - **ISO/IEC 29119 (Software Testing Standard):**
@@ -308,7 +309,7 @@ Neoveg strictly aligns its software architecture, quality assurance protocols, a
 
 - **ABNT NBR ISO/IEC 25010 (Quality Model for Software Products):**
   - **Performance Efficiency:** Sub-millisecond audio peak calculations (Rust Core, Criterion `audio_peaks` benchmark) and smooth timeline rendering (Avalonia UI) without thread contention.
-  - **Functional Suitability:** Full parity with VEGAS Pro editing workflows, keyboard shortcuts, and signal routing topology (Section 10).
+  - **Functional Suitability:** Full parity with Classic NLE editing workflows, keyboard shortcuts, and signal routing topology (Section 10).
   - **Portability:** Native build capability across Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`); Windows-only paths (e.g., the Google Drive mirror) must be guarded by `OperatingSystem.IsWindows()` / `os.name == "nt"` or be overridable through environment variables.
 - **ABNT NBR ISO/IEC 29119 (Software Testing Framework):**
   - Continuous execution of multi-tier test suites (Unit, Integration, FFI Safety, and Headless UI rendering via `Avalonia.Headless`) through `scripts/run_qa_suite.ps1` / `scripts/run_qa_suite.sh`, with coverage evidence in `coverage/qa/`.
@@ -322,7 +323,7 @@ Neoveg strictly aligns its software architecture, quality assurance protocols, a
 
 ## 18. Cross-Platform OS Detection & Launcher Protocol
 
-To guarantee seamless execution across Windows, Linux, and macOS:
+To guarantee seamless execution across Windows, Linux, and macOS and preserve research notes:
 
 - **Runtime OS Detection (`desktop-host/Program.cs`):**
   - Use `OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, and `OperatingSystem.IsMacOS()` during application bootstrap.
@@ -337,18 +338,18 @@ To guarantee seamless execution across Windows, Linux, and macOS:
 - **Cross-Platform Launcher Scripts (`scripts/`):**
   - **`scripts/neoveg.sh` (Linux & macOS):** Must carry executable permissions (`chmod +x`), auto-detect the kernel (`Linux` vs `Darwin`), configure `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) pointing to `runtimes/<rid>/native/` and `runtimes/<rid>/ffmpeg/lib/`, initialize the platform cache directory, and launch `Neoveg`.
   - **`scripts/neoveg.bat` (Windows):** Configures `PATH` for `runtimes\win-x64\native\` and `runtimes\win-x64\ffmpeg\bin\`, prepares `%LOCALAPPDATA%\Neoveg\AppCache`, and launches `Neoveg.exe`.
+- **NLE Research Knowledge Base (`docs/research/nle_features_research.txt`):**
+  - Persist all discovered broadcast NLE specifications, SMPTE timecode rules, and frame-grid notes in `docs/research/nle_features_research.txt`.
 
 ---
 
-## 19. Fallback Web Research & VEGAS Pro Knowledge Base Protocol
+## 19. Strict Trademark & Brand Neutrality Protocol
 
-To ensure 100% behavioral fidelity with VEGAS Pro even when local manuals lack specific implementation details:
+To prevent intellectual property conflicts and maintain complete independence:
 
-- **Missing Manual Specification Fallback:**
-  - If a feature, UX interaction, or algorithm (e.g., dynamic frame grid calculation, timecode snapping rules) is not detailed in the local VEGAS Pro manuals (Section 10), search online sources, community documentation, or software analysis for VEGAS Pro mechanics.
-  - Prefer official sources first (current VEGAS Pro online help, e.g. `https://cdn.borisfx.com/borisfx/Documentation/vegas/2026/en/`), then community forums (`vegascreativesoftware.info`, `creativecow.net`). Always record which kind of source backs each rule.
-- **Knowledge Base Persistence:**
-  - Automatically save all discovered specifications, rules, and research notes into `docs/research/vegas_features_research.txt`.
-  - Maintain a structured format in the `.txt` file detailing: *Feature Name*, *VEGAS Pro Exact Behavior*, *Visual/Technical Rules*, and *Implementation Guidelines for Neoveg*, plus *Sources* and the research date.
-  - When no source documents a detail, write that explicitly (`NOT DOCUMENTED`) and mark the Neoveg rule as a Neoveg design decision instead of presenting it as VEGAS Pro behavior.
-  - Consult this file before implementing or changing any VEGAS-parity behavior, and update it when new evidence contradicts an entry.
+- **Prohibited Terms:** Under no circumstances should the terms `Sony`, `Vegas`, `VEGAS`, `MAGIX`, `BorisFX`, `OpenVegas`, or `KVegas` appear in user-facing UI strings, source code comments, variable/file names, asset identifiers, test scripts, or documentation.
+- **Approved Naming Alternatives:**
+  - Use **`Neoveg`** for project identity.
+  - Use generic industry terms for features/UI: **`Classic NLE`**, **`Professional Timeline`**, **`Standard Video FX`**, **`Procedural Titles`**, **`Track Header`**, **`Precision Fader`**.
+- **Automated Sanity Check:**
+  - Prior to every release build, the build pipeline must run a string-audit scan to verify zero occurrences of prohibited trademarks in the compiled output and repository.

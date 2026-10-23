@@ -36,6 +36,47 @@ function Write-QALog {
     Add-Content -Path $qaLogPath -Value $line -Encoding UTF8
 }
 
+# Ensure user-level WinGet, Cargo, and Python Scripts directories are on PATH on Windows
+$candidateToolDirs = @(
+    (Join-Path $env:USERPROFILE ".cargo\bin")
+)
+if ($env:APPDATA) {
+    $pyRoaming = Join-Path $env:APPDATA "Python"
+    if (Test-Path $pyRoaming) {
+        Get-ChildItem -Path $pyRoaming -Directory -Filter "Python*" -ErrorAction SilentlyContinue | ForEach-Object {
+            $s = Join-Path $_.FullName "Scripts"
+            if (Test-Path $s) { $candidateToolDirs += $s }
+        }
+    }
+}
+if ($env:LOCALAPPDATA) {
+    $wingetPkgs = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"
+    if (Test-Path $wingetPkgs) {
+        Get-ChildItem -Path $wingetPkgs -Recurse -Filter "ninja.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+            $candidateToolDirs += $_.DirectoryName
+        }
+        Get-ChildItem -Path $wingetPkgs -Recurse -Filter "clang-tidy.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+            $candidateToolDirs += $_.DirectoryName
+        }
+        Get-ChildItem -Path $wingetPkgs -Recurse -Filter "x86_64-w64-mingw32-clang++.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+            $candidateToolDirs += $_.DirectoryName
+        }
+    }
+}
+foreach ($td in ($candidateToolDirs | Select-Object -Unique)) {
+    if ($td -and (Test-Path $td) -and ($env:PATH -notlike "*$td*")) {
+        $env:PATH = "$td;$env:PATH"
+    }
+}
+if (-not $env:LLVM_COV) {
+    $llvmCovCmd = Get-Command "llvm-cov" -ErrorAction SilentlyContinue
+    if ($llvmCovCmd) { $env:LLVM_COV = $llvmCovCmd.Source }
+}
+if (-not $env:LLVM_PROFDATA) {
+    $llvmProfCmd = Get-Command "llvm-profdata" -ErrorAction SilentlyContinue
+    if ($llvmProfCmd) { $env:LLVM_PROFDATA = $llvmProfCmd.Source }
+}
+
 if (-not (Get-Command "ninja" -ErrorAction SilentlyContinue)) {
     throw "Required QA tool 'ninja' was not found on PATH."
 }
@@ -216,12 +257,25 @@ try {
         "--all-targets", "--all-features", "--html",
         "--output-dir", (Join-Path $coverageDir "rust")
     ) $rootDir "Maintainability" "ABNT NBR ISO/IEC/IEEE 29119 (cobertura) / ISO/IEC 12207"
-    Invoke-QACommand "C++ coverage report" "gcovr" @(
-        "--root", $rootDir,
-        "--object-directory", $buildDir,
-        "--filter", (Join-Path $cppDir "src"),
+    $rustHtmlNested = Join-Path $coverageDir "rust\html\index.html"
+    $rustHtmlRoot = Join-Path $coverageDir "rust\index.html"
+    if ((Test-Path $rustHtmlNested -PathType Leaf) -and -not (Test-Path $rustHtmlRoot -PathType Leaf)) {
+        Copy-Item -Path $rustHtmlNested -Destination $rustHtmlRoot -Force
+    }
+    # Clear LLVM_PROFDATA before gcovr so gcovr uses GcovHandler (.gcno/.gcda) instead of LlvmHandler (.profraw)
+    Remove-Item Env:\LLVM_PROFDATA -ErrorAction SilentlyContinue
+    $gcovrFilter = ($cppDir -replace '\\', '/')
+    $gcovrArgs = @(
+        ($buildDir -replace '\\', '/'),
+        "--root", ($rootDir -replace '\\', '/'),
+        "--object-directory", ($buildDir -replace '\\', '/'),
+        "--filter", $gcovrFilter,
         "--xml-pretty", "--xml", $cppCoverage
-    ) $rootDir "Maintainability" "ABNT NBR ISO/IEC/IEEE 29119 (cobertura) / ISO/IEC 12207"
+    )
+    if (-not (Get-Command "gcov" -ErrorAction SilentlyContinue) -and (Get-Command "llvm-cov" -ErrorAction SilentlyContinue)) {
+        $gcovrArgs += @("--gcov-executable", "llvm-cov gcov")
+    }
+    Invoke-QACommand "C++ coverage report" "gcovr" $gcovrArgs $rootDir "Maintainability" "ABNT NBR ISO/IEC/IEEE 29119 (cobertura) / ISO/IEC 12207"
 
     Assert-QACondition "Coverage report verification" {
         $dotnetCoverage = Get-ChildItem -Path $dotnetResults -Filter "coverage.cobertura.xml" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1

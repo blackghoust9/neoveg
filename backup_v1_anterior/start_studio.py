@@ -1,6 +1,6 @@
 """
-OpenVegas Pro 21 — Studio Launcher
-Launches the native desktop executable `OpenVegasPro21.exe` (or starts the headless backend server if requested).
+OpenNeoveg 21 — Studio Launcher
+Launches the native desktop executable `NeovegLegacy.exe` (or starts the headless backend server if requested).
 """
 
 from __future__ import annotations
@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parent
 FRONTEND_BUILD = ROOT / "frontend" / "build.mjs"
 RUST_DIR = ROOT / "rust-core"
 BACKEND_DIR = ROOT / "python-backend"
-NATIVE_EXE = ROOT / "OpenVegasPro21.exe"
+NATIVE_EXE = ROOT / "NeovegLegacy.exe"
 
 
 def main() -> None:
     print("=" * 68)
-    print("  OPEN VEGAS PRO 21 — NATIVE DESKTOP STUDIO (Rust • Python • TS)")
+    print("  OPEN NEOVEG 21 — NATIVE DESKTOP STUDIO (Rust • Python • TS)")
     print("=" * 68)
 
     # 1. Compile TypeScript Frontend
@@ -31,18 +31,18 @@ def main() -> None:
     # 2. Compile Rust Core if Cargo is available
     cargo_bin = shutil.which("cargo")
     if cargo_bin and (RUST_DIR / "Cargo.toml").exists():
-        print("[2/3] Building Rust Core Engine (openvegas-core)...")
+        print("[2/3] Building Rust Core Engine (neoveg-core)...")
         subprocess.run([cargo_bin, "build", "--release"], cwd=str(RUST_DIR), check=False)
     else:
         print("[2/3] Rust Core crate ready at ./rust-core.")
 
     # 3. Launch Native Desktop Executable (.exe) unless headless mode is requested
-    if os.environ.get("OPENVEGAS_HEADLESS") != "1" and NATIVE_EXE.exists():
+    if os.environ.get("OPENNeoveg_HEADLESS") != "1" and NATIVE_EXE.exists():
         print(f"[3/3] Launching Native Windows Executable: {NATIVE_EXE}")
         subprocess.Popen([str(NATIVE_EXE)], cwd=str(ROOT))
         return
 
-    port = int(os.environ.get("OPENVEGAS_PORT", "8765"))
+    port = int(os.environ.get("OPENNeoveg_PORT", "8765"))
     sys.path.insert(0, str(BACKEND_DIR))
     from server import run_server  # type: ignore
 

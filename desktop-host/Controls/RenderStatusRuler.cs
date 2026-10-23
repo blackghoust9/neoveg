@@ -9,7 +9,7 @@ using Neoveg.Services;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// `RenderStatusRuler` (`RenderStatusRuler.axaml`) — VEGAS Pro Selective Prerender & Dynamic RAM Preview Status Bar.
+/// `RenderStatusRuler` (`RenderStatusRuler.axaml`) — Neoveg Selective Prerender & Dynamic RAM Preview Status Bar.
 /// Narrow horizontal bar (`5px` height, within `4px`..`6px` spec) positioned immediately below the SMPTE Timecode Ruler
 /// and above the first track on the timeline.
 /// Renders dynamic rectangular frame segments colored by `neoveg_get_timeline_render_status`:
@@ -25,7 +25,7 @@ public partial class RenderStatusRuler : Control
     public static readonly Color ColorSimpleOrQueuedYellow = Color.Parse("#F1C40F");
     public static readonly Color ColorComplexUncachedRed = Color.Parse("#E74C3C");
 
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public SelectivePrerenderService? PrerenderService { get; set; }
     public double PixelsPerSecond { get; set; } = 95.0;
 
@@ -58,7 +58,7 @@ public partial class RenderStatusRuler : Control
     public static void DrawStatusBarSegments(
         DrawingContext context,
         Rect barRect,
-        VegasProject? project,
+        NeovegProject? project,
         SelectivePrerenderService? prerenderService,
         double pixelsPerSecond)
     {

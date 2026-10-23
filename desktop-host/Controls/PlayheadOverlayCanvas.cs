@@ -10,11 +10,11 @@ namespace Neoveg.Controls;
 
 /// <summary>
 /// Dedicated 60 FPS High-Performance Overlay Layer (`PlayheadOverlayCanvas` / `PlayheadOverlay.axaml` / `TimelineCursor.cs`)
-/// for the Neoveg Playhead (CTI) & Classic VEGAS Pro Edit Cursor Blink:
+/// for the Neoveg Playhead (CTI) & Classic Neoveg Edit Cursor Blink:
 /// 1. Cabeçote Azul Pentagonal com Bandeira (`#2980B9` / `#3498DB`):
 ///    - Pentagonal head with pointed tip (`bico`) aimed at the vertical guide line,
 ///    - Horizontal right-extending flag (`extensão horizontal para a direita`) on the timecode ruler.
-/// 2. Linha de Guia Vertical (`1px` thickness) com Edit Cursor Blink (VEGAS Pro):
+/// 2. Linha de Guia Vertical (`1px` thickness) com Edit Cursor Blink (Neoveg):
 ///    - Paused / Stopped (`IsPlaying == false && !IsScrubbing`): `TimelineCursor` (`DispatcherTimer` ~`500ms`)
 ///      alternates `VerticalLineOpacity` between `1.0` (visible) and `0.0` (invisible) at the fixed X position.
 ///    - Playing (`IsPlaying == true`) or Scrubbing (`IsScrubbing == true`): Stops the blink timer immediately,
@@ -33,7 +33,7 @@ public sealed class PlayheadOverlayCanvas : Control
 
     public TimelineCursor EditCursor { get; } = new();
 
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public double PixelsPerSecond { get; set; } = 105.0;
     public double HorizontalOffsetSeconds { get; set; }
@@ -144,7 +144,7 @@ public sealed class PlayheadOverlayCanvas : Control
     }
 
     /// <summary>
-    /// Draws the Premiere Pro style Playhead (CTI) with VEGAS Pro Edit Cursor Blink:
+    /// Draws the Premiere Pro style Playhead (CTI) with Neoveg Edit Cursor Blink:
     /// 1. SMPTE Timecode Readout Box (`00;00;50;00` / `00:00:50:00`) immediately above the marker tip,
     /// 2. Blue Pentagonal Head (`#2980B9` / `#3498DB`) with pointed bottom beak (`bico`) and horizontal right flag (`bandeira`),
     /// 3. 1px Vertical Blue Guide Line descending from the tip across all timeline tracks with `verticalLineOpacity` (`1.0` or `0.0`).

@@ -18,7 +18,7 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 | :--- | :--- | :--- | :--- | :--- |
 | **`Avalonia`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Motor principal de UI XAML multiplataforma (Windows, Linux, macOS) |
 | **`Avalonia.Desktop`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Backends de janela nativa Win32, X11/Wayland e Cocoa/macOS |
-| **`Avalonia.Themes.Fluent`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Base de estilos de controles para o `VegasThemeManager` |
+| **`Avalonia.Themes.Fluent`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Base de estilos de controles para o `NeovegThemeManager` |
 | **`Avalonia.Fonts.Inter`** | `11.2.3` | Rasmus Andersson & AvaloniaUI OÜ | `OFL-1.1` / `MIT` | Tipografia de alta legibilidade em timecodes, réguas e inspetores |
 | **`Microsoft.CodeAnalysis.CSharp.Scripting`** | `4.11.0` | Microsoft Corporation & .NET Foundation | `MIT` | Compilador e motor dinâmico **Roslyn C#** (`Neoveg.Scripting` / `.cs` & `.dll`) |
 | **`SkiaSharp` / `HarfBuzzSharp`** | `2.88.x` | Google Inc., Microsoft & Mono Project | `MIT` | Renderização 2D acelerada por GPU (Timeline, Gizmo `'F'` Pan/Crop, Scopes, `RenderStatusRuler`) |

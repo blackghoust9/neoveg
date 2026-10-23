@@ -39,7 +39,7 @@ public sealed class MasterScopeControl : Control
 
     private static readonly string[] DbScaleMarks = { " 0", "-6", "-12", "-24", "-48", "-∞" };
 
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public MasterBusViewModel? ViewModel { get; set; }
     public bool IsPlaying { get; set; }

@@ -20,9 +20,9 @@ public sealed record ResolvedFxStageNode(
     VideoFxInstance EffectInstance);
 
 /// <summary>
-/// Implements the official VEGAS Pro 5-stage Hierarchical Audio & Video FX Signal Routing Pipeline:
+/// Implements the official Neoveg 5-stage Hierarchical Audio & Video FX Signal Routing Pipeline:
 /// Media FX -> Take FX -> Event FX -> Track FX -> Master FX.
-/// Referenced in `AGENTS.md` Section 10 (VEGAS Pro 10, 13, 18, and 21 Reference Manuals).
+/// Referenced in `AGENTS.md` Section 10 (Neoveg 10, 13, 18, and 21 Reference Manuals).
 /// </summary>
 public static class HierarchicalFxPipeline
 {
@@ -48,7 +48,7 @@ public static class HierarchicalFxPipeline
     /// 5. Master FX (Project Master Video/Audio bus chain)
     /// </summary>
     public static IReadOnlyList<ResolvedFxStageNode> ResolveOrderedPipeline(
-        VegasProject? project,
+        NeovegProject? project,
         TimelineTrack? track,
         TimelineClip? clip)
     {
@@ -114,7 +114,7 @@ public static class HierarchicalFxPipeline
     }
 
     public static List<VideoFxInstance> GetMutableListForStage(
-        VegasProject project,
+        NeovegProject project,
         TimelineTrack track,
         TimelineClip clip,
         FxHierarchyStage stage)

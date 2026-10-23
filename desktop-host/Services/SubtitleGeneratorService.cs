@@ -122,7 +122,7 @@ public sealed class SubtitleGeneratorService
     /// and automatically populates a Subtitle Track with Text Generator Events (`TimelineClip`) on `project`.
     /// </summary>
     public async Task<WhisperTranscriptionResult> TranscribeAndGenerateTimelineEventsAsync(
-        VegasProject project,
+        NeovegProject project,
         string? languageCode = null,
         string modelName = "ggml-base.bin",
         Action<double, string>? onProgress = null,
@@ -215,7 +215,7 @@ public sealed class SubtitleGeneratorService
         };
     }
 
-    private string ResolvePrimaryMediaFromProject(VegasProject project)
+    private string ResolvePrimaryMediaFromProject(NeovegProject project)
     {
         foreach (var track in project.Tracks)
         {
@@ -316,7 +316,7 @@ public sealed class SubtitleGeneratorService
     /// Creates or reuses a dedicated Subtitle Track on the timeline and populates it with Text Generator Events.
     /// </summary>
     public (string TrackName, int CreatedCount) InjectSubtitleEventsIntoProject(
-        VegasProject project,
+        NeovegProject project,
         IReadOnlyList<WhisperSubtitleSegment> segments,
         string modelName = "ggml-base.bin")
     {

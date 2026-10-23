@@ -1,0 +1,158 @@
+{
+  "id": "modern_v16_v22_carbon_cyan",
+  "era_folder": "03_era_modern_carbon_v14_v22",
+  "era_number": 3,
+  "name": "Modern NLE 16–22 Carbon & Cyan (2018–2024)",
+  "short_badge": "Modern NLE Neoveg 21",
+  "years": "2018–2024",
+  "vendor": "Modern NLE Software GmbH / Neoveg Creative Software",
+  "versions": [
+    "Neoveg 16",
+    "Neoveg 17",
+    "Neoveg 18",
+    "Neoveg 19",
+    "Neoveg 20",
+    "Neoveg 21",
+    "Neoveg 22"
+  ],
+  "description": "Estética moderna Modern NLE em carvão escuro (Dark Carbon), azul ciano vibrante (#0078D7 / #18A0FB), design 100% plano, Color Grading Wheels e presets visuais.",
+  "palette": {
+    "window_bg": "#232326",
+    "menu_bg": "#2D2D30",
+    "toolbar_bg": "#28282C",
+    "dock_header_bg": "#333337",
+    "dock_panel_bg": "#26262A",
+    "dock_border": "#3E3E42",
+    "timeline_bg": "#1E1E21",
+    "ruler_bg": "#2A2A2E",
+    "track_video_bg": "#3A4E63",
+    "track_audio_bg": "#5C2F35",
+    "clip_header_bg": "#18181B",
+    "accent_primary": "#0078D7",
+    "accent_secondary": "#18A0FB",
+    "timecode_bg": "#1A1A1D",
+    "timecode_fg": "#18A0FB",
+    "playhead_color": "#0099FF",
+    "waveform_color": "#F3C6C8",
+    "button_bg": "#333338",
+    "button_fg": "#F1F5F9",
+    "text_primary": "#F1F5F9",
+    "text_secondary": "#9CA3AF",
+    "status_bar_bg": "#1C1C1F"
+  },
+  "reference_files": [
+    "icones-neoveg.png",
+    "8image.png",
+    "color-grading-Classic NLE-neoveg-8.png",
+    "Neoveg_Pro_Screenshot.png",
+    "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+    "filmmakers.png",
+    "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+    "ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png"
+  ],
+  "assets": {
+    "logo_svg": "03_era_modern_carbon_v14_v22/logo_modern_v16_v22_carbon_cyan.svg",
+    "logo_png": "03_era_modern_carbon_v14_v22/logo_modern_v16_v22_carbon_cyan.png",
+    "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v16_v22_carbon_cyan.svg",
+    "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v16_v22_carbon_cyan.png",
+    "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v16_v22_carbon_cyan.json"
+  },
+  "curated_references": [
+    {
+      "file": "icones-neoveg.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
+      "sampled_dominant_hex": [
+        "#E6CFC9",
+        "#98837E",
+        "#545052",
+        "#363636",
+        "#2D2D2D",
+        "#282929"
+      ]
+    },
+    {
+      "file": "8image.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
+      "sampled_dominant_hex": [
+        "#A2B3BC",
+        "#5A687A",
+        "#484751",
+        "#3B363C",
+        "#2E2E2F",
+        "#192135"
+      ]
+    },
+    {
+      "file": "color-grading-Classic NLE-neoveg-8.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/color-grading-Classic NLE-neoveg-8.png",
+      "sampled_dominant_hex": [
+        "#ACBBA1",
+        "#50504F",
+        "#3B3A3A",
+        "#343738",
+        "#3C2B39",
+        "#0C0B0D"
+      ]
+    },
+    {
+      "file": "Neoveg_Pro_Screenshot.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/Neoveg_Pro_Screenshot.png",
+      "sampled_dominant_hex": [
+        "#AFB4B6",
+        "#464646",
+        "#303030",
+        "#2B2A2A",
+        "#232323",
+        "#212121"
+      ]
+    },
+    {
+      "file": "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+      "sampled_dominant_hex": [
+        "#A9999B",
+        "#806672",
+        "#635255",
+        "#474848",
+        "#493B42",
+        "#242425"
+      ]
+    },
+    {
+      "file": "filmmakers.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/filmmakers.png",
+      "sampled_dominant_hex": [
+        "#627C79",
+        "#3D4B4A",
+        "#3C3939",
+        "#2C3434",
+        "#312B2D",
+        "#222425"
+      ]
+    },
+    {
+      "file": "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+      "sampled_dominant_hex": [
+        "#97B0B2",
+        "#4A535E",
+        "#3E3F42",
+        "#43333C",
+        "#2E2E30",
+        "#0F101D"
+      ]
+    },
+    {
+      "file": "ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
+      "relative_path": "03_era_modern_carbon_v14_v22/references/ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
+      "sampled_dominant_hex": [
+        "#B0BACA",
+        "#5A6682",
+        "#44444C",
+        "#373234",
+        "#2D2D2D",
+        "#1F2531"
+      ]
+    }
+  ]
+}

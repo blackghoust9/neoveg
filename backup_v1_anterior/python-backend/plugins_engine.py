@@ -1,10 +1,10 @@
 """
-OpenVegas Pro 21 — FFmpeg, Frei0r, LADSPA, CorridorKey & Vegas Reliability Engine
+OpenNeoveg 21 — FFmpeg, Frei0r, LADSPA, CorridorKey & Neoveg Reliability Engine
 Provides:
 1. Frei0r Video Plugin Registry & FFmpeg Filter Compiler (with automatic native fallback)
 2. LADSPA Audio DSP Plugin Registry & FFmpeg Audio Filter Compiler
 3. CorridorKey (nikopueringer/CorridorKey) AI Green Screen Color Unmixing & Despill Engine
-4. VEGAS Pro Frequent Problems Detector & Auto-Fixer (VFR to CFR, So4 Guard, Auto-Save, Offline Relink)
+4. Neoveg Frequent Problems Detector & Auto-Fixer (VFR to CFR, So4 Guard, Auto-Save, Offline Relink)
 5. Project (.veg) Persistence Manager (Empty Project Startup + Saved Demo & User Projects)
 """
 
@@ -208,9 +208,9 @@ def probe_plugin_environment() -> Dict[str, Any]:
     }
 
 
-def diagnose_and_fix_vegas_problems(project: Dict[str, Any]) -> Dict[str, Any]:
+def diagnose_and_fix_neoveg_problems(project: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Scans the project and media directory for the 5 most frequent VEGAS Pro issues:
+    Scans the project and media directory for the 5 most frequent Neoveg issues:
     1. Variable Frame Rate (VFR) media causing audio desync & preview stutter
     2. Offline / broken media file paths
     3. Corrupted or sub-frame negative fade/duration values (causes 99% render hang)
@@ -303,7 +303,7 @@ def diagnose_and_fix_vegas_problems(project: Dict[str, Any]) -> Dict[str, Any]:
                 {
                     "type": "VFR_MEDIA_DETECTED",
                     "severity": "HIGH",
-                    "description": f"Taxa de quadros variável (VFR) detectada em '{vf}' (causa perda de sincronia e engasgos no Vegas Pro).",
+                    "description": f"Taxa de quadros variável (VFR) detectada em '{vf}' (causa perda de sincronia e engasgos no Neoveg).",
                 }
             )
             fixes_applied.append(f"Filtro CFR (`fps={project.get('fps', 29.97)}`) ativado automaticamente para '{vf}'.")
@@ -338,7 +338,7 @@ def diagnose_and_fix_vegas_problems(project: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def create_empty_project(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Creates a clean, empty VEGAS Pro project with configurable advanced properties."""
+    """Creates a clean, empty Neoveg project with configurable advanced properties."""
     cfg = settings or {}
     return {
         "name": cfg.get("name", "Projeto_Sem_Titulo.veg"),
@@ -428,11 +428,11 @@ def create_empty_project(settings: Optional[Dict[str, Any]] = None) -> Dict[str,
 
 
 def create_demo_project_data() -> Dict[str, Any]:
-    """Returns the rich multi-track Demo Project (`OpenVegas_Broadcast_Demo.veg`)."""
+    """Returns the rich multi-track Demo Project (`Neoveg_Broadcast_Demo.veg`)."""
     return {
-        "name": "OpenVegas_Broadcast_Demo.veg",
+        "name": "Neoveg_Broadcast_Demo.veg",
         "isDemo": True,
-        "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Vegas, CorridorKey e Áudio Estéreo 120 BPM.",
+        "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Neoveg, CorridorKey e Áudio Estéreo 120 BPM.",
         "width": 1280,
         "height": 720,
         "fps": 29.97,
@@ -490,11 +490,11 @@ def create_demo_project_data() -> Dict[str, Any]:
                 "clips": [
                     {
                         "id": "clip_title_1",
-                        "name": "VEGAS Lower Third Title",
+                        "name": "Neoveg Lower Third Title",
                         "mediaId": "gen_title",
                         "mediaType": "title",
                         "generatorType": "titleText",
-                        "titleText": "OPEN VEGAS PRO 21 STUDIO",
+                        "titleText": "OPEN NEOVEG 21 STUDIO",
                         "subtitleText": "RUST CORE  •  PYTHON FFMPEG/FREI0R/LADSPA  •  CORRIDORKEY AI",
                         "color": "#6366f1",
                         "start": 0.4,
@@ -531,10 +531,10 @@ def create_demo_project_data() -> Dict[str, Any]:
                 "clips": [
                     {
                         "id": "clip_v_1",
-                        "name": "vegas_smpte_bars.mp4",
-                        "mediaId": "media_vegas_smpte_bars",
-                        "mediaFile": "vegas_smpte_bars.mp4",
-                        "mediaUrl": "/media/vegas_smpte_bars.mp4",
+                        "name": "neoveg_smpte_bars.mp4",
+                        "mediaId": "media_neoveg_smpte_bars",
+                        "mediaFile": "neoveg_smpte_bars.mp4",
+                        "mediaUrl": "/media/neoveg_smpte_bars.mp4",
                         "mediaType": "video",
                         "generatorType": "smpteBars",
                         "color": "#2563eb",
@@ -577,7 +577,7 @@ def create_demo_project_data() -> Dict[str, Any]:
                             {
                                 "id": "fx_init_1",
                                 "type": "vignette",
-                                "name": "VEGAS Soft Vignette",
+                                "name": "Neoveg Soft Vignette",
                                 "enabled": True,
                                 "params": {"strength": 0.55},
                             }
@@ -696,8 +696,8 @@ def create_demo_project_data() -> Dict[str, Any]:
 
 
 def ensure_default_projects() -> List[Dict[str, Any]]:
-    """Ensures the Demo Project (`OpenVegas_Broadcast_Demo.veg`) is saved in `projects/`."""
-    demo_path = PROJECTS_DIR / "OpenVegas_Broadcast_Demo.veg"
+    """Ensures the Demo Project (`Neoveg_Broadcast_Demo.veg`) is saved in `projects/`."""
+    demo_path = PROJECTS_DIR / "Neoveg_Broadcast_Demo.veg"
     if not demo_path.exists():
         demo_data = create_demo_project_data()
         demo_path.write_text(json.dumps(demo_data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -717,7 +717,7 @@ def list_saved_projects() -> List[Dict[str, Any]]:
                 {
                     "fileName": f.name,
                     "name": data.get("name", f.name),
-                    "isDemo": bool(data.get("isDemo", f.name == "OpenVegas_Broadcast_Demo.veg")),
+                    "isDemo": bool(data.get("isDemo", f.name == "Neoveg_Broadcast_Demo.veg")),
                     "description": data.get("description", f"{len(tracks)} faixas • {clips_count} eventos"),
                     "width": data.get("width", 1920),
                     "height": data.get("height", 1080),
@@ -743,7 +743,7 @@ def load_saved_project(file_name: str) -> Optional[Dict[str, Any]]:
 
 
 def save_project_to_disk(project: Dict[str, Any], file_name: Optional[str] = None) -> Dict[str, Any]:
-    raw_name = file_name or project.get("name", "Projeto_OpenVegas.veg")
+    raw_name = file_name or project.get("name", "Projeto_Neoveg.veg")
     safe = "".join(c for c in raw_name if c.isalnum() or c in "._- ") or "Projeto.veg"
     if not safe.endswith(".veg"):
         safe += ".veg"

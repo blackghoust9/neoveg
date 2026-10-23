@@ -29,7 +29,7 @@ extern "C" {
 
 /**
  * Binary header placed at offset 0 of the Out-of-Process Shared Memory (Memory-Mapped File) region.
- * Mirrors VEGAS Pro's `FileIOSurrogate.exe` / `sfvstserver.exe` IPC ring-buffer frame descriptor.
+ * Mirrors Neoveg's `FileIOSurrogate.exe` / `sfvstserver.exe` IPC ring-buffer frame descriptor.
  * Total header size: 32 bytes (64-bit aligned).
  */
 #pragma pack(push, 1)
@@ -101,7 +101,7 @@ NEOVEG_CPP_API int32_t NEOVEG_CDECL neoveg_cpp_shm_publish_named(
 );
 
 /**
- * 6. Computes the VEGAS Pro Inverted Camera 2D Affine Transformation Matrix (`out_matrix6`: [M11, M12, M21, M22, OffsetX, OffsetY])
+ * 6. Computes the Neoveg Inverted Camera 2D Affine Transformation Matrix (`out_matrix6`: [M11, M12, M21, M22, OffsetX, OffsetY])
  * from the Event Pan/Crop 'F' Gizmo parameters (`crop_width`, `crop_height`, `x_center`, `y_center`, `rotation_deg`).
  */
 NEOVEG_CPP_API int32_t NEOVEG_CDECL neoveg_cpp_compute_pancrop_matrix(

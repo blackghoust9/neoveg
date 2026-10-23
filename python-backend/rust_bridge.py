@@ -68,7 +68,7 @@ def get_rust_status() -> Dict[str, Any]:
             "crate_path": str(RUST_CRATE_DIR),
             "features": [
                 "smpte_timecode",
-                "vegas_5_curve_fades",
+                "neoveg_5_curve_fades",
                 "auto_crossfade_solver",
                 "pcm_wav_dsp",
                 "event_split_cut",
@@ -103,7 +103,7 @@ def get_rust_status() -> Dict[str, Any]:
         "crate_path": str(RUST_CRATE_DIR),
         "features": [
             "smpte_timecode",
-            "vegas_5_curve_fades",
+            "neoveg_5_curve_fades",
             "auto_crossfade_solver",
             "pcm_wav_dsp",
             "event_split_cut",
@@ -113,7 +113,7 @@ def get_rust_status() -> Dict[str, Any]:
 
 
 def evaluate_fade_curve(curve: str, t: float) -> float:
-    """Evaluates Vegas Pro's 5 signature fade curves for t in [0.0, 1.0]."""
+    """Evaluates Neoveg's 5 signature fade curves for t in [0.0, 1.0]."""
     x = max(0.0, min(1.0, float(t)))
     c = (curve or "smooth").lower().strip()
     if c == "linear":
@@ -124,7 +124,7 @@ def evaluate_fade_curve(curve: str, t: float) -> float:
         return x ** 3
     if c == "sharp":
         return 0.5 * ((2.0 * x) ** 3) if x < 0.5 else 1.0 - 0.5 * ((2.0 * (1.0 - x)) ** 3)
-    # Default: Vegas Smooth (S-curve cosine)
+    # Default: Neoveg Smooth (S-curve cosine)
     return 0.5 - 0.5 * math.cos(math.pi * x)
 
 
@@ -162,7 +162,7 @@ def detect_auto_crossfades(project: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
     """
     Mirrors `neoveg_core::detect_auto_crossfades`:
     Inspects all tracks for overlapping events on the same track and automatically
-    sets matching fadeOut/fadeIn durations for Vegas Pro style X-crossfades.
+    sets matching fadeOut/fadeIn durations for Neoveg style X-crossfades.
     """
     crossfades: List[Dict[str, Any]] = []
     tracks = project.get("tracks", [])
@@ -315,7 +315,7 @@ def analyze_wav_peaks(wav_path: Path, num_buckets: int = 128) -> Dict[str, Any]:
 
 def build_or_load_sfk_cache(wav_path: Path, num_buckets: int = 128) -> Dict[str, Any]:
     """
-    Builds or loads a VEGAS-compatible `.sfk` binary peak mipmap cache (`RIFF....SFPK`),
+    Builds or loads a Neoveg-compatible `.sfk` binary peak mipmap cache (`RIFF....SFPK`),
     mirroring `CSfAudioPeak` / `neoveg_build_sfk_cache` in `rust-core/src/lib.rs`.
     """
     sfk_path = Path(f"{wav_path}.sfk")
@@ -389,7 +389,7 @@ def compile_project_to_ffmpeg(project: Dict[str, Any], media_dir: Path, output_p
     audio_mix_labels: List[str] = ["[base_a]"]
     input_idx = 0
 
-    # In Vegas Pro, top video track (index 0) composites over lower video tracks.
+    # In Neoveg, top video track (index 0) composites over lower video tracks.
     # Therefore we composite from bottom-most video track up to top-most video track!
     video_tracks = [
         t for t in reversed(tracks)

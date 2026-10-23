@@ -1,10 +1,10 @@
 /**
- * OpenVegas Pro — Interactive Multi-Track Timeline Canvas & Event Manipulation Engine
- * Implements Vegas Pro's signature editing paradigm:
+ * OpenNeoveg — Interactive Multi-Track Timeline Canvas & Event Manipulation Engine
+ * Implements Neoveg's signature editing paradigm:
  * - Individual & Global Track Height Resizing (Drag track bottom border, +/- buttons, or Alt+Wheel)
  * - Direct Media / Generator / FX / Transition / OS File Drag-and-Drop onto Timeline with Ghost Preview
  * - Automatic Overlap Crossfades (X-curve)
- * - Top-corner interactive Fade-In / Fade-Out handles with 5 Vegas curve shapes
+ * - Top-corner interactive Fade-In / Fade-Out handles with 5 Neoveg curve shapes
  * - Clip Opacity / Gain horizontal envelope bar
  * - Edge Trimming, Snap to Playhead/Events/Markers (F8), Auto-Ripple (Ctrl+L)
  * - On-clip FX & Pan/Crop badges, Track Automation Envelopes (V), Markers (M) & Loop Region (Q)
@@ -17,7 +17,7 @@ import {
   FadeCurveType,
   TimelineDragPayload,
   Track,
-  VegasProject,
+  NeovegProject,
 } from '../types';
 import { evaluateFadeCurve, formatSMPTE } from '../engine/compositor';
 
@@ -55,10 +55,10 @@ export interface TimelineCallbacks {
   getActiveDragPayload?: () => TimelineDragPayload | null;
 }
 
-export class VegasTimelineController {
+export class NeovegHostTimelineController {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private project: VegasProject;
+  private project: NeovegProject;
   private callbacks: TimelineCallbacks;
 
   public pixelsPerSecond = 88;
@@ -95,7 +95,7 @@ export class VegasTimelineController {
 
   constructor(
     canvas: HTMLCanvasElement,
-    project: VegasProject,
+    project: NeovegProject,
     callbacks: TimelineCallbacks
   ) {
     this.canvas = canvas;
@@ -108,7 +108,7 @@ export class VegasTimelineController {
     this.bindEvents();
   }
 
-  public setProject(project: VegasProject): void {
+  public setProject(project: NeovegProject): void {
     this.project = project;
     this.recalculateAutoCrossfades();
     this.render();
@@ -705,7 +705,7 @@ export class VegasTimelineController {
 
     if (relY <= 18 && (Math.abs(x - fadeInX) <= 10 || Math.abs(x - fadeOutX) <= 10)) {
       this.canvas.style.cursor = 'ew-resize';
-      this.hoverStatus = 'Drag corner to adjust Vegas Fade-In / Fade-Out envelope';
+      this.hoverStatus = 'Drag corner to adjust Neoveg Fade-In / Fade-Out envelope';
     } else if (Math.abs(x - clipX) <= 7 || Math.abs(x - (clipX + clipW)) <= 7) {
       this.canvas.style.cursor = 'col-resize';
       this.hoverStatus = 'Drag edge to Trim event start/end';

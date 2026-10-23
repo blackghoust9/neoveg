@@ -1,0 +1,871 @@
+{
+  "schema_version": "2.0.0",
+  "title": "Neoveg Historical Neoveg Themes Catalog (1999–2026)",
+  "default_theme_id": "contemporary_2026_electric_dark",
+  "comparison_sheet": "neoveg_eras_comparison_sheet.png",
+  "themes": [
+    {
+      "id": "sonic_foundry_v1_v3",
+      "era_folder": "01_era_sonic_foundry_v1_v3",
+      "era_number": 1,
+      "name": "Sonic Foundry Neoveg 1–3 (1999–2002)",
+      "short_badge": "SONIC FOUNDRY V3",
+      "years": "1999–2002",
+      "vendor": "Sonic Foundry, Inc. (Madison, WI)",
+      "versions": [
+        "Neoveg 1.0",
+        "Neoveg Audio 2.0",
+        "Neoveg Video 2.0",
+        "Neoveg Video 3.0"
+      ],
+      "description": "Estética industrial clássica Win32 com cinza metálico escovado, bordas chanfradas 3D e detalhes vibrantes em vermelho carmim e laranja incandescente.",
+      "palette": {
+        "window_bg": "#B8B5AE",
+        "menu_bg": "#D4D0C8",
+        "toolbar_bg": "#C6C3BD",
+        "dock_header_bg": "#84827E",
+        "dock_panel_bg": "#CBC8C2",
+        "dock_border": "#42413E",
+        "timeline_bg": "#A6A39C",
+        "ruler_bg": "#94918A",
+        "track_video_bg": "#B4B9C2",
+        "track_audio_bg": "#C2B4B2",
+        "clip_header_bg": "#3A3835",
+        "accent_primary": "#CC291B",
+        "accent_secondary": "#FF6A00",
+        "timecode_bg": "#181816",
+        "timecode_fg": "#FF4500",
+        "playhead_color": "#CC291B",
+        "waveform_color": "#8B1A10",
+        "button_bg": "#D4D0C8",
+        "button_fg": "#181816",
+        "text_primary": "#141413",
+        "text_secondary": "#3E3D3A",
+        "status_bar_bg": "#84827E"
+      },
+      "reference_files": [],
+      "assets": {
+        "logo_svg": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.svg",
+        "logo_png": "01_era_sonic_foundry_v1_v3/logo_sonic_foundry_v1_v3.png",
+        "icons_svg": "01_era_sonic_foundry_v1_v3/icons_sonic_foundry_v1_v3.svg",
+        "swatch_png": "01_era_sonic_foundry_v1_v3/swatch_sonic_foundry_v1_v3.png",
+        "palette_json": "01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json"
+      },
+      "curated_references": []
+    },
+    {
+      "id": "classic_v4_v7_flaming_gold",
+      "era_folder": "02_era_classic_silver_v4_v13",
+      "era_number": 2,
+      "name": "Classic NLE 4–7 Flaming Gold (2003–2007)",
+      "short_badge": "NEOVEG Neoveg 7 GOLD",
+      "years": "2003–2007",
+      "vendor": "Classic NLE Pictures Digital / Classic NLE Media Software",
+      "versions": [
+        "Neoveg 4.0",
+        "Classic NLE 5.0",
+        "Classic NLE 6.0",
+        "Classic NLE 7.0"
+      ],
+      "description": "Estética clássica com superfície Luna Silver/Bege e o icônico gradiente dourado/laranja flamejante nas barras de destaque, timecode âmbar e faixas azul-aço/vinho.",
+      "palette": {
+        "window_bg": "#DFDDD4",
+        "menu_bg": "#ECE9D8",
+        "toolbar_bg": "#E4E1D6",
+        "dock_header_bg": "#C8C4B6",
+        "dock_panel_bg": "#EAE7DC",
+        "dock_border": "#9D998C",
+        "timeline_bg": "#F2F0E8",
+        "ruler_bg": "#DCD9CE",
+        "track_video_bg": "#ADC2D9",
+        "track_audio_bg": "#D4BBC0",
+        "clip_header_bg": "#2B4C6F",
+        "accent_primary": "#FF6D00",
+        "accent_secondary": "#FFB300",
+        "timecode_bg": "#23211D",
+        "timecode_fg": "#FFB300",
+        "playhead_color": "#E65100",
+        "waveform_color": "#7E222A",
+        "button_bg": "#DCD9CE",
+        "button_fg": "#1B1A17",
+        "text_primary": "#181715",
+        "text_secondary": "#4E4C45",
+        "status_bar_bg": "#D4D0C4"
+      },
+      "reference_files": [
+        "maxresdefault.png",
+        "10image.png",
+        "11maxresdefault.png"
+      ],
+      "assets": {
+        "logo_svg": "02_era_classic_silver_v4_v13/logo_classic_v4_v7_flaming_gold.svg",
+        "logo_png": "02_era_classic_silver_v4_v13/logo_classic_v4_v7_flaming_gold.png",
+        "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v4_v7_flaming_gold.svg",
+        "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v4_v7_flaming_gold.png",
+        "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v4_v7_flaming_gold.json"
+      },
+      "curated_references": [
+        {
+          "file": "maxresdefault.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
+          "sampled_dominant_hex": [
+            "#EBEEE1",
+            "#E4E7D2",
+            "#DDE1D0",
+            "#CED1C7",
+            "#C1C8BE",
+            "#5B6569"
+          ]
+        },
+        {
+          "file": "10image.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
+          "sampled_dominant_hex": [
+            "#F1F1F1",
+            "#E8EAEC",
+            "#DADEE0",
+            "#CAC8C8",
+            "#A2B2B1",
+            "#605653"
+          ]
+        },
+        {
+          "file": "11maxresdefault.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/11maxresdefault.png",
+          "sampled_dominant_hex": [
+            "#EFEFEF",
+            "#EDEDED",
+            "#E6E6E8",
+            "#D4D3D4",
+            "#BEC5CC",
+            "#4B4D52"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "classic_v8_v13_silver_dark",
+      "era_folder": "02_era_classic_silver_v4_v13",
+      "era_number": 2,
+      "name": "Classic NLE 8–13 Prata/Escuro (2008–2015)",
+      "short_badge": "NEOVEG NEOVEG 12",
+      "years": "2008–2015",
+      "vendor": "Classic NLE Creative Software",
+      "versions": [
+        "Neoveg 8.0",
+        "Neoveg 9.0",
+        "Neoveg 10.0",
+        "Neoveg 11.0",
+        "Neoveg 12.0",
+        "Neoveg 13.0"
+      ],
+      "description": "Tema Prata/Escuro (Pro Dark Slate & Silver) introduzido na geração Neoveg 9–13 com painéis cinza-ardósia, cabeçalhos azul-aço metálico e marcadores laranja vivo.",
+      "palette": {
+        "window_bg": "#5A5D62",
+        "menu_bg": "#76797E",
+        "toolbar_bg": "#6B6E73",
+        "dock_header_bg": "#4E5156",
+        "dock_panel_bg": "#64676C",
+        "dock_border": "#3B3D42",
+        "timeline_bg": "#787B80",
+        "ruler_bg": "#5E6166",
+        "track_video_bg": "#6B86A2",
+        "track_audio_bg": "#866B74",
+        "clip_header_bg": "#2B3A4A",
+        "accent_primary": "#3B82F6",
+        "accent_secondary": "#F37021",
+        "timecode_bg": "#383A3E",
+        "timecode_fg": "#EAECEF",
+        "playhead_color": "#F37021",
+        "waveform_color": "#1E3A5F",
+        "button_bg": "#52555A",
+        "button_fg": "#F3F4F6",
+        "text_primary": "#F3F4F6",
+        "text_secondary": "#D1D5DB",
+        "status_bar_bg": "#4A4D52"
+      },
+      "reference_files": [
+        "image.png",
+        "2image.png",
+        "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png"
+      ],
+      "assets": {
+        "logo_svg": "02_era_classic_silver_v4_v13/logo_classic_v8_v13_silver_dark.svg",
+        "logo_png": "02_era_classic_silver_v4_v13/logo_classic_v8_v13_silver_dark.png",
+        "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v8_v13_silver_dark.svg",
+        "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v8_v13_silver_dark.png",
+        "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v8_v13_silver_dark.json"
+      },
+      "curated_references": [
+        {
+          "file": "image.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
+          "sampled_dominant_hex": [
+            "#B8BBB3",
+            "#8D9794",
+            "#888B8A",
+            "#868584",
+            "#7C7F81",
+            "#555152"
+          ]
+        },
+        {
+          "file": "2image.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/2image.png",
+          "sampled_dominant_hex": [
+            "#FFFFFF",
+            "#F0F0F0",
+            "#DBDBDB",
+            "#BEBAB4",
+            "#8FA19C",
+            "#73635E"
+          ]
+        },
+        {
+          "file": "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png",
+          "sampled_dominant_hex": [
+            "#B3B7B2",
+            "#949595",
+            "#8A8989",
+            "#868186",
+            "#777972",
+            "#4C463F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "modern_v14_v15_flat_gray",
+      "era_folder": "03_era_modern_carbon_v14_v22",
+      "era_number": 3,
+      "name": "Modern NLE 14–15 Flat Gray (2016–2017)",
+      "short_badge": "Modern NLE Neoveg 15",
+      "years": "2016–2017",
+      "vendor": "Modern NLE Software GmbH / Neoveg Creative Software",
+      "versions": [
+        "Neoveg 14.0",
+        "Neoveg 15.0"
+      ],
+      "description": "Primeira geração Modern NLE com ícones vetoriais planos (flat design) monocromáticos sobre superfície cinza médio neutra e destaques em azul ciano.",
+      "palette": {
+        "window_bg": "#7A7C80",
+        "menu_bg": "#94969A",
+        "toolbar_bg": "#888A8E",
+        "dock_header_bg": "#686A6E",
+        "dock_panel_bg": "#828488",
+        "dock_border": "#525458",
+        "timeline_bg": "#727478",
+        "ruler_bg": "#66686C",
+        "track_video_bg": "#6D879E",
+        "track_audio_bg": "#8C6268",
+        "clip_header_bg": "#32363C",
+        "accent_primary": "#0088E8",
+        "accent_secondary": "#00B4FF",
+        "timecode_bg": "#4A4C50",
+        "timecode_fg": "#FFFFFF",
+        "playhead_color": "#00A2FF",
+        "waveform_color": "#E2E8F0",
+        "button_bg": "#686A6E",
+        "button_fg": "#FFFFFF",
+        "text_primary": "#F8FAFC",
+        "text_secondary": "#E2E8F0",
+        "status_bar_bg": "#5E6064"
+      },
+      "reference_files": [
+        "beginner-tips-for-neoveg-pro-3.png",
+        "5image.png"
+      ],
+      "assets": {
+        "logo_svg": "03_era_modern_carbon_v14_v22/logo_modern_v14_v15_flat_gray.svg",
+        "logo_png": "03_era_modern_carbon_v14_v22/logo_modern_v14_v15_flat_gray.png",
+        "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v14_v15_flat_gray.svg",
+        "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v14_v15_flat_gray.png",
+        "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v14_v15_flat_gray.json"
+      },
+      "curated_references": [
+        {
+          "file": "beginner-tips-for-neoveg-pro-3.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/beginner-tips-for-neoveg-pro-3.png",
+          "sampled_dominant_hex": [
+            "#D7DCE5",
+            "#B0ABAB",
+            "#97999A",
+            "#979594",
+            "#878B8A",
+            "#7D7877"
+          ]
+        },
+        {
+          "file": "5image.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/5image.png",
+          "sampled_dominant_hex": [
+            "#9EA597",
+            "#868786",
+            "#797975",
+            "#717A7D",
+            "#737574",
+            "#5D4E65"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "modern_v16_v22_carbon_cyan",
+      "era_folder": "03_era_modern_carbon_v14_v22",
+      "era_number": 3,
+      "name": "Modern NLE 16–22 Carbon & Cyan (2018–2024)",
+      "short_badge": "Modern NLE Neoveg 21",
+      "years": "2018–2024",
+      "vendor": "Modern NLE Software GmbH / Neoveg Creative Software",
+      "versions": [
+        "Neoveg 16",
+        "Neoveg 17",
+        "Neoveg 18",
+        "Neoveg 19",
+        "Neoveg 20",
+        "Neoveg 21",
+        "Neoveg 22"
+      ],
+      "description": "Estética moderna Modern NLE em carvão escuro (Dark Carbon), azul ciano vibrante (#0078D7 / #18A0FB), design 100% plano, Color Grading Wheels e presets visuais.",
+      "palette": {
+        "window_bg": "#232326",
+        "menu_bg": "#2D2D30",
+        "toolbar_bg": "#28282C",
+        "dock_header_bg": "#333337",
+        "dock_panel_bg": "#26262A",
+        "dock_border": "#3E3E42",
+        "timeline_bg": "#1E1E21",
+        "ruler_bg": "#2A2A2E",
+        "track_video_bg": "#3A4E63",
+        "track_audio_bg": "#5C2F35",
+        "clip_header_bg": "#18181B",
+        "accent_primary": "#0078D7",
+        "accent_secondary": "#18A0FB",
+        "timecode_bg": "#1A1A1D",
+        "timecode_fg": "#18A0FB",
+        "playhead_color": "#0099FF",
+        "waveform_color": "#F3C6C8",
+        "button_bg": "#333338",
+        "button_fg": "#F1F5F9",
+        "text_primary": "#F1F5F9",
+        "text_secondary": "#9CA3AF",
+        "status_bar_bg": "#1C1C1F"
+      },
+      "reference_files": [
+        "icones-neoveg.png",
+        "8image.png",
+        "color-grading-Classic NLE-neoveg-8.png",
+        "Neoveg_Pro_Screenshot.png",
+        "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+        "filmmakers.png",
+        "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+        "ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png"
+      ],
+      "assets": {
+        "logo_svg": "03_era_modern_carbon_v14_v22/logo_modern_v16_v22_carbon_cyan.svg",
+        "logo_png": "03_era_modern_carbon_v14_v22/logo_modern_v16_v22_carbon_cyan.png",
+        "icons_svg": "03_era_modern_carbon_v14_v22/icons_modern_v16_v22_carbon_cyan.svg",
+        "swatch_png": "03_era_modern_carbon_v14_v22/swatch_modern_v16_v22_carbon_cyan.png",
+        "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v16_v22_carbon_cyan.json"
+      },
+      "curated_references": [
+        {
+          "file": "icones-neoveg.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
+          "sampled_dominant_hex": [
+            "#E6CFC9",
+            "#98837E",
+            "#545052",
+            "#363636",
+            "#2D2D2D",
+            "#282929"
+          ]
+        },
+        {
+          "file": "8image.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
+          "sampled_dominant_hex": [
+            "#A2B3BC",
+            "#5A687A",
+            "#484751",
+            "#3B363C",
+            "#2E2E2F",
+            "#192135"
+          ]
+        },
+        {
+          "file": "color-grading-Classic NLE-neoveg-8.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/color-grading-Classic NLE-neoveg-8.png",
+          "sampled_dominant_hex": [
+            "#ACBBA1",
+            "#50504F",
+            "#3B3A3A",
+            "#343738",
+            "#3C2B39",
+            "#0C0B0D"
+          ]
+        },
+        {
+          "file": "Neoveg_Pro_Screenshot.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/Neoveg_Pro_Screenshot.png",
+          "sampled_dominant_hex": [
+            "#AFB4B6",
+            "#464646",
+            "#303030",
+            "#2B2A2A",
+            "#232323",
+            "#212121"
+          ]
+        },
+        {
+          "file": "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/4a839cda-adb3-4375-b651-be8fb3b977c9.png",
+          "sampled_dominant_hex": [
+            "#A9999B",
+            "#806672",
+            "#635255",
+            "#474848",
+            "#493B42",
+            "#242425"
+          ]
+        },
+        {
+          "file": "filmmakers.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/filmmakers.png",
+          "sampled_dominant_hex": [
+            "#627C79",
+            "#3D4B4A",
+            "#3C3939",
+            "#2C3434",
+            "#312B2D",
+            "#222425"
+          ]
+        },
+        {
+          "file": "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
+          "sampled_dominant_hex": [
+            "#97B0B2",
+            "#4A535E",
+            "#3E3F42",
+            "#43333C",
+            "#2E2E30",
+            "#0F101D"
+          ]
+        },
+        {
+          "file": "ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/ss_64be9b7d4992f1d85ee1d99b5e5e05711431d769.1920x1080.png",
+          "sampled_dominant_hex": [
+            "#B0BACA",
+            "#5A6682",
+            "#44444C",
+            "#373234",
+            "#2D2D2D",
+            "#1F2531"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contemporary_2026_electric_dark",
+      "era_folder": "04_era_contemporary_2026",
+      "era_number": 4,
+      "name": "Contemporary NLE / Neoveg Atual (2025–2026 Electric Blue)",
+      "short_badge": "Contemporary NLE • 2026",
+      "years": "2025–2026",
+      "vendor": "Neoveg Creative Software / Contemporary NLE Ecosystem",
+      "versions": [
+        "Neoveg 23.0",
+        "Neoveg 2026 Neoveg (BCC+ / AI Suite)"
+      ],
+      "description": "Identidade visual contemporânea em preto obsidiana (#0E1015), azul elétrico (#00A3FF / #2563EB), cabeçalhos de faixa multicor de alto contraste e integração nativa BCC+/AI.",
+      "palette": {
+        "window_bg": "#0E1015",
+        "menu_bg": "#13161E",
+        "toolbar_bg": "#161A24",
+        "dock_header_bg": "#1B202C",
+        "dock_panel_bg": "#12161F",
+        "dock_border": "#262F40",
+        "timeline_bg": "#0B0D12",
+        "ruler_bg": "#151922",
+        "track_video_bg": "#172336",
+        "track_audio_bg": "#191D2E",
+        "clip_header_bg": "#090D16",
+        "accent_primary": "#00A3FF",
+        "accent_secondary": "#38BDF8",
+        "timecode_bg": "#090B10",
+        "timecode_fg": "#38BDF8",
+        "playhead_color": "#00A3FF",
+        "waveform_color": "#7DD3FC",
+        "button_bg": "#1E2636",
+        "button_fg": "#F8FAFC",
+        "text_primary": "#F8FAFC",
+        "text_secondary": "#94A3B8",
+        "status_bar_bg": "#10141C"
+      },
+      "reference_files": [
+        "3image.png",
+        "4image.png",
+        "6image.png",
+        "7image.png",
+        "Neoveg_Suite_UI_202.png"
+      ],
+      "assets": {
+        "logo_svg": "04_era_contemporary_2026/logo_contemporary_2026_electric_dark.svg",
+        "logo_png": "04_era_contemporary_2026/logo_contemporary_2026_electric_dark.png",
+        "icons_svg": "04_era_contemporary_2026/icons_contemporary_2026_electric_dark.svg",
+        "swatch_png": "04_era_contemporary_2026/swatch_contemporary_2026_electric_dark.png",
+        "palette_json": "04_era_contemporary_2026/palette_contemporary_2026_electric_dark.json"
+      },
+      "curated_references": [
+        {
+          "file": "3image.png",
+          "relative_path": "04_era_contemporary_2026/references/3image.png",
+          "sampled_dominant_hex": [
+            "#795455",
+            "#384B5D",
+            "#342F33",
+            "#382224",
+            "#262626",
+            "#171B1D"
+          ]
+        },
+        {
+          "file": "4image.png",
+          "relative_path": "04_era_contemporary_2026/references/4image.png",
+          "sampled_dominant_hex": [
+            "#CFC2B4",
+            "#827669",
+            "#3D3A34",
+            "#272522",
+            "#222222",
+            "#1B1D1C"
+          ]
+        },
+        {
+          "file": "6image.png",
+          "relative_path": "04_era_contemporary_2026/references/6image.png",
+          "sampled_dominant_hex": [
+            "#95A6B5",
+            "#464E4C",
+            "#2D302D",
+            "#262626",
+            "#26161D",
+            "#0A0C0F"
+          ]
+        },
+        {
+          "file": "7image.png",
+          "relative_path": "04_era_contemporary_2026/references/7image.png",
+          "sampled_dominant_hex": [
+            "#404142",
+            "#363838",
+            "#412A24",
+            "#132C3E",
+            "#331E20",
+            "#090D17"
+          ]
+        },
+        {
+          "file": "Neoveg_Suite_UI_202.png",
+          "relative_path": "04_era_contemporary_2026/references/Neoveg_Suite_UI_202.png",
+          "sampled_dominant_hex": [
+            "#C9B677",
+            "#8D6940",
+            "#433228",
+            "#391F22",
+            "#222222",
+            "#1E1E1E"
+          ]
+        },
+        {
+          "file": "neoveg_pro_23_fx_scrolling.png",
+          "relative_path": "04_era_contemporary_2026/references/neoveg_pro_23_fx_scrolling.png",
+          "sampled_dominant_hex": [
+            "#727C8E",
+            "#474547",
+            "#2D2C2D",
+            "#282828",
+            "#27282A",
+            "#232323"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neoveg_ultrawhite_v8",
+      "era_folder": "02_era_classic_silver_v4_v13",
+      "era_number": 2,
+      "name": "Neoveg: UltraWhite (Classic NLE 8.0 Light)",
+      "short_badge": "NEOVEG • ULTRAWHITE V8",
+      "years": "2007–2008",
+      "vendor": "Neoveg Fork (src/mainwindow.cpp • UltraWhite.qss)",
+      "versions": [
+        "Classic NLE 8.0 (Neoveg UltraWhite)"
+      ],
+      "description": "Perfil UltraWhite importado do fork Neoveg (mainwindow.cpp + UltraWhite.qss): superfície clara #F8F8F8, destaque azul #8CB8FF, faixas vídeo #5F7FCB e áudio #4F6F87.",
+      "palette": {
+        "window_bg": "#F8F8F8",
+        "menu_bg": "#EDEDED",
+        "toolbar_bg": "#EFEFEF",
+        "dock_header_bg": "#D8D8D8",
+        "dock_panel_bg": "#F1F1F1",
+        "dock_border": "#C9C9C9",
+        "timeline_bg": "#FFFFFF",
+        "ruler_bg": "#EDEDED",
+        "track_video_bg": "#5F7FCB",
+        "track_audio_bg": "#4F6F87",
+        "clip_header_bg": "#2B3A55",
+        "accent_primary": "#5F7FCB",
+        "accent_secondary": "#8CB8FF",
+        "timecode_bg": "#1F1F1F",
+        "timecode_fg": "#8DC4D8",
+        "playhead_color": "#D9460F",
+        "waveform_color": "#95D8AC",
+        "button_bg": "#EFEFEF",
+        "button_fg": "#1F1F1F",
+        "text_primary": "#1F1F1F",
+        "text_secondary": "#4A5568",
+        "status_bar_bg": "#E2E2E2"
+      },
+      "reference_files": [
+        "maxresdefault.png",
+        "10image.png"
+      ],
+      "assets": {
+        "logo_svg": "02_era_classic_silver_v4_v13/logo_neoveg_ultrawhite_v8.svg",
+        "logo_png": "02_era_classic_silver_v4_v13/logo_neoveg_ultrawhite_v8.png",
+        "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_ultrawhite_v8.svg",
+        "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_ultrawhite_v8.png",
+        "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_ultrawhite_v8.json"
+      },
+      "curated_references": [
+        {
+          "file": "maxresdefault.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
+          "sampled_dominant_hex": [
+            "#EBEEE1",
+            "#E4E7D2",
+            "#DDE1D0",
+            "#CED1C7",
+            "#C1C8BE",
+            "#5B6569"
+          ]
+        },
+        {
+          "file": "10image.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
+          "sampled_dominant_hex": [
+            "#F1F1F1",
+            "#E8EAEC",
+            "#DADEE0",
+            "#CAC8C8",
+            "#A2B2B1",
+            "#605653"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neoveg_classic_cinza_v10_13",
+      "era_folder": "02_era_classic_silver_v4_v13",
+      "era_number": 2,
+      "name": "Neoveg: ClassicCinza (Classic NLE 10–13)",
+      "short_badge": "NEOVEG • CLASSIC CINZA",
+      "years": "2010–2015",
+      "vendor": "Neoveg Fork (src/mainwindow.cpp • ClassicCinza.qss)",
+      "versions": [
+        "Neoveg 10",
+        "Neoveg 11",
+        "Neoveg 12",
+        "Neoveg 13"
+      ],
+      "description": "Perfil ClassicCinza importado do fork Neoveg (mainwindow.cpp + ClassicCinza.qss): cinza clássico #CFCFCF/#BFBFBF, realce #6F93C5, vídeo #5676B7 e áudio #4A5E73.",
+      "palette": {
+        "window_bg": "#CFCFCF",
+        "menu_bg": "#BFBFBF",
+        "toolbar_bg": "#C5C5C5",
+        "dock_header_bg": "#B5B5B5",
+        "dock_panel_bg": "#C3C3C3",
+        "dock_border": "#9A9A9A",
+        "timeline_bg": "#DADADA",
+        "ruler_bg": "#BFBFBF",
+        "track_video_bg": "#5676B7",
+        "track_audio_bg": "#4A5E73",
+        "clip_header_bg": "#253549",
+        "accent_primary": "#5676B7",
+        "accent_secondary": "#6F93C5",
+        "timecode_bg": "#22252A",
+        "timecode_fg": "#7BA7B4",
+        "playhead_color": "#F37021",
+        "waveform_color": "#88BB93",
+        "button_bg": "#C5C5C5",
+        "button_fg": "#1A1A1A",
+        "text_primary": "#1A1A1A",
+        "text_secondary": "#3A3A3A",
+        "status_bar_bg": "#B5B5B5"
+      },
+      "reference_files": [
+        "image.png"
+      ],
+      "assets": {
+        "logo_svg": "02_era_classic_silver_v4_v13/logo_neoveg_classic_cinza_v10_13.svg",
+        "logo_png": "02_era_classic_silver_v4_v13/logo_neoveg_classic_cinza_v10_13.png",
+        "icons_svg": "02_era_classic_silver_v4_v13/icons_neoveg_classic_cinza_v10_13.svg",
+        "swatch_png": "02_era_classic_silver_v4_v13/swatch_neoveg_classic_cinza_v10_13.png",
+        "palette_json": "02_era_classic_silver_v4_v13/palette_neoveg_classic_cinza_v10_13.json"
+      },
+      "curated_references": [
+        {
+          "file": "image.png",
+          "relative_path": "02_era_classic_silver_v4_v13/references/image.png",
+          "sampled_dominant_hex": [
+            "#B8BBB3",
+            "#8D9794",
+            "#888B8A",
+            "#868584",
+            "#7C7F81",
+            "#555152"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neoveg_jorgetheuser_v14",
+      "era_folder": "03_era_modern_carbon_v14_v22",
+      "era_number": 3,
+      "name": "Neoveg: JorgeTheUser / JustTheUser (Neoveg 14)",
+      "short_badge": "NEOVEG • JORGETHEUSER V14",
+      "years": "2016–2017",
+      "vendor": "Neoveg Fork (src/mainwindow.cpp • JorgeTheUser.qss)",
+      "versions": [
+        "Neoveg 14.0 (JorgeTheUser / JustTheUser)"
+      ],
+      "description": "Perfil JorgeTheUser importado do fork Neoveg (mainwindow.cpp + JorgeTheUser.qss): grafite médio #3F434B/#32363F, destaque #7895C8, vídeo #6D87CC e áudio #4D667C.",
+      "palette": {
+        "window_bg": "#3F434B",
+        "menu_bg": "#343842",
+        "toolbar_bg": "#343842",
+        "dock_header_bg": "#2B2F37",
+        "dock_panel_bg": "#32363F",
+        "dock_border": "#2A2E36",
+        "timeline_bg": "#2B2F37",
+        "ruler_bg": "#232323",
+        "track_video_bg": "#4D5F8E",
+        "track_audio_bg": "#3D5163",
+        "clip_header_bg": "#1F2329",
+        "accent_primary": "#6D87CC",
+        "accent_secondary": "#7895C8",
+        "timecode_bg": "#232323",
+        "timecode_fg": "#4F8C98",
+        "playhead_color": "#57A976",
+        "waveform_color": "#57A976",
+        "button_bg": "#484D57",
+        "button_fg": "#F0F0F0",
+        "text_primary": "#ECECEC",
+        "text_secondary": "#CBD5E1",
+        "status_bar_bg": "#2B2F37"
+      },
+      "reference_files": [
+        "beginner-tips-for-neoveg-pro-3.png"
+      ],
+      "assets": {
+        "logo_svg": "03_era_modern_carbon_v14_v22/logo_neoveg_jorgetheuser_v14.svg",
+        "logo_png": "03_era_modern_carbon_v14_v22/logo_neoveg_jorgetheuser_v14.png",
+        "icons_svg": "03_era_modern_carbon_v14_v22/icons_neoveg_jorgetheuser_v14.svg",
+        "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_jorgetheuser_v14.png",
+        "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_jorgetheuser_v14.json"
+      },
+      "curated_references": [
+        {
+          "file": "beginner-tips-for-neoveg-pro-3.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/beginner-tips-for-neoveg-pro-3.png",
+          "sampled_dominant_hex": [
+            "#D7DCE5",
+            "#B0ABAB",
+            "#97999A",
+            "#979594",
+            "#878B8A",
+            "#7D7877"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neoveg_actualblack_v15",
+      "era_folder": "03_era_modern_carbon_v14_v22",
+      "era_number": 3,
+      "name": "Neoveg: ActualBlack (Neoveg 15+ Dark)",
+      "short_badge": "NEOVEG • ACTUALBLACK V15+",
+      "years": "2017–2025",
+      "vendor": "Neoveg Fork (src/mainwindow.cpp • ActualBlack.qss)",
+      "versions": [
+        "Neoveg 15+ (ActualBlack)"
+      ],
+      "description": "Perfil ActualBlack importado do fork Neoveg (mainwindow.cpp + ActualBlack.qss): superfície escura #1F2023/#16181C, destaque #5D84C9, vídeo #5F7FD1 e áudio #4D6983.",
+      "palette": {
+        "window_bg": "#1F2023",
+        "menu_bg": "#23262C",
+        "toolbar_bg": "#23262C",
+        "dock_header_bg": "#20232A",
+        "dock_panel_bg": "#16181C",
+        "dock_border": "#17191D",
+        "timeline_bg": "#151515",
+        "ruler_bg": "#20232A",
+        "track_video_bg": "#3A4E7A",
+        "track_audio_bg": "#35495B",
+        "clip_header_bg": "#101216",
+        "accent_primary": "#5D84C9",
+        "accent_secondary": "#4B8FA0",
+        "timecode_bg": "#151515",
+        "timecode_fg": "#58B57A",
+        "playhead_color": "#5D84C9",
+        "waveform_color": "#58B57A",
+        "button_bg": "#2B2F36",
+        "button_fg": "#EFEFEF",
+        "text_primary": "#E8E8E8",
+        "text_secondary": "#94A3B8",
+        "status_bar_bg": "#1A1D22"
+      },
+      "reference_files": [
+        "8image.png",
+        "icones-neoveg.png"
+      ],
+      "assets": {
+        "logo_svg": "03_era_modern_carbon_v14_v22/logo_neoveg_actualblack_v15.svg",
+        "logo_png": "03_era_modern_carbon_v14_v22/logo_neoveg_actualblack_v15.png",
+        "icons_svg": "03_era_modern_carbon_v14_v22/icons_neoveg_actualblack_v15.svg",
+        "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_actualblack_v15.png",
+        "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_actualblack_v15.json"
+      },
+      "curated_references": [
+        {
+          "file": "8image.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/8image.png",
+          "sampled_dominant_hex": [
+            "#A2B3BC",
+            "#5A687A",
+            "#484751",
+            "#3B363C",
+            "#2E2E2F",
+            "#192135"
+          ]
+        },
+        {
+          "file": "icones-neoveg.png",
+          "relative_path": "03_era_modern_carbon_v14_v22/references/icones-neoveg.png",
+          "sampled_dominant_hex": [
+            "#E6CFC9",
+            "#98837E",
+            "#545052",
+            "#363636",
+            "#2D2D2D",
+            "#282929"
+          ]
+        }
+      ]
+    }
+  ]
+}

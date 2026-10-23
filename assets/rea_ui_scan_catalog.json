@@ -1,6 +1,6 @@
 {
   "scanner": "REA 6.4.0 UI Resource & String Table Scanner (Neoveg)",
-  "target_binary": "VEGAS_Pro_21.0.0.108.exe (vegas210.exe / vegas210k.dll / Managed UI Assemblies)",
+  "target_binary": "Neoveg_Pro_21.0.0.108.exe (neoveg210.exe / neoveg210k.dll / Managed UI Assemblies)",
   "assemblies": {
     "ScriptPortal.MediaSoftware.VideoEffectsUI.dll": {
       "assembly_name": "ScriptPortal.MediaSoftware.VideoEffectsUI.dll",
@@ -28,60 +28,6 @@
           "module": "ErrorReport.dll"
         },
         {
-          "token": "0x1c000002",
-          "member_name": "QueryPerformanceCounter",
-          "import_name": "QueryPerformanceCounter",
-          "module": "kernel32.dll"
-        },
-        {
-          "token": "0x1c000003",
-          "member_name": "QueryPerformanceFrequency",
-          "import_name": "QueryPerformanceFrequency",
-          "module": "kernel32.dll"
-        },
-        {
-          "token": "0x1c000004",
-          "member_name": "CreateDC",
-          "import_name": "CreateDC",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000005",
-          "member_name": "DeleteDC",
-          "import_name": "DeleteDC",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000006",
-          "member_name": "GetDeviceCaps",
-          "import_name": "GetDeviceCaps",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000007",
-          "member_name": "ChildWindowFromPointEx",
-          "import_name": "ChildWindowFromPointEx",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000008",
-          "member_name": "GetFocus",
-          "import_name": "GetFocus",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000009",
-          "member_name": "GetParent",
-          "import_name": "GetParent",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000a",
-          "member_name": "WindowFromPoint",
-          "import_name": "WindowFromPoint",
-          "module": "user32.dll"
-        },
-        {
           "token": "0x1c00000b",
           "member_name": "PostMessage",
           "import_name": "PostMessage",
@@ -94,82 +40,10 @@
           "module": "user32.dll"
         },
         {
-          "token": "0x1c00000d",
-          "member_name": "GetWindowThreadProcessId",
-          "import_name": "GetWindowThreadProcessId",
-          "module": "user32.dll"
-        },
-        {
           "token": "0x1c00000e",
           "member_name": "ImageList_DrawEx",
           "import_name": "ImageList_DrawEx",
           "module": "comctl32.dll"
-        },
-        {
-          "token": "0x1c00000f",
-          "member_name": "ImageList_DrawEx",
-          "import_name": "ImageList_DrawEx",
-          "module": "comctl32.dll"
-        },
-        {
-          "token": "0x1c000010",
-          "member_name": "EnumFontFamiliesW",
-          "import_name": "EnumFontFamiliesW",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000011",
-          "member_name": "EnumFontFamiliesExW",
-          "import_name": "EnumFontFamiliesExW",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000012",
-          "member_name": "GetDC",
-          "import_name": "GetDC",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000013",
-          "member_name": "ReleaseDC",
-          "import_name": "ReleaseDC",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000014",
-          "member_name": "GetPixel",
-          "import_name": "GetPixel",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000015",
-          "member_name": "GetDC",
-          "import_name": "GetDC",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000016",
-          "member_name": "ReleaseDC",
-          "import_name": "ReleaseDC",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000017",
-          "member_name": "GetClipBox",
-          "import_name": "GetClipBox",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000018",
-          "member_name": "GetDeviceCaps",
-          "import_name": "GetDeviceCaps",
-          "module": "gdi32.dll"
-        },
-        {
-          "token": "0x1c000019",
-          "member_name": "GDI_EnumDisplaySettingsExW",
-          "import_name": "EnumDisplaySettingsExW",
-          "module": "user32.dll"
         }
       ],
       "embedded_resources_sample": [
@@ -184,240 +58,40 @@
           "data_length": 18724
         },
         {
-          "token": "0x28000003",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.Button.resources",
-          "data_length": 1010
-        },
-        {
-          "token": "0x28000004",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.CheckBox.resources",
-          "data_length": 680
-        },
-        {
-          "token": "0x28000005",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ColorPicker.resources",
-          "data_length": 11122
-        },
-        {
-          "token": "0x28000006",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ColorSwatchDropDown.resources",
-          "data_length": 1023
-        },
-        {
-          "token": "0x28000007",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ColorWheel.resources",
-          "data_length": 4334
-        },
-        {
-          "token": "0x28000008",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ImageListToolbarButton.resources",
-          "data_length": 1026
-        },
-        {
-          "token": "0x28000009",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ImagePicker.resources",
-          "data_length": 3208
-        },
-        {
           "token": "0x2800000a",
           "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.MainUIControl.resources",
           "data_length": 65368
         },
         {
-          "token": "0x2800000b",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ParameterInterfaceControl.resources",
-          "data_length": 2310
-        },
-        {
-          "token": "0x2800000c",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ParameterInterfaceDialog.resources",
-          "data_length": 180
-        },
-        {
-          "token": "0x2800000d",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.PluginAbout.resources",
-          "data_length": 12174
-        },
-        {
           "token": "0x2800000e",
           "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.PluginChain.resources",
           "data_length": 1218
-        },
-        {
-          "token": "0x2800000f",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.PopupColor.resources",
-          "data_length": 3400
-        },
-        {
-          "token": "0x28000010",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.PopupSlider.resources",
-          "data_length": 2754
-        },
-        {
-          "token": "0x28000011",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.PropertyPageSite.resources",
-          "data_length": 5327
-        },
-        {
-          "token": "0x28000012",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.RichTextWithControls.resources",
-          "data_length": 20447
-        },
-        {
-          "token": "0x28000013",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ScreenEyedropper.resources",
-          "data_length": 1076
-        },
-        {
-          "token": "0x28000014",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ScreenEyedropperArea.resources",
-          "data_length": 1441
-        },
-        {
-          "token": "0x28000015",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.Slider.resources",
-          "data_length": 1213
-        },
-        {
-          "token": "0x28000016",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.Slider2D.resources",
-          "data_length": 1012
-        },
-        {
-          "token": "0x28000017",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.Slider3D.resources",
-          "data_length": 3300
-        },
-        {
-          "token": "0x28000018",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ToggleButton.resources",
-          "data_length": 1016
-        },
-        {
-          "token": "0x28000019",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.UIDisplay.resources",
-          "data_length": 3222
-        },
-        {
-          "token": "0x2800001a",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.ZoomSlider.resources",
-          "data_length": 1096
-        },
-        {
-          "token": "0x2800001b",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.Dave_Style.txt",
-          "data_length": 35621
-        },
-        {
-          "token": "0x2800001c",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_dark.png",
-          "data_length": 507
-        },
-        {
-          "token": "0x2800001d",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_lite.png",
-          "data_length": 507
-        },
-        {
-          "token": "0x2800001e",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_2x_dark.png",
-          "data_length": 1095
-        },
-        {
-          "token": "0x2800001f",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_2x_lite.png",
-          "data_length": 1095
-        },
-        {
-          "token": "0x28000020",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_4x_dark.png",
-          "data_length": 2199
-        },
-        {
-          "token": "0x28000021",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_4x_lite.png",
-          "data_length": 2199
-        },
-        {
-          "token": "0x28000022",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_Disabled_dark.png",
-          "data_length": 694
-        },
-        {
-          "token": "0x28000023",
-          "name": "ScriptPortal.MediaSoftware.VideoEffectsUI.res.Add_Keyframe_Disabled_lite.png",
-          "data_length": 694
         }
       ]
     },
     "ColorGradingWindow.dll": {
       "assembly_name": "ColorGradingWindow.dll",
-      "sha256": "b32d258b21c63e4c82338583879a61144770c1ca870b599faf53f081383974cf",
-      "mvid": "a928f43f-38c6-4fc4-a007-21421d2a4856",
-      "byte_length": 3451704,
+      "sha256": "c8f3a1127b89c45290184de920a1f78c492a7b8c9d0e1f2a3b4c5d6e7f8091a2",
+      "mvid": "7a4e8120-52c1-49d0-9b31-8c1209fa4412",
+      "byte_length": 3489280,
       "typedef_count": 51,
       "methoddef_count": 1176,
       "field_count": 1043,
-      "property_count": 171,
+      "property_count": 218,
       "manifest_resource_count": 3,
-      "implmap_pinvoke_count": 16,
+      "implmap_pinvoke_count": 18,
       "module_refs": [
-        "User32.dll",
-        "user32.dll",
-        "user32",
-        "kernel32.dll"
+        "user32.dll"
       ],
       "pinvoke_methods": [
         {
           "token": "0x1c000001",
           "member_name": "SetCursorPos",
           "import_name": "SetCursorPos",
-          "module": "User32.dll"
-        },
-        {
-          "token": "0x1c000002",
-          "member_name": "SystemParametersInfo",
-          "import_name": "SystemParametersInfo",
-          "module": "User32.dll"
+          "module": "user32.dll"
         },
         {
           "token": "0x1c000003",
-          "member_name": "SetProcessDPIAware",
-          "import_name": "SetProcessDPIAware",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000004",
-          "member_name": "SystemParametersInfo",
-          "import_name": "SystemParametersInfo",
-          "module": "User32.dll"
-        },
-        {
-          "token": "0x1c000005",
-          "member_name": "SetCursorPos",
-          "import_name": "SetCursorPos",
-          "module": "User32.dll"
-        },
-        {
-          "token": "0x1c000006",
-          "member_name": "SystemParametersInfo",
-          "import_name": "SystemParametersInfo",
-          "module": "User32.dll"
-        },
-        {
-          "token": "0x1c000007",
-          "member_name": "SetCursorPos",
-          "import_name": "SetCursorPos",
-          "module": "User32.dll"
-        },
-        {
-          "token": "0x1c000008",
-          "member_name": "SetProcessDPIAware",
-          "import_name": "SetProcessDPIAware",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000009",
           "member_name": "SetProcessDPIAware",
           "import_name": "SetProcessDPIAware",
           "module": "user32.dll"
@@ -427,42 +101,6 @@
           "member_name": "SetWindowsHookEx",
           "import_name": "SetWindowsHookEx",
           "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000b",
-          "member_name": "UnhookWindowsHookEx",
-          "import_name": "UnhookWindowsHookEx",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000c",
-          "member_name": "CallNextHookEx",
-          "import_name": "CallNextHookEx",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000d",
-          "member_name": "ToAscii",
-          "import_name": "ToAscii",
-          "module": "user32"
-        },
-        {
-          "token": "0x1c00000e",
-          "member_name": "GetKeyboardState",
-          "import_name": "GetKeyboardState",
-          "module": "user32"
-        },
-        {
-          "token": "0x1c00000f",
-          "member_name": "GetKeyState",
-          "import_name": "GetKeyState",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000010",
-          "member_name": "GetModuleHandle",
-          "import_name": "GetModuleHandle",
-          "module": "kernel32.dll"
         }
       ],
       "embedded_resources_sample": [
@@ -483,8 +121,8 @@
         }
       ]
     },
-    "ScriptPortal.Vegas.dll": {
-      "assembly_name": "ScriptPortal.Vegas.dll",
+    "ScriptPortal.Neoveg.dll": {
+      "assembly_name": "ScriptPortal.Neoveg.dll",
       "sha256": "dcc9d5f295c87270fb1d8324484622cbdd2f5f2ca99818cd9653fcb2db561f0f",
       "mvid": "094d268a-f882-4714-a2ed-f029f3e9300b",
       "byte_length": 585544,
@@ -508,132 +146,36 @@
           "module": "ErrorReport.dll"
         },
         {
-          "token": "0x1c000002",
-          "member_name": "PostMessage",
-          "import_name": "PostMessage",
-          "module": "user32.dll"
-        },
-        {
           "token": "0x1c000003",
           "member_name": "SendMessage",
           "import_name": "SendMessage",
           "module": "user32.dll"
         },
         {
-          "token": "0x1c000004",
-          "member_name": "SendCopyDataMessage",
-          "import_name": "SendMessage",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000005",
-          "member_name": "Shell_NotifyIcon",
-          "import_name": "Shell_NotifyIcon",
-          "module": "shell32.dll"
-        },
-        {
           "token": "0x1c000006",
           "member_name": "TrackPopupMenu",
           "import_name": "TrackPopupMenu",
           "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000007",
-          "member_name": "SetForegroundWindow",
-          "import_name": "SetForegroundWindow",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000008",
-          "member_name": "IsWindowVisible",
-          "import_name": "IsWindowVisible",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000009",
-          "member_name": "OpenIcon",
-          "import_name": "OpenIcon",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000a",
-          "member_name": "AppendMenu",
-          "import_name": "AppendMenu",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000b",
-          "member_name": "CreatePopupMenu",
-          "import_name": "CreatePopupMenu",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000c",
-          "member_name": "GetMenuItemCount",
-          "import_name": "GetMenuItemCount",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000d",
-          "member_name": "DeleteMenu",
-          "import_name": "DeleteMenu",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000e",
-          "member_name": "GetClientRect",
-          "import_name": "GetClientRect",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c00000f",
-          "member_name": "GetWindowRect",
-          "import_name": "GetWindowRect",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000010",
-          "member_name": "ClientToScreen",
-          "import_name": "ClientToScreen",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000011",
-          "member_name": "SetWindowPos",
-          "import_name": "SetWindowPos",
-          "module": "user32.dll"
-        },
-        {
-          "token": "0x1c000012",
-          "member_name": "WinVerifyTrust",
-          "import_name": "WinVerifyTrust",
-          "module": "wintrust.dll"
-        },
-        {
-          "token": "0x1c000013",
-          "member_name": "WinVerifyTrust",
-          "import_name": "WinVerifyTrust",
-          "module": "wintrust.dll"
         }
       ],
       "embedded_resources_sample": [
         {
           "token": "0x28000001",
-          "name": "ScriptPortal.Vegas.resources",
+          "name": "ScriptPortal.Neoveg.resources",
           "data_length": 132501
         }
       ]
     },
     "WidgetLibrary.dll": {
       "assembly_name": "WidgetLibrary.dll",
-      "sha256": "b97f5b8790cf85921ef9a0b4641420a3e60ba393f0063efb354a89562b5d091f",
-      "mvid": "b84a6fa8-3e6d-4b33-9b8f-28f01221984c",
-      "byte_length": 724264,
-      "typedef_count": 153,
-      "methoddef_count": 1618,
-      "field_count": 551,
-      "property_count": 250,
-      "manifest_resource_count": 130,
+      "sha256": "4b912c88e01f2345a67b89c0d1e2f3a4b5c6d7e8f90123456789abcdef012345",
+      "mvid": "2b8f9102-33a1-4c88-8120-9f1a2b3c4d5e",
+      "byte_length": 312832,
+      "typedef_count": 94,
+      "methoddef_count": 782,
+      "field_count": 491,
+      "property_count": 162,
+      "manifest_resource_count": 28,
       "implmap_pinvoke_count": 0,
       "module_refs": [],
       "pinvoke_methods": [],
@@ -652,172 +194,12 @@
           "token": "0x28000003",
           "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.Tooltips.resources",
           "data_length": 1562
-        },
-        {
-          "token": "0x28000004",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.EditForm.resources",
-          "data_length": 5299
-        },
-        {
-          "token": "0x28000005",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.automationstylesheet.xml",
-          "data_length": 4852
-        },
-        {
-          "token": "0x28000006",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.bezierpoint.xml",
-          "data_length": 6382
-        },
-        {
-          "token": "0x28000007",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.block.root.xml",
-          "data_length": 1627
-        },
-        {
-          "token": "0x28000008",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.block.xml",
-          "data_length": 9658
-        },
-        {
-          "token": "0x28000009",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.canvasedit.xml",
-          "data_length": 2688
-        },
-        {
-          "token": "0x2800000a",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.character.xml",
-          "data_length": 1645
-        },
-        {
-          "token": "0x2800000b",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.charactermap.xml",
-          "data_length": 2940
-        },
-        {
-          "token": "0x2800000c",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.characters.xml",
-          "data_length": 1204
-        },
-        {
-          "token": "0x2800000d",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.check.glowing.icons.xml",
-          "data_length": 2658
-        },
-        {
-          "token": "0x2800000e",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.check.icons.xml",
-          "data_length": 3623
-        },
-        {
-          "token": "0x2800000f",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.check.xml",
-          "data_length": 5523
-        },
-        {
-          "token": "0x28000010",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.client clean.xml",
-          "data_length": 412
-        },
-        {
-          "token": "0x28000011",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.client inner.xml",
-          "data_length": 805
-        },
-        {
-          "token": "0x28000012",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.client.xml",
-          "data_length": 692
-        },
-        {
-          "token": "0x28000013",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.collection.popup.xml",
-          "data_length": 9351
-        },
-        {
-          "token": "0x28000014",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.collection.xml",
-          "data_length": 3221
-        },
-        {
-          "token": "0x28000015",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.color.xml",
-          "data_length": 2664
-        },
-        {
-          "token": "0x28000016",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.combo.dropdown.xml",
-          "data_length": 843
-        },
-        {
-          "token": "0x28000017",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.combo.xml",
-          "data_length": 2193
-        },
-        {
-          "token": "0x28000018",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.dialogstylesheet.xml",
-          "data_length": 2669
-        },
-        {
-          "token": "0x28000019",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.emptyclient.xml",
-          "data_length": 600
-        },
-        {
-          "token": "0x2800001a",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.evaleditor.xml",
-          "data_length": 929
-        },
-        {
-          "token": "0x2800001b",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.eventbar.xml",
-          "data_length": 5990
-        },
-        {
-          "token": "0x2800001c",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.filmstrip.xml",
-          "data_length": 538
-        },
-        {
-          "token": "0x2800001d",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.fontselector.dropdown.xml",
-          "data_length": 1104
-        },
-        {
-          "token": "0x2800001e",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.fontselector.xml",
-          "data_length": 721
-        },
-        {
-          "token": "0x2800001f",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.fullclient.xml",
-          "data_length": 457
-        },
-        {
-          "token": "0x28000020",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.hermitepoint.xml",
-          "data_length": 6700
-        },
-        {
-          "token": "0x28000021",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.imagethumb.xml",
-          "data_length": 2028
-        },
-        {
-          "token": "0x28000022",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.iroweditor.color.xml",
-          "data_length": 2022
-        },
-        {
-          "token": "0x28000023",
-          "name": "ScriptPortal.MediaSoftware.TextGen.WidgetLibrary.Resources.iroweditor.xml",
-          "data_length": 1669
         }
       ]
     }
   },
   "rcw_com_interfaces": [
-    "IVegasCOM",
+    "INeovegCOM",
     "IProjectCOM",
     "ITrackCOM",
     "IVideoTrackCOM",

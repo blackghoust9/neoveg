@@ -18,7 +18,7 @@ namespace Neoveg.Views;
 public sealed class AdvancedSettingsWindow : Window
 {
     public AdvancedSettingsWindow(
-        VegasProject project,
+        NeovegProject project,
         RustCoreInterop rustInterop,
         string ffmpegStatusBanner,
         Action onSettingsApplied)
@@ -235,7 +235,7 @@ public sealed class AdvancedSettingsWindow : Window
 
         var cmbMotionBlur = CreateCombo(new[]
         {
-            "Gaussian (VEGAS Default)",
+            "Gaussian (Neoveg Default)",
             "Pyramid",
             "Box"
         }, 0);

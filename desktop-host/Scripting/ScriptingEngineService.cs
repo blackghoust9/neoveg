@@ -43,10 +43,10 @@ public sealed record ScriptExecutionResult(
 
 /// <summary>
 /// Dynamic Scripting & Dockable Extension Engine for Neoveg:
-/// - Executes C# scripts (`.cs`) at runtime via Roslyn (`Microsoft.CodeAnalysis.CSharp.Scripting`) with full access to `Neoveg.Scripting` (`Vegas`, `Project`, `Track`, `TrackEvent`, `VideoEvent`, `AudioEvent`, `Take`, `Effect`, `Marker`, `Region`).
-/// - Executes Python scripts (`.py`) via `python-backend/vegas_scripting.py` and synchronizes timeline mutations back into Avalonia UI in real time.
-/// - Loads compiled `.dll` extensions (`ICustomCommandModule`, `DockableControl`, `EntryPoint.FromVegas`).
-/// - Manages Dockable Window Extensions (`VPFlow`, `Datamosh`, `Vegasaur`, `HOS`).
+/// - Executes C# scripts (`.cs`) at runtime via Roslyn (`Microsoft.CodeAnalysis.CSharp.Scripting`) with full access to `Neoveg.Scripting` (`Neoveg`, `Project`, `Track`, `TrackEvent`, `VideoEvent`, `AudioEvent`, `Take`, `Effect`, `Marker`, `Region`).
+/// - Executes Python scripts (`.py`) via `python-backend/neoveg_scripting.py` and synchronizes timeline mutations back into Avalonia UI in real time.
+/// - Loads compiled `.dll` extensions (`ICustomCommandModule`, `DockableControl`, `EntryPoint.FromNeoveg`).
+/// - Manages Dockable Window Extensions (`VPFlow`, `Datamosh`, `Neoveg Toolkit`, `HOS`).
 /// </summary>
 public sealed class ScriptingEngineService
 {
@@ -115,7 +115,7 @@ public sealed class ScriptingEngineService
                 string desc = ext switch
                 {
                     ".cs" => "Script C# compilado em tempo de execução via Roslyn (Neoveg.Scripting)",
-                    ".py" => "Script Python integrado ao motor vegas_scripting.py",
+                    ".py" => "Script Python integrado ao motor neoveg_scripting.py",
                     _ => "Módulo de extensão .NET compilado (ICustomCommandModule / EntryPoint)"
                 };
 
@@ -182,7 +182,7 @@ public sealed class ScriptingEngineService
             }
         }
 
-        // Ensure the 4 flagship Dockable Extensions (VPFlow, Datamosh, Vegasaur, HOS) are always available
+        // Ensure the 4 flagship Dockable Extensions (VPFlow, Datamosh, Neoveg Toolkit, HOS) are always available
         var defaults = new[]
         {
             new DockableExtensionEntry(
@@ -198,9 +198,9 @@ public sealed class ScriptingEngineService
                 "1.8.2",
                 "Painel acoplável para remoção de I-Frames, duplicação de vetores de movimento P-Frame e cortes rítmicos de glitch."),
             new DockableExtensionEntry(
-                "vegasaur_extension",
-                "Vegasaur 4.0 Toolkit — Batch Auditor, Smart Trim & Markers",
-                "Vegasaur Compatible Dockable Host",
+                "neoveg_toolkit_extension",
+                "Neoveg Toolkit 4.0 Toolkit — Batch Auditor, Smart Trim & Markers",
+                "Neoveg Toolkit Compatible Dockable Host",
                 "4.0.1",
                 "Automação em lote para fechar lacunas (Ripple Delete Gaps), criar marcadores de batida BPM e aplicar presets de FX."),
             new DockableExtensionEntry(
@@ -222,7 +222,7 @@ public sealed class ScriptingEngineService
 
     public async Task<ScriptExecutionResult> ExecuteScriptFileAsync(
         string scriptFilePath,
-        VegasProject project,
+        NeovegProject project,
         string? selectedClipId,
         string? selectedTrackId,
         Action onUiRefresh)
@@ -238,12 +238,12 @@ public sealed class ScriptingEngineService
         }
 
         string ext = Path.GetExtension(scriptFilePath).ToLowerInvariant();
-        var vegasHost = new Vegas(project, _rustInterop, selectedClipId, selectedTrackId, onUiRefresh);
+        var neovegHost = new NeovegHost(project, _rustInterop, selectedClipId, selectedTrackId, onUiRefresh);
 
         if (ext == ".cs")
         {
             string code = await File.ReadAllTextAsync(scriptFilePath);
-            return await ExecuteCSharpScriptCodeAsync(Path.GetFileName(scriptFilePath), code, vegasHost);
+            return await ExecuteCSharpScriptCodeAsync(Path.GetFileName(scriptFilePath), code, neovegHost);
         }
         if (ext == ".py")
         {
@@ -251,7 +251,7 @@ public sealed class ScriptingEngineService
         }
         if (ext == ".dll")
         {
-            return ExecuteCompiledDllExtension(scriptFilePath, vegasHost);
+            return ExecuteCompiledDllExtension(scriptFilePath, neovegHost);
         }
 
         return new ScriptExecutionResult(
@@ -269,11 +269,11 @@ public sealed class ScriptingEngineService
     public async Task<ScriptExecutionResult> ExecuteCSharpScriptCodeAsync(
         string scriptName,
         string csharpCode,
-        Vegas vegasHost)
+        NeovegHost neovegHost)
     {
         try
         {
-            string hostAssemblyLocation = typeof(Vegas).Assembly.Location;
+            string hostAssemblyLocation = typeof(NeovegHost).Assembly.Location;
             if (!string.IsNullOrWhiteSpace(hostAssemblyLocation) && File.Exists(hostAssemblyLocation))
             {
                 var options = ScriptOptions.Default
@@ -281,53 +281,53 @@ public sealed class ScriptingEngineService
                         typeof(object).Assembly,
                         typeof(Enumerable).Assembly,
                         typeof(List<>).Assembly,
-                        typeof(Vegas).Assembly)
+                        typeof(NeovegHost).Assembly)
                     .WithImports(
                         "System",
                         "System.Linq",
                         "System.Collections.Generic",
                         "Neoveg.Scripting",
-                        "ScriptPortal.Vegas");
+                        "ScriptPortal.Neoveg");
 
                 string runnableScript = NormalizeEntryPointCSharpScript(csharpCode);
-                var globals = new ScriptGlobals(vegasHost);
+                var globals = new ScriptGlobals(neovegHost);
                 await CSharpScript.RunAsync(runnableScript, options, globals: globals);
 
-                vegasHost.UpdateUI();
-                string summary = vegasHost.ScriptLogs.LastOrDefault()
+                neovegHost.UpdateUI();
+                string summary = neovegHost.ScriptLogs.LastOrDefault()
                                  ?? $"Script C# '{scriptName}' executado com sucesso via Roslyn.";
                 return new ScriptExecutionResult(
                     true,
                     scriptName,
                     "Roslyn (Microsoft.CodeAnalysis.CSharp.Scripting)",
                     summary,
-                    vegasHost.ScriptLogs.ToList());
+                    neovegHost.ScriptLogs.ToList());
             }
         }
         catch (Exception roslynEx)
         {
-            vegasHost.Log($"[Roslyn Runtime Info] Fallback p/ executor direto: {roslynEx.Message}");
+            neovegHost.Log($"[Roslyn Runtime Info] Fallback p/ executor direto: {roslynEx.Message}");
         }
 
-        // Single-file publish (`PublishSingleFile=true`) or direct AST execution path on `vegasHost`
-        return ExecuteCSharpAstOnVegasHost(scriptName, csharpCode, vegasHost);
+        // Single-file publish (`PublishSingleFile=true`) or direct AST execution path on `neovegHost`
+        return ExecuteCSharpAstOnNeovegHost(scriptName, csharpCode, neovegHost);
     }
 
     private static string NormalizeEntryPointCSharpScript(string rawCode)
     {
         if (rawCode.Contains("class EntryPoint", StringComparison.Ordinal) &&
-            rawCode.Contains("FromVegas", StringComparison.Ordinal) &&
-            !rawCode.Contains("new EntryPoint().FromVegas", StringComparison.Ordinal))
+            rawCode.Contains("FromNeoveg", StringComparison.Ordinal) &&
+            !rawCode.Contains("new EntryPoint().FromNeoveg", StringComparison.Ordinal))
         {
-            return rawCode + "\nnew EntryPoint().FromVegas(myVegas);\n";
+            return rawCode + "\nnew EntryPoint().FromNeoveg(myNeoveg);\n";
         }
         return rawCode;
     }
 
-    private ScriptExecutionResult ExecuteCSharpAstOnVegasHost(
+    private ScriptExecutionResult ExecuteCSharpAstOnNeovegHost(
         string scriptName,
         string csharpCode,
-        Vegas vegasHost)
+        NeovegHost neovegHost)
     {
         int totalSplits = 0;
         int totalGlitched = 0;
@@ -337,7 +337,7 @@ public sealed class ScriptingEngineService
             csharpCode.Contains("Split", StringComparison.OrdinalIgnoreCase))
         {
             Timecode splitInterval = Timecode.FromSeconds(0.85);
-            foreach (Track track in vegasHost.Project.Tracks)
+            foreach (Track track in neovegHost.Project.Tracks)
             {
                 if (!track.IsVideo) continue;
                 if (!track.Selected && track.Index != 0) continue;
@@ -356,7 +356,7 @@ public sealed class ScriptingEngineService
                                 glitchedRight.PlaybackRate = 1.15;
                                 glitchedRight.FadeIn.Length = Timecode.FromSeconds(0.12);
                                 glitchedRight.FadeIn.Curve = CurveType.Sharp;
-                                vegasHost.Project.Markers.Add(new Marker(glitchedRight.Start, $"Datamosh Glitch #{totalSplits + 1}"));
+                                neovegHost.Project.Markers.Add(new Marker(glitchedRight.Start, $"Datamosh Glitch #{totalSplits + 1}"));
                                 totalSplits++;
                                 totalGlitched++;
                             }
@@ -368,44 +368,44 @@ public sealed class ScriptingEngineService
                 }
             }
 
-            vegasHost.Log($"[{scriptName}] Concluido via Neoveg.Scripting: {totalSplits} corte(s) sub-quadro e {totalGlitched} evento(s) com Datamosh Glitch aplicado.");
+            neovegHost.Log($"[{scriptName}] Concluido via Neoveg.Scripting: {totalSplits} corte(s) sub-quadro e {totalGlitched} evento(s) com Datamosh Glitch aplicado.");
         }
         else if (csharpCode.Contains("AutoCrossfade", StringComparison.OrdinalIgnoreCase) ||
                  csharpCode.Contains("FadeIn", StringComparison.OrdinalIgnoreCase))
         {
-            int count = vegasHost.ApplyVPFlowAutoCrossfade(0.75, CurveType.Smooth);
-            vegasHost.Log($"[{scriptName}] Aplicados {count} auto-crossfades suaves via Neoveg.Scripting.");
+            int count = neovegHost.ApplyVPFlowAutoCrossfade(0.75, CurveType.Smooth);
+            neovegHost.Log($"[{scriptName}] Aplicados {count} auto-crossfades suaves via Neoveg.Scripting.");
         }
         else
         {
-            vegasHost.Project.Markers.Add(new Marker(vegasHost.Cursor, $"Script: {scriptName}"));
-            vegasHost.Log($"[{scriptName}] Executado com sucesso sobre {vegasHost.Project.Tracks.Count} faixas.");
+            neovegHost.Project.Markers.Add(new Marker(neovegHost.Cursor, $"Script: {scriptName}"));
+            neovegHost.Log($"[{scriptName}] Executado com sucesso sobre {neovegHost.Project.Tracks.Count} faixas.");
         }
 
-        vegasHost.UpdateUI();
-        string summaryMsg = vegasHost.ScriptLogs.LastOrDefault() ?? $"Script C# '{scriptName}' executado.";
+        neovegHost.UpdateUI();
+        string summaryMsg = neovegHost.ScriptLogs.LastOrDefault() ?? $"Script C# '{scriptName}' executado.";
         return new ScriptExecutionResult(
             true,
             scriptName,
             "Roslyn C# Scripting Engine (Neoveg.Scripting)",
             summaryMsg,
-            vegasHost.ScriptLogs.ToList());
+            neovegHost.ScriptLogs.ToList());
     }
 
     /// <summary>
-    /// Executes a Python script (`.py`) via `python-backend/vegas_scripting.py` and applies all modified tracks,
-    /// clips, fades, markers, regions, and FX back to the live `VegasProject` in real time.
+    /// Executes a Python script (`.py`) via `python-backend/neoveg_scripting.py` and applies all modified tracks,
+    /// clips, fades, markers, regions, and FX back to the live `NeovegProject` in real time.
     /// </summary>
     public async Task<ScriptExecutionResult> ExecutePythonScriptFileAsync(
         string scriptFilePath,
-        VegasProject project,
+        NeovegProject project,
         Action onUiRefresh)
     {
         string scriptName = Path.GetFileName(scriptFilePath);
-        string runnerPy = Path.Combine(_rootDir, "python-backend", "vegas_scripting.py");
+        string runnerPy = Path.Combine(_rootDir, "python-backend", "neoveg_scripting.py");
         if (!File.Exists(runnerPy))
         {
-            runnerPy = Path.Combine(AppContext.BaseDirectory, "python-backend", "vegas_scripting.py");
+            runnerPy = Path.Combine(AppContext.BaseDirectory, "python-backend", "neoveg_scripting.py");
         }
 
         string tempIn = Path.Combine(Path.GetTempPath(), $"neoveg_script_in_{Guid.NewGuid():N}.json");
@@ -440,7 +440,7 @@ public sealed class ScriptingEngineService
                 if (File.Exists(tempOut))
                 {
                     string updatedJson = await File.ReadAllTextAsync(tempOut);
-                    var updatedProj = JsonSerializer.Deserialize<VegasProject>(updatedJson, new JsonSerializerOptions
+                    var updatedProj = JsonSerializer.Deserialize<NeovegProject>(updatedJson, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     });
@@ -453,7 +453,7 @@ public sealed class ScriptingEngineService
                 }
 
                 var logs = new List<string>();
-                string summary = $"Script Python '{scriptName}' executado via python-backend/vegas_scripting.py.";
+                string summary = $"Script Python '{scriptName}' executado via python-backend/neoveg_scripting.py.";
                 if (!string.IsNullOrWhiteSpace(stdout))
                 {
                     try
@@ -481,7 +481,7 @@ public sealed class ScriptingEngineService
                 return new ScriptExecutionResult(
                     true,
                     scriptName,
-                    "Python Engine (python-backend/vegas_scripting.py)",
+                    "Python Engine (python-backend/neoveg_scripting.py)",
                     summary,
                     logs);
             }
@@ -509,7 +509,7 @@ public sealed class ScriptingEngineService
             Array.Empty<string>());
     }
 
-    public ScriptExecutionResult ExecuteCompiledDllExtension(string dllPath, Vegas vegasHost)
+    public ScriptExecutionResult ExecuteCompiledDllExtension(string dllPath, NeovegHost neovegHost)
     {
         string dllName = Path.GetFileName(dllPath);
         try
@@ -523,7 +523,7 @@ public sealed class ScriptingEngineService
                 {
                     if (Activator.CreateInstance(type) is ICustomCommandModule mod)
                     {
-                        mod.InitializeModule(vegasHost);
+                        mod.InitializeModule(neovegHost);
                         var cmds = mod.GetCustomCommands();
                         if (cmds != null)
                         {
@@ -538,20 +538,20 @@ public sealed class ScriptingEngineService
                 }
                 else if (string.Equals(type.Name, "EntryPoint", StringComparison.OrdinalIgnoreCase))
                 {
-                    var method = type.GetMethod("FromVegas", BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+                    var method = type.GetMethod("FromNeoveg", BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
                     if (method != null)
                     {
                         object? instance = method.IsStatic ? null : Activator.CreateInstance(type);
-                        method.Invoke(instance, new object[] { vegasHost });
+                        method.Invoke(instance, new object[] { neovegHost });
                         executedCount++;
                     }
                 }
             }
 
-            vegasHost.UpdateUI();
-            string msg = vegasHost.ScriptLogs.LastOrDefault()
+            neovegHost.UpdateUI();
+            string msg = neovegHost.ScriptLogs.LastOrDefault()
                          ?? $"Extensão compilada '{dllName}' carregada ({executedCount} módulo(s) executado(s)).";
-            return new ScriptExecutionResult(true, dllName, ".NET Assembly Loader (.dll)", msg, vegasHost.ScriptLogs.ToList());
+            return new ScriptExecutionResult(true, dllName, ".NET Assembly Loader (.dll)", msg, neovegHost.ScriptLogs.ToList());
         }
         catch (Exception ex)
         {
@@ -564,7 +564,7 @@ public sealed class ScriptingEngineService
         }
     }
 
-    private static void ApplyUpdatedProjectStateInPlace(VegasProject target, VegasProject source)
+    private static void ApplyUpdatedProjectStateInPlace(NeovegProject target, NeovegProject source)
     {
         target.Playhead = source.Playhead;
         target.Tracks.Clear();

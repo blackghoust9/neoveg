@@ -8,7 +8,7 @@ using Avalonia.Media;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// Shared 16x16 vector icon set for every Neoveg toolbar and panel button (VEGAS Pro icon-only buttons).
+/// Shared 16x16 vector icon set for every Neoveg toolbar and panel button (Neoveg icon-only buttons).
 /// Outline icons are stroked; transport glyphs (play, stop, record...) are stroked and filled.
 /// The function name is exposed only through the button tooltip.
 /// </summary>

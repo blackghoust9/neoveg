@@ -1,8 +1,8 @@
 {
-  "name": "openvegas-frontend",
+  "name": "neoveg-frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "OpenVegas Pro NLE Studio Frontend (TypeScript / HTML5 Canvas / Web Audio API)",
+  "description": "OpenNeoveg NLE Studio Frontend (TypeScript / HTML5 Canvas / Web Audio API)",
   "type": "module",
   "scripts": {
     "build": "esbuild src/main.ts --bundle --outfile=public/bundle.js --format=esm --target=es2022 --sourcemap",

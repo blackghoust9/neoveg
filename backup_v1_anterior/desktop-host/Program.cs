@@ -11,7 +11,7 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace OpenVegasDesktop;
+namespace NeovegDesktop;
 
 internal static class Program
 {
@@ -19,7 +19,7 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new VegasStudioWindow());
+        Application.Run(new NeovegStudioWindow());
     }
 }
 
@@ -53,7 +53,7 @@ public sealed class DarkColorTable : ProfessionalColorTable
     public override Color SeparatorLight => Color.FromArgb(46, 52, 64);
 }
 
-public sealed class VegasStudioWindow : Form
+public sealed class NeovegHostStudioWindow : Form
 {
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -70,11 +70,11 @@ public sealed class VegasStudioWindow : Form
     private FormWindowState _prevWindowState;
     private FormBorderStyle _prevBorderStyle;
 
-    public VegasStudioWindow()
+    public NeovegStudioWindow()
     {
         _rootDir = ResolveWorkspaceRoot();
 
-        Text = "OPEN VEGAS PRO 21 — NLE Studio (Rust • Python • TypeScript Native Executable)";
+        Text = "OPEN NEOVEG 21 — NLE Studio (Rust • Python • TypeScript Native Executable)";
         Width = 1480;
         Height = 900;
         MinimumSize = new Size(1100, 680);
@@ -83,7 +83,7 @@ public sealed class VegasStudioWindow : Form
         ForeColor = Color.FromArgb(241, 245, 249);
         WindowState = FormWindowState.Maximized;
 
-        string icoPath = Path.Combine(_rootDir, "desktop-host", "OpenVegasPro21.ico");
+        string icoPath = Path.Combine(_rootDir, "desktop-host", "NeovegLegacy.ico");
         if (File.Exists(icoPath))
         {
             try { Icon = new Icon(icoPath); } catch { }
@@ -116,7 +116,7 @@ public sealed class VegasStudioWindow : Form
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI Semibold", 13f),
             ForeColor = Color.FromArgb(147, 197, 253),
-            Text = "Inicializando OpenVegas Pro 21 Studio...\nCarregando Rust Core DSP + Python FFmpeg Engine + TypeScript NLE Surface...",
+            Text = "Inicializando OpenNeoveg 21 Studio...\nCarregando Rust Core DSP + Python FFmpeg Engine + TypeScript NLE Surface...",
         };
         _splashPanel.Controls.Add(_splashLabel);
 
@@ -172,18 +172,18 @@ public sealed class VegasStudioWindow : Form
         var fileMenu = new ToolStripMenuItem("Arquivo");
         var itemWelcome = new ToolStripMenuItem("Janela de Boas-Vindas / Projetos / Configurações Avançadas...", null, async (_, _) =>
         {
-            await ExecJsAsync("window.openVegasApp?.openWelcomeModal();");
+            await ExecJsAsync("window.openNeovegApp?.openWelcomeModal();");
         });
         var itemNewEmpty = new ToolStripMenuItem("Novo Projeto Vazio", null, async (_, _) =>
         {
-            await ExecJsAsync("window.openVegasApp?.createEmptyProjectFlow();");
+            await ExecJsAsync("window.openNeovegApp?.createEmptyProjectFlow();");
         })
         {
             ShortcutKeys = Keys.Control | Keys.N
         };
-        var itemLoadDemo = new ToolStripMenuItem("Abrir Projeto de Demonstração (OpenVegas_Broadcast_Demo.veg)", null, async (_, _) =>
+        var itemLoadDemo = new ToolStripMenuItem("Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.veg)", null, async (_, _) =>
         {
-            await ExecJsAsync("window.openVegasApp?.loadDemoProjectFlow();");
+            await ExecJsAsync("window.openNeovegApp?.loadDemoProjectFlow();");
         });
         var itemOpenVeg = new ToolStripMenuItem("Abrir Projeto (.veg)...", null, async (_, _) => await OpenProjectDialogAsync())
         {
@@ -199,7 +199,7 @@ public sealed class VegasStudioWindow : Form
         };
         var itemRenderAs = new ToolStripMenuItem("Render As... (FFmpeg + Frei0r + LADSPA)", null, async (_, _) =>
         {
-            await ExecJsAsync("window.openVegasApp?.openRenderModal();");
+            await ExecJsAsync("window.openNeovegApp?.openRenderModal();");
         })
         {
             ShortcutKeys = Keys.Control | Keys.M
@@ -226,69 +226,69 @@ public sealed class VegasStudioWindow : Form
         // EDITAR
         var editMenu = new ToolStripMenuItem("Editar");
         editMenu.DropDownItems.Add(new ToolStripMenuItem("Play / Pause (Space)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.togglePlayback();")));
+            await ExecJsAsync("window.openNeovegApp?.togglePlayback();")));
         editMenu.DropDownItems.Add(new ToolStripMenuItem("Split Event at Playhead (S)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.splitAtPlayhead();")));
+            await ExecJsAsync("window.openNeovegApp?.splitAtPlayhead();")));
         editMenu.DropDownItems.Add(new ToolStripMenuItem("Excluir Evento Selecionado (Del)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.deleteSelectedClip();")));
+            await ExecJsAsync("window.openNeovegApp?.deleteSelectedClip();")));
 
         // INSERIR
         var insertMenu = new ToolStripMenuItem("Inserir");
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Nova Faixa de Vídeo", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.addTrack('video');")));
+            await ExecJsAsync("window.openNeovegApp?.addTrack('video');")));
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Nova Faixa de Áudio", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.addTrack('audio');")));
+            await ExecJsAsync("window.openNeovegApp?.addTrack('audio');")));
         insertMenu.DropDownItems.Add(new ToolStripSeparator());
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Agrupar Faixas de Vídeo + Áudio (Track Group V+A)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.groupAVTracksFlow();")));
+            await ExecJsAsync("window.openNeovegApp?.groupAVTracksFlow();")));
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Desagrupar Faixas de Vídeo / Áudio", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.ungroupTracksFlow();")));
+            await ExecJsAsync("window.openNeovegApp?.ungroupTracksFlow();")));
         insertMenu.DropDownItems.Add(new ToolStripSeparator());
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Inserir Marker no Cursor (M)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.insertMarkerAtPlayhead();")));
+            await ExecJsAsync("window.openNeovegApp?.insertMarkerAtPlayhead();")));
         insertMenu.DropDownItems.Add(new ToolStripMenuItem("Inserir Region no Loop (R)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.insertRegionAtLoop();")));
+            await ExecJsAsync("window.openNeovegApp?.insertRegionAtLoop();")));
 
         // JANELAS / LAYOUT & MULTI-MONITOR
         var winMenu = new ToolStripMenuItem("Janelas");
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Destacar Video Preview para Outro Monitor (Janela OS Nativa)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.popoutPanelToMonitor('pane-preview');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.popoutPanelToMonitor('pane-preview');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Destacar Media Pool & FX para Outro Monitor (Janela OS Nativa)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.popoutPanelToMonitor('pane-media');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.popoutPanelToMonitor('pane-media');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Destacar Event Pan/Crop & Inspector para Outro Monitor", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.popoutPanelToMonitor('pane-inspector');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.popoutPanelToMonitor('pane-inspector');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Destacar Master Mixer & Scopes para Outro Monitor", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.popoutPanelToMonitor('pane-mixer');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.popoutPanelToMonitor('pane-mixer');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Destacar Timeline Multi-Track para Outro Monitor", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.popoutPanelToMonitor('pane-timeline');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.popoutPanelToMonitor('pane-timeline');")));
         winMenu.DropDownItems.Add(new ToolStripSeparator());
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar Todas as Janelas Internas (Modo Flutuante Livre)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.floatAllPanels();")));
-        winMenu.DropDownItems.Add(new ToolStripMenuItem("Acoplar Todas (Restaurar Layout Padrão Qt/VEGAS)", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.resetDefaultLayout();")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.floatAllPanels();")));
+        winMenu.DropDownItems.Add(new ToolStripMenuItem("Acoplar Todas (Restaurar Layout Padrão Qt/Neoveg)", null, async (_, _) =>
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.resetDefaultLayout();")));
         winMenu.DropDownItems.Add(new ToolStripSeparator());
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar / Acoplar: Project Media & FX", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.toggleFloat('pane-media');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.toggleFloat('pane-media');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar / Acoplar: Event Pan/Crop & Inspector", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.toggleFloat('pane-inspector');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.toggleFloat('pane-inspector');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar / Acoplar: Video Preview Monitor", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.toggleFloat('pane-preview');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.toggleFloat('pane-preview');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar / Acoplar: Master Mixer & RGB Scopes", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.toggleFloat('pane-mixer');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.toggleFloat('pane-mixer');")));
         winMenu.DropDownItems.Add(new ToolStripMenuItem("Soltar / Acoplar: Multi-Track Timeline", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.dockManager?.toggleFloat('pane-timeline');")));
+            await ExecJsAsync("window.openNeovegApp?.dockManager?.toggleFloat('pane-timeline');")));
 
         // FERRAMENTAS & CONFIGURAÇÕES
         var toolsMenu = new ToolStripMenuItem("Ferramentas");
         toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Abrir Configurações Avançadas em Outra Janela...", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.openAdvancedSettingsWindow();")));
+            await ExecJsAsync("window.openNeovegApp?.openAdvancedSettingsWindow();")));
         toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Aba de Configurações Avançadas do Projeto e Estúdio...", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.openSettingsTab();")));
+            await ExecJsAsync("window.openNeovegApp?.openSettingsTab();")));
         toolsMenu.DropDownItems.Add(new ToolStripSeparator());
-        toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Diagnóstico e Correção de Problemas do VEGAS + log_erros.txt...", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.openDiagnosticsModal();")));
-        toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Vegas Python Scripting Console...", null, async (_, _) =>
-            await ExecJsAsync("window.openVegasApp?.openScriptingModal();")));
+        toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Diagnóstico e Correção de Problemas do Neoveg + log_erros.txt...", null, async (_, _) =>
+            await ExecJsAsync("window.openNeovegApp?.openDiagnosticsModal();")));
+        toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Neoveg Python Scripting Console...", null, async (_, _) =>
+            await ExecJsAsync("window.openNeovegApp?.openScriptingModal();")));
         toolsMenu.DropDownItems.Add(new ToolStripMenuItem("Abrir Pasta de Vídeos Renderizados (renders/)", null, (_, _) =>
         {
             string rendersPath = Path.Combine(_rootDir, "renders");
@@ -338,7 +338,7 @@ public sealed class VegasStudioWindow : Form
 
             string userDataDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "OpenVegasPro21",
+                "NeovegLegacy",
                 "WebView2Data"
             );
             Directory.CreateDirectory(userDataDir);
@@ -428,7 +428,7 @@ public sealed class VegasStudioWindow : Form
 
         var popForm = new Form
         {
-            Text = $"OpenVegas Pro 21 — Multi-Monitor Studio Panel ({winArgs.Uri})",
+            Text = $"OpenNeoveg 21 — Multi-Monitor Studio Panel ({winArgs.Uri})",
             StartPosition = FormStartPosition.Manual,
             Location = new Point(bounds.X, bounds.Y),
             Size = new Size(bounds.Width, bounds.Height),
@@ -493,7 +493,7 @@ public sealed class VegasStudioWindow : Form
             CreateNoWindow = true,
             UseShellExecute = false,
         };
-        psi.Environment["OPENVEGAS_PORT"] = _port.ToString();
+        psi.Environment["OPENNeoveg_PORT"] = _port.ToString();
         _backendProcess = Process.Start(psi);
 
         for (int i = 0; i < 32; i++)
@@ -532,14 +532,14 @@ public sealed class VegasStudioWindow : Form
         if (_webView.CoreWebView2 == null) return;
         using var sfd = new SaveFileDialog
         {
-            Title = "Salvar Projeto VEGAS Pro (.veg)",
-            Filter = "VEGAS Project (*.veg)|*.veg|JSON Project (*.json)|*.json",
-            FileName = "OpenVegas_Broadcast_Master.veg",
+            Title = "Salvar Projeto Neoveg (.veg)",
+            Filter = "Neovegject (*.veg)|*.veg|JSON Project (*.json)|*.json",
+            FileName = "Neoveg_Broadcast_Master.veg",
             InitialDirectory = _rootDir,
         };
         if (sfd.ShowDialog(this) == DialogResult.OK)
         {
-            string rawRes = await ExecJsAsync("window.openVegasApp ? window.openVegasApp.exportProjectJson() : ''");
+            string rawRes = await ExecJsAsync("window.openNeovegApp ? window.openNeovegApp.exportProjectJson() : ''");
             string? unquoted = JsonSerializer.Deserialize<string>(rawRes);
             if (!string.IsNullOrEmpty(unquoted))
             {
@@ -553,15 +553,15 @@ public sealed class VegasStudioWindow : Form
         if (_webView.CoreWebView2 == null) return;
         using var ofd = new OpenFileDialog
         {
-            Title = "Abrir Projeto VEGAS Pro (.veg)",
-            Filter = "VEGAS Project (*.veg;*.json)|*.veg;*.json",
+            Title = "Abrir Projeto Neoveg (.veg)",
+            Filter = "Neovegject (*.veg;*.json)|*.veg;*.json",
             InitialDirectory = _rootDir,
         };
         if (ofd.ShowDialog(this) == DialogResult.OK)
         {
             string content = await File.ReadAllTextAsync(ofd.FileName, Encoding.UTF8);
             string escaped = JsonSerializer.Serialize(content);
-            await ExecJsAsync($"window.openVegasApp?.loadProjectJson({escaped});");
+            await ExecJsAsync($"window.openNeovegApp?.loadProjectJson({escaped});");
         }
     }
 
@@ -589,7 +589,7 @@ public sealed class VegasStudioWindow : Form
                 {
                     string assetJson = assetElem.GetRawText();
                     await ExecJsAsync(
-                        $"if(window.openVegasApp) {{ const a = {assetJson}; a.color = a.type==='audio'?'#0891b2':'#2563eb'; window.openVegasApp.mediaBin.unshift(a); window.openVegasApp.renderLeftDock(); window.openVegasApp.addMediaAssetToTimeline(a); }}"
+                        $"if(window.openNeovegApp) {{ const a = {assetJson}; a.color = a.type==='audio'?'#0891b2':'#2563eb'; window.openNeovegApp.mediaBin.unshift(a); window.openNeovegApp.renderLeftDock(); window.openNeovegApp.addMediaAssetToTimeline(a); }}"
                     );
                 }
             }

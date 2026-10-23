@@ -1,11 +1,11 @@
-// OpenVegas Pro 21 — Compiled TypeScript Studio Bundle
+// OpenNeoveg 21 — Compiled TypeScript Studio Bundle
 // Generated from frontend/src/*.ts
 
 
 // ─── MODULE: src/types.ts ───
 /**
- * OpenVegas Pro 21 — Core TypeScript Data Models
- * Mirrors the Rust Core (`openvegas-core`), Python Backend, Frei0r, LADSPA & CorridorKey schemas.
+ * OpenNeoveg 21 — Core TypeScript Data Models
+ * Mirrors the Rust Core (`neoveg-core`), Python Backend, Frei0r, LADSPA & CorridorKey schemas.
  */
 
                                                                             
@@ -237,61 +237,61 @@
 
 // ─── MODULE: src/ui/icons.ts ───
 /**
- * OpenVegas Pro 21 — Drawn Vector SVG Icon Library (Qt / C++ NLE Style)
+ * OpenNeoveg 21 — Drawn Vector SVG Icon Library (Qt / C++ NLE Style)
  * Replaces all button emojis with crisp geometric 12x12 / 14x14 vector SVG icons.
  * Every SVG includes explicit width/height attributes so buttons never collapse in any layout or theme.
  */
-const VEGAS_ICONS                         = {
-  welcomeHub: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="1.5" y1="5.5" x2="14.5" y2="5.5" stroke="currentColor" stroke-width="1.3"/><rect x="3.5" y="7.5" width="4" height="4.5" fill="currentColor"/><line x1="9" y1="8.2" x2="12.8" y2="8.2" stroke="currentColor" stroke-width="1.3"/><line x1="9" y1="10.8" x2="12.8" y2="10.8" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  folderOpen: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.8h7v7.7h-13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><path d="M1.5 6.8h13" stroke="currentColor" stroke-width="1.2"/></svg>`,
-  fileNew: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3 1.5h6.5l3.5 3.5v9.5h-10z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M9.5 1.5v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  save: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M2 2h9.5l2.5 2.5v9.5h-12z" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="4.5" y="2" width="5" height="4" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="9" width="8" height="5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`,
-  cursorSelect: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3.5 2L12.5 8.5H7.8L10 13.5L8 14.3L5.8 9.2L3.5 11.8Z" fill="currentColor"/></svg>`,
-  splitRazor: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 1.5"/><path d="M2 5h4v6H2zM10 5h4v6h-4z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  slipTool: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="2" y1="3" x2="2" y2="13" stroke="currentColor" stroke-width="1.6"/><line x1="14" y1="3" x2="14" y2="13" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 8h7M6.5 5.5L4 8l2.5 2.5M9.5 5.5L12 8l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  slideTool: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1 8h2.5M12.5 8H15M2.8 6L1 8l1.8 2M13.2 6L15 8l-1.8 2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  rateStretch: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.5V8l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  magnetSnap: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M4 2.5v5.5a4 4 0 0 0 8 0V2.5h-2.5v5.5a1.5 1.5 0 0 1-3 0V2.5z" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="3.5" y1="5" x2="6.5" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="5" x2="12.5" y2="5" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  rippleWave: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
-  crossfadeX: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="3.5" x2="14" y2="12.5" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="12.5" x2="14" y2="3.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  markerFlag: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="3.5" y1="2" x2="3.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 2.5h9l-2.2 3 2.2 3h-9z" fill="currentColor"/></svg>`,
-  regionBrackets: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M5 2.5H2.5v11H5M11 2.5h2.5v11H11" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.5 1.5"/></svg>`,
-  trash: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3.5 4.5h9l-.7 9.5H4.2z" fill="none" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="4.5" x2="14" y2="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M6 2.5h4v2H6z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`,
-  floatWindow: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16"><rect x="4.5" y="2" width="9.5" height="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 5.5v8.5h9.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  dockWindow: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="2" x2="6.5" y2="14" stroke="currentColor" stroke-width="1.4"/><line x1="6.5" y1="8" x2="14.5" y2="8" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  minimize: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.8"/></svg>`,
-  maximize: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
-  restore: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><rect x="3.5" y="1.5" width="6.5" height="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="3.5" width="6.5" height="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  close: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.6"/></svg>`,
-  terminalCode: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 6l3 2.2L4 10.4M8.5 10.5h3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  renderFilm: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2" x2="5" y2="14" stroke="currentColor" stroke-width="1.2"/><line x1="11" y1="2" x2="11" y2="14" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.2"/></svg>`,
-  shieldCheck: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M8 1.5l5.5 2.2v4.3c0 3.5-2.4 5.6-5.5 6.8-3.1-1.2-5.5-3.3-5.5-6.8V3.7z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 8l1.8 1.8 3.5-3.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
-  play: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="3,2 12,7 3,12" fill="currentColor"/></svg>`,
-  pause: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" fill="currentColor"/><rect x="8" y="2" width="3" height="10" fill="currentColor"/></svg>`,
-  stop: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor"/></svg>`,
-  stepStart: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="2" y="2.5" width="2" height="9" fill="currentColor"/><polygon points="11.5,2.5 5,7 11.5,11.5" fill="currentColor"/></svg>`,
-  stepEnd: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="10" y="2.5" width="2" height="9" fill="currentColor"/><polygon points="2.5,2.5 9,7 2.5,11.5" fill="currentColor"/></svg>`,
-  stepPrev: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="9.5,2.5 3.5,7 9.5,11.5" fill="currentColor"/></svg>`,
-  stepNext: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="4.5,2.5 10.5,7 4.5,11.5" fill="currentColor"/></svg>`,
-  loop: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16"><path d="M3 6V4h9l-1.8-1.8M13 10v2H4l1.8 1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
-  splitScreen: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="2" width="11" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 2h5.5v10H1.5z" fill="currentColor" fill-opacity="0.35"/><line x1="7" y1="1.5" x2="7" y2="12.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  cropFrame: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><path d="M3.5 1v9.5H13M1 3.5h9.5V13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-  grid: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="5.2" y1="1.5" x2="5.2" y2="12.5" stroke="currentColor" stroke-width="1.1"/><line x1="8.8" y1="1.5" x2="8.8" y2="12.5" stroke="currentColor" stroke-width="1.1"/><line x1="1.5" y1="5.2" x2="12.5" y2="5.2" stroke="currentColor" stroke-width="1.1"/><line x1="1.5" y1="8.8" x2="12.5" y2="8.8" stroke="currentColor" stroke-width="1.1"/></svg>`,
-  safeArea: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="2" width="11" height="10" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="3.5" y="3.8" width="7" height="6.4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="1.5 1"/></svg>`,
-  camera: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 14 14"><path d="M1.5 4h2.2l1-1.5h4.6l1 1.5h2.2v7.5h-11z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7.8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  colorWheels: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><circle cx="5.2" cy="6" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="10.8" cy="6" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="10.8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
-  corridorKey: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="6.2" r="2.1" fill="currentColor"/><path d="M4.2 13c0-2.1 1.7-3.6 3.8-3.6s3.8 1.5 3.8 3.6" fill="currentColor"/></svg>`,
-  plus: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" stroke-width="1.6"/><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
-  minus: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
-  popoutMonitor: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="10" height="7.5"/><line x1="4.5" y1="13" x2="8.5" y2="13"/><line x1="6.5" y1="10.5" x2="6.5" y2="13"/><polyline points="10 2 14.5 2 14.5 6.5"/><line x1="8.5" y1="7.5" x2="14.5" y2="2"/></svg>`,
-  settingsGear: `<svg class="qt-icon vegas-svg" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>`,
-  trackExpand: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2.5" x2="14" y2="2.5"/><line x1="2" y1="13.5" x2="14" y2="13.5"/><polyline points="5.5 6 8 3.8 10.5 6"/><polyline points="5.5 10 8 12.2 10.5 10"/><line x1="8" y1="4" x2="8" y2="12"/></svg>`,
-  trackShrink: `<svg class="qt-icon vegas-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2.5" x2="14" y2="2.5"/><line x1="2" y1="13.5" x2="14" y2="13.5"/><polyline points="5.5 4.2 8 6.8 10.5 4.2"/><polyline points="5.5 11.8 8 9.2 10.5 11.8"/></svg>`,
-  renameEdit: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.2 2.2l2.6 2.6-8.3 8.3-3.3.7.7-3.3z"/><line x1="9.5" y1="3.9" x2="12.1" y2="6.5"/></svg>`,
-  groupLink: `<svg class="qt-icon vegas-svg" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="5" height="4.5"/><rect x="2" y="9" width="5" height="4.5"/><path d="M7 4.7h4v6.6H7"/><circle cx="11" cy="8" r="1.4" fill="currentColor"/></svg>`,
+const Neoveg_ICONS                         = {
+  welcomeHub: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="1.5" y1="5.5" x2="14.5" y2="5.5" stroke="currentColor" stroke-width="1.3"/><rect x="3.5" y="7.5" width="4" height="4.5" fill="currentColor"/><line x1="9" y1="8.2" x2="12.8" y2="8.2" stroke="currentColor" stroke-width="1.3"/><line x1="9" y1="10.8" x2="12.8" y2="10.8" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  folderOpen: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.8h7v7.7h-13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><path d="M1.5 6.8h13" stroke="currentColor" stroke-width="1.2"/></svg>`,
+  fileNew: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3 1.5h6.5l3.5 3.5v9.5h-10z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M9.5 1.5v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  save: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M2 2h9.5l2.5 2.5v9.5h-12z" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="4.5" y="2" width="5" height="4" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="9" width="8" height="5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`,
+  cursorSelect: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3.5 2L12.5 8.5H7.8L10 13.5L8 14.3L5.8 9.2L3.5 11.8Z" fill="currentColor"/></svg>`,
+  splitRazor: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 1.5"/><path d="M2 5h4v6H2zM10 5h4v6h-4z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  slipTool: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="2" y1="3" x2="2" y2="13" stroke="currentColor" stroke-width="1.6"/><line x1="14" y1="3" x2="14" y2="13" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 8h7M6.5 5.5L4 8l2.5 2.5M9.5 5.5L12 8l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  slideTool: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1 8h2.5M12.5 8H15M2.8 6L1 8l1.8 2M13.2 6L15 8l-1.8 2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  rateStretch: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.5V8l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  magnetSnap: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M4 2.5v5.5a4 4 0 0 0 8 0V2.5h-2.5v5.5a1.5 1.5 0 0 1-3 0V2.5z" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="3.5" y1="5" x2="6.5" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="5" x2="12.5" y2="5" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  rippleWave: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  crossfadeX: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="3.5" x2="14" y2="12.5" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="12.5" x2="14" y2="3.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  markerFlag: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><line x1="3.5" y1="2" x2="3.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 2.5h9l-2.2 3 2.2 3h-9z" fill="currentColor"/></svg>`,
+  regionBrackets: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M5 2.5H2.5v11H5M11 2.5h2.5v11H11" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.5 1.5"/></svg>`,
+  trash: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M3.5 4.5h9l-.7 9.5H4.2z" fill="none" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="4.5" x2="14" y2="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M6 2.5h4v2H6z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`,
+  floatWindow: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16"><rect x="4.5" y="2" width="9.5" height="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 5.5v8.5h9.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  dockWindow: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="2" x2="6.5" y2="14" stroke="currentColor" stroke-width="1.4"/><line x1="6.5" y1="8" x2="14.5" y2="8" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  minimize: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.8"/></svg>`,
+  maximize: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  restore: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><rect x="3.5" y="1.5" width="6.5" height="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="3.5" width="6.5" height="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  close: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  terminalCode: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 6l3 2.2L4 10.4M8.5 10.5h3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  renderFilm: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="2" x2="5" y2="14" stroke="currentColor" stroke-width="1.2"/><line x1="11" y1="2" x2="11" y2="14" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.2"/></svg>`,
+  shieldCheck: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><path d="M8 1.5l5.5 2.2v4.3c0 3.5-2.4 5.6-5.5 6.8-3.1-1.2-5.5-3.3-5.5-6.8V3.7z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 8l1.8 1.8 3.5-3.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  play: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="3,2 12,7 3,12" fill="currentColor"/></svg>`,
+  pause: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" fill="currentColor"/><rect x="8" y="2" width="3" height="10" fill="currentColor"/></svg>`,
+  stop: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor"/></svg>`,
+  stepStart: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="2" y="2.5" width="2" height="9" fill="currentColor"/><polygon points="11.5,2.5 5,7 11.5,11.5" fill="currentColor"/></svg>`,
+  stepEnd: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="10" y="2.5" width="2" height="9" fill="currentColor"/><polygon points="2.5,2.5 9,7 2.5,11.5" fill="currentColor"/></svg>`,
+  stepPrev: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="9.5,2.5 3.5,7 9.5,11.5" fill="currentColor"/></svg>`,
+  stepNext: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><polygon points="4.5,2.5 10.5,7 4.5,11.5" fill="currentColor"/></svg>`,
+  loop: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16"><path d="M3 6V4h9l-1.8-1.8M13 10v2H4l1.8 1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  splitScreen: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="2" width="11" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 2h5.5v10H1.5z" fill="currentColor" fill-opacity="0.35"/><line x1="7" y1="1.5" x2="7" y2="12.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  cropFrame: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><path d="M3.5 1v9.5H13M1 3.5h9.5V13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  grid: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="5.2" y1="1.5" x2="5.2" y2="12.5" stroke="currentColor" stroke-width="1.1"/><line x1="8.8" y1="1.5" x2="8.8" y2="12.5" stroke="currentColor" stroke-width="1.1"/><line x1="1.5" y1="5.2" x2="12.5" y2="5.2" stroke="currentColor" stroke-width="1.1"/><line x1="1.5" y1="8.8" x2="12.5" y2="8.8" stroke="currentColor" stroke-width="1.1"/></svg>`,
+  safeArea: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><rect x="1.5" y="2" width="11" height="10" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="3.5" y="3.8" width="7" height="6.4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="1.5 1"/></svg>`,
+  camera: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 14 14"><path d="M1.5 4h2.2l1-1.5h4.6l1 1.5h2.2v7.5h-11z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7.8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  colorWheels: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><circle cx="5.2" cy="6" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="10.8" cy="6" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="10.8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+  corridorKey: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="6.2" r="2.1" fill="currentColor"/><path d="M4.2 13c0-2.1 1.7-3.6 3.8-3.6s3.8 1.5 3.8 3.6" fill="currentColor"/></svg>`,
+  plus: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" stroke-width="1.6"/><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  minus: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  popoutMonitor: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="10" height="7.5"/><line x1="4.5" y1="13" x2="8.5" y2="13"/><line x1="6.5" y1="10.5" x2="6.5" y2="13"/><polyline points="10 2 14.5 2 14.5 6.5"/><line x1="8.5" y1="7.5" x2="14.5" y2="2"/></svg>`,
+  settingsGear: `<svg class="qt-icon neoveg-svg" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>`,
+  trackExpand: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2.5" x2="14" y2="2.5"/><line x1="2" y1="13.5" x2="14" y2="13.5"/><polyline points="5.5 6 8 3.8 10.5 6"/><polyline points="5.5 10 8 12.2 10.5 10"/><line x1="8" y1="4" x2="8" y2="12"/></svg>`,
+  trackShrink: `<svg class="qt-icon neoveg-svg" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2.5" x2="14" y2="2.5"/><line x1="2" y1="13.5" x2="14" y2="13.5"/><polyline points="5.5 4.2 8 6.8 10.5 4.2"/><polyline points="5.5 11.8 8 9.2 10.5 11.8"/></svg>`,
+  renameEdit: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.2 2.2l2.6 2.6-8.3 8.3-3.3.7.7-3.3z"/><line x1="9.5" y1="3.9" x2="12.1" y2="6.5"/></svg>`,
+  groupLink: `<svg class="qt-icon neoveg-svg" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="5" height="4.5"/><rect x="2" y="9" width="5" height="4.5"/><path d="M7 4.7h4v6.6H7"/><circle cx="11" cy="8" r="1.4" fill="currentColor"/></svg>`,
 };
 function iconSvg(name                          , label         )         {
-  const svg = VEGAS_ICONS[name] || '';
+  const svg = Neoveg_ICONS[name] || '';
   return label ? `${svg}<span>${label}</span>` : svg;
 }
 
@@ -300,7 +300,7 @@ function iconSvg(name                          , label         )         {
 
 // ─── MODULE: src/ui/faceThumbnails.ts ───
 /**
- * OpenVegas Pro 21 — Human Face Demo Thumbnail Renderer for Video FX, Frei0r & CorridorKey
+ * OpenNeoveg 21 — Human Face Demo Thumbnail Renderer for Video FX, Frei0r & CorridorKey
  * Draws a detailed human portrait (head, natural skin tones, eyes with catchlights, eyebrows,
  * nose, lips, hair, and studio backdrop) and applies the actual pixel/canvas transformation
  * of each effect so every FX card displays a live visual demonstration on a human face!
@@ -556,7 +556,7 @@ function renderHumanFaceEffectThumbnail(
 
 // ─── MODULE: src/engine/compositor.ts ───
 /**
- * OpenVegas Pro — Real-Time Multi-Track Video Compositor & Scope Engine
+ * OpenNeoveg — Real-Time Multi-Track Video Compositor & Scope Engine
  */
 function evaluateFadeCurve(curve               , t        )         {
   const x = Math.max(0, Math.min(1, t));
@@ -644,7 +644,7 @@ function mapBlendMode(mode               )                           {
       return 'source-over';
   }
 }
-class VegasCompositor {
+class NeovegHostCompositor {
           canvas                   ;
           ctx                          ;
           offscreen                   ;
@@ -740,7 +740,7 @@ class VegasCompositor {
     ctx.fillRect(0, 0, w, h);
 
     const anySolo = project.tracks.some((tr) => tr.type === 'video' && tr.solo);
-    // In Vegas Pro, Track 1 (top) renders on top of Track 2 (below).
+    // In Neoveg, Track 1 (top) renders on top of Track 2 (below).
     // So we composite from bottom-most video track up to top-most video track.
     const videoTracks = project.tracks
       .filter((tr) => tr.type === 'video')
@@ -852,7 +852,7 @@ class VegasCompositor {
       }
     }
 
-    // Vegas Pan/Crop works like a camera crop frame: smaller crop box = zoomed in!
+    // Neoveg Pan/Crop works like a camera crop frame: smaller crop box = zoomed in!
     const zoomFactor = 1 / Math.max(0.2, Math.min(3.0, pcScale));
     octx.translate(w / 2 - pcX * (w * 0.45), h / 2 - pcY * (h * 0.45));
     if (pcRot) {
@@ -1032,12 +1032,12 @@ class VegasCompositor {
       }
     }
 
-    // 2. Procedural Vegas Media Generators & Titles
+    // 2. Procedural Neoveg Media Generators & Titles
     const gen = clip.generatorType || (clip.mediaType === 'title' ? 'titleText' : 'smpteBars');
 
     if (gen === 'titleText') {
       // Transparent lower-third / center title overlay
-      const title = clip.titleText || clip.name || 'VEGAS PRO STUDIO 21';
+      const title = clip.titleText || clip.name || 'NEOVEG STUDIO 21';
       const sub = clip.subtitleText || 'NON-LINEAR VIDEO & AUDIO BROADCAST ENGINE';
 
       // Glassmorphic lower-third banner
@@ -1071,9 +1071,9 @@ class VegasCompositor {
       ctx.fillRect(0, 0, w, h);
       const scrollY = h - ((localT / Math.max(1, clip.duration)) * (h + 220));
       const lines = [
-        'OPEN VEGAS PRO STUDIO',
+        'OPEN NEOVEG STUDIO',
         '────────────────────',
-        'Core Timeline & DSP Engine: Rust (openvegas-core)',
+        'Core Timeline & DSP Engine: Rust (neoveg-core)',
         'Media Pipeline & Scripting API: Python + FFmpeg',
         'Studio NLE Interface: TypeScript + WebGL/Canvas',
         'Audio Engine: Multi-Bus Web Audio API',
@@ -1202,7 +1202,7 @@ class VegasCompositor {
 
     ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText(`VEGAS HD SMPTE TEST PATTERN — ${clip.name}`, 18, h * 0.87);
+    ctx.fillText(`Neoveg HD SMPTE TEST PATTERN — ${clip.name}`, 18, h * 0.87);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px monospace';
     ctx.fillText(`TC: ${formatSMPTE(localT, 29.97, true)} | RATE: ${(clip.playbackRate || 1).toFixed(2)}x`, 18, h * 0.94);
@@ -1253,7 +1253,7 @@ class VegasCompositor {
     ctx.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
     ctx.setLineDash([]);
 
-    // Vegas iconic "F" orientation watermark inside Pan/Crop box
+    // Neoveg iconic "F" orientation watermark inside Pan/Crop box
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -1370,9 +1370,9 @@ class VegasCompositor {
 
 // ─── MODULE: src/engine/audioEngine.ts ───
 /**
- * OpenVegas Pro — Multi-Track Web Audio API Engine & Master Bus Meter
+ * OpenNeoveg — Multi-Track Web Audio API Engine & Master Bus Meter
  */
-class VegasAudioEngine {
+class NeovegHostAudioEngine {
           audioElements                                = new Map();
           peakHoldL = -60;
           peakHoldR = -60;
@@ -1503,12 +1503,12 @@ class VegasAudioEngine {
 
 // ─── MODULE: src/ui/timeline.ts ───
 /**
- * OpenVegas Pro — Interactive Multi-Track Timeline Canvas & Event Manipulation Engine
- * Implements Vegas Pro's signature editing paradigm:
+ * OpenNeoveg — Interactive Multi-Track Timeline Canvas & Event Manipulation Engine
+ * Implements Neoveg's signature editing paradigm:
  * - Individual & Global Track Height Resizing (Drag track bottom border, +/- buttons, or Alt+Wheel)
  * - Direct Media / Generator / FX / Transition / OS File Drag-and-Drop onto Timeline with Ghost Preview
  * - Automatic Overlap Crossfades (X-curve)
- * - Top-corner interactive Fade-In / Fade-Out handles with 5 Vegas curve shapes
+ * - Top-corner interactive Fade-In / Fade-Out handles with 5 Neoveg curve shapes
  * - Clip Opacity / Gain horizontal envelope bar
  * - Edge Trimming, Snap to Playhead/Events/Markers (F8), Auto-Ripple (Ctrl+L)
  * - On-clip FX & Pan/Crop badges, Track Automation Envelopes (V), Markers (M) & Loop Region (Q)
@@ -1517,7 +1517,7 @@ const RULER_HEIGHT = 38;
 const DEFAULT_TRACK_HEIGHT = 76;
 const MIN_TRACK_HEIGHT = 44;
 const MAX_TRACK_HEIGHT = 220;
-class VegasTimelineController {
+class NeovegHostTimelineController {
           canvas                   ;
           ctx                          ;
           project              ;
@@ -2167,7 +2167,7 @@ class VegasTimelineController {
 
     if (relY <= 18 && (Math.abs(x - fadeInX) <= 10 || Math.abs(x - fadeOutX) <= 10)) {
       this.canvas.style.cursor = 'ew-resize';
-      this.hoverStatus = 'Drag corner to adjust Vegas Fade-In / Fade-Out envelope';
+      this.hoverStatus = 'Drag corner to adjust Neoveg Fade-In / Fade-Out envelope';
     } else if (Math.abs(x - clipX) <= 7 || Math.abs(x - (clipX + clipW)) <= 7) {
       this.canvas.style.cursor = 'col-resize';
       this.hoverStatus = 'Drag edge to Trim event start/end';
@@ -2716,17 +2716,17 @@ class VegasTimelineController {
 
 // ─── MODULE: src/ui/dockManager.ts ───
 /**
- * OpenVegas Pro — Interactive Window Docking, Floating ("Janelas Soltas") & Multi-Monitor OS Window Engine
+ * OpenNeoveg — Interactive Window Docking, Floating ("Janelas Soltas") & Multi-Monitor OS Window Engine
  * Allows every studio panel (Project Media, Inspector/Pan-Crop/Settings, Video Preview,
  * Master Mixer/Scopes, and Timeline) to be:
  * - Resized via interactive horizontal & vertical splitter bars while docked
  * - Detached ("Solta" / Undocked) inside the workspace by dragging its `⋮⋮` header grip or clicking Float
- * - Popped out into a TRUE Native Windows OS Window (`VegasPopoutWindow`) that can be dragged freely
+ * - Popped out into a TRUE Native Windows OS Window (`NeovegPopoutWindow`) that can be dragged freely
  *   to any secondary/tertiary monitor (`Screen.AllScreens`) via `[data-win-action="popout"]` or by dragging
  *   a floating panel past the outer edge of the main window!
- * - Synchronized in real time across all monitors via `BroadcastChannel('openvegas_multimonitor_sync')`
+ * - Synchronized in real time across all monitors via `BroadcastChannel('neoveg_multimonitor_sync')`
  */
-class VegasDockManager {
+class NeovegHostDockManager {
           panels                          = new Map();
           topZ = 200;
           onLayoutResize            ;
@@ -2747,7 +2747,7 @@ class VegasDockManager {
     this.initDefaultPanelStates();
 
     try {
-      this.syncChannel = new BroadcastChannel('openvegas_multimonitor_sync');
+      this.syncChannel = new BroadcastChannel('neoveg_multimonitor_sync');
       this.syncChannel.addEventListener('message', (ev) => {
         const msg = ev.data;
         if (!msg || typeof msg !== 'object') return;
@@ -2835,7 +2835,7 @@ class VegasDockManager {
       const el = document.getElementById(id);
       if (!el) continue;
 
-      const hdr = el.querySelector('.vegas-win-titlebar')                      ;
+      const hdr = el.querySelector('.neoveg-win-titlebar')                      ;
       const winControls = el.querySelector('.win-controls')                      ;
       const btnFloat = el.querySelector('[data-win-action="float"]')                            ;
       const btnMax = el.querySelector('[data-win-action="maximize"]')                            ;
@@ -2848,7 +2848,7 @@ class VegasDockManager {
         btnPopout.className = 'win-ctrl-btn popout-monitor-btn';
         btnPopout.setAttribute('data-win-action', 'popout');
         btnPopout.title = 'Destacar como Janela Nativa do Windows para arrastar para OUTRO MONITOR';
-        btnPopout.innerHTML = `${VEGAS_ICONS.popoutMonitor}`;
+        btnPopout.innerHTML = `${Neoveg_ICONS.popoutMonitor}`;
         winControls.insertBefore(btnPopout, btnFloat);
       }
 
@@ -2947,12 +2947,12 @@ class VegasDockManager {
     document.body.classList.add('is-multimonitor-popout');
     const state = this.panels.get(panelId);
     if (state) {
-      document.title = `OpenVegas Pro 21 — ${state.title} [Janela Multi-Monitor]`;
+      document.title = `OpenNeoveg 21 — ${state.title} [Janela Multi-Monitor]`;
     }
 
     // Hide topbar, statusbar, welcome modal, and all other panels
-    document.querySelector('.vegas-topbar')?.classList.add('hidden');
-    document.querySelector('.vegas-statusbar')?.classList.add('hidden');
+    document.querySelector('.neoveg-topbar')?.classList.add('hidden');
+    document.querySelector('.neoveg-statusbar')?.classList.add('hidden');
     document.getElementById('modal-welcome')?.classList.add('hidden');
     document.getElementById('workspace-h-splitter')?.classList.add('hidden');
     document.querySelectorAll('.dock-v-splitter').forEach((s) => s.classList.add('hidden'));
@@ -2968,7 +2968,7 @@ class VegasDockManager {
         el.style.zIndex = '999';
         const btnFloat = el.querySelector('[data-win-action="float"]')                      ;
         if (btnFloat) {
-          btnFloat.innerHTML = `${VEGAS_ICONS.dockWindow}<span>Acoplar na Janela Principal</span>`;
+          btnFloat.innerHTML = `${Neoveg_ICONS.dockWindow}<span>Acoplar na Janela Principal</span>`;
           btnFloat.onclick = () => {
             this.syncChannel?.postMessage({ type: 'REDOCK_PANEL', panelId });
             window.close();
@@ -2999,7 +2999,7 @@ class VegasDockManager {
       return;
     }
 
-    const theme = document.documentElement.getAttribute('data-theme') || 'qt-vegas21';
+    const theme = document.documentElement.getAttribute('data-theme') || 'qt-neoveg21';
     const w = Math.max(420, state.rect.w || 580);
     const h = Math.max(320, state.rect.h || 420);
     const left = screenX !== undefined ? Math.max(0, screenX - 120) : window.screenX + 80;
@@ -3019,7 +3019,7 @@ class VegasDockManager {
 
     const popUrl = `${window.location.origin}/?popout=${encodeURIComponent(panelId)}&theme=${encodeURIComponent(theme)}`;
     const features = `popup=yes,width=${Math.round(w)},height=${Math.round(h)},left=${Math.round(left)},top=${Math.round(top)},resizable=yes`;
-    const newWin = window.open(popUrl, `openvegas_${panelId}`, features);
+    const newWin = window.open(popUrl, `neoveg_${panelId}`, features);
 
     if (newWin) {
       this.popoutWindows.set(panelId, newWin);
@@ -3210,7 +3210,7 @@ class VegasDockManager {
       this.restoreFromOSPopout(id);
     }
     this.initDefaultPanelStates();
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     if (upper) upper.style.height = '48%';
     const trackCol = document.getElementById('timeline-left-column');
     if (trackCol) trackCol.style.width = '255px';
@@ -3224,7 +3224,7 @@ class VegasDockManager {
     if (el) {
       el.style.zIndex = String(this.topZ);
     }
-    document.querySelectorAll('.vegas-dock-window').forEach((w) => w.classList.remove('win-focused'));
+    document.querySelectorAll('.neoveg-dock-window').forEach((w) => w.classList.remove('win-focused'));
     el?.classList.add('win-focused');
   }
 
@@ -3232,7 +3232,7 @@ class VegasDockManager {
     for (const state of this.panels.values()) {
       this.applyPanelStyle(state);
     }
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     const hSplitter = document.getElementById('workspace-h-splitter');
     const anyTopDocked = ['pane-media', 'pane-inspector', 'pane-preview', 'pane-mixer'].some((id) => {
       const st = this.panels.get(id);
@@ -3266,16 +3266,16 @@ class VegasDockManager {
     el.classList.toggle('is-minimized', state.minimized);
 
     if (btnMin) {
-      btnMin.innerHTML = VEGAS_ICONS.minimize;
+      btnMin.innerHTML = Neoveg_ICONS.minimize;
     }
     if (btnFloat) {
-      btnFloat.innerHTML = state.floating ? `${VEGAS_ICONS.dockWindow}` : `${VEGAS_ICONS.floatWindow}`;
+      btnFloat.innerHTML = state.floating ? `${Neoveg_ICONS.dockWindow}` : `${Neoveg_ICONS.floatWindow}`;
       btnFloat.title = state.floating
         ? 'Acoplar janela de volta na grade (Dock)'
         : 'Soltar janela como flutuante (ou arraste até a borda da tela para jogar em outro monitor)';
     }
     if (btnMax) {
-      btnMax.innerHTML = state.maximized ? VEGAS_ICONS.restore : VEGAS_ICONS.maximize;
+      btnMax.innerHTML = state.maximized ? Neoveg_ICONS.restore : Neoveg_ICONS.maximize;
     }
 
     if (state.maximized) {
@@ -3312,7 +3312,7 @@ class VegasDockManager {
 
           initWorkspaceSplitters()       {
     const hSplitter = document.getElementById('workspace-h-splitter');
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     if (hSplitter && upper) {
       let draggingH = false;
       hSplitter.addEventListener('mousedown', (e) => {
@@ -3425,15 +3425,15 @@ class VegasDockManager {
 
 // ─── MODULE: src/main.ts ───
 /**
- * OpenVegas Pro 21 — Master Studio Application Controller (TypeScript / Qt Design System)
+ * OpenNeoveg 21 — Master Studio Application Controller (TypeScript / Qt Design System)
  * Integrates:
- * - Welcome Project Hub (Starts with Empty Project + Keeps Demo Project + Advanced Vegas Project Properties)
- * - Full Interactive VEGAS Event Pan/Crop Workspace with Keyframe Timeline & Draggable 'F' Crop Frame
+ * - Welcome Project Hub (Starts with Empty Project + Keeps Demo Project + Advanced Neovegject Properties)
+ * - Full Interactive Neoveg Event Pan/Crop Workspace with Keyframe Timeline & Draggable 'F' Crop Frame
  * - Video FX, Frei0r & CorridorKey Catalog with Live Human Face Portrait Demo Thumbnails
  * - LADSPA Audio DSP Plugins + Fairlight LUFS / Premiere Essential Sound Auto-Ducking
  * - DaVinci Resolve 3-Way Color Wheels, Node Graph & Premiere Pro Edit Tools (Razor, Slip, Slide, Rate Stretch)
- * - Classic Sony Vegas Themes (Vegas 4.0 XP Gray, Vegas 7.0 Silver, Vegas 13 Charcoal, Vegas 18, Vegas 21 Qt, Resolve, Premiere)
- * - VEGAS Pro Frequent Problems Diagnostic & Auto-Fixer + `log_erros.txt` Live Inspector
+ * - Classic Classic NLE Themes (Neoveg 4.0 XP Gray, Neoveg 7.0 Silver, Neoveg 13 Charcoal, Neoveg 18, Neoveg 21 Qt, Resolve, Premiere)
+ * - Neoveg Frequent Problems Diagnostic & Auto-Fixer + `log_erros.txt` Live Inspector
  */
 
 
@@ -3442,7 +3442,7 @@ class VegasDockManager {
 
 
 
-class OpenVegasStudioApp {
+class NeovegStudioApp {
          project              ;
          mediaBin               = [];
          savedProjects                     = [];
@@ -3565,13 +3565,13 @@ class OpenVegasStudioApp {
   }
 
          async init()                {
-    const previewCanvas = document.getElementById('vegas-preview-canvas')                     ;
-    const scopeCanvas = document.getElementById('vegas-scope-canvas')                     ;
-    const timelineCanvas = document.getElementById('vegas-timeline-canvas')                     ;
+    const previewCanvas = document.getElementById('neoveg-preview-canvas')                     ;
+    const scopeCanvas = document.getElementById('neoveg-scope-canvas')                     ;
+    const timelineCanvas = document.getElementById('neoveg-timeline-canvas')                     ;
 
-    this.compositor = new VegasCompositor(previewCanvas, scopeCanvas);
-    this.audioEngine = new VegasAudioEngine();
-    this.timeline = new VegasTimelineController(timelineCanvas, this.project, {
+    this.compositor = new NeovegCompositor(previewCanvas, scopeCanvas);
+    this.audioEngine = new NeovegAudioEngine();
+    this.timeline = new NeovegTimelineController(timelineCanvas, this.project, {
       onPlayheadChange: (newTime) => {
         this.project.playhead = Math.max(0, newTime);
         this.updateTimecodeReadouts();
@@ -3622,7 +3622,7 @@ class OpenVegasStudioApp {
       getActiveDragPayload: () => this.activeDragPayload,
     });
 
-    this.dockManager = new VegasDockManager(() => {
+    this.dockManager = new NeovegDockManager(() => {
       this.timeline.render();
       this.compositor.renderFrame(this.project, this.getSelectedClip(), this.showPanCropGizmo);
     });
@@ -3665,7 +3665,7 @@ class OpenVegasStudioApp {
 
           initMultiMonitorSyncBus()       {
     try {
-      this.multiMonitorBus = new BroadcastChannel('openvegas_studio_sync');
+      this.multiMonitorBus = new BroadcastChannel('neoveg_studio_sync');
       this.multiMonitorBus.addEventListener('message', (ev) => {
         const msg = ev.data;
         if (!msg || typeof msg !== 'object') return;
@@ -3822,7 +3822,7 @@ class OpenVegasStudioApp {
   }
 
          loadDemoProjectFlow()       {
-    this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+    this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
   }
 
          async saveCurrentProjectFlow()                {
@@ -3891,7 +3891,7 @@ class OpenVegasStudioApp {
     // Button: Open Demo Project
     const btnDemo = document.getElementById('btn-welcome-demo-project');
     if (btnDemo) {
-      btnDemo.onclick = () => this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+      btnDemo.onclick = () => this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
     }
 
     // Button: Create & Save New Project (.veg)
@@ -3948,14 +3948,14 @@ class OpenVegasStudioApp {
     if (btnPopoutOs) {
       btnPopoutOs.onclick = () => {
         advModal.classList.add('hidden');
-        const currentTheme = document.documentElement.getAttribute('data-theme') || 'vegas21-dark';
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'neoveg21-dark';
         const url = new URL(window.location.href);
         url.searchParams.set('popout', 'pane-inspector');
         url.searchParams.set('tab', 'settings');
         url.searchParams.set('theme', currentTheme);
         window.open(
           url.toString(),
-          'OpenVegas_AdvancedSettings_Window',
+          'Neoveg_AdvancedSettings_Window',
           'width=900,height=680,left=140,top=90,resizable=yes,scrollbars=yes'
         );
         this.setStatusMessage('Configurações Avançadas abertas em uma nova janela nativa independente do Windows!');
@@ -4038,7 +4038,7 @@ class OpenVegasStudioApp {
          applyTheme(themeId        )       {
     document.documentElement.setAttribute('data-theme', themeId);
     document.body.setAttribute('data-theme', themeId);
-    const isLight = themeId === 'vegas4-xp' || themeId === 'vegas7-sony';
+    const isLight = themeId === 'neoveg4-xp' || themeId === 'neoveg7-classic_nle';
     this.timeline.lightThemeCanvas = isLight;
     this.timeline.render();
     this.setStatusMessage(`Tema visual clássico/NLE aplicado: ${themeId.toUpperCase()}`);
@@ -4106,8 +4106,8 @@ class OpenVegasStudioApp {
     const playBtn = document.getElementById('btn-transport-play');
     if (playBtn) {
       playBtn.innerHTML = this.isPlaying
-        ? `${VEGAS_ICONS.pause}<span>Pause</span>`
-        : `${VEGAS_ICONS.play}<span>Play</span>`;
+        ? `${Neoveg_ICONS.pause}<span>Pause</span>`
+        : `${Neoveg_ICONS.play}<span>Play</span>`;
       playBtn.classList.toggle('active', this.isPlaying);
     }
   }
@@ -4378,10 +4378,10 @@ class OpenVegasStudioApp {
     });
 
     document.getElementById('btn-preview-snapshot')?.addEventListener('click', () => {
-      const canvas = document.getElementById('vegas-preview-canvas')                     ;
+      const canvas = document.getElementById('neoveg-preview-canvas')                     ;
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `Vegas_Snapshot_${formatSMPTE(this.project.playhead).replace(/[:;]/g, '-')}.png`;
+      a.download = `Neoveg_Snapshot_${formatSMPTE(this.project.playhead).replace(/[:;]/g, '-')}.png`;
       a.click();
       this.setStatusMessage('Snapshot PNG salvo.');
     });
@@ -4416,7 +4416,7 @@ class OpenVegasStudioApp {
       }
     });
 
-    // Modals: Render As, Python Scripting, VEGAS Diagnostics & Welcome
+    // Modals: Render As, Python Scripting, Neoveg Diagnostics & Welcome
     document.getElementById('btn-open-render-modal')?.addEventListener('click', () => this.openRenderModal());
     document.getElementById('btn-open-script-modal')?.addEventListener('click', () => this.openScriptingModal());
     document.getElementById('btn-open-diagnostics')?.addEventListener('click', () => this.openDiagnosticsModal());
@@ -4437,7 +4437,7 @@ class OpenVegasStudioApp {
 
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.vegas-modal-backdrop').forEach((m) => m.classList.add('hidden'));
+        document.querySelectorAll('.neoveg-modal-backdrop').forEach((m) => m.classList.add('hidden'));
       });
     });
 
@@ -4469,7 +4469,7 @@ class OpenVegasStudioApp {
       this.renderLeftDock();
     });
 
-    // Global Vegas Pro & Premiere Keyboard Shortcuts
+    // Global Neoveg & Premiere Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
       const tag = (e.target               )?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -4640,7 +4640,7 @@ class OpenVegasStudioApp {
     // 2. Internal Studio Drag Payload (Media, Generators, Video FX, LADSPA Audio FX, Transitions)
     let payload                             = this.activeDragPayload;
     if (!payload && event.dataTransfer) {
-      const raw = event.dataTransfer.getData('application/x-openvegas-drag');
+      const raw = event.dataTransfer.getData('application/x-neoveg-drag');
       if (raw) {
         try {
           payload = JSON.parse(raw)                       ;
@@ -4689,7 +4689,7 @@ class OpenVegasStudioApp {
               }
             : this.mediaBin[0] || {
                 id: 'gen_auto_drop',
-                name: 'VEGAS Synthwave Horizon Scene',
+                name: 'Neoveg Synthwave Horizon Scene',
                 type: 'generator',
                 generatorType: 'cyberGrid',
                 duration: 5.0,
@@ -4749,7 +4749,7 @@ class OpenVegasStudioApp {
       cardEl.classList.add('is-dragging-card');
       if (ev.dataTransfer) {
         ev.dataTransfer.effectAllowed = 'copy';
-        ev.dataTransfer.setData('application/x-openvegas-drag', JSON.stringify(payload));
+        ev.dataTransfer.setData('application/x-neoveg-drag', JSON.stringify(payload));
         ev.dataTransfer.setData('text/plain', payload.name);
       }
     });
@@ -4791,7 +4791,7 @@ class OpenVegasStudioApp {
       `;
 
       document.getElementById('btn-quick-load-demo')?.addEventListener('click', () => {
-        this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+        this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
       });
 
       container.querySelectorAll('.media-card[data-media-id]').forEach((card) => {
@@ -4827,17 +4827,17 @@ class OpenVegasStudioApp {
                                            
                      
          = [
-        { name: 'VEGAS Crossfade (Smooth S-Curve)', curve: 'smooth', trans: 'crossfade', desc: 'Dissolução clássica igual-potência em S' },
-        { name: 'VEGAS Crossfade (Fast Attack)', curve: 'fast', trans: 'crossfade', desc: 'Curva logarítmica de ataque rápido' },
-        { name: 'VEGAS Crossfade (Slow Exponential)', curve: 'slow', trans: 'crossfade', desc: 'Curva exponencial progressiva' },
-        { name: 'VEGAS Linear Wipe Left-to-Right', curve: 'linear', trans: 'wipeLeft', desc: 'Cortina horizontal broadcast' },
-        { name: 'VEGAS Iris Circle Reveal', curve: 'smooth', trans: 'irisCircle', desc: 'Máscara circular expansiva' },
-        { name: 'VEGAS Flash White Cut', curve: 'fast', trans: 'flashWhite', desc: 'Flash branco de exposição' },
+        { name: 'Neoveg Crossfade (Smooth S-Curve)', curve: 'smooth', trans: 'crossfade', desc: 'Dissolução clássica igual-potência em S' },
+        { name: 'Neoveg Crossfade (Fast Attack)', curve: 'fast', trans: 'crossfade', desc: 'Curva logarítmica de ataque rápido' },
+        { name: 'Neoveg Crossfade (Slow Exponential)', curve: 'slow', trans: 'crossfade', desc: 'Curva exponencial progressiva' },
+        { name: 'Neoveg Linear Wipe Left-to-Right', curve: 'linear', trans: 'wipeLeft', desc: 'Cortina horizontal broadcast' },
+        { name: 'Neoveg Iris Circle Reveal', curve: 'smooth', trans: 'irisCircle', desc: 'Máscara circular expansiva' },
+        { name: 'Neoveg Flash White Cut', curve: 'fast', trans: 'flashWhite', desc: 'Flash branco de exposição' },
       ];
 
       container.innerHTML = `
         <div class="dock-section-header">
-          <span>VEGAS Transitions & 5 Fade Curves (Arraste sobre um Clipe)</span>
+          <span>Neoveg Transitions & 5 Fade Curves (Arraste sobre um Clipe)</span>
         </div>
         <div class="media-grid">
           ${transitions
@@ -4911,15 +4911,15 @@ class OpenVegasStudioApp {
         },
         {
           type: 'colorGrade',
-          name: 'VEGAS / Resolve 3-Wheel Color Grade',
+          name: 'Neoveg / Resolve 3-Wheel Color Grade',
           badge: 'COLOR',
           desc: 'Lift / Gamma / Gain Teal & Orange cinematográfico',
           defaults: { liftR: -0.05, liftB: 0.08, gainR: 1.14, gainB: 0.92, saturation: 1.22 },
         },
         {
           type: 'brightnessContrast',
-          name: 'VEGAS Brightness & Contrast',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Brightness & Contrast',
+          badge: 'Neoveg FX',
           desc: 'Exposição, contraste e saturação broadcast',
           defaults: { brightness: 0.08, contrast: 1.2, saturation: 1.15 },
         },
@@ -4960,36 +4960,36 @@ class OpenVegasStudioApp {
         },
         {
           type: 'vignette',
-          name: 'VEGAS Soft Lens Vignette',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Soft Lens Vignette',
+          badge: 'Neoveg FX',
           desc: 'Escurecimento óptico radial de bordas',
           defaults: { strength: 0.65 },
         },
         {
           type: 'blur',
-          name: 'VEGAS Gaussian Blur',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Gaussian Blur',
+          badge: 'Neoveg FX',
           desc: 'Desfoque gaussiano de profundidade de campo',
           defaults: { radius: 4.5 },
         },
         {
           type: 'vhsGlitch',
-          name: 'VEGAS TV Simulator / VHS',
-          badge: 'VEGAS FX',
+          name: 'Neoveg TV Simulator / VHS',
+          badge: 'Neoveg FX',
           desc: 'Scanlines analógicas e desvio cromático',
           defaults: { intensity: 0.6 },
         },
         {
           type: 'sepia',
-          name: 'VEGAS Archival Sepia Tone',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Archival Sepia Tone',
+          badge: 'Neoveg FX',
           desc: 'Viragem sépia fotográfica clássica',
           defaults: { amount: 0.85 },
         },
         {
           type: 'invert',
-          name: 'VEGAS Negative Invert',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Negative Invert',
+          badge: 'Neoveg FX',
           desc: 'Inversão RGB completa',
           defaults: { amount: 1.0 },
         },
@@ -5212,7 +5212,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_title_card',
-          name: 'VEGAS Titles & Text Overlay',
+          name: 'Neoveg Titles & Text Overlay',
           type: 'title',
           generatorType: 'titleText',
           duration: 4.5,
@@ -5224,7 +5224,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_cyber_scene',
-          name: 'VEGAS Synthwave Horizon Grid',
+          name: 'Neoveg Synthwave Horizon Grid',
           type: 'generator',
           generatorType: 'cyberGrid',
           duration: 5.0,
@@ -5236,7 +5236,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_credits_roll',
-          name: 'VEGAS Scrolling Credit Roll',
+          name: 'Neoveg Scrolling Credit Roll',
           type: 'generator',
           generatorType: 'creditRoll',
           duration: 6.0,
@@ -5248,7 +5248,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_smpte_bars',
-          name: 'VEGAS SMPTE HD Color Bars',
+          name: 'Neoveg SMPTE HD Color Bars',
           type: 'generator',
           generatorType: 'smpteBars',
           duration: 4.0,
@@ -5262,7 +5262,7 @@ class OpenVegasStudioApp {
 
       container.innerHTML = `
         <div class="dock-section-header">
-          <span>VEGAS Media Generators (Arraste diretamente para a Timeline)</span>
+          <span>Neoveg Media Generators (Arraste diretamente para a Timeline)</span>
         </div>
         <div class="media-grid">
           ${gens
@@ -5428,7 +5428,7 @@ class OpenVegasStudioApp {
   }
 
          renderTrackHeaders()       {
-    const container = document.getElementById('vegas-track-headers');
+    const container = document.getElementById('neoveg-track-headers');
     if (!container) return;
 
     container.innerHTML = this.project.tracks
@@ -5440,14 +5440,14 @@ class OpenVegasStudioApp {
         const grpColor = track.groupColor || '#f59e0b';
         const grpBorderStyle = hasGroup ? `border-left: 4px solid ${grpColor};` : '';
         return `
-        <div class="vegas-track-header ${track.type} ${isSelected ? 'selected' : ''} ${hasGroup ? 'grouped-track' : ''}" data-track-id="${track.id}" style="height:${th}px; ${grpBorderStyle}">
+        <div class="neoveg-track-header ${track.type} ${isSelected ? 'selected' : ''} ${hasGroup ? 'grouped-track' : ''}" data-track-id="${track.id}" style="height:${th}px; ${grpBorderStyle}">
           <div class="track-hdr-top">
             <span class="track-num-badge" style="background:${track.color}" title="${track.type === 'video' ? 'Faixa de Vídeo' : 'Faixa de Áudio'}">${idx + 1}</span>
             <input class="track-name-input" data-track-name="${track.id}" value="${track.name}" title="Clique para renomear esta faixa de ${track.type === 'video' ? 'Vídeo' : 'Áudio'} (Enter para confirmar)" />
-            <button class="track-btn" data-track-rename="${track.id}" title="Renomear Faixa (${track.name})">${VEGAS_ICONS.renameEdit}</button>
+            <button class="track-btn" data-track-rename="${track.id}" title="Renomear Faixa (${track.name})">${Neoveg_ICONS.renameEdit}</button>
             <button class="track-btn ${hasGroup ? 'active' : ''}" data-track-group="${track.id}" style="${hasGroup ? `border-color:${grpColor};color:${grpColor};` : ''}" title="${hasGroup ? `Agrupada em: ${track.groupName} (Clique para desagrupar)` : 'Agrupar esta faixa com Vídeo+Áudio (G)'}">G</button>
-            <button class="track-btn track-h-btn" data-track-h-dec="${track.id}" title="Diminuir altura desta faixa (-)">${VEGAS_ICONS.minus}</button>
-            <button class="track-btn track-h-btn" data-track-h-inc="${track.id}" title="Aumentar altura desta faixa (+)">${VEGAS_ICONS.plus}</button>
+            <button class="track-btn track-h-btn" data-track-h-dec="${track.id}" title="Diminuir altura desta faixa (-)">${Neoveg_ICONS.minus}</button>
+            <button class="track-btn track-h-btn" data-track-h-inc="${track.id}" title="Aumentar altura desta faixa (+)">${Neoveg_ICONS.plus}</button>
             <button class="track-btn ${track.showEnvelope ? 'active' : ''}" data-track-env="${track.id}" title="Automation Envelope (V)">V</button>
             <button class="track-btn mute ${track.muted ? 'active' : ''}" data-track-mute="${track.id}" title="Mute Track (Sincronizado se agrupada)">M</button>
             <button class="track-btn solo ${track.solo ? 'active' : ''}" data-track-solo="${track.id}" title="Solo Track (Sincronizado se agrupada)">S</button>
@@ -5465,7 +5465,7 @@ class OpenVegasStudioApp {
             </label>
             ${
               track.type === 'video'
-                ? `<select class="track-blend-select" data-track-blend="${track.id}" title="Vegas Compositing Mode">
+                ? `<select class="track-blend-select" data-track-blend="${track.id}" title="Neoveg Compositing Mode">
                     <option value="sourceAlpha" ${track.blendMode === 'sourceAlpha' ? 'selected' : ''}>Src Alpha</option>
                     <option value="add" ${track.blendMode === 'add' ? 'selected' : ''}>Add</option>
                     <option value="multiply" ${track.blendMode === 'multiply' ? 'selected' : ''}>Multiply</option>
@@ -5485,7 +5485,7 @@ class OpenVegasStudioApp {
       })
       .join('');
 
-    container.querySelectorAll('.vegas-track-header').forEach((row) => {
+    container.querySelectorAll('.neoveg-track-header').forEach((row) => {
       row.addEventListener('click', (e) => {
         const target = e.target               ;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.closest('button'))) {
@@ -5581,7 +5581,7 @@ class OpenVegasStudioApp {
         const onMove = (ev            ) => {
           const dy = ev.clientY - startY;
           tr.height = Math.max(46, Math.min(220, Math.round(startH + dy)));
-          const hdrEl = container.querySelector(`.vegas-track-header[data-track-id="${tid}"]`)                      ;
+          const hdrEl = container.querySelector(`.neoveg-track-header[data-track-id="${tid}"]`)                      ;
           if (hdrEl) hdrEl.style.height = `${tr.height}px`;
           this.timeline.render();
         };
@@ -5707,7 +5707,7 @@ class OpenVegasStudioApp {
     container.innerHTML = `
       <div class="settings-tab-grid">
         <div class="insp-header">
-          <strong>Configurações Avançadas do Projeto & Preferências do Estúdio (Qt / VEGAS Pro 21)</strong>
+          <strong>Configurações Avançadas do Projeto & Preferências do Estúdio (Qt / Neoveg 21)</strong>
           <button class="qt-btn qt-btn-primary" id="btn-settings-apply-all">Aplicar e Salvar Configurações</button>
         </div>
 
@@ -5717,11 +5717,11 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Nome do Projeto (.veg)</label>
-              <input type="text" id="cfg-proj-name" class="vegas-input" value="${this.project.name}" />
+              <input type="text" id="cfg-proj-name" class="neoveg-input" value="${this.project.name}" />
             </div>
             <div>
               <label>Resolução Master</label>
-              <select id="cfg-res" class="vegas-select">
+              <select id="cfg-res" class="neoveg-select">
                 <option value="1920x1080" ${curRes === '1920x1080' ? 'selected' : ''}>1920 x 1080 (Full HD 1080p)</option>
                 <option value="3840x2160" ${curRes === '3840x2160' ? 'selected' : ''}>3840 x 2160 (4K UHD 2160p)</option>
                 <option value="2560x1440" ${curRes === '2560x1440' ? 'selected' : ''}>2560 x 1440 (2K QHD)</option>
@@ -5734,7 +5734,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Frame Rate (FPS)</label>
-              <select id="cfg-fps" class="vegas-select">
+              <select id="cfg-fps" class="neoveg-select">
                 <option value="23.976" ${this.project.fps === 23.976 ? 'selected' : ''}>23.976 fps (IVTC Film)</option>
                 <option value="24" ${this.project.fps === 24 ? 'selected' : ''}>24.000 fps (DCI Cinema)</option>
                 <option value="25" ${this.project.fps === 25 ? 'selected' : ''}>25.000 fps (PAL Broadcast)</option>
@@ -5746,7 +5746,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Pixel Format & Bit Depth</label>
-              <select id="cfg-pixfmt" class="vegas-select">
+              <select id="cfg-pixfmt" class="neoveg-select">
                 <option value="8bit_full" ${this.project.pixelFormat.includes('8bit') ? 'selected' : ''}>8-bit Unsigned Integer (Full Range)</option>
                 <option value="32bit_float_video" ${this.project.pixelFormat === '32bit_float_video' ? 'selected' : ''}>32-bit Floating Point (Video Levels)</option>
                 <option value="32bit_float_aces" ${this.project.pixelFormat === '32bit_float_aces' ? 'selected' : ''}>32-bit Floating Point (Full Linear ACES 1.3)</option>
@@ -5757,7 +5757,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>View Transform / Color Space</label>
-              <select id="cfg-colorspace" class="vegas-select">
+              <select id="cfg-colorspace" class="neoveg-select">
                 <option value="Rec.709" ${this.project.colorSpace === 'Rec.709' ? 'selected' : ''}>Rec.709 Standard sRGB</option>
                 <option value="ACEScct" ${this.project.colorSpace === 'ACEScct' ? 'selected' : ''}>ACEScct Academy Color Encoding</option>
                 <option value="Rec.2020_HDR10" ${this.project.colorSpace === 'Rec.2020_HDR10' ? 'selected' : ''}>Rec.2020 ST.2084 PQ (HDR10)</option>
@@ -5766,10 +5766,10 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Motion Blur & Resample Mode</label>
-              <select id="cfg-resample" class="vegas-select">
+              <select id="cfg-resample" class="neoveg-select">
                 <option value="disable" ${this.project.resampleMode === 'disable' ? 'selected' : ''}>Disable Resample (Sem Ghosting)</option>
                 <option value="optical_flow" ${this.project.resampleMode === 'optical_flow' ? 'selected' : ''}>Optical Flow Warp Interpolation</option>
-                <option value="smart_resample" ${this.project.resampleMode === 'smart_resample' ? 'selected' : ''}>Smart Resample (VEGAS Classic)</option>
+                <option value="smart_resample" ${this.project.resampleMode === 'smart_resample' ? 'selected' : ''}>Smart Resample (Neoveg Classic)</option>
               </select>
             </div>
           </div>
@@ -5781,7 +5781,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Sample Rate (Hz)</label>
-              <select id="cfg-aud-rate" class="vegas-select">
+              <select id="cfg-aud-rate" class="neoveg-select">
                 <option value="44100" ${this.project.sampleRate === 44100 ? 'selected' : ''}>44,100 Hz (CD Audio)</option>
                 <option value="48000" ${this.project.sampleRate === 48000 ? 'selected' : ''}>48,000 Hz (Broadcast DVD/TV)</option>
                 <option value="96000" ${this.project.sampleRate === 96000 ? 'selected' : ''}>96,000 Hz (Studio Hi-Res)</option>
@@ -5790,7 +5790,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Bit Depth & Master Bus</label>
-              <select id="cfg-aud-bus" class="vegas-select">
+              <select id="cfg-aud-bus" class="neoveg-select">
                 <option value="stereo" ${this.project.masterBusMode === 'stereo' ? 'selected' : ''}>Stereo 2.0 Master Bus (${this.project.audioBitDepth}-bit)</option>
                 <option value="surround_51" ${this.project.masterBusMode === 'surround_51' ? 'selected' : ''}>5.1 Surround Cinema (${this.project.audioBitDepth}-bit)</option>
                 <option value="dolby_71" ${this.project.masterBusMode === 'dolby_71' ? 'selected' : ''}>7.1 Dolby Atmos Bed (32-bit Float)</option>
@@ -5800,7 +5800,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Audio Device Driver (Windows)</label>
-              <select id="cfg-aud-driver" class="vegas-select">
+              <select id="cfg-aud-driver" class="neoveg-select">
                 <option value="wasapi_shared">Windows WASAPI Low-Latency (Shared/Exclusive)</option>
                 <option value="asio_studio">ASIO 2.3 Studio Hardware Driver (64 samples)</option>
                 <option value="directsound">Microsoft DirectSound Mapper</option>
@@ -5808,7 +5808,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Alvo de Normalização LUFS</label>
-              <select id="cfg-aud-lufs" class="vegas-select">
+              <select id="cfg-aud-lufs" class="neoveg-select">
                 <option value="-14">-14.0 LUFS (YouTube / Spotify / Streaming)</option>
                 <option value="-23">-23.0 LUFS (EBU R128 Broadcast TV)</option>
                 <option value="-24">-24.0 LUFS (ATSC A/85 Cinema/US TV)</option>
@@ -5821,15 +5821,15 @@ class OpenVegasStudioApp {
         <div class="settings-group-box">
           <div class="settings-group-title">3. Multi-Monitor (Arrastar para Outros Monitores) & GPU / CorridorKey AI</div>
           <div class="settings-multimonitor-bar">
-            <button class="qt-btn qt-btn-primary" data-popout-panel="pane-preview">${VEGAS_ICONS.popoutMonitor}<span>Destacar Preview p/ Outro Monitor</span></button>
-            <button class="qt-btn" data-popout-panel="pane-media">${VEGAS_ICONS.popoutMonitor}<span>Destacar Media/FX p/ Monitor 2</span></button>
-            <button class="qt-btn" data-popout-panel="pane-mixer">${VEGAS_ICONS.popoutMonitor}<span>Destacar Mixer p/ Monitor 2</span></button>
-            <button class="qt-btn" data-popout-panel="pane-timeline">${VEGAS_ICONS.popoutMonitor}<span>Destacar Timeline p/ Monitor 2</span></button>
+            <button class="qt-btn qt-btn-primary" data-popout-panel="pane-preview">${Neoveg_ICONS.popoutMonitor}<span>Destacar Preview p/ Outro Monitor</span></button>
+            <button class="qt-btn" data-popout-panel="pane-media">${Neoveg_ICONS.popoutMonitor}<span>Destacar Media/FX p/ Monitor 2</span></button>
+            <button class="qt-btn" data-popout-panel="pane-mixer">${Neoveg_ICONS.popoutMonitor}<span>Destacar Mixer p/ Monitor 2</span></button>
+            <button class="qt-btn" data-popout-panel="pane-timeline">${Neoveg_ICONS.popoutMonitor}<span>Destacar Timeline p/ Monitor 2</span></button>
           </div>
           <div class="insp-row-2col" style="margin-top:6px">
             <div>
               <label>Aceleração de Hardware & Decoder</label>
-              <select id="cfg-gpu-mode" class="vegas-select">
+              <select id="cfg-gpu-mode" class="neoveg-select">
                 <option value="safe_nvenc">Hardware NVENC/QSV + Safe Mode (so4compoundplug Fix Ativo)</option>
                 <option value="rust_simd">Rust Core SIMD + FFmpeg Software Pipeline</option>
                 <option value="corridorkey_cuda">CorridorKey ViT-L Greenscreen Neural Engine (FP16)</option>
@@ -5838,8 +5838,8 @@ class OpenVegasStudioApp {
             <div>
               <label>Altura Global das Faixas (Áudio/Vídeo)</label>
               <div style="display:flex;gap:4px">
-                <button class="qt-btn" id="btn-cfg-track-shrink" style="flex:1">${VEGAS_ICONS.minus}<span>Diminuir Faixas</span></button>
-                <button class="qt-btn" id="btn-cfg-track-expand" style="flex:1">${VEGAS_ICONS.plus}<span>Aumentar Faixas</span></button>
+                <button class="qt-btn" id="btn-cfg-track-shrink" style="flex:1">${Neoveg_ICONS.minus}<span>Diminuir Faixas</span></button>
+                <button class="qt-btn" id="btn-cfg-track-expand" style="flex:1">${Neoveg_ICONS.plus}<span>Aumentar Faixas</span></button>
               </div>
             </div>
           </div>
@@ -5915,7 +5915,7 @@ class OpenVegasStudioApp {
         </div>
       `;
       document.getElementById('btn-empty-load-demo')?.addEventListener('click', () => {
-        this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+        this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
       });
       document.getElementById('btn-empty-open-settings')?.addEventListener('click', () => {
         this.openSettingsTab();
@@ -5935,11 +5935,11 @@ class OpenVegasStudioApp {
       container.innerHTML = `
         <div class="inspector-grid">
           <div class="insp-header">
-            <strong>VEGAS Event Pan/Crop: ${clip.name}</strong>
+            <strong>Neoveg Event Pan/Crop: ${clip.name}</strong>
             <span class="insp-sub">Pos: ${(pc.x * 100).toFixed(0)}, ${(pc.y * 100).toFixed(0)} | Zoom: ${Math.round((1 / Math.max(0.2, pc.scale)) * 100)}%</span>
           </div>
 
-          <!-- INTERACTIVE VEGAS PAN/CROP WORKSPACE CANVAS -->
+          <!-- INTERACTIVE Neoveg PAN/CROP WORKSPACE CANVAS -->
           <div class="pancrop-canvas-wrap">
             <canvas id="pancrop-interactive-canvas" width="280" height="145" title="Arraste o quadro 'F' para mover, o canto para escalar ou o anel externo para girar"></canvas>
             <div class="pancrop-side-tools">
@@ -5974,7 +5974,7 @@ class OpenVegasStudioApp {
             </div>
           </div>
 
-          <!-- VEGAS PAN/CROP KEYFRAME CONTROLLER -->
+          <!-- Neoveg PAN/CROP KEYFRAME CONTROLLER -->
           <div class="pancrop-kf-bar">
             <div class="kf-hdr">
               <span>Keyframes Pan/Crop (${pc.keyframes.length})</span>
@@ -6137,7 +6137,7 @@ class OpenVegasStudioApp {
           <div class="transcript-box">
             <div class="fg-label">Premiere Pro Text-Based Transcript Editing (Clique na frase para posicionar/cortar):</div>
             <div class="transcript-tokens">
-              <span class="tr-word" data-seek="0.2">[00:00] "Bem-vindos ao OpenVegas</span>
+              <span class="tr-word" data-seek="0.2">[00:00] "Bem-vindos ao Neoveg</span>
               <span class="tr-word" data-seek="1.5">Pro 21 Studio</span>
               <span class="tr-word" data-seek="2.8">com motor Rust,</span>
               <span class="tr-word" data-seek="4.2">Frei0r, LADSPA e CorridorKey!"</span>
@@ -6233,7 +6233,7 @@ class OpenVegasStudioApp {
         clip.fx.push({
           id: `fx_${Date.now()}`,
           type: 'colorGrade',
-          name: 'VEGAS Color Corrector (Teal/Orange)',
+          name: 'Neoveg Color Corrector (Teal/Orange)',
           enabled: true,
           params: { liftR: -0.05, liftB: 0.08, gainR: 1.14, gainB: 0.92, saturation: 1.2 },
         });
@@ -6279,29 +6279,29 @@ class OpenVegasStudioApp {
     container.innerHTML = `
       <div class="inspector-grid">
         <div class="insp-header">
-          <strong>VEGAS Event Trimmer & Velocity: ${clip.name}</strong>
+          <strong>Neoveg Event Trimmer & Velocity: ${clip.name}</strong>
         </div>
         ${
           clip.generatorType === 'titleText'
             ? `
           <div class="insp-row">
             <label>Texto Principal do Título</label>
-            <input type="text" class="vegas-input" id="inp-clip-title" value="${clip.titleText || ''}" />
+            <input type="text" class="neoveg-input" id="inp-clip-title" value="${clip.titleText || ''}" />
           </div>
           <div class="insp-row">
             <label>Subtítulo</label>
-            <input type="text" class="vegas-input" id="inp-clip-sub" value="${clip.subtitleText || ''}" />
+            <input type="text" class="neoveg-input" id="inp-clip-sub" value="${clip.subtitleText || ''}" />
           </div>`
             : ''
         }
         <div class="insp-row-2col">
           <div>
             <label>Início na Timeline (s)</label>
-            <input type="number" step="0.1" class="vegas-input" id="inp-trim-start" value="${clip.start.toFixed(2)}" />
+            <input type="number" step="0.1" class="neoveg-input" id="inp-trim-start" value="${clip.start.toFixed(2)}" />
           </div>
           <div>
             <label>Duração (s)</label>
-            <input type="number" step="0.1" class="vegas-input" id="inp-trim-dur" value="${clip.duration.toFixed(2)}" />
+            <input type="number" step="0.1" class="neoveg-input" id="inp-trim-dur" value="${clip.duration.toFixed(2)}" />
           </div>
         </div>
         <div class="insp-row-2col">
@@ -6317,7 +6317,7 @@ class OpenVegasStudioApp {
         <div class="insp-row-2col">
           <div>
             <label>Curva Fade-In (${clip.fadeIn.toFixed(2)}s)</label>
-            <select class="vegas-select" id="sel-fadein-curve">
+            <select class="neoveg-select" id="sel-fadein-curve">
               <option value="smooth" ${clip.fadeInCurve === 'smooth' ? 'selected' : ''}>Smooth (S-Curve)</option>
               <option value="fast" ${clip.fadeInCurve === 'fast' ? 'selected' : ''}>Fast (Logarithmic)</option>
               <option value="slow" ${clip.fadeInCurve === 'slow' ? 'selected' : ''}>Slow (Exponential)</option>
@@ -6327,7 +6327,7 @@ class OpenVegasStudioApp {
           </div>
           <div>
             <label>Curva Fade-Out (${clip.fadeOut.toFixed(2)}s)</label>
-            <select class="vegas-select" id="sel-fadeout-curve">
+            <select class="neoveg-select" id="sel-fadeout-curve">
               <option value="smooth" ${clip.fadeOutCurve === 'smooth' ? 'selected' : ''}>Smooth (S-Curve)</option>
               <option value="fast" ${clip.fadeOutCurve === 'fast' ? 'selected' : ''}>Fast (Logarithmic)</option>
               <option value="slow" ${clip.fadeOutCurve === 'slow' ? 'selected' : ''}>Slow (Exponential)</option>
@@ -6469,7 +6469,7 @@ class OpenVegasStudioApp {
     ctx.fillStyle = '#0d1016';
     ctx.fillRect(0, 0, w, h);
 
-    // Coordinate grid (Vegas Pan/Crop style)
+    // Coordinate grid (Neoveg Pan/Crop style)
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
     ctx.lineWidth = 1;
     for (let gx = 0; gx < w; gx += 20) {
@@ -6491,7 +6491,7 @@ class OpenVegasStudioApp {
     ctx.strokeStyle = '#475569';
     ctx.strokeRect((w - refW) / 2, (h - refH) / 2, refW, refH);
 
-    // Vegas interactive 'F' crop frame
+    // Neoveg interactive 'F' crop frame
     const pc = clip.panCrop;
     const cx = w / 2 + pc.x * (w * 0.35);
     const cy = h / 2 + pc.y * (h * 0.35);
@@ -6614,7 +6614,7 @@ class OpenVegasStudioApp {
       <button class="ctx-item" data-ctx="pancrop">Event Pan/Crop...</button>
       <button class="ctx-item" data-ctx="fx">Event Video FX / Frei0r...</button>
       <div class="ctx-sep"></div>
-      <div class="ctx-sub">Vegas Fade Curve Type:</div>
+      <div class="ctx-sub">Neoveg Fade Curve Type:</div>
       <button class="ctx-item" data-curve="smooth">Smooth S-Curve ${clip.fadeInCurve === 'smooth' ? '✓' : ''}</button>
       <button class="ctx-item" data-curve="fast">Fast Logarithmic ${clip.fadeInCurve === 'fast' ? '✓' : ''}</button>
       <button class="ctx-item" data-curve="slow">Slow Exponential ${clip.fadeInCurve === 'slow' ? '✓' : ''}</button>
@@ -6664,11 +6664,11 @@ class OpenVegasStudioApp {
   }
 
           updateTimecodeReadouts()       {
-    const tcMain = document.getElementById('vegas-big-timecode');
+    const tcMain = document.getElementById('neoveg-big-timecode');
     if (tcMain) {
       tcMain.textContent = formatSMPTE(this.project.playhead, this.project.fps, true);
     }
-    const tcSub = document.getElementById('vegas-sub-timecode');
+    const tcSub = document.getElementById('neoveg-sub-timecode');
     if (tcSub) {
       const frame = Math.floor(this.project.playhead * this.project.fps);
       tcSub.textContent = `F:${frame} • ${this.project.width}x${this.project.height} @${this.project.fps}p`;
@@ -6704,7 +6704,7 @@ class OpenVegasStudioApp {
 
     const runCheck = async () => {
       if (reportBox) {
-        reportBox.innerHTML = `<div class="diag-fix-card">Analisando problemas recorrentes do VEGAS Pro (VFR, So4, Mídia Offline, Envelopes, Auto-Save)...</div>`;
+        reportBox.innerHTML = `<div class="diag-fix-card">Analisando problemas recorrentes do Neoveg (VFR, So4, Mídia Offline, Envelopes, Auto-Save)...</div>`;
       }
       try {
         const [fixRes, errRes] = await Promise.all([
@@ -6727,7 +6727,7 @@ class OpenVegasStudioApp {
               ...fixes.map((f) => `<div class="diag-fix-card"><strong>[CORREÇÃO APLICADA]</strong> ${f}</div>`),
             ].join('');
           }
-          this.setStatusMessage('Diagnóstico e correção preventiva do VEGAS Pro concluídos com sucesso.');
+          this.setStatusMessage('Diagnóstico e correção preventiva do Neoveg concluídos com sucesso.');
         }
         if (errRes.ok && errLogBox) {
           errLogBox.textContent = (errRes.lines || []).join('\n');
@@ -6757,7 +6757,7 @@ class OpenVegasStudioApp {
       const res = await fetch('/api/timeline/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project: this.project, outputName: 'OpenVegas_Master_Output.mp4' }),
+        body: JSON.stringify({ project: this.project, outputName: 'Neoveg_Master_Output.mp4' }),
       }).then((r) => r.json());
 
       if (res.ok && fgBox) {
@@ -6774,7 +6774,7 @@ class OpenVegasStudioApp {
           statusBox.innerHTML = `<div class="render-progress-pill">Renderizando MP4 multi-pista via FFmpeg 9.0.2...</div>`;
         }
         try {
-          const outName = (document.getElementById('inp-render-filename')                    )?.value || 'OpenVegas_Master.mp4';
+          const outName = (document.getElementById('inp-render-filename')                    )?.value || 'Neoveg_Master.mp4';
           const r = await fetch('/api/render/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6831,7 +6831,7 @@ class OpenVegasStudioApp {
       const firstPreset = Object.values(this.scriptPresets)[0];
       codeArea.value =
         firstPreset?.code ||
-        `# Vegas Python Scripting API\nvegas.add_marker(vegas.cursor, "Script Marker", "#38bdf8")\nvegas.log("Marker added at cursor!")\n`;
+        `# Neoveg Python Scripting API\nneoveg.add_marker(neoveg.cursor, "Script Marker", "#38bdf8")\nneoveg.log("Marker added at cursor!")\n`;
     }
 
     const runBtn = document.getElementById('btn-execute-python-script');
@@ -6866,7 +6866,7 @@ class OpenVegasStudioApp {
   }
 
           setStatusMessage(msg        )       {
-    const el = document.getElementById('vegas-footer-status');
+    const el = document.getElementById('neoveg-footer-status');
     if (el) el.textContent = msg;
   }
 
@@ -6899,8 +6899,8 @@ class OpenVegasStudioApp {
  
 
 window.addEventListener('DOMContentLoaded', () => {
-  const app = new OpenVegasStudioApp();
-  window.openVegasApp = app;
+  const app = new NeovegStudioApp();
+  window.openNeovegApp = app;
   app.init().catch(console.error);
 });
 

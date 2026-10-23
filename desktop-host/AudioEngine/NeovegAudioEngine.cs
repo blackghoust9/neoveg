@@ -39,7 +39,7 @@ public interface IAudioFxNode
 }
 
 /// <summary>
-/// Native 8-Band Parametric Equalizer modeled after Audacity & VEGAS Pro Track EQ (`Neoveg.AudioEngine`).
+/// Native 8-Band Parametric Equalizer modeled after Audacity & Neoveg Track EQ (`Neoveg.AudioEngine`).
 /// Implements RBJ Audio EQ Cookbook 2nd-order IIR Biquad filters across 8 configurable bands.
 /// </summary>
 public sealed class ParametricEq8BandProcessor : IAudioFxNode

@@ -1,4 +1,4 @@
-"""Generates a crisp native Windows .ico icon for OpenVegasPro21.exe"""
+"""Generates a crisp native Windows .ico icon for NeovegLegacy.exe"""
 
 import struct
 import zlib
@@ -58,6 +58,6 @@ def create_ico(path: Path) -> None:
 
 
 if __name__ == "__main__":
-    out = Path(__file__).resolve().parent / "OpenVegasPro21.ico"
+    out = Path(__file__).resolve().parent / "NeovegLegacy.ico"
     create_ico(out)
     print(f"Created icon: {out} ({out.stat().st_size} bytes)")

@@ -33,7 +33,7 @@
     <sys:String x:Key="Menu.File.RenderAs">Render As... (Python Isolated FFmpeg)</sys:String>
     <sys:String x:Key="Menu.File.SaveVeg">Save Project (.veg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Settings -&gt; General / Language...</sys:String>
-    <sys:String x:Key="Menu.File.Splash">Show Splash Screen (Vegas Pro 12)...</sys:String>
+    <sys:String x:Key="Menu.File.Splash">Show Splash Screen (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Welcome Screen...</sys:String>
     <sys:String x:Key="Menu.Help">_Help</sys:String>
     <sys:String x:Key="Menu.Help.About">About Neoveg Cross-Platform...</sys:String>
@@ -53,7 +53,7 @@
     <sys:String x:Key="Menu.View.PopoutPreview">Detach Video Preview to Second Monitor [↗]</sys:String>
     <sys:String x:Key="Menu.View.PopoutScopes">Detach Master Mixer &amp; Scopes to Second Monitor [↗]</sys:String>
     <sys:String x:Key="Menu.View.ShrinkTracks">Shrink All Track Heights (-)</sys:String>
-    <sys:String x:Key="Menu.View.ThemesGallery">VEGAS Historical Themes Gallery (1999–2026)...</sys:String>
+    <sys:String x:Key="Menu.View.ThemesGallery">Neoveg Historical Themes Gallery (1999–2026)...</sys:String>
     <sys:String x:Key="Meta.Code">en-US</sys:String>
     <sys:String x:Key="Meta.EnglishName">English (United States)</sys:String>
     <sys:String x:Key="Meta.NativeName">English (en-US)</sys:String>

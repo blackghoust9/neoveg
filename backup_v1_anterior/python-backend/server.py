@@ -1,7 +1,7 @@
 """
-OpenVegas Pro — Python Media Backend, FFmpeg Pipeline & Studio HTTP Server
-Serves the TypeScript/JS Vegas Pro NLE UI, manages real media assets, extracts
-PCM waveforms via the Rust Core bridge, executes Vegas Python scripts, and
+OpenNeoveg — Python Media Backend, FFmpeg Pipeline & Studio HTTP Server
+Serves the TypeScript/JS Neoveg NLE UI, manages real media assets, extracts
+PCM waveforms via the Rust Core bridge, executes Neoveg Python scripts, and
 renders multi-track timelines via FFmpeg.
 """
 
@@ -32,13 +32,13 @@ from rust_bridge import (
     sync_group_mute_solo_in_project,
     ungroup_track_in_project,
 )
-from vegas_scripting import PRESET_SCRIPTS, execute_vegas_script
+from neoveg_scripting import PRESET_SCRIPTS, execute_neoveg_script
 from error_logger import init_error_log, log_error, log_exception, read_error_log
 from plugins_engine import (
     FREI0R_PLUGINS,
     LADSPA_PLUGINS,
     create_empty_project,
-    diagnose_and_fix_vegas_problems,
+    diagnose_and_fix_neoveg_problems,
     ensure_default_projects,
     list_saved_projects,
     load_saved_project,
@@ -136,7 +136,7 @@ def ensure_sample_media() -> List[Dict[str, Any]]:
     if ffmpeg_bin:
         samples = [
             (
-                MEDIA_DIR / "vegas_smpte_bars.mp4",
+                MEDIA_DIR / "neoveg_smpte_bars.mp4",
                 [
                     ffmpeg_bin,
                     "-y",
@@ -287,8 +287,8 @@ def list_media_assets() -> List[Dict[str, Any]]:
     return items
 
 
-class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
-    server_version = "OpenVegasStudio/1.0"
+class NeovegHTTPHandler(BaseHTTPRequestHandler):
+    server_version = "NeovegStudio/1.0"
 
     def log_message(self, format: str, *args: Any) -> None:
         # Quiet clean logging
@@ -327,7 +327,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(
                 {
                     "ok": True,
-                    "app": "OpenVegas Pro NLE Studio",
+                    "app": "OpenNeoveg NLE Studio",
                     "python_version": sys.version.split()[0],
                     "ffmpeg": get_ffmpeg_version(),
                     "rust_core": get_rust_status(),
@@ -421,7 +421,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
             body = self._read_json_body()
             project = body.get("project", {})
             updated_proj, crossfades = detect_auto_crossfades(project)
-            out_file = RENDERS_DIR / body.get("outputName", "vegas_master_render.mp4")
+            out_file = RENDERS_DIR / body.get("outputName", "neoveg_master_render.mp4")
             plan = compile_project_to_ffmpeg(updated_proj, MEDIA_DIR, out_file)
             self._send_json(
                 {
@@ -437,7 +437,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
         if req_path == "/api/render/run":
             body = self._read_json_body()
             project = body.get("project", {})
-            out_name = body.get("outputName", f"OpenVegas_Render_{int(time.time())}.mp4")
+            out_name = body.get("outputName", f"Neoveg_Render_{int(time.time())}.mp4")
             safe_name = "".join(c for c in out_name if c.isalnum() or c in "._-") or "render.mp4"
             if not safe_name.endswith((".mp4", ".webm", ".wav")):
                 safe_name += ".mp4"
@@ -485,7 +485,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
             body = self._read_json_body()
             code = body.get("code", "")
             project = body.get("project", {})
-            res = execute_vegas_script(code, project)
+            res = execute_neoveg_script(code, project)
             if res.get("ok"):
                 res["project"], res["crossfades"] = detect_auto_crossfades(res["project"])
             self._send_json(res)
@@ -521,7 +521,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
 
         if req_path == "/api/projects/load":
             body = self._read_json_body()
-            fname = body.get("fileName", "OpenVegas_Broadcast_Demo.veg")
+            fname = body.get("fileName", "Neoveg_Broadcast_Demo.veg")
             proj = load_saved_project(fname)
             if not proj:
                 self._send_json({"ok": False, "error": f"Project not found: {fname}"}, status=404)
@@ -583,7 +583,7 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
         if req_path == "/api/diagnostics/fix-problems":
             body = self._read_json_body()
             proj = body.get("project", {})
-            report = diagnose_and_fix_vegas_problems(proj)
+            report = diagnose_and_fix_neoveg_problems(proj)
             self._send_json(report)
             return
 
@@ -656,20 +656,20 @@ class OpenVegasHTTPHandler(BaseHTTPRequestHandler):
 def run_server(host: str = "127.0.0.1", port: int = 8765) -> None:
     init_error_log()
     ensure_default_projects()
-    print("[OpenVegas Pro] Ensuring sample video & audio media assets...")
+    print("[OpenNeoveg] Ensuring sample video & audio media assets...")
     assets = ensure_sample_media()
-    print(f"[OpenVegas Pro] Ready with {len(assets)} media assets in {MEDIA_DIR}")
-    print(f"[OpenVegas Pro] FFmpeg: {get_ffmpeg_version()}")
-    print(f"[OpenVegas Pro] Rust Core: {get_rust_status().get('engine')} ({get_rust_status().get('mode')})")
-    server = ThreadingHTTPServer((host, port), OpenVegasHTTPHandler)
-    print(f"[OpenVegas Pro] Studio running at http://{host}:{port}")
+    print(f"[OpenNeoveg] Ready with {len(assets)} media assets in {MEDIA_DIR}")
+    print(f"[OpenNeoveg] FFmpeg: {get_ffmpeg_version()}")
+    print(f"[OpenNeoveg] Rust Core: {get_rust_status().get('engine')} ({get_rust_status().get('mode')})")
+    server = ThreadingHTTPServer((host, port), NeovegHTTPHandler)
+    print(f"[OpenNeoveg] Studio running at http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n[OpenVegas Pro] Shutting down studio server.")
+        print("\n[OpenNeoveg] Shutting down studio server.")
         server.server_close()
 
 
 if __name__ == "__main__":
-    port_arg = int(os.environ.get("OPENVEGAS_PORT", "8765"))
+    port_arg = int(os.environ.get("OPENNeoveg_PORT", "8765"))
     run_server(port=port_arg)

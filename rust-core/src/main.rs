@@ -13,7 +13,7 @@ fn main() {
     match cmd {
         "status" => {
             println!(
-                r#"{{"ok":true,"engine":"neoveg-core","version":"2.0.0","ffi":"cdylib+cdecl","features":["smpte_timecode","vegas_5_curve_fades","auto_crossfade_solver","pcm_wav_dsp","event_split_cut","ffmpeg_filtergraph_compiler"]}}"#
+                r#"{{"ok":true,"engine":"neoveg-core","version":"2.0.0","ffi":"cdylib+cdecl","features":["smpte_timecode","neoveg_5_curve_fades","auto_crossfade_solver","pcm_wav_dsp","event_split_cut","ffmpeg_filtergraph_compiler"]}}"#
             );
         }
         "smpte" => {

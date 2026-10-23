@@ -16,8 +16,8 @@ Tests and validates:
    - Sub-frame `neoveg_compute_crossfade` (`overlap = 0.416667s`)
    - 5-Curve Fade Envelope monotonicity & boundary accuracy (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`)
    - V+A Track Grouping (`GroupId` synchronized Mute, Solo, and linked clip movement)
-4. Avalonia UI Responsiveness & Historical VEGAS Pro Theme Manager Audit:
-   - `VegasThemeManager.cs` 4 Flagship Eras (Sonic Foundry 1-3, Sony 4-13, MAGIX 14-22, Boris FX 2026)
+4. Avalonia UI Responsiveness & Historical Neoveg Theme Manager Audit:
+   - `NeovegThemeManager.cs` 4 Flagship Eras (Sonic Foundry 1-3, Classic NLE 4-13, Modern NLE 14-22, Contemporary NLE 2026)
    - Multi-monitor pop-out windows & responsive star-grid dock layout
 """
 
@@ -289,29 +289,29 @@ def test_sfk_peak_cache_and_frame_buffer_stress() -> Dict[str, Any]:
 
 def audit_themes_and_ui_responsiveness() -> Dict[str, Any]:
     """
-    Verifies the Historical VEGAS Pro Theme Manager (`VegasThemeManager.cs`),
+    Verifies the Historical Neoveg Theme Manager (`NeovegThemeManager.cs`),
     the 4 flagship historical eras, and responsive Avalonia UI layout definitions.
     """
-    theme_mgr_cs = (ROOT_DIR / "desktop-host" / "Services" / "VegasThemeManager.cs").read_text(encoding="utf-8")
-    splash_cs = (ROOT_DIR / "desktop-host" / "Views" / "VegasSplashWindow.cs").read_text(encoding="utf-8")
+    theme_mgr_cs = (ROOT_DIR / "desktop-host" / "Services" / "NeovegThemeManager.cs").read_text(encoding="utf-8")
+    splash_cs = (ROOT_DIR / "desktop-host" / "Views" / "NeovegSplashWindow.cs").read_text(encoding="utf-8")
     welcome_cs = (ROOT_DIR / "desktop-host" / "Views" / "WelcomeWindow.cs").read_text(encoding="utf-8")
     main_win_cs = (ROOT_DIR / "desktop-host" / "Views" / "MainWindow.cs").read_text(encoding="utf-8")
     timeline_cs = (ROOT_DIR / "desktop-host" / "Controls" / "MultiTrackTimelineControl.cs").read_text(encoding="utf-8")
-    catalog = json.loads((ROOT_DIR / "assets" / "vegas_history_themes" / "theme_catalog.json").read_text(encoding="utf-8"))
+    catalog = json.loads((ROOT_DIR / "assets" / "neoveg_history_themes" / "theme_catalog.json").read_text(encoding="utf-8"))
 
     theme_ids = {t["id"] for t in catalog["themes"]}
     for required_id in (
         "sonic_foundry_v1_v3",
-        "sony_v4_v7_flaming_gold",
-        "sony_v8_v13_pro_silver_dark",
-        "magix_v14_v15_flat_gray",
-        "magix_v16_v22_carbon_cyan",
-        "borisfx_2026_electric_dark",
+        "classic_v4_v7_flaming_gold",
+        "classic_v8_v13_silver_dark",
+        "modern_v14_v15_flat_gray",
+        "modern_v16_v22_carbon_cyan",
+        "contemporary_2026_electric_dark",
     ):
         assert required_id in theme_ids, f"Missing theme in catalog: {required_id}"
 
     assert "CreateDockHeaderBrush" in theme_mgr_cs and "GetDockBorderThickness" in theme_mgr_cs
-    assert "Updating plug-in cache..." in splash_cs and "Vegas Pro 12.0" in splash_cs
+    assert "Updating plug-in cache..." in splash_cs and "Neoveg 12.0" in splash_cs
     for w_token in (
         "Widescreen (16:9)",
         "Fullscreen (4:3)",
@@ -322,19 +322,19 @@ def audit_themes_and_ui_responsiveness() -> Dict[str, Any]:
         "Show Welcome Screen on Startup",
     ):
         assert w_token in welcome_cs, f"Missing WelcomeWindow token: {w_token}"
-    assert (ROOT_DIR / "assets" / "vegas_history_themes" / "vegas_welcome_camera_banner.png").exists()
+    assert (ROOT_DIR / "assets" / "neoveg_history_themes" / "neoveg_welcome_camera_banner.png").exists()
     assert "PopoutVideoPreviewToMonitor" in main_win_cs and "PopoutMixerScopesToMonitor" in main_win_cs
-    assert "1: Sonic Foundry" in main_win_cs and "2: Sony Silver/Gold" in main_win_cs
-    assert "3: MAGIX Dark" in main_win_cs and "4: Boris FX 2026" in main_win_cs
+    assert "1: Sonic Foundry" in main_win_cs and "2: Classic Silver/Gold" in main_win_cs
+    assert "3: Modern Carbon Dark" in main_win_cs and "4: Contemporary 2026" in main_win_cs
     assert "Math.Round(newStart, 6)" in timeline_cs
 
     return {
         "total_themes_in_catalog": len(catalog["themes"]),
         "flagship_eras_verified": [
-            "Era 1: Sonic Foundry (Vegas 1-3)",
-            "Era 2: Sony Classic / Silver (Vegas 4-13)",
-            "Era 3: MAGIX Modern Dark (Vegas 14-22)",
-            "Era 4: Boris FX / Atual (2026)",
+            "Era 1: Sonic Foundry (Neoveg 1-3)",
+            "Era 2: Classic NLE Classic / Silver (Neoveg 4-13)",
+            "Era 3: Modern NLE Modern Dark (Neoveg 14-22)",
+            "Era 4: Contemporary NLE / Atual (2026)",
         ],
         "multi_monitor_popouts": [
             "VideoPreviewControl",

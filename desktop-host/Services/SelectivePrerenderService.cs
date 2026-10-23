@@ -68,7 +68,7 @@ public sealed class SelectivePrerenderService
     /// (`neoveg_get_timeline_render_status`).
     /// </summary>
     public FrameRenderStatus[] GetTimelineRenderStatus(
-        VegasProject project,
+        NeovegProject project,
         int startFrame,
         int endFrame)
     {
@@ -122,7 +122,7 @@ public sealed class SelectivePrerenderService
     /// for fast, crisp rendering in `RenderStatusRuler` and `MultiTrackTimelineControl`.
     /// </summary>
     public List<RenderStatusSegment> BuildRenderStatusSegments(
-        VegasProject project,
+        NeovegProject project,
         double maxTimelineSeconds,
         int bucketCount = 180)
     {
@@ -224,7 +224,7 @@ public sealed class SelectivePrerenderService
     }
 
     private static (int ActiveFxCount, int ConnectedTracks) AnalyzeTimelineComplexityAtTime(
-        VegasProject project,
+        NeovegProject project,
         double timeSec)
     {
         int activeVideoClips = 0;
@@ -281,7 +281,7 @@ public sealed class SelectivePrerenderService
     /// (or active timeline range), animating the `RenderStatusRuler` from Red (`#E74C3C`) -> Yellow (`#F1C40F` queued) -> Green (`#2ECC71` 60 FPS RAM cache).
     /// </summary>
     public async Task BuildDynamicRamPreviewAsync(
-        VegasProject project,
+        NeovegProject project,
         Action<string>? onStatusProgress = null,
         Action? onVisualInvalidate = null)
     {
@@ -362,7 +362,7 @@ public sealed class SelectivePrerenderService
     /// the `RenderStatusRuler` in real time from Red (`#E74C3C`) -> Yellow (`#F1C40F`) -> Green (`#2ECC71`).
     /// </summary>
     public async Task RunSelectiveDiskPrerenderAsync(
-        VegasProject project,
+        NeovegProject project,
         FFmpegPythonService? pythonService = null,
         Action<string>? onStatusProgress = null,
         Action? onVisualInvalidate = null)
@@ -443,7 +443,7 @@ public sealed class SelectivePrerenderService
     }
 
     private void WritePrerenderArtifactToDisk(
-        VegasProject project,
+        NeovegProject project,
         string prerenderMp4Path,
         double startSec,
         double endSec,
@@ -455,7 +455,7 @@ public sealed class SelectivePrerenderService
             Directory.CreateDirectory(PrerenderCacheDirectory);
 
             // Copy valid sample MP4 frame stream or write a valid ISO BMFF ftyp header + JSON metadata sidecar
-            string sampleMp4 = Path.Combine(_rootDir, "media", "vegas_smpte_bars.mp4");
+            string sampleMp4 = Path.Combine(_rootDir, "media", "neoveg_smpte_bars.mp4");
             if (File.Exists(sampleMp4))
             {
                 File.Copy(sampleMp4, prerenderMp4Path, overwrite: true);
@@ -565,7 +565,7 @@ public sealed class SelectivePrerenderService
         }
     }
 
-    private static (double StartSec, double EndSec) ResolveTargetRange(VegasProject project)
+    private static (double StartSec, double EndSec) ResolveTargetRange(NeovegProject project)
     {
         if (project.LoopEnabled && project.LoopEnd > project.LoopStart + 0.1)
         {

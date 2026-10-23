@@ -33,7 +33,7 @@
     <sys:String x:Key="Menu.File.RenderAs">Rendre en tant que... (Python Isolated FFmpeg)</sys:String>
     <sys:String x:Key="Menu.File.SaveVeg">Enregistrer le Projet (.veg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Paramètres -&gt; Général / Langue...</sys:String>
-    <sys:String x:Key="Menu.File.Splash">Afficher l&apos;écran de démarrage (Vegas Pro 12)...</sys:String>
+    <sys:String x:Key="Menu.File.Splash">Afficher l&apos;écran de démarrage (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Écran d&apos;accueil...</sys:String>
     <sys:String x:Key="Menu.Help">_Aide</sys:String>
     <sys:String x:Key="Menu.Help.About">À propos de Neoveg Multiplateforme...</sys:String>
@@ -53,7 +53,7 @@
     <sys:String x:Key="Menu.View.PopoutPreview">Détacher l&apos;aperçu vidéo vers un second moniteur [↗]</sys:String>
     <sys:String x:Key="Menu.View.PopoutScopes">Détacher le mixeur maître et les scopes [↗]</sys:String>
     <sys:String x:Key="Menu.View.ShrinkTracks">Réduire la hauteur des pistes (-)</sys:String>
-    <sys:String x:Key="Menu.View.ThemesGallery">Galerie des thèmes historiques VEGAS (1999–2026)...</sys:String>
+    <sys:String x:Key="Menu.View.ThemesGallery">Galerie des thèmes historiques Neoveg (1999–2026)...</sys:String>
     <sys:String x:Key="Meta.Code">fr-FR</sys:String>
     <sys:String x:Key="Meta.EnglishName">French (France)</sys:String>
     <sys:String x:Key="Meta.NativeName">Français (fr-FR)</sys:String>

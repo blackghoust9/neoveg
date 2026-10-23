@@ -15,13 +15,13 @@ using Neoveg.Scripting;
 
 public class EntryPoint
 {
-    public void FromVegas(Vegas myVegas)
+    public void FromNeoveg(NeovegHost myNeoveg)
     {
         Timecode splitInterval = Timecode.FromSeconds(0.85);
         int totalSplits = 0;
         int totalGlitched = 0;
 
-        foreach (Track track in myVegas.Project.Tracks)
+        foreach (Track track in myNeoveg.Project.Tracks)
         {
             if (!track.IsVideo)
                 continue;
@@ -44,7 +44,7 @@ public class EntryPoint
                             glitchedRight.PlaybackRate = 1.15;
                             glitchedRight.FadeIn.Length = Timecode.FromSeconds(0.12);
                             glitchedRight.FadeIn.Curve = CurveType.Sharp;
-                            myVegas.Project.Markers.Add(new Marker(glitchedRight.Start, $"Datamosh Glitch #{totalSplits + 1}"));
+                            myNeoveg.Project.Markers.Add(new Marker(glitchedRight.Start, $"Datamosh Glitch #{totalSplits + 1}"));
                             totalSplits++;
                             totalGlitched++;
                         }
@@ -56,7 +56,7 @@ public class EntryPoint
             }
         }
 
-        myVegas.Log($"[Batch_Split_and_Datamosh.cs] Concluido: {totalSplits} corte(s) sub-quadro e {totalGlitched} evento(s) com Datamosh Glitch aplicado.");
-        myVegas.UpdateUI();
+        myNeoveg.Log($"[Batch_Split_and_Datamosh.cs] Concluido: {totalSplits} corte(s) sub-quadro e {totalGlitched} evento(s) com Datamosh Glitch aplicado.");
+        myNeoveg.UpdateUI();
     }
 }

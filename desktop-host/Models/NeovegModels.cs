@@ -358,7 +358,7 @@ public sealed class VideoFxInstance
     public string Type { get; set; } = "brightnessContrast";
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = "VEGAS Brightness & Contrast";
+    public string Name { get; set; } = "Neoveg Brightness & Contrast";
 
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
@@ -686,7 +686,7 @@ public sealed class HistoryActionEntry
     public string Description { get; set; } = "";
 }
 
-public sealed class VegasProject
+public sealed class NeovegProject
 {
     [JsonPropertyName("apiVersion")]
     public string ApiVersion { get; set; } = "2.1.0";
@@ -809,14 +809,14 @@ public sealed class VegasProject
         return max > 0.1 ? max : Math.Max(6.0, LoopEnd);
     }
 
-    public static VegasProject CreateEmpty(
+    public static NeovegProject CreateEmpty(
         string name = "Novo_Projeto_Neoveg",
         int width = 1920,
         int height = 1080,
         double fps = 29.97,
         bool includeDefaultTracks = false)
     {
-        var proj = new VegasProject
+        var proj = new NeovegProject
         {
             Name = name,
             IsDemo = false,
@@ -870,7 +870,7 @@ public sealed class VegasProject
         return proj;
     }
 
-    public static VegasProject CreateBroadcastDemo()
+    public static NeovegProject CreateBroadcastDemo()
     {
         var proj = CreateEmpty("Neoveg_Broadcast_Demo", 1920, 1080, 29.97, includeDefaultTracks: true);
         proj.IsDemo = true;
@@ -903,7 +903,7 @@ public sealed class VegasProject
         {
             Id = "clip_vid_1",
             Name = "Seafront - 4743",
-            MediaFile = "vegas_smpte_bars.mp4",
+            MediaFile = "neoveg_smpte_bars.mp4",
             MediaType = "video",
             GeneratorType = "smpteBars",
             Color = "#0e7490",
@@ -917,7 +917,7 @@ public sealed class VegasProject
         {
             Id = "clip_vid_2",
             Name = "CorridorKey Green Screen Actor",
-            MediaFile = "vegas_cyber_scene.mp4",
+            MediaFile = "neoveg_cyber_scene.mp4",
             MediaType = "generator",
             GeneratorType = "greenScreenActor",
             Color = "#16a34a",
@@ -952,7 +952,7 @@ public sealed class VegasProject
         {
             Id = "clip_aud_1",
             Name = "Neoveg Synth Pad (48kHz PCM WAV)",
-            MediaFile = "vegas_synth_pad.wav",
+            MediaFile = "neoveg_synth_pad.wav",
             MediaType = "audio",
             Color = "#0891b2",
             Start = 0.0,
@@ -980,15 +980,15 @@ public sealed class VegasProject
 
     /// <summary>
     /// Creates a project whose MediaPool and timeline clips point to moved/missing file paths
-    /// so the VEGAS Pro "Missing Media" (Search & Relink) workflow can be tested at any time.
+    /// so the Neoveg "Missing Media" (Search & Relink) workflow can be tested at any time.
     /// </summary>
-    public static VegasProject CreateMovedMediaRelinkDemo()
+    public static NeovegProject CreateMovedMediaRelinkDemo()
     {
         var proj = CreateBroadcastDemo();
         proj.Name = "Neoveg_MovedMedia_RelinkTest";
         proj.Description = "Projeto com Mídias Movidas/Renomeadas para Teste do Search & Relink (Neoveg.Core.MediaRelinker)";
 
-        string oldPath1 = @"C:\Old_Neoveg_Archive\Camera_A\vegas_smpte_bars.mp4";
+        string oldPath1 = @"C:\Old_Neoveg_Archive\Camera_A\neoveg_smpte_bars.mp4";
         string oldPath2 = @"D:\External_SSD_2025\Rushes\CAM01_neoveg_broadcast_slate_FINAL.mp4";
         string oldPath3 = @"E:\Audio_Backup_Drive\Stems\synth_bass_120bpm.wav";
 
@@ -998,7 +998,7 @@ public sealed class VegasProject
             {
                 Id = "media_rel_1",
                 Name = "Seafront - 4743 (SMPTE Master)",
-                FileName = "vegas_smpte_bars.mp4",
+                FileName = "neoveg_smpte_bars.mp4",
                 FilePath = oldPath1,
                 Type = "video",
                 Duration = 4.0,

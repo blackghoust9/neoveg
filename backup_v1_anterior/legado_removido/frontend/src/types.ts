@@ -1,6 +1,6 @@
 /**
- * OpenVegas Pro 21 — Core TypeScript Data Models
- * Mirrors the Rust Core (`openvegas-core`), Python Backend, Frei0r, LADSPA & CorridorKey schemas.
+ * OpenNeoveg 21 — Core TypeScript Data Models
+ * Mirrors the Rust Core (`neoveg-core`), Python Backend, Frei0r, LADSPA & CorridorKey schemas.
  */
 
 export type FadeCurveType = 'linear' | 'fast' | 'slow' | 'smooth' | 'sharp';
@@ -192,7 +192,7 @@ export interface MediaAsset {
   color: string;
 }
 
-export interface VegasProject {
+export interface NeovegProject {
   name: string;
   isDemo?: boolean;
   description?: string;

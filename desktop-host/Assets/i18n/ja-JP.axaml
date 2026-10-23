@@ -33,7 +33,7 @@
     <sys:String x:Key="Menu.File.RenderAs">名前を付けてレンダリング... (FFmpeg)</sys:String>
     <sys:String x:Key="Menu.File.SaveVeg">プロジェクトを保存 (.veg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">設定 -&gt; 一般 / 言語 (Language)...</sys:String>
-    <sys:String x:Key="Menu.File.Splash">スプラッシュ画面を表示 (Vegas Pro 12)...</sys:String>
+    <sys:String x:Key="Menu.File.Splash">スプラッシュ画面を表示 (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">ウェルカム画面...</sys:String>
     <sys:String x:Key="Menu.Help">ヘルプ(_H)</sys:String>
     <sys:String x:Key="Menu.Help.About">Neoveg について...</sys:String>
@@ -53,7 +53,7 @@
     <sys:String x:Key="Menu.View.PopoutPreview">ビデオプレビューを別モニターへ分離 [↗]</sys:String>
     <sys:String x:Key="Menu.View.PopoutScopes">ミキサー＆スコープを別モニターへ分離 [↗]</sys:String>
     <sys:String x:Key="Menu.View.ShrinkTracks">トラックの高さを縮小 (-)</sys:String>
-    <sys:String x:Key="Menu.View.ThemesGallery">VEGAS 歴代テーマギャラリー (1999–2026)...</sys:String>
+    <sys:String x:Key="Menu.View.ThemesGallery">Neoveg 歴代テーマギャラリー (1999–2026)...</sys:String>
     <sys:String x:Key="Meta.Code">ja-JP</sys:String>
     <sys:String x:Key="Meta.EnglishName">Japanese</sys:String>
     <sys:String x:Key="Meta.NativeName">日本語 (ja-JP)</sys:String>

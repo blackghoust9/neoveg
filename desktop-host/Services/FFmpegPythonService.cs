@@ -213,8 +213,8 @@ public sealed class FFmpegPythonService
             list.Add(new MediaAssetItem
             {
                 Id = "demo_smpte",
-                Name = "vegas_smpte_bars.mp4",
-                FileName = "vegas_smpte_bars.mp4",
+                Name = "neoveg_smpte_bars.mp4",
+                FileName = "neoveg_smpte_bars.mp4",
                 Type = "video",
                 GeneratorType = "smpteBars",
                 Duration = 5.0,
@@ -227,8 +227,8 @@ public sealed class FFmpegPythonService
             list.Add(new MediaAssetItem
             {
                 Id = "demo_synth",
-                Name = "vegas_synth_pad.wav",
-                FileName = "vegas_synth_pad.wav",
+                Name = "neoveg_synth_pad.wav",
+                FileName = "neoveg_synth_pad.wav",
                 Type = "audio",
                 Duration = 5.0,
                 SampleRate = 48000,
@@ -241,13 +241,13 @@ public sealed class FFmpegPythonService
         return list;
     }
 
-    public List<(string FileName, VegasProject Project)> LoadSavedProjects()
+    public List<(string FileName, NeovegProject Project)> LoadSavedProjects()
     {
-        var result = new List<(string, VegasProject)>();
+        var result = new List<(string, NeovegProject)>();
         string demoNeovegPath = Path.Combine(ProjectsDir, "Neoveg_Broadcast_Demo.neoveg");
         if (!File.Exists(demoNeovegPath))
         {
-            SaveProjectToDisk(VegasProject.CreateBroadcastDemo(), "Neoveg_Broadcast_Demo.neoveg");
+            SaveProjectToDisk(NeovegProject.CreateBroadcastDemo(), "Neoveg_Broadcast_Demo.neoveg");
         }
 
         if (Directory.Exists(ProjectsDir))
@@ -273,7 +273,7 @@ public sealed class FFmpegPythonService
                 try
                 {
                     string json = File.ReadAllText(file, Encoding.UTF8);
-                    var proj = JsonSerializer.Deserialize<VegasProject>(json);
+                    var proj = JsonSerializer.Deserialize<NeovegProject>(json);
                     if (proj != null)
                     {
                         result.Add((Path.GetFileName(file), proj));
@@ -288,12 +288,12 @@ public sealed class FFmpegPythonService
 
         if (result.Count == 0)
         {
-            result.Add(("Neoveg_Broadcast_Demo.neoveg", VegasProject.CreateBroadcastDemo()));
+            result.Add(("Neoveg_Broadcast_Demo.neoveg", NeovegProject.CreateBroadcastDemo()));
         }
         return result;
     }
 
-    public string SaveProjectToDisk(VegasProject project, string? fileName = null)
+    public string SaveProjectToDisk(NeovegProject project, string? fileName = null)
     {
         string safeName = string.IsNullOrWhiteSpace(fileName) ? project.Name : fileName;
         if (safeName.EndsWith(".veg", StringComparison.OrdinalIgnoreCase))
@@ -306,7 +306,7 @@ public sealed class FFmpegPythonService
     }
 
     public async Task<(bool Ok, string OutputPath, string CommandPreview)> RenderProjectViaPythonFFmpegAsync(
-        VegasProject project,
+        NeovegProject project,
         string outputFileName = "Neoveg_Master_Cut.mp4")
     {
         string tempVeg = Path.Combine(ProjectsDir, "_temp_render_job.veg");

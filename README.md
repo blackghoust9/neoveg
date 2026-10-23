@@ -135,7 +135,7 @@ Estado em 23/10/2026 (Windows 10, toolchain completo instalado conforme a seçã
 - `cargo test` (`rust-core`) — 6 testes passando. Cobertura Rust (`cargo llvm-cov`): **~39% das linhas** (`lib.rs` ~16%).
 - `scripts/run_qa_suite.ps1` — **falha**: passa no build C++ instrumentado e na formatação .NET, e para no `cargo clippy -D warnings` (17 erros pré-existentes em `rust-core/src/lib.rs` e `audio_peaks.rs`). Os passos seguintes ainda não foram exercitados.
 - `ctest` não tem testes C++ registrados (não há GoogleTest/`add_test` em `cpp-extensions/CMakeLists.txt`).
-- `python-backend/test_vegas_engine.py` verifica a presença de símbolos/textos nos arquivos e grava `coverage/qa/qa_report.json` como "pass"; **ele não substitui a suíte de QA**. O resultado válido é o gravado por `run_qa_suite.ps1`/`.sh`.
+- `python-backend/test_neoveg_engine.py` verifica a presença de símbolos/textos nos arquivos e grava `coverage/qa/qa_report.json` como "pass"; **ele não substitui a suíte de QA**. O resultado válido é o gravado por `run_qa_suite.ps1`/`.sh`.
 
 **Limitações conhecidas:**
 

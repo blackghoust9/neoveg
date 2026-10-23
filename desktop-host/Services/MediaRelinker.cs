@@ -27,7 +27,7 @@ public sealed class MissingMediaEntry
 
 /// <summary>
 /// `Neoveg.Core.MediaRelinker` — Automated 3-Stage Missing Media Search & Relink Engine:
-/// 1. Detects missing files in `VegasProject.MediaPool` and `TimelineClip.MediaFile` when opening `.veg` projects.
+/// 1. Detects missing files in `NeovegProject.MediaPool` and `TimelineClip.MediaFile` when opening `.veg` projects.
 /// 2. Recursive Directory Scanner with 3-Stage Matching:
 ///    - Stage 1: Exact Filename & Extension Match (case-insensitive).
 ///    - Stage 2: Fuzzy Camera Prefix/Suffix & Levenshtein Token Similarity Match.
@@ -76,7 +76,7 @@ public sealed class MediaRelinker
     /// Checks all files referenced in `project.MediaPool` and `project.Tracks` on disk.
     /// Returns the list of missing media files that could not be found at their original path.
     /// </summary>
-    public List<MissingMediaEntry> DetectMissingMediaInProject(VegasProject project)
+    public List<MissingMediaEntry> DetectMissingMediaInProject(NeovegProject project)
     {
         var missingList = new List<MissingMediaEntry>();
         var seenOriginalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -139,7 +139,7 @@ public sealed class MediaRelinker
         if (File.Exists(rawPath))
             return true;
 
-        // If `rawPath` is a relative filename without a drive/root (e.g. "vegas_smpte_bars.mp4"), check `media/`
+        // If `rawPath` is a relative filename without a drive/root (e.g. "neoveg_smpte_bars.mp4"), check `media/`
         if (!Path.IsPathRooted(rawPath) && !rawPath.Contains(':') && !rawPath.Contains('\\') && !rawPath.Contains('/'))
         {
             string inWorkspaceMedia = Path.Combine(_rootDir, "media", rawPath);
@@ -321,7 +321,7 @@ public sealed class MediaRelinker
     /// <summary>
     /// Applies the relinked paths and offline flags to `project.MediaPool` and all `TimelineClip` events on the timeline.
     /// </summary>
-    public void ApplyRelinkResolutionsToProject(VegasProject project, IReadOnlyList<MissingMediaEntry> entries)
+    public void ApplyRelinkResolutionsToProject(NeovegProject project, IReadOnlyList<MissingMediaEntry> entries)
     {
         var byOriginalPath = entries.ToDictionary(e => e.OriginalPath, StringComparer.OrdinalIgnoreCase);
         var byId = entries.GroupBy(e => e.Id, StringComparer.OrdinalIgnoreCase)

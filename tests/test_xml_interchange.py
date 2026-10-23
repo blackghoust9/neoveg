@@ -1,7 +1,7 @@
 """
 Validation & Interoperability Test Suite (`tests/test_xml_interchange.py`):
 1. Native `.neoveg` Container (ZIP housing `project.json`, `media_pool.json`, and `history.json`).
-2. Legacy VEGAS Pro `.veg` Import-Only Inspection via Rust FFI (`neoveg_inspect_veg_container`).
+2. Legacy Neoveg `.veg` Import-Only Inspection via Rust FFI (`neoveg_inspect_veg_container`).
 3. FCP7 / Premiere Pro / DaVinci Resolve XML (`.xml` — `xmeml version="5"`) Export & Round-Trip Re-Import:
    - Verifies Timecode / Edit Rate (`29.97` NTSC / `timebase=30`),
    - Verifies Video & Audio tracks (`name`, `muted`, `solo`, `level`),

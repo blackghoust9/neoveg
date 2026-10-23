@@ -1,5 +1,5 @@
 /**
- * OpenVegas Pro — Zero-Dependency TypeScript Bundler (Node 24+ native `stripTypeScriptTypes`)
+ * OpenNeoveg — Zero-Dependency TypeScript Bundler (Node 24+ native `stripTypeScriptTypes`)
  * Bundles `src/types.ts`, `src/ui/icons.ts`, `src/ui/faceThumbnails.ts`,
  * `src/engine/compositor.ts`, `src/engine/audioEngine.ts`,
  * `src/ui/timeline.ts`, `src/ui/dockManager.ts`, and `src/main.ts` into `public/bundle.js`.
@@ -23,7 +23,7 @@ const modulesOrder = [
   'src/main.ts',
 ];
 
-let combined = `// OpenVegas Pro 21 — Compiled TypeScript Studio Bundle\n// Generated from frontend/src/*.ts\n\n`;
+let combined = `// OpenNeoveg 21 — Compiled TypeScript Studio Bundle\n// Generated from frontend/src/*.ts\n\n`;
 
 for (const relPath of modulesOrder) {
   const fullPath = path.join(__dirname, relPath);
@@ -40,4 +40,4 @@ for (const relPath of modulesOrder) {
 
 const outPath = path.join(__dirname, 'public', 'bundle.js');
 fs.writeFileSync(outPath, combined, 'utf8');
-console.log(`[OpenVegas TypeScript Build] Successfully compiled ${modulesOrder.length} TypeScript modules -> ${outPath} (${combined.length} bytes)`);
+console.log(`[Neoveg TypeScript Build] Successfully compiled ${modulesOrder.length} TypeScript modules -> ${outPath} (${combined.length} bytes)`);

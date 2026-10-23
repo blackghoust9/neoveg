@@ -791,7 +791,7 @@
               <span class="file-note">security(cpp): 64-bit integer overflow guard in NVSH shared memory &amp; free_buffer</span>
               <span class="file-status">C++17 / CMake</span>
             </div>
-            <div class="file-row" data-preview="python-backend/ (Package: neoveg)&#10;├── qa_audit_suite.py (SD/HD/4K/9:16/24-bit 96kHz/VFR + 5,000 sub-frame ops stress test)&#10;├── test_vegas_engine.py (33 automated end-to-end verification tests)&#10;└── workspace_sync.py (Automatic mirror to G:\Meu Drive\vp-rev-eng\teste\teste2)" data-search="python-backend neoveg qa_audit_suite test_vegas_engine ffmpeg">
+            <div class="file-row" data-preview="python-backend/ (Package: neoveg)&#10;├── qa_audit_suite.py (SD/HD/4K/9:16/24-bit 96kHz/VFR + 5,000 sub-frame ops stress test)&#10;├── test_neoveg_engine.py (33 automated end-to-end verification tests)&#10;└── workspace_sync.py (Automatic mirror to G:\Meu Drive\vp-rev-eng\teste\teste2)" data-search="python-backend neoveg qa_audit_suite test_neoveg_engine ffmpeg">
               <span class="file-name"><span>📁</span>python-backend/</span>
               <span class="file-note">test(qa): add Test 33 verifying QA performance audit, FFI memory safety &amp; Docker</span>
               <span class="file-status">Python 3</span>
@@ -811,12 +811,12 @@
               <span class="file-note">ci(docker): multi-stage Dockerfile for C++, Rust, .NET 8.0 &amp; headless QA tests</span>
               <span class="file-status">Docker</span>
             </div>
-            <div class="file-row" data-preview="docker-compose.yml&#10;Services:&#10;  - neoveg-qa (runs qa_audit_suite.py & test_vegas_engine.py)&#10;  - neoveg-builder (cross-compiles self-contained portable bundles)&#10;  - neoveg-dashboard (serves docs/index.html on http://localhost:8080)" data-search="docker-compose.yml containers neoveg-qa neoveg-builder neoveg-dashboard">
+            <div class="file-row" data-preview="docker-compose.yml&#10;Services:&#10;  - neoveg-qa (runs qa_audit_suite.py & test_neoveg_engine.py)&#10;  - neoveg-builder (cross-compiles self-contained portable bundles)&#10;  - neoveg-dashboard (serves docs/index.html on http://localhost:8080)" data-search="docker-compose.yml containers neoveg-qa neoveg-builder neoveg-dashboard">
               <span class="file-name"><span>🐳</span>docker-compose.yml</span>
               <span class="file-note">ci(compose): orchestrate neoveg-qa, neoveg-builder &amp; neoveg-dashboard services</span>
               <span class="file-status">Compose</span>
             </div>
-            <div class="file-row" data-preview="AGENTS.md — AI Agent Development Guidelines & Standards&#10;Sections 1 to 17: Strict Naming Conventions (Neoveg / neoveg), Multi-Language Architecture, Missing Media Protocol, DirectX & VC++ Prerequisites, Workspace Sync, Crash Diagnostics, Local AppCache, VEGAS 10-21 Manuals, Section 11 QA & Docker Protocol, Section 13 Dependencies, Section 14 Multi-OS Portable Release, Section 16 ISO/IEC 25010 / 29119 / 27001 Quality Compliance, and Section 17 OS Launchers." data-search="agents.md guidelines section 11 section 16 iso 25010 29119 27001 qa docker">
+            <div class="file-row" data-preview="AGENTS.md — AI Agent Development Guidelines & Standards&#10;Sections 1 to 17: Strict Naming Conventions (Neoveg / neoveg), Multi-Language Architecture, Missing Media Protocol, DirectX & VC++ Prerequisites, Workspace Sync, Crash Diagnostics, Local AppCache, Neoveg 10-21 Manuals, Section 11 QA & Docker Protocol, Section 13 Dependencies, Section 14 Multi-OS Portable Release, Section 16 ISO/IEC 25010 / 29119 / 27001 Quality Compliance, and Section 17 OS Launchers." data-search="agents.md guidelines section 11 section 16 iso 25010 29119 27001 qa docker">
               <span class="file-name"><span>📄</span>AGENTS.md</span>
               <span class="file-note">docs(agents): add Section 16 ISO/IEC 25010, 29119 &amp; 27001 Software Quality Compliance</span>
               <span class="file-status">ISO/IEC Standards</span>
@@ -899,10 +899,10 @@
                   <div class="bench-meter"><div style="width:100%"></div></div>
                 </div>
 
-                <div class="bench-card" data-search="iso 25010 usabilidade usability vegas 10-21 playhead i18n">
+                <div class="bench-card" data-search="iso 25010 usabilidade usability neoveg 10-21 playhead i18n">
                   <div class="metric-label">3. Usabilidade (Usability)</div>
                   <div class="metric-val" style="font-size:18px;color:#7ee787">ISO/IEC 25010 <span>PASS</span></div>
-                  <p>Fidelidade histórica aos manuais VEGAS 10–21, Playhead CTI com blink de 500ms, Event Header SVG, Pan/Crop em 3 zonas, 8 idiomas (<code>pt-BR</code> padrão) e Clipboard de Logs.</p>
+                  <p>Fidelidade histórica aos manuais Neoveg 10–21, Playhead CTI com blink de 500ms, Event Header SVG, Pan/Crop em 3 zonas, 8 idiomas (<code>pt-BR</code> padrão) e Clipboard de Logs.</p>
                   <div class="bench-meter"><div style="width:100%"></div></div>
                 </div>
 
@@ -1041,7 +1041,7 @@
                   <span class="docker-name">neoveg-qa-runner</span>
                   <span class="docker-state" data-state="unknown">● Status desconhecido</span>
                 </div>
-                <p>Executa a compilação nativa em Rust/C++, build .NET 8.0 e roda <code>qa_audit_suite.py</code> + <code>test_vegas_engine.py</code> em modo headless.</p>
+                <p>Executa a compilação nativa em Rust/C++, build .NET 8.0 e roda <code>qa_audit_suite.py</code> + <code>test_neoveg_engine.py</code> em modo headless.</p>
                 <div class="docker-meta">Target: neoveg-qa · FFmpeg + .NET 8 + Python 3</div>
               </div>
 
@@ -1188,7 +1188,7 @@
               <div class="milestone-icon">⟨/⟩</div>
               <div>
                 <h3>Motor de Scripting Dinâmico (Roslyn C# <code>.cs</code> &amp; Python <code>.py</code>)</h3>
-                <p>Execução direta em <em>Tools → Scripting</em> com objetos <code>Vegas</code>, <code>Project</code>, <code>Track</code>, <code>TrackEvent</code>, <code>Take</code> e <code>Effect</code>.</p>
+                <p>Execução direta em <em>Tools → Scripting</em> com objetos <code>Neoveg</code>, <code>Project</code>, <code>Track</code>, <code>TrackEvent</code>, <code>Take</code> e <code>Effect</code>.</p>
               </div>
               <span class="badge">Concluído</span>
             </article>
@@ -1208,7 +1208,7 @@
         <!-- 6. Lista Completa dos 33 Testes Automatizados -->
         <section aria-labelledby="qa-list-title">
           <div class="section-heading">
-            <h2 id="qa-list-title">Relatório Completo da Suíte de Testes (<code>test_vegas_engine.py</code> — 33/33 PASS)</h2>
+            <h2 id="qa-list-title">Relatório Completo da Suíte de Testes (<code>test_neoveg_engine.py</code> — 33/33 PASS)</h2>
             <span class="eyebrow">Cobertura integral das 4 linguagens e infraestrutura Docker</span>
           </div>
           <div class="qa-box">
@@ -1222,7 +1222,7 @@
               <div class="qa-item" data-search="03 ffmpeg ffprobe isolado"><span class="qa-pass">[PASS] 03</span><span>Gerenciador Python isolado de FFmpeg/FFprobe (v9.0.2)</span><span class="qa-lang">Python</span></div>
               <div class="qa-item" data-search="04 avalonia ui 11 rustcoreinterop"><span class="qa-pass">[PASS] 04</span><span>Migração C# Avalonia UI 11 + Ponte FFI (<code>RustCoreInterop.cs</code>)</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="05 scripts python rust agrupar faixas"><span class="qa-pass">[PASS] 05</span><span>Scripts Python/Rust (Renomear/Agrupar Faixas, Frei0r, LADSPA, CorridorKey)</span><span class="qa-lang">Python</span></div>
-              <div class="qa-item" data-search="06 build portatil temas vegas"><span class="qa-pass">[PASS] 06</span><span>Build portátil + Acervo histórico de temas VEGAS (1999–2026)</span><span class="qa-lang">Multi-OS</span></div>
+              <div class="qa-item" data-search="06 build portatil temas neoveg"><span class="qa-pass">[PASS] 06</span><span>Build portátil + Acervo histórico de temas Neoveg (1999–2026)</span><span class="qa-lang">Multi-OS</span></div>
               <div class="qa-item" data-search="07 luts 3d cube proxy gpu otio"><span class="qa-pass">[PASS] 07</span><span>4 LUTs 3D (<code>.cube</code>), Perfis Proxy GPU e OpenTimelineIO</span><span class="qa-lang">Assets</span></div>
               <div class="qa-item" data-search="08 auditoria qa 4k 96khz vfr 5000 ops"><span class="qa-pass">[PASS] 08</span><span>Auditoria QA (SD/HD/4K/9:16/24-bit 96kHz/VFR + 5.000 ops sub-quadro em ~30ms)</span><span class="qa-lang">QA Load</span></div>
               <div class="qa-item" data-search="09 modulo c++ neoveg_cpp_engine nvsh"><span class="qa-pass">[PASS] 09</span><span>Módulo C/C++ (<code>neoveg_cpp_engine</code> + Shared Memory <code>NVSH</code> 36896B)</span><span class="qa-lang">C++17</span></div>
@@ -1245,7 +1245,7 @@
               <div class="qa-item" data-search="26 logviewerwindow copiar logs"><span class="qa-pass">[PASS] 26</span><span>Janela de Logs (<code>LogViewerWindow</code>: Copiar Logs + feedback <code>Copiado!</code>)</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="27 audacity waveform eq 8 bandas"><span class="qa-pass">[PASS] 27</span><span>Motor de Forma de Onda Audacity (<code>audio_peaks.rs</code> + EQ 8 Bandas)</span><span class="qa-lang">Rust/C#</span></div>
               <div class="qa-item" data-search="28 cores automaticas faixas"><span class="qa-pass">[PASS] 28</span><span>Cores Automáticas de Faixas (<code>TrackColorPaletteService</code> + Barra 4px)</span><span class="qa-lang">C#</span></div>
-              <div class="qa-item" data-search="29 manuais vegas 10-21 fx pipeline"><span class="qa-pass">[PASS] 29</span><span>Manuais de Referência 10–21, Atalhos e FX Pipeline de 5 Estágios</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="29 manuais neoveg 10-21 fx pipeline"><span class="qa-pass">[PASS] 29</span><span>Manuais de Referência 10–21, Atalhos e FX Pipeline de 5 Estágios</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="30 vcredist self-contained .net 8"><span class="qa-pass">[PASS] 30</span><span>Instalação Silenciosa VC++ e Publicação Self-Contained (<code>.NET 8.0</code>)</span><span class="qa-lang">Infra</span></div>
               <div class="qa-item" data-search="31 directx jun2010 d3d11 xaudio2_7"><span class="qa-pass">[PASS] 31</span><span>DirectX End-User Runtimes (<code>DXSETUP.exe /silent</code> + verificação <code>d3d11.dll</code> / <code>XAudio2_7.dll</code>)</span><span class="qa-lang">C#/C++</span></div>
               <div class="qa-item" data-search="32 operatingsystem neoveg.sh neoveg.bat"><span class="qa-pass">[PASS] 32</span><span>Detecção Multiplataforma de SO e Lançadores (<code>neoveg.sh</code> / <code>neoveg.bat</code>)</span><span class="qa-lang">Multi-OS</span></div>
@@ -1299,8 +1299,8 @@
             <button class="copy-btn" data-copy="docker compose up -d neoveg-dashboard">Copiar</button>
           </div>
           <div class="cmd-block">
-            <code title="python python-backend/test_vegas_engine.py">python python-backend/test_vegas_engine.py</code>
-            <button class="copy-btn" data-copy="python python-backend/test_vegas_engine.py">Copiar</button>
+            <code title="python python-backend/test_neoveg_engine.py">python python-backend/test_neoveg_engine.py</code>
+            <button class="copy-btn" data-copy="python python-backend/test_neoveg_engine.py">Copiar</button>
           </div>
           <div class="cmd-block">
             <code title="python python-backend/qa_audit_suite.py">python python-backend/qa_audit_suite.py</code>
@@ -1499,7 +1499,7 @@
     copyReportBtn.addEventListener("click", async () => {
       const summary = [
         "Neoveg v2.1.0 — QA Performance & Docker Report",
-        "- QA Suite: 33/33 Tests Passed (test_vegas_engine.py & qa_audit_suite.py)",
+        "- QA Suite: 33/33 Tests Passed (test_neoveg_engine.py & qa_audit_suite.py)",
         "- UI Thread 60 FPS Scrubbing: 1.42 ms (100% Async .sfk Mipmap Pyramid + Static Frozen Pens)",
         "- Sub-Frame Stress Test: 5,000 FFI ops in ~30.26 ms",
         "- Memory Safety: 0 Leaks (catch_unwind + neoveg_free_buffer + neoveg_cpp_free_buffer + IDisposable)",

@@ -27,9 +27,9 @@ public sealed record EventHeaderButtonHit(
     EventHeaderAction Action);
 
 /// <summary>
-/// Cross-platform Avalonia UI Custom Control for the VEGAS Pro Multi-Track Timeline.
+/// Cross-platform Avalonia UI Custom Control for the Neoveg Multi-Track Timeline.
 /// Renders the SMPTE Timecode Ruler, Loop Region, Markers, Regions, Video & Audio Tracks,
-/// Clip Events with the authentic VEGAS Pro Event Header (narrow top bar matching track base color,
+/// Clip Events with the authentic Neoveg Event Header (narrow top bar matching track base color,
 /// left-aligned media name, and right-aligned white SVG icons: Generated Media, Event Pan/Crop,
 /// Video/Audio Event FX, and Event Hamburger Menu ☰), real WAV PCM Waveforms (analyzed via Rust FFI),
 /// 5-Curve Fade Envelopes, and Automatic X-Crossfade Overlaps.
@@ -46,7 +46,7 @@ public sealed class MultiTrackTimelineControl : Control
     public const double MinPixelsPerSecond = 15.0;
     public const double MaxPixelsPerSecond = 480_000.0;
 
-    // Small White Vector SVG Geometries (12x12 coordinate space) for the VEGAS Pro Event Header
+    // Small White Vector SVG Geometries (12x12 coordinate space) for the Neoveg Event Header
     private static readonly StreamGeometry SvgGeneratedMedia = StreamGeometry.Parse(
         "M 1.5,2 L 10.5,2 L 10.5,10 L 1.5,10 Z M 3.5,2 L 3.5,10 M 8.5,2 L 8.5,10 M 1.5,4.5 L 3.5,4.5 M 8.5,4.5 L 10.5,4.5 M 1.5,7.5 L 3.5,7.5 M 8.5,7.5 L 10.5,7.5");
 
@@ -59,11 +59,11 @@ public sealed class MultiTrackTimelineControl : Control
     private static readonly StreamGeometry SvgHamburgerMenu = StreamGeometry.Parse(
         "M 1.5,2.6 L 10.5,2.6 M 1.5,6.0 L 10.5,6.0 M 1.5,9.4 L 10.5,9.4");
 
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public SelectivePrerenderService? PrerenderService { get; set; }
     public PlayheadOverlayCanvas? PlayheadOverlay { get; set; }
-    public VegasHistoryTheme ActiveTheme { get; set; } = new();
+    public NeovegHistoryTheme ActiveTheme { get; set; } = new();
     public EditToolMode ActiveTool { get; set; } = EditToolMode.Normal;
     public double PixelsPerSecond { get; set; } = 105.0;
     public double HorizontalOffsetSeconds { get; set; }
@@ -77,7 +77,7 @@ public sealed class MultiTrackTimelineControl : Control
     public event Action<TimelineClip?>? OnClipSelected;
     public event Action<string>? OnTimelineMutated;
 
-    // VEGAS Pro Event Header callbacks
+    // Neoveg Event Header callbacks
     public event Action<TimelineClip, TimelineTrack>? OnGeneratedMediaRequested;
     public event Action<TimelineClip, TimelineTrack>? OnEventPanCropRequested;
     public event Action<TimelineClip, TimelineTrack>? OnEventFxRequested;
@@ -126,7 +126,7 @@ public sealed class MultiTrackTimelineControl : Control
             try
             {
                 var parsed = Color.Parse(track.Color);
-                // Ensure classic VEGAS distinction if default blue/cyan is still present on audio tracks
+                // Ensure classic Neoveg distinction if default blue/cyan is still present on audio tracks
                 if (track.Type == "audio" && (track.Color.Equals("#0891b2", StringComparison.OrdinalIgnoreCase) ||
                                               track.Color.Equals("#0d9488", StringComparison.OrdinalIgnoreCase)))
                 {
@@ -214,7 +214,7 @@ public sealed class MultiTrackTimelineControl : Control
         var pos = e.GetPosition(this);
         double clickedTime = XToTime(pos.X);
 
-        // 0. Check if user clicked on a VEGAS Pro Event Header icon button (top-right of clip)
+        // 0. Check if user clicked on a Neoveg Event Header icon button (top-right of clip)
         var hitButton = _headerButtonHits.LastOrDefault(h => h.Bounds.Contains(pos));
         if (hitButton != null)
         {
@@ -765,7 +765,7 @@ public sealed class MultiTrackTimelineControl : Control
                     (byte)Math.Min(255, trackBaseCol.B + 32)));
         context.FillRectangle(new SolidColorBrush(bodyCol), clipRect);
 
-        // VEGAS Pro Event Header: Narrow horizontal bar at the top of the clip matching the track's accent tint
+        // Neoveg Event Header: Narrow horizontal bar at the top of the clip matching the track's accent tint
         double hdrHeight = Math.Min(EventHeaderHeight, Math.Max(14.0, clipRect.Height * 0.36));
         var hdrRect = new Rect(clipRect.X, clipRect.Y, clipRect.Width, hdrHeight);
 
@@ -945,15 +945,15 @@ public sealed class MultiTrackTimelineControl : Control
                 }
             }
 
-            // 5. VEGAS Pro Top-Left & Top-Right Fade In / Fade Out Corner Handles
+            // 5. Neoveg Top-Left & Top-Right Fade In / Fade Out Corner Handles
             DrawFadeCornerHandles(context, clipRect, fadeInEndX, fadeOutStartX);
 
-            // 6. VEGAS Pro Opacity / Gain Envelope Line across the event body
+            // 6. Neoveg Opacity / Gain Envelope Line across the event body
             DrawOpacityOrGainEnvelopeLine(context, track, clip, clipRect, hdrRect.Height);
         }
 
         // Era-aware Clip Border:
-        // Era 1 (Sonic Foundry Vegas 1-3): Classic 3D Beveled Chamfer Border
+        // Era 1 (Sonic Foundry Neoveg 1-3): Classic 3D Beveled Chamfer Border
         if (ActiveTheme.EraNumber == 1)
         {
             var bevelLight = new Pen(new SolidColorBrush(Color.Parse("#F5F3EE")), 1.5);

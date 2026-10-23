@@ -1,14 +1,14 @@
 """
-Neoveg — Historical VEGAS Pro Visual References & Dynamic Theme Asset Generator
-Builds `assets/vegas_history_themes/` covering all 4 historical eras of VEGAS Pro:
+Neoveg — Historical Neoveg Visual References & Dynamic Theme Asset Generator
+Builds `assets/neoveg_history_themes/` covering all 4 historical eras of Neoveg:
   1. `01_era_sonic_foundry_v1_v3` (1999–2002): Industrial Metallic Gray & Red/Orange accents
-  2. `02_era_sony_v4_v13`         (2003–2015): Flaming Gold/Orange Gradient (v4–7) & Pro Silver/Dark Slate (v8–13)
-  3. `03_era_magix_v14_v22`       (2016–2024): Modern Cyan Blue, Dark Carbon & Flat Design
-  4. `04_era_borisfx_2026`        (2025–2026): Contemporary Electric Blue & Deep Obsidian Dark
+  2. `02_era_classic_silver_v4_v13`         (2003–2015): Flaming Gold/Orange Gradient (v4–7) & Pro Silver/Dark Slate (v8–13)
+  3. `03_era_modern_carbon_v14_v22`       (2016–2024): Modern Cyan Blue, Dark Carbon & Flat Design
+  4. `04_era_contemporary_2026`        (2025–2026): Contemporary Electric Blue & Deep Obsidian Dark
 
 Also inspects and organizes the visual references from `references/img/`, generates SVG & PNG
-logos, vector icon sets, color swatch cards, and writes `assets/vegas_history_themes/theme_catalog.json`
-consumed by the C# Avalonia UI dynamic theme engine (`VegasHistoryTheme.cs`).
+logos, vector icon sets, color swatch cards, and writes `assets/neoveg_history_themes/theme_catalog.json`
+consumed by the C# Avalonia UI dynamic theme engine (`NeovegHistoryTheme.cs`).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 REF_IMG_DIR = ROOT_DIR / "references" / "img"
-OUT_ROOT = ROOT_DIR / "assets" / "vegas_history_themes"
+OUT_ROOT = ROOT_DIR / "assets" / "neoveg_history_themes"
 
 
 THEMES_DATA: List[Dict[str, Any]] = [
@@ -28,11 +28,11 @@ THEMES_DATA: List[Dict[str, Any]] = [
         "id": "sonic_foundry_v1_v3",
         "era_folder": "01_era_sonic_foundry_v1_v3",
         "era_number": 1,
-        "name": "Sonic Foundry Vegas 1–3 (1999–2002)",
+        "name": "Sonic Foundry Neoveg 1–3 (1999–2002)",
         "short_badge": "SONIC FOUNDRY V3",
         "years": "1999–2002",
         "vendor": "Sonic Foundry, Inc. (Madison, WI)",
-        "versions": ["Vegas Pro 1.0", "Vegas Audio 2.0", "Vegas Video 2.0", "Vegas Video 3.0"],
+        "versions": ["Neoveg 1.0", "Neoveg Audio 2.0", "Neoveg Video 2.0", "Neoveg Video 3.0"],
         "description": "Estética industrial clássica Win32 com cinza metálico escovado, bordas chanfradas 3D e detalhes vibrantes em vermelho carmim e laranja incandescente.",
         "palette": {
             "window_bg": "#B8B5AE",
@@ -61,14 +61,14 @@ THEMES_DATA: List[Dict[str, Any]] = [
         "reference_files": [],
     },
     {
-        "id": "sony_v4_v7_flaming_gold",
-        "era_folder": "02_era_sony_v4_v13",
+        "id": "classic_v4_v7_flaming_gold",
+        "era_folder": "02_era_classic_silver_v4_v13",
         "era_number": 2,
-        "name": "Sony Vegas 4–7 Flaming Gold (2003–2007)",
-        "short_badge": "SONY VEGAS 7 GOLD",
+        "name": "Classic NLE 4–7 Flaming Gold (2003–2007)",
+        "short_badge": "NEOVEG Neoveg 7 GOLD",
         "years": "2003–2007",
-        "vendor": "Sony Pictures Digital / Sony Media Software",
-        "versions": ["Vegas 4.0", "Sony Vegas 5.0", "Sony Vegas 6.0", "Sony Vegas 7.0"],
+        "vendor": "Classic NLE Pictures Digital / Classic NLE Media Software",
+        "versions": ["Neoveg 4.0", "Classic NLE 5.0", "Classic NLE 6.0", "Classic NLE 7.0"],
         "description": "Estética clássica com superfície Luna Silver/Bege e o icônico gradiente dourado/laranja flamejante nas barras de destaque, timecode âmbar e faixas azul-aço/vinho.",
         "palette": {
             "window_bg": "#DFDDD4",
@@ -101,15 +101,15 @@ THEMES_DATA: List[Dict[str, Any]] = [
         ],
     },
     {
-        "id": "sony_v8_v13_pro_silver_dark",
-        "era_folder": "02_era_sony_v4_v13",
+        "id": "classic_v8_v13_silver_dark",
+        "era_folder": "02_era_classic_silver_v4_v13",
         "era_number": 2,
-        "name": "Sony Vegas Pro 8–13 Prata/Escuro (2008–2015)",
-        "short_badge": "SONY VEGAS PRO 12",
+        "name": "Classic NLE 8–13 Prata/Escuro (2008–2015)",
+        "short_badge": "NEOVEG NEOVEG 12",
         "years": "2008–2015",
-        "vendor": "Sony Creative Software",
-        "versions": ["Vegas Pro 8.0", "Vegas Pro 9.0", "Vegas Pro 10.0", "Vegas Pro 11.0", "Vegas Pro 12.0", "Vegas Pro 13.0"],
-        "description": "Tema Prata/Escuro (Pro Dark Slate & Silver) introduzido na geração Vegas Pro 9–13 com painéis cinza-ardósia, cabeçalhos azul-aço metálico e marcadores laranja vivo.",
+        "vendor": "Classic NLE Creative Software",
+        "versions": ["Neoveg 8.0", "Neoveg 9.0", "Neoveg 10.0", "Neoveg 11.0", "Neoveg 12.0", "Neoveg 13.0"],
+        "description": "Tema Prata/Escuro (Pro Dark Slate & Silver) introduzido na geração Neoveg 9–13 com painéis cinza-ardósia, cabeçalhos azul-aço metálico e marcadores laranja vivo.",
         "palette": {
             "window_bg": "#5A5D62",
             "menu_bg": "#76797E",
@@ -137,19 +137,19 @@ THEMES_DATA: List[Dict[str, Any]] = [
         "reference_files": [
             "image.png",
             "2image.png",
-            "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FSony_Vegas_Pro.png",
+            "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png",
         ],
     },
     {
-        "id": "magix_v14_v15_flat_gray",
-        "era_folder": "03_era_magix_v14_v22",
+        "id": "modern_v14_v15_flat_gray",
+        "era_folder": "03_era_modern_carbon_v14_v22",
         "era_number": 3,
-        "name": "MAGIX VEGAS Pro 14–15 Flat Gray (2016–2017)",
-        "short_badge": "MAGIX VEGAS 15",
+        "name": "Modern NLE 14–15 Flat Gray (2016–2017)",
+        "short_badge": "Modern NLE Neoveg 15",
         "years": "2016–2017",
-        "vendor": "MAGIX Software GmbH / VEGAS Creative Software",
-        "versions": ["VEGAS Pro 14.0", "VEGAS Pro 15.0"],
-        "description": "Primeira geração MAGIX com ícones vetoriais planos (flat design) monocromáticos sobre superfície cinza médio neutra e destaques em azul ciano.",
+        "vendor": "Modern NLE Software GmbH / Neoveg Creative Software",
+        "versions": ["Neoveg 14.0", "Neoveg 15.0"],
+        "description": "Primeira geração Modern NLE com ícones vetoriais planos (flat design) monocromáticos sobre superfície cinza médio neutra e destaques em azul ciano.",
         "palette": {
             "window_bg": "#7A7C80",
             "menu_bg": "#94969A",
@@ -175,20 +175,20 @@ THEMES_DATA: List[Dict[str, Any]] = [
             "status_bar_bg": "#5E6064",
         },
         "reference_files": [
-            "beginner-tips-for-vegas-pro-3.png",
+            "beginner-tips-for-neoveg-pro-3.png",
             "5image.png",
         ],
     },
     {
-        "id": "magix_v16_v22_carbon_cyan",
-        "era_folder": "03_era_magix_v14_v22",
+        "id": "modern_v16_v22_carbon_cyan",
+        "era_folder": "03_era_modern_carbon_v14_v22",
         "era_number": 3,
-        "name": "MAGIX VEGAS Pro 16–22 Carbon & Cyan (2018–2024)",
-        "short_badge": "MAGIX VEGAS 21",
+        "name": "Modern NLE 16–22 Carbon & Cyan (2018–2024)",
+        "short_badge": "Modern NLE Neoveg 21",
         "years": "2018–2024",
-        "vendor": "MAGIX Software GmbH / VEGAS Creative Software",
-        "versions": ["VEGAS Pro 16", "VEGAS Pro 17", "VEGAS Pro 18", "VEGAS Pro 19", "VEGAS Pro 20", "VEGAS Pro 21", "VEGAS Pro 22"],
-        "description": "Estética moderna MAGIX em carvão escuro (Dark Carbon), azul ciano vibrante (#0078D7 / #18A0FB), design 100% plano, Color Grading Wheels e presets visuais.",
+        "vendor": "Modern NLE Software GmbH / Neoveg Creative Software",
+        "versions": ["Neoveg 16", "Neoveg 17", "Neoveg 18", "Neoveg 19", "Neoveg 20", "Neoveg 21", "Neoveg 22"],
+        "description": "Estética moderna Modern NLE em carvão escuro (Dark Carbon), azul ciano vibrante (#0078D7 / #18A0FB), design 100% plano, Color Grading Wheels e presets visuais.",
         "palette": {
             "window_bg": "#232326",
             "menu_bg": "#2D2D30",
@@ -214,10 +214,10 @@ THEMES_DATA: List[Dict[str, Any]] = [
             "status_bar_bg": "#1C1C1F",
         },
         "reference_files": [
-            "icones-vegas.png",
+            "icones-neoveg.png",
             "8image.png",
-            "color-grading-sony-vegas-8.png",
-            "Vegas_Pro_Screenshot.png",
+            "color-grading-classic_nle-neoveg-8.png",
+            "Neoveg_Pro_Screenshot.png",
             "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
             "filmmakers.png",
             "ss_08c8d4b9782e2c0dbb1fe9e49d4909eead36314a.1920x1080.png",
@@ -225,14 +225,14 @@ THEMES_DATA: List[Dict[str, Any]] = [
         ],
     },
     {
-        "id": "borisfx_2026_electric_dark",
-        "era_folder": "04_era_borisfx_2026",
+        "id": "contemporary_2026_electric_dark",
+        "era_folder": "04_era_contemporary_2026",
         "era_number": 4,
-        "name": "Boris FX / VEGAS Pro Atual (2025–2026 Electric Blue)",
-        "short_badge": "BORIS FX • 2026",
+        "name": "Contemporary NLE / Neoveg Atual (2025–2026 Electric Blue)",
+        "short_badge": "Contemporary NLE • 2026",
         "years": "2025–2026",
-        "vendor": "VEGAS Creative Software / Boris FX Ecosystem",
-        "versions": ["VEGAS Pro 23.0", "VEGAS Pro 2026 Neoveg (BCC+ / AI Suite)"],
+        "vendor": "Neoveg Creative Software / Contemporary NLE Ecosystem",
+        "versions": ["Neoveg 23.0", "Neoveg 2026 Neoveg (BCC+ / AI Suite)"],
         "description": "Identidade visual contemporânea em preto obsidiana (#0E1015), azul elétrico (#00A3FF / #2563EB), cabeçalhos de faixa multicor de alto contraste e integração nativa BCC+/AI.",
         "palette": {
             "window_bg": "#0E1015",
@@ -263,7 +263,7 @@ THEMES_DATA: List[Dict[str, Any]] = [
             "4image.png",
             "6image.png",
             "7image.png",
-            "VEGAS_Suite_UI_202.png",
+            "Neoveg_Suite_UI_202.png",
         ],
     },
 ]
@@ -318,47 +318,47 @@ def _generate_era_logo_svg(theme: Dict[str, Any]) -> str:
   <line x1="36" y1="152" x2="220" y2="152" stroke="#181816" stroke-width="4" stroke-dasharray="8,6"/>
 </svg>"""
 
-    if tid == "sony_v4_v7_flaming_gold":
-        # Sony Vegas 4-7 iconic Flaming Gold/Orange crest
+    if tid == "classic_v4_v7_flaming_gold":
+        # Classic NLE 4-7 iconic Flaming Gold/Orange crest
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="sony_flame" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="classic_nle_flame" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFE066"/>
       <stop offset="45%" stop-color="#FF8C00"/>
       <stop offset="100%" stop-color="#C62828"/>
     </linearGradient>
   </defs>
   <rect x="10" y="10" width="236" height="236" rx="18" fill="#23211D" stroke="#FF8C00" stroke-width="6"/>
-  <path d="M 42,64 L 92,64 L 128,174 L 164,64 L 214,64 L 148,214 L 108,214 Z" fill="url(#sony_flame)" stroke="#FFF3B0" stroke-width="3"/>
-  <text x="128" y="46" text-anchor="middle" font-family="Trebuchet MS, Arial, sans-serif" font-weight="bold" font-size="22" fill="#FFB300" letter-spacing="4">SONY VEGAS</text>
+  <path d="M 42,64 L 92,64 L 128,174 L 164,64 L 214,64 L 148,214 L 108,214 Z" fill="url(#classic_nle_flame)" stroke="#FFF3B0" stroke-width="3"/>
+  <text x="128" y="46" text-anchor="middle" font-family="Trebuchet MS, Arial, sans-serif" font-weight="bold" font-size="22" fill="#FFB300" letter-spacing="4">NEOVEG Neoveg</text>
 </svg>"""
 
-    if tid == "sony_v8_v13_pro_silver_dark":
-        # Sony Vegas Pro 8-13 Brushed Silver & Steel Blue V
+    if tid == "classic_v8_v13_silver_dark":
+        # Classic NLE 8-13 Brushed Silver & Steel Blue V
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="sony_pro" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="classic_nle_pro" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#93C5FD"/>
       <stop offset="50%" stop-color="#3B82F6"/>
       <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
   </defs>
   <rect x="10" y="10" width="236" height="236" rx="12" fill="#3B3D42" stroke="#9CA3AF" stroke-width="5"/>
-  <polygon points="46,60 94,60 128,168 162,60 210,60 148,212 108,212" fill="url(#sony_pro)" stroke="#E5E7EB" stroke-width="3"/>
+  <polygon points="46,60 94,60 128,168 162,60 210,60 148,212 108,212" fill="url(#classic_nle_pro)" stroke="#E5E7EB" stroke-width="3"/>
   <rect x="42" y="218" width="172" height="8" fill="#F37021"/>
-  <text x="128" y="44" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="19" fill="#E5E7EB" letter-spacing="3">SONY VEGAS PRO</text>
+  <text x="128" y="44" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="19" fill="#E5E7EB" letter-spacing="3">NEOVEG NEOVEG</text>
 </svg>"""
 
-    if "magix" in tid:
-        # MAGIX VEGAS Pro 14-22 Flat Geometric Cyan V Prism
+    if "modern_nle" in tid:
+        # Modern NLE 14-22 Flat Geometric Cyan V Prism
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <rect x="8" y="8" width="240" height="240" rx="8" fill="#1E1E21" stroke="{acc2}" stroke-width="5"/>
   <polygon points="44,52 96,52 136,184 112,212" fill="#0078D7"/>
   <polygon points="212,52 160,52 112,212 144,212" fill="#18A0FB"/>
-  <text x="128" y="236" text-anchor="middle" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="18" fill="#F1F5F9" letter-spacing="3">MAGIX VEGAS PRO</text>
+  <text x="128" y="236" text-anchor="middle" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="18" fill="#F1F5F9" letter-spacing="3">Modern NLE NEOVEG</text>
 </svg>"""
 
-    # Boris FX / 2026 Electric Blue & Obsidian Dark
+    # Contemporary NLE / 2026 Electric Blue & Obsidian Dark
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
     <linearGradient id="bfx_elec" x1="0" y1="0" x2="1" y2="1">
@@ -370,7 +370,7 @@ def _generate_era_logo_svg(theme: Dict[str, Any]) -> str:
   <rect x="8" y="8" width="240" height="240" rx="14" fill="{bg}" stroke="#00A3FF" stroke-width="5"/>
   <polygon points="42,48 94,48 128,162 162,48 214,48 148,206 108,206" fill="url(#bfx_elec)"/>
   <circle cx="198" cy="192" r="18" fill="#E5534B"/>
-  <text x="128" y="234" text-anchor="middle" font-family="Segoe UI, Inter, sans-serif" font-weight="bold" font-size="17" fill="#38BDF8" letter-spacing="3">VEGAS 2026 • BORIS FX</text>
+  <text x="128" y="234" text-anchor="middle" font-family="Segoe UI, Inter, sans-serif" font-weight="bold" font-size="17" fill="#38BDF8" letter-spacing="3">Neoveg 2026 • Contemporary NLE</text>
 </svg>"""
 
 
@@ -521,11 +521,11 @@ def generate_all_assets() -> Dict[str, Any]:
                     }
                 )
 
-        # Also check for the long filename in references/img for Era 4 (Vegas Pro 23)
-        if tid == "borisfx_2026_electric_dark" and REF_IMG_DIR.exists():
+        # Also check for the long filename in references/img for Era 4 (Neoveg 23)
+        if tid == "contemporary_2026_electric_dark" and REF_IMG_DIR.exists():
             for f in REF_IMG_DIR.iterdir():
-                if "vegas-pro-23" in f.name.lower():
-                    dst_ref = ref_out_dir / "vegas_pro_23_fx_scrolling.png"
+                if "neoveg-pro-23" in f.name.lower():
+                    dst_ref = ref_out_dir / "neoveg_pro_23_fx_scrolling.png"
                     if not dst_ref.exists():
                         shutil.copy2(f, dst_ref)
                     copied_refs.append(
@@ -560,29 +560,29 @@ def generate_all_assets() -> Dict[str, Any]:
         if sw_path.exists():
             with Image.open(sw_path) as sw:
                 comp_img.paste(sw.convert("RGB"), (0, i * 260))
-    comp_sheet_path = OUT_ROOT / "vegas_eras_comparison_sheet.png"
+    comp_sheet_path = OUT_ROOT / "neoveg_eras_comparison_sheet.png"
     comp_img.save(comp_sheet_path)
 
     # Write master `theme_catalog.json`
     catalog_path = OUT_ROOT / "theme_catalog.json"
     catalog_payload = {
         "schema_version": "2.0.0",
-        "title": "Neoveg Historical VEGAS Pro Themes Catalog (1999–2026)",
-        "default_theme_id": "borisfx_2026_electric_dark",
-        "comparison_sheet": "vegas_eras_comparison_sheet.png",
+        "title": "Neoveg Historical Neoveg Themes Catalog (1999–2026)",
+        "default_theme_id": "contemporary_2026_electric_dark",
+        "comparison_sheet": "neoveg_eras_comparison_sheet.png",
         "themes": catalog_entries,
     }
     catalog_path.write_text(json.dumps(catalog_payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # Write comprehensive Markdown documentation inside `assets/vegas_history_themes/README.md`
-    readme_md = """# Acervo Histórico de Temas, Paletas, Ícones e Logotipos do VEGAS Pro (1999–2026)
+    # Write comprehensive Markdown documentation inside `assets/neoveg_history_themes/README.md`
+    readme_md = """# Acervo Histórico de Temas, Paletas, Ícones e Logotipos do Neoveg (1999–2026)
 
-Esta pasta (`assets/vegas_history_themes/`) reúne as referências visuais, paletas semânticas (`palette_*.json`), logotipos vetoriais (`.svg` e `.png`), conjuntos de ícones quadrados estilo Qt (`.svg`) e cartões de amostras (`swatch_*.png`) de todas as **4 grandes eras históricas do VEGAS Pro**, integrados diretamente ao seletor de temas dinâmicos do **Neoveg** em **C# (Avalonia UI)**.
+Esta pasta (`assets/neoveg_history_themes/`) reúne as referências visuais, paletas semânticas (`palette_*.json`), logotipos vetoriais (`.svg` e `.png`), conjuntos de ícones quadrados estilo Qt (`.svg`) e cartões de amostras (`swatch_*.png`) de todas as **4 grandes eras históricas do Neoveg**, integrados diretamente ao seletor de temas dinâmicos do **Neoveg** em **C# (Avalonia UI)**.
 
 ---
 
 ## 1. Era Sonic Foundry (`01_era_sonic_foundry_v1_v3` — 1999 a 2002)
-- **Versões**: Vegas Pro 1.0 (Audio), Vegas Video 2.0, Vegas Video 3.0
+- **Versões**: Neoveg 1.0 (Audio), Neoveg Video 2.0, Neoveg Video 3.0
 - **Estética**: Industrial utilitária Win32 com cinza metálico escovado (`#B8B5AE` / `#C6C3BD`), bordas chanfradas 3D (`#42413E`) e detalhes em vermelho carmim (`#CC291B`) e laranja incandescente (`#FF6A00`).
 - **Ativos**:
   - `01_era_sonic_foundry_v1_v3/palette_sonic_foundry_v1_v3.json`
@@ -592,32 +592,32 @@ Esta pasta (`assets/vegas_history_themes/`) reúne as referências visuais, pale
 
 ---
 
-## 2. Era Sony Creative Software (`02_era_sony_v4_v13` — 2003 a 2015)
+## 2. Era Classic NLE Creative Software (`02_era_classic_silver_v4_v13` — 2003 a 2015)
 Dividida em duas variantes históricas clássicas:
-1. **Sony Vegas 4 a 7 — Gradiente Dourado/Laranja Flamejante (`sony_v4_v7_flaming_gold`)**:
+1. **Classic NLE 4 a 7 — Gradiente Dourado/Laranja Flamejante (`classic_v4_v7_flaming_gold`)**:
    - Superfície clássica Luna Silver/Bege (`#ECE9D8` / `#DFDDD4`), gradiente dourado/laranja flamejante (`#FFB300` → `#FF6D00` → `#C62828`), faixas de vídeo azul-aço (`#ADC2D9`) e áudio vinho (`#7E222A`).
    - Referências extraídas: `maxresdefault.png`, `10image.png`, `11maxresdefault.png`.
-2. **Sony Vegas Pro 8 a 13 — Tema Prata/Escuro Profissional (`sony_v8_v13_pro_silver_dark`)**:
+2. **Classic NLE 8 a 13 — Tema Prata/Escuro Profissional (`classic_v8_v13_silver_dark`)**:
    - Superfície ardósia/prata escura (`#5A5D62` / `#64676C`), faixas azul-aço (`#6B86A2`) e ameixa (`#866B74`), marcadores laranja vivo (`#F37021`) e barra de seleção azul (`#3B82F6`).
-   - Referências extraídas: `image.png` (Vegas Pro 10.0), `2image.png` (DVD Architect Pro 5.2), `uploads_...Sony_Vegas_Pro.png` (Vegas Pro 12.0).
+   - Referências extraídas: `image.png` (Neoveg 10.0), `2image.png` (DVD Architect Pro 5.2), `uploads_...Classic NLE_Neoveg_Pro.png` (Neoveg 12.0).
 
 ---
 
-## 3. Era MAGIX (`03_era_magix_v14_v22` — 2016 a 2024)
+## 3. Era Modern NLE (`03_era_modern_carbon_v14_v22` — 2016 a 2024)
 Dividida em duas variantes da transição para o Flat Design:
-1. **MAGIX VEGAS Pro 14 a 15 — Transição Flat Gray (`magix_v14_v15_flat_gray`)**:
+1. **Modern NLE 14 a 15 — Transição Flat Gray (`modern_v14_v15_flat_gray`)**:
    - Ícones planos monocromáticos sobre cinza neutro (`#7A7C80` / `#888A8E`) e destaques em ciano (`#0088E8`).
-   - Referências extraídas: `beginner-tips-for-vegas-pro-3.png` (VEGAS Pro 14.0), `5image.png` (VEGAS Pro 15.0).
-2. **MAGIX VEGAS Pro 16 a 22 — Dark Carbon & Azul Ciano (`magix_v16_v22_carbon_cyan`)**:
-   - Estética escura em carvão (`#232326` / `#2D2D30`), azul ciano vibrante (`#0078D7` / `#18A0FB`), painel unificado de Color Grading e miniaturas de presets com olhar humano (`icones-vegas.png`).
-   - Referências extraídas: `icones-vegas.png`, `8image.png` (VEGAS Pro 16.0), `ss_08c8...png` & `ss_64be...png` (VEGAS Pro 18.0), `color-grading-sony-vegas-8.png`, `4a839cda...png`, `filmmakers.png`.
+   - Referências extraídas: `beginner-tips-for-neoveg-pro-3.png` (Neoveg 14.0), `5image.png` (Neoveg 15.0).
+2. **Modern NLE 16 a 22 — Dark Carbon & Azul Ciano (`modern_v16_v22_carbon_cyan`)**:
+   - Estética escura em carvão (`#232326` / `#2D2D30`), azul ciano vibrante (`#0078D7` / `#18A0FB`), painel unificado de Color Grading e miniaturas de presets com olhar humano (`icones-neoveg.png`).
+   - Referências extraídas: `icones-neoveg.png`, `8image.png` (Neoveg 16.0), `ss_08c8...png` & `ss_64be...png` (Neoveg 18.0), `color-grading-classic_nle-neoveg-8.png`, `4a839cda...png`, `filmmakers.png`.
 
 ---
 
-## 4. Era Boris FX / Atual (`04_era_borisfx_2026` — 2025 a 2026)
-- **Versões**: VEGAS Pro 23.0 / VEGAS Pro 2026 Neoveg (Integração nativa Boris FX Continuum `BCC+` e AI Smart Mask 2.0 / Z-Depth)
+## 4. Era Contemporary NLE / Atual (`04_era_contemporary_2026` — 2025 a 2026)
+- **Versões**: Neoveg 23.0 / Neoveg 2026 Neoveg (Integração nativa Contemporary NLE Continuum `BCC+` e AI Smart Mask 2.0 / Z-Depth)
 - **Estética**: Identidade contemporânea em preto obsidiana (`#0E1015` / `#12161F`), azul elétrico (`#00A3FF` / `#38BDF8`) e faixas multicor de alto contraste.
-- **Referências extraídas**: `3image.png` (VEGAS Pro 23.0 com plugins `BCC+`), `4image.png`, `6image.png`, `7image.png`, `VEGAS_Suite_UI_202.png`.
+- **Referências extraídas**: `3image.png` (Neoveg 23.0 com plugins `BCC+`), `4image.png`, `6image.png`, `7image.png`, `Neoveg_Suite_UI_202.png`.
 """
     (OUT_ROOT / "README.md").write_text(readme_md, encoding="utf-8")
     return {

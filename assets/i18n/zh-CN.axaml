@@ -33,7 +33,7 @@
     <sys:String x:Key="Menu.File.RenderAs">渲染为... (Python 隔离 FFmpeg)</sys:String>
     <sys:String x:Key="Menu.File.SaveVeg">保存项目 (.veg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">设置 -&gt; 常规 / 语言 (Language)...</sys:String>
-    <sys:String x:Key="Menu.File.Splash">显示启动画面 (Vegas Pro 12)...</sys:String>
+    <sys:String x:Key="Menu.File.Splash">显示启动画面 (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">欢迎屏幕...</sys:String>
     <sys:String x:Key="Menu.Help">帮助(_H)</sys:String>
     <sys:String x:Key="Menu.Help.About">关于 Neoveg 跨平台版...</sys:String>
@@ -53,7 +53,7 @@
     <sys:String x:Key="Menu.View.PopoutPreview">将视频预览弹出至第二显示器 [↗]</sys:String>
     <sys:String x:Key="Menu.View.PopoutScopes">将主混音器与示波器弹出至第二显示器 [↗]</sys:String>
     <sys:String x:Key="Menu.View.ShrinkTracks">减小轨道高度 (-)</sys:String>
-    <sys:String x:Key="Menu.View.ThemesGallery">VEGAS 历史主题画廊 (1999–2026)...</sys:String>
+    <sys:String x:Key="Menu.View.ThemesGallery">Neoveg 历史主题画廊 (1999–2026)...</sys:String>
     <sys:String x:Key="Meta.Code">zh-CN</sys:String>
     <sys:String x:Key="Meta.EnglishName">Simplified Chinese</sys:String>
     <sys:String x:Key="Meta.NativeName">简体中文 (zh-CN)</sys:String>

@@ -1,5 +1,5 @@
 /**
- * OpenVegas Pro 21 — Human Face Demo Thumbnail Renderer for Video FX, Frei0r & CorridorKey
+ * OpenNeoveg 21 — Human Face Demo Thumbnail Renderer for Video FX, Frei0r & CorridorKey
  * Draws a detailed human portrait (head, natural skin tones, eyes with catchlights, eyebrows,
  * nose, lips, hair, and studio backdrop) and applies the actual pixel/canvas transformation
  * of each effect so every FX card displays a live visual demonstration on a human face!

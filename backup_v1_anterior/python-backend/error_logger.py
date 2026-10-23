@@ -1,5 +1,5 @@
 """
-OpenVegas Pro 21 — Structured Error & Diagnostic Logger (`log_erros.txt`)
+OpenNeoveg 21 — Structured Error & Diagnostic Logger (`log_erros.txt`)
 Records all errors, warnings, compiler diagnostics, plugin probes, and runtime exceptions
 encountered during build, initialization, and execution into `log_erros.txt`.
 """
@@ -26,7 +26,7 @@ def init_error_log() -> None:
         if not ERROR_LOG_FILE.exists():
             entries = [
                 "=" * 88,
-                "OPEN VEGAS PRO 21 — REGISTRO DE ERROS, DIAGNÓSTICOS E CORREÇÕES (log_erros.txt)",
+                "OPEN NEOVEG 21 — REGISTRO DE ERROS, DIAGNÓSTICOS E CORREÇÕES (log_erros.txt)",
                 f"Iniciado em: {_timestamp()}",
                 "=" * 88,
                 "",
@@ -38,12 +38,12 @@ def init_error_log() -> None:
                 "",
                 "[2] ERROS CAPTURADOS E CORRIGIDOS NA COMPILAÇÃO DO EXECUTÁVEL NATIVO (.EXE):",
                 f"  - [{_timestamp()}] [WARN/MSBUILD] MSB3277: Conflito entre `WindowsBase, Version=4.0.0.0` e `WindowsBase, Version=5.0.0.0` no pacote `Microsoft.Web.WebView2`.",
-                "    -> AÇÃO/CORREÇÃO: Adicionado `<UseWPF>true</UseWPF>` em `desktop-host/OpenVegasDesktop.csproj` para unificar as referências do WindowsDesktop SDK.",
+                "    -> AÇÃO/CORREÇÃO: Adicionado `<UseWPF>true</UseWPF>` em `desktop-host/NeovegDesktop.csproj` para unificar as referências do WindowsDesktop SDK.",
                 f"  - [{_timestamp()}] [ERROR/MSBUILD] MSB4018: Falha na tarefa `CreateAppHost` (`System.IO.IOException: A operação solicitada não pode ser executada em um arquivo com uma seção mapeada pelo usuário aberta`) ao gerar `.exe` diretamente no drive virtual `G:\\Meu Drive`.",
-                "    -> AÇÃO/CORREÇÃO: Criado `desktop-host/Directory.Build.props` redirecionando `BaseIntermediateOutputPath` e `BaseOutputPath` para `%TEMP%\\OpenVegasPro21Build` antes de copiar o `OpenVegasPro21.exe` finalizado.",
+                "    -> AÇÃO/CORREÇÃO: Criado `desktop-host/Directory.Build.props` redirecionando `BaseIntermediateOutputPath` e `BaseOutputPath` para `%TEMP%\\NeovegLegacyBuild` antes de copiar o `NeovegLegacy.exe` finalizado.",
                 f"  - [{_timestamp()}] [ERROR/CSHARP] CS0579: Atributos duplicados `AssemblyInfo.cs` causados por artefatos residuais em `desktop-host/obj`.",
                 "    -> AÇÃO/CORREÇÃO: Removido diretório `desktop-host/obj` antigo e isolado o build em `%TEMP%`.",
-                f"  - [{_timestamp()}] [ERROR/UI-LAYOUT] Sobreposição de 26px do `MenuStrip` nativo WinForms sobre a barra superior `.vegas-topbar` dentro do `WebView2`.",
+                f"  - [{_timestamp()}] [ERROR/UI-LAYOUT] Sobreposição de 26px do `MenuStrip` nativo WinForms sobre a barra superior `.neoveg-topbar` dentro do `WebView2`.",
                 "    -> AÇÃO/CORREÇÃO: Reestruturado o Z-Order dos controles WinForms em `desktop-host/Program.cs` (`workspaceContainer` dentro de painel dedicado abaixo do `MenuStrip`).",
                 "",
                 "[3] DIAGNÓSTICO DE PLUGINS EXTERNOS (FFMPEG, FREI0R, LADSPA, CORRIDORKEY):",

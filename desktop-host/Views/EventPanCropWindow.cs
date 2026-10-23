@@ -30,17 +30,17 @@ public enum PanCropDragMode
 }
 
 /// <summary>
-/// Zone 1: Central Interactive Canvas for the VEGAS Pro Event Pan/Crop 'F' Gizmo.
+/// Zone 1: Central Interactive Canvas for the Neoveg Event Pan/Crop 'F' Gizmo.
 /// Renders:
 /// - Dotted workspace backdrop + video frame preview in the center
 /// - Dashed bounding rectangle with the signature 'F' orientation glyph in the center
-/// - 8 resize handles (4 corners + 4 edges) implementing VEGAS Pro's inverted camera logic
+/// - 8 resize handles (4 corners + 4 edges) implementing Neoveg's inverted camera logic
 ///   (shrinking the 'F' frame zooms IN on the video; dragging the 'F' frame pans the camera)
 /// - Outer wide dotted rotation circle allowing smooth 360-degree camera rotation
 /// </summary>
 public sealed class PanCropGizmoCanvasControl : Control
 {
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public new TimelineClip? Clip { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public CppCoreInterop? CppInterop { get; set; }
@@ -331,7 +331,7 @@ public sealed class PanCropGizmoCanvasControl : Control
         }
         else
         {
-            // Inverted VEGAS camera logic: wheel up shrinks 'F' box (zooms IN on video)
+            // Inverted Neoveg camera logic: wheel up shrinks 'F' box (zooms IN on video)
             double factor = e.Delta.Y > 0 ? 0.94 : 1.06;
             pc.Width = Math.Clamp(Math.Round(pc.Width * factor, 1), pc.SourceWidth * 0.12, pc.SourceWidth * 3.0);
             if (pc.LockAspect)
@@ -352,7 +352,7 @@ public sealed class PanCropGizmoCanvasControl : Control
         var b = Bounds;
         if (b.Width < 20 || b.Height < 20) return;
 
-        // 1. Classic VEGAS Pro Pan/Crop Workspace Background + Fine Dotted Grid
+        // 1. Classic Neoveg Pan/Crop Workspace Background + Fine Dotted Grid
         context.FillRectangle(new SolidColorBrush(Color.Parse("#181c24")), b);
 
         var pc = Clip?.PanCrop ?? new PanCropState();
@@ -782,7 +782,7 @@ public sealed class PanCropKeyframeTimelineControl : Control
 }
 
 /// <summary>
-/// Full VEGAS Pro 'Event Pan/Crop' (Video Event FX) Window & 3-Zone Workspace:
+/// Full Neoveg 'Event Pan/Crop' (Video Event FX) Window & 3-Zone Workspace:
 /// 1. Left Zone: Extreme-Left Vertical Icon Toolbar + Expandable Hierarchical Property Grid
 ///    (Position, Rotation, Keyframe interpolation, Source, Workspace)
 /// 2. Center Zone: Interactive 'F' Gizmo Canvas with 8 Resize Handles (Inverted Camera Logic)
@@ -811,7 +811,7 @@ public sealed class EventPanCropWindow : Window
     private static readonly StreamGeometry SvgKfDelete = StreamGeometry.Parse("M 8,2 L 13,8 L 8,14 L 3,8 Z M 5.5,8 L 10.5,8");
     private static readonly StreamGeometry SvgSyncCursor = StreamGeometry.Parse("M 5,10 L 3,10 A 3,3 0 0 1 3,4 L 6,4 M 11,4 L 13,4 A 3,3 0 0 1 13,10 L 10,10 M 5.5,7 L 10.5,7");
 
-    private readonly VegasProject _project;
+    private readonly NeovegProject _project;
     private readonly TimelineClip _clip;
     private readonly RustCoreInterop _rustInterop;
     private readonly CppCoreInterop? _cppInterop;
@@ -860,7 +860,7 @@ public sealed class EventPanCropWindow : Window
     private bool _suppressPropertyEvents;
 
     public EventPanCropWindow(
-        VegasProject project,
+        NeovegProject project,
         TimelineClip clip,
         RustCoreInterop rustInterop,
         CppCoreInterop? cppInterop,

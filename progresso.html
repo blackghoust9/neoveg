@@ -884,16 +884,16 @@
               <span class="badge done">Round-Trip 100%</span>
             </article>
 
-            <article class="milestone" data-category="csharp" data-search="scripting roslyn c# python vpflow datamosh vegasaur">
+            <article class="milestone" data-category="csharp" data-search="scripting roslyn c# python vpflow datamosh neoveg_toolkit">
               <div class="track-accent" style="background:#2ECC71"></div>
               <div class="milestone-icon" aria-hidden="true">⟨/⟩</div>
               <div>
                 <h3>Motor de Scripting Dinâmico (Roslyn C# <code>.cs</code> &amp; Python <code>.py</code>)</h3>
-                <p>API completa em <code>Neoveg.Scripting</code> espelhando objetos clássicos (<code>Vegas</code>, <code>Project</code>, <code>Track</code>, <code>TrackEvent</code>, <code>Take</code>, <code>Effect</code>) e suporte a extensões acopláveis (VPFlow, Datamosh, Vegasaur).</p>
+                <p>API completa em <code>Neoveg.Scripting</code> espelhando objetos clássicos (<code>Neoveg</code>, <code>Project</code>, <code>Track</code>, <code>TrackEvent</code>, <code>Take</code>, <code>Effect</code>) e suporte a extensões acopláveis (VPFlow, Datamosh, Neoveg Toolkit).</p>
                 <div class="milestone-meta">
                   <span class="meta-tag">NeovegScriptingApi.cs</span>
                   <span class="meta-tag">ScriptingEngineService.cs</span>
-                  <span class="meta-tag">vegas_scripting.py</span>
+                  <span class="meta-tag">neoveg_scripting.py</span>
                 </div>
               </div>
               <span class="badge done">Verificado</span>
@@ -928,7 +928,7 @@
               <span class="badge done">Verificado</span>
             </article>
 
-            <article class="milestone" data-category="infra" data-search="i18n internacionalizacao 8 idiomas temas historicos vegas build_portable">
+            <article class="milestone" data-category="infra" data-search="i18n internacionalizacao 8 idiomas temas historicos neoveg build_portable">
               <div class="track-accent" style="background:#1ABC9C"></div>
               <div class="milestone-icon" aria-hidden="true">🎨</div>
               <div>
@@ -936,7 +936,7 @@
                 <p>Tradução em tempo real (<code>pt-BR</code>, <code>en-US</code>, <code>es-ES</code>, <code>fr-FR</code>, <code>de-DE</code>, <code>zh-CN</code>, <code>ja-JP</code>, <code>ru-RU</code>), 4 temas clássicos/modernos e geração de pacotes portáteis em <code>dist/</code> com <code>AUTHORS.md</code> e <code>LICENSE</code>.</p>
                 <div class="milestone-meta">
                   <span class="meta-tag">LocalizationManager.cs</span>
-                  <span class="meta-tag">VegasThemeManager.cs</span>
+                  <span class="meta-tag">NeovegThemeManager.cs</span>
                   <span class="meta-tag">build_portable.py</span>
                 </div>
               </div>
@@ -949,7 +949,7 @@
         <section id="arquitetura" aria-labelledby="arch-title">
           <div class="section-heading">
             <h2 id="arch-title">Arquitetura de Processamento &amp; Resolução Multiplataforma</h2>
-            <span class="eyebrow">Especificação técnica conforme manuais de referência VEGAS 10–21 e AGENTS.md</span>
+            <span class="eyebrow">Especificação técnica conforme manuais de referência Neoveg 10–21 e AGENTS.md</span>
           </div>
           <div class="arch-box">
             <strong style="font-size:13px;color:#f0f6fc;">Topologia Hierárquica de Efeitos (5 Estágios — Vídeo &amp; Áudio DSP)</strong>
@@ -1006,7 +1006,7 @@
         <!-- Suíte QA Automatizada (32/32 PASS) -->
         <section id="validacao" aria-labelledby="qa-title">
           <div class="section-heading">
-            <h2 id="qa-title">Suíte de Validação Automatizada (<code>python-backend/test_vegas_engine.py</code>)</h2>
+            <h2 id="qa-title">Suíte de Validação Automatizada (<code>python-backend/test_neoveg_engine.py</code>)</h2>
             <span class="eyebrow">32 verificações end-to-end executadas e aprovadas</span>
           </div>
           <div class="qa-box">
@@ -1020,7 +1020,7 @@
               <div class="qa-item" data-search="3 python isolado ffmpeg ffprobe 9.0.2"><span class="qa-pass">[PASS] 03</span><span>Gerenciador Python isolado de FFmpeg/FFprobe (<code>win-x64</code> / v9.0.2)</span><span class="qa-lang">Python</span></div>
               <div class="qa-item" data-search="4 migracao c# avalonia ui 11 rustcoreinterop"><span class="qa-pass">[PASS] 04</span><span>Frontend C# Avalonia UI 11 + Ponte FFI (<code>RustCoreInterop.cs</code>)</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="5 scripts python rust renomear agrupar faixas frei0r ladspa corridorkey"><span class="qa-pass">[PASS] 05</span><span>Scripts reciclados (Agrupar Faixas V+A, Frei0r, LADSPA, CorridorKey)</span><span class="qa-lang">Python</span></div>
-              <div class="qa-item" data-search="6 build portatil temas historicos vegas 1999 2026"><span class="qa-pass">[PASS] 06</span><span>Build portátil + Acervo histórico de temas (1999–2026)</span><span class="qa-lang">Multi-OS</span></div>
+              <div class="qa-item" data-search="6 build portatil temas historicos neoveg 1999 2026"><span class="qa-pass">[PASS] 06</span><span>Build portátil + Acervo histórico de temas (1999–2026)</span><span class="qa-lang">Multi-OS</span></div>
               <div class="qa-item" data-search="7 luts 3d cube proxy gpu otio"><span class="qa-pass">[PASS] 07</span><span>4 LUTs 3D (<code>.cube</code>), Perfis Proxy GPU e OpenTimelineIO (OTIO)</span><span class="qa-lang">Assets</span></div>
               <div class="qa-item" data-search="8 auditoria qa 4k 96khz vfr sfk 5000 ops"><span class="qa-pass">[PASS] 08</span><span>Auditoria QA (SD/HD/4K/9:16/24-bit 96kHz/VFR, 5.000 ops sub-quadro em ~31ms)</span><span class="qa-lang">Rust/QA</span></div>
               <div class="qa-item" data-search="9 modulo c++ cmakelists neoveg_cpp_engine shared memory nvsh"><span class="qa-pass">[PASS] 09</span><span>Módulo C/C++ (<code>CMakeLists.txt</code> + <code>neoveg_cpp_engine</code> + Shared Memory <code>NVSH</code>)</span><span class="qa-lang">C++17</span></div>
@@ -1043,7 +1043,7 @@
               <div class="qa-item" data-search="26 janela visualizacao logs logviewerwindow copiar logs clipboard"><span class="qa-pass">[PASS] 26</span><span>Janela de Logs (<code>LogViewerWindow.axaml</code>: Copiar Logs via Clipboard API + feedback <code>Copiado!</code>)</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="27 motor forma de onda audacity audio_peaks.rs eq 8 bandas"><span class="qa-pass">[PASS] 27</span><span>Motor de Forma de Onda Audacity (<code>audio_peaks.rs</code>, onda estéreo 0dB + Gain Line + EQ 8 Bandas)</span><span class="qa-lang">Rust/C#</span></div>
               <div class="qa-item" data-search="28 cores automaticas faixas trackcolorpaletteservice barra lateral 4px"><span class="qa-pass">[PASS] 28</span><span>Cores Automáticas de Faixas (<code>TrackColorPaletteService.cs</code>, barra 4px + Color Picker + Tint)</span><span class="qa-lang">C#</span></div>
-              <div class="qa-item" data-search="29 manuais referencia vegas 10-21 docking alcas fade atalhos fx pipeline"><span class="qa-pass">[PASS] 29</span><span>Manuais de Referência 10–21, Alças de Fade, Atalhos (S/M/R/G/U/F8) e FX Pipeline de 5 Estágios</span><span class="qa-lang">C#</span></div>
+              <div class="qa-item" data-search="29 manuais referencia neoveg 10-21 docking alcas fade atalhos fx pipeline"><span class="qa-pass">[PASS] 29</span><span>Manuais de Referência 10–21, Alças de Fade, Atalhos (S/M/R/G/U/F8) e FX Pipeline de 5 Estágios</span><span class="qa-lang">C#</span></div>
               <div class="qa-item" data-search="30 instalacao silenciosa vcredist self-contained .net 8.0"><span class="qa-pass">[PASS] 30</span><span>Instalação Silenciosa VC++ (<code>/q /norestart</code>) e Publicação Self-Contained (<code>.NET 8.0 win-x64</code>)</span><span class="qa-lang">Infra</span></div>
               <div class="qa-item" data-search="31 directx end-user runtimes dxsetup d3d11.dll xaudio2_7.dll"><span class="qa-pass">[PASS] 31</span><span>DirectX End-User Runtimes (<code>DXSETUP.exe /silent</code> + verificação <code>d3d11.dll</code> / <code>XAudio2_7.dll</code> no boot)</span><span class="qa-lang">C#/C++</span></div>
               <div class="qa-item" data-search="32 deteccao multiplataforma so operatingsystem neoveg.sh neoveg.bat"><span class="qa-pass">[PASS] 32</span><span>Detecção Multiplataforma de SO (<code>OperatingSystem.IsWindows/IsLinux/IsMacOS</code>) e Lançadores (<code>neoveg.sh</code> / <code>neoveg.bat</code>)</span><span class="qa-lang">Multi-OS</span></div>
@@ -1093,7 +1093,7 @@
               <span class="file-note">Alvo CMake <code>neoveg_cpp_engine</code>: VST3, OpenFX, Voukoder, Whisper.cpp, DirectX e IPC <code>NVSH</code></span>
               <span class="file-status">C++17 / CMake</span>
             </div>
-            <div class="file-row" data-search="python-backend python ffmpeg relinker qa test_vegas_engine">
+            <div class="file-row" data-search="python-backend python ffmpeg relinker qa test_neoveg_engine">
               <a class="file-name" href="./python-backend/"><span>📁</span>python-backend/</a>
               <span class="file-note">Pacote <code>neoveg</code>: FFmpeg isolado, Relinker de 3 estágios, sincronização e suíte QA (32 testes)</span>
               <span class="file-status">Python 3</span>
@@ -1108,7 +1108,7 @@
               <span class="file-note">Pacotes de pré-requisitos Windows (Visual C++ 2015–2022 e DirectX End-User Runtimes June 2010)</span>
               <span class="file-status">Prerequisites</span>
             </div>
-            <div class="file-row" data-search="assets i18n luts temas vegas">
+            <div class="file-row" data-search="assets i18n luts temas neoveg">
               <a class="file-name" href="./Assets/"><span>📁</span>Assets/</a>
               <span class="file-note">Dicionários i18n (8 idiomas), janelas AXAML, LUTs 3D (<code>.cube</code>) e temas históricos</span>
               <span class="file-status">i18n &amp; Themes</span>
@@ -1159,7 +1159,7 @@
           <h2>Sobre o Neoveg</h2>
           <p>
             Estação de edição não-linear (NLE) de vídeo e áudio multiplataforma com arquitetura híbrida em 4 linguagens,
-            fidelidade funcional aos manuais clássicos e modernos do VEGAS (versões 10 a 21) e distribuição portátil Self-Contained.
+            fidelidade funcional aos manuais clássicos e modernos do Neoveg (versões 10 a 21) e distribuição portátil Self-Contained.
           </p>
           <a class="about-link" href="./AGENTS.md"><span aria-hidden="true">↗</span> Diretrizes de Engenharia (AGENTS.md)</a>
         </section>
@@ -1195,8 +1195,8 @@
             <button class="copy-btn" data-copy="dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true">Copiar</button>
           </div>
           <div class="cmd-block">
-            <code title="python python-backend/test_vegas_engine.py">python python-backend/test_vegas_engine.py</code>
-            <button class="copy-btn" data-copy="python python-backend/test_vegas_engine.py">Copiar</button>
+            <code title="python python-backend/test_neoveg_engine.py">python python-backend/test_neoveg_engine.py</code>
+            <button class="copy-btn" data-copy="python python-backend/test_neoveg_engine.py">Copiar</button>
           </div>
           <div class="cmd-block">
             <code title="scripts\install_prerequisites.bat">scripts\install_prerequisites.bat</code>
@@ -1361,7 +1361,7 @@
     copyReportBtn.addEventListener("click", async () => {
       const summary = [
         "Neoveg v2.1.0 — Relatório de Progresso",
-        "- Status QA: 32/32 testes multiplataforma aprovados (test_vegas_engine.py)",
+        "- Status QA: 32/32 testes multiplataforma aprovados (test_neoveg_engine.py)",
         "- Frontend: C# .NET 8.0 Self-Contained + Avalonia UI 11",
         "- Core Nativo: Rust (neoveg_core: 13 exports C-ABI) + C++17 (neoveg_cpp_engine: 11 exports C-ABI + NVSH IPC)",
         "- Backend: Python 3 (neoveg) + FFmpeg 9.0.2 isolado",

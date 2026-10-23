@@ -10,7 +10,7 @@ using Neoveg.Models;
 namespace Neoveg.Scripting;
 
 /// <summary>
-/// Represents a SMPTE / nanosecond-accurate Timecode in the Neoveg & VEGAS Pro Scripting API (`Neoveg.Scripting.Timecode`).
+/// Represents a SMPTE / nanosecond-accurate Timecode in the Neoveg & Neoveg Scripting API (`Neoveg.Scripting.Timecode`).
 /// </summary>
 public readonly struct Timecode : IComparable<Timecode>, IEquatable<Timecode>
 {
@@ -281,11 +281,11 @@ public abstract class TrackEvent
 {
     internal readonly TimelineClip UnderlyingClip;
     internal readonly TimelineTrack UnderlyingTrack;
-    internal readonly Vegas OwnerVegas;
+    internal readonly NeovegHost OwnerNeoveg;
 
-    protected TrackEvent(Vegas owner, TimelineTrack track, TimelineClip clip)
+    protected TrackEvent(NeovegHost owner, TimelineTrack track, TimelineClip clip)
     {
-        OwnerVegas = owner;
+        OwnerNeoveg = owner;
         UnderlyingTrack = track;
         UnderlyingClip = clip;
         FadeIn = new Fade(clip, isFadeIn: true);
@@ -303,8 +303,8 @@ public abstract class TrackEvent
     }
 
     public Track Track => UnderlyingTrack.Type == "audio"
-        ? new AudioTrack(OwnerVegas, UnderlyingTrack, 0)
-        : new VideoTrack(OwnerVegas, UnderlyingTrack, 0);
+        ? new AudioTrack(OwnerNeoveg, UnderlyingTrack, 0)
+        : new VideoTrack(OwnerNeoveg, UnderlyingTrack, 0);
 
     public Timecode Start
     {
@@ -322,11 +322,11 @@ public abstract class TrackEvent
 
     public bool Selected
     {
-        get => OwnerVegas.SelectedClipIds.Contains(UnderlyingClip.Id);
+        get => OwnerNeoveg.SelectedClipIds.Contains(UnderlyingClip.Id);
         set
         {
-            if (value) OwnerVegas.SelectedClipIds.Add(UnderlyingClip.Id);
-            else OwnerVegas.SelectedClipIds.Remove(UnderlyingClip.Id);
+            if (value) OwnerNeoveg.SelectedClipIds.Add(UnderlyingClip.Id);
+            else OwnerNeoveg.SelectedClipIds.Remove(UnderlyingClip.Id);
         }
     }
 
@@ -358,12 +358,12 @@ public abstract class TrackEvent
     public bool IsAudio => UnderlyingTrack.Type == "audio";
 
     /// <summary>
-    /// Splits this `TrackEvent` at `offset` relative to `Start` (just like VEGAS Pro `TrackEvent.Split(Timecode offset)`).
+    /// Splits this `TrackEvent` at `offset` relative to `Start` (just like Neoveg `TrackEvent.Split(Timecode offset)`).
     /// </summary>
     public TrackEvent? Split(Timecode offset)
     {
         double splitTimelineSec = UnderlyingClip.Start + offset.TotalSeconds;
-        if (OwnerVegas.RustInterop.TrySplitClip(UnderlyingClip, splitTimelineSec, out var rightHalf))
+        if (OwnerNeoveg.RustInterop.TrySplitClip(UnderlyingClip, splitTimelineSec, out var rightHalf))
         {
             int idx = UnderlyingTrack.Clips.IndexOf(UnderlyingClip);
             if (idx >= 0 && idx + 1 <= UnderlyingTrack.Clips.Count)
@@ -372,8 +372,8 @@ public abstract class TrackEvent
                 UnderlyingTrack.Clips.Add(rightHalf);
 
             return IsAudio
-                ? new AudioEvent(OwnerVegas, UnderlyingTrack, rightHalf)
-                : new VideoEvent(OwnerVegas, UnderlyingTrack, rightHalf);
+                ? new AudioEvent(OwnerNeoveg, UnderlyingTrack, rightHalf)
+                : new VideoEvent(OwnerNeoveg, UnderlyingTrack, rightHalf);
         }
         return null;
     }
@@ -385,7 +385,7 @@ public abstract class TrackEvent
 /// </summary>
 public sealed class VideoEvent : TrackEvent
 {
-    internal VideoEvent(Vegas owner, TimelineTrack track, TimelineClip clip)
+    internal VideoEvent(NeovegHost owner, TimelineTrack track, TimelineClip clip)
         : base(owner, track, clip)
     {
     }
@@ -419,7 +419,7 @@ public sealed class VideoEvent : TrackEvent
 /// </summary>
 public sealed class AudioEvent : TrackEvent
 {
-    internal AudioEvent(Vegas owner, TimelineTrack track, TimelineClip clip)
+    internal AudioEvent(NeovegHost owner, TimelineTrack track, TimelineClip clip)
         : base(owner, track, clip)
     {
     }
@@ -440,10 +440,10 @@ public sealed class AudioEvent : TrackEvent
 
 public sealed class TrackEventList : IReadOnlyList<TrackEvent>
 {
-    private readonly Vegas _owner;
+    private readonly NeovegHost _owner;
     private readonly TimelineTrack _track;
 
-    internal TrackEventList(Vegas owner, TimelineTrack track)
+    internal TrackEventList(NeovegHost owner, TimelineTrack track)
     {
         _owner = owner;
         _track = track;
@@ -465,16 +465,16 @@ public sealed class TrackEventList : IReadOnlyList<TrackEvent>
 }
 
 /// <summary>
-/// Represents a Track on the VEGAS / Neoveg Timeline (`Neoveg.Scripting.Track`).
+/// Represents a Track on the Neoveg / Neoveg Timeline (`Neoveg.Scripting.Track`).
 /// </summary>
 public class Track
 {
-    internal readonly Vegas OwnerVegas;
+    internal readonly NeovegHost OwnerNeoveg;
     internal readonly TimelineTrack UnderlyingTrack;
 
-    internal Track(Vegas owner, TimelineTrack track, int index)
+    internal Track(NeovegHost owner, TimelineTrack track, int index)
     {
-        OwnerVegas = owner;
+        OwnerNeoveg = owner;
         UnderlyingTrack = track;
         Index = index;
         Events = new TrackEventList(owner, track);
@@ -491,10 +491,10 @@ public class Track
 
     public bool Selected
     {
-        get => OwnerVegas.SelectedTrackId == UnderlyingTrack.Id;
+        get => OwnerNeoveg.SelectedTrackId == UnderlyingTrack.Id;
         set
         {
-            if (value) OwnerVegas.SelectedTrackId = UnderlyingTrack.Id;
+            if (value) OwnerNeoveg.SelectedTrackId = UnderlyingTrack.Id;
         }
     }
 
@@ -519,7 +519,7 @@ public class Track
 
 public sealed class VideoTrack : Track
 {
-    internal VideoTrack(Vegas owner, TimelineTrack track, int index)
+    internal VideoTrack(NeovegHost owner, TimelineTrack track, int index)
         : base(owner, track, index)
     {
     }
@@ -536,13 +536,13 @@ public sealed class VideoTrack : Track
             Color = "#0e7490"
         };
         UnderlyingTrack.Clips.Add(clip);
-        return new VideoEvent(OwnerVegas, UnderlyingTrack, clip);
+        return new VideoEvent(OwnerNeoveg, UnderlyingTrack, clip);
     }
 }
 
 public sealed class AudioTrack : Track
 {
-    internal AudioTrack(Vegas owner, TimelineTrack track, int index)
+    internal AudioTrack(NeovegHost owner, TimelineTrack track, int index)
         : base(owner, track, index)
     {
     }
@@ -558,16 +558,16 @@ public sealed class AudioTrack : Track
             Color = "#881337"
         };
         UnderlyingTrack.Clips.Add(clip);
-        return new AudioEvent(OwnerVegas, UnderlyingTrack, clip);
+        return new AudioEvent(OwnerNeoveg, UnderlyingTrack, clip);
     }
 }
 
 public sealed class TrackList : IReadOnlyList<Track>
 {
-    private readonly Vegas _owner;
-    private readonly VegasProject _project;
+    private readonly NeovegHost _owner;
+    private readonly NeovegProject _project;
 
-    internal TrackList(Vegas owner, VegasProject project)
+    internal TrackList(NeovegHost owner, NeovegProject project)
     {
         _owner = owner;
         _project = project;
@@ -743,8 +743,8 @@ public sealed class RegionList : IReadOnlyList<Region>
 
 public sealed class ProjectVideoProperties
 {
-    private readonly VegasProject _project;
-    internal ProjectVideoProperties(VegasProject project) => _project = project;
+    private readonly NeovegProject _project;
+    internal ProjectVideoProperties(NeovegProject project) => _project = project;
 
     public int Width
     {
@@ -767,8 +767,8 @@ public sealed class ProjectVideoProperties
 
 public sealed class ProjectAudioProperties
 {
-    private readonly VegasProject _project;
-    internal ProjectAudioProperties(VegasProject project) => _project = project;
+    private readonly NeovegProject _project;
+    internal ProjectAudioProperties(NeovegProject project) => _project = project;
 
     public int SampleRate
     {
@@ -784,13 +784,13 @@ public sealed class ProjectAudioProperties
 }
 
 /// <summary>
-/// Represents the active VEGAS / Neovegject (`Neoveg.Scripting.Project` / `myVegas.Project`).
+/// Represents the active Neoveg / Neovegject (`Neoveg.Scripting.Project` / `myNeoveg.Project`).
 /// </summary>
 public sealed class Project
 {
-    internal readonly VegasProject UnderlyingProject;
+    internal readonly NeovegProject UnderlyingProject;
 
-    internal Project(Vegas owner, VegasProject project)
+    internal Project(NeovegHost owner, NeovegProject project)
     {
         UnderlyingProject = project;
         Tracks = new TrackList(owner, project);
@@ -816,11 +816,11 @@ public sealed class Project
 }
 
 /// <summary>
-/// Root `Vegas` Scripting Host Object (`myVegas` / `vegas`) exposed to C# (`.cs`), compiled `.dll` extensions, and `EntryPoint.FromVegas(Vegas myVegas)`.
+/// Root `Neoveg` Scripting Host Object (`myNeoveg` / `neoveg`) exposed to C# (`.cs`), compiled `.dll` extensions, and `EntryPoint.FromNeoveg(Neoveg myNeoveg)`.
 /// </summary>
-public sealed class Vegas
+public sealed class NeovegHost
 {
-    internal readonly VegasProject UnderlyingProject;
+    internal readonly NeovegProject UnderlyingProject;
     internal readonly RustCoreInterop RustInterop;
     internal readonly Action OnUiRefreshRequested;
     internal readonly HashSet<string> SelectedClipIds = new(StringComparer.OrdinalIgnoreCase);
@@ -828,10 +828,10 @@ public sealed class Vegas
 
     public Project Project { get; }
     public List<string> ScriptLogs { get; } = new();
-    public string Version => "VEGAS Pro 21.0 / Neoveg Scripting Portal (.NET + Rust FFI + Python)";
+    public string Version => "Neoveg 21.0 / Neoveg Scripting Portal (.NET + Rust FFI + Python)";
 
-    public Vegas(
-        VegasProject project,
+    public NeovegHost(
+        NeovegProject project,
         RustCoreInterop rustInterop,
         string? selectedClipId,
         string? selectedTrackId,
@@ -970,7 +970,7 @@ public sealed class Vegas
 }
 
 // =================================================================================================
-// DOCKABLE EXTENSIONS & CUSTOM COMMAND MODULE API (VPFlow, Datamosh, Vegasaur, HOS Compatibility)
+// DOCKABLE EXTENSIONS & CUSTOM COMMAND MODULE API (VPFlow, Datamosh, Neoveg Toolkit, HOS Compatibility)
 // =================================================================================================
 
 public enum CommandCategory
@@ -999,14 +999,14 @@ public sealed class CustomCommand
 
 /// <summary>
 /// Base class for Dockable Window Extensions in Neoveg (`Neoveg.Scripting.DockableControl`),
-/// mirroring `ScriptPortal.Vegas.DockableControl` so third-party tools like VPFlow, Datamosh, Vegasaur, and HOS
+/// mirroring `ScriptPortal.Neoveg.DockableControl` so third-party tools like VPFlow, Datamosh, Neoveg Toolkit, and HOS
 /// can dock directly inside the Avalonia UI workspace or float on secondary monitors.
 /// </summary>
 public class DockableControl : Border
 {
     public string ExtensionId { get; }
     public string DisplayName { get; set; }
-    public Vegas? MyVegas { get; internal set; }
+    public NeovegHost? MyNeoveg { get; internal set; }
     public bool AutoLoadCommand { get; set; } = true;
 
     public DockableControl(string extensionId)
@@ -1015,9 +1015,9 @@ public class DockableControl : Border
         DisplayName = extensionId;
     }
 
-    public virtual void OnLoaded(Vegas vegas)
+    public virtual void OnLoaded(NeovegHost neoveg)
     {
-        MyVegas = vegas;
+        MyNeoveg = neoveg;
     }
 }
 
@@ -1026,24 +1026,24 @@ public class DockableControl : Border
 /// </summary>
 public interface ICustomCommandModule
 {
-    void InitializeModule(Vegas vegas);
+    void InitializeModule(NeovegHost neoveg);
     ICollection GetCustomCommands();
 }
 
 /// <summary>
 /// Globals object passed to Roslyn C# scripts (`Microsoft.CodeAnalysis.CSharp.Scripting`).
-/// Allows scripts to use `myVegas`, `vegas`, `Vegas`, or define `public class EntryPoint { public void FromVegas(Vegas myVegas) }`.
+/// Allows scripts to use `myNeoveg`, `neoveg`, `Neoveg`, or define `public class EntryPoint { public void FromNeoveg(Neoveg myNeoveg) }`.
 /// </summary>
 public sealed class ScriptGlobals
 {
-    public Vegas myVegas { get; }
-    public Vegas vegas => myVegas;
-    public Vegas Vegas => myVegas;
-    public Project Project => myVegas.Project;
+    public NeovegHost myNeoveg { get; }
+    public NeovegHost neoveg => myNeoveg;
+    public NeovegHost NeovegHost => myNeoveg;
+    public Project Project => myNeoveg.Project;
 
-    public ScriptGlobals(Vegas vegasInstance)
+    public ScriptGlobals(NeovegHost neovegInstance)
     {
-        myVegas = vegasInstance;
+        myNeoveg = neovegInstance;
     }
 }
 

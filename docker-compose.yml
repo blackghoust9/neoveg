@@ -14,7 +14,7 @@ services:
       - ./logs:/workspace/logs
     command: >
       sh -c "python3 python-backend/qa_audit_suite.py &&
-             python3 python-backend/test_vegas_engine.py"
+             python3 scripts/test_neoveg_engine.py"
 
   neoveg-builder:
     container_name: neoveg-cross-builder

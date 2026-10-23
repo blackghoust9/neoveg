@@ -242,7 +242,7 @@ Copie e envie o comando abaixo no chat do **Antigravity**:
    * Compile o projeto em modo Release e de forma autônoma para Windows x64: dotnet publish desktop-host/Neoveg.csproj \-c Release \-r win-x64 \--self-contained true  
    * Garanta que as DLLs nativas compiladas (neoveg\_core.dll, neoveg\_cpp\_engine.dll), a estrutura de Assets/, o script do Bootstrapper/Local AppCache e os instaladores de pré-requisitos em scripts/ estejam incluídos na pasta de distribuição (dist/Neoveg\_v1.0.0\_win-x64/).  
 > 4. **Geração de Notas de Lançamento (RELEASE\_NOTES.md) e Release GitHub:**  
-   * Crie o arquivo RELEASE\_NOTES.md listando as funcionalidades estáveis (Timeline NLE, renderização de forma de onda em Rust, FX pipeline em C++, suporte a atalhos do VEGAS, interface dark, sistema de logs e suporte a cache local).  
+   * Crie o arquivo RELEASE\_NOTES.md listando as funcionalidades estáveis (Timeline NLE, renderização de forma de onda em Rust, FX pipeline em C++, suporte a atalhos do Neoveg, interface dark, sistema de logs e suporte a cache local).  
    * Compacte a pasta de publicação final no arquivo dist/Neoveg\_v1.0.0\_win-x64.zip pronto para distribuição/publicação nas Releases do GitHub.  
 > 5. **Sincronização com o Google Drive:**  
    * Execute o script scripts/sync\_gdrive.ps1 para espelhar a pasta do projeto e o pacote de release gerado diretamente no Google Drive (G:\\Meu Drive\\vp-rev-eng\\teste\\teste2)."\*
@@ -550,7 +550,7 @@ Para um software NLE de alto desempenho, a aplicação das normas ISO não preci
 
 | Norma ISO/IEC | Foco de Aplicação | Como se Aplica no Neoveg |
 | :---- | :---- | :---- |
-| **ISO/IEC 25010** (SQuaRE) | Modelo de Qualidade de Software | Define os critérios de **Eficiência de Desempenho** (60 FPS na timeline), **Portabilidade** (Windows/Linux/macOS), **Usabilidade** (paridade com VEGAS Pro) e **Confiabilidade** (zero crashes na renderização). |
+| **ISO/IEC 25010** (SQuaRE) | Modelo de Qualidade de Software | Define os critérios de **Eficiência de Desempenho** (60 FPS na timeline), **Portabilidade** (Windows/Linux/macOS), **Usabilidade** (paridade com Neoveg) e **Confiabilidade** (zero crashes na renderização). |
 | **ISO/IEC 29119** | Testes de Software | Padroniza a suíte de testes (unitários, integração e headless UI) e a geração de relatórios de cobertura e falhas na fase de QA. |
 | **ISO/IEC 12207** | Ciclo de Vida de Software | Governa as fases de desenvolvimento, build autônomo (*Self-Contained*), versionamento no Git e distribuição de releases. |
 | **ISO/IEC 27001** | Segurança e Gestão de Riscos | Garante o manuseio seguro de memória nas chamadas FFI (C\#/Rust/C++), prevenção de vazamento de ponteiros e integridade dos dados no cache local (AppCache). |
@@ -613,7 +613,7 @@ Neoveg strictly aligns its software architecture, quality assurance protocols, a
 
 \- \*\*ABNT NBR ISO/IEC 25010 (Quality Model for Software Products):\*\*  
   \- \*\*Performance Efficiency:\*\* Sub-millisecond audio peak calculations (Rust Core) and smooth timeline rendering (Avalonia UI) without thread contention.  
-  \- \*\*Functional Suitability:\*\* Full parity with VEGAS Pro editing workflows, keyboard shortcuts, and signal routing topology.  
+  \- \*\*Functional Suitability:\*\* Full parity with Neoveg editing workflows, keyboard shortcuts, and signal routing topology.  
   \- \*\*Portability:\*\* Native build capability across Windows (\`win-x64\`), Linux (\`linux-x64\`), and macOS (\`osx-x64\`/\`osx-arm64\`).  
 \- \*\*ABNT NBR ISO/IEC 29119 (Software Testing Framework):\*\*  
   \- Continuous execution of multi-tier test suites (Unit, Integration, FFI Safety, and Headless UI rendering via \`Avalonia.Headless\`).  
@@ -653,13 +653,13 @@ Para podermos dar continuidade ao projeto e analisar as funcionalidades pretendi
 
 Response: Esse controle é o **Slider** (e a parte circular que você arrasta é o **Thumb**).
 
-Para deixar o manipulador (thumb) e a trilha de todos os sliders do projeto **quadrados** (no estilo flat clássico do VEGAS Pro), basta definir o CornerRadius="0" no estilo global do Avalonia UI.
+Para deixar o manipulador (thumb) e a trilha de todos os sliders do projeto **quadrados** (no estilo flat clássico do Neoveg), basta definir o CornerRadius="0" no estilo global do Avalonia UI.
 
 ### **Prompt para enviar ao Antigravity**
 
 Copie e envie o comando abaixo no chat do **Antigravity**:
 
-*"Altere o estilo global do controle **Slider** no Avalonia UI (desktop-host/Styles/ ou App.axaml) para que todos os sliders do Neoveg tenham visual quadrado e plano (estilo VEGAS Pro):*
+*"Altere o estilo global do controle **Slider** no Avalonia UI (desktop-host/Styles/ ou App.axaml) para que todos os sliders do Neoveg tenham visual quadrado e plano (estilo Neoveg):*
 
 > 1. **Estilização do Thumb e Track:**  
    * Adicione ou atualize a regra de estilo XAML para zerar o arredondamento:  
@@ -683,23 +683,23 @@ Copie e envie o comando abaixo no chat do **Antigravity**:
 
 *User prompt: pede ele pra ele se basear nos manuais para esse slider*
 
-Response: Perfeito. Para garantir que o comportamento e o visual do **Slider** fiquem idênticos ao do VEGAS Pro, o Antigravity deve consultar a especificação dos manuais oficiais (VEGAS Pro 10–21) para implementar não apenas a aparência quadrada, mas também as interações padrão do software (como o duplo clique para resetar e o arraste de precisão com a tecla Ctrl).
+Response: Perfeito. Para garantir que o comportamento e o visual do **Slider** fiquem idênticos ao do Neoveg, o Antigravity deve consultar a especificação dos manuais oficiais (Neoveg 10–21) para implementar não apenas a aparência quadrada, mas também as interações padrão do software (como o duplo clique para resetar e o arraste de precisão com a tecla Ctrl).
 
 ### **Prompt para enviar ao Antigravity**
 
 Copie e envie a instrução abaixo no chat do **Antigravity**:
 
-*"Alinhe o controle **Slider** (faders de ganho, opacidade e panorâmica) estritamente às especificações dos **manuais do VEGAS Pro (VP10–21)**:*
+*"Alinhe o controle **Slider** (faders de ganho, opacidade e panorâmica) estritamente às especificações dos **manuais do Neoveg (VP10–21)**:*
 
-> 1. **Fidelidade Visual (UI Padrão VEGAS Pro):**  
-   * Ajuste o estilo no Avalonia UI (desktop-host/Styles/) para usar um manipulador (Thumb) estritamente retangular/quadrado (CornerRadius="0"), com dimensões proporcionais às do VEGAS Pro (faixa fina e thumb de fader clássico).  
+> 1. **Fidelidade Visual (UI Padrão Neoveg):**  
+   * Ajuste o estilo no Avalonia UI (desktop-host/Styles/) para usar um manipulador (Thumb) estritamente retangular/quadrado (CornerRadius="0"), com dimensões proporcionais às do Neoveg (faixa fina e thumb de fader clássico).  
    * Formate os rótulos de leitura rápida exatamente como no manual (ex.: Gain: 0.0 dB, Opac: 100.0%, Center).  
 > 2. **Comportamento e Atribuições de Atalhos:**  
    * **Reset Padrão:** Duplo clique no Thumb deve redefinir o slider para o valor padrão (ex.: 100% para opacidade, 0.0 dB para ganho).  
    * **Ajuste Fino (Precision Drag):** Pressionar e segurar Ctrl enquanto arrasta o slider deve ativar a sensibilidade reduzida para ajustes de precisão decimal.  
    * **Menu de Contexto (Right-Click):** Clique com o botão direito sobre o slider deve abrir opções contextuais para *Set to Default* e *Type in Value...*.  
 > 3. **Documentação no AGENTS.md:**  
-   * Adicione o padrão de controles da interface do VEGAS Pro à seção de UI no AGENTS.md, estabelecendo que todos os seletores deslizantes do Neoveg sigam essa mesma convenção visual e interativa."\*
+   * Adicione o padrão de controles da interface do Neoveg à seção de UI no AGENTS.md, estabelecendo que todos os seletores deslizantes do Neoveg sigam essa mesma convenção visual e interativa."\*
 
 ---
 
@@ -771,7 +771,7 @@ Copie e envie a instrução abaixo no chat do **Antigravity**:
 
 *User prompt: as tracks de audio e video ficam piscando, mas elas só podem piscar se uma delas estiver selecionada*
 
-Response: O comportamento do indicador na caixa de número da faixa (*Track Number Box*) deve ser condicionado ao estado de seleção (IsSelected) da faixa, simulando exatamente o indicador de foco ativo do VEGAS Pro.
+Response: O comportamento do indicador na caixa de número da faixa (*Track Number Box*) deve ser condicionado ao estado de seleção (IsSelected) da faixa, simulando exatamente o indicador de foco ativo do Neoveg.
 
 ### **Prompt para enviar ao Antigravity**
 
@@ -790,21 +790,21 @@ Copie e envie a instrução abaixo no chat do **Antigravity**:
 
 ---
 
-*User prompt: essas combobox estão muito grandes, tem que ficar com o texto pequeno, legivel e na parte inferior com setinhas para alternar entre as abas, igual a do Vegas.*
+*User prompt: essas combobox estão muito grandes, tem que ficar com o texto pequeno, legivel e na parte inferior com setinhas para alternar entre as abas, igual a do Neoveg.*
 
-Response: Esse estilo de abas gigantes no topo é o padrão padrão de TabControl moderno, mas no VEGAS Pro as abas de janelas ancoradas (*docked windows*) ficam no **rodapé da janela**, compactas e com botões/setinhas de rolagem lateral para navegar entre elas.
+Response: Esse estilo de abas gigantes no topo é o padrão padrão de TabControl moderno, mas no Neoveg as abas de janelas ancoradas (*docked windows*) ficam no **rodapé da janela**, compactas e com botões/setinhas de rolagem lateral para navegar entre elas.
 
 ### **Prompt para enviar ao Antigravity**
 
 Copie e envie a instrução abaixo no chat do **Antigravity**:
 
-*"Ajuste a estrutura e o estilo das abas dos painéis (Project Media, Transitions, Video FX, Trimmer, etc.) no Avalonia UI (desktop-host/Styles/ e Views/) para corresponder exatamente ao layout de janelas ancoradas do VEGAS Pro:*
+*"Ajuste a estrutura e o estilo das abas dos painéis (Project Media, Transitions, Video FX, Trimmer, etc.) no Avalonia UI (desktop-host/Styles/ e Views/) para corresponder exatamente ao layout de janelas ancoradas do Neoveg:*
 
 > 1. **Posicionamento no Rodapé (TabStripPlacement):**  
    * Mova o cabeçalho das abas para a **parte inferior/rodapé** do contêiner da janela (TabStripPlacement="Bottom").  
 > 2. **Tipografia e Dimensões Compactas:**  
    * Reduza o tamanho da fonte dos títulos das abas para um tamanho compacto e altamente legível (ex.: FontSize="11" ou 12).  
-   * Ajuste o espaçamento interno (Padding="6,2,6,2") e a altura das abas para o visual flat compacto do VEGAS.  
+   * Ajuste o espaçamento interno (Padding="6,2,6,2") e a altura das abas para o visual flat compacto do Neoveg.  
 > 3. **Setas de Navegação e Rolagem Lateral (*Tab Strip Scroll*):**  
    * Envolva a faixa de abas (TabStrip) em um ScrollViewer horizontal com botões de repetição/setas de navegação (\<RepeatButton\>) nas extremidades esquerda e direita.  
    * Isso permitirá alternar suavemente entre as abas quando o painel for redimensionado e não houver espaço suficiente para exibir todas na tela.  
@@ -817,7 +817,7 @@ Copie e envie a instrução abaixo no chat do **Antigravity**:
 
 Response: A ausência das barras de rolagem na linha do tempo (*timeline*) impede a navegação horizontal pelo tempo do projeto e a navegação vertical pelas várias faixas de áudio e vídeo.
 
-No VEGAS Pro, a linha do tempo possui uma barra de rolagem horizontal na parte inferior (sincronizada com a régua de tempo/zoom) e uma barra de rolagem vertical no lado direito (sincronizada entre os *Track Headers* e a área de eventos).
+No Neoveg, a linha do tempo possui uma barra de rolagem horizontal na parte inferior (sincronizada com a régua de tempo/zoom) e uma barra de rolagem vertical no lado direito (sincronizada entre os *Track Headers* e a área de eventos).
 
 ### **Prompt para enviar ao Antigravity**
 
@@ -832,15 +832,15 @@ Copie e envie a instrução abaixo no chat do **Antigravity**:
 > 2. **Barra de Rolagem Vertical (Navegação de Faixas):**  
    * Adicione uma barra de rolagem vertical no lado direito do painel de faixas.  
    * Vincule e sincronize o deslocamento vertical (VerticalOffset) do painel esquerdo de cabeçalhos das faixas (*Track Headers*) com o painel direito de conteúdo das faixas (*Track Events Area*), garantindo que rolem juntos sem desalinhamento.  
-> 3. **Estilização Visual (Padrão VEGAS Pro):**  
+> 3. **Estilização Visual (Padrão Neoveg):**  
    * Estilize ambas as barras de rolagem com visual plano e compacto (CornerRadius="0"), utilizando o esquema de cores escuro do tema.  
-   * Adicione botões de zoom/ajuste fino (+ e \-) ou botões de navegação nas extremidades das barras de rolagem, conforme a interface clássica do VEGAS.  
+   * Adicione botões de zoom/ajuste fino (+ e \-) ou botões de navegação nas extremidades das barras de rolagem, conforme a interface clássica do Neoveg.  
 > 4. **Atualização da Documentação (AGENTS.md):**  
    * Registe no AGENTS.md o protocolo de sincronização bidirecional de rolagem horizontal (tempo) e vertical (faixas) da linha do tempo."\*
 
 ---
 
-*User prompt: o traço da playhead está muito grosso e não diminui e aumenta conforme o zoom, e tem que reconfigurar a grade de frames, nos manuais deve ter falando sobre as grades de frames, se não tiver nos manuais eles podem procurar pela internet como funciona o desenho das grades de frames, podemos implementar no agents.md para quando não tiver no maual procurar na internet sobre as funcionalidades do vegas e guardar as informações encontradas em um txt.*
+*User prompt: o traço da playhead está muito grosso e não diminui e aumenta conforme o zoom, e tem que reconfigurar a grade de frames, nos manuais deve ter falando sobre as grades de frames, se não tiver nos manuais eles podem procurar pela internet como funciona o desenho das grades de frames, podemos implementar no agents.md para quando não tiver no maual procurar na internet sobre as funcionalidades do neoveg e guardar as informações encontradas em um txt.*
 
 Response: Essa ajuste é essencial para a precisão do Neoveg. A linha da *playhead* (agulha de reprodução) precisa ter espessura fixa de **1 pixel** (desvinculada da escala do zoom) para não cobrir o quadro exato da edição, e a **grade de frames (timecode grid)** deve ser dinâmica, ajustando a densidade das linhas conforme o nível de zoom.
 
@@ -850,15 +850,15 @@ Além disso, adicionar a diretriz de **pesquisa e salvamento em .txt** no AGENTS
 
 \---
 
-\#\# 18\. Fallback Web Research & VEGAS Pro Knowledge Base Protocol
+\#\# 18\. Fallback Web Research & Neoveg Knowledge Base Protocol
 
-To ensure 100% behavioral fidelity with VEGAS Pro even when local manuals lack specific implementation details:
+To ensure 100% behavioral fidelity with Neoveg even when local manuals lack specific implementation details:
 
 \- \*\*Missing Manual Specification Fallback:\*\*  
-  \- If a feature, UX interaction, or algorithm (e.g., dynamic frame grid calculation, timecode snapping rules) is not detailed in the local VEGAS Pro manuals, search online sources, community documentation, or software analysis for VEGAS Pro mechanics.  
+  \- If a feature, UX interaction, or algorithm (e.g., dynamic frame grid calculation, timecode snapping rules) is not detailed in the local Neoveg manuals, search online sources, community documentation, or software analysis for Neoveg mechanics.  
 \- \*\*Knowledge Base Persistence:\*\*  
-  \- Automatically save all discovered specifications, rules, and research notes into \`docs/research/vegas\_features\_research.txt\`.  
-  \- Maintain a structured format in the \`.txt\` file detailing: \*Feature Name\*, \*VEGAS Pro Exact Behavior\*, \*Visual/Technical Rules\*, and \*Implementation Guidelines for Neoveg\*.
+  \- Automatically save all discovered specifications, rules, and research notes into \`docs/research/neoveg\_features\_research.txt\`.  
+  \- Maintain a structured format in the \`.txt\` file detailing: \*Feature Name\*, \*Neoveg Exact Behavior\*, \*Visual/Technical Rules\*, and \*Implementation Guidelines for Neoveg\*.
 
 ### **Prompt para Enviar ao Antigravity**
 
@@ -882,20 +882,20 @@ Copie e envie a instrução abaixo no chat do **Antigravity**:
 
 ### **3\. Protocolo de Pesquisa & Documentação (AGENTS.md)**
 
-> * **Atualização do AGENTS.md:** Adicione a seção **18\. Fallback Web Research & VEGAS Pro Knowledge Base Protocol**.  
-> * **Pesquisa e Registro em .txt:** Caso o manual local não descreva com precisão o comportamento de um recurso do VEGAS Pro (ex.: regras exatas de encaixe de frames ou visual da grade), pesquise as especificações do VEGAS Pro e registre o conhecimento encontrado no arquivo **docs/research/vegas\_features\_research.txt**."\*
+> * **Atualização do AGENTS.md:** Adicione a seção **18\. Fallback Web Research & Neoveg Knowledge Base Protocol**.  
+> * **Pesquisa e Registro em .txt:** Caso o manual local não descreva com precisão o comportamento de um recurso do Neoveg (ex.: regras exatas de encaixe de frames ou visual da grade), pesquise as especificações do Neoveg e registre o conhecimento encontrado no arquivo **docs/research/neoveg\_features\_research.txt**."\*
 
 ---
 
 *User prompt: não aparece os botões na preview*
 
-Response: A janela de **Video Preview** está sem a barra de ferramentas padrão do VEGAS Pro no topo (como o seletor de qualidade de prévia, captura de *snapshot*, propriedades do projeto, desativação de efeitos e indicadores de resolução/FPS).
+Response: A janela de **Video Preview** está sem a barra de ferramentas padrão do Neoveg no topo (como o seletor de qualidade de prévia, captura de *snapshot*, propriedades do projeto, desativação de efeitos e indicadores de resolução/FPS).
 
 ### **Prompt para enviar ao Antigravity**
 
 Copie e envie a instrução abaixo no chat do **Antigravity**:
 
-*"Corrija a barra de ferramentas superior da janela de **Video Preview** (desktop-host/Views/VideoPreviewView.axaml e ViewModels/VideoPreviewViewModel.cs), adicionando todos os botões e seletores de controle do padrão VEGAS Pro:*
+*"Corrija a barra de ferramentas superior da janela de **Video Preview** (desktop-host/Views/VideoPreviewView.axaml e ViewModels/VideoPreviewViewModel.cs), adicionando todos os botões e seletores de controle do padrão Neoveg:*
 
 > 1. **Botões e Seletores na Barra de Ferramentas Superior:**  
    * **Propriedades do Projeto de Vídeo (*Project Video Properties*):** Adicione o ícone de engrenagem para abrir a janela de configurações de vídeo do projeto (resolução, FPS, proporção de aspecto).  

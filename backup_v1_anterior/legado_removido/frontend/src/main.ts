@@ -1,13 +1,13 @@
 /**
- * OpenVegas Pro 21 — Master Studio Application Controller (TypeScript / Qt Design System)
+ * OpenNeoveg 21 — Master Studio Application Controller (TypeScript / Qt Design System)
  * Integrates:
- * - Welcome Project Hub (Starts with Empty Project + Keeps Demo Project + Advanced Vegas Project Properties)
- * - Full Interactive VEGAS Event Pan/Crop Workspace with Keyframe Timeline & Draggable 'F' Crop Frame
+ * - Welcome Project Hub (Starts with Empty Project + Keeps Demo Project + Advanced Neovegject Properties)
+ * - Full Interactive Neoveg Event Pan/Crop Workspace with Keyframe Timeline & Draggable 'F' Crop Frame
  * - Video FX, Frei0r & CorridorKey Catalog with Live Human Face Portrait Demo Thumbnails
  * - LADSPA Audio DSP Plugins + Fairlight LUFS / Premiere Essential Sound Auto-Ducking
  * - DaVinci Resolve 3-Way Color Wheels, Node Graph & Premiere Pro Edit Tools (Razor, Slip, Slide, Rate Stretch)
- * - Classic Sony Vegas Themes (Vegas 4.0 XP Gray, Vegas 7.0 Silver, Vegas 13 Charcoal, Vegas 18, Vegas 21 Qt, Resolve, Premiere)
- * - VEGAS Pro Frequent Problems Diagnostic & Auto-Fixer + `log_erros.txt` Live Inspector
+ * - Classic Classic NLE Themes (Neoveg 4.0 XP Gray, Neoveg 7.0 Silver, Neoveg 13 Charcoal, Neoveg 18, Neoveg 21 Qt, Resolve, Premiere)
+ * - Neoveg Frequent Problems Diagnostic & Auto-Fixer + `log_erros.txt` Live Inspector
  */
 
 import {
@@ -18,14 +18,14 @@ import {
   MediaAsset,
   TimelineDragPayload,
   Track,
-  VegasProject,
+  NeovegProject,
   VideoFXType,
 } from './types';
-import { formatSMPTE, VegasCompositor } from './engine/compositor';
-import { VegasAudioEngine } from './engine/audioEngine';
-import { VegasTimelineController } from './ui/timeline';
-import { VegasDockManager } from './ui/dockManager';
-import { VEGAS_ICONS } from './ui/icons';
+import { formatSMPTE, NeovegCompositor } from './engine/compositor';
+import { NeovegAudioEngine } from './engine/audioEngine';
+import { NeovegTimelineController } from './ui/timeline';
+import { NeovegDockManager } from './ui/dockManager';
+import { Neoveg_ICONS } from './ui/icons';
 import { renderHumanFaceEffectThumbnail } from './ui/faceThumbnails';
 
 interface SavedProjectMeta {
@@ -43,17 +43,17 @@ interface SavedProjectMeta {
   modifiedAt: string;
 }
 
-class OpenVegasStudioApp {
-  public project: VegasProject;
+class NeovegStudioApp {
+  public project: NeovegProject;
   public mediaBin: MediaAsset[] = [];
   public savedProjects: SavedProjectMeta[] = [];
   public scriptPresets: Record<string, { name: string; description: string; code: string }> = {};
-  public dockManager!: VegasDockManager;
+  public dockManager!: NeovegDockManager;
   public activeDragPayload: TimelineDragPayload | null = null;
 
-  private compositor!: VegasCompositor;
-  private audioEngine!: VegasAudioEngine;
-  private timeline!: VegasTimelineController;
+  private compositor!: NeovegCompositor;
+  private audioEngine!: NeovegAudioEngine;
+  private timeline!: NeovegTimelineController;
   private multiMonitorBus: BroadcastChannel | null = null;
 
   private isPlaying = false;
@@ -68,7 +68,7 @@ class OpenVegasStudioApp {
     this.project = this.createEmptyProjectState();
   }
 
-  public createEmptyProjectState(custom?: Partial<VegasProject>): VegasProject {
+  public createEmptyProjectState(custom?: Partial<NeovegProject>): NeovegProject {
     return {
       name: custom?.name || 'Novo_Projeto_Vazio.veg',
       isDemo: false,
@@ -166,13 +166,13 @@ class OpenVegasStudioApp {
   }
 
   public async init(): Promise<void> {
-    const previewCanvas = document.getElementById('vegas-preview-canvas') as HTMLCanvasElement;
-    const scopeCanvas = document.getElementById('vegas-scope-canvas') as HTMLCanvasElement;
-    const timelineCanvas = document.getElementById('vegas-timeline-canvas') as HTMLCanvasElement;
+    const previewCanvas = document.getElementById('neoveg-preview-canvas') as HTMLCanvasElement;
+    const scopeCanvas = document.getElementById('neoveg-scope-canvas') as HTMLCanvasElement;
+    const timelineCanvas = document.getElementById('neoveg-timeline-canvas') as HTMLCanvasElement;
 
-    this.compositor = new VegasCompositor(previewCanvas, scopeCanvas);
-    this.audioEngine = new VegasAudioEngine();
-    this.timeline = new VegasTimelineController(timelineCanvas, this.project, {
+    this.compositor = new NeovegCompositor(previewCanvas, scopeCanvas);
+    this.audioEngine = new NeovegAudioEngine();
+    this.timeline = new NeovegTimelineController(timelineCanvas, this.project, {
       onPlayheadChange: (newTime) => {
         this.project.playhead = Math.max(0, newTime);
         this.updateTimecodeReadouts();
@@ -223,7 +223,7 @@ class OpenVegasStudioApp {
       getActiveDragPayload: () => this.activeDragPayload,
     });
 
-    this.dockManager = new VegasDockManager(() => {
+    this.dockManager = new NeovegDockManager(() => {
       this.timeline.render();
       this.compositor.renderFrame(this.project, this.getSelectedClip(), this.showPanCropGizmo);
     });
@@ -266,7 +266,7 @@ class OpenVegasStudioApp {
 
   private initMultiMonitorSyncBus(): void {
     try {
-      this.multiMonitorBus = new BroadcastChannel('openvegas_studio_sync');
+      this.multiMonitorBus = new BroadcastChannel('neoveg_studio_sync');
       this.multiMonitorBus.addEventListener('message', (ev) => {
         const msg = ev.data;
         if (!msg || typeof msg !== 'object') return;
@@ -423,7 +423,7 @@ class OpenVegasStudioApp {
   }
 
   public loadDemoProjectFlow(): void {
-    this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+    this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
   }
 
   public async saveCurrentProjectFlow(): Promise<void> {
@@ -492,7 +492,7 @@ class OpenVegasStudioApp {
     // Button: Open Demo Project
     const btnDemo = document.getElementById('btn-welcome-demo-project');
     if (btnDemo) {
-      btnDemo.onclick = () => this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+      btnDemo.onclick = () => this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
     }
 
     // Button: Create & Save New Project (.veg)
@@ -549,14 +549,14 @@ class OpenVegasStudioApp {
     if (btnPopoutOs) {
       btnPopoutOs.onclick = () => {
         advModal.classList.add('hidden');
-        const currentTheme = document.documentElement.getAttribute('data-theme') || 'vegas21-dark';
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'neoveg21-dark';
         const url = new URL(window.location.href);
         url.searchParams.set('popout', 'pane-inspector');
         url.searchParams.set('tab', 'settings');
         url.searchParams.set('theme', currentTheme);
         window.open(
           url.toString(),
-          'OpenVegas_AdvancedSettings_Window',
+          'Neoveg_AdvancedSettings_Window',
           'width=900,height=680,left=140,top=90,resizable=yes,scrollbars=yes'
         );
         this.setStatusMessage('Configurações Avançadas abertas em uma nova janela nativa independente do Windows!');
@@ -639,7 +639,7 @@ class OpenVegasStudioApp {
   public applyTheme(themeId: string): void {
     document.documentElement.setAttribute('data-theme', themeId);
     document.body.setAttribute('data-theme', themeId);
-    const isLight = themeId === 'vegas4-xp' || themeId === 'vegas7-sony';
+    const isLight = themeId === 'neoveg4-xp' || themeId === 'neoveg7-classic_nle';
     this.timeline.lightThemeCanvas = isLight;
     this.timeline.render();
     this.setStatusMessage(`Tema visual clássico/NLE aplicado: ${themeId.toUpperCase()}`);
@@ -707,8 +707,8 @@ class OpenVegasStudioApp {
     const playBtn = document.getElementById('btn-transport-play');
     if (playBtn) {
       playBtn.innerHTML = this.isPlaying
-        ? `${VEGAS_ICONS.pause}<span>Pause</span>`
-        : `${VEGAS_ICONS.play}<span>Play</span>`;
+        ? `${Neoveg_ICONS.pause}<span>Pause</span>`
+        : `${Neoveg_ICONS.play}<span>Play</span>`;
       playBtn.classList.toggle('active', this.isPlaying);
     }
   }
@@ -950,7 +950,7 @@ class OpenVegasStudioApp {
 
     // Preview Header Controls
     document.getElementById('select-preview-quality')?.addEventListener('change', (e) => {
-      this.project.previewQuality = (e.target as HTMLSelectElement).value as VegasProject['previewQuality'];
+      this.project.previewQuality = (e.target as HTMLSelectElement).value as NeovegProject['previewQuality'];
       this.compositor.renderFrame(this.project, this.getSelectedClip(), this.showPanCropGizmo);
     });
 
@@ -979,10 +979,10 @@ class OpenVegasStudioApp {
     });
 
     document.getElementById('btn-preview-snapshot')?.addEventListener('click', () => {
-      const canvas = document.getElementById('vegas-preview-canvas') as HTMLCanvasElement;
+      const canvas = document.getElementById('neoveg-preview-canvas') as HTMLCanvasElement;
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `Vegas_Snapshot_${formatSMPTE(this.project.playhead).replace(/[:;]/g, '-')}.png`;
+      a.download = `Neoveg_Snapshot_${formatSMPTE(this.project.playhead).replace(/[:;]/g, '-')}.png`;
       a.click();
       this.setStatusMessage('Snapshot PNG salvo.');
     });
@@ -1017,7 +1017,7 @@ class OpenVegasStudioApp {
       }
     });
 
-    // Modals: Render As, Python Scripting, VEGAS Diagnostics & Welcome
+    // Modals: Render As, Python Scripting, Neoveg Diagnostics & Welcome
     document.getElementById('btn-open-render-modal')?.addEventListener('click', () => this.openRenderModal());
     document.getElementById('btn-open-script-modal')?.addEventListener('click', () => this.openScriptingModal());
     document.getElementById('btn-open-diagnostics')?.addEventListener('click', () => this.openDiagnosticsModal());
@@ -1038,7 +1038,7 @@ class OpenVegasStudioApp {
 
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.vegas-modal-backdrop').forEach((m) => m.classList.add('hidden'));
+        document.querySelectorAll('.neoveg-modal-backdrop').forEach((m) => m.classList.add('hidden'));
       });
     });
 
@@ -1070,7 +1070,7 @@ class OpenVegasStudioApp {
       this.renderLeftDock();
     });
 
-    // Global Vegas Pro & Premiere Keyboard Shortcuts
+    // Global Neoveg & Premiere Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -1241,7 +1241,7 @@ class OpenVegasStudioApp {
     // 2. Internal Studio Drag Payload (Media, Generators, Video FX, LADSPA Audio FX, Transitions)
     let payload: TimelineDragPayload | null = this.activeDragPayload;
     if (!payload && event.dataTransfer) {
-      const raw = event.dataTransfer.getData('application/x-openvegas-drag');
+      const raw = event.dataTransfer.getData('application/x-neoveg-drag');
       if (raw) {
         try {
           payload = JSON.parse(raw) as TimelineDragPayload;
@@ -1290,7 +1290,7 @@ class OpenVegasStudioApp {
               }
             : this.mediaBin[0] || {
                 id: 'gen_auto_drop',
-                name: 'VEGAS Synthwave Horizon Scene',
+                name: 'Neoveg Synthwave Horizon Scene',
                 type: 'generator',
                 generatorType: 'cyberGrid',
                 duration: 5.0,
@@ -1350,7 +1350,7 @@ class OpenVegasStudioApp {
       cardEl.classList.add('is-dragging-card');
       if (ev.dataTransfer) {
         ev.dataTransfer.effectAllowed = 'copy';
-        ev.dataTransfer.setData('application/x-openvegas-drag', JSON.stringify(payload));
+        ev.dataTransfer.setData('application/x-neoveg-drag', JSON.stringify(payload));
         ev.dataTransfer.setData('text/plain', payload.name);
       }
     });
@@ -1392,7 +1392,7 @@ class OpenVegasStudioApp {
       `;
 
       document.getElementById('btn-quick-load-demo')?.addEventListener('click', () => {
-        this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+        this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
       });
 
       container.querySelectorAll('.media-card[data-media-id]').forEach((card) => {
@@ -1428,17 +1428,17 @@ class OpenVegasStudioApp {
         trans: ClipEvent['transitionType'];
         desc: string;
       }> = [
-        { name: 'VEGAS Crossfade (Smooth S-Curve)', curve: 'smooth', trans: 'crossfade', desc: 'Dissolução clássica igual-potência em S' },
-        { name: 'VEGAS Crossfade (Fast Attack)', curve: 'fast', trans: 'crossfade', desc: 'Curva logarítmica de ataque rápido' },
-        { name: 'VEGAS Crossfade (Slow Exponential)', curve: 'slow', trans: 'crossfade', desc: 'Curva exponencial progressiva' },
-        { name: 'VEGAS Linear Wipe Left-to-Right', curve: 'linear', trans: 'wipeLeft', desc: 'Cortina horizontal broadcast' },
-        { name: 'VEGAS Iris Circle Reveal', curve: 'smooth', trans: 'irisCircle', desc: 'Máscara circular expansiva' },
-        { name: 'VEGAS Flash White Cut', curve: 'fast', trans: 'flashWhite', desc: 'Flash branco de exposição' },
+        { name: 'Neoveg Crossfade (Smooth S-Curve)', curve: 'smooth', trans: 'crossfade', desc: 'Dissolução clássica igual-potência em S' },
+        { name: 'Neoveg Crossfade (Fast Attack)', curve: 'fast', trans: 'crossfade', desc: 'Curva logarítmica de ataque rápido' },
+        { name: 'Neoveg Crossfade (Slow Exponential)', curve: 'slow', trans: 'crossfade', desc: 'Curva exponencial progressiva' },
+        { name: 'Neoveg Linear Wipe Left-to-Right', curve: 'linear', trans: 'wipeLeft', desc: 'Cortina horizontal broadcast' },
+        { name: 'Neoveg Iris Circle Reveal', curve: 'smooth', trans: 'irisCircle', desc: 'Máscara circular expansiva' },
+        { name: 'Neoveg Flash White Cut', curve: 'fast', trans: 'flashWhite', desc: 'Flash branco de exposição' },
       ];
 
       container.innerHTML = `
         <div class="dock-section-header">
-          <span>VEGAS Transitions & 5 Fade Curves (Arraste sobre um Clipe)</span>
+          <span>Neoveg Transitions & 5 Fade Curves (Arraste sobre um Clipe)</span>
         </div>
         <div class="media-grid">
           ${transitions
@@ -1512,15 +1512,15 @@ class OpenVegasStudioApp {
         },
         {
           type: 'colorGrade',
-          name: 'VEGAS / Resolve 3-Wheel Color Grade',
+          name: 'Neoveg / Resolve 3-Wheel Color Grade',
           badge: 'COLOR',
           desc: 'Lift / Gamma / Gain Teal & Orange cinematográfico',
           defaults: { liftR: -0.05, liftB: 0.08, gainR: 1.14, gainB: 0.92, saturation: 1.22 },
         },
         {
           type: 'brightnessContrast',
-          name: 'VEGAS Brightness & Contrast',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Brightness & Contrast',
+          badge: 'Neoveg FX',
           desc: 'Exposição, contraste e saturação broadcast',
           defaults: { brightness: 0.08, contrast: 1.2, saturation: 1.15 },
         },
@@ -1561,36 +1561,36 @@ class OpenVegasStudioApp {
         },
         {
           type: 'vignette',
-          name: 'VEGAS Soft Lens Vignette',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Soft Lens Vignette',
+          badge: 'Neoveg FX',
           desc: 'Escurecimento óptico radial de bordas',
           defaults: { strength: 0.65 },
         },
         {
           type: 'blur',
-          name: 'VEGAS Gaussian Blur',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Gaussian Blur',
+          badge: 'Neoveg FX',
           desc: 'Desfoque gaussiano de profundidade de campo',
           defaults: { radius: 4.5 },
         },
         {
           type: 'vhsGlitch',
-          name: 'VEGAS TV Simulator / VHS',
-          badge: 'VEGAS FX',
+          name: 'Neoveg TV Simulator / VHS',
+          badge: 'Neoveg FX',
           desc: 'Scanlines analógicas e desvio cromático',
           defaults: { intensity: 0.6 },
         },
         {
           type: 'sepia',
-          name: 'VEGAS Archival Sepia Tone',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Archival Sepia Tone',
+          badge: 'Neoveg FX',
           desc: 'Viragem sépia fotográfica clássica',
           defaults: { amount: 0.85 },
         },
         {
           type: 'invert',
-          name: 'VEGAS Negative Invert',
-          badge: 'VEGAS FX',
+          name: 'Neoveg Negative Invert',
+          badge: 'Neoveg FX',
           desc: 'Inversão RGB completa',
           defaults: { amount: 1.0 },
         },
@@ -1813,7 +1813,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_title_card',
-          name: 'VEGAS Titles & Text Overlay',
+          name: 'Neoveg Titles & Text Overlay',
           type: 'title',
           generatorType: 'titleText',
           duration: 4.5,
@@ -1825,7 +1825,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_cyber_scene',
-          name: 'VEGAS Synthwave Horizon Grid',
+          name: 'Neoveg Synthwave Horizon Grid',
           type: 'generator',
           generatorType: 'cyberGrid',
           duration: 5.0,
@@ -1837,7 +1837,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_credits_roll',
-          name: 'VEGAS Scrolling Credit Roll',
+          name: 'Neoveg Scrolling Credit Roll',
           type: 'generator',
           generatorType: 'creditRoll',
           duration: 6.0,
@@ -1849,7 +1849,7 @@ class OpenVegasStudioApp {
         },
         {
           id: 'gen_smpte_bars',
-          name: 'VEGAS SMPTE HD Color Bars',
+          name: 'Neoveg SMPTE HD Color Bars',
           type: 'generator',
           generatorType: 'smpteBars',
           duration: 4.0,
@@ -1863,7 +1863,7 @@ class OpenVegasStudioApp {
 
       container.innerHTML = `
         <div class="dock-section-header">
-          <span>VEGAS Media Generators (Arraste diretamente para a Timeline)</span>
+          <span>Neoveg Media Generators (Arraste diretamente para a Timeline)</span>
         </div>
         <div class="media-grid">
           ${gens
@@ -2029,7 +2029,7 @@ class OpenVegasStudioApp {
   }
 
   public renderTrackHeaders(): void {
-    const container = document.getElementById('vegas-track-headers');
+    const container = document.getElementById('neoveg-track-headers');
     if (!container) return;
 
     container.innerHTML = this.project.tracks
@@ -2041,14 +2041,14 @@ class OpenVegasStudioApp {
         const grpColor = track.groupColor || '#f59e0b';
         const grpBorderStyle = hasGroup ? `border-left: 4px solid ${grpColor};` : '';
         return `
-        <div class="vegas-track-header ${track.type} ${isSelected ? 'selected' : ''} ${hasGroup ? 'grouped-track' : ''}" data-track-id="${track.id}" style="height:${th}px; ${grpBorderStyle}">
+        <div class="neoveg-track-header ${track.type} ${isSelected ? 'selected' : ''} ${hasGroup ? 'grouped-track' : ''}" data-track-id="${track.id}" style="height:${th}px; ${grpBorderStyle}">
           <div class="track-hdr-top">
             <span class="track-num-badge" style="background:${track.color}" title="${track.type === 'video' ? 'Faixa de Vídeo' : 'Faixa de Áudio'}">${idx + 1}</span>
             <input class="track-name-input" data-track-name="${track.id}" value="${track.name}" title="Clique para renomear esta faixa de ${track.type === 'video' ? 'Vídeo' : 'Áudio'} (Enter para confirmar)" />
-            <button class="track-btn" data-track-rename="${track.id}" title="Renomear Faixa (${track.name})">${VEGAS_ICONS.renameEdit}</button>
+            <button class="track-btn" data-track-rename="${track.id}" title="Renomear Faixa (${track.name})">${Neoveg_ICONS.renameEdit}</button>
             <button class="track-btn ${hasGroup ? 'active' : ''}" data-track-group="${track.id}" style="${hasGroup ? `border-color:${grpColor};color:${grpColor};` : ''}" title="${hasGroup ? `Agrupada em: ${track.groupName} (Clique para desagrupar)` : 'Agrupar esta faixa com Vídeo+Áudio (G)'}">G</button>
-            <button class="track-btn track-h-btn" data-track-h-dec="${track.id}" title="Diminuir altura desta faixa (-)">${VEGAS_ICONS.minus}</button>
-            <button class="track-btn track-h-btn" data-track-h-inc="${track.id}" title="Aumentar altura desta faixa (+)">${VEGAS_ICONS.plus}</button>
+            <button class="track-btn track-h-btn" data-track-h-dec="${track.id}" title="Diminuir altura desta faixa (-)">${Neoveg_ICONS.minus}</button>
+            <button class="track-btn track-h-btn" data-track-h-inc="${track.id}" title="Aumentar altura desta faixa (+)">${Neoveg_ICONS.plus}</button>
             <button class="track-btn ${track.showEnvelope ? 'active' : ''}" data-track-env="${track.id}" title="Automation Envelope (V)">V</button>
             <button class="track-btn mute ${track.muted ? 'active' : ''}" data-track-mute="${track.id}" title="Mute Track (Sincronizado se agrupada)">M</button>
             <button class="track-btn solo ${track.solo ? 'active' : ''}" data-track-solo="${track.id}" title="Solo Track (Sincronizado se agrupada)">S</button>
@@ -2066,7 +2066,7 @@ class OpenVegasStudioApp {
             </label>
             ${
               track.type === 'video'
-                ? `<select class="track-blend-select" data-track-blend="${track.id}" title="Vegas Compositing Mode">
+                ? `<select class="track-blend-select" data-track-blend="${track.id}" title="Neoveg Compositing Mode">
                     <option value="sourceAlpha" ${track.blendMode === 'sourceAlpha' ? 'selected' : ''}>Src Alpha</option>
                     <option value="add" ${track.blendMode === 'add' ? 'selected' : ''}>Add</option>
                     <option value="multiply" ${track.blendMode === 'multiply' ? 'selected' : ''}>Multiply</option>
@@ -2086,7 +2086,7 @@ class OpenVegasStudioApp {
       })
       .join('');
 
-    container.querySelectorAll('.vegas-track-header').forEach((row) => {
+    container.querySelectorAll('.neoveg-track-header').forEach((row) => {
       row.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.closest('button'))) {
@@ -2182,7 +2182,7 @@ class OpenVegasStudioApp {
         const onMove = (ev: MouseEvent) => {
           const dy = ev.clientY - startY;
           tr.height = Math.max(46, Math.min(220, Math.round(startH + dy)));
-          const hdrEl = container.querySelector(`.vegas-track-header[data-track-id="${tid}"]`) as HTMLElement | null;
+          const hdrEl = container.querySelector(`.neoveg-track-header[data-track-id="${tid}"]`) as HTMLElement | null;
           if (hdrEl) hdrEl.style.height = `${tr.height}px`;
           this.timeline.render();
         };
@@ -2308,7 +2308,7 @@ class OpenVegasStudioApp {
     container.innerHTML = `
       <div class="settings-tab-grid">
         <div class="insp-header">
-          <strong>Configurações Avançadas do Projeto & Preferências do Estúdio (Qt / VEGAS Pro 21)</strong>
+          <strong>Configurações Avançadas do Projeto & Preferências do Estúdio (Qt / Neoveg 21)</strong>
           <button class="qt-btn qt-btn-primary" id="btn-settings-apply-all">Aplicar e Salvar Configurações</button>
         </div>
 
@@ -2318,11 +2318,11 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Nome do Projeto (.veg)</label>
-              <input type="text" id="cfg-proj-name" class="vegas-input" value="${this.project.name}" />
+              <input type="text" id="cfg-proj-name" class="neoveg-input" value="${this.project.name}" />
             </div>
             <div>
               <label>Resolução Master</label>
-              <select id="cfg-res" class="vegas-select">
+              <select id="cfg-res" class="neoveg-select">
                 <option value="1920x1080" ${curRes === '1920x1080' ? 'selected' : ''}>1920 x 1080 (Full HD 1080p)</option>
                 <option value="3840x2160" ${curRes === '3840x2160' ? 'selected' : ''}>3840 x 2160 (4K UHD 2160p)</option>
                 <option value="2560x1440" ${curRes === '2560x1440' ? 'selected' : ''}>2560 x 1440 (2K QHD)</option>
@@ -2335,7 +2335,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Frame Rate (FPS)</label>
-              <select id="cfg-fps" class="vegas-select">
+              <select id="cfg-fps" class="neoveg-select">
                 <option value="23.976" ${this.project.fps === 23.976 ? 'selected' : ''}>23.976 fps (IVTC Film)</option>
                 <option value="24" ${this.project.fps === 24 ? 'selected' : ''}>24.000 fps (DCI Cinema)</option>
                 <option value="25" ${this.project.fps === 25 ? 'selected' : ''}>25.000 fps (PAL Broadcast)</option>
@@ -2347,7 +2347,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Pixel Format & Bit Depth</label>
-              <select id="cfg-pixfmt" class="vegas-select">
+              <select id="cfg-pixfmt" class="neoveg-select">
                 <option value="8bit_full" ${this.project.pixelFormat.includes('8bit') ? 'selected' : ''}>8-bit Unsigned Integer (Full Range)</option>
                 <option value="32bit_float_video" ${this.project.pixelFormat === '32bit_float_video' ? 'selected' : ''}>32-bit Floating Point (Video Levels)</option>
                 <option value="32bit_float_aces" ${this.project.pixelFormat === '32bit_float_aces' ? 'selected' : ''}>32-bit Floating Point (Full Linear ACES 1.3)</option>
@@ -2358,7 +2358,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>View Transform / Color Space</label>
-              <select id="cfg-colorspace" class="vegas-select">
+              <select id="cfg-colorspace" class="neoveg-select">
                 <option value="Rec.709" ${this.project.colorSpace === 'Rec.709' ? 'selected' : ''}>Rec.709 Standard sRGB</option>
                 <option value="ACEScct" ${this.project.colorSpace === 'ACEScct' ? 'selected' : ''}>ACEScct Academy Color Encoding</option>
                 <option value="Rec.2020_HDR10" ${this.project.colorSpace === 'Rec.2020_HDR10' ? 'selected' : ''}>Rec.2020 ST.2084 PQ (HDR10)</option>
@@ -2367,10 +2367,10 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Motion Blur & Resample Mode</label>
-              <select id="cfg-resample" class="vegas-select">
+              <select id="cfg-resample" class="neoveg-select">
                 <option value="disable" ${this.project.resampleMode === 'disable' ? 'selected' : ''}>Disable Resample (Sem Ghosting)</option>
                 <option value="optical_flow" ${this.project.resampleMode === 'optical_flow' ? 'selected' : ''}>Optical Flow Warp Interpolation</option>
-                <option value="smart_resample" ${this.project.resampleMode === 'smart_resample' ? 'selected' : ''}>Smart Resample (VEGAS Classic)</option>
+                <option value="smart_resample" ${this.project.resampleMode === 'smart_resample' ? 'selected' : ''}>Smart Resample (Neoveg Classic)</option>
               </select>
             </div>
           </div>
@@ -2382,7 +2382,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Sample Rate (Hz)</label>
-              <select id="cfg-aud-rate" class="vegas-select">
+              <select id="cfg-aud-rate" class="neoveg-select">
                 <option value="44100" ${this.project.sampleRate === 44100 ? 'selected' : ''}>44,100 Hz (CD Audio)</option>
                 <option value="48000" ${this.project.sampleRate === 48000 ? 'selected' : ''}>48,000 Hz (Broadcast DVD/TV)</option>
                 <option value="96000" ${this.project.sampleRate === 96000 ? 'selected' : ''}>96,000 Hz (Studio Hi-Res)</option>
@@ -2391,7 +2391,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Bit Depth & Master Bus</label>
-              <select id="cfg-aud-bus" class="vegas-select">
+              <select id="cfg-aud-bus" class="neoveg-select">
                 <option value="stereo" ${this.project.masterBusMode === 'stereo' ? 'selected' : ''}>Stereo 2.0 Master Bus (${this.project.audioBitDepth}-bit)</option>
                 <option value="surround_51" ${this.project.masterBusMode === 'surround_51' ? 'selected' : ''}>5.1 Surround Cinema (${this.project.audioBitDepth}-bit)</option>
                 <option value="dolby_71" ${this.project.masterBusMode === 'dolby_71' ? 'selected' : ''}>7.1 Dolby Atmos Bed (32-bit Float)</option>
@@ -2401,7 +2401,7 @@ class OpenVegasStudioApp {
           <div class="insp-row-2col">
             <div>
               <label>Audio Device Driver (Windows)</label>
-              <select id="cfg-aud-driver" class="vegas-select">
+              <select id="cfg-aud-driver" class="neoveg-select">
                 <option value="wasapi_shared">Windows WASAPI Low-Latency (Shared/Exclusive)</option>
                 <option value="asio_studio">ASIO 2.3 Studio Hardware Driver (64 samples)</option>
                 <option value="directsound">Microsoft DirectSound Mapper</option>
@@ -2409,7 +2409,7 @@ class OpenVegasStudioApp {
             </div>
             <div>
               <label>Alvo de Normalização LUFS</label>
-              <select id="cfg-aud-lufs" class="vegas-select">
+              <select id="cfg-aud-lufs" class="neoveg-select">
                 <option value="-14">-14.0 LUFS (YouTube / Spotify / Streaming)</option>
                 <option value="-23">-23.0 LUFS (EBU R128 Broadcast TV)</option>
                 <option value="-24">-24.0 LUFS (ATSC A/85 Cinema/US TV)</option>
@@ -2422,15 +2422,15 @@ class OpenVegasStudioApp {
         <div class="settings-group-box">
           <div class="settings-group-title">3. Multi-Monitor (Arrastar para Outros Monitores) & GPU / CorridorKey AI</div>
           <div class="settings-multimonitor-bar">
-            <button class="qt-btn qt-btn-primary" data-popout-panel="pane-preview">${VEGAS_ICONS.popoutMonitor}<span>Destacar Preview p/ Outro Monitor</span></button>
-            <button class="qt-btn" data-popout-panel="pane-media">${VEGAS_ICONS.popoutMonitor}<span>Destacar Media/FX p/ Monitor 2</span></button>
-            <button class="qt-btn" data-popout-panel="pane-mixer">${VEGAS_ICONS.popoutMonitor}<span>Destacar Mixer p/ Monitor 2</span></button>
-            <button class="qt-btn" data-popout-panel="pane-timeline">${VEGAS_ICONS.popoutMonitor}<span>Destacar Timeline p/ Monitor 2</span></button>
+            <button class="qt-btn qt-btn-primary" data-popout-panel="pane-preview">${Neoveg_ICONS.popoutMonitor}<span>Destacar Preview p/ Outro Monitor</span></button>
+            <button class="qt-btn" data-popout-panel="pane-media">${Neoveg_ICONS.popoutMonitor}<span>Destacar Media/FX p/ Monitor 2</span></button>
+            <button class="qt-btn" data-popout-panel="pane-mixer">${Neoveg_ICONS.popoutMonitor}<span>Destacar Mixer p/ Monitor 2</span></button>
+            <button class="qt-btn" data-popout-panel="pane-timeline">${Neoveg_ICONS.popoutMonitor}<span>Destacar Timeline p/ Monitor 2</span></button>
           </div>
           <div class="insp-row-2col" style="margin-top:6px">
             <div>
               <label>Aceleração de Hardware & Decoder</label>
-              <select id="cfg-gpu-mode" class="vegas-select">
+              <select id="cfg-gpu-mode" class="neoveg-select">
                 <option value="safe_nvenc">Hardware NVENC/QSV + Safe Mode (so4compoundplug Fix Ativo)</option>
                 <option value="rust_simd">Rust Core SIMD + FFmpeg Software Pipeline</option>
                 <option value="corridorkey_cuda">CorridorKey ViT-L Greenscreen Neural Engine (FP16)</option>
@@ -2439,8 +2439,8 @@ class OpenVegasStudioApp {
             <div>
               <label>Altura Global das Faixas (Áudio/Vídeo)</label>
               <div style="display:flex;gap:4px">
-                <button class="qt-btn" id="btn-cfg-track-shrink" style="flex:1">${VEGAS_ICONS.minus}<span>Diminuir Faixas</span></button>
-                <button class="qt-btn" id="btn-cfg-track-expand" style="flex:1">${VEGAS_ICONS.plus}<span>Aumentar Faixas</span></button>
+                <button class="qt-btn" id="btn-cfg-track-shrink" style="flex:1">${Neoveg_ICONS.minus}<span>Diminuir Faixas</span></button>
+                <button class="qt-btn" id="btn-cfg-track-expand" style="flex:1">${Neoveg_ICONS.plus}<span>Aumentar Faixas</span></button>
               </div>
             </div>
           </div>
@@ -2516,7 +2516,7 @@ class OpenVegasStudioApp {
         </div>
       `;
       document.getElementById('btn-empty-load-demo')?.addEventListener('click', () => {
-        this.loadSavedProjectByFile('OpenVegas_Broadcast_Demo.veg');
+        this.loadSavedProjectByFile('Neoveg_Broadcast_Demo.veg');
       });
       document.getElementById('btn-empty-open-settings')?.addEventListener('click', () => {
         this.openSettingsTab();
@@ -2536,11 +2536,11 @@ class OpenVegasStudioApp {
       container.innerHTML = `
         <div class="inspector-grid">
           <div class="insp-header">
-            <strong>VEGAS Event Pan/Crop: ${clip.name}</strong>
+            <strong>Neoveg Event Pan/Crop: ${clip.name}</strong>
             <span class="insp-sub">Pos: ${(pc.x * 100).toFixed(0)}, ${(pc.y * 100).toFixed(0)} | Zoom: ${Math.round((1 / Math.max(0.2, pc.scale)) * 100)}%</span>
           </div>
 
-          <!-- INTERACTIVE VEGAS PAN/CROP WORKSPACE CANVAS -->
+          <!-- INTERACTIVE Neoveg PAN/CROP WORKSPACE CANVAS -->
           <div class="pancrop-canvas-wrap">
             <canvas id="pancrop-interactive-canvas" width="280" height="145" title="Arraste o quadro 'F' para mover, o canto para escalar ou o anel externo para girar"></canvas>
             <div class="pancrop-side-tools">
@@ -2575,7 +2575,7 @@ class OpenVegasStudioApp {
             </div>
           </div>
 
-          <!-- VEGAS PAN/CROP KEYFRAME CONTROLLER -->
+          <!-- Neoveg PAN/CROP KEYFRAME CONTROLLER -->
           <div class="pancrop-kf-bar">
             <div class="kf-hdr">
               <span>Keyframes Pan/Crop (${pc.keyframes.length})</span>
@@ -2738,7 +2738,7 @@ class OpenVegasStudioApp {
           <div class="transcript-box">
             <div class="fg-label">Premiere Pro Text-Based Transcript Editing (Clique na frase para posicionar/cortar):</div>
             <div class="transcript-tokens">
-              <span class="tr-word" data-seek="0.2">[00:00] "Bem-vindos ao OpenVegas</span>
+              <span class="tr-word" data-seek="0.2">[00:00] "Bem-vindos ao Neoveg</span>
               <span class="tr-word" data-seek="1.5">Pro 21 Studio</span>
               <span class="tr-word" data-seek="2.8">com motor Rust,</span>
               <span class="tr-word" data-seek="4.2">Frei0r, LADSPA e CorridorKey!"</span>
@@ -2834,7 +2834,7 @@ class OpenVegasStudioApp {
         clip.fx.push({
           id: `fx_${Date.now()}`,
           type: 'colorGrade',
-          name: 'VEGAS Color Corrector (Teal/Orange)',
+          name: 'Neoveg Color Corrector (Teal/Orange)',
           enabled: true,
           params: { liftR: -0.05, liftB: 0.08, gainR: 1.14, gainB: 0.92, saturation: 1.2 },
         });
@@ -2880,29 +2880,29 @@ class OpenVegasStudioApp {
     container.innerHTML = `
       <div class="inspector-grid">
         <div class="insp-header">
-          <strong>VEGAS Event Trimmer & Velocity: ${clip.name}</strong>
+          <strong>Neoveg Event Trimmer & Velocity: ${clip.name}</strong>
         </div>
         ${
           clip.generatorType === 'titleText'
             ? `
           <div class="insp-row">
             <label>Texto Principal do Título</label>
-            <input type="text" class="vegas-input" id="inp-clip-title" value="${clip.titleText || ''}" />
+            <input type="text" class="neoveg-input" id="inp-clip-title" value="${clip.titleText || ''}" />
           </div>
           <div class="insp-row">
             <label>Subtítulo</label>
-            <input type="text" class="vegas-input" id="inp-clip-sub" value="${clip.subtitleText || ''}" />
+            <input type="text" class="neoveg-input" id="inp-clip-sub" value="${clip.subtitleText || ''}" />
           </div>`
             : ''
         }
         <div class="insp-row-2col">
           <div>
             <label>Início na Timeline (s)</label>
-            <input type="number" step="0.1" class="vegas-input" id="inp-trim-start" value="${clip.start.toFixed(2)}" />
+            <input type="number" step="0.1" class="neoveg-input" id="inp-trim-start" value="${clip.start.toFixed(2)}" />
           </div>
           <div>
             <label>Duração (s)</label>
-            <input type="number" step="0.1" class="vegas-input" id="inp-trim-dur" value="${clip.duration.toFixed(2)}" />
+            <input type="number" step="0.1" class="neoveg-input" id="inp-trim-dur" value="${clip.duration.toFixed(2)}" />
           </div>
         </div>
         <div class="insp-row-2col">
@@ -2918,7 +2918,7 @@ class OpenVegasStudioApp {
         <div class="insp-row-2col">
           <div>
             <label>Curva Fade-In (${clip.fadeIn.toFixed(2)}s)</label>
-            <select class="vegas-select" id="sel-fadein-curve">
+            <select class="neoveg-select" id="sel-fadein-curve">
               <option value="smooth" ${clip.fadeInCurve === 'smooth' ? 'selected' : ''}>Smooth (S-Curve)</option>
               <option value="fast" ${clip.fadeInCurve === 'fast' ? 'selected' : ''}>Fast (Logarithmic)</option>
               <option value="slow" ${clip.fadeInCurve === 'slow' ? 'selected' : ''}>Slow (Exponential)</option>
@@ -2928,7 +2928,7 @@ class OpenVegasStudioApp {
           </div>
           <div>
             <label>Curva Fade-Out (${clip.fadeOut.toFixed(2)}s)</label>
-            <select class="vegas-select" id="sel-fadeout-curve">
+            <select class="neoveg-select" id="sel-fadeout-curve">
               <option value="smooth" ${clip.fadeOutCurve === 'smooth' ? 'selected' : ''}>Smooth (S-Curve)</option>
               <option value="fast" ${clip.fadeOutCurve === 'fast' ? 'selected' : ''}>Fast (Logarithmic)</option>
               <option value="slow" ${clip.fadeOutCurve === 'slow' ? 'selected' : ''}>Slow (Exponential)</option>
@@ -3070,7 +3070,7 @@ class OpenVegasStudioApp {
     ctx.fillStyle = '#0d1016';
     ctx.fillRect(0, 0, w, h);
 
-    // Coordinate grid (Vegas Pan/Crop style)
+    // Coordinate grid (Neoveg Pan/Crop style)
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
     ctx.lineWidth = 1;
     for (let gx = 0; gx < w; gx += 20) {
@@ -3092,7 +3092,7 @@ class OpenVegasStudioApp {
     ctx.strokeStyle = '#475569';
     ctx.strokeRect((w - refW) / 2, (h - refH) / 2, refW, refH);
 
-    // Vegas interactive 'F' crop frame
+    // Neoveg interactive 'F' crop frame
     const pc = clip.panCrop;
     const cx = w / 2 + pc.x * (w * 0.35);
     const cy = h / 2 + pc.y * (h * 0.35);
@@ -3215,7 +3215,7 @@ class OpenVegasStudioApp {
       <button class="ctx-item" data-ctx="pancrop">Event Pan/Crop...</button>
       <button class="ctx-item" data-ctx="fx">Event Video FX / Frei0r...</button>
       <div class="ctx-sep"></div>
-      <div class="ctx-sub">Vegas Fade Curve Type:</div>
+      <div class="ctx-sub">Neoveg Fade Curve Type:</div>
       <button class="ctx-item" data-curve="smooth">Smooth S-Curve ${clip.fadeInCurve === 'smooth' ? '✓' : ''}</button>
       <button class="ctx-item" data-curve="fast">Fast Logarithmic ${clip.fadeInCurve === 'fast' ? '✓' : ''}</button>
       <button class="ctx-item" data-curve="slow">Slow Exponential ${clip.fadeInCurve === 'slow' ? '✓' : ''}</button>
@@ -3265,11 +3265,11 @@ class OpenVegasStudioApp {
   }
 
   private updateTimecodeReadouts(): void {
-    const tcMain = document.getElementById('vegas-big-timecode');
+    const tcMain = document.getElementById('neoveg-big-timecode');
     if (tcMain) {
       tcMain.textContent = formatSMPTE(this.project.playhead, this.project.fps, true);
     }
-    const tcSub = document.getElementById('vegas-sub-timecode');
+    const tcSub = document.getElementById('neoveg-sub-timecode');
     if (tcSub) {
       const frame = Math.floor(this.project.playhead * this.project.fps);
       tcSub.textContent = `F:${frame} • ${this.project.width}x${this.project.height} @${this.project.fps}p`;
@@ -3305,7 +3305,7 @@ class OpenVegasStudioApp {
 
     const runCheck = async () => {
       if (reportBox) {
-        reportBox.innerHTML = `<div class="diag-fix-card">Analisando problemas recorrentes do VEGAS Pro (VFR, So4, Mídia Offline, Envelopes, Auto-Save)...</div>`;
+        reportBox.innerHTML = `<div class="diag-fix-card">Analisando problemas recorrentes do Neoveg (VFR, So4, Mídia Offline, Envelopes, Auto-Save)...</div>`;
       }
       try {
         const [fixRes, errRes] = await Promise.all([
@@ -3328,7 +3328,7 @@ class OpenVegasStudioApp {
               ...fixes.map((f) => `<div class="diag-fix-card"><strong>[CORREÇÃO APLICADA]</strong> ${f}</div>`),
             ].join('');
           }
-          this.setStatusMessage('Diagnóstico e correção preventiva do VEGAS Pro concluídos com sucesso.');
+          this.setStatusMessage('Diagnóstico e correção preventiva do Neoveg concluídos com sucesso.');
         }
         if (errRes.ok && errLogBox) {
           errLogBox.textContent = (errRes.lines || []).join('\n');
@@ -3358,7 +3358,7 @@ class OpenVegasStudioApp {
       const res = await fetch('/api/timeline/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project: this.project, outputName: 'OpenVegas_Master_Output.mp4' }),
+        body: JSON.stringify({ project: this.project, outputName: 'Neoveg_Master_Output.mp4' }),
       }).then((r) => r.json());
 
       if (res.ok && fgBox) {
@@ -3375,7 +3375,7 @@ class OpenVegasStudioApp {
           statusBox.innerHTML = `<div class="render-progress-pill">Renderizando MP4 multi-pista via FFmpeg 9.0.2...</div>`;
         }
         try {
-          const outName = (document.getElementById('inp-render-filename') as HTMLInputElement)?.value || 'OpenVegas_Master.mp4';
+          const outName = (document.getElementById('inp-render-filename') as HTMLInputElement)?.value || 'Neoveg_Master.mp4';
           const r = await fetch('/api/render/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3432,7 +3432,7 @@ class OpenVegasStudioApp {
       const firstPreset = Object.values(this.scriptPresets)[0];
       codeArea.value =
         firstPreset?.code ||
-        `# Vegas Python Scripting API\nvegas.add_marker(vegas.cursor, "Script Marker", "#38bdf8")\nvegas.log("Marker added at cursor!")\n`;
+        `# Neoveg Python Scripting API\nneoveg.add_marker(neoveg.cursor, "Script Marker", "#38bdf8")\nneoveg.log("Marker added at cursor!")\n`;
     }
 
     const runBtn = document.getElementById('btn-execute-python-script');
@@ -3467,7 +3467,7 @@ class OpenVegasStudioApp {
   }
 
   private setStatusMessage(msg: string): void {
-    const el = document.getElementById('vegas-footer-status');
+    const el = document.getElementById('neoveg-footer-status');
     if (el) el.textContent = msg;
   }
 
@@ -3477,7 +3477,7 @@ class OpenVegasStudioApp {
 
   public loadProjectJson(rawJson: string): void {
     try {
-      const parsed = JSON.parse(rawJson) as VegasProject;
+      const parsed = JSON.parse(rawJson) as NeovegProject;
       if (parsed && Array.isArray(parsed.tracks)) {
         this.project = parsed;
         this.timeline.setProject(this.project);
@@ -3495,12 +3495,12 @@ class OpenVegasStudioApp {
 
 declare global {
   interface Window {
-    openVegasApp?: OpenVegasStudioApp;
+    openNeovegApp?: NeovegStudioApp;
   }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  const app = new OpenVegasStudioApp();
-  window.openVegasApp = app;
+  const app = new NeovegStudioApp();
+  window.openNeovegApp = app;
   app.init().catch(console.error);
 });

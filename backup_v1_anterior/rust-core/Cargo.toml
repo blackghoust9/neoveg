@@ -1,16 +1,16 @@
 [package]
-name = "openvegas-core"
+name = "neoveg-core"
 version = "1.0.0"
 edition = "2021"
-authors = ["OpenVegas Studio"]
-description = "Core NLE Engine for OpenVegas Pro: SMPTE Timecode, Auto-Crossfade Solver, Audio PCM DSP & FFmpeg Filtergraph Compiler"
+authors = ["Neoveg Studio"]
+description = "Core NLE Engine for OpenNeoveg: SMPTE Timecode, Auto-Crossfade Solver, Audio PCM DSP & FFmpeg Filtergraph Compiler"
 
 [lib]
-name = "openvegas_core"
+name = "neoveg_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "openvegas-core"
+name = "neoveg-core"
 path = "src/main.rs"
 
 [profile.release]

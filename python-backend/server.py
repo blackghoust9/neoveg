@@ -1,7 +1,7 @@
 """
 Neoveg — Python Media Backend, FFmpeg Pipeline & Neoveg HTTP Server
-Serves the TypeScript/JS Vegas Pro NLE UI, manages real media assets, extracts
-PCM waveforms via the Rust Core bridge, executes Vegas Python scripts, and
+Serves the TypeScript/JS Neoveg NLE UI, manages real media assets, extracts
+PCM waveforms via the Rust Core bridge, executes Neoveg Python scripts, and
 renders multi-track timelines via FFmpeg.
 """
 
@@ -32,13 +32,13 @@ from rust_bridge import (
     sync_group_mute_solo_in_project,
     ungroup_track_in_project,
 )
-from vegas_scripting import PRESET_SCRIPTS, execute_vegas_script
+from neoveg_scripting import PRESET_SCRIPTS, execute_neoveg_script
 from error_logger import init_error_log, log_error, log_exception, read_error_log
 from plugins_engine import (
     FREI0R_PLUGINS,
     LADSPA_PLUGINS,
     create_empty_project,
-    diagnose_and_fix_vegas_problems,
+    diagnose_and_fix_neoveg_problems,
     ensure_default_projects,
     list_saved_projects,
     load_saved_project,
@@ -136,7 +136,7 @@ def ensure_sample_media() -> List[Dict[str, Any]]:
     if ffmpeg_bin:
         samples = [
             (
-                MEDIA_DIR / "vegas_smpte_bars.mp4",
+                MEDIA_DIR / "neoveg_smpte_bars.mp4",
                 [
                     ffmpeg_bin,
                     "-y",
@@ -421,7 +421,7 @@ class NeovegHTTPHandler(BaseHTTPRequestHandler):
             body = self._read_json_body()
             project = body.get("project", {})
             updated_proj, crossfades = detect_auto_crossfades(project)
-            out_file = RENDERS_DIR / body.get("outputName", "vegas_master_render.mp4")
+            out_file = RENDERS_DIR / body.get("outputName", "neoveg_master_render.mp4")
             plan = compile_project_to_ffmpeg(updated_proj, MEDIA_DIR, out_file)
             self._send_json(
                 {
@@ -485,7 +485,7 @@ class NeovegHTTPHandler(BaseHTTPRequestHandler):
             body = self._read_json_body()
             code = body.get("code", "")
             project = body.get("project", {})
-            res = execute_vegas_script(code, project)
+            res = execute_neoveg_script(code, project)
             if res.get("ok"):
                 res["project"], res["crossfades"] = detect_auto_crossfades(res["project"])
             self._send_json(res)
@@ -583,7 +583,7 @@ class NeovegHTTPHandler(BaseHTTPRequestHandler):
         if req_path == "/api/diagnostics/fix-problems":
             body = self._read_json_body()
             proj = body.get("project", {})
-            report = diagnose_and_fix_vegas_problems(proj)
+            report = diagnose_and_fix_neoveg_problems(proj)
             self._send_json(report)
             return
 

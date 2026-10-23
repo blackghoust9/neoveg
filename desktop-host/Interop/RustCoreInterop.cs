@@ -398,7 +398,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
     }
 
     /// <summary>
-    /// Evaluates one of the 5 VEGAS Pro Fade Curves at normalized `progress` in `[0.0, 1.0]` via Rust FFI.
+    /// Evaluates one of the 5 Neoveg Fade Curves at normalized `progress` in `[0.0, 1.0]` via Rust FFI.
     /// </summary>
     public double EvaluateFadeCurve(string curveName, double progress)
     {
@@ -482,7 +482,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
     }
 
     /// <summary>
-    /// Detects overlapping clips on each track and calculates VEGAS Pro automatic crossfade regions via Rust FFI.
+    /// Detects overlapping clips on each track and calculates Neoveg automatic crossfade regions via Rust FFI.
     /// </summary>
     public List<CrossfadeOverlap> RecalculateAutoCrossfades(IList<TimelineTrack> tracks, bool autoCrossfadeEnabled)
     {
@@ -808,7 +808,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
     }
 
     /// <summary>
-    /// Computes the VEGAS Pro Inverted Camera 2D Affine Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
+    /// Computes the Neoveg Inverted Camera 2D Affine Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
     /// via Rust FFI (`neoveg_compute_pancrop_matrix`) for real-time Skia Video Preview synchronization.
     /// </summary>
     public double[] ComputePanCropAffineMatrix(
@@ -981,7 +981,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
     /// returns `(0.0, 0.0, -∞ dB, -∞ dB)` with zero oscillation.
     /// </summary>
     public (double LeftLinear, double RightLinear, double LeftDb, double RightDb) ComputeMasterBusStereoTelemetry(
-        VegasProject? project,
+        NeovegProject? project,
         bool isPlaying)
     {
         if (!isPlaying || project == null || project.Tracks == null || project.Tracks.Count == 0)
@@ -1062,7 +1062,7 @@ public sealed unsafe class RustCoreInterop : IDisposable
                     fadeGain *= EvaluateFadeCurve(clip.FadeOutCurve, remainingInClip / clip.FadeOut);
                 }
 
-                // VEGAS Stereo Pan Law (-1.0 Left .. 0.0 Center .. +1.0 Right)
+                // Neoveg Stereo Pan Law (-1.0 Left .. 0.0 Center .. +1.0 Right)
                 double pan = Math.Clamp(track.Pan, -1.0, 1.0);
                 double panGainL = pan <= 0.0 ? 1.0 : Math.Max(0.0, 1.0 - pan);
                 double panGainR = pan >= 0.0 ? 1.0 : Math.Max(0.0, 1.0 + pan);

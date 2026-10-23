@@ -6,6 +6,15 @@ logs/
 AppCache/
 temp/
 docs/coverage/
+coverage/qa/dotnet/
+coverage/qa/python/
+coverage/qa/cpp/
+coverage/qa/rust/
+.ninja_deps
+.ninja_log
+Testing/
+*.gcda
+*.gcno
 
 # Generated release and publish outputs
 /dist/
@@ -87,3 +96,11 @@ env/
 *.gslides
 *.gdoc
 *.gsheet
+
+# OmniRoute (local AI router): independent Git repository checked out inside this workspace.
+# Never commit it here — its .env holds provider API keys and secrets, and node_modules is huge.
+OmniRoute/
+node_modules/
+.env
+.env.*
+!.env.example

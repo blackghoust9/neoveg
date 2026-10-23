@@ -49,7 +49,7 @@ public sealed class SharedMemoryFrameTransferResult
 /// Provides:
 /// 1. Native `[DllImport]` and `NativeLibrary` bindings to `extern "C"` C++ exports.
 /// 2. Asynchronous Shared Memory (`MemoryMappedFile`) frame buffer transfer between C++ and C# Avalonia UI,
-///    replicating VEGAS Pro's Out-of-Process (`FileIOSurrogate.exe` / `sfvstserver.exe`) isolation model.
+///    replicating Neoveg's Out-of-Process (`FileIOSurrogate.exe` / `sfvstserver.exe`) isolation model.
 /// </summary>
 public sealed unsafe class CppCoreInterop : IDisposable
 {
@@ -402,7 +402,7 @@ public sealed unsafe class CppCoreInterop : IDisposable
     }
 
     /// <summary>
-    /// Computes the VEGAS Pro Inverted Camera 2D Affine Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
+    /// Computes the Neoveg Inverted Camera 2D Affine Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
     /// via the C/C++ native bridge (`neoveg_cpp_compute_pancrop_matrix`) combined with full trigonometric rotation.
     /// </summary>
     public double[] ComputePanCropAffineMatrix(
@@ -500,7 +500,7 @@ public sealed unsafe class CppCoreInterop : IDisposable
 
     /// <summary>
     /// Asynchronously transfers an RGBA8 video frame from the C++ extension into C# using Shared Memory
-    /// (`MemoryMappedFile`), simulating VEGAS Pro's Out-of-Process (`FileIOSurrogate.exe` / `sfvstserver.exe`)
+    /// (`MemoryMappedFile`), simulating Neoveg's Out-of-Process (`FileIOSurrogate.exe` / `sfvstserver.exe`)
     /// process-isolation architecture.
     /// </summary>
     public Task<SharedMemoryFrameTransferResult> TransferFrameViaSharedMemoryAsync(int width = 320, int height = 180)

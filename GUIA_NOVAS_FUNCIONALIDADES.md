@@ -11,7 +11,7 @@ O Neoveg divide responsabilidades em três camadas desacopladas de alto desempen
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ CAMADA 1: C# (.NET 8 + Avalonia UI 11 + SkiaSharp) — desktop-host/           │
-│ • Janela Principal (MainWindow.cs), Multi-Monitor Pop-outs, VegasThemeManager│
+│ • Janela Principal (MainWindow.cs), Multi-Monitor Pop-outs, NeovegThemeManager│
 │ • VideoPreviewControl.cs (Pan/Crop F Gizmo, Safe Areas, Split-Screen Bypass) │
 │ • MultiTrackTimelineControl.cs (Régua SMPTE, Waveform .sfk, 5 Fade Curves)   │
 └───────────────────┬──────────────────────────────────────┬───────────────────┘
@@ -30,7 +30,7 @@ O Neoveg divide responsabilidades em três camadas desacopladas de alto desempen
 | Diretório / Arquivo | Papel na Arquitetura |
 | :--- | :--- |
 | [`desktop-host/Views/MainWindow.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Views/MainWindow.cs) | Host principal Avalonia UI, docks, menus, barra de ferramentas, atalhos de teclado (`OnNeovegKeyDown`) e catálogo de efeitos. |
-| [`desktop-host/Services/VegasThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/VegasThemeManager.cs) | Gerenciador de temas históricos (Sonic Foundry 1–3, Sony 4–13, MAGIX 14–22, Boris FX 2026). |
+| [`desktop-host/Services/NeovegThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/NeovegThemeManager.cs) | Gerenciador de temas históricos (Sonic Foundry 1–3, Classic NLE 4–13, Modern NLE 14–22, Contemporary NLE 2026). |
 | [`desktop-host/Interop/RustCoreInterop.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Interop/RustCoreInterop.cs) | Ponte FFI dinâmica (`NativeLibrary.TryLoad`) que carrega `neoveg_core.dll` / `.so` / `.dylib`. |
 | [`rust-core/src/lib.rs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/rust-core/src/lib.rs) | Motor nativo em Rust com funções exportadas em C-ABI (`#[no_mangle] pub unsafe extern "C" fn`). |
 | [`python-backend/rust_bridge.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/rust_bridge.py) | Compilador do grafo `filter_complex` do FFmpeg, gerador de cache `.sfk` e ponte Python↔Rust. |
@@ -40,7 +40,7 @@ O Neoveg divide responsabilidades em três camadas desacopladas de alto desempen
 
 ## 2. Como Adicionar um Novo Efeito de Vídeo (OFX / Frei0r / 3D LUT)
 
-No VEGAS Pro original (`vegas210k.dll`), efeitos de vídeo seguem o padrão **OpenFX (`OfxImageEffectPlugin`)** com ações `kOfxActionDescribe`, `kOfxImageEffectActionDescribeInContext` e `kOfxImageEffectActionRender`. No Neoveg, todo efeito de vídeo possui:
+No Neoveg original (`neoveg210k.dll`), efeitos de vídeo seguem o padrão **OpenFX (`OfxImageEffectPlugin`)** com ações `kOfxActionDescribe`, `kOfxImageEffectActionDescribeInContext` e `kOfxImageEffectActionRender`. No Neoveg, todo efeito de vídeo possui:
 1. **Preview em Tempo Real (60fps)** no [`VideoPreviewControl.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Controls/VideoPreviewControl.cs).
 2. **Tradução para Grafo de Renderização FFmpeg** no [`rust_bridge.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/rust_bridge.py).
 3. **Card no Catálogo da Aba `Video FX`** no [`MainWindow.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Views/MainWindow.cs).
@@ -189,7 +189,7 @@ var ladspaCatalog = new (string Type, string Name, string Desc)[]
 
 ## 4. Como Adicionar Atalhos de Teclado Customizados
 
-O Neoveg segue o mapa de atalhos clássicos do VEGAS Pro documentado em [`assets/neoveg_presets/vegas_shortcuts.xml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_presets/vegas_shortcuts.xml) e processado em [`MainWindow.OnNeovegKeyDown`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Views/MainWindow.cs#L1480-L1550).
+O Neoveg segue o mapa de atalhos clássicos do Neoveg documentado em [`assets/neoveg_presets/neoveg_shortcuts.xml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_presets/neoveg_shortcuts.xml) e processado em [`MainWindow.OnNeovegKeyDown`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Views/MainWindow.cs#L1480-L1550).
 
 ### Atalhos Atuais Integrados por Padrão
 
@@ -205,7 +205,7 @@ O Neoveg segue o mapa de atalhos clássicos do VEGAS Pro documentado em [`assets
 
 ### Passo a Passo para Criar um Novo Atalho (Exemplo: `Ctrl+G` para Agrupar Faixas V+A)
 
-1. **Registre no XML de Atalhos ([`assets/neoveg_presets/vegas_shortcuts.xml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_presets/vegas_shortcuts.xml))**:
+1. **Registre no XML de Atalhos ([`assets/neoveg_presets/neoveg_shortcuts.xml`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_presets/neoveg_shortcuts.xml))**:
 ```xml
 <Action name="neoveg_group_av_tracks" shortcut="Ctrl+G" description="Agrupar Faixas de Vídeo e Áudio (Grupo V+A)" />
 ```
@@ -221,15 +221,15 @@ else if (e.Key == Key.G && e.KeyModifiers.HasFlag(KeyModifiers.Control))
 
 ---
 
-## 5. Como Adicionar ou Customizar um Tema Histórico (`VegasThemeManager`)
+## 5. Como Adicionar ou Customizar um Tema Histórico (`NeovegThemeManager`)
 
-O sistema de temas visuais do Neoveg é gerenciado por [`desktop-host/Services/VegasThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/VegasThemeManager.cs) e alimentado pelo catálogo JSON [`assets/vegas_history_themes/theme_catalog.json`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/vegas_history_themes/theme_catalog.json), gerado pelo script [`python-backend/generate_history_theme_assets.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/generate_history_theme_assets.py).
+O sistema de temas visuais do Neoveg é gerenciado por [`desktop-host/Services/NeovegThemeManager.cs`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/desktop-host/Services/NeovegThemeManager.cs) e alimentado pelo catálogo JSON [`assets/neoveg_history_themes/theme_catalog.json`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/assets/neoveg_history_themes/theme_catalog.json), gerado pelo script [`python-backend/generate_history_theme_assets.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/generate_history_theme_assets.py).
 
 As 4 eras históricas oficiais contam com renderização específica de bordas e gradientes:
-- **Era 1 — Sonic Foundry (Vegas 1–3)**: `EraNumber = 1` ativa bordas chanfradas 3D (`BorderThickness = 2` e chanfro claro/escuro nos clipes da timeline) e cinza industrial metálico com detalhes em vermelho (`#CC291B`).
-- **Era 2 — Sony Classic / Silver (Vegas 4–13)**: `EraNumber = 2` ativa o clássico degradê flamejante dourado/laranja (`LinearGradientBrush`) nas barras de cabeçalho dos docks e no topo dos eventos da timeline.
-- **Era 3 — MAGIX Modern Dark (Vegas 14–22)**: `EraNumber = 3` ativa o modo flat design compacto (`BorderThickness = 1`, `MenuPadding = 4,1`) em cinza escuro (`#232326`) e azul ciano (`#0078D7`).
-- **Era 4 — Boris FX / Atual (2026)**: `EraNumber = 4` ativa o tema escuro profundo (`#0E1015`) com azul elétrico (`#00A3FF` / `#38BDF8`).
+- **Era 1 — Sonic Foundry (Neoveg 1–3)**: `EraNumber = 1` ativa bordas chanfradas 3D (`BorderThickness = 2` e chanfro claro/escuro nos clipes da timeline) e cinza industrial metálico com detalhes em vermelho (`#CC291B`).
+- **Era 2 — Classic NLE Classic / Silver (Neoveg 4–13)**: `EraNumber = 2` ativa o clássico degradê flamejante dourado/laranja (`LinearGradientBrush`) nas barras de cabeçalho dos docks e no topo dos eventos da timeline.
+- **Era 3 — Modern NLE Modern Dark (Neoveg 14–22)**: `EraNumber = 3` ativa o modo flat design compacto (`BorderThickness = 1`, `MenuPadding = 4,1`) em cinza escuro (`#232326`) e azul ciano (`#0078D7`).
+- **Era 4 — Contemporary NLE / Atual (2026)**: `EraNumber = 4` ativa o tema escuro profundo (`#0E1015`) com azul elétrico (`#00A3FF` / `#38BDF8`).
 
 Para adicionar um novo tema ao catálogo:
 1. Adicione a definição de paleta em [`python-backend/generate_history_theme_assets.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/generate_history_theme_assets.py) ou [`python-backend/neoveg_integration.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/neoveg_integration.py).
@@ -246,7 +246,7 @@ Sempre que adicionar uma nova funcionalidade em C#, Rust ou Python, execute a es
 .\.venv\Scripts\python.exe build_portable.py --targets windows
 
 # 2. Executar a suíte de testes de arquitetura (7 testes de integração C# + Rust + Python + Neoveg)
-.\.venv\Scripts\python.exe python-backend/test_vegas_engine.py
+.\.venv\Scripts\python.exe python-backend/test_neoveg_engine.py
 
 # 3. Executar a auditoria completa de qualidade com mídias reais (SD 480p, HD 1080p, 4K UHD, Vertical 9:16, WAV 24-bit/96kHz, VFR e .sfk)
 .\.venv\Scripts\python.exe python-backend/qa_audit_suite.py

@@ -24,7 +24,7 @@ namespace Neoveg.Views;
 
 /// <summary>
 /// Main Neoveg Window for Neoveg (100% Cross-Platform C# Avalonia UI + Rust FFI + Python Isolated FFmpeg).
-/// Preserves the classic VEGAS Pro 21 ergonomics:
+/// Preserves the classic Neoveg 21 ergonomics:
 /// - Upper Dock: Project Media / FX / Generators, Event Pan/Crop & Inspector, Video Preview Monitor, Master Mixer & Scopes
 /// - Lower Dock: Multi-Track Timeline with Track Headers (Inline Track Renaming, V+A Track Grouping, Individual Track Height +/-)
 /// </summary>
@@ -33,15 +33,15 @@ public sealed class MainWindow : Window
     public RustCoreInterop RustInterop { get; }
     public CppCoreInterop CppInterop { get; }
     public FFmpegPythonService PythonService { get; }
-    public VegasThemeManager ThemeManager { get; }
+    public NeovegThemeManager ThemeManager { get; }
     public LocalizationManager Localization { get; }
     public ScriptingEngineService ScriptingService { get; }
     public MediaRelinker Relinker { get; }
     public SelectivePrerenderService PrerenderService { get; }
     public SubtitleGeneratorService SubtitleService { get; }
-    public VegasProject Project { get; private set; }
-    public List<VegasHistoryTheme> HistoryThemes { get; }
-    public VegasHistoryTheme CurrentTheme { get; private set; }
+    public NeovegProject Project { get; private set; }
+    public List<NeovegHistoryTheme> HistoryThemes { get; }
+    public NeovegHistoryTheme CurrentTheme { get; private set; }
 
     private readonly string _rootDir;
     private readonly VideoPreviewControl _previewControl;
@@ -88,7 +88,7 @@ public sealed class MainWindow : Window
     private readonly List<Border> _dockHeaderBorders = new();
     private readonly List<Border> _dockPanelBorders = new();
 
-    // Undockable VEGAS Pro windows (drag the header out to float; close the floating window to dock back)
+    // Undockable Neoveg windows (drag the header out to float; close the floating window to dock back)
     private DetachableDockPanel? _dockProjectMedia;
     private DetachableDockPanel? _dockPreview;
     private DetachableDockPanel? _dockMixer;
@@ -118,7 +118,7 @@ public sealed class MainWindow : Window
         RustInterop = new RustCoreInterop(rootDir);
         CppInterop = new CppCoreInterop(rootDir);
         PythonService = new FFmpegPythonService(rootDir);
-        ThemeManager = new VegasThemeManager(rootDir);
+        ThemeManager = new NeovegThemeManager(rootDir);
         Localization = new LocalizationManager(rootDir);
         ScriptingService = new ScriptingEngineService(rootDir, RustInterop);
         Relinker = new MediaRelinker(rootDir, RustInterop, PythonService);
@@ -137,8 +137,8 @@ public sealed class MainWindow : Window
             }
         }
 
-        // Clean start (VEGAS Pro "Untitled" project): no tracks, no demo media. The demo stays available under File.
-        Project = VegasProject.CreateEmpty("Sem título");
+        // Clean start (Neoveg "Untitled" project): no tracks, no demo media. The demo stays available under File.
+        Project = NeovegProject.CreateEmpty("Sem título");
         Project.AutoFadeOnImport = Localization.AutoFadeOnImport;
         _mediaBin = new List<MediaAssetItem>();
 
@@ -530,7 +530,7 @@ public sealed class MainWindow : Window
             Header = loc.T("Menu.File.Import", "Importar"),
             ItemsSource = new Control[]
             {
-                CreateMenuItem(loc.T("Menu.File.Import.Veg", "Projeto VEGAS Pro (.veg)..."), async () => await ImportLegacyVegProjectPickerAsync()),
+                CreateMenuItem(loc.T("Menu.File.Import.Veg", "Projeto Neoveg (.veg)..."), async () => await ImportLegacyVegProjectPickerAsync()),
                 CreateMenuItem(loc.T("Menu.File.Import.Xml", "Final Cut Pro / Premiere XML (.xml, .fcpxml)..."), async () => await ImportXmlOrFcpxmlProjectPickerAsync()),
                 new Separator(),
                 CreateMenuItem(loc.T("Menu.File.ImportMedia", "Importar Mídia (MP4 / WAV / MP3)..."), async () => await OpenImportMediaDialogAsync())
@@ -551,13 +551,13 @@ public sealed class MainWindow : Window
         var mFile = new MenuItem { Header = loc.T("Menu.File", "_Arquivo") };
         mFile.ItemsSource = new Control[]
         {
-            CreateMenuItem(loc.T("Menu.File.Splash", "Exibir Tela de Carregamento (Splash Screen Vegas Pro 12)..."), NeovegSplashDialog),
+            CreateMenuItem(loc.T("Menu.File.Splash", "Exibir Tela de Carregamento (Splash Screen Neoveg 12)..."), NeovegSplashDialog),
             CreateMenuItem(loc.T("Menu.File.Welcome", "Janela de Boas-Vindas Simplificada..."), OpenWelcomeDialog),
             new Separator(),
-            CreateMenuItem(loc.T("Menu.File.NewEmpty", "Novo Projeto Vazio (.neoveg)"), () => LoadProjectState(VegasProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")),
+            CreateMenuItem(loc.T("Menu.File.NewEmpty", "Novo Projeto Vazio (.neoveg)"), () => LoadProjectState(NeovegProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")),
             CreateMenuItem(loc.T("Menu.File.Open", "Abrir Projeto (.neoveg)... (Ctrl+O)"), async () => await OpenNeovegProjectPickerAsync()),
-            CreateMenuItem(loc.T("Menu.File.OpenDemo", "Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.neoveg)"), () => LoadProjectState(VegasProject.CreateBroadcastDemo(), "Projeto Demo Broadcast (.neoveg) carregado.")),
-            CreateMenuItem("Abrir Projeto com Mídias Movidas (Teste Search & Relink)...", () => LoadProjectState(VegasProject.CreateMovedMediaRelinkDemo(), "Projeto com Mídias Movidas carregado (Missing Media Relinker).")),
+            CreateMenuItem(loc.T("Menu.File.OpenDemo", "Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.neoveg)"), () => LoadProjectState(NeovegProject.CreateBroadcastDemo(), "Projeto Demo Broadcast (.neoveg) carregado.")),
+            CreateMenuItem("Abrir Projeto com Mídias Movidas (Teste Search & Relink)...", () => LoadProjectState(NeovegProject.CreateMovedMediaRelinkDemo(), "Projeto com Mídias Movidas carregado (Missing Media Relinker).")),
             CreateMenuItem("Localizar e Relinkar Mídias Ausentes (Missing Media Dialog)...", () => OpenMissingMediaDialogForCurrentProject(forceDemoIfNoneMissing: false)),
             CreateMenuItem(loc.T("Menu.File.Save", "Salvar Projeto (.neoveg) (Ctrl+S)"), SaveCurrentProject),
             CreateMenuItem(loc.T("Menu.File.SaveAs", "Salvar Projeto Como (.neoveg)... (Ctrl+Shift+S)"), async () => await SaveProjectAsNeovegPickerAsync()),
@@ -598,7 +598,7 @@ public sealed class MainWindow : Window
         var winExtensionsMenu = new MenuItem { Header = loc.T("Menu.View.WindowExtensions", "Extensões de Janela (Window Extensions)") };
         var extItems = new List<Control>
         {
-            CreateMenuItem("Abrir Gerenciador de Extensões Acopláveis (VPFlow / Datamosh / Vegasaur / HOS)... [↗]", () => OpenDockableExtensionDialog("vpflow_extension")),
+            CreateMenuItem("Abrir Gerenciador de Extensões Acopláveis (VPFlow / Datamosh / Neoveg Toolkit / HOS)... [↗]", () => OpenDockableExtensionDialog("vpflow_extension")),
             new Separator()
         };
         foreach (var ext in ScriptingService.DiscoveredExtensions)
@@ -636,8 +636,8 @@ public sealed class MainWindow : Window
             CreateMenuItem(loc.T("Menu.View.PopoutPreview", "Destacar Video Preview para Outro Monitor [↗]"), PopoutVideoPreviewToMonitor),
             CreateMenuItem(loc.T("Menu.View.PopoutScopes", "Destacar Master Audio Mixer & RGB Scopes para Outro Monitor [↗]"), PopoutMixerScopesToMonitor),
             new Separator(),
-            CreateMenuItem(loc.T("Menu.View.Splash", "Exibir Tela de Carregamento (Splash Screen Vegas Pro 12) [↗]"), NeovegSplashDialog),
-            CreateMenuItem(loc.T("Menu.View.ThemesGallery", "Abrir Galeria de Temas Históricos (Sonic Foundry / Sony / MAGIX / Boris FX) [↗]"), OpenHistoricalThemesGalleryDialog)
+            CreateMenuItem(loc.T("Menu.View.Splash", "Exibir Tela de Carregamento (Splash Screen Neoveg 12) [↗]"), NeovegSplashDialog),
+            CreateMenuItem(loc.T("Menu.View.ThemesGallery", "Abrir Galeria de Temas Históricos (Sonic Foundry / Classic NLE / Modern NLE / Contemporary NLE) [↗]"), OpenHistoricalThemesGalleryDialog)
         };
 
         var mTools = new MenuItem { Header = loc.T("Menu.Tools", "_Ferramentas") };
@@ -728,7 +728,7 @@ public sealed class MainWindow : Window
         });
 
         // File group
-        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.NewProject, loc.T("Toolbar.Tooltip.New", "Novo Projeto"), () => LoadProjectState(VegasProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.NewProject, loc.T("Toolbar.Tooltip.New", "Novo Projeto"), () => LoadProjectState(NeovegProject.CreateEmpty("Sem título"), "Novo Projeto Vazio (.neoveg) iniciado.")));
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.Open, loc.T("Toolbar.Tooltip.Open", "Abrir Projeto (Ctrl+O)"), async () => await OpenNeovegProjectPickerAsync()));
         _btnTlSave = NeovegIcons.CreateButton(NeovegIcons.Save, loc.T("Toolbar.Tooltip.Save", "Salvar Projeto (Ctrl+S)"), SaveCurrentProject);
         bar.Children.Add(_btnTlSave);
@@ -740,7 +740,7 @@ public sealed class MainWindow : Window
         bar.Children.Add(_btnTlSettings);
         AddGroupSeparator();
 
-        // Transport group (VEGAS Pro transport bar below the timeline)
+        // Transport group (Neoveg transport bar below the timeline)
         _btnLoop = NeovegIcons.CreateButton(NeovegIcons.Loop, "Reprodução em Loop", ToggleLoopPlayback, Project.LoopEnabled ? ToggleOnBg : ToggleOffBg);
         bar.Children.Add(_btnLoop);
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.PlayFromStart, "Reproduzir do Início", () =>
@@ -793,13 +793,13 @@ public sealed class MainWindow : Window
 
         // Historical Era Quick Theme Icon Buttons (Tooltips only)
         bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "1: Sonic Foundry", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(1)), "#84827E", "#FFFFFF"));
-        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "2: Sony Silver/Gold", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(2)), "#D97706", "#FFFFFF"));
-        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "3: MAGIX Dark", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(3)), "#0078D7", "#FFFFFF"));
-        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "4: Boris FX 2026", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(4)), "#00A3FF", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "2: Classic Silver/Gold", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(2)), "#D97706", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "3: Modern Carbon Dark", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(3)), "#0078D7", "#FFFFFF"));
+        bar.Children.Add(NeovegIcons.CreateButton(NeovegIcons.TrackColor, "4: Contemporary 2026", () => ApplyHistoricalTheme(ThemeManager.GetThemeByEra(4)), "#00A3FF", "#FFFFFF"));
 
         _mainToolbarBorder = new Border
         {
-            Background = VegasThemeManager.CreateToolbarBrush(CurrentTheme),
+            Background = NeovegThemeManager.CreateToolbarBrush(CurrentTheme),
             BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder)),
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(6, 3),
@@ -874,7 +874,7 @@ public sealed class MainWindow : Window
             Color = "#f97316"
         });
         _timelineControl.InvalidateVisual();
-        SetStatus($"Atalho Vegas [M]: Marcador adicionado em {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
+        SetStatus($"Atalho Neoveg [M]: Marcador adicionado em {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
     }
 
     private void ToggleDropFrameTimecode()
@@ -942,8 +942,8 @@ public sealed class MainWindow : Window
         var fxCatalog = new (string Type, string Badge, string Name, string Desc)[]
         {
             ("corridorKey", "CORRIDORKEY", "CorridorKey AI Green Screen Unmixer", "Desmixagem neural de alpha linear e remoção de spill verde"),
-            ("colorGrade", "COLOR", "VEGAS / Resolve 3-Wheel Color Grade", "Lift / Gamma / Gain cinematográfico"),
-            ("lut3d.teal_orange", "3D LUT", "Neoveg 3D LUT — Teal & Orange (.cube)", "Look Hollywood Blockbuster importado do kdenlive_vegas (TEAL_ORANGE.cube)"),
+            ("colorGrade", "COLOR", "Neoveg 3-Wheel Color Grade", "Lift / Gamma / Gain cinematográfico"),
+            ("lut3d.teal_orange", "3D LUT", "Neoveg 3D LUT — Teal & Orange (.cube)", "Look Hollywood Blockbuster importado do kdenlive_neoveg (TEAL_ORANGE.cube)"),
             ("lut3d.cinematic", "3D LUT", "Neoveg 3D LUT — Cinematic Film (.cube)", "Curva S de contraste cinematográfico (CINEMATIC.cube)"),
             ("lut3d.blue_tint", "3D LUT", "Neoveg 3D LUT — Cold Blue Tint (.cube)", "Balanço frio anamórfico para cenas noturnas (BLUE_TINT.cube)"),
             ("lut3d.green_tint", "3D LUT", "Neoveg 3D LUT — Matrix Green Tint (.cube)", "Estética sci-fi em tons esverdeados (GREEN_TINT.cube)"),
@@ -976,10 +976,10 @@ public sealed class MainWindow : Window
         var transStack = new StackPanel { Spacing = 6, Margin = new Thickness(6) };
         var transCatalog = new (string Type, string Name, string Desc)[]
         {
-            ("transition.crossEffect", "VEGAS Cross Effect (Auto-Crossfade S-Curve)", "Transição suave de sobreposição automática entre dois eventos"),
-            ("transition.additiveDissolve", "VEGAS Additive Dissolve (Flash Glow)", "Dissolução aditiva de luminância estilo broadcast"),
-            ("transition.clockWipe", "VEGAS Clock Wipe Radial", "Transição radial horária clássica do Sony Vegas"),
-            ("transition.linearWipe", "VEGAS Linear Wipe / Barn Door", "Cortina geométrica direcional com borda suave")
+            ("transition.crossEffect", "Neoveg Cross Effect (Auto-Crossfade S-Curve)", "Transição suave de sobreposição automática entre dois eventos"),
+            ("transition.additiveDissolve", "Neoveg Additive Dissolve (Flash Glow)", "Dissolução aditiva de luminância estilo broadcast"),
+            ("transition.clockWipe", "Neoveg Clock Wipe Radial", "Transição radial horária clássica do Classic NLE"),
+            ("transition.linearWipe", "Neoveg Linear Wipe / Barn Door", "Cortina geométrica direcional com borda suave")
         };
         foreach (var trItem in transCatalog)
         {
@@ -992,7 +992,7 @@ public sealed class MainWindow : Window
         var gens = new[]
         {
             new MediaAssetItem { Name = "CorridorKey Green Screen Subject", Type = "generator", GeneratorType = "greenScreenActor", Duration = 5.0, Color = "#16a34a" },
-            new MediaAssetItem { Name = "VEGAS Titles & Text Overlay", Type = "title", GeneratorType = "titleText", Duration = 4.5, Color = "#6366f1" },
+            new MediaAssetItem { Name = "Neoveg Titles & Text Overlay", Type = "title", GeneratorType = "titleText", Duration = 4.5, Color = "#6366f1" },
             new MediaAssetItem { Name = "SMPTE HD Master Color Bars", Type = "generator", GeneratorType = "smpteBars", Duration = 4.5, Color = "#2563eb" },
             new MediaAssetItem { Name = "Synthwave Horizon Cyber Grid", Type = "generator", GeneratorType = "cyberGrid", Duration = 5.0, Color = "#ec4899" }
         };
@@ -1014,7 +1014,7 @@ public sealed class MainWindow : Window
         {
             tabs.Items.Add(tab);
         }
-        // VEGAS Pro docking: drag any tab header down/out of the tab strip to float it as an independent window
+        // Neoveg docking: drag any tab header down/out of the tab strip to float it as an independent window
         DetachableDockPanel.EnableTabUndocking(tabs, t => t.Header?.ToString() ?? "Neoveg");
 
         return WrapInDockPanel(loc.T("Dock.LeftHeader", "Project Media"), tabs);
@@ -1076,7 +1076,7 @@ public sealed class MainWindow : Window
             RowDefinitions = new RowDefinitions("Auto,*,Auto")
         };
 
-        // Compact VEGAS-style preview controls: project setup, quality, FX, snapshots, and monitors.
+        // Compact Classic NLE preview controls: project setup, quality, FX, snapshots, and monitors.
         var previewBar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1090,7 +1090,7 @@ public sealed class MainWindow : Window
             OpenProjectVideoPropertiesDialog,
             size: 22));
 
-        // VEGAS Pro preview quality: one list (Draft, Preview, Good, Best, Auto); each quality implies its
+        // Neoveg preview quality: one list (Draft, Preview, Good, Best, Auto); each quality implies its
         // preview resolution (Draft = 1/4, Preview = 1/2, Good/Best = full, Auto = fit to the preview window)
         _previewControl.PreviewResolution = PreviewResolutionForQuality(_previewControl.PreviewQuality);
         var qualitySelector = new ComboBox
@@ -1566,7 +1566,7 @@ public sealed class MainWindow : Window
             Background = new SolidColorBrush(Color.Parse("#151a24"))
         };
 
-        // VEGAS Pro time display above the track list (cursor position)
+        // Neoveg time display above the track list (cursor position)
         var hdrTopBanner = new Border
         {
             Background = new SolidColorBrush(Color.Parse("#0b0f17")),
@@ -2073,14 +2073,14 @@ public sealed class MainWindow : Window
                 Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
                 VerticalAlignment = VerticalAlignment.Center
             };
-            var sldLevel = new Slider
-            {
-                Width = 74,
-                Minimum = 0.0,
-                Maximum = 1.0,
-                Value = Math.Clamp(track.Level, 0.0, 1.0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
+            var sldLevel = NeovegPrecisionSlider.Create(
+                minimum: 0.0,
+                maximum: 1.0,
+                initialValue: Math.Clamp(track.Level, 0.0, 1.0),
+                defaultValue: 1.0,
+                parameterLabel: track.Type == "video" ? "Opacidade da Faixa (%)" : "Volume da Faixa (%)",
+                width: 74,
+                displayAsPercentage: true);
             sldLevel.PropertyChanged += (_, pe) =>
             {
                 if (pe.Property.Name == nameof(Slider.Value))
@@ -2106,14 +2106,14 @@ public sealed class MainWindow : Window
                     Foreground = new SolidColorBrush(Color.Parse("#94a3b8")),
                     VerticalAlignment = VerticalAlignment.Center
                 };
-                var sldPan = new Slider
-                {
-                    Width = 60,
-                    Minimum = -1.0,
-                    Maximum = 1.0,
-                    Value = Math.Clamp(track.Pan, -1.0, 1.0),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
+                var sldPan = NeovegPrecisionSlider.Create(
+                    minimum: -1.0,
+                    maximum: 1.0,
+                    initialValue: Math.Clamp(track.Pan, -1.0, 1.0),
+                    defaultValue: 0.0,
+                    parameterLabel: "Balanço Estéreo (Pan)",
+                    width: 60,
+                    displayAsPercentage: false);
                 sldPan.PropertyChanged += (_, pe) =>
                 {
                     if (pe.Property.Name == nameof(Slider.Value))
@@ -2459,11 +2459,11 @@ public sealed class MainWindow : Window
         _inspectorBodyHost.Content = new ScrollViewer { Content = stack };
     }
 
-    public void LoadProjectState(VegasProject newProject, string statusMsg)
+    public void LoadProjectState(NeovegProject newProject, string statusMsg)
     {
         TogglePlayback(false);
 
-        // Automatic Missing Media Detection on Project Open (VEGAS Pro .veg / JSON MediaPool Check)
+        // Automatic Missing Media Detection on Project Open (Neoveg .veg / JSON MediaPool Check)
         var missingEntries = Relinker.DetectMissingMediaInProject(newProject);
         if (missingEntries.Count > 0)
         {
@@ -2486,7 +2486,7 @@ public sealed class MainWindow : Window
         MountProjectToTimelineAndWorkspace(newProject, statusMsg);
     }
 
-    private void MountProjectToTimelineAndWorkspace(VegasProject newProject, string statusMsg)
+    private void MountProjectToTimelineAndWorkspace(NeovegProject newProject, string statusMsg)
     {
         Project = newProject;
         PrerenderService.InvalidateAllCache();
@@ -2514,7 +2514,7 @@ public sealed class MainWindow : Window
         {
             // Load the Moved Media Relink Demo project so the user can immediately test Search & Relink
             LoadProjectState(
-                VegasProject.CreateMovedMediaRelinkDemo(),
+                NeovegProject.CreateMovedMediaRelinkDemo(),
                 "Projeto de Teste 'Moved Media Relink Demo' carregado.");
             return;
         }
@@ -2594,7 +2594,7 @@ public sealed class MainWindow : Window
         var track = Project.Tracks.FirstOrDefault(t => t.Type == targetType && !t.Locked);
         if (track == null)
         {
-            // Empty project (no tracks): VEGAS creates the matching track when media is added
+            // Empty project (no tracks): Neoveg creates the matching track when media is added
             AddTrack(targetType);
             track = Project.Tracks.FirstOrDefault(t => t.Type == targetType && !t.Locked);
             if (track == null) return;
@@ -2777,7 +2777,7 @@ public sealed class MainWindow : Window
         _previewControl.InvalidateVisual();
         _timelineControl.InvalidateVisual();
 
-        // Event Pan/Crop opens exclusively as its own pop-up window (VEGAS Pro event header button)
+        // Event Pan/Crop opens exclusively as its own pop-up window (Neoveg event header button)
         OpenEventPanCropWindow(clip);
     }
 
@@ -2852,7 +2852,7 @@ public sealed class MainWindow : Window
 
         var win = new Window
         {
-            Title = $"VEGAS Generated Media — {clip.Name}",
+            Title = $"Neoveg Generated Media — {clip.Name}",
             Width = 460,
             Height = 360,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -3039,7 +3039,7 @@ public sealed class MainWindow : Window
             : new (string Type, string Name)[]
             {
                 ("corridorKey", "CorridorKey AI Green Screen Unmixer"),
-                ("colorGrade", "VEGAS / Resolve 3-Wheel Color Grade"),
+                ("colorGrade", "Neoveg 3-Wheel Color Grade"),
                 ("lut3d.teal_orange", "Neoveg 3D LUT — Teal & Orange (.cube)"),
                 ("lut3d.cinematic", "Neoveg 3D LUT — Cinematic Film (.cube)"),
                 ("frei0r.glow", "Frei0r Glow (Optical Bloom)"),
@@ -3314,7 +3314,7 @@ public sealed class MainWindow : Window
         Project.SnapEnabled = !Project.SnapEnabled;
         UpdateToolbarToggleStates();
         _timelineControl.InvalidateVisual();
-        SetStatus($"Atalho Vegas [F8]: Snapping Magnético {(Project.SnapEnabled ? "ATIVADO" : "DESATIVADO")}.");
+        SetStatus($"Atalho Neoveg [F8]: Snapping Magnético {(Project.SnapEnabled ? "ATIVADO" : "DESATIVADO")}.");
     }
 
     public void AddRegionAtLoopOrPlayhead()
@@ -3329,7 +3329,7 @@ public sealed class MainWindow : Window
         };
         Project.Regions.Add(region);
         _timelineControl.InvalidateVisual();
-        SetStatus($"Atalho Vegas [R]: Região \"{region.Label}\" criada ({start:0.00}s – {end:0.00}s).");
+        SetStatus($"Atalho Neoveg [R]: Região \"{region.Label}\" criada ({start:0.00}s – {end:0.00}s).");
     }
 
     public void GroupSelectedEventsOrTracks()
@@ -3344,7 +3344,7 @@ public sealed class MainWindow : Window
             }
         }
         _timelineControl.InvalidateVisual();
-        SetStatus("Atalho Vegas [G]: Eventos e faixas V+A agrupados.");
+        SetStatus("Atalho Neoveg [G]: Eventos e faixas V+A agrupados.");
     }
 
     public void UngroupSelectedEventsOrTracks()
@@ -3358,11 +3358,11 @@ public sealed class MainWindow : Window
             }
         }
         _timelineControl.InvalidateVisual();
-        SetStatus("Atalho Vegas [U]: Eventos e faixas desagrupados.");
+        SetStatus("Atalho Neoveg [U]: Eventos e faixas desagrupados.");
     }
 
     /// <summary>
-    /// Toggles a VEGAS Pro dock window between docked and floating (Timeline, Video Preview, Mixer, Trimmer, Project Media).
+    /// Toggles a Neoveg dock window between docked and floating (Timeline, Video Preview, Mixer, Trimmer, Project Media).
     /// </summary>
     public void OpenFloatingOrDockedPanel(string panelName)
     {
@@ -3404,7 +3404,7 @@ public sealed class MainWindow : Window
             ? BuildTrimmerDockContent()
             : new TextBlock
             {
-                Text = $"Painel Acoplável / Flutuante: {panelName} (Sistema de Docking VEGAS Pro 13/18/21)",
+                Text = $"Painel Acoplável / Flutuante: {panelName} (Sistema de Docking Neoveg 13/18/21)",
                 Margin = new Thickness(14),
                 Foreground = Brushes.White
             };
@@ -3431,7 +3431,7 @@ public sealed class MainWindow : Window
         var stack = new StackPanel { Spacing = 10, Margin = new Thickness(16) };
         stack.Children.Add(new TextBlock
         {
-            Text = $"VEGAS TRACK MOTION — {targetTrack.Name}",
+            Text = $"NEOVEG TRACK MOTION — {targetTrack.Name}",
             FontSize = 13.5,
             FontWeight = FontWeight.Black,
             Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
@@ -3502,9 +3502,9 @@ public sealed class MainWindow : Window
 
     private void NeovegSplashDialog()
     {
-        var splash = new VegasSplashWindow(durationSeconds: 4.0);
+        var splash = new NeovegSplashWindow(durationSeconds: 4.0);
         splash.Show(this);
-        SetStatus("Exibindo Tela de Carregamento Clássica (Vegas Pro 12.0 Build 563 64-bit • Updating plug-in cache...).");
+        SetStatus("Exibindo Tela de Carregamento Clássica (Neoveg 12.0 Build 563 64-bit • Updating plug-in cache...).");
     }
 
     private async Task RunCppSharedMemoryTransferDemoAsync()
@@ -3593,7 +3593,7 @@ public sealed class MainWindow : Window
                 SetStatus($"Extensão de Janela '{dockControl.DisplayName}' acoplada à janela Inspector do Neoveg.");
             });
         extWin.Show(this);
-        SetStatus($"Extensão de Janela aberta: {extensionId} (VPFlow / Datamosh / Vegasaur / HOS).");
+        SetStatus($"Extensão de Janela aberta: {extensionId} (VPFlow / Datamosh / Neoveg Toolkit / HOS).");
     }
 
     private void OpenWelcomeDialog()
@@ -3719,11 +3719,11 @@ public sealed class MainWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Importar Projeto Legado VEGAS Pro (.veg)",
+            Title = "Importar Projeto Legado Neoveg (.veg)",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Projeto VEGAS Pro (*.veg)") { Patterns = new[] { "*.veg" } }
+                new FilePickerFileType("Projeto Neoveg (*.veg)") { Patterns = new[] { "*.veg" } }
             }
         });
 
@@ -3751,7 +3751,7 @@ public sealed class MainWindow : Window
         if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
         {
             string ext = Path.GetExtension(localPath).ToLowerInvariant();
-            VegasProject imported = ext == ".fcpxml" || File.ReadAllText(localPath).Contains("<fcpxml", StringComparison.OrdinalIgnoreCase)
+            NeovegProject imported = ext == ".fcpxml" || File.ReadAllText(localPath).Contains("<fcpxml", StringComparison.OrdinalIgnoreCase)
                 ? NeovegProjectInterchangeEngine.ImportFcpxml(localPath)
                 : NeovegProjectInterchangeEngine.ImportFcp7Xml(localPath);
             LoadProjectState(imported, $"Timeline XML importada com sucesso de: {Path.GetFileName(localPath)} ({imported.Tracks.Count} faixas)");
@@ -3963,7 +3963,7 @@ public sealed class MainWindow : Window
             _playheadOverlay.NotifyKeyboardCursorMove();
             UpdateTimecodeAndPreview();
             _timelineControl.InvalidateVisual();
-            SetStatus($"Atalho Vegas [J]: Retroceder 1.0s -> {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
+            SetStatus($"Atalho Neoveg [J]: Retroceder 1.0s -> {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
         }
         else if (e.Key == Key.L)
         {
@@ -3972,7 +3972,7 @@ public sealed class MainWindow : Window
             _playheadOverlay.NotifyKeyboardCursorMove();
             UpdateTimecodeAndPreview();
             _timelineControl.InvalidateVisual();
-            SetStatus($"Atalho Vegas [L]: Avançar 1.0s -> {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
+            SetStatus($"Atalho Neoveg [L]: Avançar 1.0s -> {RustInterop.FormatSmpte(Project.Playhead, Project.Fps)}");
         }
         else if (e.Key == Key.I)
         {
@@ -3981,14 +3981,14 @@ public sealed class MainWindow : Window
             if (Project.LoopEnd <= Project.LoopStart)
                 Project.LoopEnd = Math.Round(Project.LoopStart + 2.5, 3);
             _timelineControl.InvalidateVisual();
-            SetStatus($"Atalho Vegas [I]: In Point marcado em {RustInterop.FormatSmpte(Project.LoopStart, Project.Fps)}");
+            SetStatus($"Atalho Neoveg [I]: In Point marcado em {RustInterop.FormatSmpte(Project.LoopStart, Project.Fps)}");
         }
         else if (e.Key == Key.O)
         {
             e.Handled = true;
             Project.LoopEnd = Math.Max(Project.LoopStart + 0.25, Math.Round(Project.Playhead, 3));
             _timelineControl.InvalidateVisual();
-            SetStatus($"Atalho Vegas [O]: Out Point marcado em {RustInterop.FormatSmpte(Project.LoopEnd, Project.Fps)}");
+            SetStatus($"Atalho Neoveg [O]: Out Point marcado em {RustInterop.FormatSmpte(Project.LoopEnd, Project.Fps)}");
         }
         else if (e.Key == Key.B && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
@@ -4038,7 +4038,7 @@ public sealed class MainWindow : Window
         SetStatus(res.Summary);
     }
 
-    public void ApplyHistoricalTheme(VegasHistoryTheme theme)
+    public void ApplyHistoricalTheme(NeovegHistoryTheme theme)
     {
         CurrentTheme = theme;
         ThemeManager.SetActiveTheme(theme);
@@ -4051,11 +4051,11 @@ public sealed class MainWindow : Window
         {
             _topMenu.Background = new SolidColorBrush(Color.Parse(theme.MenuBg));
             _topMenu.Foreground = new SolidColorBrush(Color.Parse(theme.TextPrimary));
-            _topMenu.Padding = VegasThemeManager.GetMenuPadding(theme);
+            _topMenu.Padding = NeovegThemeManager.GetMenuPadding(theme);
         }
         if (_mainToolbarBorder != null)
         {
-            _mainToolbarBorder.Background = VegasThemeManager.CreateToolbarBrush(theme);
+            _mainToolbarBorder.Background = NeovegThemeManager.CreateToolbarBrush(theme);
             _mainToolbarBorder.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
             _mainToolbarBorder.BorderThickness = theme.EraNumber == 1 ? new Thickness(0, 1, 0, 2) : new Thickness(0, 0, 0, 1);
         }
@@ -4070,7 +4070,7 @@ public sealed class MainWindow : Window
 
         foreach (var hdr in _dockHeaderBorders)
         {
-            hdr.Background = VegasThemeManager.CreateDockHeaderBrush(theme);
+            hdr.Background = NeovegThemeManager.CreateDockHeaderBrush(theme);
             hdr.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
         }
 
@@ -4078,7 +4078,7 @@ public sealed class MainWindow : Window
         {
             pnl.Background = new SolidColorBrush(Color.Parse(theme.DockPanelBg));
             pnl.BorderBrush = new SolidColorBrush(Color.Parse(theme.DockBorder));
-            pnl.BorderThickness = VegasThemeManager.GetDockBorderThickness(theme);
+            pnl.BorderThickness = NeovegThemeManager.GetDockBorderThickness(theme);
             if (pnl is DetachableDockPanel dock)
                 dock.HeaderTitle.Foreground = new SolidColorBrush(Color.Parse(theme.TextPrimary));
         }
@@ -4124,14 +4124,14 @@ public sealed class MainWindow : Window
         var stack = new StackPanel { Spacing = 10, Margin = new Thickness(14) };
         stack.Children.Add(new TextBlock
         {
-            Text = "ACERVO HISTÓRICO DE TEMAS, PALETAS E ÍCONES DO VEGAS PRO (1999–2026)",
+            Text = "ACERVO HISTÓRICO DE TEMAS, PALETAS E ÍCONES DO NEOVEG (1999–2026)",
             FontSize = 14,
             FontWeight = FontWeight.Black,
             Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
         });
         stack.Children.Add(new TextBlock
         {
-            Text = $"Diretório de Ativos: {Path.Combine(_rootDir, "assets", "vegas_history_themes")}",
+            Text = $"Diretório de Ativos: {Path.Combine(_rootDir, "assets", "neoveg_history_themes")}",
             FontFamily = new FontFamily("Consolas, monospace"),
             FontSize = 10.5,
             Foreground = new SolidColorBrush(Color.Parse("#94a3b8"))
@@ -4181,7 +4181,7 @@ public sealed class MainWindow : Window
                     new TextBlock
                     {
                         Text = string.IsNullOrWhiteSpace(captured.Description)
-                            ? $"{captured.Vendor} • Pasta: assets/vegas_history_themes/{captured.EraFolder}"
+                            ? $"{captured.Vendor} • Pasta: assets/neoveg_history_themes/{captured.EraFolder}"
                             : captured.Description,
                         FontSize = 10,
                         Foreground = new SolidColorBrush(Color.Parse("#cbd5e1")),
@@ -4218,7 +4218,7 @@ public sealed class MainWindow : Window
 
         var galleryWin = new Window
         {
-            Title = "Galeria Histórica do VEGAS Pro (1999–2026) — Sonic Foundry • Sony • MAGIX • Boris FX",
+            Title = "Galeria Histórica do Neoveg (1999–2026) — Sonic Foundry • Classic NLE • Modern NLE • Contemporary NLE",
             Width = 880,
             Height = 620,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -4236,9 +4236,9 @@ public sealed class MainWindow : Window
         {
             Background = new SolidColorBrush(Color.Parse(CurrentTheme.DockPanelBg)),
             BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder)),
-            BorderThickness = VegasThemeManager.GetDockBorderThickness(CurrentTheme)
+            BorderThickness = NeovegThemeManager.GetDockBorderThickness(CurrentTheme)
         };
-        dock.HeaderBorder.Background = VegasThemeManager.CreateDockHeaderBrush(CurrentTheme);
+        dock.HeaderBorder.Background = NeovegThemeManager.CreateDockHeaderBrush(CurrentTheme);
         dock.HeaderBorder.BorderBrush = new SolidColorBrush(Color.Parse(CurrentTheme.DockBorder));
         dock.HeaderTitle.Foreground = new SolidColorBrush(Color.Parse(CurrentTheme.TextPrimary));
         _dockHeaderBorders.Add(dock.HeaderBorder);

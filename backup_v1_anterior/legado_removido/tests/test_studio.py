@@ -1,7 +1,7 @@
 """
-End-to-End Automated Verification Suite for OpenVegas Pro NLE Studio
+End-to-End Automated Verification Suite for OpenNeoveg NLE Studio
 Tests Rust Bridge / Mirror algorithms, WAV PCM DSP peak extraction,
-Vegas Python Scripting API, FFmpeg filter_complex compiler, and real MP4 rendering.
+Neoveg Python Scripting API, FFmpeg filter_complex compiler, and real MP4 rendering.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from rust_bridge import (  # noqa: E402
     format_smpte,
 )
 from server import MEDIA_DIR, RENDERS_DIR, ensure_sample_media  # noqa: E402
-from vegas_scripting import PRESET_SCRIPTS, execute_vegas_script  # noqa: E402
+from neoveg_scripting import PRESET_SCRIPTS, execute_neoveg_script  # noqa: E402
 
 
-class TestOpenVegasStudio(unittest.TestCase):
+class TestNeovegStudio(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         ensure_sample_media()
@@ -61,7 +61,7 @@ class TestOpenVegasStudio(unittest.TestCase):
         self.assertEqual(len(res["peaks"]), 64)
         self.assertGreater(max(res["peaks"]), 0.2)
 
-    def test_vegas_python_scripting_api(self) -> None:
+    def test_neoveg_python_scripting_api(self) -> None:
         sample_project = {
             "fps": 30.0,
             "playhead": 1.0,
@@ -79,12 +79,12 @@ class TestOpenVegasStudio(unittest.TestCase):
             ],
         }
         # 1. Ripple close gaps preset
-        r1 = execute_vegas_script(PRESET_SCRIPTS["ripple_close_gaps"]["code"], sample_project)
+        r1 = execute_neoveg_script(PRESET_SCRIPTS["ripple_close_gaps"]["code"], sample_project)
         self.assertTrue(r1["ok"])
         self.assertAlmostEqual(r1["project"]["tracks"][0]["clips"][1]["start"], 3.0, places=2)
 
         # 2. Beat markers preset
-        r2 = execute_vegas_script(PRESET_SCRIPTS["beat_markers"]["code"], r1["project"])
+        r2 = execute_neoveg_script(PRESET_SCRIPTS["beat_markers"]["code"], r1["project"])
         self.assertTrue(r2["ok"])
         self.assertEqual(len(r2["project"]["markers"]), 12)
 
@@ -101,7 +101,7 @@ class TestOpenVegasStudio(unittest.TestCase):
                     "clips": [
                         {
                             "id": "c1",
-                            "mediaFile": "vegas_smpte_bars.mp4",
+                            "mediaFile": "neoveg_smpte_bars.mp4",
                             "start": 0.0,
                             "duration": 2.0,
                             "trimIn": 0.0,

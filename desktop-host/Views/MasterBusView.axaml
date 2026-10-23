@@ -45,10 +45,11 @@
                  FontSize="10.5"
                  FontWeight="Bold"
                  Foreground="#38bdf8" />
-      <Slider x:Name="PART_MasterVolumeSlider"
-              Minimum="0.0"
-              Maximum="1.4"
-              Value="{Binding MasterVolume, Mode=TwoWay}" />
+      <controls:NeovegPrecisionSlider x:Name="PART_MasterVolumeSlider"
+                                      Minimum="0.0"
+                                      Maximum="1.4"
+                                      DefaultValue="1.0"
+                                      Value="{Binding MasterVolume, Mode=TwoWay}" />
     </StackPanel>
   </Grid>
 </UserControl>

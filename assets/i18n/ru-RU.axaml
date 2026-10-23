@@ -33,7 +33,7 @@
     <sys:String x:Key="Menu.File.RenderAs">Визуализировать как... (Python Isolated FFmpeg)</sys:String>
     <sys:String x:Key="Menu.File.SaveVeg">Сохранить проект (.veg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Настройки -&gt; Общие / Язык (Language)...</sys:String>
-    <sys:String x:Key="Menu.File.Splash">Показать заставку (Splash Vegas Pro 12)...</sys:String>
+    <sys:String x:Key="Menu.File.Splash">Показать заставку (Splash Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Окно приветствия...</sys:String>
     <sys:String x:Key="Menu.Help">_Справка</sys:String>
     <sys:String x:Key="Menu.Help.About">О программе Neoveg...</sys:String>
@@ -53,7 +53,7 @@
     <sys:String x:Key="Menu.View.PopoutPreview">Открепить предпросмотр видео на второй монитор [↗]</sys:String>
     <sys:String x:Key="Menu.View.PopoutScopes">Открепить мастер-микшер и скопы [↗]</sys:String>
     <sys:String x:Key="Menu.View.ShrinkTracks">Уменьшить высоту дорожек (-)</sys:String>
-    <sys:String x:Key="Menu.View.ThemesGallery">Галерея исторических тем VEGAS (1999–2026)...</sys:String>
+    <sys:String x:Key="Menu.View.ThemesGallery">Галерея исторических тем Neoveg (1999–2026)...</sys:String>
     <sys:String x:Key="Meta.Code">ru-RU</sys:String>
     <sys:String x:Key="Meta.EnglishName">Russian</sys:String>
     <sys:String x:Key="Meta.NativeName">Русский (ru-RU)</sys:String>

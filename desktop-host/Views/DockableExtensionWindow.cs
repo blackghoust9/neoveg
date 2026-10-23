@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Neoveg.Controls;
 using Neoveg.Interop;
 using Neoveg.Models;
 using Neoveg.Scripting;
@@ -87,11 +88,11 @@ public sealed class VPFlowBezierPreviewControl : Control
 
 /// <summary>
 /// Dockable / Floating Window Extension Host (`Exibir -> Extensões de Janela` / `Ferramentas -> Scripts`):
-/// Hosts third-party compatible panels (VPFlow 2.4, Datamosh Neoveg, Vegasaur 4.0, HOS) and a live C# Roslyn / Python Script Console.
+/// Hosts third-party compatible panels (VPFlow 2.4, Datamosh Neoveg, Neoveg Toolkit 4.0, HOS) and a live C# Roslyn / Python Script Console.
 /// </summary>
 public sealed class DockableExtensionWindow : Window
 {
-    private readonly VegasProject _project;
+    private readonly NeovegProject _project;
     private readonly RustCoreInterop _rustInterop;
     private readonly ScriptingEngineService _scriptingService;
     private readonly string? _selectedClipId;
@@ -105,7 +106,7 @@ public sealed class DockableExtensionWindow : Window
     private readonly ComboBox _cmbDiscoveredScripts;
 
     public DockableExtensionWindow(
-        VegasProject project,
+        NeovegProject project,
         RustCoreInterop rustInterop,
         ScriptingEngineService scriptingService,
         string? selectedClipId,
@@ -153,7 +154,7 @@ public sealed class DockableExtensionWindow : Window
             Height = 110,
             Background = new SolidColorBrush(Color.Parse("#090d14")),
             Foreground = new SolidColorBrush(Color.Parse("#4ade80")),
-            Text = "[Neoveg Scripting Engine] Roslyn C# (Neoveg.Scripting) + Python (vegas_scripting.py) prontos."
+            Text = "[Neoveg Scripting Engine] Roslyn C# (Neoveg.Scripting) + Python (neoveg_scripting.py) prontos."
         };
 
         _cmbDiscoveredScripts = new ComboBox
@@ -171,7 +172,7 @@ public sealed class DockableExtensionWindow : Window
             {
                 new TabItem { Header = "VPFlow 2.4 (Curves & Crossfades)", Content = BuildVPFlowDockableControl() },
                 new TabItem { Header = "Datamosh Neoveg (Glitch & Split)", Content = BuildDatamoshDockableControl() },
-                new TabItem { Header = "Vegasaur & HOS Toolkit", Content = BuildVegasaurAndHosDockableControl() },
+                new TabItem { Header = "Neoveg Toolkit & HOS Toolkit", Content = BuildNeovegAndHosDockableControl() },
                 new TabItem { Header = "Console Roslyn C# & Python (.cs / .py)", Content = BuildScriptIdeAndRunnerTab() }
             }
         };
@@ -183,7 +184,7 @@ public sealed class DockableExtensionWindow : Window
         _tabs.SelectedIndex = initialExtensionId.ToLowerInvariant() switch
         {
             var s when s.Contains("datamosh") => 1,
-            var s when s.Contains("vegasaur") || s.Contains("hos") => 2,
+            var s when s.Contains("neoveg_toolkit") || s.Contains("hos") => 2,
             var s when s.Contains("script") || s.Contains("console") => 3,
             _ => 0
         };
@@ -249,15 +250,15 @@ public sealed class DockableExtensionWindow : Window
 
         var btnApplyCurve = CreateButton("Aplicar Curva Bezier VPFlow ao Evento Selecionado", "#0e7490", () =>
         {
-            var vegas = new Vegas(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => _onProjectMutated("Curva VPFlow aplicada."));
-            foreach (var tr in vegas.Project.Tracks.Where(t => t.IsVideo))
+            var neoveg = new NeovegHost(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => _onProjectMutated("Curva VPFlow aplicada."));
+            foreach (var tr in neoveg.Project.Tracks.Where(t => t.IsVideo))
             {
                 foreach (var ev in tr.Events.OfType<VideoEvent>())
                 {
                     ev.ApplyVPFlowBezierCurve("Smooth", 1.16, 0.0);
                 }
             }
-            vegas.UpdateUI();
+            neoveg.UpdateUI();
         });
 
         btnRow.Children.Add(btnRunPy);
@@ -295,9 +296,9 @@ public sealed class DockableExtensionWindow : Window
             Foreground = new SolidColorBrush(Color.Parse("#a855f7"))
         });
 
-        var sldInterval = new Slider { Minimum = 0.30, Maximum = 2.00, Value = 0.85 };
-        var sldIntensity = new Slider { Minimum = 0.20, Maximum = 1.00, Value = 0.88 };
-        var sldSpeed = new Slider { Minimum = 0.50, Maximum = 2.00, Value = 1.15 };
+        var sldInterval = NeovegPrecisionSlider.Create(0.30, 2.00, 0.85, 0.85, "Intervalo de Corte (s)");
+        var sldIntensity = NeovegPrecisionSlider.Create(0.20, 1.00, 0.88, 0.88, "Intensidade Datamosh (%)", displayAsPercentage: true);
+        var sldSpeed = NeovegPrecisionSlider.Create(0.50, 2.00, 1.15, 1.00, "Playback Rate (x)");
 
         stack.Children.Add(new TextBlock { Text = "Intervalo de Corte Automático (segundos): 0.85s", FontSize = 11 });
         stack.Children.Add(sldInterval);
@@ -323,8 +324,8 @@ public sealed class DockableExtensionWindow : Window
 
         var btnQuickMosh = CreateButton("Aplicar Datamosh Customizado Agora", "#2563eb", () =>
         {
-            var vegas = new Vegas(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
-            int count = vegas.BatchSplitAndDatamosh(sldInterval.Value, sldIntensity.Value, sldSpeed.Value);
+            var neoveg = new NeovegHost(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
+            int count = neoveg.BatchSplitAndDatamosh(sldInterval.Value, sldIntensity.Value, sldSpeed.Value);
             _onProjectMutated($"Datamosh Neoveg: {count} segmento(s) cortados e processados com P-Vector Glitch.");
         });
 
@@ -346,24 +347,24 @@ public sealed class DockableExtensionWindow : Window
         return dock;
     }
 
-    public DockableControl BuildVegasaurAndHosDockableControl()
+    public DockableControl BuildNeovegAndHosDockableControl()
     {
-        var dock = new DockableControl("vegasaur_extension")
+        var dock = new DockableControl("neoveg_toolkit_extension")
         {
-            DisplayName = "Vegasaur 4.0 & HOS Automation Toolkit",
+            DisplayName = "Neoveg Toolkit 4.0 & HOS Automation Toolkit",
             Padding = new Thickness(14)
         };
 
         var stack = new StackPanel { Spacing = 10 };
         stack.Children.Add(new TextBlock
         {
-            Text = "VEGASAUR 4.0 & HOS (HAPPY OTTER SCRIPTS) — AUTOMAÇÃO EM LOTE DE TIMELINE",
+            Text = "NEOVEG TOOLKIT 4.0 & HOS (HAPPY OTTER SCRIPTS) — AUTOMAÇÃO EM LOTE DE TIMELINE",
             FontSize = 13,
             FontWeight = FontWeight.Black,
             Foreground = new SolidColorBrush(Color.Parse("#f59e0b"))
         });
 
-        stack.Children.Add(CreateButton("Vegasaur: Fechar Todas as Lacunas entre Eventos (Ripple Delete Gaps)", "#1e293b", () =>
+        stack.Children.Add(CreateButton("Neoveg Toolkit: Fechar Todas as Lacunas entre Eventos (Ripple Delete Gaps)", "#1e293b", () =>
         {
             int moved = 0;
             foreach (var tr in _project.Tracks)
@@ -376,17 +377,17 @@ public sealed class DockableExtensionWindow : Window
                     cur = c.Start + c.Duration;
                 }
             }
-            _onProjectMutated($"Vegasaur Auditor: {moved} evento(s) alinhados sem lacunas (Ripple Close Gaps).");
+            _onProjectMutated($"Neoveg Toolkit Auditor: {moved} evento(s) alinhados sem lacunas (Ripple Close Gaps).");
         }));
 
-        stack.Children.Add(CreateButton("Vegasaur: Gerar Grade de Marcadores 120 BPM (Beat Grid Markers)", "#1e293b", () =>
+        stack.Children.Add(CreateButton("Neoveg Toolkit: Gerar Grade de Marcadores 120 BPM (Beat Grid Markers)", "#1e293b", () =>
         {
-            var vegas = new Vegas(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
+            var neoveg = new NeovegHost(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
             for (int bar = 1; bar <= 8; bar++)
             {
-                vegas.Project.Markers.Add(new Marker(Timecode.FromSeconds((bar - 1) * 2.0), $"120BPM Bar {bar}"));
+                neoveg.Project.Markers.Add(new Marker(Timecode.FromSeconds((bar - 1) * 2.0), $"120BPM Bar {bar}"));
             }
-            _onProjectMutated("Vegasaur Beat Grid: 8 marcadores de compasso (120 BPM) adicionados à Timeline.");
+            _onProjectMutated("Neoveg Toolkit Beat Grid: 8 marcadores de compasso (120 BPM) adicionados à Timeline.");
         }));
 
         stack.Children.Add(CreateButton("HOS (Happy Otter Scripts): Normalizar Áudio p/ 0.0 dB + Fades Suaves 150ms", "#0e7490", () =>
@@ -442,8 +443,8 @@ public sealed class DockableExtensionWindow : Window
             {
                 if (entry.FullPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
                 {
-                    var vegas = new Vegas(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
-                    var res = await _scriptingService.ExecuteCSharpScriptCodeAsync(entry.FileName, _scriptEditorBox.Text ?? "", vegas);
+                    var neoveg = new NeovegHost(_project, _rustInterop, _selectedClipId, _selectedTrackId, () => { });
+                    var res = await _scriptingService.ExecuteCSharpScriptCodeAsync(entry.FileName, _scriptEditorBox.Text ?? "", neoveg);
                     AppendConsoleLog(res);
                     _onProjectMutated(res.SummaryMessage);
                 }

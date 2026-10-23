@@ -1,11 +1,11 @@
 ================================================================================
-OPEN VEGAS PRO 21 / NEOVEG — RELATÓRIO DE FUNCIONALIDADES & ARQUITETURA
+OPEN NEOVEG 21 / NEOVEG — RELATÓRIO DE FUNCIONALIDADES & ARQUITETURA
 Arquivo: funcoes_add.txt
 Data de Atualização: 2026-10-21
 Arquitetura Definitiva 100% Multiplataforma:
   • Interface Gráfica Desktop: C# (.NET 10 + Avalonia UI 11.2.3 — Windows, Linux X11/Wayland, macOS Cocoa/Metal)
   • Motor Nativo DSP & Edição (FFI): Rust (`neoveg_core` cdylib — `.dll` / `.so` / `.dylib`)
-  • Orquestração Isolada de Mídia & Plugins: Python (`ffmpeg_manager.py`, `plugins_engine.py`, `vegas_scripting.py`, `rust_bridge.py`)
+  • Orquestração Isolada de Mídia & Plugins: Python (`ffmpeg_manager.py`, `plugins_engine.py`, `neoveg_scripting.py`, `rust_bridge.py`)
 Backup Completo da Versão Anterior: ./backup_v1_anterior/
 ================================================================================
 
@@ -14,14 +14,14 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
 [x] BACKUP COMPLETO DE TUDO EM `./backup_v1_anterior/` E RECICLAGEM SELETIVA DE RUST E PYTHON:
     - Todo o código anterior foi preservado integralmente em `backup_v1_anterior/`.
     - Foram reciclados e refatorados os scripts de Rust (`rust-core/src/lib.rs`) e Python
-      (`python-backend/rust_bridge.py`, `plugins_engine.py`, `vegas_scripting.py`,
+      (`python-backend/rust_bridge.py`, `plugins_engine.py`, `neoveg_scripting.py`,
       `error_logger.py`), descartando dependências exclusivas do Windows (WPF/WinForms)
       no host desktop.
 [x] SUBSTITUIÇÃO DO ANTIGO CÓDIGO WPF/WINFORMS PELO AVALONIA UI 11.2.3 (`desktop-host/`):
     - O projeto `desktop-host/Neoveg.csproj` (`AssemblyName: Neoveg`) foi
       migrado para `<TargetFramework>net10.0</TargetFramework>` com `Avalonia`,
       `Avalonia.Desktop`, `Avalonia.Themes.Fluent` e `Avalonia.Fonts.Inter` (zero WPF!).
-    - Mantida 100% da ergonomia clássica do VEGAS Pro:
+    - Mantida 100% da ergonomia clássica do Neoveg:
       • Painel Superior Esquerdo (`BuildLeftMediaAndFxDock`): Project Media Bin,
         Video FX (CorridorKey AI, Frei0r, Resolve 3-Wheel Color), Audio FX (LADSPA) e
         Media Generators.
@@ -43,7 +43,7 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
       • macOS:   `libneoveg_core.dylib`
     - Funções C-ABI exportadas em `rust-core/src/lib.rs`:
       • `neoveg_format_smpte` e `neoveg_parse_smpte` (Timecode SMPTE Drop/Non-Drop Frame)
-      • `neoveg_evaluate_fade_curve` (5 curvas de fade do VEGAS Pro)
+      • `neoveg_evaluate_fade_curve` (5 curvas de fade do Neoveg)
       • `neoveg_split_clip` e `neoveg_compute_crossfade` (Cortes `S` e Auto-Crossfade)
       • `neoveg_analyze_pcm_dsp` e `neoveg_analyze_wav_file` (DSP de picos e RMS dBFS)
 [x] GERENCIADOR PYTHON ISOLADO DE FFMPEG E FFPROBE POR SO (`python-backend/ffmpeg_manager.py`):
@@ -82,8 +82,8 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
 [x] ARRASTAR MÍDIA, GERADORES, EFEITOS E TRANSIÇÕES DIRETAMENTE PARA A TIMELINE:
     - Suporte completo a Drag & Drop nativo dos cartões de Mídia (MP4/WAV),
       Geradores (SMPTE, Synthwave, Títulos, CorridorKey Actor), Efeitos de Vídeo
-      (VEGAS FX, Frei0r, CorridorKey), Plugins de Áudio LADSPA e Transições
-      diretamente sobre o canvas `#vegas-timeline-canvas`.
+      (Neoveg FX, Frei0r, CorridorKey), Plugins de Áudio LADSPA e Transições
+      diretamente sobre o canvas `#neoveg-timeline-canvas`.
     - Ghost Preview em tempo real na timeline mostrando a posição exata (com Snap
       magnético SMPTE) e a faixa alvo durante o arraste.
     - Suporte a arrastar arquivos `.mp4`, `.wav`, `.mp3` diretamente do Windows
@@ -108,10 +108,10 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
 
 [x] REUTILIZAÇÃO E INTEGRAÇÃO DOS SCRIPTS PYTHON E RUST (`backup_v1_anterior/`):
     - Os módulos em Rust (`rust-core/src/lib.rs`) e Python (`python-backend/rust_bridge.py`,
-      `vegas_scripting.py`, `plugins_engine.py`, `corridorkey_engine.py`, `server.py`)
+      `neoveg_scripting.py`, `plugins_engine.py`, `corridorkey_engine.py`, `server.py`)
       foram integrados e expandidos com `TrackGroupEngine`, `TrackHeaderNode`,
       endpoints `/api/tracks/rename` e `/api/tracks/group`, e o script de automação
-      `group_av_tracks` estilo Vegasaur / Happy Otter Scripts.
+      `group_av_tracks` estilo Neoveg Toolkit / Happy Otter Scripts.
 [x] OPÇÃO DE RENOMEAR AS FAIXAS (TRACKS) DE ÁUDIO E VÍDEO:
     - Edição inline direta no campo `.track-name-input` (com bloqueio de propagação
       para não perder o foco ao clicar no cabeçalho) e botão dedicado `✎` (`data-track-rename`)
@@ -130,13 +130,13 @@ Backup Completo da Versão Anterior: ./backup_v1_anterior/
       abre a janela independente `#modal-advanced-settings` e permite destacá-la
       como uma janela nativa independente do Windows (`Neoveg_AdvancedSettings_Window`)
       para outro monitor.
-[x] ENCICLOPÉDIA COMPLETA DO VEGAS PRO EM `KEEPS.md` (INCLUINDO WIKIPEDIA E FONTES):
+[x] ENCICLOPÉDIA COMPLETA DO NEOVEG EM `KEEPS.md` (INCLUINDO WIKIPEDIA E FONTES):
     - Criado o documento `KEEPS.md` contendo toda a história (Sonic Foundry 1999,
-      Sony Creative Software 2003, MAGIX 2016, Boris FX 2026), tabela de todas as
-      versões (Vegas 1.0 até VEGAS Pro 22), extensões e scripts mais usados
-      (Vegasaur, Happy Otter Scripts, Voukoder, Excalibur, CorridorKey), problemas
-      constantes debatidos em comunidades (`r/VegasPro`, Creative COW) e referências
-      oficiais da Wikipedia (`https://en.wikipedia.org/wiki/Vegas_Pro`).
+      Classic NLE Creative Software 2003, Modern NLE 2016, Contemporary NLE 2026), tabela de todas as
+      versões (Neoveg 1.0 até Neoveg 22), extensões e scripts mais usados
+      (Neoveg Toolkit, Happy Otter Scripts, Voukoder, Excalibur, CorridorKey), problemas
+      constantes debatidos em comunidades (`r/NeovegPro`, Creative COW) e referências
+      oficiais da Wikipedia (`https://en.wikipedia.org/wiki/Neoveg_Pro`).
 
 ================================================================================
 2. O QUE É NECESSÁRIO PARA DAR CONTINUIDADE AO PROJETO (PRÓXIMAS ETAPAS)
@@ -177,7 +177,7 @@ C) CAMADA DE PLUGINS DE EFEITOS E ÁUDIO (OFX / VST3 / FREI0R / LADSPA)
 --------------------------------------------------------------------------------
 5. **Host OpenFX (OFX C++ / Rust ABI)**:
    - Implementar carregamento dinâmico de pacotes `.ofx.bundle` em `rust-core` para
-     abrir plugins comerciais de terceiros (Boris FX Sapphire, Twixtor, Neat Video).
+     abrir plugins comerciais de terceiros (Contemporary NLE Sapphire, Twixtor, Neat Video).
 6. **Host VST3 de 64-bits**:
    - Permitir abrir interfaces gráficas nativas de plugins VST3 (FabFilter, iZotope RX)
      em janelas filhas WinForms do `Neoveg.exe`.

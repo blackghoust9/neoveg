@@ -1,10 +1,10 @@
 /* ============================================================================
-   OPEN VEGAS PRO 21 — QT WIDGETS NATIVE STUDIO STYLESHEET & HISTORICAL THEMES
+   OPEN NEOVEG 21 — QT WIDGETS NATIVE STUDIO STYLESHEET & HISTORICAL THEMES
    Square Qt Framework Buttons (border-radius: 0px) • Custom Drawn SVG Icons
    ============================================================================ */
 
 :root,
-html[data-theme="qt-vegas21"] {
+html[data-theme="qt-neoveg21"] {
   --bg-darkest: #121418;
   --bg-panel: #1b1e24;
   --bg-panel-alt: #232730;
@@ -22,8 +22,8 @@ html[data-theme="qt-vegas21"] {
   --text-muted: #94a3b8;
 }
 
-/* SONIC FOUNDRY VEGAS 4.0 (2003 Classic Windows 2000/XP Light Gray Qt Theme) */
-html[data-theme="vegas4-xp"] {
+/* SONIC FOUNDRY Neoveg 4.0 (2003 Classic Windows 2000/XP Light Gray Qt Theme) */
+html[data-theme="neoveg4-xp"] {
   --bg-darkest: #aca899;
   --bg-panel: #d4d0c8;
   --bg-panel-alt: #e4e1d8;
@@ -41,8 +41,8 @@ html[data-theme="vegas4-xp"] {
   --text-muted: #3b3b3b;
 }
 
-/* SONY VEGAS 7.0 (2006 Industrial Silver Metallic Theme) */
-html[data-theme="vegas7-sony"] {
+/* NEOVEG Neoveg 7.0 (2006 Industrial Silver Metallic Theme) */
+html[data-theme="neoveg7-classic_nle"] {
   --bg-darkest: #8b9199;
   --bg-panel: #c2c7ce;
   --bg-panel-alt: #d5d9df;
@@ -60,8 +60,8 @@ html[data-theme="vegas7-sony"] {
   --text-muted: #374151;
 }
 
-/* SONY VEGAS PRO 13 (2014 Charcoal Dark Theme) */
-html[data-theme="vegas13-pro"] {
+/* NEOVEG NEOVEG 13 (2014 Charcoal Dark Theme) */
+html[data-theme="neoveg13-pro"] {
   --bg-darkest: #212326;
   --bg-panel: #2e3136;
   --bg-panel-alt: #373b41;
@@ -79,8 +79,8 @@ html[data-theme="vegas13-pro"] {
   --text-muted: #b0b6c0;
 }
 
-/* MAGIX VEGAS PRO 18 (2020 Deep Slate Theme) */
-html[data-theme="vegas18-magix"] {
+/* Modern NLE NEOVEG 18 (2020 Deep Slate Theme) */
+html[data-theme="neoveg18-modern_nle"] {
   --bg-darkest: #141517;
   --bg-panel: #1f2124;
   --bg-panel-alt: #272a2e;
@@ -144,16 +144,16 @@ select,
 textarea,
 .tool-btn,
 .dock-pane,
-.vegas-dock-window,
+.neoveg-dock-window,
 .win-ctrl-btn,
-.btn-vegas-sm,
-.btn-vegas-primary,
+.btn-neoveg-sm,
+.btn-neoveg-primary,
 .btn-mini-add,
 .tr-btn,
 .preview-mini-btn,
 .media-card,
 .media-badge,
-.vegas-modal {
+.neoveg-modal {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -177,14 +177,14 @@ body {
   display: none !important;
 }
 
-.vegas-svg {
+.neoveg-svg {
   display: inline-block;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
 /* TOP QT TOOLBAR */
-.vegas-topbar {
+.neoveg-topbar {
   height: 42px;
   min-height: 42px;
   background: var(--bg-panel);
@@ -206,7 +206,7 @@ body {
   flex-shrink: 0;
 }
 
-.vegas-logo-mark {
+.neoveg-logo-mark {
   width: 24px;
   height: 24px;
   background: var(--accent-blue);
@@ -240,7 +240,7 @@ body {
   color: var(--text-muted);
 }
 
-.vegas-toolbar-actions {
+.neoveg-toolbar-actions {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -276,7 +276,7 @@ body {
 
 /* QT PUSHBUTTON / QTOOLBUTTON STYLE */
 .tool-btn,
-.btn-vegas-sm,
+.btn-neoveg-sm,
 .win-ctrl-btn,
 .tr-btn,
 .preview-mini-btn,
@@ -299,7 +299,7 @@ body {
 }
 
 .tool-btn:hover,
-.btn-vegas-sm:hover,
+.btn-neoveg-sm:hover,
 .win-ctrl-btn:hover,
 .tr-btn:hover,
 .preview-mini-btn:hover,
@@ -326,7 +326,7 @@ body {
 }
 
 .tool-btn.primary-render,
-.btn-vegas-primary {
+.btn-neoveg-primary {
   background: var(--accent-blue);
   color: #ffffff;
   border-top: 1px solid var(--border-light);
@@ -344,7 +344,7 @@ body {
 }
 
 .tool-btn.primary-render:hover,
-.btn-vegas-primary:hover {
+.btn-neoveg-primary:hover {
   filter: brightness(1.12);
 }
 
@@ -355,7 +355,7 @@ body {
 }
 
 /* UPPER DOCKING WORKSPACE */
-.vegas-upper-workspace {
+.neoveg-upper-workspace {
   height: 48%;
   min-height: 180px;
   display: flex;
@@ -366,7 +366,7 @@ body {
   flex-shrink: 0;
 }
 
-.vegas-upper-workspace.all-undocked {
+.neoveg-upper-workspace.all-undocked {
   height: 0px !important;
   min-height: 0px !important;
   padding: 0 !important;
@@ -410,7 +410,7 @@ body {
 
 /* QT DOCK WINDOWS */
 .dock-pane,
-.vegas-dock-window {
+.neoveg-dock-window {
   background: var(--bg-panel);
   border: 1px solid var(--border-col);
   display: flex;
@@ -419,12 +419,12 @@ body {
   min-width: 150px;
 }
 
-.vegas-dock-window.is-floating {
+.neoveg-dock-window.is-floating {
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8);
   border: 2px solid var(--accent-blue);
 }
 
-.vegas-dock-window.is-minimized > :not(.vegas-win-titlebar) {
+.neoveg-dock-window.is-minimized > :not(.neoveg-win-titlebar) {
   display: none !important;
 }
 
@@ -435,7 +435,7 @@ body {
   z-index: 25;
 }
 
-.vegas-dock-window.is-floating .win-resize-handle {
+.neoveg-dock-window.is-floating .win-resize-handle {
   display: block;
 }
 
@@ -473,7 +473,7 @@ body {
 }
 
 /* QT DOCK TITLEBAR */
-.vegas-win-titlebar {
+.neoveg-win-titlebar {
   height: 28px;
   min-height: 28px;
   background: var(--bg-header);
@@ -486,18 +486,18 @@ body {
   flex-shrink: 0;
 }
 
-html[data-theme="vegas4-xp"] .vegas-win-titlebar,
-html[data-theme="vegas7-sony"] .vegas-win-titlebar {
+html[data-theme="neoveg4-xp"] .neoveg-win-titlebar,
+html[data-theme="neoveg7-classic_nle"] .neoveg-win-titlebar {
   color: #ffffff;
 }
 
-html[data-theme="vegas4-xp"] .dock-tab,
-html[data-theme="vegas7-sony"] .dock-tab {
+html[data-theme="neoveg4-xp"] .dock-tab,
+html[data-theme="neoveg7-classic_nle"] .dock-tab {
   color: #dbeafe;
 }
 
-html[data-theme="vegas4-xp"] .dock-tab.active,
-html[data-theme="vegas7-sony"] .dock-tab.active {
+html[data-theme="neoveg4-xp"] .dock-tab.active,
+html[data-theme="neoveg7-classic_nle"] .dock-tab.active {
   color: #111111;
 }
 
@@ -510,7 +510,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   overflow: hidden;
 }
 
-.vegas-grip-dots {
+.neoveg-grip-dots {
   color: var(--accent-cyan);
   font-weight: 900;
   font-size: 12px;
@@ -541,7 +541,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
 }
 
 .qt-icon,
-.vegas-svg {
+.neoveg-svg {
   width: 12px;
   height: 12px;
   display: block;
@@ -841,9 +841,9 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   color: var(--text-muted);
 }
 
-.vegas-input,
-.vegas-select,
-.vegas-select-xs {
+.neoveg-input,
+.neoveg-select,
+.neoveg-select-xs {
   background: var(--bg-input);
   color: var(--text-main);
   border: 1px solid var(--border-col);
@@ -984,7 +984,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   min-height: 110px;
 }
 
-#vegas-preview-canvas {
+#neoveg-preview-canvas {
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 16 / 9;
@@ -1060,7 +1060,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   padding: 4px;
 }
 
-#vegas-scope-canvas {
+#neoveg-scope-canvas {
   width: 100%;
   height: 76px;
   display: block;
@@ -1181,7 +1181,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
 }
 
 /* LOWER TIMELINE WORKSPACE */
-.vegas-timeline-workspace {
+.neoveg-timeline-workspace {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1243,7 +1243,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   overflow-y: auto;
 }
 
-.vegas-track-header {
+.neoveg-track-header {
   height: 76px;
   border-bottom: 1px solid var(--border-col);
   padding: 5px 7px;
@@ -1253,7 +1253,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   background: var(--bg-panel);
 }
 
-.vegas-track-header.selected {
+.neoveg-track-header.selected {
   background: var(--bg-panel-alt);
   border-left: 3px solid var(--accent-blue);
 }
@@ -1359,7 +1359,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
 }
 
 /* STATUS BAR */
-.vegas-statusbar {
+.neoveg-statusbar {
   height: 23px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-col);
@@ -1379,7 +1379,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
 }
 
 /* CONTEXT MENU */
-.vegas-context-menu {
+.neoveg-context-menu {
   position: fixed;
   z-index: 2500;
   width: 225px;
@@ -1429,7 +1429,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
 }
 
 /* MODALS & WELCOME HUB */
-.vegas-modal-backdrop {
+.neoveg-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 3000;
@@ -1439,7 +1439,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   justify-content: center;
 }
 
-.vegas-modal {
+.neoveg-modal {
   width: 680px;
   max-width: 95vw;
   background: var(--bg-panel);
@@ -1913,7 +1913,7 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   color: #ffffff !important;
 }
 
-.vegas-track-header {
+.neoveg-track-header {
   position: relative;
   transition: height 0.05s linear;
 }
@@ -1991,12 +1991,12 @@ html[data-theme="vegas7-sony"] .dock-tab.active {
   gap: 5px;
 }
 
-body.vegas-os-popout-mode #vegas-main-toolbar,
-body.vegas-os-popout-mode #vegas-status-footer {
+body.neoveg-os-popout-mode #neoveg-main-toolbar,
+body.neoveg-os-popout-mode #neoveg-status-footer {
   display: none !important;
 }
 
-body.vegas-os-popout-mode #vegas-dock-workspace {
+body.neoveg-os-popout-mode #neoveg-dock-workspace {
   height: 100vh !important;
 }
 
@@ -2031,7 +2031,7 @@ body.vegas-os-popout-mode #vegas-dock-workspace {
   flex-shrink: 0;
 }
 
-.vegas-track-header.grouped-track {
+.neoveg-track-header.grouped-track {
   box-shadow: inset 2px 0 0 rgba(245, 158, 11, 0.35);
 }
 

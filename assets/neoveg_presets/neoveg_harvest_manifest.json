@@ -1,5 +1,5 @@
 {
-  "source_repository": "G:\\Meu Drive\\vp-rev-eng\\kdenlive_vegas_fork\\kdenlive_vegas",
+  "source_repository": "G:\\Meu Drive\\vp-rev-eng\\kdenlive_neoveg_fork\\kdenlive_neoveg",
   "harvested": {
     "luts_3d": [
       "BLUE_TINT.cube",
@@ -14,8 +14,8 @@
       "UltraWhite.qss"
     ],
     "presets_and_layouts": [
-      "vegas_dock_layout.json",
-      "vegas_shortcuts.xml",
+      "neoveg_dock_layout.json",
+      "neoveg_shortcuts.xml",
       "premiere_shortcuts.xml",
       "encodingprofiles.rc",
       "kdenlivetranscodingrc",

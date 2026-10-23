@@ -1,28 +1,28 @@
 # Neoveg (fork do Kdenlive)
 
 ## Visão geral
-Este fork adiciona um **perfil visual e de comportamento inspirado no Vegas Pro** mantendo as funcionalidades do Kdenlive (proxy, keyframes, efeitos, ferramentas etc.).
+Este fork adiciona um **perfil visual e de comportamento inspirado no Neoveg** mantendo as funcionalidades do Kdenlive (proxy, keyframes, efeitos, ferramentas etc.).
 
-## Temas Vegas implementados (seleção em Configurações > Tema Vegas)
-- **UltraWhite** (Vegas 8)
-- **ClassicCinza** (Vegas 10–13)
-- **JorgeTheUser** (Vegas 14)
-- **ActualBlack** (Vegas 15+)
+## Temas Neoveg implementados (seleção em Configurações > Tema Neoveg)
+- **UltraWhite** (Neoveg 8)
+- **ClassicCinza** (Neoveg 10–13)
+- **JorgeTheUser** (Neoveg 14)
+- **ActualBlack** (Neoveg 15+)
 
 Os temas foram recriados via paleta + QSS próprios em `data/themes/` (sem copiar assets proprietários).
 
 ## O que foi implementado neste passo
-- Registro do menu **Tema Vegas** em Configurações
-- Persistência em configuração (`vegasThemeProfile`)
+- Registro do menu **Tema Neoveg** em Configurações
+- Persistência em configuração (`neovegThemeProfile`)
 - Aplicação dinâmica de paleta + QSS + cores de timeline
-- Layout adicional **Vegas** (`data/layouts/vegas.json`)
-- Ordem padrão de layouts iniciando por `vegas`
-- Ajustes de atalho estilo Vegas: `S` (cut/split clip), `D` (select tool)
-- Esquema de atalhos `data/shortcuts/Vegas`
+- Layout adicional **Neoveg** (`data/layouts/neoveg.json`)
+- Ordem padrão de layouts iniciando por `neoveg`
+- Ajustes de atalho estilo Neoveg: `S` (cut/split clip), `D` (select tool)
+- Esquema de atalhos `data/shortcuts/Neoveg`
 
 ## Build Linux Mint (script)
 ```bash
-cd /home/ubuntu/kdenlive_vegas
+cd /home/ubuntu/kdenlive_neoveg
 ./scripts/build_linux_mint.sh
 ```
 
@@ -66,8 +66,8 @@ cmake --build build-win-release --config Release
 - [x] Cabeçalhos de faixa (paleta/realce)
 - [x] Barras de ferramentas (QSS/paleta)
 - [x] Docks (QSS/paleta)
-- [x] Atalhos (comportamento base estilo Vegas)
-- [x] Layout inicial estilo Vegas (arquivo de layout adicional)
+- [x] Atalhos (comportamento base estilo Neoveg)
+- [x] Layout inicial estilo Neoveg (arquivo de layout adicional)
 
 ### Pendências técnicas
 - [ ] Calibração fina por comparação visual com capturas reais em execução local
@@ -75,7 +75,7 @@ cmake --build build-win-release --config Release
 - [ ] Testes completos de build em Linux Mint e Windows
 
 ## Nota sobre “JorgeTheUser”
-A grafia solicitada foi mantida **exatamente** como `JorgeTheUser` no produto. Historicamente, a referência mais comum para o tema do Vegas 14 é “JustTheUser”.
+A grafia solicitada foi mantida **exatamente** como `JorgeTheUser` no produto. Historicamente, a referência mais comum para o tema do Neoveg 14 é “JustTheUser”.
 
 ## Honestidade de validação
 Neste ambiente, as alterações de código e arquivos foram aplicadas e organizadas, mas a compilação completa do Kdenlive pode depender de toolchain/dependências locais. Não declarar build bem-sucedido sem evidência local.

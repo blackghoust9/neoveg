@@ -13,7 +13,7 @@ using Neoveg.Controls;
 namespace Neoveg.Styles;
 
 /// <summary>
-/// VEGAS Pro docked-window tabs for every Neoveg dock panel (Project Media, Trimmer, Video FX, Transitions...):
+/// Neoveg docked-window tabs for every Neoveg dock panel (Project Media, Trimmer, Video FX, Transitions...):
 /// - Tab strip in the footer of the window (`TabStripPlacement = Bottom`).
 /// - Compact flat tab headers (`FontSize = 11`, `Padding = 6,2,6,2`, 22px height).
 /// - Horizontal scrolling tab strip with left/right `RepeatButton` arrows, shown only when the tabs overflow.
@@ -29,7 +29,7 @@ public static class NeovegDockTabStyles
     private static readonly StreamGeometry ArrowLeft = StreamGeometry.Parse("M 10,3.5 L 5.5,8 L 10,12.5 Z");
     private static readonly StreamGeometry ArrowRight = StreamGeometry.Parse("M 6,3.5 L 10.5,8 L 6,12.5 Z");
 
-    /// <summary>Marks a dock panel <see cref="TabControl"/> to use the VEGAS compact bottom tab strip.</summary>
+    /// <summary>Marks a dock panel <see cref="TabControl"/> to use the Neoveg compact bottom tab strip.</summary>
     public static void Apply(TabControl tabs)
     {
         tabs.Classes.Add(DockTabsClass);
@@ -65,7 +65,7 @@ public static class NeovegDockTabStyles
         tab.VerticalContentAlignment = VerticalAlignment.Center;
 
         // The Fluent TabItem theme re-enables its accent underline (PART_SelectedPipe) and selected background
-        // through its own pseudo-class rules, so the flat VEGAS look is enforced as local values on the template parts.
+        // through its own pseudo-class rules, so the flat Neoveg look is enforced as local values on the template parts.
         tab.TemplateApplied -= OnDockTabTemplateApplied;
         tab.TemplateApplied += OnDockTabTemplateApplied;
     }
@@ -121,7 +121,7 @@ public static class NeovegDockTabStyles
                     new Setter(TemplatedControl.BackgroundProperty, Brushes.Transparent)
                 }
             },
-            // Flat VEGAS look: the selected tab is a lighter "card" joined to the content, no Fluent underline pipe
+            // Flat Neoveg look: the selected tab is a lighter "card" joined to the content, no Fluent underline pipe
             new Style(_ => tabItem.Class(":selected").Template().OfType<Border>().Name("PART_LayoutRoot"))
             {
                 Setters = { new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.Parse("#2a3446"))) }

@@ -250,7 +250,7 @@ build Release/neoveg_cpp_engine.dll Release/libneoveg_cpp_engine.dll.a: CXX_SHAR
   LINK_FLAGS = -shared -fsanitize=address,undefined --coverage
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\neoveg_cpp_engine.dir
-  POST_BUILD = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\paulomatos\Documents\GitHub\neoveg\cpp-extensions\build-qa && C:\Users\paulomatos\AppData\Local\Microsoft\WinGet\Packages\Kitware.CMake_Microsoft.Winget.Source_8wekyb3d8bbwe\cmake-4.4.4-windows-x86_64\bin\cmake.exe -E make_directory C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/../runtimes/win-x64/native && C:\Users\paulomatos\AppData\Local\Microsoft\WinGet\Packages\Kitware.CMake_Microsoft.Winget.Source_8wekyb3d8bbwe\cmake-4.4.4-windows-x86_64\bin\cmake.exe -E copy_if_different C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/build-qa/Release/neoveg_cpp_engine.dll C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/../runtimes/win-x64/native/neoveg_cpp_engine.dll"
+  POST_BUILD = cd .
   PRE_LINK = cd .
   RESTAT = 1
   TARGET_FILE = Release\neoveg_cpp_engine.dll
@@ -298,7 +298,7 @@ build Release/neoveg-whisper-cli.exe: CXX_EXECUTABLE_LINKER__neoveg_whisper_cli_
   LINK_FLAGS = -fsanitize=address,undefined --coverage
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\neoveg_whisper_cli.dir
-  POST_BUILD = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\paulomatos\Documents\GitHub\neoveg\cpp-extensions\build-qa && C:\Users\paulomatos\AppData\Local\Microsoft\WinGet\Packages\Kitware.CMake_Microsoft.Winget.Source_8wekyb3d8bbwe\cmake-4.4.4-windows-x86_64\bin\cmake.exe -E make_directory C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/../runtimes/win-x64/native && C:\Users\paulomatos\AppData\Local\Microsoft\WinGet\Packages\Kitware.CMake_Microsoft.Winget.Source_8wekyb3d8bbwe\cmake-4.4.4-windows-x86_64\bin\cmake.exe -E copy_if_different C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/build-qa/Release/neoveg-whisper-cli.exe C:/Users/paulomatos/Documents/GitHub/neoveg/cpp-extensions/../runtimes/win-x64/native/neoveg-whisper-cli.exe"
+  POST_BUILD = cd .
   PRE_LINK = cd .
   TARGET_FILE = Release\neoveg-whisper-cli.exe
   TARGET_IMPLIB = libneoveg-whisper-cli.dll.a

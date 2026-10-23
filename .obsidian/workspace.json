@@ -190,7 +190,7 @@
   },
   "active": "0059e9dce8b0dfb2",
   "lastOpenFiles": [
-    "RELATORIO_REA_VEGAS21.md",
+    "RELATORIO_REA_NEOVEG.md",
     "dist/Neoveg-Portable-win-x64/cpp-extensions/build/ALL_BUILD.dir/MinSizeRel",
     "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/neoveg_whisper_cli.dir/Release/neoveg-whisper-cli.exe.recipe",
     "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/CMakeCache.txt",
@@ -209,6 +209,6 @@
     "GUIA_NOVAS_FUNCIONALIDADES.md",
     "KEEPS.md",
     "README.md",
-    "RELATORIO_MAPEAMENTO_UI_VEGAS.md"
+    "RELATORIO_MAPEAMENTO_UI_NEOVEG.md"
   ]
 }

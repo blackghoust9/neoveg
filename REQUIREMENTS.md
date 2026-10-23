@@ -88,5 +88,5 @@ dotnet build desktop-host/Neoveg.csproj -c Release
 
 # 4. Python Backend & QA Suite
 pytest python-backend/
-python python-backend/test_vegas_engine.py
+python python-backend/test_neoveg_engine.py
 ```

@@ -11,7 +11,7 @@ using Avalonia.Threading;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// VEGAS Pro style docking window (Timeline, Video Preview, Trimmer, Master Bus...).
+/// Neoveg style docking window (Timeline, Video Preview, Trimmer, Master Bus...).
 /// Dragging the header grip (or a tab header, see <see cref="EnableTabUndocking"/>) tears the panel
 /// out into an independent floating window; closing the floating window docks it back into its slot.
 /// </summary>

@@ -18,7 +18,7 @@ import media_relinker
 import neoveg_integration
 import plugins_engine
 import rust_bridge
-import vegas_scripting
+import neoveg_scripting
 import workspace_sync
 import xml_interchange
 
@@ -30,7 +30,7 @@ __all__ = [
     "neoveg_integration",
     "plugins_engine",
     "rust_bridge",
-    "vegas_scripting",
+    "neoveg_scripting",
     "workspace_sync",
     "xml_interchange",
 ]

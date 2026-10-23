@@ -17,7 +17,7 @@
         "children": [
           {
             "OTIO_SCHEMA": "Clip.2",
-            "name": "VEGAS Lower Third Title",
+            "name": "Neoveg Lower Third Title",
             "source_range": {
               "OTIO_SCHEMA": "TimeRange.1",
               "start_time": {
@@ -45,7 +45,7 @@
         "children": [
           {
             "OTIO_SCHEMA": "Clip.2",
-            "name": "vegas_smpte_bars.mp4",
+            "name": "neoveg_smpte_bars.mp4",
             "source_range": {
               "OTIO_SCHEMA": "TimeRange.1",
               "start_time": {
@@ -61,7 +61,7 @@
             },
             "media_reference": {
               "OTIO_SCHEMA": "ExternalReference.1",
-              "target_url": "vegas_smpte_bars.mp4"
+              "target_url": "neoveg_smpte_bars.mp4"
             }
           },
           {

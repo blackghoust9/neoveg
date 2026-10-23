@@ -1,7 +1,7 @@
 {
-  "name": "OpenVegas_Broadcast_Demo.veg",
+  "name": "Neoveg_Broadcast_Demo.veg",
   "isDemo": true,
-  "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Vegas, CorridorKey e Áudio Estéreo 120 BPM.",
+  "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Neoveg, CorridorKey e Áudio Estéreo 120 BPM.",
   "width": 1280,
   "height": 720,
   "fps": 29.97,
@@ -88,11 +88,11 @@
       "clips": [
         {
           "id": "clip_title_1",
-          "name": "VEGAS Lower Third Title",
+          "name": "Neoveg Lower Third Title",
           "mediaId": "gen_title",
           "mediaType": "title",
           "generatorType": "titleText",
-          "titleText": "OPEN VEGAS PRO 21 STUDIO",
+          "titleText": "OPEN NEOVEG 21 STUDIO",
           "subtitleText": "RUST CORE  •  PYTHON FFMPEG/FREI0R/LADSPA  •  CORRIDORKEY AI",
           "color": "#6366f1",
           "start": 0.4,
@@ -145,10 +145,10 @@
       "clips": [
         {
           "id": "clip_v_1",
-          "name": "vegas_smpte_bars.mp4",
-          "mediaId": "media_vegas_smpte_bars",
-          "mediaFile": "vegas_smpte_bars.mp4",
-          "mediaUrl": "/media/vegas_smpte_bars.mp4",
+          "name": "neoveg_smpte_bars.mp4",
+          "mediaId": "media_neoveg_smpte_bars",
+          "mediaFile": "neoveg_smpte_bars.mp4",
+          "mediaUrl": "/media/neoveg_smpte_bars.mp4",
           "mediaType": "video",
           "generatorType": "smpteBars",
           "color": "#2563eb",
@@ -205,7 +205,7 @@
             {
               "id": "fx_init_1",
               "type": "vignette",
-              "name": "VEGAS Soft Vignette",
+              "name": "Neoveg Soft Vignette",
               "enabled": true,
               "params": {
                 "strength": 0.55

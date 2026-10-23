@@ -11,13 +11,13 @@ using Neoveg.Models;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// Cross-platform Avalonia UI Custom Control for the VEGAS Pro Video Preview Monitor.
+/// Cross-platform Avalonia UI Custom Control for the Neoveg Video Preview Monitor.
 /// Renders active multi-track video/generator events, CorridorKey AI green screen unmixing,
 /// Event Pan/Crop `F` frame gizmo, Split-Screen FX bypass, Safe Areas, and SMPTE HUD.
 /// </summary>
 public sealed class VideoPreviewControl : Control
 {
-    public VegasProject? Project { get; set; }
+    public NeovegProject? Project { get; set; }
     public TimelineClip? SelectedClip { get; set; }
     public RustCoreInterop? RustInterop { get; set; }
     public CppCoreInterop? CppInterop { get; set; }
@@ -152,7 +152,7 @@ public sealed class VideoPreviewControl : Control
         base.OnPointerWheelChanged(e);
         if (SelectedClip != null && ShowPanCropGizmo)
         {
-            // Inverted VEGAS zoom: scrolling up shrinks the 'F' box (zooms IN on image)
+            // Inverted Neoveg zoom: scrolling up shrinks the 'F' box (zooms IN on image)
             double delta = e.Delta.Y > 0 ? -0.05 : 0.05;
             SelectedClip.PanCrop.Scale = Math.Clamp(Math.Round(SelectedClip.PanCrop.Scale + delta, 3), 0.15, 2.5);
             if (SelectedClip.PanCrop.LockAspect)
@@ -195,7 +195,7 @@ public sealed class VideoPreviewControl : Control
             double t = Project.Playhead;
             bool anySolo = Project.Tracks.Any(tr => tr.Type == "video" && tr.Solo);
 
-            // Composite from bottom video track to top video track (Vegas Pro compositing order)
+            // Composite from bottom video track to top video track (Neoveg compositing order)
             for (int i = Project.Tracks.Count - 1; i >= 0; i--)
             {
                 var track = Project.Tracks[i];
@@ -282,7 +282,7 @@ public sealed class VideoPreviewControl : Control
         double localT = Math.Max(0.0, time - clip.Start);
         clip.PanCrop.EvaluateAtLocalTime(localT);
 
-        // VEGAS Pro Inverted Camera 2D Affine Transform (via C/C++ native bridge or exact camera inverse):
+        // Neoveg Inverted Camera 2D Affine Transform (via C/C++ native bridge or exact camera inverse):
         // Shrinking the 'F' box (Scale < 1.0) magnifies the image (zoom = 1.0 / Scale),
         // and dragging the 'F' box right/down shifts the captured image left/up!
         double cropScaleX = Math.Clamp(clip.PanCrop.Scale, 0.15, 2.5);
@@ -343,7 +343,7 @@ public sealed class VideoPreviewControl : Control
         {
             if (clip.IsOffline)
             {
-                // VEGAS Pro Offline Media Red Frame Slate
+                // Neoveg Offline Media Red Frame Slate
                 context.FillRectangle(new SolidColorBrush(Color.FromArgb(alpha, 127, 29, 29)), dst);
                 var offlineStripePen = new Pen(new SolidColorBrush(Color.FromArgb(alpha, 220, 38, 38)), 2.0);
                 context.DrawLine(offlineStripePen, dst.TopLeft, dst.BottomRight);
@@ -517,7 +517,7 @@ public sealed class VideoPreviewControl : Control
             context.FillRectangle(handleBrush, new Rect(pt.X - 3.5, pt.Y - 3.5, 7, 7));
         }
 
-        // VEGAS signature "F" orientation glyph inside the Pan/Crop frame
+        // Neoveg signature "F" orientation glyph inside the Pan/Crop frame
         DrawText(context, "F", new Point(cx - 5, cy - 9), 15, Color.FromArgb(190, 56, 189, 248), true);
     }
 

@@ -5,7 +5,7 @@ using Avalonia.Media;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// Zoom-adaptive timeline frame grid (see docs/research/vegas_features_research.txt, entry 4):
+/// Zoom-adaptive timeline frame grid (see docs/research/nle_features_research.txt, entry 4):
 /// - Close zoom: one minor line per frame (1/24, 1/25, 1/30, 1/60 s... from the project FPS).
 /// - Medium/far zoom: lines grouped into 2/5/10 frames, then 1 s, 2 s, 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 5 min...
 /// - Major lines carry the ruler labels; minor lines are the subtle subdivisions between them.

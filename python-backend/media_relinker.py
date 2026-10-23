@@ -1,10 +1,10 @@
 """
 Neoveg — Automated 3-Stage Missing Media Search & Relinker (`python-backend/media_relinker.py`)
-Mirrors VEGAS Pro's Missing Media resolution engine:
+Mirrors Neoveg's Missing Media resolution engine:
 1. Recursive Directory Scanner across user-selected folders/drives.
 2. 3-Stage Matching Algorithm:
    - Stage 1: Exact Filename & Extension Match (case-insensitive).
-   - Stage 2: Fuzzy Camera Prefix/Suffix & Token Similarity Match (e.g., `CAM01_vegas_cyber_scene_FINAL.mp4` -> `vegas_cyber_scene.mp4`).
+   - Stage 2: Fuzzy Camera Prefix/Suffix & Token Similarity Match (e.g., `CAM01_neoveg_cyber_scene_FINAL.mp4` -> `neoveg_cyber_scene.mp4`).
    - Stage 3: Metadata Validation via Isolated FFprobe & Rust FFI (verifies video/audio stream presence and duration compatibility).
 3. Same-Directory Sibling Auto-Relink: Once one missing file is found in a folder, automatically relinks any other missing project files located in that same folder.
 4. Rust FFI `.sfk` Peak Cache Regeneration for relinked audio/video files.

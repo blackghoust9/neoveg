@@ -26,7 +26,7 @@ public sealed class MasterBusView : UserControl
     private readonly Slider _masterVolumeSlider;
     private bool _updatingSliderFromModel;
 
-    public VegasProject? Project
+    public NeovegProject? Project
     {
         get => MeterControl.Project;
         set
@@ -65,7 +65,7 @@ public sealed class MasterBusView : UserControl
     }
 
     public MasterBusView(
-        VegasProject? project = null,
+        NeovegProject? project = null,
         RustCoreInterop? rustInterop = null,
         MasterScopeControl? meterControl = null,
         MasterBusViewModel? viewModel = null)
@@ -110,12 +110,13 @@ public sealed class MasterBusView : UserControl
             Foreground = new SolidColorBrush(Color.Parse("#38bdf8"))
         };
 
-        _masterVolumeSlider = new Slider
-        {
-            Minimum = 0.0,
-            Maximum = 1.4,
-            Value = ViewModel.MasterVolume
-        };
+        _masterVolumeSlider = NeovegPrecisionSlider.Create(
+            minimum: 0.0,
+            maximum: 1.4,
+            initialValue: ViewModel.MasterVolume,
+            defaultValue: 1.0,
+            parameterLabel: "Volume do Master Bus",
+            displayAsPercentage: true);
 
         _masterVolumeSlider.PropertyChanged += (_, e) =>
         {

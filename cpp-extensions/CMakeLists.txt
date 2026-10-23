@@ -112,13 +112,15 @@ else()
     message(FATAL_ERROR "No shared-library output configuration is defined for this platform.")
 endif()
 
-add_custom_command(TARGET neoveg_cpp_engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${NEOVEG_NATIVE_OUT}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:neoveg_cpp_engine>
-        "${NEOVEG_NATIVE_OUT}/$<TARGET_FILE_NAME:neoveg_cpp_engine>"
-    COMMENT "Staging neoveg_cpp_engine dynamic binary into ${NEOVEG_NATIVE_OUT}"
-)
+if(NOT NEOVEG_ENABLE_SANITIZERS AND NOT NEOVEG_ENABLE_COVERAGE)
+    add_custom_command(TARGET neoveg_cpp_engine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${NEOVEG_NATIVE_OUT}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:neoveg_cpp_engine>
+            "${NEOVEG_NATIVE_OUT}/$<TARGET_FILE_NAME:neoveg_cpp_engine>"
+        COMMENT "Staging neoveg_cpp_engine dynamic binary into ${NEOVEG_NATIVE_OUT}"
+    )
+endif()
 
 # Standalone whisper.cpp CLI executable (`neoveg-whisper-cli`) for out-of-process AI subtitle transcription
 add_executable(neoveg_whisper_cli
@@ -131,6 +133,10 @@ set_target_properties(neoveg_whisper_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${NEOVEG_BUILD_RELEASE_OUT}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${NEOVEG_BUILD_RELEASE_OUT}"
 )
+
+if(BUILD_TESTING)
+    add_test(NAME neoveg_whisper_cli_smoke COMMAND neoveg_whisper_cli --duration 2.0)
+endif()
 
 if(NEOVEG_ENABLE_SANITIZERS OR NEOVEG_ENABLE_COVERAGE)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"
@@ -151,10 +157,12 @@ if(NEOVEG_ENABLE_SANITIZERS OR NEOVEG_ENABLE_COVERAGE)
     endforeach()
 endif()
 
-add_custom_command(TARGET neoveg_whisper_cli POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${NEOVEG_NATIVE_OUT}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:neoveg_whisper_cli>
-        "${NEOVEG_NATIVE_OUT}/$<TARGET_FILE_NAME:neoveg_whisper_cli>"
-    COMMENT "Staging neoveg-whisper-cli into ${NEOVEG_NATIVE_OUT}"
-)
+if(NOT NEOVEG_ENABLE_SANITIZERS AND NOT NEOVEG_ENABLE_COVERAGE)
+    add_custom_command(TARGET neoveg_whisper_cli POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${NEOVEG_NATIVE_OUT}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:neoveg_whisper_cli>
+            "${NEOVEG_NATIVE_OUT}/$<TARGET_FILE_NAME:neoveg_whisper_cli>"
+        COMMENT "Staging neoveg-whisper-cli into ${NEOVEG_NATIVE_OUT}"
+    )
+endif()

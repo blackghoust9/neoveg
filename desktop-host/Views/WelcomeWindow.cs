@@ -14,10 +14,10 @@ using Neoveg.Services;
 namespace Neoveg.Views;
 
 /// <summary>
-/// Tela de Boas-Vindas oficial no estilo VEGAS Pro (New Project / Open Project / Getting Started):
-/// - Barra superior escura com o ícone azul [V] + "VEGAS Pro" centralizado e botão fechar [✕]
+/// Tela de Boas-Vindas oficial no estilo Neoveg (New Project / Open Project / Getting Started):
+/// - Barra superior escura com o ícone azul [V] + "Neoveg" centralizado e botão fechar [✕]
 /// - Barra lateral esquerda vertical com "New Project" (azul #0095FF quando ativo), "Open Project" e "Getting Started"
-/// - Banner fotográfico superior da câmera de cinema VEGAS Pro em fundo azul royal
+/// - Banner fotográfico superior da câmera de cinema Neoveg em fundo azul royal
 /// - 5 blocos seletores de proporção de tela: Widescreen (16:9), Fullscreen (4:3), Portrait (9:16), Square (1:1) e Scope (2.4:1)
 /// - Seção "Create a new project" com dropdowns de Resolution, Framerate + Drop Frame e botões "Create Project" e "Advanced Settings..."
 /// - Rodapé inferior com CheckBox "Show Welcome Screen on Startup"
@@ -26,11 +26,11 @@ public sealed class WelcomeWindow : Window
 {
     public static bool ShowWelcomeOnStartup { get; set; } = false;
 
-    private readonly VegasProject _currentProject;
+    private readonly NeovegProject _currentProject;
     private readonly FFmpegPythonService _pythonService;
     private readonly RustCoreInterop _rustInterop;
     private readonly string _ffmpegStatusBanner;
-    private readonly Action<VegasProject, string> _onProjectSelected;
+    private readonly Action<NeovegProject, string> _onProjectSelected;
     private readonly Action _onSettingsUpdated;
 
     private readonly Border[] _leftNavTiles = new Border[3];
@@ -118,11 +118,11 @@ public sealed class WelcomeWindow : Window
     };
 
     public WelcomeWindow(
-        VegasProject currentProject,
+        NeovegProject currentProject,
         FFmpegPythonService pythonService,
         RustCoreInterop rustInterop,
         string ffmpegStatusBanner,
-        Action<VegasProject, string> onProjectSelected,
+        Action<NeovegProject, string> onProjectSelected,
         Action onSettingsUpdated)
     {
         _currentProject = currentProject;
@@ -133,7 +133,7 @@ public sealed class WelcomeWindow : Window
         _onSettingsUpdated = onSettingsUpdated;
 
         var loc = LocalizationManager.Instance;
-        Title = loc.T("Welcome.Title", "VEGAS Pro — Welcome");
+        Title = loc.T("Welcome.Title", "Neoveg — Welcome");
         Width = 780;
         Height = 548;
         CanResize = false;
@@ -161,7 +161,7 @@ public sealed class WelcomeWindow : Window
             RowDefinitions = new RowDefinitions("44,*,34")
         };
 
-        // 1. TOP HEADER BAR ([V] VEGAS Pro + Botão [✕])
+        // 1. TOP HEADER BAR ([V] Neoveg + Botão [✕])
         var topHeader = BuildTopHeaderBar();
         Grid.SetRow(topHeader, 0);
         rootGrid.Children.Add(topHeader);
@@ -208,7 +208,7 @@ public sealed class WelcomeWindow : Window
             }
         };
 
-        // Centro: Ícone azul [V] + "VEGAS Pro"
+        // Centro: Ícone azul [V] + "Neoveg"
         var centerBrand = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -252,7 +252,7 @@ public sealed class WelcomeWindow : Window
             {
                 new TextBlock
                 {
-                    Text = "VEGAS",
+                    Text = "Neoveg",
                     FontSize = 17.5,
                     FontWeight = FontWeight.Bold,
                     Foreground = Brushes.White
@@ -359,7 +359,7 @@ public sealed class WelcomeWindow : Window
             Background = new SolidColorBrush(Color.Parse("#18191C"))
         };
 
-        // Row 0: Cinema Camera Hero Banner (Carrega o banner da câmera VEGAS Pro sobre fundo azul royal)
+        // Row 0: Cinema Camera Hero Banner (Carrega o banner da câmera Neoveg sobre fundo azul royal)
         var bannerControl = BuildCinemaCameraBanner();
         Grid.SetRow(bannerControl, 0);
         rightGrid.Children.Add(bannerControl);
@@ -375,8 +375,8 @@ public sealed class WelcomeWindow : Window
     {
         string[] candidates =
         {
-            Path.Combine(AppContext.BaseDirectory, "assets", "vegas_history_themes", "vegas_welcome_camera_banner.png"),
-            Path.Combine(Directory.GetCurrentDirectory(), "assets", "vegas_history_themes", "vegas_welcome_camera_banner.png")
+            Path.Combine(AppContext.BaseDirectory, "assets", "neoveg_history_themes", "neoveg_welcome_camera_banner.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "assets", "neoveg_history_themes", "neoveg_welcome_camera_banner.png")
         };
 
         foreach (string path in candidates)
@@ -419,7 +419,7 @@ public sealed class WelcomeWindow : Window
             },
             Child = new TextBlock
             {
-                Text = "VEGAS PRO 21 • CINEMA ENGINE",
+                Text = "NEOVEG 21 • CINEMA ENGINE",
                 FontSize = 22,
                 FontWeight = FontWeight.Black,
                 Foreground = Brushes.White,
@@ -609,10 +609,10 @@ public sealed class WelcomeWindow : Window
             Margin = new Thickness(86, 4, 0, 0)
         };
 
-        var btnCreate = CreateVegasDarkButton(loc.T("Welcome.CreateBtn", "Create Project"), 148);
+        var btnCreate = CreateNeovegDarkButton(loc.T("Welcome.CreateBtn", "Create Project"), 148);
         btnCreate.Click += (_, _) => CreateProjectFromSelection();
 
-        var btnAdv = CreateVegasDarkButton(loc.T("Welcome.AdvancedBtn", "Advanced Settings..."), 156);
+        var btnAdv = CreateNeovegDarkButton(loc.T("Welcome.AdvancedBtn", "Advanced Settings..."), 156);
         btnAdv.Click += (_, _) =>
         {
             var advWin = new AdvancedSettingsWindow(_currentProject, _rustInterop, _ffmpegStatusBanner, _onSettingsUpdated);
@@ -664,7 +664,7 @@ public sealed class WelcomeWindow : Window
         int fpsIdx = Math.Clamp(_cmbFramerate?.SelectedIndex ?? 0, 0, FrameratePresets.Length - 1);
         double fps = FrameratePresets[fpsIdx].Fps;
 
-        var proj = VegasProject.CreateEmpty("VEGAS_New_Project", w, h, fps);
+        var proj = NeovegProject.CreateEmpty("Neoveg_New_Project", w, h, fps);
         _onProjectSelected(proj, $"Novo projeto criado ({aspect.Label} • {w}x{h} @{fps:0.###}fps)");
         Close();
     }
@@ -679,7 +679,7 @@ public sealed class WelcomeWindow : Window
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Open an existing VEGAS Pro project (.veg)",
+            Text = "Open an existing Neoveg project (.veg)",
             FontSize = 12.5,
             FontWeight = FontWeight.Bold,
             Foreground = Brushes.White
@@ -711,7 +711,7 @@ public sealed class WelcomeWindow : Window
             };
             Grid.SetColumn(info, 0);
 
-            var btnOpen = CreateVegasDarkButton("Open Project", 125);
+            var btnOpen = CreateNeovegDarkButton("Open Project", 125);
             btnOpen.Click += (_, _) =>
             {
                 _onProjectSelected(savedProj, $"Projeto carregado: {fileName}");
@@ -751,7 +751,7 @@ public sealed class WelcomeWindow : Window
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Getting Started with VEGAS Pro / Neoveg",
+            Text = "Getting Started with Neoveg / Neoveg",
             FontSize = 12.5,
             FontWeight = FontWeight.Bold,
             Foreground = Brushes.White
@@ -771,25 +771,25 @@ public sealed class WelcomeWindow : Window
             Margin = new Thickness(0, 6, 0, 0)
         };
 
-        var btnDemo = CreateVegasDarkButton("Open Broadcast Demo (.veg)", 190);
+        var btnDemo = CreateNeovegDarkButton("Open Broadcast Demo (.veg)", 190);
         btnDemo.Click += (_, _) =>
         {
-            var demo = VegasProject.CreateBroadcastDemo();
+            var demo = NeovegProject.CreateBroadcastDemo();
             _onProjectSelected(demo, "Projeto de Demonstração Broadcast carregado.");
             Close();
         };
 
-        var btnAdv = CreateVegasDarkButton("Advanced Settings...", 160);
+        var btnAdv = CreateNeovegDarkButton("Advanced Settings...", 160);
         btnAdv.Click += (_, _) =>
         {
             var advWin = new AdvancedSettingsWindow(_currentProject, _rustInterop, _ffmpegStatusBanner, _onSettingsUpdated);
             advWin.Show(this);
         };
 
-        var btnSplash = CreateVegasDarkButton("View Vegas Pro 12 Splash...", 180);
+        var btnSplash = CreateNeovegDarkButton("View Neoveg 12 Splash...", 180);
         btnSplash.Click += (_, _) =>
         {
-            var splash = new VegasSplashWindow(durationSeconds: 3.5);
+            var splash = new NeovegSplashWindow(durationSeconds: 3.5);
             splash.Show(this);
         };
 
@@ -831,7 +831,7 @@ public sealed class WelcomeWindow : Window
         return footerBorder;
     }
 
-    private static Button CreateVegasDarkButton(string text, double width)
+    private static Button CreateNeovegDarkButton(string text, double width)
     {
         return new Button
         {

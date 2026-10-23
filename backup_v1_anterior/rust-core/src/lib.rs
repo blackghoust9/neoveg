@@ -1,9 +1,9 @@
-//! OpenVegas Core NLE Engine (Rust)
+//! Neoveg Core NLE Engine (Rust)
 //!
 //! Provides deterministic, frame-accurate Non-Linear Editing (NLE) algorithms
-//! modeled after VEGAS Pro:
+//! modeled after Neoveg:
 //! - SMPTE Drop-Frame (`00:00:00;00`) and Non-Drop-Frame (`00:00:00:00`) Timecode
-//! - Vegas Pro 5-Curve Fade Envelopes (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`)
+//! - Neoveg 5-Curve Fade Envelopes (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`)
 //! - Automatic Overlap Crossfade Detection & Equal-Power Audio Blending
 //! - Event Split (`S` shortcut), Trim, and Ripple Edit solvers
 //! - 16-bit/32-bit Riff WAVE PCM Peak & dBFS RMS Waveform Extractor
@@ -14,7 +14,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-/// Vegas Pro Fade Curve Types
+/// Neoveg Fade Curve Types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FadeCurve {
     Linear,
@@ -45,7 +45,7 @@ impl FadeCurve {
         }
     }
 
-    /// Evaluates normalized progress `t` in `[0.0, 1.0]` along the selected Vegas fade curve.
+    /// Evaluates normalized progress `t` in `[0.0, 1.0]` along the selected Neoveg fade curve.
     pub fn evaluate(&self, t: f64) -> f64 {
         let x = t.clamp(0.0, 1.0);
         match self {
@@ -63,7 +63,7 @@ impl FadeCurve {
         }
     }
 
-    /// Maps Vegas curve to the closest FFmpeg `acrossfade` curve identifier.
+    /// Maps Neoveg curve to the closest FFmpeg `acrossfade` curve identifier.
     pub fn to_ffmpeg_audio_curve(&self) -> &'static str {
         match self {
             Self::Linear => "tri",
@@ -75,7 +75,7 @@ impl FadeCurve {
     }
 }
 
-/// Vegas Pro Track Compositing Modes
+/// Neoveg Track Compositing Modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlendMode {
     SourceAlpha,
@@ -143,7 +143,7 @@ impl TimelineEvent {
     }
 }
 
-/// Represents an automatically detected Vegas Pro overlap crossfade between two events
+/// Represents an automatically detected Neoveg overlap crossfade between two events
 #[derive(Debug, Clone)]
 pub struct CrossfadeRegion {
     pub track_index: usize,
@@ -192,7 +192,7 @@ impl Timecode {
         Some(hours * 3600.0 + mins * 60.0 + secs + (frames / safe_fps))
     }
 
-    /// Formats seconds into Vegas Measures & Beats (`Measure.Beat.Tick`)
+    /// Formats seconds into Neoveg Measures & Beats (`Measure.Beat.Tick`)
     pub fn format_measures_beats(seconds: f64, bpm: f64, beats_per_measure: u32) -> String {
         let safe_bpm = if bpm <= 0.0 { 120.0 } else { bpm };
         let safe_bpm_meas = beats_per_measure.max(1) as f64;
@@ -204,7 +204,7 @@ impl Timecode {
     }
 }
 
-/// Detects all overlapping clips on the same track and computes Vegas automatic crossfades.
+/// Detects all overlapping clips on the same track and computes Neoveg automatic crossfades.
 pub fn detect_auto_crossfades(events: &mut [TimelineEvent]) -> Vec<CrossfadeRegion> {
     // Sort by track_index then start time
     events.sort_by(|a, b| {
@@ -250,7 +250,7 @@ pub fn detect_auto_crossfades(events: &mut [TimelineEvent]) -> Vec<CrossfadeRegi
     crossfades
 }
 
-/// Splits an event at `split_time` (Vegas Pro `S` shortcut), returning the left and right halves.
+/// Splits an event at `split_time` (Neoveg `S` shortcut), returning the left and right halves.
 pub fn split_event_at(event: &TimelineEvent, split_time: f64, new_id: &str) -> Option<(TimelineEvent, TimelineEvent)> {
     let min_clip_len = 0.04; // ~1 frame at 25fps
     if split_time <= event.start + min_clip_len || split_time >= event.end() - min_clip_len {
@@ -469,7 +469,7 @@ pub fn compile_ffmpeg_filtergraph(
     filters.join("; ")
 }
 
-/// Represents a VEGAS Pro Audio/Video Track Header with Track Grouping & Renaming Support
+/// Represents a Neoveg Audio/Video Track Header with Track Grouping & Renaming Support
 #[derive(Debug, Clone)]
 pub struct TrackHeaderNode {
     pub id: String,
@@ -484,7 +484,7 @@ pub struct TrackHeaderNode {
     pub level: f64,
 }
 
-/// VEGAS Pro Track Renaming & Audio/Video Track Grouping Solver
+/// Neoveg Track Renaming & Audio/Video Track Grouping Solver
 pub struct TrackGroupEngine;
 
 impl TrackGroupEngine {
@@ -497,7 +497,7 @@ impl TrackGroupEngine {
         track.name.clone()
     }
 
-    /// Groups multiple audio and video tracks together under a shared VEGAS Track Group.
+    /// Groups multiple audio and video tracks together under a shared Neoveg Track Group.
     pub fn group_tracks(
         tracks: &mut [TrackHeaderNode],
         target_ids: &[String],

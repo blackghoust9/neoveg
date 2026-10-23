@@ -16,7 +16,7 @@ public sealed record LanguageOption(string Code, string DisplayName, string Engl
 
 /// <summary>
 /// Dynamic Multi-Language Internationalization Manager (i18n) for Neoveg.
-/// Supports 8 official VEGAS Pro + Global languages:
+/// Supports 8 official Neoveg + Global languages:
 /// - pt-BR (Português do Brasil — Default)
 /// - en-US (English)
 /// - es-ES (Español)
@@ -55,7 +55,7 @@ public sealed class LocalizationManager
     private readonly Dictionary<string, Dictionary<string, string>> _catalog = new(StringComparer.OrdinalIgnoreCase);
 
     public string CurrentLanguageCode { get; private set; } = "pt-BR";
-    public string SelectedThemeId { get; set; } = "era3_magix_dark";
+    public string SelectedThemeId { get; set; } = "era3_modern_dark";
     public bool ShowWelcomeOnStartup { get; set; } = false;
     public bool AutoFadeOnImport { get; set; } = false;
 

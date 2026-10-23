@@ -157,7 +157,7 @@ public sealed class MasterBusViewModel : INotifyPropertyChanged
     /// If playback is stopped or there is no active audio media on the timeline, meters are strictly zeroed (-∞ dB).
     /// </summary>
     public void UpdateFromRealTimeAudioTelemetry(
-        VegasProject? project,
+        NeovegProject? project,
         bool isPlaying,
         RustCoreInterop? rustInterop)
     {

@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <BaseIntermediateOutputPath>$(TEMP)\OpenVegasPro21Build\obj\</BaseIntermediateOutputPath>
-    <BaseOutputPath>$(TEMP)\OpenVegasPro21Build\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(TEMP)\NeovegLegacyBuild\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(TEMP)\NeovegLegacyBuild\bin\</BaseOutputPath>
   </PropertyGroup>
 </Project>

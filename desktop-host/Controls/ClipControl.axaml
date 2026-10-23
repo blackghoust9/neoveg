@@ -4,7 +4,7 @@
              x:Class="Neoveg.Controls.ClipControl">
   <!--
     Neoveg Timeline Clip & Stereo Audio Waveform Control (ClipControl.axaml)
-    Specified per VEGAS Pro 10/11/12/13/18/21 Official Reference Manuals (AGENTS.md Section 10):
+    Specified per Neoveg 10/11/12/13/18/21 Official Reference Manuals (AGENTS.md Section 10):
     1. Event Header (Generated Media, Event Pan/Crop, Video/Audio Event FX, Hamburger Menu ☰).
     2. Top-Left and Top-Right Fade In / Fade Out Corner Handles (PART_FadeInCornerHandle, PART_FadeOutCornerHandle).
     3. Opacity / Gain Envelope Line (PART_ClipOpacityGainLine).
@@ -17,7 +17,7 @@
           CornerRadius="2"
           ClipToBounds="True">
     <Grid RowDefinitions="19,*">
-      <!-- Row 0: VEGAS Pro Event Header + Top Corner Fade Handles -->
+      <!-- Row 0: Neoveg Event Header + Top Corner Fade Handles -->
       <Border x:Name="PART_EventHeaderBar"
               Grid.Row="0"
               Background="#0f172a"

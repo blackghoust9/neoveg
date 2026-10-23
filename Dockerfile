@@ -86,4 +86,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # Default entrypoint runs full QA & Performance Benchmark Suite
-CMD ["python3", "python-backend/test_vegas_engine.py"]
+CMD ["python3", "scripts/test_neoveg_engine.py"]

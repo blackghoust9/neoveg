@@ -2,7 +2,7 @@
 Neovegject Interchange & Native `.neoveg` Container Engine (`neoveg` Python Backend).
 Mirrors `Neoveg.ProjectInterchange` in C#:
 1. Official `.neoveg` Native Container (ZIP archive containing `project.json`, `media_pool.json`, `history.json`).
-2. Legacy VEGAS Pro `.veg` Import via Rust FFI (`neoveg_inspect_veg_container`).
+2. Legacy Neoveg `.veg` Import via Rust FFI (`neoveg_inspect_veg_container`).
 3. Final Cut Pro 7 / Adobe Premiere Pro / DaVinci Resolve XML (`.xml` — `xmeml version="5"`).
 4. Final Cut Pro X / DaVinci Resolve Structured XML (`.fcpxml` — `fcpxml version="1.10"`).
 5. CMX3600 Edit Decision List (`.edl`).

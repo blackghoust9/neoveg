@@ -97,7 +97,7 @@ public sealed class NeovegHistoryDocument
 
 /// <summary>
 /// Manages the official `.neoveg` native container format (ZIP archive containing
-/// `project.json`, `media_pool.json`, and `history.json`), as well as Legacy VEGAS Pro (`.veg`)
+/// `project.json`, `media_pool.json`, and `history.json`), as well as Legacy Neoveg (`.veg`)
 /// import via Rust FFI (`neoveg_inspect_veg_container`) and XML Project Interchange
 /// (`FCP7 XML .xml`, `FCPX FCPXML .fcpxml`, and `EDL CMX3600 .edl`).
 /// </summary>
@@ -120,7 +120,7 @@ public static class NeovegProjectInterchangeEngine
     // =========================================================================
 
     public static string SaveNativeNeovegContainer(
-        VegasProject project,
+        NeovegProject project,
         string targetPath,
         string? workspaceRoot = null)
     {
@@ -175,7 +175,7 @@ public static class NeovegProjectInterchangeEngine
         return targetPath;
     }
 
-    public static VegasProject LoadNativeNeovegContainer(string filePath)
+    public static NeovegProject LoadNativeNeovegContainer(string filePath)
     {
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Arquivo de projeto .neoveg não encontrado: {filePath}");
@@ -193,8 +193,8 @@ public static class NeovegProjectInterchangeEngine
                 ?? throw new InvalidDataException("Contêiner .neoveg inválido: 'project.json' ausente.");
 
             string projJson = ReadZipTextEntry(projEntry);
-            var project = JsonSerializer.Deserialize<VegasProject>(projJson, JsonPrettyOptions)
-                ?? VegasProject.CreateEmpty(Path.GetFileNameWithoutExtension(filePath));
+            var project = JsonSerializer.Deserialize<NeovegProject>(projJson, JsonPrettyOptions)
+                ?? NeovegProject.CreateEmpty(Path.GetFileNameWithoutExtension(filePath));
 
             var mediaEntry = archive.GetEntry("media_pool.json");
             if (mediaEntry != null)
@@ -241,11 +241,11 @@ public static class NeovegProjectInterchangeEngine
 
         // Fallback if plain JSON was saved with .neoveg extension
         string plainJson = Encoding.UTF8.GetString(rawBytes);
-        return JsonSerializer.Deserialize<VegasProject>(plainJson, JsonPrettyOptions)
-            ?? VegasProject.CreateEmpty(Path.GetFileNameWithoutExtension(filePath));
+        return JsonSerializer.Deserialize<NeovegProject>(plainJson, JsonPrettyOptions)
+            ?? NeovegProject.CreateEmpty(Path.GetFileNameWithoutExtension(filePath));
     }
 
-    private static NeovegMediaPoolDocument BuildMediaPoolDocument(VegasProject project, string baseDir)
+    private static NeovegMediaPoolDocument BuildMediaPoolDocument(NeovegProject project, string baseDir)
     {
         var doc = new NeovegMediaPoolDocument
         {
@@ -320,10 +320,10 @@ public static class NeovegProjectInterchangeEngine
     }
 
     // =========================================================================
-    // 2. LEGACY VEGAS PRO (`.veg`) IMPORT VIA RUST FFI (`neoveg_inspect_veg_container`)
+    // 2. LEGACY NEOVEG (`.veg`) IMPORT VIA RUST FFI (`neoveg_inspect_veg_container`)
     // =========================================================================
 
-    public static (VegasProject Project, string ContainerReport) ImportLegacyVegProject(
+    public static (NeovegProject Project, string ContainerReport) ImportLegacyVegProject(
         string vegFilePath,
         RustCoreInterop rustInterop)
     {
@@ -338,8 +338,8 @@ public static class NeovegProjectInterchangeEngine
         if (code == 3 || (raw.Length > 0 && (raw[0] == (byte)'{' || (raw.Length > 3 && raw[0] == 0xEF && raw[3] == (byte)'{'))))
         {
             string json = File.ReadAllText(vegFilePath, Encoding.UTF8);
-            var loaded = JsonSerializer.Deserialize<VegasProject>(json, JsonPrettyOptions)
-                ?? VegasProject.CreateBroadcastDemo();
+            var loaded = JsonSerializer.Deserialize<NeovegProject>(json, JsonPrettyOptions)
+                ?? NeovegProject.CreateBroadcastDemo();
             loaded.UndoStack.Add(new HistoryActionEntry
             {
                 ActionType = "ImportLegacyVeg",
@@ -349,9 +349,9 @@ public static class NeovegProjectInterchangeEngine
         }
 
         // Binary RIFF/SF64 .veg container synthesized import
-        var imported = VegasProject.CreateBroadcastDemo();
+        var imported = NeovegProject.CreateBroadcastDemo();
         imported.Name = Path.GetFileNameWithoutExtension(vegFilePath);
-        imported.Description = $"Projeto Legado VEGAS Pro (.veg) importado via Rust FFI ({desc})";
+        imported.Description = $"Projeto Legado Neoveg (.veg) importado via Rust FFI ({desc})";
         imported.UndoStack.Add(new HistoryActionEntry
         {
             ActionType = "ImportBinaryRiffVeg",
@@ -364,7 +364,7 @@ public static class NeovegProjectInterchangeEngine
     // 3. FCP7 XML (`.xml` — Final Cut Pro 7 / Premiere Pro / DaVinci Resolve `xmeml v5`)
     // =========================================================================
 
-    public static string ExportFcp7Xml(VegasProject project, string outputPath)
+    public static string ExportFcp7Xml(NeovegProject project, string outputPath)
     {
         if (!outputPath.EndsWith(Fcp7XmlExtension, StringComparison.OrdinalIgnoreCase))
             outputPath += Fcp7XmlExtension;
@@ -378,7 +378,7 @@ public static class NeovegProjectInterchangeEngine
         return outputPath;
     }
 
-    public static string ExportFcp7XmlToString(VegasProject project)
+    public static string ExportFcp7XmlToString(NeovegProject project)
     {
         double fps = project.Fps > 0.1 ? project.Fps : 29.97;
         var (timebase, ntsc) = GetFcp7RateTimebase(fps);
@@ -587,13 +587,13 @@ public static class NeovegProjectInterchangeEngine
         return sw.ToString();
     }
 
-    public static VegasProject ImportFcp7Xml(string xmlPath)
+    public static NeovegProject ImportFcp7Xml(string xmlPath)
     {
         string xml = File.ReadAllText(xmlPath, Encoding.UTF8);
         return ImportFcp7XmlFromString(xml);
     }
 
-    public static VegasProject ImportFcp7XmlFromString(string xmlContent)
+    public static NeovegProject ImportFcp7XmlFromString(string xmlContent)
     {
         var xdoc = XDocument.Parse(xmlContent);
         var seq = xdoc.Descendants("sequence").FirstOrDefault()
@@ -614,7 +614,7 @@ public static class NeovegProjectInterchangeEngine
         int sampleRate = ParseInt(aSample?.Element("samplerate")?.Value, 48000);
         int bitDepth = ParseInt(aSample?.Element("depth")?.Value, 24);
 
-        var proj = new VegasProject
+        var proj = new NeovegProject
         {
             Name = seqName,
             Width = width,
@@ -782,7 +782,7 @@ public static class NeovegProjectInterchangeEngine
     // 4. FCPX FCPXML (`.fcpxml` — Final Cut Pro X / DaVinci Resolve `fcpxml v1.10`)
     // =========================================================================
 
-    public static string ExportFcpxml(VegasProject project, string outputPath)
+    public static string ExportFcpxml(NeovegProject project, string outputPath)
     {
         if (!outputPath.EndsWith(FcpxmlExtension, StringComparison.OrdinalIgnoreCase))
             outputPath += FcpxmlExtension;
@@ -796,7 +796,7 @@ public static class NeovegProjectInterchangeEngine
         return outputPath;
     }
 
-    public static string ExportFcpxmlToString(VegasProject project)
+    public static string ExportFcpxmlToString(NeovegProject project)
     {
         double fps = project.Fps > 0.1 ? project.Fps : 29.97;
         string frameDur = Math.Abs(fps - 29.97) < 0.05 ? "1001/30000s" : $"100/{Math.Round(fps * 100):0}s";
@@ -896,13 +896,13 @@ public static class NeovegProjectInterchangeEngine
         return sw.ToString();
     }
 
-    public static VegasProject ImportFcpxml(string fcpxmlPath)
+    public static NeovegProject ImportFcpxml(string fcpxmlPath)
     {
         string xml = File.ReadAllText(fcpxmlPath, Encoding.UTF8);
         return ImportFcpxmlFromString(xml);
     }
 
-    public static VegasProject ImportFcpxmlFromString(string xmlContent)
+    public static NeovegProject ImportFcpxmlFromString(string xmlContent)
     {
         var xdoc = XDocument.Parse(xmlContent);
         var projElem = xdoc.Descendants("project").FirstOrDefault();
@@ -923,7 +923,7 @@ public static class NeovegProjectInterchangeEngine
                 assetMap[id] = src;
         }
 
-        var proj = new VegasProject
+        var proj = new NeovegProject
         {
             Name = projElem?.Attribute("name")?.Value ?? "Imported_FCPXML_Project",
             Width = width,
@@ -1018,7 +1018,7 @@ public static class NeovegProjectInterchangeEngine
     // 5. EDL CMX3600 (`.edl`) EXPORT
     // =========================================================================
 
-    public static string ExportCmx3600Edl(VegasProject project, string outputPath)
+    public static string ExportCmx3600Edl(NeovegProject project, string outputPath)
     {
         if (!outputPath.EndsWith(EdlExtension, StringComparison.OrdinalIgnoreCase))
             outputPath += EdlExtension;
@@ -1032,7 +1032,7 @@ public static class NeovegProjectInterchangeEngine
         return outputPath;
     }
 
-    public static string ExportCmx3600EdlToString(VegasProject project)
+    public static string ExportCmx3600EdlToString(NeovegProject project)
     {
         double fps = project.Fps > 0.1 ? project.Fps : 29.97;
         bool dropFrame = Math.Abs(fps - 29.97) < 0.05 || Math.Abs(fps - 59.94) < 0.05;

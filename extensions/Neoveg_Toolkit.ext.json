@@ -1,0 +1,8 @@
+{
+  "id": "neoveg_toolkit_extension",
+  "name": "Neoveg Toolkit 4.0 Toolkit — Batch Auditor, Smart Trim & Markers",
+  "vendor": "Neoveg Toolkit Compatible Dockable Host",
+  "version": "4.0.1",
+  "category": "View.WindowExtensions",
+  "description": "Automação em lote para fechar lacunas (Ripple Delete Gaps), criar marcadores de batida BPM, auditar faixas e aplicar presets de FX."
+}

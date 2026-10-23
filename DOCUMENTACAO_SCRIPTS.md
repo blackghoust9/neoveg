@@ -1,6 +1,6 @@
 # Documentação Oficial de Scripts e Extensões Acopláveis — Neoveg
 
-Este documento técnico detalha a arquitetura do **Sistema de Extensões e Scripts (Scripting Engine & Dockable Extensions)** do **Neoveg**, projetado para espelhar a API clássica do **VEGAS Pro** (`ScriptPortal.Vegas` / `Neoveg.Scripting`) e suportar tanto scripts em **C# (`.cs` via Roslyn)** e **Python (`.py`)** quanto **Extensões Compiladas (`.dll` / `DockableControl`)** como **VPFlow**, **Datamosh**, **Vegasaur** e **HOS (Happy Otter Scripts)**.
+Este documento técnico detalha a arquitetura do **Sistema de Extensões e Scripts (Scripting Engine & Dockable Extensions)** do **Neoveg**, projetado para espelhar a API clássica do **Neoveg** (`ScriptPortal.Neoveg` / `Neoveg.Scripting`) e suportar tanto scripts em **C# (`.cs` via Roslyn)** e **Python (`.py`)** quanto **Extensões Compiladas (`.dll` / `DockableControl`)** como **VPFlow**, **Datamosh**, **Neoveg Toolkit** e **HOS (Happy Otter Scripts)**.
 
 ---
 
@@ -16,11 +16,11 @@ Neoveg/
 ├── extensions/                               # Extensões de Janela Acopláveis (Dockable Extensions)
 │   ├── VPFlow_MotionCurve.ext.json           # Editor de Curvas Bezier e Velocidade (VPFlow 2.4)
 │   ├── Datamosh_Glitch.ext.json        # Estúdio I-Frame Drop & P-Vector Glitch
-│   ├── Vegasaur_Toolkit.ext.json             # Automação em Lote (Ripple Delete Gaps, Beat Markers)
+│   ├── Neoveg_Toolkit.ext.json             # Automação em Lote (Ripple Delete Gaps, Beat Markers)
 │   └── HOS_RenderProxyBridge.ext.json        # Happy Otter Scripts (Normalização True-Peak & Proxy)
 └── desktop-host/
     ├── Scripting/
-    │   ├── NeovegScriptingApi.cs             # Namespace Neoveg.Scripting + Bridge ScriptPortal.Vegas
+    │   ├── NeovegScriptingApi.cs             # Namespace Neoveg.Scripting + Bridge ScriptPortal.Neoveg
     │   └── ScriptingEngineService.cs         # Motor Roslyn C# + Python + Carregador de Assembly .DLL
     └── Views/
         └── DockableExtensionWindow.cs        # Host de Extensões de Janela Acopláveis + Console IDE
@@ -28,14 +28,14 @@ Neoveg/
 
 ---
 
-## 2. Arquitetura da API `Neoveg.Scripting` (`ScriptPortal.Vegas`)
+## 2. Arquitetura da API `Neoveg.Scripting` (`ScriptPortal.Neoveg`)
 
-O namespace `Neoveg.Scripting` implementa a hierarquia completa de classes do VEGAS Pro:
+O namespace `Neoveg.Scripting` implementa a hierarquia completa de classes do Neoveg:
 
 | Classe / Tipo | Descrição e Membros Principais |
 | :--- | :--- |
-| **`Vegas`** (`myVegas`) | Objeto raiz injetado no script. Expõe `Project`, `Cursor`, `SelectionStart`, `SelectionLength`, `UpdateUI()`, `Log(msg)`, `BatchSplitAndDatamosh(...)` e `ApplyVPFlowAutoCrossfade(...)`. |
-| **`Project`** | Representa o projeto ativo (`myVegas.Project`). Expõe `Tracks`, `Markers`, `Regions`, `Video` (`Width`, `Height`, `FrameRate`) e `Audio` (`SampleRate`, `MasterBusVolume`). |
+| **`Neoveg`** (`myNeoveg`) | Objeto raiz injetado no script. Expõe `Project`, `Cursor`, `SelectionStart`, `SelectionLength`, `UpdateUI()`, `Log(msg)`, `BatchSplitAndDatamosh(...)` e `ApplyVPFlowAutoCrossfade(...)`. |
+| **`Project`** | Representa o projeto ativo (`myNeoveg.Project`). Expõe `Tracks`, `Markers`, `Regions`, `Video` (`Width`, `Height`, `FrameRate`) e `Audio` (`SampleRate`, `MasterBusVolume`). |
 | **`Track` / `VideoTrack` / `AudioTrack`** | Faixa da timeline (`Index`, `Name`, `Selected`, `Mute`, `Solo`, `IsVideo`, `IsAudio`, `Events`, `Effects`). |
 | **`TrackEvent`** | Classe base de clipe/evento na timeline (`Start`, `Length`, `End`, `Selected`, `Mute`, `Locked`, `PlaybackRate`, `FadeIn`, `FadeOut`, `Takes`, `ActiveTake`, `Effects`, `Split(Timecode offset)`). |
 | **`VideoEvent`** | Subclasse de `TrackEvent` para vídeo. Inclui `PanCrop`, `ApplyDatamoshGlitch(intensity, mode)` e `ApplyVPFlowBezierCurve(preset, zoom, angle)`. |
@@ -51,7 +51,7 @@ O namespace `Neoveg.Scripting` implementa a hierarquia completa de classes do VE
 
 O Neoveg utiliza o pacote oficial **`Microsoft.CodeAnalysis.CSharp.Scripting` (Roslyn)** para compilar e executar scripts `.cs` em memória sem reiniciar o aplicativo.
 
-Você pode escrever o script no formato clássico do VEGAS Pro (`class EntryPoint` com `public void FromVegas(Vegas myVegas)`) ou diretamente com instruções top-level usando a variável global `myVegas`:
+Você pode escrever o script no formato clássico do Neoveg (`class EntryPoint` com `public void FromNeoveg(Neoveg myNeoveg)`) ou diretamente com instruções top-level usando a variável global `myNeoveg`:
 
 ```csharp
 using System;
@@ -60,11 +60,11 @@ using Neoveg.Scripting;
 
 public class EntryPoint
 {
-    public void FromVegas(Vegas myVegas)
+    public void FromNeoveg(Neoveg myNeoveg)
     {
         Timecode interval = Timecode.FromSeconds(0.85);
 
-        foreach (Track track in myVegas.Project.Tracks)
+        foreach (Track track in myNeoveg.Project.Tracks)
         {
             if (!track.IsVideo) continue;
 
@@ -80,13 +80,13 @@ public class EntryPoint
                         glitched.PlaybackRate = 1.15;
                         glitched.FadeIn.Length = Timecode.FromSeconds(0.12);
                         glitched.FadeIn.Curve = CurveType.Sharp;
-                        myVegas.Project.Markers.Add(new Marker(glitched.Start, "Datamosh Cut"));
+                        myNeoveg.Project.Markers.Add(new Marker(glitched.Start, "Datamosh Cut"));
                     }
                 }
             }
         }
 
-        myVegas.UpdateUI();
+        myNeoveg.UpdateUI();
     }
 }
 ```
@@ -100,28 +100,28 @@ public class EntryPoint
 
 ## 4. Como Criar um Script em Python (`.py`)
 
-Os scripts Python são executados pelo motor [`python-backend/vegas_scripting.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/vegas_scripting.py), que recebe o estado completo da timeline em JSON, expõe o objeto global `vegas` (ou `myVegas`) e sincroniza todas as alterações de volta para a interface Avalonia UI em tempo real.
+Os scripts Python são executados pelo motor [`python-backend/neoveg_scripting.py`](file:///g:/Meu%20Drive/vp-rev-eng/teste/teste2/python-backend/neoveg_scripting.py), que recebe o estado completo da timeline em JSON, expõe o objeto global `neoveg` (ou `myNeoveg`) e sincroniza todas as alterações de volta para a interface Avalonia UI em tempo real.
 
 ```python
 # Exemplo: scripts/VPFlow_AutoCrossfade_Helper.py
 overlap_seconds = 0.75
 
 # Aplica sobreposição suave S-Curve entre eventos adjacentes e suaviza o Pan/Crop (Bezier 88%)
-crossfades = vegas.apply_vpflow_easing_and_crossfades(overlap_sec=overlap_seconds, curve="smooth")
+crossfades = neoveg.apply_vpflow_easing_and_crossfades(overlap_sec=overlap_seconds, curve="smooth")
 
 # Normaliza ganhos de áudio para 0.0 dB (1.0)
-vegas.normalize_audio_gains(1.0)
+neoveg.normalize_audio_gains(1.0)
 
 # Adiciona um marcador na posição atual da agulha (Playhead)
-vegas.add_marker(vegas.cursor, "VPFlow Sync", "#38bdf8")
-vegas.log(f"Aplicados {crossfades} auto-crossfades suaves.")
+neoveg.add_marker(neoveg.cursor, "VPFlow Sync", "#38bdf8")
+neoveg.log(f"Aplicados {crossfades} auto-crossfades suaves.")
 ```
 
 ---
 
 ## 5. Como Criar Extensões de Janela Acopláveis (`.dll` / `DockableControl` / `ICustomCommandModule`)
 
-Para criar painéis interativos acopláveis ao estilo **VPFlow**, **Datamosh**, **Vegasaur** ou **HOS**:
+Para criar painéis interativos acopláveis ao estilo **VPFlow**, **Datamosh**, **Neoveg Toolkit** ou **HOS**:
 
 1. Referencie `Neoveg.dll` em uma biblioteca de classes .NET (`net10.0`).
 2. Implemente a interface `ICustomCommandModule` ou herde de `DockableControl`:
@@ -130,18 +130,18 @@ Para criar painéis interativos acopláveis ao estilo **VPFlow**, **Datamosh**, 
 using System.Collections;
 using Neoveg.Scripting;
 
-public class MyCustomVegasExtension : ICustomCommandModule
+public class MyCustomNeovegExtension : ICustomCommandModule
 {
-    private Vegas? _vegas;
+    private Neoveg? _neoveg;
     private readonly CustomCommand _cmd = new(CommandCategory.View, "Minha Extensão Customizada");
 
-    public void InitializeModule(Vegas vegas)
+    public void InitializeModule(Neoveg neoveg)
     {
-        _vegas = vegas;
+        _neoveg = neoveg;
         _cmd.Invoked += (_, _) =>
         {
-            _vegas?.ApplyVPFlowAutoCrossfade(0.80, CurveType.Smooth);
-            _vegas?.Log("Extensão .DLL executada com sucesso!");
+            _neoveg?.ApplyVPFlowAutoCrossfade(0.80, CurveType.Smooth);
+            _neoveg?.Log("Extensão .DLL executada com sucesso!");
         };
     }
 

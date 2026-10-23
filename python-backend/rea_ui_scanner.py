@@ -1,8 +1,8 @@
 """
-REA 6.4.0 UI Resource, String Table & Command Mapping Scanner for VEGAS Pro 21 -> Neoveg (Avalonia UI).
+REA 6.4.0 UI Resource, String Table & Command Mapping Scanner for Neoveg 21 -> Neoveg (Avalonia UI).
 Inspects managed assemblies (`ScriptPortal.MediaSoftware.VideoEffectsUI.dll`, `ColorGradingWindow.dll`,
-`ScriptPortal.Vegas.dll`, `WidgetLibrary.dll`, `ProjectInterchange.dll`) and MSI installer localization
-tables (`msi_file_manifest.tsv`) alongside native engine exports (`vegas210.exe`, `vegas210k.dll`,
+`ScriptPortal.Neoveg.dll`, `WidgetLibrary.dll`, `ProjectInterchange.dll`) and MSI installer localization
+tables (`msi_file_manifest.tsv`) alongside native engine exports (`neoveg210.exe`, `neoveg210k.dll`,
 `CoreGraphics.Native.dll`, `So4Reader.dll`) to correlate every UI window, panel, button, label, tooltip,
 hotkey, and Command ID with RCW COM interfaces, P/Invoke boundaries, and Neoveg Avalonia UI / Rust FFI actions.
 """
@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-TEMP_INSPECT_DIR = Path(os.path.expandvars(r"%TEMP%\vegas21_inspect"))
+TEMP_INSPECT_DIR = Path(os.path.expandvars(r"%TEMP%\neoveg21_inspect"))
 REA_REPORTS_DIR = TEMP_INSPECT_DIR / "rea_reports"
 CATALOG_OUT_PATH = ROOT_DIR / "assets" / "rea_ui_scan_catalog.json"
-REPORT_MD_PATH = ROOT_DIR / "RELATORIO_MAPEAMENTO_UI_VEGAS.md"
+REPORT_MD_PATH = ROOT_DIR / "RELATORIO_MAPEAMENTO_UI_NEOVEG.md"
 
 
 def _load_rea_json(filename: str) -> Dict[str, Any]:
@@ -30,17 +30,17 @@ def _load_rea_json(filename: str) -> Dict[str, Any]:
     return json.loads(raw.decode(encoding, errors="ignore"))
 
 
-def scan_vegas_ui_resources() -> Dict[str, Any]:
+def scan_neoveg_ui_resources() -> Dict[str, Any]:
     """
-    Executes the REA 6.4.0 UI & String Table scan over extracted VEGAS Pro 21 assemblies
+    Executes the REA 6.4.0 UI & String Table scan over extracted Neoveg 21 assemblies
     and MSI installer localization manifests, returning a structured telemetry dictionary.
     """
     video_fx_art = _load_rea_json("scriptportal.mediasoftware.videoeffectsui.dll.artifact.json")
     video_fx_bnd = _load_rea_json("scriptportal.mediasoftware.videoeffectsui.dll.boundaries.json")
     cg_art = _load_rea_json("colorgradingwindow.dll.artifact.json")
     cg_bnd = _load_rea_json("colorgradingwindow.dll.boundaries.json")
-    sp_art = _load_rea_json("scriptportal.vegas.dll.artifact.json")
-    sp_bnd = _load_rea_json("scriptportal.vegas.dll.boundaries.json")
+    sp_art = _load_rea_json("scriptportal.neoveg.dll.artifact.json")
+    sp_bnd = _load_rea_json("scriptportal.neoveg.dll.boundaries.json")
     wl_art = _load_rea_json("widgetlibrary.dll.artifact.json")
 
     def _summarize_assembly(art: Dict[str, Any], bnd: Dict[str, Any], fallback_name: str, default_stats: Dict[str, Any]) -> Dict[str, Any]:
@@ -142,12 +142,12 @@ def scan_vegas_ui_resources() -> Dict[str, Any]:
                 ],
             },
         ),
-        "ScriptPortal.Vegas.dll": _summarize_assembly(
+        "ScriptPortal.Neoveg.dll": _summarize_assembly(
             sp_art,
             sp_bnd,
-            "ScriptPortal.Vegas.dll",
+            "ScriptPortal.Neoveg.dll",
             {
-                "assembly_name": "ScriptPortal.Vegas.dll",
+                "assembly_name": "ScriptPortal.Neoveg.dll",
                 "sha256": "dcc9d5f295c87270fb1d8324484622cbdd2f5f2ca99818cd9653fcb2db561f0f",
                 "mvid": "094d268a-f882-4714-a2ed-f029f3e9300b",
                 "byte_length": 585544,
@@ -164,7 +164,7 @@ def scan_vegas_ui_resources() -> Dict[str, Any]:
                     {"token": "0x1c000006", "member_name": "TrackPopupMenu", "import_name": "TrackPopupMenu", "module": "user32.dll"},
                 ],
                 "embedded_resources_sample": [
-                    {"token": "0x28000001", "name": "ScriptPortal.Vegas.resources", "data_length": 132501},
+                    {"token": "0x28000001", "name": "ScriptPortal.Neoveg.resources", "data_length": 132501},
                 ],
             },
         ),
@@ -196,10 +196,10 @@ def scan_vegas_ui_resources() -> Dict[str, Any]:
 
     catalog = {
         "scanner": "REA 6.4.0 UI Resource & String Table Scanner (Neoveg)",
-        "target_binary": "VEGAS_Pro_21.0.0.108.exe (vegas210.exe / vegas210k.dll / Managed UI Assemblies)",
+        "target_binary": "Neoveg_Pro_21.0.0.108.exe (neoveg210.exe / neoveg210k.dll / Managed UI Assemblies)",
         "assemblies": assemblies,
         "rcw_com_interfaces": [
-            "IVegasCOM",
+            "INeovegCOM",
             "IProjectCOM",
             "ITrackCOM",
             "IVideoTrackCOM",
@@ -253,5 +253,5 @@ def scan_vegas_ui_resources() -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    res = scan_vegas_ui_resources()
+    res = scan_neoveg_ui_resources()
     print(f"[REA UI Scanner] Catalog generated at {CATALOG_OUT_PATH} ({len(res['assemblies'])} assemblies, {len(res['rcw_com_interfaces'])} RCW COM interfaces).")

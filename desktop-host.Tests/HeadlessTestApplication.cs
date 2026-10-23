@@ -26,7 +26,7 @@ public sealed class HeadlessTestApplication
     public void MasterBus_meters_are_zeroed_when_stopped_or_without_audio_and_respond_to_real_telemetry()
     {
         using var rustInterop = new Neoveg.Interop.RustCoreInterop(System.AppContext.BaseDirectory);
-        var emptyProject = Neoveg.Models.VegasProject.CreateEmpty("Teste Master Bus");
+        var emptyProject = Neoveg.Models.NeovegProject.CreateEmpty("Teste Master Bus");
         var view = new Neoveg.Views.MasterBusView(emptyProject, rustInterop);
 
         // 1. Stopped on empty timeline -> strictly 0.0 linear / -∞ dB
@@ -75,6 +75,60 @@ public sealed class HeadlessTestApplication
         Assert.Equal(0.0, view.ViewModel.RightLevelLinear);
         Assert.Equal("-∞ dB", view.ViewModel.LeftPeakDbText);
         Assert.Equal("-∞ dB", view.ViewModel.RightPeakDbText);
+    }
+
+    [AvaloniaFact]
+    public void NeovegPrecisionSlider_has_flat_square_thumb_double_click_reset_ctrl_fine_drag_and_context_menu()
+    {
+        // 1. Opacity / Volume slider (0..1, default 1.0 = 100%)
+        var levelSlider = Neoveg.Controls.NeovegPrecisionSlider.Create(
+            minimum: 0.0,
+            maximum: 1.0,
+            initialValue: 0.45,
+            defaultValue: 1.0,
+            parameterLabel: "Opacidade da Faixa (%)",
+            width: 100,
+            displayAsPercentage: true);
+
+        Assert.Equal(new CornerRadius(0), levelSlider.CornerRadius);
+        Assert.Equal(0.45, levelSlider.Value, 3);
+        Assert.Equal(1.0, levelSlider.DefaultValue, 3);
+
+        // Double-click / ResetToDefault restores 100% (1.0)
+        levelSlider.ResetToDefault();
+        Assert.Equal(1.0, levelSlider.Value, 3);
+
+        // 2. Pan slider (-1..+1, default 0.0)
+        var panSlider = Neoveg.Controls.NeovegPrecisionSlider.Create(
+            minimum: -1.0,
+            maximum: 1.0,
+            initialValue: -0.6,
+            defaultValue: 0.0,
+            parameterLabel: "Balanço Estéreo (Pan)",
+            width: 100,
+            displayAsPercentage: false);
+
+        panSlider.ResetToDefault();
+        Assert.Equal(0.0, panSlider.Value, 3);
+
+        // 3. Ctrl Fine Drag reduces movement sensitivity to 1/10th (FineStepFactor = 0.1)
+        // Moving +10px across a 100px track over range 2.0 (-1..+1) normally moves +0.20,
+        // so with 1/10th fine-drag it moves +0.02.
+        double fineVal = panSlider.ApplyFineDragDelta(deltaPx: 10.0, trackWidth: 100.0);
+        Assert.Equal(0.02, fineVal, 4);
+
+        // 4. Right-click ContextMenu includes 'Restaurar Padrão' and 'Digitar Valor...'
+        Assert.NotNull(levelSlider.ContextMenu);
+        var headers = new System.Collections.Generic.List<string>();
+        foreach (var item in levelSlider.ContextMenu!.Items)
+        {
+            if (item is MenuItem mi && mi.Header is string s)
+            {
+                headers.Add(s);
+            }
+        }
+        Assert.Contains("Restaurar Padrão", headers);
+        Assert.Contains("Digitar Valor...", headers);
     }
 }
 

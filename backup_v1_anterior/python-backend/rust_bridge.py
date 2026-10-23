@@ -1,6 +1,6 @@
 """
-OpenVegas Pro — Rust Core Bridge & Deterministic Mirror Engine
-Bridges Python media/render services with the `rust-core` NLE crate (`openvegas-core`).
+OpenNeoveg — Rust Core Bridge & Deterministic Mirror Engine
+Bridges Python media/render services with the `rust-core` NLE crate (`neoveg-core`).
 Automatically uses the compiled Rust binary when present, or runs the exact matching
 deterministic algorithms in Python so the studio works out-of-the-box.
 """
@@ -22,10 +22,10 @@ RUST_CRATE_DIR = ROOT_DIR / "rust-core"
 
 def find_rust_binary() -> Optional[Path]:
     candidates = [
-        RUST_CRATE_DIR / "target" / "release" / "openvegas-core.exe",
-        RUST_CRATE_DIR / "target" / "debug" / "openvegas-core.exe",
-        RUST_CRATE_DIR / "target" / "release" / "openvegas-core",
-        RUST_CRATE_DIR / "openvegas-core.exe",
+        RUST_CRATE_DIR / "target" / "release" / "neoveg-core.exe",
+        RUST_CRATE_DIR / "target" / "debug" / "neoveg-core.exe",
+        RUST_CRATE_DIR / "target" / "release" / "neoveg-core",
+        RUST_CRATE_DIR / "neoveg-core.exe",
     ]
     for c in candidates:
         if c.exists():
@@ -51,20 +51,20 @@ def get_rust_status() -> Dict[str, Any]:
             return data
         except Exception as exc:
             return {
-                "engine": "openvegas-core",
+                "engine": "neoveg-core",
                 "language": "Rust (Mirror Fallback)",
                 "mode": "python-mirror",
                 "note": str(exc),
             }
     return {
-        "engine": "openvegas-core",
+        "engine": "neoveg-core",
         "language": "Rust + Python Mirror",
         "version": "1.0.0",
         "mode": "rust-source-ready" if not cargo_bin else "cargo-available",
         "crate_path": str(RUST_CRATE_DIR),
         "features": [
             "smpte_timecode",
-            "vegas_5_curve_fades",
+            "neoveg_5_curve_fades",
             "auto_crossfade_solver",
             "pcm_wav_dsp",
             "ffmpeg_filtergraph_compiler",
@@ -73,7 +73,7 @@ def get_rust_status() -> Dict[str, Any]:
 
 
 def evaluate_fade_curve(curve: str, t: float) -> float:
-    """Evaluates Vegas Pro's 5 signature fade curves for t in [0.0, 1.0]."""
+    """Evaluates Neoveg's 5 signature fade curves for t in [0.0, 1.0]."""
     x = max(0.0, min(1.0, float(t)))
     c = (curve or "smooth").lower().strip()
     if c == "linear":
@@ -84,7 +84,7 @@ def evaluate_fade_curve(curve: str, t: float) -> float:
         return x ** 3
     if c == "sharp":
         return 0.5 * ((2.0 * x) ** 3) if x < 0.5 else 1.0 - 0.5 * ((2.0 * (1.0 - x)) ** 3)
-    # Default: Vegas Smooth (S-curve cosine)
+    # Default: Neoveg Smooth (S-curve cosine)
     return 0.5 - 0.5 * math.cos(math.pi * x)
 
 
@@ -104,9 +104,9 @@ def format_smpte(seconds: float, fps: float = 29.97, drop_frame: bool = True) ->
 
 def detect_auto_crossfades(project: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
-    Mirrors `openvegas_core::detect_auto_crossfades`:
+    Mirrors `neoveg_core::detect_auto_crossfades`:
     Inspects all tracks for overlapping events on the same track and automatically
-    sets matching fadeOut/fadeIn durations for Vegas Pro style X-crossfades.
+    sets matching fadeOut/fadeIn durations for Neoveg style X-crossfades.
     """
     crossfades: List[Dict[str, Any]] = []
     tracks = project.get("tracks", [])
@@ -206,7 +206,7 @@ def analyze_wav_peaks(wav_path: Path, num_buckets: int = 128) -> Dict[str, Any]:
 
 def compile_project_to_ffmpeg(project: Dict[str, Any], media_dir: Path, output_path: Path) -> Dict[str, Any]:
     """
-    Compiles a full OpenVegas multi-track project into an executable FFmpeg command line
+    Compiles a full Neoveg multi-track project into an executable FFmpeg command line
     and filter_complex string, honoring track order, opacity, pan/crop, FX chains,
     fade-in/fade-out envelopes, and audio mixing.
     """
@@ -236,7 +236,7 @@ def compile_project_to_ffmpeg(project: Dict[str, Any], media_dir: Path, output_p
     audio_mix_labels: List[str] = ["[base_a]"]
     input_idx = 0
 
-    # In Vegas Pro, top video track (index 0) composites over lower video tracks.
+    # In Neoveg, top video track (index 0) composites over lower video tracks.
     # Therefore we composite from bottom-most video track up to top-most video track!
     video_tracks = [
         t for t in reversed(tracks)
@@ -452,7 +452,7 @@ def compile_project_to_ffmpeg(project: Dict[str, Any], media_dir: Path, output_p
 
 
 def rename_track_in_project(project: Dict[str, Any], track_id: str, new_name: str) -> Dict[str, Any]:
-    """Mirrors `openvegas_core::TrackGroupEngine::rename_track`."""
+    """Mirrors `neoveg_core::TrackGroupEngine::rename_track`."""
     cleaned = (new_name or "").strip()[:64]
     if not cleaned:
         return project
@@ -470,7 +470,7 @@ def group_tracks_in_project(
     group_name: str,
     group_color: str = "#f59e0b",
 ) -> Dict[str, Any]:
-    """Mirrors `openvegas_core::TrackGroupEngine::group_tracks` for Video + Audio Track Grouping."""
+    """Mirrors `neoveg_core::TrackGroupEngine::group_tracks` for Video + Audio Track Grouping."""
     id_set = set(track_ids or [])
     cleaned_name = (group_name or "Grupo A/V").strip()[:48]
     for tr in project.get("tracks", []):
@@ -498,7 +498,7 @@ def sync_group_mute_solo_in_project(
     muted: Optional[bool] = None,
     solo: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Mirrors `openvegas_core::TrackGroupEngine::sync_group_mute_solo`."""
+    """Mirrors `neoveg_core::TrackGroupEngine::sync_group_mute_solo`."""
     for tr in project.get("tracks", []):
         if tr.get("groupId") == group_id:
             if muted is not None:

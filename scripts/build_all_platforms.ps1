@@ -159,7 +159,7 @@ foreach ($Target in $Targets) {
     }
     New-Item -ItemType Directory -Path (Join-Path $OutDir "cache\prerender") -Force | Out-Null
 
-    # Bundle Assets (i18n, luts, neoveg_presets, vegas_history_themes, axaml)
+    # Bundle Assets (i18n, luts, neoveg_presets, neoveg_history_themes, axaml)
     $AssetsDst = Join-Path $OutDir "Assets"
     New-Item -ItemType Directory -Path $AssetsDst -Force | Out-Null
     $RootAssetsSrc = Join-Path $RootDir "assets"
@@ -180,8 +180,8 @@ foreach ($Target in $Targets) {
         "KEEPS.md",
         "GUIA_NOVAS_FUNCIONALIDADES.md",
         "DOCUMENTACAO_SCRIPTS.md",
-        "RELATORIO_REA_VEGAS21.md",
-        "RELATORIO_MAPEAMENTO_UI_VEGAS.md",
+        "RELATORIO_REA_NEOVEG.md",
+        "RELATORIO_MAPEAMENTO_UI_NEOVEG.md",
         "settings.json"
     )) {
         $DocSrc = Join-Path $RootDir $DocFile

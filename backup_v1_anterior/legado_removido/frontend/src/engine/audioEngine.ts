@@ -1,8 +1,8 @@
 /**
- * OpenVegas Pro — Multi-Track Web Audio API Engine & Master Bus Meter
+ * OpenNeoveg — Multi-Track Web Audio API Engine & Master Bus Meter
  */
 
-import { ClipEvent, Track, VegasProject } from '../types';
+import { ClipEvent, Track, NeovegProject } from '../types';
 import { computeClipFadeMultiplier, evaluateTrackEnvelope } from './compositor';
 
 export interface StereoMeterReading {
@@ -15,7 +15,7 @@ export interface StereoMeterReading {
   clipping: boolean;
 }
 
-export class VegasAudioEngine {
+export class NeovegHostAudioEngine {
   private audioElements: Map<string, HTMLAudioElement> = new Map();
   private peakHoldL = -60;
   private peakHoldR = -60;
@@ -33,7 +33,7 @@ export class VegasAudioEngine {
     return el;
   }
 
-  public syncAudio(project: VegasProject, isPlaying: boolean): StereoMeterReading {
+  public syncAudio(project: NeovegProject, isPlaying: boolean): StereoMeterReading {
     const t = project.playhead;
     const anySolo = project.tracks.some((tr) => tr.type === 'audio' && tr.solo);
     const masterGain = Math.max(0, Math.min(1.5, project.masterVolume ?? 1.0));

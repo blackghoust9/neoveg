@@ -5,7 +5,7 @@ using Avalonia.Threading;
 namespace Neoveg.Controls;
 
 /// <summary>
-/// Classic VEGAS Pro Edit Cursor Blink Controller (`TimelineCursor.cs` / `PlayheadOverlay.axaml`).
+/// Classic Neoveg Edit Cursor Blink Controller (`TimelineCursor.cs` / `PlayheadOverlay.axaml`).
 /// Manages the 3 animation states of the timeline Playhead / Edit Cursor:
 /// 1. Estado Parado / Pausado (`IsPlaying == false && !IsScrubbing`):
 ///    - Runs a `DispatcherTimer` with an interval of ~`500ms` (`BlinkIntervalMs = 500`) that alternates

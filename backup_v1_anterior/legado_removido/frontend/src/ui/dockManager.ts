@@ -1,16 +1,16 @@
 /**
- * OpenVegas Pro — Interactive Window Docking, Floating ("Janelas Soltas") & Multi-Monitor OS Window Engine
+ * OpenNeoveg — Interactive Window Docking, Floating ("Janelas Soltas") & Multi-Monitor OS Window Engine
  * Allows every studio panel (Project Media, Inspector/Pan-Crop/Settings, Video Preview,
  * Master Mixer/Scopes, and Timeline) to be:
  * - Resized via interactive horizontal & vertical splitter bars while docked
  * - Detached ("Solta" / Undocked) inside the workspace by dragging its `⋮⋮` header grip or clicking Float
- * - Popped out into a TRUE Native Windows OS Window (`VegasPopoutWindow`) that can be dragged freely
+ * - Popped out into a TRUE Native Windows OS Window (`NeovegPopoutWindow`) that can be dragged freely
  *   to any secondary/tertiary monitor (`Screen.AllScreens`) via `[data-win-action="popout"]` or by dragging
  *   a floating panel past the outer edge of the main window!
- * - Synchronized in real time across all monitors via `BroadcastChannel('openvegas_multimonitor_sync')`
+ * - Synchronized in real time across all monitors via `BroadcastChannel('neoveg_multimonitor_sync')`
  */
 
-import { VEGAS_ICONS } from './icons';
+import { Neoveg_ICONS } from './icons';
 
 export interface FloatingRect {
   x: number;
@@ -31,7 +31,7 @@ export interface PanelState {
   dockFlex: number;
 }
 
-export class VegasDockManager {
+export class NeovegHostDockManager {
   private panels: Map<string, PanelState> = new Map();
   private topZ = 200;
   private onLayoutResize: () => void;
@@ -52,7 +52,7 @@ export class VegasDockManager {
     this.initDefaultPanelStates();
 
     try {
-      this.syncChannel = new BroadcastChannel('openvegas_multimonitor_sync');
+      this.syncChannel = new BroadcastChannel('neoveg_multimonitor_sync');
       this.syncChannel.addEventListener('message', (ev) => {
         const msg = ev.data;
         if (!msg || typeof msg !== 'object') return;
@@ -140,7 +140,7 @@ export class VegasDockManager {
       const el = document.getElementById(id);
       if (!el) continue;
 
-      const hdr = el.querySelector('.vegas-win-titlebar') as HTMLElement | null;
+      const hdr = el.querySelector('.neoveg-win-titlebar') as HTMLElement | null;
       const winControls = el.querySelector('.win-controls') as HTMLElement | null;
       const btnFloat = el.querySelector('[data-win-action="float"]') as HTMLButtonElement | null;
       const btnMax = el.querySelector('[data-win-action="maximize"]') as HTMLButtonElement | null;
@@ -153,7 +153,7 @@ export class VegasDockManager {
         btnPopout.className = 'win-ctrl-btn popout-monitor-btn';
         btnPopout.setAttribute('data-win-action', 'popout');
         btnPopout.title = 'Destacar como Janela Nativa do Windows para arrastar para OUTRO MONITOR';
-        btnPopout.innerHTML = `${VEGAS_ICONS.popoutMonitor}`;
+        btnPopout.innerHTML = `${Neoveg_ICONS.popoutMonitor}`;
         winControls.insertBefore(btnPopout, btnFloat);
       }
 
@@ -252,12 +252,12 @@ export class VegasDockManager {
     document.body.classList.add('is-multimonitor-popout');
     const state = this.panels.get(panelId);
     if (state) {
-      document.title = `OpenVegas Pro 21 — ${state.title} [Janela Multi-Monitor]`;
+      document.title = `OpenNeoveg 21 — ${state.title} [Janela Multi-Monitor]`;
     }
 
     // Hide topbar, statusbar, welcome modal, and all other panels
-    document.querySelector('.vegas-topbar')?.classList.add('hidden');
-    document.querySelector('.vegas-statusbar')?.classList.add('hidden');
+    document.querySelector('.neoveg-topbar')?.classList.add('hidden');
+    document.querySelector('.neoveg-statusbar')?.classList.add('hidden');
     document.getElementById('modal-welcome')?.classList.add('hidden');
     document.getElementById('workspace-h-splitter')?.classList.add('hidden');
     document.querySelectorAll('.dock-v-splitter').forEach((s) => s.classList.add('hidden'));
@@ -273,7 +273,7 @@ export class VegasDockManager {
         el.style.zIndex = '999';
         const btnFloat = el.querySelector('[data-win-action="float"]') as HTMLElement | null;
         if (btnFloat) {
-          btnFloat.innerHTML = `${VEGAS_ICONS.dockWindow}<span>Acoplar na Janela Principal</span>`;
+          btnFloat.innerHTML = `${Neoveg_ICONS.dockWindow}<span>Acoplar na Janela Principal</span>`;
           btnFloat.onclick = () => {
             this.syncChannel?.postMessage({ type: 'REDOCK_PANEL', panelId });
             window.close();
@@ -304,7 +304,7 @@ export class VegasDockManager {
       return;
     }
 
-    const theme = document.documentElement.getAttribute('data-theme') || 'qt-vegas21';
+    const theme = document.documentElement.getAttribute('data-theme') || 'qt-neoveg21';
     const w = Math.max(420, state.rect.w || 580);
     const h = Math.max(320, state.rect.h || 420);
     const left = screenX !== undefined ? Math.max(0, screenX - 120) : window.screenX + 80;
@@ -324,7 +324,7 @@ export class VegasDockManager {
 
     const popUrl = `${window.location.origin}/?popout=${encodeURIComponent(panelId)}&theme=${encodeURIComponent(theme)}`;
     const features = `popup=yes,width=${Math.round(w)},height=${Math.round(h)},left=${Math.round(left)},top=${Math.round(top)},resizable=yes`;
-    const newWin = window.open(popUrl, `openvegas_${panelId}`, features);
+    const newWin = window.open(popUrl, `neoveg_${panelId}`, features);
 
     if (newWin) {
       this.popoutWindows.set(panelId, newWin);
@@ -515,7 +515,7 @@ export class VegasDockManager {
       this.restoreFromOSPopout(id);
     }
     this.initDefaultPanelStates();
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     if (upper) upper.style.height = '48%';
     const trackCol = document.getElementById('timeline-left-column');
     if (trackCol) trackCol.style.width = '255px';
@@ -529,7 +529,7 @@ export class VegasDockManager {
     if (el) {
       el.style.zIndex = String(this.topZ);
     }
-    document.querySelectorAll('.vegas-dock-window').forEach((w) => w.classList.remove('win-focused'));
+    document.querySelectorAll('.neoveg-dock-window').forEach((w) => w.classList.remove('win-focused'));
     el?.classList.add('win-focused');
   }
 
@@ -537,7 +537,7 @@ export class VegasDockManager {
     for (const state of this.panels.values()) {
       this.applyPanelStyle(state);
     }
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     const hSplitter = document.getElementById('workspace-h-splitter');
     const anyTopDocked = ['pane-media', 'pane-inspector', 'pane-preview', 'pane-mixer'].some((id) => {
       const st = this.panels.get(id);
@@ -571,16 +571,16 @@ export class VegasDockManager {
     el.classList.toggle('is-minimized', state.minimized);
 
     if (btnMin) {
-      btnMin.innerHTML = VEGAS_ICONS.minimize;
+      btnMin.innerHTML = Neoveg_ICONS.minimize;
     }
     if (btnFloat) {
-      btnFloat.innerHTML = state.floating ? `${VEGAS_ICONS.dockWindow}` : `${VEGAS_ICONS.floatWindow}`;
+      btnFloat.innerHTML = state.floating ? `${Neoveg_ICONS.dockWindow}` : `${Neoveg_ICONS.floatWindow}`;
       btnFloat.title = state.floating
         ? 'Acoplar janela de volta na grade (Dock)'
         : 'Soltar janela como flutuante (ou arraste até a borda da tela para jogar em outro monitor)';
     }
     if (btnMax) {
-      btnMax.innerHTML = state.maximized ? VEGAS_ICONS.restore : VEGAS_ICONS.maximize;
+      btnMax.innerHTML = state.maximized ? Neoveg_ICONS.restore : Neoveg_ICONS.maximize;
     }
 
     if (state.maximized) {
@@ -617,7 +617,7 @@ export class VegasDockManager {
 
   private initWorkspaceSplitters(): void {
     const hSplitter = document.getElementById('workspace-h-splitter');
-    const upper = document.getElementById('vegas-upper-workspace');
+    const upper = document.getElementById('neoveg-upper-workspace');
     if (hSplitter && upper) {
       let draggingH = false;
       hSplitter.addEventListener('mousedown', (e) => {

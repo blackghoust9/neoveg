@@ -2,11 +2,11 @@
 //!
 //! Recycled and upgraded from `backup_v1_anterior/rust-core/src/lib.rs`.
 //! Provides deterministic, frame-accurate Non-Linear Editing (NLE) algorithms
-//! modeled after VEGAS Pro, exposed both as safe Rust APIs and as C-ABI (`extern "C"`)
+//! modeled after Classic NLE broadcast standards, exposed both as safe Rust APIs and as C-ABI (`extern "C"`)
 //! FFI functions dynamically loaded by C# (Avalonia UI) on Windows (`.dll`),
 //! Linux (`.so`), and macOS (`.dylib`):
 //! - SMPTE Drop-Frame (`00:00:00;00`) and Non-Drop-Frame (`00:00:00:00`) Timecode
-//! - Vegas Pro 5-Curve Fade Envelopes (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`)
+//! - Neoveg 5-Curve Fade Envelopes (`Linear`, `Fast`, `Slow`, `Smooth`, `Sharp`)
 //! - Automatic Overlap Crossfade Detection & Equal-Power Audio Blending
 //! - Event Split (`S` shortcut), Trim, and Ripple Edit solvers
 //! - 16-bit/32-bit RIFF WAVE PCM Peak & dBFS RMS Waveform DSP Extractor
@@ -24,7 +24,7 @@ use std::slice;
 pub mod audio_peaks;
 pub mod waveform_source;
 
-/// Vegas Pro Fade Curve Types
+/// Neoveg Fade Curve Types
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FadeCurve {
@@ -68,7 +68,7 @@ impl FadeCurve {
         }
     }
 
-    /// Evaluates normalized progress `t` in `[0.0, 1.0]` along the selected Vegas fade curve.
+    /// Evaluates normalized progress `t` in `[0.0, 1.0]` along the selected Neoveg fade curve.
     pub fn evaluate(&self, t: f64) -> f64 {
         let x = t.clamp(0.0, 1.0);
         match self {
@@ -86,7 +86,7 @@ impl FadeCurve {
         }
     }
 
-    /// Maps Vegas curve to the closest FFmpeg `acrossfade` curve identifier.
+    /// Maps Neoveg curve to the closest FFmpeg `acrossfade` curve identifier.
     pub fn to_ffmpeg_audio_curve(&self) -> &'static str {
         match self {
             Self::Linear => "tri",
@@ -98,7 +98,7 @@ impl FadeCurve {
     }
 }
 
-/// Vegas Pro Track Compositing Modes
+/// Neoveg Track Compositing Modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlendMode {
     SourceAlpha,
@@ -166,7 +166,7 @@ impl TimelineEvent {
     }
 }
 
-/// Represents an automatically detected Vegas Pro overlap crossfade between two events
+/// Represents an automatically detected Neoveg overlap crossfade between two events
 #[derive(Debug, Clone)]
 pub struct CrossfadeRegion {
     pub track_index: usize,
@@ -216,7 +216,7 @@ impl Timecode {
         Some(hours * 3600.0 + mins * 60.0 + secs + (frames / safe_fps))
     }
 
-    /// Formats seconds into Vegas Measures & Beats (`Measure.Beat.Tick`)
+    /// Formats seconds into Neoveg Measures & Beats (`Measure.Beat.Tick`)
     pub fn format_measures_beats(seconds: f64, bpm: f64, beats_per_measure: u32) -> String {
         let safe_bpm = if bpm <= 0.0 { 120.0 } else { bpm };
         let safe_bpm_meas = beats_per_measure.max(1) as f64;
@@ -228,7 +228,7 @@ impl Timecode {
     }
 }
 
-/// Detects all overlapping clips on the same track and computes Vegas automatic crossfades.
+/// Detects all overlapping clips on the same track and computes Neoveg automatic crossfades.
 pub fn detect_auto_crossfades(events: &mut [TimelineEvent]) -> Vec<CrossfadeRegion> {
     events.sort_by(|a, b| {
         a.track_index.cmp(&b.track_index).then_with(|| {
@@ -274,7 +274,7 @@ pub fn detect_auto_crossfades(events: &mut [TimelineEvent]) -> Vec<CrossfadeRegi
     crossfades
 }
 
-/// Splits an event at `split_time` (Vegas Pro `S` shortcut), returning the left and right halves.
+/// Splits an event at `split_time` (Neoveg `S` shortcut), returning the left and right halves.
 pub fn split_event_at(
     event: &TimelineEvent,
     split_time: f64,
@@ -664,7 +664,7 @@ pub fn compile_ffmpeg_filtergraph(
     filters.join("; ")
 }
 
-/// Represents a VEGAS Pro Audio/Video Track Header with Track Grouping & Renaming Support
+/// Represents a Neoveg Audio/Video Track Header with Track Grouping & Renaming Support
 #[derive(Debug, Clone)]
 pub struct TrackHeaderNode {
     pub id: String,
@@ -679,7 +679,7 @@ pub struct TrackHeaderNode {
     pub level: f64,
 }
 
-/// VEGAS Pro Track Renaming & Audio/Video Track Grouping Solver
+/// Neoveg Track Renaming & Audio/Video Track Grouping Solver
 pub struct TrackGroupEngine;
 
 impl TrackGroupEngine {
@@ -833,7 +833,7 @@ pub unsafe extern "C" fn neoveg_parse_smpte(tc_ptr: *const c_char, fps: f64) -> 
     Timecode::parse_smpte(tc_str, fps).unwrap_or(-1.0)
 }
 
-/// Evaluates one of the 5 VEGAS Pro fade curves (`0=Linear, 1=Fast, 2=Slow, 3=Smooth, 4=Sharp`) at `progress` `[0.0, 1.0]`.
+/// Evaluates one of the 5 Neoveg fade curves (`0=Linear, 1=Fast, 2=Slow, 3=Smooth, 4=Sharp`) at `progress` `[0.0, 1.0]`.
 #[no_mangle]
 pub extern "C" fn neoveg_evaluate_fade_curve(curve_type: i32, progress: f64) -> f64 {
     FadeCurve::from_id(curve_type).evaluate(progress)
@@ -1061,14 +1061,14 @@ pub unsafe extern "C" fn neoveg_sample_wav_stereo_peak_at(
 }
 
 // =============================================================================
-// REA-DERIVED VEGAS PRO 21 ARCHITECTURAL MODULES (CLEAN-ROOM IMPLEMENTATION):
+// NEOVEG BROADCAST ARCHITECTURAL MODULES (CLEAN-ROOM IMPLEMENTATION):
 // 1. .sfk Audio Peak Mipmap Cache (`CSfAudioPeak` / `SfAudioPeak_PrimeMinMaxArray`)
 // 2. .veg RIFF/RF64 (`sf64`) Container Inspector (`ProjectLinkRiff64_LoadInfo`)
 // 3. Zero-Allocation Frame Ring-Buffer Pool (`CImageBufferPool` / `SO4READER`)
 // =============================================================================
 
 /// Clean-room `.sfk` binary peak cache header & mipmap generator (`RIFF....SFPK`).
-/// Mirrors `CSfAudioPeak` / `CSFPeakBuffer` / `SfAudioPeak_PrimeMinMaxArray` from `vegas210k.dll`.
+/// Mirrors `CSfAudioPeak` / `CSFPeakBuffer` / `SfAudioPeak_PrimeMinMaxArray` in the native audio peak engine.
 pub struct SfkPeakCache;
 
 impl SfkPeakCache {
@@ -1126,7 +1126,7 @@ impl SfkPeakCache {
     }
 }
 
-/// Builds or loads a VEGAS-compatible `.sfk` binary peak cache file for `wav_path_ptr`.
+/// Builds or loads a Neoveg-compatible `.sfk` binary peak cache file for `wav_path_ptr`.
 ///
 /// # Safety
 /// `wav_path_ptr` must be null or a valid NUL-terminated UTF-8 C string; `out_peaks_ptr` must be null
@@ -1284,7 +1284,7 @@ pub unsafe extern "C" fn neoveg_get_timeline_render_status(
     count as i32
 }
 
-/// Computes the VEGAS Pro Inverted Camera 2D Affine Transformation Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
+/// Computes the Neoveg Inverted Camera 2D Affine Transformation Matrix (`[M11, M12, M21, M22, OffsetX, OffsetY]`)
 /// in Rust FFI for real-time synchronization between the Event Pan/Crop 'F' Gizmo and the Skia Video Preview Monitor.
 /// Shrinking the 'F' box (`crop_width < source_width`) magnifies the image (`zoom > 1.0`), and panning/rotating the 'F'
 /// box transforms the camera frame in the inverted direction.

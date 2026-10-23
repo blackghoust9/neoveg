@@ -68,7 +68,7 @@ static const char* kCppBanner =
 static const char* kOfxDescriptorJson =
     "{\"ok\":true,\"api\":\"OfxImageEffectPluginAPI\",\"version\":1,\"plugins\":["
     "{\"id\":\"uk.co.thefoundry.furnace.f_deflicker\",\"name\":\"OFX Deflicker & Color Match\",\"context\":\"OfxImageEffectContextFilter\"},"
-    "{\"id\":\"com.borisfx.sapphire.s_glow\",\"name\":\"OFX Broadcast Glow & Halation\",\"context\":\"OfxImageEffectContextFilter\"},"
+    "{\"id\":\"org.neoveg.openfx.s_glow\",\"name\":\"OFX Broadcast Glow & Halation\",\"context\":\"OfxImageEffectContextFilter\"},"
     "{\"id\":\"org.aswf.openfx.lut3d_cube\",\"name\":\"OFX 3D LUT Color Grader (.cube)\",\"context\":\"OfxImageEffectContextGeneral\"},"
     "{\"id\":\"com.corridordigital.corridorkey.ofx\",\"name\":\"OFX CorridorKey Green Screen Matte\",\"context\":\"OfxImageEffectContextFilter\"}"
     "]}";

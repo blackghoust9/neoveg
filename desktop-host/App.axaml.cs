@@ -43,8 +43,8 @@ public sealed class App : Application
     {
         RegisterAvaloniaExceptionHandlers();
         Styles.Add(new FluentTheme());
-        // VEGAS Pro docked-window tabs: compact footer tab strip with scroll arrows
         Styles.Add(Neoveg.Styles.NeovegDockTabStyles.Create());
+        Styles.Add(Neoveg.Controls.NeovegPrecisionSlider.CreateStyles());
         RequestedThemeVariant = ThemeVariant.Dark;
     }
 
@@ -69,7 +69,7 @@ public sealed class App : Application
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 var mw = new MainWindow();
-                var splash = new VegasSplashWindow(() =>
+                var splash = new NeovegSplashWindow(() =>
                 {
                     desktop.MainWindow = mw;
                     mw.Show();

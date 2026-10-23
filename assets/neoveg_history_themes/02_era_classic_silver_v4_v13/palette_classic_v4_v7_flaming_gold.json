@@ -1,0 +1,90 @@
+{
+  "id": "classic_v4_v7_flaming_gold",
+  "era_folder": "02_era_classic_silver_v4_v13",
+  "era_number": 2,
+  "name": "Classic NLE 4–7 Flaming Gold (2003–2007)",
+  "short_badge": "NEOVEG Neoveg 7 GOLD",
+  "years": "2003–2007",
+  "vendor": "Classic NLE Pictures Digital / Classic NLE Media Software",
+  "versions": [
+    "Neoveg 4.0",
+    "Classic NLE 5.0",
+    "Classic NLE 6.0",
+    "Classic NLE 7.0"
+  ],
+  "description": "Estética clássica com superfície Luna Silver/Bege e o icônico gradiente dourado/laranja flamejante nas barras de destaque, timecode âmbar e faixas azul-aço/vinho.",
+  "palette": {
+    "window_bg": "#DFDDD4",
+    "menu_bg": "#ECE9D8",
+    "toolbar_bg": "#E4E1D6",
+    "dock_header_bg": "#C8C4B6",
+    "dock_panel_bg": "#EAE7DC",
+    "dock_border": "#9D998C",
+    "timeline_bg": "#F2F0E8",
+    "ruler_bg": "#DCD9CE",
+    "track_video_bg": "#ADC2D9",
+    "track_audio_bg": "#D4BBC0",
+    "clip_header_bg": "#2B4C6F",
+    "accent_primary": "#FF6D00",
+    "accent_secondary": "#FFB300",
+    "timecode_bg": "#23211D",
+    "timecode_fg": "#FFB300",
+    "playhead_color": "#E65100",
+    "waveform_color": "#7E222A",
+    "button_bg": "#DCD9CE",
+    "button_fg": "#1B1A17",
+    "text_primary": "#181715",
+    "text_secondary": "#4E4C45",
+    "status_bar_bg": "#D4D0C4"
+  },
+  "reference_files": [
+    "maxresdefault.png",
+    "10image.png",
+    "11maxresdefault.png"
+  ],
+  "assets": {
+    "logo_svg": "02_era_classic_silver_v4_v13/logo_classic_v4_v7_flaming_gold.svg",
+    "logo_png": "02_era_classic_silver_v4_v13/logo_classic_v4_v7_flaming_gold.png",
+    "icons_svg": "02_era_classic_silver_v4_v13/icons_classic_v4_v7_flaming_gold.svg",
+    "swatch_png": "02_era_classic_silver_v4_v13/swatch_classic_v4_v7_flaming_gold.png",
+    "palette_json": "02_era_classic_silver_v4_v13/palette_classic_v4_v7_flaming_gold.json"
+  },
+  "curated_references": [
+    {
+      "file": "maxresdefault.png",
+      "relative_path": "02_era_classic_silver_v4_v13/references/maxresdefault.png",
+      "sampled_dominant_hex": [
+        "#EBEEE1",
+        "#E4E7D2",
+        "#DDE1D0",
+        "#CED1C7",
+        "#C1C8BE",
+        "#5B6569"
+      ]
+    },
+    {
+      "file": "10image.png",
+      "relative_path": "02_era_classic_silver_v4_v13/references/10image.png",
+      "sampled_dominant_hex": [
+        "#F1F1F1",
+        "#E8EAEC",
+        "#DADEE0",
+        "#CAC8C8",
+        "#A2B2B1",
+        "#605653"
+      ]
+    },
+    {
+      "file": "11maxresdefault.png",
+      "relative_path": "02_era_classic_silver_v4_v13/references/11maxresdefault.png",
+      "sampled_dominant_hex": [
+        "#EFEFEF",
+        "#EDEDED",
+        "#E6E6E8",
+        "#D4D3D4",
+        "#BEC5CC",
+        "#4B4D52"
+      ]
+    }
+  ]
+}

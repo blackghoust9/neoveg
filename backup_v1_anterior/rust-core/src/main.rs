@@ -1,12 +1,12 @@
-//! OpenVegas Core CLI & IPC Bridge
+//! Neoveg Core CLI & IPC Bridge
 //!
 //! Commands:
-//!   openvegas-core status
-//!   openvegas-core smpte <seconds> <fps>
-//!   openvegas-core analyze-wav <wav_path> [buckets]
-//!   openvegas-core demo-filtergraph
+//!   neoveg-core status
+//!   neoveg-core smpte <seconds> <fps>
+//!   neoveg-core analyze-wav <wav_path> [buckets]
+//!   neoveg-core demo-filtergraph
 
-use openvegas_core::{
+use neoveg_core::{
     analyze_wav_peaks, compile_ffmpeg_filtergraph, detect_auto_crossfades, FadeCurve, Timecode,
     TimelineEvent,
 };
@@ -20,7 +20,7 @@ fn main() {
     match cmd {
         "status" => {
             println!(
-                r#"{{"engine":"openvegas-core","language":"Rust","version":"1.0.0","features":["smpte_timecode","vegas_5_curve_fades","auto_crossfade_solver","pcm_wav_dsp","ffmpeg_filtergraph_compiler"]}}"#
+                r#"{{"engine":"neoveg-core","language":"Rust","version":"1.0.0","features":["smpte_timecode","neoveg_5_curve_fades","auto_crossfade_solver","pcm_wav_dsp","ffmpeg_filtergraph_compiler"]}}"#
             );
         }
         "smpte" => {

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bfx_elec" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#00A3FF"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="14" fill="#151515" stroke="#00A3FF" stroke-width="5"/>
+  <polygon points="42,48 94,48 128,162 162,48 214,48 148,206 108,206" fill="url(#bfx_elec)"/>
+  <circle cx="198" cy="192" r="18" fill="#E5534B"/>
+  <text x="128" y="234" text-anchor="middle" font-family="Segoe UI, Inter, sans-serif" font-weight="bold" font-size="17" fill="#38BDF8" letter-spacing="3">Neoveg 2026 • Contemporary NLE</text>
+</svg>

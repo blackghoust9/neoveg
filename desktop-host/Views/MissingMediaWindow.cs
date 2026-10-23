@@ -24,7 +24,7 @@ namespace Neoveg.Views;
 /// - Caminho Original (`OriginalPath`)
 /// - Duração Esperada (`ExpectedDuration`)
 /// - Tipo de Mídia (`Vídeo` / `Áudio`)
-/// Provides the 4 VEGAS Pro resolution actions:
+/// Provides the 4 Neoveg resolution actions:
 /// 1. Procurar em uma Pasta... (`Search Directory`) -> 3-stage recursive scan + Same-Directory Auto-Relink + Rust FFI `.sfk` cache regeneration
 /// 2. Substituir Arquivo Especificamente... (`Specify New Location`) -> manual file picker + Same-Directory Sibling Auto-Relink
 /// 3. Ignorar Este Arquivo (`Ignore`) -> marks selected clip as `IsOffline = true` (red MEDIA OFFLINE frame)
@@ -33,7 +33,7 @@ namespace Neoveg.Views;
 public sealed class MissingMediaWindow : Window
 {
     private readonly string _rootDir;
-    private readonly VegasProject _project;
+    private readonly NeovegProject _project;
     private readonly List<MissingMediaEntry> _missingEntries;
     private readonly MediaRelinker _relinker;
     private readonly Action<string> _onProjectReadyToMount;
@@ -45,7 +45,7 @@ public sealed class MissingMediaWindow : Window
 
     public MissingMediaWindow(
         string rootDir,
-        VegasProject project,
+        NeovegProject project,
         List<MissingMediaEntry> missingEntries,
         MediaRelinker relinker,
         Action<string> onProjectReadyToMount)
@@ -56,7 +56,7 @@ public sealed class MissingMediaWindow : Window
         _relinker = relinker;
         _onProjectReadyToMount = onProjectReadyToMount;
 
-        Title = $"VEGAS Pro / Neoveg — Janela de Mídias Ausentes (Missing Media) — {_project.Name}";
+        Title = $"Neoveg / Neoveg — Janela de Mídias Ausentes (Missing Media) — {_project.Name}";
         Width = 980;
         Height = 560;
         MinWidth = 820;
@@ -177,7 +177,7 @@ public sealed class MissingMediaWindow : Window
         Grid.SetRow(statusBorder, 2);
         rootGrid.Children.Add(statusBorder);
 
-        // 4. Action Buttons Bar (4 Required VEGAS Pro Actions + Quick Workspace Scan + Finish Button)
+        // 4. Action Buttons Bar (4 Required Neoveg Actions + Quick Workspace Scan + Finish Button)
         var actionsStack = new StackPanel
         {
             Spacing = 8

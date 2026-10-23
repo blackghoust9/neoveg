@@ -1,5 +1,5 @@
 /**
- * OpenVegas Pro — Real-Time Multi-Track Video Compositor & Scope Engine
+ * OpenNeoveg — Real-Time Multi-Track Video Compositor & Scope Engine
  */
 
 import {
@@ -8,7 +8,7 @@ import {
   EnvelopePoint,
   FadeCurveType,
   Track,
-  VegasProject,
+  NeovegProject,
   VideoFXInstance,
 } from '../types';
 
@@ -102,7 +102,7 @@ function mapBlendMode(mode: BlendModeType): GlobalCompositeOperation {
   }
 }
 
-export class VegasCompositor {
+export class NeovegHostCompositor {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private offscreen: HTMLCanvasElement;
@@ -137,7 +137,7 @@ export class VegasCompositor {
     return vid;
   }
 
-  public syncVideos(project: VegasProject, isPlaying: boolean): void {
+  public syncVideos(project: NeovegProject, isPlaying: boolean): void {
     const t = project.playhead;
     for (const track of project.tracks) {
       if (track.type !== 'video') continue;
@@ -170,8 +170,8 @@ export class VegasCompositor {
     }
   }
 
-  public renderFrame(project: VegasProject, selectedClip: ClipEvent | null, showPanCropGizmo = false): void {
-    const scaleMap: Record<VegasProject['previewQuality'], number> = {
+  public renderFrame(project: NeovegProject, selectedClip: ClipEvent | null, showPanCropGizmo = false): void {
+    const scaleMap: Record<NeovegProject['previewQuality'], number> = {
       draft: 0.4,
       preview: 0.65,
       good: 0.85,
@@ -198,7 +198,7 @@ export class VegasCompositor {
     ctx.fillRect(0, 0, w, h);
 
     const anySolo = project.tracks.some((tr) => tr.type === 'video' && tr.solo);
-    // In Vegas Pro, Track 1 (top) renders on top of Track 2 (below).
+    // In Neoveg, Track 1 (top) renders on top of Track 2 (below).
     // So we composite from bottom-most video track up to top-most video track.
     const videoTracks = project.tracks
       .filter((tr) => tr.type === 'video')
@@ -243,7 +243,7 @@ export class VegasCompositor {
     clip: ClipEvent,
     track: Track,
     trackLevel: number,
-    project: VegasProject,
+    project: NeovegProject,
     w: number,
     h: number
   ): void {
@@ -310,7 +310,7 @@ export class VegasCompositor {
       }
     }
 
-    // Vegas Pan/Crop works like a camera crop frame: smaller crop box = zoomed in!
+    // Neoveg Pan/Crop works like a camera crop frame: smaller crop box = zoomed in!
     const zoomFactor = 1 / Math.max(0.2, Math.min(3.0, pcScale));
     octx.translate(w / 2 - pcX * (w * 0.45), h / 2 - pcY * (h * 0.45));
     if (pcRot) {
@@ -490,12 +490,12 @@ export class VegasCompositor {
       }
     }
 
-    // 2. Procedural Vegas Media Generators & Titles
+    // 2. Procedural Neoveg Media Generators & Titles
     const gen = clip.generatorType || (clip.mediaType === 'title' ? 'titleText' : 'smpteBars');
 
     if (gen === 'titleText') {
       // Transparent lower-third / center title overlay
-      const title = clip.titleText || clip.name || 'VEGAS PRO STUDIO 21';
+      const title = clip.titleText || clip.name || 'NEOVEG STUDIO 21';
       const sub = clip.subtitleText || 'NON-LINEAR VIDEO & AUDIO BROADCAST ENGINE';
 
       // Glassmorphic lower-third banner
@@ -529,9 +529,9 @@ export class VegasCompositor {
       ctx.fillRect(0, 0, w, h);
       const scrollY = h - ((localT / Math.max(1, clip.duration)) * (h + 220));
       const lines = [
-        'OPEN VEGAS PRO STUDIO',
+        'OPEN NEOVEG STUDIO',
         '────────────────────',
-        'Core Timeline & DSP Engine: Rust (openvegas-core)',
+        'Core Timeline & DSP Engine: Rust (neoveg-core)',
         'Media Pipeline & Scripting API: Python + FFmpeg',
         'Studio NLE Interface: TypeScript + WebGL/Canvas',
         'Audio Engine: Multi-Bus Web Audio API',
@@ -660,7 +660,7 @@ export class VegasCompositor {
 
     ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText(`VEGAS HD SMPTE TEST PATTERN — ${clip.name}`, 18, h * 0.87);
+    ctx.fillText(`Neoveg HD SMPTE TEST PATTERN — ${clip.name}`, 18, h * 0.87);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px monospace';
     ctx.fillText(`TC: ${formatSMPTE(localT, 29.97, true)} | RATE: ${(clip.playbackRate || 1).toFixed(2)}x`, 18, h * 0.94);
@@ -711,7 +711,7 @@ export class VegasCompositor {
     ctx.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
     ctx.setLineDash([]);
 
-    // Vegas iconic "F" orientation watermark inside Pan/Crop box
+    // Neoveg iconic "F" orientation watermark inside Pan/Crop box
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
     ctx.lineWidth = 3;
     ctx.beginPath();
