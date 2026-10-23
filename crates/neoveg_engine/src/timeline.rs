@@ -34,6 +34,42 @@ impl TrackEvent {
     }
 }
 
+/// The editable placement of an event: where it sits and which part of the source it shows.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EventGeometry {
+    pub start: f64,
+    pub duration: f64,
+    pub trim_in: f64,
+    pub fade_in: f64,
+    pub fade_out: f64,
+}
+
+impl EventGeometry {
+    pub fn end(&self) -> f64 {
+        self.start + self.duration
+    }
+}
+
+impl TrackEvent {
+    pub fn geometry(&self) -> EventGeometry {
+        EventGeometry {
+            start: self.start,
+            duration: self.duration,
+            trim_in: self.trim_in,
+            fade_in: self.fade_in,
+            fade_out: self.fade_out,
+        }
+    }
+
+    pub fn set_geometry(&mut self, g: EventGeometry) {
+        self.start = g.start;
+        self.duration = g.duration;
+        self.trim_in = g.trim_in;
+        self.fade_in = g.fade_in;
+        self.fade_out = g.fade_out;
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub id: TrackId,

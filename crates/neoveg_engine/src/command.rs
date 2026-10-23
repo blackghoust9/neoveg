@@ -1,6 +1,6 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
-use crate::timeline::{EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
+use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditCommand {
@@ -21,6 +21,14 @@ pub enum EditCommand {
         event_id: EventId,
         old_start: f64,
         new_start: f64,
+    },
+    /// Move, trim and/or change of track in one undo step (a mouse drag).
+    EditEvent {
+        from_track: TrackId,
+        to_track: TrackId,
+        event_id: EventId,
+        old: EventGeometry,
+        new: EventGeometry,
     },
     SplitEvent {
         track_id: TrackId,
@@ -89,6 +97,13 @@ impl EditCommand {
                 new_start,
                 ..
             } => set_start(tl, *track_id, *event_id, *new_start),
+            Self::EditEvent {
+                from_track,
+                to_track,
+                event_id,
+                new,
+                ..
+            } => relocate(tl, *from_track, *to_track, *event_id, *new),
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -147,6 +162,15 @@ impl EditCommand {
             } => {
                 set_start(tl, *track_id, *event_id, *old_start);
             }
+            Self::EditEvent {
+                from_track,
+                to_track,
+                event_id,
+                old,
+                ..
+            } => {
+                relocate(tl, *to_track, *from_track, *event_id, *old);
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -165,6 +189,32 @@ impl EditCommand {
             }
         }
     }
+}
+
+/// Moves `event_id` from one track to another (or within a track) and sets its geometry.
+fn relocate(
+    tl: &mut Timeline,
+    from: TrackId,
+    to: TrackId,
+    event_id: EventId,
+    geometry: EventGeometry,
+) -> bool {
+    if tl.track(to).is_none() {
+        return false;
+    }
+    let Some(source) = tl.track_mut(from) else {
+        return false;
+    };
+    let Some(index) = source.events.iter().position(|e| e.id == event_id) else {
+        return false;
+    };
+    let mut event = source.events.remove(index);
+    event.set_geometry(geometry);
+    if let Some(target) = tl.track_mut(to) {
+        target.events.push(event);
+        target.events.sort_by(|a, b| a.start.total_cmp(&b.start));
+    }
+    true
 }
 
 fn set_start(tl: &mut Timeline, track_id: TrackId, event_id: EventId, start: f64) -> bool {
@@ -366,6 +416,59 @@ mod tests {
         // a rejected command is not a change
         let r2 = history.revision();
         assert!(!history.undo(&mut Timeline::new()) || history.revision() != r2);
+    }
+
+    #[test]
+    fn edit_event_moves_trims_and_changes_track_in_one_undo_step() {
+        let (mut tl, mut history, from_track, event_id) = timeline_with_event();
+        let other = tl.new_track(TrackKind::Audio);
+        let to_track = other.id;
+        history.execute(&mut tl, EditCommand::AddTrack { track: other });
+        let before = tl.clone();
+        let old = tl.track(from_track).unwrap().events[0].geometry();
+        let new = EventGeometry {
+            start: 20.0,
+            duration: 4.0,
+            trim_in: 3.0,
+            fade_in: 0.0,
+            fade_out: 0.5,
+        };
+
+        assert!(history.execute(
+            &mut tl,
+            EditCommand::EditEvent {
+                from_track,
+                to_track,
+                event_id,
+                old,
+                new
+            },
+        ));
+        assert!(tl.track(from_track).unwrap().events.is_empty());
+        assert_eq!(tl.track(to_track).unwrap().events[0].geometry(), new);
+
+        assert!(history.undo(&mut tl));
+        assert_eq!(tl.tracks, before.tracks);
+        assert!(history.redo(&mut tl));
+        assert_eq!(tl.track(to_track).unwrap().events[0].geometry(), new);
+    }
+
+    #[test]
+    fn edit_event_on_a_missing_track_is_rejected() {
+        let (mut tl, mut history, from_track, event_id) = timeline_with_event();
+        let old = tl.track(from_track).unwrap().events[0].geometry();
+        let applied = history.execute(
+            &mut tl,
+            EditCommand::EditEvent {
+                from_track,
+                to_track: 999,
+                event_id,
+                old,
+                new: old,
+            },
+        );
+        assert!(!applied);
+        assert_eq!(tl.track(from_track).unwrap().events.len(), 1);
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eframe::egui::{
-    self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Rect, Rounding, Sense, Shape,
+    self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Pos2, Rect, Rounding, Sense, Shape,
     Stroke, TextureHandle,
 };
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
@@ -22,8 +22,10 @@ use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
+use neoveg_engine::edit;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
+use neoveg_engine::EventGeometry;
 use neoveg_engine::{EditCommand, EventId, History, Timeline, TrackEvent, TrackId, TrackKind};
 use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
@@ -40,6 +42,9 @@ const MIN_PIXELS_PER_SECOND: f64 = 15.0;
 const MAX_PIXELS_PER_SECOND: f64 = 480_000.0;
 const OFFSCREEN_CLAMP_PX: f32 = 10_000.0;
 const BLINK_SECONDS: f64 = 0.5;
+const SNAP_THRESHOLD_PX: f32 = 8.0;
+const AUTOSCROLL_EDGE_PX: f32 = 28.0;
+const AUTOSCROLL_PX_PER_SECOND: f64 = 700.0;
 
 const LANGUAGES: [&str; 8] = [
     "pt-BR", "en-US", "de-DE", "es-ES", "fr-FR", "zh-CN", "ja-JP", "ru-RU",
@@ -97,6 +102,26 @@ enum LoadMsg {
     Failed(String),
 }
 
+/// What a mouse drag on an event does, decided by where the press landed.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum DragMode {
+    Move,
+    TrimLeft,
+    TrimRight,
+}
+
+/// A drag in progress. The timeline is only touched (as one undo step) when the mouse is released.
+struct EventDrag {
+    mode: DragMode,
+    track_id: TrackId,
+    event_id: EventId,
+    target_track: TrackId,
+    origin: EventGeometry,
+    current: EventGeometry,
+    /// Pointer time minus event start at the press (keeps the grabbed point under the cursor).
+    grab_offset: f64,
+}
+
 struct ActivePlayer {
     player: AudioPlayer,
 }
@@ -140,6 +165,8 @@ struct AppState {
     confirm_exit: bool,
     allow_close: bool,
     window_title: String,
+    drag: Option<EventDrag>,
+    snapping: bool,
     media_tab: usize,
     project_path: Option<PathBuf>,
     status: String,
@@ -190,6 +217,8 @@ impl AppState {
             confirm_exit: false,
             allow_close: false,
             window_title: String::new(),
+            drag: None,
+            snapping: true,
             media_tab: 0,
             project_path: None,
             status: "Projeto vazio".into(),
@@ -476,6 +505,126 @@ impl AppState {
             self.status = "Projeto recuperado: salve para mantê-lo".into();
         }
         self.pending_recovery.retain(|e| e.path != entry.path);
+    }
+
+    // ---- mouse editing ---------------------------------------------------------------------------
+
+    /// Times events can snap to: the origin, the playhead and the edges of every other event.
+    fn snap_candidates(&self, exclude: (TrackId, EventId)) -> Vec<f64> {
+        let mut times = vec![0.0, self.playhead];
+        for track in &self.timeline.tracks {
+            for ev in &track.events {
+                if (track.id, ev.id) != exclude {
+                    times.push(ev.start);
+                    times.push(ev.end());
+                }
+            }
+        }
+        times
+    }
+
+    /// Length of the source media behind an event (`None` for generated media).
+    fn source_len(&self, track_id: TrackId, event_id: EventId) -> Option<f64> {
+        let track = self.timeline.track(track_id)?;
+        let media_id = track.events.iter().find(|e| e.id == event_id)?.media_id?;
+        let length = match track.kind {
+            TrackKind::Audio => self.media.get(&media_id).map(|m| m.duration),
+            TrackKind::Video => self.video_info.get(&media_id).map(|i| i.duration),
+        };
+        length.or_else(|| {
+            self.project
+                .media_pool
+                .iter()
+                .find(|m| m.id == media_id)
+                .map(|m| m.duration_seconds)
+        })
+    }
+
+    fn begin_drag(&mut self, hit: (TrackId, EventId, DragMode, EventGeometry), pointer_time: f64) {
+        let (track_id, event_id, mode, origin) = hit;
+        self.selected_track = Some(track_id);
+        self.selected_event = Some((track_id, event_id));
+        self.drag = Some(EventDrag {
+            mode,
+            track_id,
+            event_id,
+            target_track: track_id,
+            origin,
+            current: origin,
+            grab_offset: pointer_time - origin.start,
+        });
+    }
+
+    /// Recomputes the dragged geometry for the pointer at `pointer_time` over `row_track`.
+    fn update_drag(
+        &mut self,
+        pointer_time: f64,
+        row_track: Option<TrackId>,
+        threshold: f64,
+        snap_enabled: bool,
+    ) {
+        let Some(mut drag) = self.drag.take() else {
+            return;
+        };
+        let fps = self.project.settings.fps;
+        let min_len = 1.0 / fps.max(1.0);
+        let candidates = if snap_enabled {
+            self.snap_candidates((drag.track_id, drag.event_id))
+        } else {
+            Vec::new()
+        };
+        let snap = |t: f64| {
+            edit::snap_time(t, &candidates, threshold).unwrap_or_else(|| edit::quantize(t, fps))
+        };
+
+        match drag.mode {
+            DragMode::Move => {
+                let raw = pointer_time - drag.grab_offset;
+                let start = edit::snap_block(raw, drag.origin.duration, &candidates, threshold)
+                    .unwrap_or_else(|| edit::quantize(raw, fps));
+                drag.current = edit::move_to(drag.origin, start);
+                // Events only move between tracks of their own kind
+                if let Some(track) = row_track.and_then(|id| self.timeline.track(id)) {
+                    let same_kind = self
+                        .timeline
+                        .track(drag.track_id)
+                        .is_some_and(|t| t.kind == track.kind);
+                    if same_kind {
+                        drag.target_track = track.id;
+                    }
+                }
+            }
+            DragMode::TrimLeft => {
+                drag.current = edit::trim_left(drag.origin, snap(pointer_time), min_len);
+            }
+            DragMode::TrimRight => {
+                let len = self.source_len(drag.track_id, drag.event_id);
+                drag.current = edit::trim_right(drag.origin, snap(pointer_time), min_len, len);
+            }
+        }
+        self.drag = Some(drag);
+    }
+
+    /// Commits the drag as a single undo step (nothing happens when the event did not change).
+    fn finish_drag(&mut self) {
+        let Some(d) = self.drag.take() else {
+            return;
+        };
+        if d.current == d.origin && d.target_track == d.track_id {
+            return;
+        }
+        self.history.execute(
+            &mut self.timeline,
+            EditCommand::EditEvent {
+                from_track: d.track_id,
+                to_track: d.target_track,
+                event_id: d.event_id,
+                old: d.origin,
+                new: d.current,
+            },
+        );
+        self.selected_track = Some(d.target_track);
+        self.selected_event = Some((d.target_track, d.event_id));
     }
 
     // ---- unsaved changes and autosave -----------------------------------------------------------
@@ -862,6 +1011,14 @@ impl AppState {
         }
         let now = ctx.input(|i| i.time);
         let fps = self.project.settings.fps;
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F8)) {
+            self.snapping = !self.snapping;
+            self.status = if self.snapping {
+                "Alinhamento ligado".into()
+            } else {
+                "Alinhamento desligado".into()
+            };
+        }
         let (save_as, save, open) = ctx.input_mut(|i| {
             (
                 i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::S),
@@ -1542,6 +1699,39 @@ fn x_to_time(state: &AppState, left: f32, x: f32) -> f64 {
     state.scroll_seconds + (x - left) as f64 / state.pixels_per_second
 }
 
+/// Width of the trim zones at both ends of an event.
+const TRIM_EDGE_PX: f32 = 7.0;
+
+/// Event under `p` and what a drag from there would do.
+fn hit_event(
+    state: &AppState,
+    lanes_left: f32,
+    lane_top: f32,
+    p: Pos2,
+) -> Option<(TrackId, EventId, DragMode, EventGeometry)> {
+    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    if row < 0.0 {
+        return None;
+    }
+    let track = state.timeline.tracks.get(row as usize)?;
+    let to_px = |t: f64| lanes_left + ((t - state.scroll_seconds) * state.pixels_per_second) as f32;
+    track.events.iter().rev().find_map(|ev| {
+        let (x0, x1) = (to_px(ev.start), to_px(ev.end()));
+        if p.x < x0 || p.x > x1 {
+            return None;
+        }
+        let edge = TRIM_EDGE_PX.min((x1 - x0) / 3.0);
+        let mode = if p.x - x0 <= edge {
+            DragMode::TrimLeft
+        } else if x1 - p.x <= edge {
+            DragMode::TrimRight
+        } else {
+            DragMode::Move
+        };
+        Some((track.id, ev.id, mode, ev.geometry()))
+    })
+}
+
 fn timeline_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let canvas_h = (ui.available_height() - 30.0).max(100.0);
     timeline_canvas(state, ui, canvas_h);
@@ -1581,6 +1771,16 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         }
         if icon(ui, "🎞+", "Inserir faixa de vídeo (Ctrl+Shift+Q)") {
             state.add_track(TrackKind::Video);
+        }
+        ui.separator();
+        if ui
+            .selectable_label(state.snapping, "🧲")
+            .on_hover_text(
+                "Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)",
+            )
+            .clicked()
+        {
+            state.snapping = !state.snapping;
         }
         ui.separator();
         // Toolbar zoom is anchored at the edit cursor
@@ -1649,12 +1849,72 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         }
     }
 
+    // ---- dragging events: move, trim left/right, change track ------------------------------------
+    let lane_top = rect.top() + RULER_HEIGHT;
+    if response.drag_started() {
+        let press = ui.input(|i| i.pointer.press_origin());
+        if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= lane_top) {
+            if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
+                let t = x_to_time(state, lanes.left(), p.x);
+                state.begin_drag(hit, t);
+            }
+        }
+    }
+    if state.drag.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.drag = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let t = x_to_time(state, lanes.left(), p.x);
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let row_track = (row >= 0.0)
+                .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
+                .flatten();
+            let snap_enabled = state.snapping && !ui.input(|i| i.modifiers.alt);
+            let threshold = f64::from(SNAP_THRESHOLD_PX) / state.pixels_per_second;
+            state.update_drag(t, row_track, threshold, snap_enabled);
+
+            // Scroll while the pointer rests near either end of the lane area
+            let dt = f64::from(ui.input(|i| i.unstable_dt));
+            let direction = if p.x < lanes.left() + AUTOSCROLL_EDGE_PX {
+                -1.0
+            } else if p.x > lanes.right() - AUTOSCROLL_EDGE_PX {
+                1.0
+            } else {
+                0.0
+            };
+            if direction != 0.0 {
+                state.scroll_seconds = (state.scroll_seconds
+                    + direction * AUTOSCROLL_PX_PER_SECOND * dt / state.pixels_per_second)
+                    .max(0.0);
+            }
+            ui.ctx().request_repaint();
+        }
+    }
+    if response.drag_stopped() {
+        state.finish_drag();
+    }
+
+    // Cursor feedback
+    if let Some(drag) = &state.drag {
+        ui.ctx().set_cursor_icon(match drag.mode {
+            DragMode::Move => egui::CursorIcon::Grabbing,
+            _ => egui::CursorIcon::ResizeHorizontal,
+        });
+    } else if let Some(p) = response.hover_pos().filter(|p| p.x >= lanes.left()) {
+        match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
+            Some(DragMode::TrimLeft | DragMode::TrimRight) => {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            }
+            Some(DragMode::Move) => ui.ctx().set_cursor_icon(egui::CursorIcon::Grab),
+            None => {}
+        }
+    }
+
     // ---- drawing ---------------------------------------------------------------------------------
     let painter = ui.painter_at(rect);
     let lane_painter = painter.with_clip_rect(lanes);
     painter.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(26, 28, 33));
 
-    let lane_top = rect.top() + RULER_HEIGHT;
     for (i, _) in state.timeline.tracks.iter().enumerate() {
         let y = lane_top + i as f32 * TRACK_HEIGHT;
         let shade = if i % 2 == 0 { 31 } else { 28 };
@@ -1710,14 +1970,28 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             TrackKind::Video => Color32::from_rgb(88, 66, 130),
         };
         for ev in &track.events {
+            let dragging = state
+                .drag
+                .as_ref()
+                .filter(|d| d.track_id == track.id && d.event_id == ev.id);
+            let g = dragging.map_or_else(|| ev.geometry(), |d| d.current);
+            let row_y = dragging
+                .and_then(|d| {
+                    state
+                        .timeline
+                        .tracks
+                        .iter()
+                        .position(|t| t.id == d.target_track)
+                })
+                .map_or(y, |row| lane_top + row as f32 * TRACK_HEIGHT);
             let x0 = (lanes.left()
-                + ((ev.start - state.scroll_seconds) * state.pixels_per_second) as f32)
+                + ((g.start - state.scroll_seconds) * state.pixels_per_second) as f32)
                 .clamp(
                     lanes.left() - OFFSCREEN_CLAMP_PX,
                     lanes.right() + OFFSCREEN_CLAMP_PX,
                 );
             let x1 = (lanes.left()
-                + ((ev.end() - state.scroll_seconds) * state.pixels_per_second) as f32)
+                + ((g.end() - state.scroll_seconds) * state.pixels_per_second) as f32)
                 .clamp(
                     lanes.left() - OFFSCREEN_CLAMP_PX,
                     lanes.right() + OFFSCREEN_CLAMP_PX,
@@ -1725,7 +1999,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if x1 < lanes.left() || x0 > lanes.right() {
                 continue;
             }
-            let ev_rect = Rect::from_min_max(pos2(x0, y + 2.0), pos2(x1, y + TRACK_HEIGHT - 2.0));
+            let ev_rect =
+                Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
             let selected = state.selected_event == Some((track.id, ev.id));
             lane_painter.rect_filled(ev_rect, Rounding::ZERO, base);
             lane_painter.rect_filled(
@@ -1750,7 +2025,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     pos2(ev_rect.right().min(lanes.right()), ev_rect.bottom()),
                 );
                 let visible_offset = (wave_rect.left() - x0) as f64 / state.pixels_per_second;
-                let start_frame = (ev.trim_in + visible_offset) * media.sample_rate as f64;
+                let start_frame = (g.trim_in + visible_offset) * media.sample_rate as f64;
                 let frames_per_pixel = media.sample_rate as f64 / state.pixels_per_second;
                 paint_waveform(
                     &lane_painter,
@@ -1768,6 +2043,26 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             };
             lane_painter.rect_stroke(ev_rect, Rounding::ZERO, Stroke::new(1.0_f32, border));
         }
+    }
+
+    // Live read-out while dragging: start and length of the event
+    if let (Some(drag), Some(p)) = (&state.drag, ui.input(|i| i.pointer.hover_pos())) {
+        let label = format!(
+            "{}  ·  {:.3} s",
+            seconds_to_timecode(drag.current.start, fps, drop_frame),
+            drag.current.duration
+        );
+        let at = pos2(p.x + 14.0, p.y - 22.0);
+        let galley_rect =
+            Rect::from_min_size(at, vec2(label.chars().count() as f32 * 6.4 + 10.0, 16.0));
+        painter.rect_filled(galley_rect, Rounding::ZERO, Color32::from_black_alpha(200));
+        painter.text(
+            galley_rect.left_center() + vec2(5.0, 0.0),
+            Align2::LEFT_CENTER,
+            label,
+            FontId::monospace(10.0),
+            Color32::WHITE,
+        );
     }
 
     // Track headers
@@ -1886,7 +2181,169 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
 #[cfg(test)]
 mod tests {
-    use super::format_age;
+    use super::*;
+
+    fn state_with_clip() -> (AppState, TrackId, EventId) {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let track_id = s.selected_track.unwrap();
+        s.project.media_pool.push(MediaRef {
+            id: 1,
+            path: "x.wav".into(),
+            duration_seconds: 10.0,
+        });
+        let id = add_event(&mut s, track_id, 2.0, 4.0);
+        (s, track_id, id)
+    }
+
+    fn add_event(s: &mut AppState, track_id: TrackId, start: f64, duration: f64) -> EventId {
+        let event = TrackEvent {
+            id: s.timeline.alloc_id(),
+            name: "a".into(),
+            media_id: Some(1),
+            start,
+            duration,
+            trim_in: 0.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+        };
+        let id = event.id;
+        s.history
+            .execute(&mut s.timeline, EditCommand::AddEvent { track_id, event });
+        id
+    }
+
+    fn geometry(s: &AppState, track_id: TrackId, event_id: EventId) -> EventGeometry {
+        s.timeline
+            .track(track_id)
+            .unwrap()
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+            .unwrap()
+            .geometry()
+    }
+
+    fn hit(
+        s: &AppState,
+        track_id: TrackId,
+        event_id: EventId,
+        mode: DragMode,
+    ) -> (TrackId, EventId, DragMode, EventGeometry) {
+        (track_id, event_id, mode, geometry(s, track_id, event_id))
+    }
+
+    #[test]
+    fn dragging_snaps_to_a_neighbour_edge_and_is_one_undo_step() {
+        let (mut s, track, ev) = state_with_clip();
+        add_event(&mut s, track, 10.0, 2.0);
+        let before = geometry(&s, track, ev);
+
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        // the event's end would land at 9.95: within the threshold of the neighbour starting at 10
+        s.update_drag(6.95, Some(track), 0.1, true);
+        s.finish_drag();
+
+        assert_eq!(geometry(&s, track, ev).start, 6.0);
+        assert!(s.is_dirty());
+        s.history.undo(&mut s.timeline);
+        assert_eq!(geometry(&s, track, ev), before);
+        assert!(s.drag.is_none());
+    }
+
+    #[test]
+    fn without_snapping_the_start_lands_on_a_frame() {
+        let (mut s, track, ev) = state_with_clip();
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        s.update_drag(7.0, Some(track), 0.1, false);
+        s.finish_drag();
+        let start = geometry(&s, track, ev).start;
+        let frame = start * s.project.settings.fps;
+        assert!((frame - frame.round()).abs() < 1e-9, "{start}");
+        assert!((start - 6.0).abs() < 0.02);
+    }
+
+    #[test]
+    fn trim_right_stops_at_the_end_of_the_source() {
+        let (mut s, track, ev) = state_with_clip();
+        s.begin_drag(hit(&s, track, ev, DragMode::TrimRight), 6.0);
+        s.update_drag(500.0, None, 0.1, false);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        // 10 s of source, none trimmed at the start
+        assert_eq!((g.start, g.duration), (2.0, 10.0));
+    }
+
+    #[test]
+    fn trim_left_shifts_the_source_and_keeps_the_end() {
+        let (mut s, track, ev) = state_with_clip();
+        s.begin_drag(hit(&s, track, ev, DragMode::TrimLeft), 2.0);
+        s.update_drag(3.0, None, 0.1, false);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        assert!((g.end() - 6.0).abs() < 1e-9);
+        assert!((g.trim_in - (g.start - 2.0)).abs() < 1e-9);
+        assert!(g.start > 2.9 && g.start < 3.1);
+    }
+
+    #[test]
+    fn events_change_tracks_only_within_their_kind() {
+        let (mut s, track, ev) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let audio2 = s.selected_track.unwrap();
+        s.add_track(TrackKind::Video);
+        let video = s.selected_track.unwrap();
+
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        s.update_drag(3.0, Some(video), 0.1, false);
+        assert_eq!(s.drag.as_ref().unwrap().target_track, track);
+        s.update_drag(3.0, Some(audio2), 0.1, false);
+        s.finish_drag();
+
+        assert!(s.timeline.track(track).unwrap().events.is_empty());
+        assert_eq!(s.timeline.track(audio2).unwrap().events.len(), 1);
+        assert_eq!(s.selected_track, Some(audio2));
+        s.history.undo(&mut s.timeline);
+        assert_eq!(s.timeline.track(track).unwrap().events.len(), 1);
+    }
+
+    #[test]
+    fn hit_testing_finds_trim_zones_and_the_body() {
+        let (mut s, track, ev) = state_with_clip();
+        s.pixels_per_second = 100.0;
+        s.scroll_seconds = 0.0;
+        // event spans 2.0 s .. 6.0 s = 200 px .. 600 px
+        let mode_at = |x: f32, y: f32| hit_event(&s, 0.0, 0.0, pos2(x, y)).map(|h| (h.0, h.1, h.2));
+        assert_eq!(mode_at(203.0, 10.0), Some((track, ev, DragMode::TrimLeft)));
+        assert_eq!(mode_at(598.0, 10.0), Some((track, ev, DragMode::TrimRight)));
+        assert_eq!(mode_at(400.0, 10.0), Some((track, ev, DragMode::Move)));
+        assert_eq!(mode_at(100.0, 10.0), None);
+        assert_eq!(mode_at(400.0, TRACK_HEIGHT + 10.0), None);
+        assert_eq!(mode_at(400.0, -5.0), None);
+    }
+
+    #[test]
+    fn candidates_exclude_the_dragged_event() {
+        let (mut s, track, ev) = state_with_clip();
+        add_event(&mut s, track, 10.0, 2.0);
+        s.playhead = 7.5;
+        let c = s.snap_candidates((track, ev));
+        assert!(c.contains(&7.5) && c.contains(&10.0) && c.contains(&12.0) && c.contains(&0.0));
+        assert!(!c.contains(&2.0) && !c.contains(&6.0));
+    }
+
+    #[test]
+    fn a_cancelled_drag_changes_nothing() {
+        let (mut s, track, ev) = state_with_clip();
+        let before = geometry(&s, track, ev);
+        let revision = s.history.revision();
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        s.update_drag(9.0, Some(track), 0.1, false);
+        s.drag = None; // Esc
+        s.finish_drag();
+        assert_eq!(geometry(&s, track, ev), before);
+        assert_eq!(s.history.revision(), revision);
+    }
 
     #[test]
     fn ages_are_human_readable() {
