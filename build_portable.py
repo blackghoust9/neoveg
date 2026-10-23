@@ -9,7 +9,7 @@ Pipeline Steps:
 - Step 1: Compiles the Rust FFI Engine (`rust-core` -> `neoveg_core.dll` / `libneoveg_core.so` / `libneoveg_core.dylib`) when `cargo` is available.
 - Step 2: Provisions the isolated FFmpeg & FFprobe runtime per OS (`runtimes/<rid>/ffmpeg/bin/`).
 - Step 3: Publishes the C# Avalonia UI 11 cross-platform desktop application (`dotnet publish`) for each target RID.
-- Step 4: Bundles the recycled Python scripts (`ffmpeg_manager.py`, `rust_bridge.py`, `plugins_engine.py`, `neoveg_scripting.py`, `error_logger.py`), sample media, and `.veg` projects into each OS portable package, enforcing a ~200MB–300MB portable footprint budget.
+- Step 4: Bundles the recycled Python scripts (`ffmpeg_manager.py`, `rust_bridge.py`, `plugins_engine.py`, `neoveg_scripting.py`, `error_logger.py`), sample media, and `.neoveg` projects into each OS portable package, enforcing a ~200MB–300MB portable footprint budget.
 """
 
 from __future__ import annotations
@@ -100,7 +100,7 @@ def build_rust_ffi_core() -> Dict[str, Any]:
 
 
 def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
-    """Copies recycled Python scripts, `.veg` projects, media, and isolated FFmpeg runtime slots."""
+    """Copies recycled Python scripts, `.neoveg` projects, media, and isolated FFmpeg runtime slots."""
     # 1. Recycled Python scripts
     py_dst = target_root / "python-backend"
     py_dst.mkdir(parents=True, exist_ok=True)

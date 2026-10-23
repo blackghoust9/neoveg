@@ -29,9 +29,9 @@
     <sys:String x:Key="Menu.File.Exit">Sair</sys:String>
     <sys:String x:Key="Menu.File.ImportMedia">Importar Mídia (MP4 / WAV / MP3)...</sys:String>
     <sys:String x:Key="Menu.File.NewEmpty">Novo Projeto Vazio</sys:String>
-    <sys:String x:Key="Menu.File.OpenDemo">Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.veg)</sys:String>
+    <sys:String x:Key="Menu.File.OpenDemo">Abrir Projeto de Demonstração (Neoveg_Broadcast_Demo.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.RenderAs">Renderizar Como... (Python Isolated FFmpeg)</sys:String>
-    <sys:String x:Key="Menu.File.SaveVeg">Salvar Projeto (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.SaveVeg">Salvar Projeto (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Configurações -&gt; Geral / Idioma (Language)...</sys:String>
     <sys:String x:Key="Menu.File.Splash">Exibir Tela de Carregamento (Splash Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Janela de Boas-Vindas...</sys:String>
@@ -116,10 +116,10 @@
     <sys:String x:Key="Tooltip.Import">Importar Mídia (MP4 / WAV / MP3 via ffprobe isolado)</sys:String>
     <sys:String x:Key="Tooltip.Popout">Destacar Video Preview para Segundo Monitor [↗]</sys:String>
     <sys:String x:Key="Tooltip.Render">Exportar / Renderizar Master MP4 (Python Isolated FFmpeg)</sys:String>
-    <sys:String x:Key="Tooltip.Save">Salvar Projeto (.veg)</sys:String>
+    <sys:String x:Key="Tooltip.Save">Salvar Projeto (.neoveg)</sys:String>
     <sys:String x:Key="Tooltip.Settings">Abrir Configurações -&gt; Geral / Idioma</sys:String>
     <sys:String x:Key="Tooltip.Split">Dividir Evento no Playhead via Rust FFI (Atalho: S)</sys:String>
-    <sys:String x:Key="Tooltip.Welcome">Abrir Janela de Boas-Vindas (Projetos .veg)</sys:String>
+    <sys:String x:Key="Tooltip.Welcome">Abrir Janela de Boas-Vindas (Projetos .neoveg)</sys:String>
     <sys:String x:Key="Welcome.AdvancedBtn">Configurações Avançadas...</sys:String>
     <sys:String x:Key="Welcome.CreateBtn">Criar Projeto</sys:String>
     <sys:String x:Key="Welcome.CreateHeading">Criar um novo projeto</sys:String>

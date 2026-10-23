@@ -220,18 +220,6 @@
             "#8FA19C",
             "#73635E"
           ]
-        },
-        {
-          "file": "uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png",
-          "relative_path": "02_era_classic_silver_v4_v13/references/uploads_2Fe3b81eff-fd87-4c3e-830b-bf63d38b9d17_2FClassic NLE_Neoveg_Pro.png",
-          "sampled_dominant_hex": [
-            "#B3B7B2",
-            "#949595",
-            "#8A8989",
-            "#868186",
-            "#777972",
-            "#4C463F"
-          ]
         }
       ]
     },
@@ -284,18 +272,6 @@
         "palette_json": "03_era_modern_carbon_v14_v22/palette_modern_v14_v15_flat_gray.json"
       },
       "curated_references": [
-        {
-          "file": "beginner-tips-for-neoveg-pro-3.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/beginner-tips-for-neoveg-pro-3.png",
-          "sampled_dominant_hex": [
-            "#D7DCE5",
-            "#B0ABAB",
-            "#97999A",
-            "#979594",
-            "#878B8A",
-            "#7D7877"
-          ]
-        },
         {
           "file": "5image.png",
           "relative_path": "03_era_modern_carbon_v14_v22/references/5image.png",
@@ -355,7 +331,7 @@
       "reference_files": [
         "icones-neoveg.png",
         "8image.png",
-        "color-grading-Classic NLE-neoveg-8.png",
+        "color-grading-classic_nle-neoveg-8.png",
         "Neoveg_Pro_Screenshot.png",
         "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
         "filmmakers.png",
@@ -392,30 +368,6 @@
             "#3B363C",
             "#2E2E2F",
             "#192135"
-          ]
-        },
-        {
-          "file": "color-grading-Classic NLE-neoveg-8.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/color-grading-Classic NLE-neoveg-8.png",
-          "sampled_dominant_hex": [
-            "#ACBBA1",
-            "#50504F",
-            "#3B3A3A",
-            "#343738",
-            "#3C2B39",
-            "#0C0B0D"
-          ]
-        },
-        {
-          "file": "Neoveg_Pro_Screenshot.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/Neoveg_Pro_Screenshot.png",
-          "sampled_dominant_hex": [
-            "#AFB4B6",
-            "#464646",
-            "#303030",
-            "#2B2A2A",
-            "#232323",
-            "#212121"
           ]
         },
         {
@@ -566,30 +518,6 @@
             "#132C3E",
             "#331E20",
             "#090D17"
-          ]
-        },
-        {
-          "file": "Neoveg_Suite_UI_202.png",
-          "relative_path": "04_era_contemporary_2026/references/Neoveg_Suite_UI_202.png",
-          "sampled_dominant_hex": [
-            "#C9B677",
-            "#8D6940",
-            "#433228",
-            "#391F22",
-            "#222222",
-            "#1E1E1E"
-          ]
-        },
-        {
-          "file": "neoveg_pro_23_fx_scrolling.png",
-          "relative_path": "04_era_contemporary_2026/references/neoveg_pro_23_fx_scrolling.png",
-          "sampled_dominant_hex": [
-            "#727C8E",
-            "#474547",
-            "#2D2C2D",
-            "#282828",
-            "#27282A",
-            "#232323"
           ]
         }
       ]
@@ -778,20 +706,7 @@
         "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_jorgetheuser_v14.png",
         "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_jorgetheuser_v14.json"
       },
-      "curated_references": [
-        {
-          "file": "beginner-tips-for-neoveg-pro-3.png",
-          "relative_path": "03_era_modern_carbon_v14_v22/references/beginner-tips-for-neoveg-pro-3.png",
-          "sampled_dominant_hex": [
-            "#D7DCE5",
-            "#B0ABAB",
-            "#97999A",
-            "#979594",
-            "#878B8A",
-            "#7D7877"
-          ]
-        }
-      ]
+      "curated_references": []
     },
     {
       "id": "neoveg_actualblack_v15",

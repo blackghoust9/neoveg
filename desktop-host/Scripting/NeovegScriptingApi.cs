@@ -806,7 +806,7 @@ public sealed class Project
         set => UnderlyingProject.Name = value;
     }
 
-    public string FilePath { get; set; } = "projects/Neoveg_Broadcast_Demo.veg";
+    public string FilePath { get; set; } = "projects/Neoveg_Broadcast_Demo.neoveg";
 
     public TrackList Tracks { get; }
     public MarkerList Markers { get; }

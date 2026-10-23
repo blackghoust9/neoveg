@@ -521,7 +521,7 @@ class NeovegHTTPHandler(BaseHTTPRequestHandler):
 
         if req_path == "/api/projects/load":
             body = self._read_json_body()
-            fname = body.get("fileName", "Neoveg_Broadcast_Demo.veg")
+            fname = body.get("fileName", "Neoveg_Broadcast_Demo.neoveg")
             proj = load_saved_project(fname)
             if not proj:
                 self._send_json({"ok": False, "error": f"Project not found: {fname}"}, status=404)

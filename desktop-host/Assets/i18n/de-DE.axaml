@@ -29,9 +29,9 @@
     <sys:String x:Key="Menu.File.Exit">Beenden</sys:String>
     <sys:String x:Key="Menu.File.ImportMedia">Medien importieren (MP4 / WAV / MP3)...</sys:String>
     <sys:String x:Key="Menu.File.NewEmpty">Neues leeres Projekt</sys:String>
-    <sys:String x:Key="Menu.File.OpenDemo">Broadcast-Demoprojekt öffnen (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.OpenDemo">Broadcast-Demoprojekt öffnen (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.RenderAs">Rendern als... (Python Isolated FFmpeg)</sys:String>
-    <sys:String x:Key="Menu.File.SaveVeg">Projekt speichern (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.SaveVeg">Projekt speichern (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Einstellungen -&gt; Allgemein / Sprache...</sys:String>
     <sys:String x:Key="Menu.File.Splash">Startbildschirm anzeigen (Splash Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Willkommensbildschirm...</sys:String>
@@ -116,7 +116,7 @@
     <sys:String x:Key="Tooltip.Import">Medien importieren (MP4 / WAV / MP3)</sys:String>
     <sys:String x:Key="Tooltip.Popout">Videovorschau auf zweiten Monitor abdocken [↗]</sys:String>
     <sys:String x:Key="Tooltip.Render">Master-MP4 exportieren / rendern (FFmpeg)</sys:String>
-    <sys:String x:Key="Tooltip.Save">Projekt speichern (.veg)</sys:String>
+    <sys:String x:Key="Tooltip.Save">Projekt speichern (.neoveg)</sys:String>
     <sys:String x:Key="Tooltip.Settings">Einstellungen -&gt; Allgemein / Sprache öffnen</sys:String>
     <sys:String x:Key="Tooltip.Split">Event am Cursor über Rust FFI teilen (S)</sys:String>
     <sys:String x:Key="Tooltip.Welcome">Willkommensbildschirm öffnen</sys:String>

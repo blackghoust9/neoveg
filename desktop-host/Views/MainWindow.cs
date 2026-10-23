@@ -530,7 +530,7 @@ public sealed class MainWindow : Window
             Header = loc.T("Menu.File.Import", "Importar"),
             ItemsSource = new Control[]
             {
-                CreateMenuItem(loc.T("Menu.File.Import.Veg", "Projeto Neoveg (.veg)..."), async () => await ImportLegacyVegProjectPickerAsync()),
+                CreateMenuItem(loc.T("Menu.File.Import.Neoveg", "Projeto Nativo Neoveg (.neoveg)..."), async () => await OpenNeovegProjectPickerAsync()),
                 CreateMenuItem(loc.T("Menu.File.Import.Xml", "Final Cut Pro / Premiere XML (.xml, .fcpxml)..."), async () => await ImportXmlOrFcpxmlProjectPickerAsync()),
                 new Separator(),
                 CreateMenuItem(loc.T("Menu.File.ImportMedia", "Importar Mídia (MP4 / WAV / MP3)..."), async () => await OpenImportMediaDialogAsync())
@@ -2463,7 +2463,7 @@ public sealed class MainWindow : Window
     {
         TogglePlayback(false);
 
-        // Automatic Missing Media Detection on Project Open (Neoveg .veg / JSON MediaPool Check)
+        // Automatic Missing Media Detection on Project Open (Neoveg .neoveg MediaPool Check)
         var missingEntries = Relinker.DetectMissingMediaInProject(newProject);
         if (missingEntries.Count > 0)
         {
@@ -3719,19 +3719,19 @@ public sealed class MainWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Importar Projeto Legado Neoveg (.veg)",
+            Title = "Abrir Projeto Nativo Neoveg (.neoveg)",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Projeto Neoveg (*.veg)") { Patterns = new[] { "*.veg" } }
+                new FilePickerFileType("Projeto Nativo Neoveg (*.neoveg)") { Patterns = new[] { "*.neoveg" } }
             }
         });
 
         string? localPath = files.FirstOrDefault()?.TryGetLocalPath();
         if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
         {
-            var (proj, report) = NeovegProjectInterchangeEngine.ImportLegacyVegProject(localPath, RustInterop);
-            LoadProjectState(proj, $"Projeto legado .veg importado ({Path.GetFileName(localPath)}) — {report}");
+            var proj = NeovegProjectInterchangeEngine.LoadNativeNeovegContainer(localPath);
+            LoadProjectState(proj, $"Projeto nativo .neoveg carregado ({Path.GetFileName(localPath)})");
         }
     }
 

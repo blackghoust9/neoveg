@@ -44,18 +44,5 @@
     "swatch_png": "03_era_modern_carbon_v14_v22/swatch_neoveg_jorgetheuser_v14.png",
     "palette_json": "03_era_modern_carbon_v14_v22/palette_neoveg_jorgetheuser_v14.json"
   },
-  "curated_references": [
-    {
-      "file": "beginner-tips-for-neoveg-pro-3.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/beginner-tips-for-neoveg-pro-3.png",
-      "sampled_dominant_hex": [
-        "#D7DCE5",
-        "#B0ABAB",
-        "#97999A",
-        "#979594",
-        "#878B8A",
-        "#7D7877"
-      ]
-    }
-  ]
+  "curated_references": []
 }

@@ -14,7 +14,7 @@ namespace Neoveg.Services;
 
 /// <summary>
 /// Cross-platform C# service that controls Python + Isolated FFmpeg/FFprobe (`ffmpeg_manager.py`),
-/// Frei0r/LADSPA/CorridorKey plugins (`plugins_engine.py`), and `.veg` project persistence
+/// Frei0r/LADSPA/CorridorKey plugins (`plugins_engine.py`), and `.neoveg` project persistence
 /// across Windows, Linux, and macOS.
 /// </summary>
 public sealed class FFmpegPythonService
@@ -250,6 +250,12 @@ public sealed class FFmpegPythonService
             SaveProjectToDisk(NeovegProject.CreateBroadcastDemo(), "Neoveg_Broadcast_Demo.neoveg");
         }
 
+        string relinkNeovegPath = Path.Combine(ProjectsDir, "Neoveg_MovedMedia_RelinkTest.neoveg");
+        if (!File.Exists(relinkNeovegPath))
+        {
+            SaveProjectToDisk(NeovegProject.CreateMovedMediaRelinkDemo(), "Neoveg_MovedMedia_RelinkTest.neoveg");
+        }
+
         if (Directory.Exists(ProjectsDir))
         {
             foreach (string file in Directory.GetFiles(ProjectsDir, "*.neoveg"))
@@ -267,23 +273,6 @@ public sealed class FFmpegPythonService
                     // Skip malformed file
                 }
             }
-
-            foreach (string file in Directory.GetFiles(ProjectsDir, "*.veg"))
-            {
-                try
-                {
-                    string json = File.ReadAllText(file, Encoding.UTF8);
-                    var proj = JsonSerializer.Deserialize<NeovegProject>(json);
-                    if (proj != null)
-                    {
-                        result.Add((Path.GetFileName(file), proj));
-                    }
-                }
-                catch
-                {
-                    // Skip malformed legacy file
-                }
-            }
         }
 
         if (result.Count == 0)
@@ -296,10 +285,8 @@ public sealed class FFmpegPythonService
     public string SaveProjectToDisk(NeovegProject project, string? fileName = null)
     {
         string safeName = string.IsNullOrWhiteSpace(fileName) ? project.Name : fileName;
-        if (safeName.EndsWith(".veg", StringComparison.OrdinalIgnoreCase))
+        if (!safeName.EndsWith(".neoveg", StringComparison.OrdinalIgnoreCase))
             safeName = Path.GetFileNameWithoutExtension(safeName) + ".neoveg";
-        else if (!safeName.EndsWith(".neoveg", StringComparison.OrdinalIgnoreCase))
-            safeName += ".neoveg";
 
         string fullPath = Path.IsPathRooted(safeName) ? safeName : Path.Combine(ProjectsDir, safeName);
         return NeovegProjectInterchangeEngine.SaveNativeNeovegContainer(project, fullPath, RootDir);
@@ -309,10 +296,19 @@ public sealed class FFmpegPythonService
         NeovegProject project,
         string outputFileName = "Neoveg_Master_Cut.mp4")
     {
-        string tempVeg = Path.Combine(ProjectsDir, "_temp_render_job.veg");
-        File.WriteAllText(tempVeg, JsonSerializer.Serialize(project), Encoding.UTF8);
+        string tempNeoveg = Path.Combine(ProjectsDir, "_temp_render_job.neoveg");
+        NeovegProjectInterchangeEngine.SaveNativeNeovegContainer(project, tempNeoveg, RootDir);
 
-        string rawJson = await RunPythonScriptJsonAsync($"render \"{tempVeg}\" \"{outputFileName}\"", 120000);
+        string rawJson = await RunPythonScriptJsonAsync($"render \"{tempNeoveg}\" \"{outputFileName}\"", 120000);
+        try
+        {
+            if (File.Exists(tempNeoveg))
+                File.Delete(tempNeoveg);
+        }
+        catch
+        {
+            // Ignore cleanup failure
+        }
         try
         {
             using var doc = JsonDocument.Parse(rawJson);

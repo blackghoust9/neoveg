@@ -101,9 +101,8 @@ Neoveg Workspace
 
 ## 4. File Formats & Interoperability
 
-- **Native Format (`.neoveg`):** Default project format (ZIP container housing `project.json`, `media_pool.json`, and `history.json`).
+- **Native Format (`.neoveg`):** Exclusive project format used across Neoveg (`Neoveg_Broadcast_Demo.neoveg`, `Neoveg_MovedMedia_RelinkTest.neoveg`, and `projects/autosave/recovery_*.neoveg` — ZIP container housing `project.json`, `media_pool.json`, and `history.json`). Neoveg creates, opens, autosaves, and manages projects strictly in `.neoveg` format (no `.veg` or `.otio` project files in `projects/`).
 - **XML Interchange:** Import/export mapping via `Neoveg.ProjectInterchange` supporting FCP7 XML (`.xml`), FCPX (`.fcpxml`), and CMX3600 (`.edl`) for DaVinci Resolve, Premiere Pro, and Final Cut Pro integration.
-- **Legacy Projects (`.veg`):** Supported exclusively as an import-only format via the Rust FFI inspector (`neoveg_inspect_veg_container`).
 
 ---
 

@@ -29,9 +29,9 @@
     <sys:String x:Key="Menu.File.Exit">終了</sys:String>
     <sys:String x:Key="Menu.File.ImportMedia">メディアのインポート (MP4 / WAV / MP3)...</sys:String>
     <sys:String x:Key="Menu.File.NewEmpty">新規プロジェクト</sys:String>
-    <sys:String x:Key="Menu.File.OpenDemo">デモプロジェクトを開く (Neoveg_Broadcast_Demo.veg)</sys:String>
+    <sys:String x:Key="Menu.File.OpenDemo">デモプロジェクトを開く (Neoveg_Broadcast_Demo.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.RenderAs">名前を付けてレンダリング... (FFmpeg)</sys:String>
-    <sys:String x:Key="Menu.File.SaveVeg">プロジェクトを保存 (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.SaveVeg">プロジェクトを保存 (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">設定 -&gt; 一般 / 言語 (Language)...</sys:String>
     <sys:String x:Key="Menu.File.Splash">スプラッシュ画面を表示 (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">ウェルカム画面...</sys:String>
@@ -116,7 +116,7 @@
     <sys:String x:Key="Tooltip.Import">メディアのインポート (MP4 / WAV / MP3)</sys:String>
     <sys:String x:Key="Tooltip.Popout">ビデオプレビューを別モニターへ分離 [↗]</sys:String>
     <sys:String x:Key="Tooltip.Render">マスター MP4 をレンダリング (FFmpeg)</sys:String>
-    <sys:String x:Key="Tooltip.Save">プロジェクトを保存 (.veg)</sys:String>
+    <sys:String x:Key="Tooltip.Save">プロジェクトを保存 (.neoveg)</sys:String>
     <sys:String x:Key="Tooltip.Settings">設定 -&gt; 一般 / 言語を開く</sys:String>
     <sys:String x:Key="Tooltip.Split">Rust FFI でイベントを分割 (ショートカット: S)</sys:String>
     <sys:String x:Key="Tooltip.Welcome">ウェルカム画面を開く</sys:String>

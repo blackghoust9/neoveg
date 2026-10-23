@@ -353,53 +353,15 @@ def load_neoveg_encoding_profiles() -> Dict[str, Dict[str, str]]:
 
 def export_project_to_otio(project: Dict[str, Any], out_path: Path) -> Path:
     """
-    Exports a Neoveg `.veg` project dictionary to an OpenTimelineIO (`.otio`) compatible JSON file
-    (inspired by `neoveg_presets/data/scripts/otiointerface.py`).
+    Saves a Neoveg `.neoveg` project dictionary into the native `.neoveg` container
+    (or timeline interchange format when requested).
     """
-    fps = float(project.get("fps", 29.97))
-    otio_tracks: List[Dict[str, Any]] = []
-    for tr in project.get("tracks", []):
-        children: List[Dict[str, Any]] = []
-        for clip in tr.get("clips", []):
-            dur_frames = int(round(float(clip.get("duration", 1.0)) * fps))
-            trim_frames = int(round(float(clip.get("trimIn", 0.0)) * fps))
-            children.append(
-                {
-                    "OTIO_SCHEMA": "Clip.2",
-                    "name": clip.get("name", "Clip"),
-                    "source_range": {
-                        "OTIO_SCHEMA": "TimeRange.1",
-                        "start_time": {"OTIO_SCHEMA": "RationalTime.1", "value": trim_frames, "rate": fps},
-                        "duration": {"OTIO_SCHEMA": "RationalTime.1", "value": dur_frames, "rate": fps},
-                    },
-                    "media_reference": {
-                        "OTIO_SCHEMA": "ExternalReference.1",
-                        "target_url": clip.get("mediaFile") or f"generator://{clip.get('generatorType', 'solid')}",
-                    },
-                }
-            )
-        otio_tracks.append(
-            {
-                "OTIO_SCHEMA": "Track.1",
-                "name": tr.get("name", "Track"),
-                "kind": "Video" if tr.get("type") == "video" else "Audio",
-                "children": children,
-            }
-        )
+    import xml_interchange
 
-    otio_doc = {
-        "OTIO_SCHEMA": "Timeline.1",
-        "name": project.get("name", "Neoveg_Timeline"),
-        "global_start_time": {"OTIO_SCHEMA": "RationalTime.1", "value": 0, "rate": fps},
-        "tracks": {
-            "OTIO_SCHEMA": "Stack.1",
-            "name": "tracks",
-            "children": otio_tracks,
-        },
-    }
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(otio_doc, indent=2, ensure_ascii=False), encoding="utf-8")
-    return out_path
+    target = Path(out_path)
+    if target.suffix.lower() in (".veg", ".otio", ""):
+        target = target.with_suffix(".neoveg")
+    return xml_interchange.save_neoveg_container(project, target, workspace_root=ROOT_DIR)
 
 
 if __name__ == "__main__":

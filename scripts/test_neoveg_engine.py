@@ -83,7 +83,7 @@ def run_all_tests() -> None:
     print("[PASS] 4. Migração C# Avalonia UI 11 + Ponte FFI (RustCoreInterop) verificada")
 
     # 5. Verify Recycled Python Engines (Track Rename, Track Grouping V+A, CorridorKey, Frei0r, LADSPA)
-    demo_proj = plugins_engine.load_saved_project("Neoveg_Broadcast_Demo.veg")
+    demo_proj = plugins_engine.load_saved_project("Neoveg_Broadcast_Demo.neoveg")
     assert demo_proj is not None
     t0_id = demo_proj["tracks"][0]["id"]
     t2_id = demo_proj["tracks"][2]["id"]
@@ -124,9 +124,11 @@ def run_all_tests() -> None:
     assert "proxy" in enc_profiles and len(enc_profiles["proxy"]) > 0, "Proxy encoding profiles empty"
     otio_path = neoveg_integration.export_project_to_otio(
         demo_proj,
-        ROOT_DIR / "projects" / "Neoveg_Broadcast_Demo.otio",
+        ROOT_DIR / "projects" / "Neoveg_Broadcast_Demo.neoveg",
     )
-    assert otio_path.exists(), "OTIO export failed"
+    assert otio_path.exists() and otio_path.suffix == ".neoveg", ".neoveg export failed"
+    assert not list((ROOT_DIR / "projects").rglob("*.veg")), "Unexpected .veg files found in projects/"
+    assert not list((ROOT_DIR / "projects").rglob("*.otio")), "Unexpected .otio files found in projects/"
     legacy_backup = ROOT_DIR / "backup_v1_anterior" / "legado_removido"
     assert legacy_backup.exists(), "backup_v1_anterior/legado_removido missing"
     for removed_dir in ("inutil", "frontend", "win-x64"):
@@ -307,9 +309,9 @@ def run_all_tests() -> None:
     missing_axaml = (ROOT_DIR / "desktop-host" / "Assets" / "MissingMediaWindow.axaml").read_text(encoding="utf-8")
     missing_win_cs = (ROOT_DIR / "desktop-host" / "Views" / "MissingMediaWindow.cs").read_text(encoding="utf-8")
     relinker_cs = (ROOT_DIR / "desktop-host" / "Services" / "MediaRelinker.cs").read_text(encoding="utf-8")
-    moved_veg_path = ROOT_DIR / "projects" / "Neoveg_MovedMedia_RelinkTest.veg"
+    moved_neoveg_path = ROOT_DIR / "projects" / "Neoveg_MovedMedia_RelinkTest.neoveg"
 
-    assert moved_veg_path.exists(), "Missing Neoveg_MovedMedia_RelinkTest.veg"
+    assert moved_neoveg_path.exists(), "Missing Neoveg_MovedMedia_RelinkTest.neoveg"
     assert "MissingMediaWindow" in missing_axaml and "SearchDirectory" in missing_axaml
     for req_relink_token in (
         "namespace Neoveg.Core",

@@ -5,7 +5,7 @@ Provides:
 2. LADSPA Audio DSP Plugin Registry & FFmpeg Audio Filter Compiler
 3. CorridorKey (nikopueringer/CorridorKey) AI Green Screen Color Unmixing & Despill Engine
 4. Neoveg Frequent Problems Detector & Auto-Fixer (VFR to CFR, So4 Guard, Auto-Save, Offline Relink)
-5. Project (.veg) Persistence Manager (Empty Project Startup + Saved Demo & User Projects)
+5. Project (.neoveg) Persistence Manager (Empty Project Startup + Saved Demo & User Projects)
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from error_logger import log_error, log_exception
+import xml_interchange
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 PROJECTS_DIR = ROOT_DIR / "projects"
@@ -315,12 +316,12 @@ def diagnose_and_fix_neoveg_problems(project: Dict[str, Any]) -> Dict[str, Any]:
     else:
         fixes_applied.append("Verificação VFR concluída: Todos os clipes MP4 estão em Constant Frame Rate (CFR).")
 
-    # 4. Write atomic Auto-Save crash recovery file
-    autosave_file = AUTOSAVE_DIR / f"recovery_{int(time.time())}.veg"
+    # 4. Write atomic Auto-Save crash recovery file (.neoveg native container)
+    autosave_file = AUTOSAVE_DIR / f"recovery_{int(time.time())}.neoveg"
     try:
-        autosave_file.write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
+        xml_interchange.save_neoveg_container(project, autosave_file, workspace_root=ROOT_DIR)
         # Keep only latest 5 autosaves
-        saves = sorted(AUTOSAVE_DIR.glob("recovery_*.veg"), key=lambda p: p.stat().st_mtime, reverse=True)
+        saves = sorted(AUTOSAVE_DIR.glob("recovery_*.neoveg"), key=lambda p: p.stat().st_mtime, reverse=True)
         for old in saves[5:]:
             old.unlink(missing_ok=True)
         fixes_applied.append(f"Snapshot de recuperação anti-crash salvo em `projects/autosave/{autosave_file.name}`.")
@@ -337,7 +338,7 @@ def diagnose_and_fix_neoveg_problems(project: Dict[str, Any]) -> Dict[str, Any]:
             "So4 Compound Decoder Safe-Fallback",
             "Dynamic RAM Preview Watchdog (Anti-VRAM Leak)",
             "Filtergraph Timestamp Clamping (Anti-99% Render Hang)",
-            "Atomic .veg Auto-Save Crash Recovery",
+            "Atomic .neoveg Auto-Save Crash Recovery",
         ],
     }
 
@@ -346,7 +347,7 @@ def create_empty_project(settings: Optional[Dict[str, Any]] = None) -> Dict[str,
     """Creates a clean, empty Neoveg project with configurable advanced properties."""
     cfg = settings or {}
     return {
-        "name": cfg.get("name", "Projeto_Sem_Titulo.veg"),
+        "name": cfg.get("name", "Projeto_Sem_Titulo.neoveg"),
         "isDemo": False,
         "width": int(cfg.get("width", 1920)),
         "height": int(cfg.get("height", 1080)),
@@ -433,9 +434,9 @@ def create_empty_project(settings: Optional[Dict[str, Any]] = None) -> Dict[str,
 
 
 def create_demo_project_data() -> Dict[str, Any]:
-    """Returns the rich multi-track Demo Project (`Neoveg_Broadcast_Demo.veg`)."""
+    """Returns the rich multi-track Demo Project (`Neoveg_Broadcast_Demo.neoveg`)."""
     return {
-        "name": "Neoveg_Broadcast_Demo.veg",
+        "name": "Neoveg_Broadcast_Demo.neoveg",
         "isDemo": True,
         "description": "Projeto completo de demonstração com Auto-Crossfades, Títulos, Efeitos Frei0r/Neoveg, CorridorKey e Áudio Estéreo 120 BPM.",
         "width": 1280,
@@ -701,11 +702,11 @@ def create_demo_project_data() -> Dict[str, Any]:
 
 
 def ensure_default_projects() -> List[Dict[str, Any]]:
-    """Ensures the Demo Project (`Neoveg_Broadcast_Demo.veg`) is saved in `projects/`."""
-    demo_path = PROJECTS_DIR / "Neoveg_Broadcast_Demo.veg"
+    """Ensures the Demo Project (`Neoveg_Broadcast_Demo.neoveg`) is saved in `projects/`."""
+    demo_path = PROJECTS_DIR / "Neoveg_Broadcast_Demo.neoveg"
     if not demo_path.exists():
         demo_data = create_demo_project_data()
-        demo_path.write_text(json.dumps(demo_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        xml_interchange.save_neoveg_container(demo_data, demo_path, workspace_root=ROOT_DIR)
 
     return list_saved_projects()
 
@@ -713,16 +714,16 @@ def ensure_default_projects() -> List[Dict[str, Any]]:
 def list_saved_projects() -> List[Dict[str, Any]]:
     ensure_dir = PROJECTS_DIR
     result: List[Dict[str, Any]] = []
-    for f in sorted(ensure_dir.glob("*.veg"), key=lambda p: p.stat().st_mtime, reverse=True):
+    for f in sorted(ensure_dir.glob("*.neoveg"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
+            data, _, _ = xml_interchange.load_neoveg_container(f)
             tracks = data.get("tracks", [])
             clips_count = sum(len(t.get("clips", [])) for t in tracks)
             result.append(
                 {
                     "fileName": f.name,
                     "name": data.get("name", f.name),
-                    "isDemo": bool(data.get("isDemo", f.name == "Neoveg_Broadcast_Demo.veg")),
+                    "isDemo": bool(data.get("isDemo", f.name == "Neoveg_Broadcast_Demo.neoveg")),
                     "description": data.get("description", f"{len(tracks)} faixas • {clips_count} eventos"),
                     "width": data.get("width", 1920),
                     "height": data.get("height", 1080),
@@ -741,18 +742,25 @@ def list_saved_projects() -> List[Dict[str, Any]]:
 
 def load_saved_project(file_name: str) -> Optional[Dict[str, Any]]:
     safe = Path(file_name).name
+    if safe.lower().endswith(".veg") or safe.lower().endswith(".otio"):
+        safe = Path(safe).stem + ".neoveg"
+    elif not safe.lower().endswith(".neoveg"):
+        safe += ".neoveg"
     target = PROJECTS_DIR / safe
     if not target.exists():
         return None
-    return json.loads(target.read_text(encoding="utf-8"))
+    proj_doc, _, _ = xml_interchange.load_neoveg_container(target)
+    return proj_doc
 
 
 def save_project_to_disk(project: Dict[str, Any], file_name: Optional[str] = None) -> Dict[str, Any]:
-    raw_name = file_name or project.get("name", "Projeto_Neoveg.veg")
-    safe = "".join(c for c in raw_name if c.isalnum() or c in "._- ") or "Projeto.veg"
-    if not safe.endswith(".veg"):
-        safe += ".veg"
+    raw_name = file_name or project.get("name", "Projeto_Neoveg.neoveg")
+    safe = "".join(c for c in raw_name if c.isalnum() or c in "._- ") or "Projeto.neoveg"
+    if safe.lower().endswith(".veg") or safe.lower().endswith(".otio"):
+        safe = Path(safe).stem + ".neoveg"
+    elif not safe.lower().endswith(".neoveg"):
+        safe += ".neoveg"
     project["name"] = safe
     target = PROJECTS_DIR / safe
-    target.write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
+    xml_interchange.save_neoveg_container(project, target, workspace_root=ROOT_DIR)
     return {"ok": True, "fileName": safe, "path": str(target)}

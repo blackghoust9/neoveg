@@ -370,12 +370,17 @@ def _cli_main() -> None:
         print(json.dumps(mgr.probe_media(sys.argv[2])))
     elif cmd == "render" and len(sys.argv) > 2:
         import rust_bridge
+        import xml_interchange
+        import zipfile
 
         proj_arg = sys.argv[2]
         out_name = sys.argv[3] if len(sys.argv) > 3 else "Neoveg_Master_Render.mp4"
         proj_path = Path(proj_arg)
         if proj_path.exists():
-            project = json.loads(proj_path.read_text(encoding="utf-8"))
+            if zipfile.is_zipfile(proj_path):
+                project, _, _ = xml_interchange.load_neoveg_container(proj_path)
+            else:
+                project = json.loads(proj_path.read_text(encoding="utf-8"))
         else:
             project = json.loads(proj_arg)
         out_path = RENDERS_DIR / out_name

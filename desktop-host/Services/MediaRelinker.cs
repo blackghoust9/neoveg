@@ -27,7 +27,7 @@ public sealed class MissingMediaEntry
 
 /// <summary>
 /// `Neoveg.Core.MediaRelinker` — Automated 3-Stage Missing Media Search & Relink Engine:
-/// 1. Detects missing files in `NeovegProject.MediaPool` and `TimelineClip.MediaFile` when opening `.veg` projects.
+/// 1. Detects missing files in `NeovegProject.MediaPool` and `TimelineClip.MediaFile` when opening `.neoveg` projects.
 /// 2. Recursive Directory Scanner with 3-Stage Matching:
 ///    - Stage 1: Exact Filename & Extension Match (case-insensitive).
 ///    - Stage 2: Fuzzy Camera Prefix/Suffix & Levenshtein Token Similarity Match.

@@ -29,9 +29,9 @@
     <sys:String x:Key="Menu.File.Exit">退出</sys:String>
     <sys:String x:Key="Menu.File.ImportMedia">导入媒体 (MP4 / WAV / MP3)...</sys:String>
     <sys:String x:Key="Menu.File.NewEmpty">新建空白项目</sys:String>
-    <sys:String x:Key="Menu.File.OpenDemo">打开广播演示项目 (Neoveg_Broadcast_Demo.veg)</sys:String>
+    <sys:String x:Key="Menu.File.OpenDemo">打开广播演示项目 (Neoveg_Broadcast_Demo.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.RenderAs">渲染为... (Python 隔离 FFmpeg)</sys:String>
-    <sys:String x:Key="Menu.File.SaveVeg">保存项目 (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.SaveVeg">保存项目 (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">设置 -&gt; 常规 / 语言 (Language)...</sys:String>
     <sys:String x:Key="Menu.File.Splash">显示启动画面 (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">欢迎屏幕...</sys:String>
@@ -116,7 +116,7 @@
     <sys:String x:Key="Tooltip.Import">导入媒体 (MP4 / WAV / MP3)</sys:String>
     <sys:String x:Key="Tooltip.Popout">将视频预览弹出至第二显示器 [↗]</sys:String>
     <sys:String x:Key="Tooltip.Render">导出 / 渲染主 MP4 (FFmpeg)</sys:String>
-    <sys:String x:Key="Tooltip.Save">保存项目 (.veg)</sys:String>
+    <sys:String x:Key="Tooltip.Save">保存项目 (.neoveg)</sys:String>
     <sys:String x:Key="Tooltip.Settings">打开设置 -&gt; 常规 / 语言</sys:String>
     <sys:String x:Key="Tooltip.Split">通过 Rust FFI 在游标处分割 (快捷键: S)</sys:String>
     <sys:String x:Key="Tooltip.Welcome">打开欢迎窗口</sys:String>

@@ -679,7 +679,7 @@ public sealed class WelcomeWindow : Window
 
         stack.Children.Add(new TextBlock
         {
-            Text = "Open an existing Neoveg project (.veg)",
+            Text = "Open an existing Neoveg project (.neoveg)",
             FontSize = 12.5,
             FontWeight = FontWeight.Bold,
             Foreground = Brushes.White
@@ -771,7 +771,7 @@ public sealed class WelcomeWindow : Window
             Margin = new Thickness(0, 6, 0, 0)
         };
 
-        var btnDemo = CreateNeovegDarkButton("Open Broadcast Demo (.veg)", 190);
+        var btnDemo = CreateNeovegDarkButton("Open Broadcast Demo (.neoveg)", 195);
         btnDemo.Click += (_, _) =>
         {
             var demo = NeovegProject.CreateBroadcastDemo();

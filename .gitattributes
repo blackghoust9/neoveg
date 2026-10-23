@@ -56,7 +56,6 @@ CMakeLists.txt  text eol=lf
 *.mkv    binary
 *.wav    binary
 *.sfk    binary
-*.veg    binary
 *.neoveg binary
 *.zip    binary
 *.gz     binary

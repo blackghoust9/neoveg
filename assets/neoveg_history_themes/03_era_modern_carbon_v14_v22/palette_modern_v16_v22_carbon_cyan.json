@@ -43,7 +43,7 @@
   "reference_files": [
     "icones-neoveg.png",
     "8image.png",
-    "color-grading-Classic NLE-neoveg-8.png",
+    "color-grading-classic_nle-neoveg-8.png",
     "Neoveg_Pro_Screenshot.png",
     "4a839cda-adb3-4375-b651-be8fb3b977c9.png",
     "filmmakers.png",
@@ -80,30 +80,6 @@
         "#3B363C",
         "#2E2E2F",
         "#192135"
-      ]
-    },
-    {
-      "file": "color-grading-Classic NLE-neoveg-8.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/color-grading-Classic NLE-neoveg-8.png",
-      "sampled_dominant_hex": [
-        "#ACBBA1",
-        "#50504F",
-        "#3B3A3A",
-        "#343738",
-        "#3C2B39",
-        "#0C0B0D"
-      ]
-    },
-    {
-      "file": "Neoveg_Pro_Screenshot.png",
-      "relative_path": "03_era_modern_carbon_v14_v22/references/Neoveg_Pro_Screenshot.png",
-      "sampled_dominant_hex": [
-        "#AFB4B6",
-        "#464646",
-        "#303030",
-        "#2B2A2A",
-        "#232323",
-        "#212121"
       ]
     },
     {

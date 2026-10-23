@@ -33,7 +33,7 @@ Dividida em duas variantes da transição para o Flat Design:
    - Referências extraídas: `beginner-tips-for-neoveg-pro-3.png` (Neoveg 14.0), `5image.png` (Neoveg 15.0).
 2. **Modern NLE 16 a 22 — Dark Carbon & Azul Ciano (`modern_v16_v22_carbon_cyan`)**:
    - Estética escura em carvão (`#232326` / `#2D2D30`), azul ciano vibrante (`#0078D7` / `#18A0FB`), painel unificado de Color Grading e miniaturas de presets com olhar humano (`icones-neoveg.png`).
-   - Referências extraídas: `icones-neoveg.png`, `8image.png` (Neoveg 16.0), `ss_08c8...png` & `ss_64be...png` (Neoveg 18.0), `color-grading-Classic NLE-neoveg-8.png`, `4a839cda...png`, `filmmakers.png`.
+   - Referências extraídas: `icones-neoveg.png`, `8image.png` (Neoveg 16.0), `ss_08c8...png` & `ss_64be...png` (Neoveg 18.0), `color-grading-classic_nle-neoveg-8.png`, `4a839cda...png`, `filmmakers.png`.
 
 ---
 

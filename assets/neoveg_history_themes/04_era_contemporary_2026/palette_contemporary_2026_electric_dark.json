@@ -97,30 +97,6 @@
         "#331E20",
         "#090D17"
       ]
-    },
-    {
-      "file": "Neoveg_Suite_UI_202.png",
-      "relative_path": "04_era_contemporary_2026/references/Neoveg_Suite_UI_202.png",
-      "sampled_dominant_hex": [
-        "#C9B677",
-        "#8D6940",
-        "#433228",
-        "#391F22",
-        "#222222",
-        "#1E1E1E"
-      ]
-    },
-    {
-      "file": "neoveg_pro_23_fx_scrolling.png",
-      "relative_path": "04_era_contemporary_2026/references/neoveg_pro_23_fx_scrolling.png",
-      "sampled_dominant_hex": [
-        "#727C8E",
-        "#474547",
-        "#2D2C2D",
-        "#282828",
-        "#27282A",
-        "#232323"
-      ]
     }
   ]
 }

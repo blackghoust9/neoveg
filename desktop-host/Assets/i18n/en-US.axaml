@@ -29,9 +29,9 @@
     <sys:String x:Key="Menu.File.Exit">Exit</sys:String>
     <sys:String x:Key="Menu.File.ImportMedia">Import Media (MP4 / WAV / MP3)...</sys:String>
     <sys:String x:Key="Menu.File.NewEmpty">New Empty Project</sys:String>
-    <sys:String x:Key="Menu.File.OpenDemo">Open Broadcast Demo Project (Neoveg_Broadcast_Demo.veg)</sys:String>
+    <sys:String x:Key="Menu.File.OpenDemo">Open Broadcast Demo Project (Neoveg_Broadcast_Demo.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.RenderAs">Render As... (Python Isolated FFmpeg)</sys:String>
-    <sys:String x:Key="Menu.File.SaveVeg">Save Project (.veg)</sys:String>
+    <sys:String x:Key="Menu.File.SaveVeg">Save Project (.neoveg)</sys:String>
     <sys:String x:Key="Menu.File.Settings">Settings -&gt; General / Language...</sys:String>
     <sys:String x:Key="Menu.File.Splash">Show Splash Screen (Neoveg 12)...</sys:String>
     <sys:String x:Key="Menu.File.Welcome">Welcome Screen...</sys:String>
@@ -116,10 +116,10 @@
     <sys:String x:Key="Tooltip.Import">Import Media (MP4 / WAV / MP3 via isolated ffprobe)</sys:String>
     <sys:String x:Key="Tooltip.Popout">Detach Video Preview to Second Monitor [↗]</sys:String>
     <sys:String x:Key="Tooltip.Render">Export / Render Master MP4 (Python Isolated FFmpeg)</sys:String>
-    <sys:String x:Key="Tooltip.Save">Save Project (.veg)</sys:String>
+    <sys:String x:Key="Tooltip.Save">Save Project (.neoveg)</sys:String>
     <sys:String x:Key="Tooltip.Settings">Open Settings -&gt; General / Language</sys:String>
     <sys:String x:Key="Tooltip.Split">Split Event at Playhead via Rust FFI (Shortcut: S)</sys:String>
-    <sys:String x:Key="Tooltip.Welcome">Open Welcome Screen (.veg Projects)</sys:String>
+    <sys:String x:Key="Tooltip.Welcome">Open Welcome Screen (.neoveg Projects)</sys:String>
     <sys:String x:Key="Welcome.AdvancedBtn">Advanced Settings...</sys:String>
     <sys:String x:Key="Welcome.CreateBtn">Create Project</sys:String>
     <sys:String x:Key="Welcome.CreateHeading">Create a new project</sys:String>

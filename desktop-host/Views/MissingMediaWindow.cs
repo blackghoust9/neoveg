@@ -18,7 +18,7 @@ namespace Neoveg.Views;
 
 /// <summary>
 /// Modal Missing Media Dialog (`MissingMediaWindow` / `MissingMediaWindow.axaml`) for Neoveg:
-/// Triggered automatically when opening a `.veg` project with missing or moved media files in the `MediaPool`.
+/// Triggered automatically when opening a `.neoveg` project with missing or moved media files in the `MediaPool`.
 /// Displays:
 /// - Nome do Arquivo (`FileName`)
 /// - Caminho Original (`OriginalPath`)
