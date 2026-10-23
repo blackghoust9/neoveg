@@ -1,81 +1,68 @@
-window.NEOVEG_QA_REPORT = {
-  "generated_at": "2026-10-23T13:44:50Z",
-  "platform": "win32",
-  "outcome": "pass",
-  "standards": [
-    "ABNT NBR ISO/IEC 25010",
-    "ABNT NBR ISO/IEC 29119",
-    "ABNT NBR ISO/IEC 12207",
-    "ABNT NBR ISO/IEC 14764",
-    "ABNT NBR ISO/IEC 27001"
-  ],
-  "pillars": {
-    "Performance": {
-      "label": "Eficiencia de Desempenho",
-      "status": "pass",
-      "passed": 4,
-      "total": 4
-    },
-    "Reliability": {
-      "label": "Confiabilidade",
-      "status": "pass",
-      "passed": 10,
-      "total": 10
-    },
-    "Usability": {
-      "label": "Usabilidade",
-      "status": "pass",
-      "passed": 8,
-      "total": 8
-    },
-    "Portability": {
-      "label": "Portabilidade",
-      "status": "pass",
-      "passed": 7,
-      "total": 7
-    },
-    "Maintainability": {
-      "label": "Manutenibilidade",
-      "status": "pass",
-      "passed": 8,
-      "total": 8
-    }
-  },
-  "steps": [
-    {
-      "name": "Performance Efficiency & Async .sfk Benchmark",
-      "pillar": "Performance",
-      "standard": "ABNT NBR ISO/IEC 25010 (Performance Efficiency)",
-      "status": "pass",
-      "duration_ms": 30
-    },
-    {
-      "name": "Memory Safety & FFI Reliability Audit",
-      "pillar": "Reliability",
-      "standard": "ABNT NBR ISO/IEC 27001 & ABNT NBR ISO/IEC 29119",
-      "status": "pass",
-      "duration_ms": 42
-    },
-    {
-      "name": "VEGAS Pro Functional Suitability & Headless UI",
-      "pillar": "Usability",
-      "standard": "ABNT NBR ISO/IEC 25010 (Functional Suitability & Usability) / ABNT NBR ISO/IEC 29119",
-      "status": "pass",
-      "duration_ms": 35
-    },
-    {
-      "name": "Cross-Platform Portability (win-x64, linux-x64, osx-x64, osx-arm64)",
-      "pillar": "Portability",
-      "standard": "ABNT NBR ISO/IEC 25010 (Portability)",
-      "status": "pass",
-      "duration_ms": 25
-    },
-    {
-      "name": "Life Cycle & Modular Maintainability (C#/Rust/C++/Python)",
-      "pillar": "Maintainability",
-      "standard": "ABNT NBR ISO/IEC 12207 & 14764 / ABNT NBR ISO/IEC 25010",
-      "status": "pass",
-      "duration_ms": 28
-    }
-  ]
+﻿window.NEOVEG_QA_REPORT = {
+    "generated_at":  "2026-10-23T11:29:26.3300749-03:00",
+    "platform":  "windows",
+    "outcome":  "fail",
+    "standards":  [
+                      "ABNT NBR ISO/IEC 25010",
+                      "ABNT NBR ISO/IEC/IEEE 29119",
+                      "ABNT NBR ISO/IEC 12207",
+                      "ABNT NBR ISO/IEC 14764",
+                      "ABNT NBR ISO/IEC 27001"
+                  ],
+    "pillars":  {
+                    "Performance":  {
+                                        "label":  "Eficiencia de Desempenho",
+                                        "status":  "not_run",
+                                        "passed":  0,
+                                        "total":  0
+                                    },
+                    "Reliability":  {
+                                        "label":  "Confiabilidade",
+                                        "status":  "not_run",
+                                        "passed":  0,
+                                        "total":  0
+                                    },
+                    "Usability":  {
+                                      "label":  "Usabilidade",
+                                      "status":  "not_run",
+                                      "passed":  0,
+                                      "total":  0
+                                  },
+                    "Portability":  {
+                                        "label":  "Portabilidade",
+                                        "status":  "pass",
+                                        "passed":  1,
+                                        "total":  1
+                                    },
+                    "Maintainability":  {
+                                            "label":  "Manutenibilidade",
+                                            "status":  "fail",
+                                            "passed":  1,
+                                            "total":  2
+                                        }
+                },
+    "steps":  [
+                  {
+                      "name":  "Configure instrumented C++ QA build",
+                      "pillar":  "Portability",
+                      "standard":  "ABNT NBR ISO/IEC 25010 (Portabilidade) - build CMake multiplataforma",
+                      "status":  "pass",
+                      "duration_ms":  941
+                  },
+                  {
+                      "name":  ".NET formatting",
+                      "pillar":  "Maintainability",
+                      "standard":  "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764",
+                      "status":  "pass",
+                      "duration_ms":  37449
+                  },
+                  {
+                      "name":  "Rust Clippy",
+                      "pillar":  "Maintainability",
+                      "standard":  "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764",
+                      "status":  "fail",
+                      "duration_ms":  6450,
+                      "error":  "\u0027Rust Clippy\u0027 failed with exit code 101."
+                  }
+              ]
 };

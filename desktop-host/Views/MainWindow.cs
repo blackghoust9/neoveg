@@ -1490,7 +1490,7 @@ public sealed class MainWindow : Window
         _subFormatReadout.Text =
             $"Project: {projectWidth}x{projectHeight}x{bitsPerPixel}, {Project.Fps:0.000} fps  |  " +
             $"Preview: {(int)Math.Round(previewWidth)}x{(int)Math.Round(previewHeight)} " +
-            $"({ _previewControl.PreviewQuality })";
+            $"({_previewControl.PreviewQuality})";
     }
 
     private static string PreviewResolutionForQuality(string quality) => quality switch

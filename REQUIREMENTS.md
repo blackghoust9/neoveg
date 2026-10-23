@@ -10,7 +10,8 @@ This document specifies all required SDKs, toolchains, and runtime libraries nec
 | :--- | :--- | :--- | :--- |
 | **.NET SDK** | 8.0.x | C# Frontend (`desktop-host`) & Avalonia UI | [dotnet.microsoft.com](https://dotnet.microsoft.com/download/dotnet/8.0) |
 | **Rust Toolchain** | 1.75+ | High-Performance Engine (`rust-core`) | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| **C++ Compiler** | C++17 / C++20 | Native Engine & Extensions (`cpp-extensions`) | **Win:** MSVC v143 (VS 2022) / **Linux:** GCC 11+ / **macOS:** Clang |
+| **C++ Compiler** | C++17 / C++20 | Native Engine & Extensions (`cpp-extensions`) | **GCC or GNU-mode Clang with ASan/UBSan** (MSVC/clang-cl is rejected by the QA build). **Win:** `winget install MartinStorsjo.LLVM-MinGW.UCRT` (also provides `clang-tidy` and `llvm-cov`) / **Linux:** GCC 11+ or Clang / **macOS:** Apple Clang |
+| **QA tools** | — | Static analysis & coverage | `clang-tidy`, `gcovr` (`pip install gcovr`, set `GCOV="llvm-cov gcov"` with LLVM-MinGW), `cargo-llvm-cov` (`cargo install cargo-llvm-cov --locked`). Full per-OS commands: [README.md](./README.md#pré-requisitos-para-contribuidores) |
 | **CMake** | 3.20+ | C++ Build System | `apt install cmake` / `brew install cmake` / [cmake.org](https://cmake.org/download/) |
 | **Python** | 3.10+ | Scripting Backend (`python-backend`) | `python -m pip install -r python-backend/requirements.txt` |
 | **Docker** | 24.0+ | Headless QA Testing & Cross-Compilation | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop) |
