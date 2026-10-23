@@ -47,7 +47,7 @@ impl FadeCurve {
         }
     }
 
-    pub fn from_str(name: &str) -> Self {
+    pub fn from_name(name: &str) -> Self {
         match name.trim().to_ascii_lowercase().as_str() {
             "linear" => Self::Linear,
             "fast" => Self::Fast,
@@ -110,7 +110,7 @@ pub enum BlendMode {
 }
 
 impl BlendMode {
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_name(s: &str) -> Self {
         match s.trim().to_ascii_lowercase().as_str() {
             "add" => Self::Add,
             "multiply" => Self::Multiply,
@@ -789,6 +789,9 @@ unsafe fn write_c_string_to_buf(s: &str, out_buf: *mut c_char, buf_len: i32) -> 
 }
 
 /// Returns the Neoveg Rust Core engine version string into `out_buf`.
+///
+/// # Safety
+/// `out_buf` must be null or valid for writes of `buf_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_engine_version(out_buf: *mut c_char, buf_len: i32) -> i32 {
     init_neoveg_rust_logging_and_panic_hook();
@@ -800,6 +803,9 @@ pub unsafe extern "C" fn neoveg_engine_version(out_buf: *mut c_char, buf_len: i3
 }
 
 /// Formats `seconds` into SMPTE Timecode (`HH:MM:SS;FF` or `HH:MM:SS:FF`) and writes to `out_buf`.
+///
+/// # Safety
+/// `out_buf` must be null or valid for writes of `buf_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_format_smpte(
     seconds: f64,
@@ -813,6 +819,9 @@ pub unsafe extern "C" fn neoveg_format_smpte(
 }
 
 /// Parses a null-terminated SMPTE Timecode string (`HH:MM:SS;FF`) into seconds. Returns `-1.0` on error.
+///
+/// # Safety
+/// `tc_ptr` must be null or point to a valid NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_parse_smpte(tc_ptr: *const c_char, fps: f64) -> f64 {
     if tc_ptr.is_null() {
@@ -833,6 +842,9 @@ pub extern "C" fn neoveg_evaluate_fade_curve(curve_type: i32, progress: f64) -> 
 /// Performs frame-accurate clip splitting (`S` key cut) at `split_time`.
 /// Writes the resulting left duration, right start, right duration, and right trim_in via pointers.
 /// Returns `1` if split succeeded, `0` if `split_time` is outside valid clip bounds.
+///
+/// # Safety
+/// Each `out_*` pointer must be null or valid for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_split_clip(
     clip_start: f64,
@@ -876,6 +888,9 @@ pub unsafe extern "C" fn neoveg_split_clip(
 
 /// Computes automatic overlap crossfade bounds between two adjacent clips on the same track.
 /// Returns `1` if an overlap crossfade exists, or `0` otherwise.
+///
+/// # Safety
+/// Each `out_*` pointer must be null or valid for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_compute_crossfade(
     out_start: f64,
@@ -904,6 +919,10 @@ pub unsafe extern "C" fn neoveg_compute_crossfade(
 }
 
 /// Performs real-time 16-bit PCM Audio DSP Peak & RMS dBFS analysis on an in-memory buffer.
+///
+/// # Safety
+/// `samples_ptr` must be null or valid for reads of `sample_count` `i16` values;
+/// each `out_*` pointer must be null or valid for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_analyze_pcm_dsp(
     samples_ptr: *const i16,
@@ -939,6 +958,11 @@ pub unsafe extern "C" fn neoveg_analyze_pcm_dsp(
 
 /// Analyzes a RIFF WAVE file from disk via FFI and fills `out_peaks_ptr` (`num_buckets` floats),
 /// plus `out_peak_db`, `out_rms_db`, and `out_duration`.
+///
+/// # Safety
+/// `wav_path_ptr` must be null or a valid NUL-terminated UTF-8 C string; `out_peaks_ptr` must be null
+/// or valid for writes of `num_buckets` `f32` values; each other `out_*` pointer must be null or valid
+/// for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_analyze_wav_file(
     wav_path_ptr: *const c_char,
@@ -979,6 +1003,10 @@ pub unsafe extern "C" fn neoveg_analyze_wav_file(
 /// Samples real-time stereo (L/R) peak amplitudes (`0.0..1.0`) and dBFS (`-inf..0.0`) from a RIFF WAVE file
 /// at `time_sec` over a `window_sec` window via FFI.
 /// Returns `1` if non-silent audio was sampled, `0` if silent/out-of-range, or `< 0` on invalid input/file error.
+///
+/// # Safety
+/// `wav_path_ptr` must be null or a valid NUL-terminated UTF-8 C string; each `out_*` pointer must be
+/// null or valid for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_sample_wav_stereo_peak_at(
     wav_path_ptr: *const c_char,
@@ -1099,6 +1127,11 @@ impl SfkPeakCache {
 }
 
 /// Builds or loads a VEGAS-compatible `.sfk` binary peak cache file for `wav_path_ptr`.
+///
+/// # Safety
+/// `wav_path_ptr` must be null or a valid NUL-terminated UTF-8 C string; `out_peaks_ptr` must be null
+/// or valid for writes of `num_buckets` `f32` values; each other `out_*` pointer must be null or valid
+/// for a single aligned `f64` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_build_sfk_cache(
     wav_path_ptr: *const c_char,
@@ -1134,6 +1167,10 @@ pub unsafe extern "C" fn neoveg_build_sfk_cache(
 
 /// Inspects a `.veg` file header (`RIFF` / `r64 ` / `sf64` binary container vs Neoveg JSON container)
 /// and writes a summary string to `out_buf`.
+///
+/// # Safety
+/// `veg_path_ptr` must be null or a valid NUL-terminated UTF-8 C string; `out_buf` must be null or
+/// valid for writes of `buf_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_inspect_veg_container(
     veg_path_ptr: *const c_char,
@@ -1170,6 +1207,9 @@ pub unsafe extern "C" fn neoveg_inspect_veg_container(
 /// Calculates optimal Dynamic RAM Preview ring-buffer pool parameters (`CImageBufferPool` / `SO4READER` model).
 /// Given `ram_budget_mb`, `width`, `height`, and `bytes_per_pixel` (e.g. 4 for RGBA8, 16 for RGBA32F),
 /// outputs `out_frame_slots` (total ring-buffer capacity) and `out_prefetch_threads` (lookahead decoder threads).
+///
+/// # Safety
+/// Each `out_*` pointer must be null or valid for a single aligned `i32` write.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_compute_ram_pool_metrics(
     ram_budget_mb: i32,
@@ -1209,6 +1249,9 @@ pub unsafe extern "C" fn neoveg_compute_ram_pool_metrics(
 /// - `1` = Green (`#2ECC71`): Frame is cached in RAM Preview Pool or Disk Prerender (`cache/prerender/`) — ready for 60 FPS
 /// - `2` = Yellow (`#F1C40F`): Simple single-track frame (no heavy FX/crossfade) or queued in Background Prerender Worker
 /// - `3` = Red (`#E74C3C`): Complex uncached region (multiple active FX, transitions, overlapping tracks, or uncached media)
+///
+/// # Safety
+/// `out_status_ptr` must be null or valid for writes of `max_out_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_get_timeline_render_status(
     project_handle: usize,
@@ -1245,6 +1288,9 @@ pub unsafe extern "C" fn neoveg_get_timeline_render_status(
 /// in Rust FFI for real-time synchronization between the Event Pan/Crop 'F' Gizmo and the Skia Video Preview Monitor.
 /// Shrinking the 'F' box (`crop_width < source_width`) magnifies the image (`zoom > 1.0`), and panning/rotating the 'F'
 /// box transforms the camera frame in the inverted direction.
+///
+/// # Safety
+/// `out_matrix6` must be null or valid for writes of 6 consecutive `f64` values.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_compute_pancrop_matrix(
     source_width: f64,
@@ -1281,6 +1327,10 @@ pub unsafe extern "C" fn neoveg_compute_pancrop_matrix(
 }
 
 /// Explicitly deallocates a Rust-owned byte buffer allocated for FFI consumers, preventing memory leaks.
+///
+/// # Safety
+/// `ptr` must be null or a buffer allocated by `neoveg_core` with exactly `capacity` bytes of
+/// capacity, and it must not be used or freed again after this call.
 #[no_mangle]
 pub unsafe extern "C" fn neoveg_free_buffer(ptr: *mut u8, capacity: usize) {
     let _ = std::panic::catch_unwind(|| {

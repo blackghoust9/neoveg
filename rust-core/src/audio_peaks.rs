@@ -314,9 +314,13 @@ impl AudacityWaveformMipmap {
         let data_bytes = &raw[44..];
         let sample_count = data_bytes.len() / 2;
         let mut samples = Vec::with_capacity(sample_count);
-        for chunk in data_bytes.chunks_exact(2) {
-            samples.push(i16::from_le_bytes([chunk[0], chunk[1]]));
-        }
+        // Stays compatible with the Rust 1.81 Docker image (`as_chunks` needs Rust 1.88)
+        samples.extend(
+            data_bytes
+                .chunks(2)
+                .filter_map(|pair| <[u8; 2]>::try_from(pair).ok())
+                .map(i16::from_le_bytes),
+        );
 
         let mipmap = Self::from_interleaved_pcm_i16(&samples, channels, sample_rate, fine_buckets);
         let sfk_str = format!("{}.sfk", wav_path.to_string_lossy());
