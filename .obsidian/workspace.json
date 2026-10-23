@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "RELATORIO_REA_VEGAS21.md",
+                "file": "AGENTS.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "RELATORIO_REA_VEGAS21"
+              "title": "AGENTS"
             }
           }
         ]
@@ -190,6 +190,7 @@
   },
   "active": "0059e9dce8b0dfb2",
   "lastOpenFiles": [
+    "RELATORIO_REA_VEGAS21.md",
     "dist/Neoveg-Portable-win-x64/cpp-extensions/build/ALL_BUILD.dir/MinSizeRel",
     "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/neoveg_whisper_cli.dir/Release/neoveg-whisper-cli.exe.recipe",
     "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/CMakeCache.txt",
@@ -200,7 +201,6 @@
     "docs",
     "docker-compose.yml",
     "Dockerfile",
-    "progresso.html",
     "dist/Neoveg-Portable-win-x64/addon/vcredist2022-2015_14.36.32532/README.md",
     "addon/directx_redist/README.md",
     "addon/vcredist2022-2015_14.36.32532/README.md",
@@ -209,7 +209,6 @@
     "GUIA_NOVAS_FUNCIONALIDADES.md",
     "KEEPS.md",
     "README.md",
-    "RELATORIO_MAPEAMENTO_UI_VEGAS.md",
-    "RELATORIO_REA_VEGAS21.md"
+    "RELATORIO_MAPEAMENTO_UI_VEGAS.md"
   ]
 }
