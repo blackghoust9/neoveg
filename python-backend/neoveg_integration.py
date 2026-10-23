@@ -16,12 +16,15 @@ Harvests and integrates all reusable components from `G:\\Meu Drive\\vp-rev-eng\
 from __future__ import annotations
 import configparser
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-NEOVEG_SRC_DIR = Path(r"G:\Meu Drive\vp-rev-eng\kdenlive_vegas_fork\kdenlive_vegas")
+NEOVEG_SRC_DIR = Path(
+    os.environ.get("NEOVEG_SRC_DIR", r"G:\Meu Drive\vp-rev-eng\kdenlive_vegas_fork\kdenlive_vegas")
+)
 ASSETS_LUTS_DIR = ROOT_DIR / "assets" / "luts"
 ASSETS_NEOVEG_DIR = ROOT_DIR / "assets" / "neoveg_presets"
 ADDONS_PY_DIR = ROOT_DIR / "python-backend" / "neoveg_addons"

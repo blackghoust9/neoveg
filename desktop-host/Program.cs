@@ -594,12 +594,16 @@ internal static class Program
         foreach (string nativeLib in ResolvePlatformNativeLibraryNames())
         {
             string dstNative = Path.Combine(cacheDir, nativeLib);
-            string[] candidates =
+            var candidates = new List<string>
             {
                 Path.Combine(sourceDir, nativeLib),
-                Path.Combine(sourceDir, "runtimes", platformRid, "native", nativeLib),
-                Path.Combine(GoogleDriveSyncRoot, "runtimes", platformRid, "native", nativeLib)
+                Path.Combine(sourceDir, "runtimes", platformRid, "native", nativeLib)
             };
+            // The Google Drive mirror is a Windows drive-letter path; it is meaningless on Linux/macOS.
+            if (OperatingSystem.IsWindows())
+            {
+                candidates.Add(Path.Combine(GoogleDriveSyncRoot, "runtimes", platformRid, "native", nativeLib));
+            }
             foreach (string cand in candidates)
             {
                 if (File.Exists(cand))
