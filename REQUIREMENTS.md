@@ -11,7 +11,22 @@ Neoveg is a pure Rust Cargo workspace. **The only build dependency is the offici
 | **Rust (`rustup` / `cargo`)** | 1.80+ (stable) | Everything: `crates/neoveg_*` | Windows: `winget install --id Rustlang.Rustup --exact` / Linux & macOS: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | `clippy`, `rustfmt` | bundled | Lint and formatting | `rustup component add clippy rustfmt` |
 
-Optional, only for native video decoding (`cargo build -p neoveg_video --features ffmpeg`): the FFmpeg development libraries (`ffmpeg-next` links against them).
+Optional tools used by QA and coverage:
+
+```bash
+rustup component add llvm-tools-preview
+cargo install cargo-llvm-cov --locked      # cargo llvm-cov --workspace
+```
+
+Optional, only for native video decoding (`cargo build -p neoveg_video --features ffmpeg`). `ffmpeg-next` 7.1 needs three things:
+
+| Requirement | Version | Windows install | Environment |
+| :--- | :--- | :--- | :--- |
+| FFmpeg **shared** build with `include/` and `lib/` | **7.1.x** (not 8/9) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` | `FFMPEG_DIR` = the extracted `ffmpeg-n7.1...-win64-lgpl-shared-7.1` folder |
+| libclang (bindgen) | **LLVM 19.x** (LLVM 22+ makes `ffmpeg-sys-next` 7.1.3 fail with `attempt to compute 1_usize - N_usize`) | `winget install --id LLVM.LLVM --exact --version 19.1.7` | `LIBCLANG_PATH` = `C:\Program Files\LLVMin` |
+| `ffmpeg`'s `bin/` DLLs on `PATH` at run time | 7.1.x | added by the winget package | - |
+
+Linux: `sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libclang-dev pkg-config`. macOS: `brew install ffmpeg@7 llvm pkg-config`.
 
 ---
 
