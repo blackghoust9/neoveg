@@ -17,7 +17,12 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-GDRIVE_TARGET_DIR = Path(r"G:\Meu Drive\vp-rev-eng\teste\teste2")
+GDRIVE_TARGET_DIR = Path(
+    os.environ.get(
+        "NEOVEG_GDRIVE_TARGET_DIR",
+        r"G:\Meu Drive\vp-rev-eng\teste\teste2" if os.name == "nt" else str(Path(tempfile.gettempdir()) / "neoveg_gdrive_mirror"),
+    )
+)
 IGNORED_DIRECTORY_NAMES = {
     ".git",
     ".vs",

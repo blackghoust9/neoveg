@@ -13,7 +13,7 @@ $qaReportJs = Join-Path $rootDir "docs\qa_report.js"
 $logsDir = Join-Path $rootDir "logs"
 $qaLogPath = Join-Path $logsDir "neoveg.log"
 
-# ISO/IEC 25010 quality pillars used to categorize every QA step (ABNT NBR ISO/IEC 25010).
+# ISO/IEC 25010 & ISO/IEC 29119 quality pillars used to categorize every QA step (ABNT NBR ISO/IEC 25010 / ABNT NBR ISO/IEC 29119).
 $pillars = [ordered]@{
     Performance     = "Eficiencia de Desempenho"
     Reliability     = "Confiabilidade"

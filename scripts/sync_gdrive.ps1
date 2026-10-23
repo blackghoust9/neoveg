@@ -1,8 +1,20 @@
 $ErrorActionPreference = "Stop"
 
 $Source = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Destination = "G:\Meu Drive\vp-rev-eng\teste\teste2"
+$Destination = if ($env:NEOVEG_GDRIVE_TARGET_DIR) { $env:NEOVEG_GDRIVE_TARGET_DIR } else { "G:\Meu Drive\vp-rev-eng\teste\teste2" }
 $Robocopy = Join-Path $env:SystemRoot "System32\robocopy.exe"
+$LogsDir = Join-Path $Source "logs"
+$LogFile = Join-Path $LogsDir "neoveg.log"
+
+$DriveRoot = [System.IO.Path]::GetPathRoot($Destination)
+if (-not [string]::IsNullOrWhiteSpace($DriveRoot) -and -not (Test-Path -LiteralPath $DriveRoot)) {
+    $Timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.fff")
+    $WarnMsg = "Google Drive volume '$DriveRoot' is not mounted or accessible; skipping cloud mirror sync to '$Destination'. Local workspace and 'dist/' packages are ready."
+    Write-Host "[WARN] $WarnMsg" -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null
+    Add-Content -Path $LogFile -Value "[$Timestamp] [WARN] [PowerShell/sync_gdrive.ps1] [ABNT NBR ISO/IEC 25010 - Portability] $WarnMsg" -Encoding UTF8
+    exit 0
+}
 
 if (-not (Test-Path -LiteralPath $Robocopy -PathType Leaf)) {
     throw "Robocopy was not found at '$Robocopy'."

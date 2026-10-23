@@ -14,7 +14,7 @@ QA_REPORT_JS="${ROOT_DIR}/docs/qa_report.js"
 LOGS_DIR="${ROOT_DIR}/logs"
 QA_LOG="${LOGS_DIR}/neoveg.log"
 
-# ISO/IEC 25010 quality pillars used to categorize every QA step (ABNT NBR ISO/IEC 25010).
+# ISO/IEC 25010 & ISO/IEC 29119 quality pillars used to categorize every QA step (ABNT NBR ISO/IEC 25010 / ABNT NBR ISO/IEC 29119).
 PILLARS=(Performance Reliability Usability Portability Maintainability)
 # Plain function instead of an associative array: macOS ships bash 3.2.
 pillar_label() {

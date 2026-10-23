@@ -785,6 +785,7 @@ internal static class Program
                 level,
                 "PreFlightEnvironmentCheck",
                 $"Runtime='{frameworkDesc}' (.NET8+={isNet8OrNewer}) | PlatformRuntimeLibs={(platformLibsReady ? "OK" : "MISSING")} ({platformNote}) | " +
+                "Standards='ABNT NBR ISO/IEC 25010 / 29119 / 12207 / 14764 / 27001' | " +
                 "Specs='REQUIREMENTS.md' & 'python-backend/requirements.txt' | DiagnosticTool='python scripts/check_env.py' / '.\\scripts\\check_env.ps1'");
         }
         catch (Exception ex)

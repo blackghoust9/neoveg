@@ -143,5 +143,5 @@ foreach ($item in $Results) {
     $SummaryParts += "$($item.Component)=$($item.Status) ($($item.Version))"
 }
 $SummaryStr = $SummaryParts -join " | "
-Add-Content -Path $LogFile -Value "[$Timestamp] [INFO] [PowerShell/check_env.ps1] Pre-Flight Environment Diagnostic: $SummaryStr" -Encoding UTF8
+Add-Content -Path $LogFile -Value "[$Timestamp] [INFO] [PowerShell/check_env.ps1] [ABNT NBR ISO/IEC 25010 / 12207 / 29119] Pre-Flight Environment Diagnostic: $SummaryStr" -Encoding UTF8
 Write-Host "[OK] Diagnostic report appended to logs/neoveg.log." -ForegroundColor Green

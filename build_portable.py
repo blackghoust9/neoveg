@@ -32,6 +32,12 @@ RUST_DIR = ROOT_DIR / "rust-core"
 CSPROJ_PATH = ROOT_DIR / "desktop-host" / "Neoveg.csproj"
 PYTHON_BACKEND_DIR = ROOT_DIR / "python-backend"
 
+if str(PYTHON_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
+
+import ffmpeg_manager
+import native_ffi_builder
+
 RECYCLED_PYTHON_SCRIPTS = [
     "ffmpeg_manager.py",
     "rust_bridge.py",
@@ -60,9 +66,8 @@ def _make_executable(path: Path) -> None:
 
 def build_rust_ffi_core() -> Dict[str, Any]:
     """Compiles `rust-core` into a dynamic C-ABI library (`cdylib`) via `cargo` or native x86-64 FFI builder."""
-    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
-    import native_ffi_builder
-    return native_ffi_builder.compile_or_synthesize_rust_core()
+    res: Dict[str, Any] = native_ffi_builder.compile_or_synthesize_rust_core()
+    return res
 
 
 def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
@@ -487,16 +492,14 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=== Neoveg Cross-Platform Portable Build System ===")
-    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
-    import ffmpeg_manager
 
     # Step 1: Provision isolated FFmpeg/ffprobe for host OS (with full portable binaries for ~300MB bundle)
-    mgr = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)
-    ff_res = mgr.provision_isolated_runtime(copy_binaries=True)
+    mgr: ffmpeg_manager.IsolatedFFmpegManager = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)
+    ff_res: Dict[str, Any] = mgr.provision_isolated_runtime(copy_binaries=True)
     print(f"[1/4] Isolated FFmpeg/ffprobe Provisioned ({ff_res['rid']}): {ff_res['ok']}")
 
     # Step 2: Build Rust FFI Core (`cdylib`)
-    rust_res = build_rust_ffi_core()
+    rust_res: Dict[str, Any] = build_rust_ffi_core()
     print(f"[2/4] Rust FFI Core (`neoveg_core`): {rust_res['mode'] if 'mode' in rust_res else 'Compiled'}")
 
     # Step 3: Publish & Assemble OS Portable Packages
@@ -527,7 +530,7 @@ def main() -> None:
     if os.name == "nt":
         sync_script = ROOT_DIR / "scripts" / "sync_gdrive.ps1"
         print("[5/5] Synchronizing workspace to Google Drive...")
-        subprocess.run(
+        proc = subprocess.run(
             [
                 "powershell.exe",
                 "-NoProfile",
@@ -537,8 +540,10 @@ def main() -> None:
                 str(sync_script),
             ],
             cwd=ROOT_DIR,
-            check=True,
+            check=False,
         )
+        if proc.returncode != 0:
+            print(f"[WARN] Google Drive sync returned exit code {proc.returncode}; local portable packages in dist/ are ready.")
 
 
 if __name__ == "__main__":

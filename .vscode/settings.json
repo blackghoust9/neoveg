@@ -20,5 +20,9 @@
   ],
   "C_Cpp.default.defines": [
     "NEOVEG_CPP_EXPORTS"
+  ],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/python-backend",
+    "${workspaceFolder}/scripts"
   ]
 }

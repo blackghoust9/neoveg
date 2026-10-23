@@ -353,7 +353,7 @@ def log_diagnostic_report(checks: List[Dict[str, Any]]) -> None:
         summary_parts = [f"{c['component']}={c['status']} ({c['version']})" for c in checks]
         missing = [c for c in checks if c["status"] == "MISSING"]
         level = "WARN" if missing else "INFO"
-        line = f"[{ts}] [{level}] [Python/check_env] Pre-Flight Environment Diagnostic: {' | '.join(summary_parts)}\n"
+        line = f"[{ts}] [{level}] [Python/check_env] [ABNT NBR ISO/IEC 25010 / 12207 / 29119] Pre-Flight Environment Diagnostic: {' | '.join(summary_parts)}\n"
         with ACTIVE_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(line)
     except OSError:

@@ -1,0 +1,19 @@
+{
+  "extraPaths": [
+    "python-backend",
+    "scripts"
+  ],
+  "include": [
+    "build_portable.py",
+    "python-backend",
+    "scripts",
+    "tests"
+  ],
+  "exclude": [
+    "**/backup_v1_anterior/**",
+    "**/dist/**",
+    "**/__pycache__/**"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic"
+}

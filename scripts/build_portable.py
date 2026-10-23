@@ -32,6 +32,12 @@ RUST_DIR = ROOT_DIR / "rust-core"
 CSPROJ_PATH = ROOT_DIR / "desktop-host" / "Neoveg.csproj"
 PYTHON_BACKEND_DIR = ROOT_DIR / "python-backend"
 
+if str(PYTHON_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
+
+import ffmpeg_manager
+import native_ffi_builder
+
 RECYCLED_PYTHON_SCRIPTS = [
     "ffmpeg_manager.py",
     "rust_bridge.py",
@@ -60,9 +66,8 @@ def _make_executable(path: Path) -> None:
 
 def build_rust_ffi_core() -> Dict[str, Any]:
     """Compiles `rust-core` into a dynamic C-ABI library (`cdylib`) via `cargo` or native x86-64 FFI builder."""
-    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
-    import native_ffi_builder
-    return native_ffi_builder.compile_or_synthesize_rust_core()
+    res: Dict[str, Any] = native_ffi_builder.compile_or_synthesize_rust_core()
+    return res
 
 
 def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
@@ -185,6 +190,15 @@ def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
             ignore=shutil.ignore_patterns(".git", "_upstream"),
         )
 
+    for package_name in ("vcredist_all_in_one", "vcredist2022-2015_14.36.32532"):
+        vcredist_package = ROOT_DIR / "addon" / package_name
+        if vcredist_package.exists():
+            shutil.copytree(
+                vcredist_package,
+                target_root / "addon" / package_name,
+                dirs_exist_ok=True,
+            )
+
     for doc in (
         "AUTHORS.md",
         "LICENSE",
@@ -214,20 +228,6 @@ def publish_avalonia_target(rid: str, self_contained: bool = True) -> Path:
         shutil.rmtree(temp_out, ignore_errors=True)
     temp_out.mkdir(parents=True, exist_ok=True)
 
-    if not self_contained:
-        cmd = [
-            "dotnet",
-            "build",
-            str(CSPROJ_PATH),
-            "-c",
-            "Release",
-            "-o",
-            str(temp_out),
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if proc.returncode == 0:
-            return temp_out
-
     sc_flag = "true" if self_contained else "false"
     # Canonical command: dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true
     cmd = [
@@ -242,7 +242,7 @@ def publish_avalonia_target(rid: str, self_contained: bool = True) -> Path:
         sc_flag,
         "-p:PublishSingleFile=true",
         "-p:IncludeNativeLibrariesForSelfExtract=true",
-        "-p:EnableCompressionInSingleFile=true",
+        f"-p:EnableCompressionInSingleFile={'true' if self_contained else 'false'}",
         "-o",
         str(temp_out),
     ]
@@ -262,17 +262,6 @@ def publish_avalonia_target(rid: str, self_contained: bool = True) -> Path:
             str(temp_out),
         ]
         proc = subprocess.run(cmd_multi, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        cmd_fallback = [
-            "dotnet",
-            "build",
-            str(CSPROJ_PATH),
-            "-c",
-            "Release",
-            "-o",
-            str(temp_out),
-        ]
-        proc = subprocess.run(cmd_fallback, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise RuntimeError(f"dotnet build/publish failed for {rid}:\n{proc.stdout}\n{proc.stderr}")
     return temp_out
@@ -503,16 +492,14 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=== Neoveg Cross-Platform Portable Build System ===")
-    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
-    import ffmpeg_manager
 
     # Step 1: Provision isolated FFmpeg/ffprobe for host OS (with full portable binaries for ~300MB bundle)
-    mgr = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)
-    ff_res = mgr.provision_isolated_runtime(copy_binaries=True)
+    mgr: ffmpeg_manager.IsolatedFFmpegManager = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)
+    ff_res: Dict[str, Any] = mgr.provision_isolated_runtime(copy_binaries=True)
     print(f"[1/4] Isolated FFmpeg/ffprobe Provisioned ({ff_res['rid']}): {ff_res['ok']}")
 
     # Step 2: Build Rust FFI Core (`cdylib`)
-    rust_res = build_rust_ffi_core()
+    rust_res: Dict[str, Any] = build_rust_ffi_core()
     print(f"[2/4] Rust FFI Core (`neoveg_core`): {rust_res['mode'] if 'mode' in rust_res else 'Compiled'}")
 
     # Step 3: Publish & Assemble OS Portable Packages
@@ -539,6 +526,24 @@ def main() -> None:
     )
     print("[4/4] Portable Build Complete! Summary:")
     print(json.dumps(results, indent=2))
+
+    if os.name == "nt":
+        sync_script = ROOT_DIR / "scripts" / "sync_gdrive.ps1"
+        print("[5/5] Synchronizing workspace to Google Drive...")
+        proc = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(sync_script),
+            ],
+            cwd=ROOT_DIR,
+            check=False,
+        )
+        if proc.returncode != 0:
+            print(f"[WARN] Google Drive sync returned exit code {proc.returncode}; local portable packages in dist/ are ready.")
 
 
 if __name__ == "__main__":
