@@ -2,6 +2,7 @@
 
 pub mod autosave;
 pub mod command;
+pub mod crossfade;
 pub mod edit;
 pub mod project_file;
 pub mod relink;

@@ -79,6 +79,7 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [x] Slider de precisão (polegar quadrado, duplo clique restaura, `Ctrl` = ajuste fino, menu de contexto)
 - [x] Timeline: faixas de áudio/vídeo, dividir (`S`), mover/remover eventos, Desfazer/Refazer
 - [x] Edição de eventos com o mouse: mover (inclusive entre faixas do mesmo tipo), aparar nas duas bordas (a fonte mantém o alinhamento e não passa do começo nem do fim da mídia), alinhamento a quadros, ao cursor e às bordas de outros eventos (`F8`; `Alt` ignora), rolagem automática nas bordas, `Esc` cancela e cada arrasto é um único Desfazer
+- [x] As 5 curvas de fade (linear, rápida, lenta, suave, acentuada) com alças nos cantos do evento, menu do botão direito e Inspetor; crossfade automático em sobreposições parciais (ligável em Editar e na barra)
 - [x] Importação de áudio (WAV, MP3, FLAC, OGG, AAC) em thread de fundo
 - [x] Importação de vídeo (MP4, MOV, MKV, AVI, WebM...) com eventos de vídeo e áudio ligados e formato do projeto definido pelo primeiro clipe
 - [x] Decodificação de vídeo na prévia: thread de fundo, busca por quadro exato, qualidade Draft/Preview/Good/Best/Auto (feature `ffmpeg`)
@@ -99,7 +100,6 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [ ] Slip, slide e stretch de eventos; ripple; agrupar (`G`) e desagrupar (`U`); seleção múltipla
 - [ ] Aparar com o mouse em eventos de mídia gerada (hoje o limite de fonte só vale para mídia importada)
 - [ ] Marcadores (`M`), regiões e loop
-- [ ] As 5 curvas de fade (linear, rápida, lenta, suave, acentuada) e crossfade automático entre eventos sobrepostos
 - [ ] Volume, pan, mute e solo por faixa; barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
 - [ ] Efeitos de vídeo e transições na GPU (`wgpu`), composição e Pan/Crop do evento
 - [ ] Geradores de mídia (títulos, cor sólida, padrão de teste) e janela de títulos

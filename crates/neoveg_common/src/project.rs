@@ -9,6 +9,13 @@ pub struct ProjectSettings {
     pub height: u32,
     pub fps: f64,
     pub sample_rate: u32,
+    /// Overlapping events on the same track crossfade automatically.
+    #[serde(default = "default_true")]
+    pub auto_crossfade: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for ProjectSettings {
@@ -18,6 +25,7 @@ impl Default for ProjectSettings {
             height: 1080,
             fps: 29.97,
             sample_rate: 48_000,
+            auto_crossfade: true,
         }
     }
 }

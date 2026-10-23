@@ -1,6 +1,7 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
 use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
+use neoveg_common::fade::FadeCurve;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditCommand {
@@ -128,6 +129,8 @@ impl EditCommand {
                     trim_in: left.trim_in + left_duration,
                     fade_in: 0.0,
                     fade_out: left.fade_out,
+                    fade_in_curve: FadeCurve::default(),
+                    fade_out_curve: left.fade_out_curve,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -312,6 +315,8 @@ mod tests {
             trim_in: 1.0,
             fade_in: 0.0,
             fade_out: 0.5,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
         };
         assert!(history.execute(&mut tl, EditCommand::AddEvent { track_id, event }));
         (tl, history, track_id, event_id)
@@ -432,6 +437,8 @@ mod tests {
             trim_in: 3.0,
             fade_in: 0.0,
             fade_out: 0.5,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
         };
 
         assert!(history.execute(

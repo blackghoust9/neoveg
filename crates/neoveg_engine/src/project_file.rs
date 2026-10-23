@@ -182,6 +182,8 @@ mod tests {
             trim_in: 0.25,
             fade_in: 0.1,
             fade_out: 0.2,
+            fade_in_curve: neoveg_common::fade::FadeCurve::Smooth,
+            fade_out_curve: neoveg_common::fade::FadeCurve::Fast,
         };
         history.execute(&mut tl, EditCommand::AddEvent { track_id, event });
         (info, tl)
@@ -230,5 +232,22 @@ mod tests {
     fn missing_media_is_reported() {
         let (info, _) = sample_project();
         assert_eq!(find_missing(&info), vec![info.media_pool[0].id]);
+    }
+
+    #[test]
+    fn projects_saved_before_fade_curves_still_load() {
+        use neoveg_common::fade::FadeCurve;
+        let event: crate::timeline::TrackEvent = serde_json::from_str(
+            r#"{"id":1,"name":"a","media_id":null,"start":0.0,"duration":2.0,
+                "trim_in":0.0,"fade_in":0.5,"fade_out":0.5}"#,
+        )
+        .unwrap();
+        assert_eq!(event.fade_in_curve, FadeCurve::Linear);
+        assert_eq!(event.fade_out_curve, FadeCurve::Linear);
+
+        let settings: ProjectSettings =
+            serde_json::from_str(r#"{"width":1280,"height":720,"fps":25.0,"sample_rate":44100}"#)
+                .unwrap();
+        assert!(settings.auto_crossfade);
     }
 }

@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
+use neoveg_common::fade::FadeCurve;
+
 /// One audio event prepared for playback.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MixClip {
     /// Interleaved stereo `f32` at `source_rate`.
     pub samples: Arc<Vec<f32>>,
@@ -16,6 +18,24 @@ pub struct MixClip {
     pub gain: f32,
     pub fade_in: f64,
     pub fade_out: f64,
+    pub fade_in_curve: FadeCurve,
+    pub fade_out_curve: FadeCurve,
+    /// Length of the automatic crossfade at the start (0 = none); uses `cross_in_curve`.
+    pub cross_in: f64,
+    pub cross_in_curve: FadeCurve,
+    /// Length of the automatic crossfade at the end (0 = none); uses `cross_out_curve`.
+    pub cross_out: f64,
+    pub cross_out_curve: FadeCurve,
+}
+
+/// Gain of a ramp `length` seconds long when `position` seconds are left until its full-gain end
+/// (distance from the clip start for a fade-in, remaining time for a fade-out).
+fn ramp(curve: FadeCurve, length: f64, position: f64) -> f32 {
+    if length > 0.0 && position < length {
+        curve.gain(position / length) as f32
+    } else {
+        1.0
+    }
 }
 
 impl MixClip {
@@ -23,17 +43,14 @@ impl MixClip {
         self.start + self.duration
     }
 
-    /// Fade/gain multiplier at `local` seconds from the clip start.
+    /// Gain at `local` seconds from the clip start: own fades times automatic crossfades.
     fn envelope(&self, local: f64) -> f32 {
-        let mut g = self.gain;
-        if self.fade_in > 0.0 && local < self.fade_in {
-            g *= (local / self.fade_in) as f32;
-        }
         let remaining = self.duration - local;
-        if self.fade_out > 0.0 && remaining < self.fade_out {
-            g *= (remaining / self.fade_out).max(0.0) as f32;
-        }
-        g
+        self.gain
+            * ramp(self.fade_in_curve, self.fade_in, local)
+            * ramp(self.fade_out_curve, self.fade_out, remaining.max(0.0))
+            * ramp(self.cross_in_curve, self.cross_in, local)
+            * ramp(self.cross_out_curve, self.cross_out, remaining.max(0.0))
     }
 
     /// Stereo sample at timeline time `t` (linear interpolation, silence outside the clip).
@@ -100,10 +117,8 @@ mod tests {
             source_rate: 100,
             start,
             duration,
-            trim_in: 0.0,
             gain: 1.0,
-            fade_in: 0.0,
-            fade_out: 0.0,
+            ..Default::default()
         }
     }
 
@@ -131,6 +146,70 @@ mod tests {
         assert!((c.sample_at(0.25).0 - 0.5).abs() < 1e-6);
         assert_eq!(c.sample_at(0.5).0, 1.0);
         assert!((c.sample_at(0.75).0 - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn each_curve_shapes_the_fade_in() {
+        // quarter of the way through a 1 s fade-in
+        let expected = [
+            (FadeCurve::Linear, 0.25),
+            (FadeCurve::Fast, 0.4375),
+            (FadeCurve::Slow, 0.0625),
+            (FadeCurve::Smooth, 0.156_25),
+        ];
+        for (curve, gain) in expected {
+            let mut c = clip(1.0, 0.0, 2.0);
+            c.fade_in = 1.0;
+            c.fade_in_curve = curve;
+            assert!((c.sample_at(0.25).0 - gain).abs() < 1e-5, "{curve:?}");
+        }
+        let mut sharp = clip(1.0, 0.0, 2.0);
+        sharp.fade_in = 1.0;
+        sharp.fade_in_curve = FadeCurve::Sharp;
+        assert!(sharp.sample_at(0.25).0 > 0.25);
+    }
+
+    #[test]
+    fn fade_out_mirrors_the_curve_at_the_end() {
+        let mut c = clip(1.0, 0.0, 1.0);
+        c.fade_out = 0.5;
+        c.fade_out_curve = FadeCurve::Slow;
+        // 0.25 s before the end: remaining fraction 0.5, slow curve gives 0.25
+        assert!((c.sample_at(0.75).0 - 0.25).abs() < 1e-5);
+        assert_eq!(c.sample_at(0.4).0, 1.0);
+    }
+
+    #[test]
+    fn crossfade_of_symmetric_curves_keeps_constant_amplitude() {
+        // A (0..1) fades out over 0.4..1.0 while B (0.4..1.4) fades in
+        for curve in [FadeCurve::Linear, FadeCurve::Smooth, FadeCurve::Sharp] {
+            let a = MixClip {
+                cross_out: 0.6,
+                cross_out_curve: curve,
+                ..clip(1.0, 0.0, 1.0)
+            };
+            let b = MixClip {
+                cross_in: 0.6,
+                cross_in_curve: curve,
+                ..clip(1.0, 0.4, 1.0)
+            };
+            let clips = [a, b];
+            for i in 0..60 {
+                let t = 0.4 + 0.6 * f64::from(i) / 60.0;
+                let (l, _) = mix_frame(&clips, t);
+                assert!((l - 1.0).abs() < 0.02, "{curve:?} at {t}: {l}");
+            }
+        }
+    }
+
+    #[test]
+    fn crossfade_is_inactive_outside_the_overlap() {
+        let a = MixClip {
+            cross_out: 0.6,
+            ..clip(1.0, 0.0, 1.0)
+        };
+        assert_eq!(a.sample_at(0.2).0, 1.0);
+        assert!(a.sample_at(0.9).0 < 0.5);
     }
 
     #[test]

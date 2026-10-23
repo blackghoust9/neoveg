@@ -144,3 +144,32 @@ Implementation Guidelines for Neoveg:
 Sources:
   - Professional NLE Playhead & Device-Pixel Rendering Specification
 Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+6. Feature Name: Fade Curves and Automatic Crossfades
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - NOT DOCUMENTED: the exact mathematical shape of the five curve types (Linear, Fast, Slow,
+    Smooth, Sharp). The reference material names them and shows icons only.
+  - Events have a fade-in and a fade-out handle at the top corners of the event; dragging a handle
+    sets the fade length. [OFFICIAL]
+  - Overlapping events on a track crossfade when automatic crossfades are enabled; the overlap
+    region is shown with crossed lines. [OFFICIAL]
+Visual/Technical Rules (Neoveg design decision, because the shapes are not documented):
+  - gain(x), x = fade progress in [0, 1], gain(0) = 0, gain(1) = 1, monotonic:
+      Linear x | Fast 1-(1-x)^2 | Slow x^2 | Smooth smoothstep 3x^2-2x^3 |
+      Sharp inverse smoothstep 0.5 - sin(asin(1-2x)/3).
+  - Fade-out uses gain(remaining/length). Linear, Smooth and Sharp are symmetric
+    (gain(x)+gain(1-x) = 1), so they crossfade at constant amplitude; Fast/Slow are a mirrored
+    pair and can sum above 1 in the middle.
+  - Automatic crossfade only for PARTIAL overlaps (later event starts inside the earlier one and
+    ends after it). It uses the later event's fade-in curve for the fade-in and the mirrored
+    curve for the earlier event's fade-out, multiplied with each event's own fades.
+Implementation Guidelines for Neoveg:
+  - neoveg_common::fade::FadeCurve (shared), neoveg_engine::crossfade::find_crossfades,
+    neoveg_audio::mixer (envelope), neoveg_ui timeline handles and right-click curve menu.
+  - Old projects without curve fields load as Linear; auto_crossfade defaults to on.
+Sources:
+  - Classic NLE editing and mixing manuals (handles, curve names, crossfade display)
+Research Date: 2026-10-23

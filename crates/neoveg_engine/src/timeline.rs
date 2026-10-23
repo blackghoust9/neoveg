@@ -1,5 +1,6 @@
 //! Timeline, tracks and events. Times are seconds (`f64`, sub-frame precision).
 
+use neoveg_common::fade::FadeCurve;
 use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
@@ -26,6 +27,10 @@ pub struct TrackEvent {
     pub trim_in: f64,
     pub fade_in: f64,
     pub fade_out: f64,
+    #[serde(default)]
+    pub fade_in_curve: FadeCurve,
+    #[serde(default)]
+    pub fade_out_curve: FadeCurve,
 }
 
 impl TrackEvent {
@@ -42,6 +47,8 @@ pub struct EventGeometry {
     pub trim_in: f64,
     pub fade_in: f64,
     pub fade_out: f64,
+    pub fade_in_curve: FadeCurve,
+    pub fade_out_curve: FadeCurve,
 }
 
 impl EventGeometry {
@@ -58,6 +65,8 @@ impl TrackEvent {
             trim_in: self.trim_in,
             fade_in: self.fade_in,
             fade_out: self.fade_out,
+            fade_in_curve: self.fade_in_curve,
+            fade_out_curve: self.fade_out_curve,
         }
     }
 
@@ -67,6 +76,8 @@ impl TrackEvent {
         self.trim_in = g.trim_in;
         self.fade_in = g.fade_in;
         self.fade_out = g.fade_out;
+        self.fade_in_curve = g.fade_in_curve;
+        self.fade_out_curve = g.fade_out_curve;
     }
 }
 

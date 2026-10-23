@@ -17,11 +17,13 @@ use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::AudioPlayer;
 use neoveg_audio::waveform::WaveformSource;
+use neoveg_common::fade::FadeCurve;
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
+use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
@@ -42,6 +44,7 @@ const MIN_PIXELS_PER_SECOND: f64 = 15.0;
 const MAX_PIXELS_PER_SECOND: f64 = 480_000.0;
 const OFFSCREEN_CLAMP_PX: f32 = 10_000.0;
 const BLINK_SECONDS: f64 = 0.5;
+const FADE_CURVE_STEPS: u32 = 20;
 const SNAP_THRESHOLD_PX: f32 = 8.0;
 const AUTOSCROLL_EDGE_PX: f32 = 28.0;
 const AUTOSCROLL_PX_PER_SECOND: f64 = 700.0;
@@ -108,6 +111,8 @@ enum DragMode {
     Move,
     TrimLeft,
     TrimRight,
+    FadeIn,
+    FadeOut,
 }
 
 /// A drag in progress. The timeline is only touched (as one undo step) when the mouse is released.
@@ -166,6 +171,7 @@ struct AppState {
     allow_close: bool,
     window_title: String,
     drag: Option<EventDrag>,
+    context_event: Option<(TrackId, EventId)>,
     snapping: bool,
     media_tab: usize,
     project_path: Option<PathBuf>,
@@ -218,6 +224,7 @@ impl AppState {
             allow_close: false,
             window_title: String::new(),
             drag: None,
+            context_event: None,
             snapping: true,
             media_tab: 0,
             project_path: None,
@@ -601,8 +608,44 @@ impl AppState {
                 let len = self.source_len(drag.track_id, drag.event_id);
                 drag.current = edit::trim_right(drag.origin, snap(pointer_time), min_len, len);
             }
+            DragMode::FadeIn => {
+                let length = edit::quantize(pointer_time - drag.origin.start, fps);
+                drag.current = edit::set_fade_in(drag.origin, length);
+            }
+            DragMode::FadeOut => {
+                let length = edit::quantize(drag.origin.end() - pointer_time, fps);
+                drag.current = edit::set_fade_out(drag.origin, length);
+            }
         }
         self.drag = Some(drag);
+    }
+
+    fn event_geometry(&self, track_id: TrackId, event_id: EventId) -> Option<EventGeometry> {
+        self.timeline
+            .track(track_id)?
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+            .map(TrackEvent::geometry)
+    }
+
+    /// Replaces an event's geometry (fades, curves...) as one undo step.
+    fn apply_geometry(&mut self, track_id: TrackId, event_id: EventId, new: EventGeometry) {
+        let Some(old) = self.event_geometry(track_id, event_id) else {
+            return;
+        };
+        if old != new {
+            self.history.execute(
+                &mut self.timeline,
+                EditCommand::EditEvent {
+                    from_track: track_id,
+                    to_track: track_id,
+                    event_id,
+                    old,
+                    new,
+                },
+            );
+        }
     }
 
     /// Commits the drag as a single undo step (nothing happens when the event did not change).
@@ -749,6 +792,8 @@ impl AppState {
             trim_in: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: FadeCurve::default(),
+            fade_out_curve: FadeCurve::default(),
         };
         self.history.execute(
             &mut self.timeline,
@@ -769,6 +814,8 @@ impl AppState {
                 trim_in: 0.0,
                 fade_in: fade,
                 fade_out: fade,
+                fade_in_curve: FadeCurve::default(),
+                fade_out_curve: FadeCurve::default(),
             };
             self.history.execute(
                 &mut self.timeline,
@@ -905,6 +952,8 @@ impl AppState {
             trim_in: 0.0,
             fade_in: fade,
             fade_out: fade,
+            fade_in_curve: FadeCurve::default(),
+            fade_out_curve: FadeCurve::default(),
         };
         self.status = format!("Importado: {}", media.name);
         self.media.insert(media_id, media);
@@ -933,16 +982,41 @@ impl AppState {
         self.active_player = self.start_audio();
     }
 
-    /// Every unmuted audio event with decoded media, ready for the mixer.
+    /// Every unmuted audio event with decoded media, ready for the mixer. Overlapping events on a
+    /// track crossfade when automatic crossfades are on.
     fn build_clips(&self) -> Vec<MixClip> {
-        self.timeline
+        let mut clips = Vec::new();
+        for track in self
+            .timeline
             .tracks
             .iter()
             .filter(|t| t.kind == TrackKind::Audio && !t.muted)
-            .flat_map(|t| t.events.iter())
-            .filter_map(|e| {
-                let media = self.media.get(&e.media_id?)?;
-                Some(MixClip {
+        {
+            let crossfades = if self.project.settings.auto_crossfade {
+                find_crossfades(&track.events)
+            } else {
+                Vec::new()
+            };
+            let longest = |select: &dyn Fn(&Crossfade) -> bool| {
+                crossfades
+                    .iter()
+                    .filter(|c| select(c))
+                    .map(Crossfade::length)
+                    .fold(0.0, f64::max)
+            };
+            for e in &track.events {
+                let Some(media) = e.media_id.and_then(|id| self.media.get(&id)) else {
+                    continue;
+                };
+                // The fade-out of the earlier event mirrors the later event's fade-in curve
+                let out_curve = crossfades
+                    .iter()
+                    .filter(|c| c.earlier == e.id)
+                    .filter_map(|c| track.events.iter().find(|o| o.id == c.later))
+                    .map(|later| later.fade_in_curve)
+                    .next()
+                    .unwrap_or_default();
+                clips.push(MixClip {
                     samples: Arc::clone(&media.stereo),
                     source_rate: media.sample_rate,
                     start: e.start,
@@ -951,9 +1025,16 @@ impl AppState {
                     gain: 1.0,
                     fade_in: e.fade_in,
                     fade_out: e.fade_out,
-                })
-            })
-            .collect()
+                    fade_in_curve: e.fade_in_curve,
+                    fade_out_curve: e.fade_out_curve,
+                    cross_in: longest(&|c| c.later == e.id),
+                    cross_in_curve: e.fade_in_curve,
+                    cross_out: longest(&|c| c.earlier == e.id),
+                    cross_out_curve: out_curve,
+                });
+            }
+        }
+        clips
     }
 
     fn start_audio(&mut self) -> Option<ActivePlayer> {
@@ -1256,6 +1337,12 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             ui.separator();
+            let mut auto = state.project.settings.auto_crossfade;
+            if ui.checkbox(&mut auto, "Crossfade automático").changed() {
+                state.project.settings.auto_crossfade = auto;
+                state.forced_dirty = true;
+            }
+            ui.separator();
             if ui.button("Preferências…").clicked() {
                 state.show_preferences = true;
                 ui.close_menu();
@@ -1405,33 +1492,82 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_inspector;
+    let mut change = None;
     egui::Window::new("Inspetor")
         .open(&mut open)
         .show(ctx, |ui| {
             let selected = state.selected_event.and_then(|(track_id, event_id)| {
-                state
+                let name = state
                     .timeline
                     .track(track_id)?
                     .events
                     .iter()
-                    .find(|e| e.id == event_id)
+                    .find(|e| e.id == event_id)?
+                    .name
+                    .clone();
+                Some((
+                    track_id,
+                    event_id,
+                    name,
+                    state.event_geometry(track_id, event_id)?,
+                ))
             });
-            match selected {
-                Some(e) => {
-                    ui.label(format!("Evento: {}", e.name));
-                    ui.label(format!("Início: {:.3} s", e.start));
-                    ui.label(format!("Duração: {:.3} s", e.duration));
-                    ui.label(format!("Corte de entrada: {:.3} s", e.trim_in));
-                    ui.label(format!(
-                        "Fade-in/out: {:.3} s / {:.3} s",
-                        e.fade_in, e.fade_out
-                    ));
-                }
-                None => {
-                    ui.label("Nenhum evento selecionado");
-                }
+            let Some((track_id, event_id, name, g)) = selected else {
+                ui.label("Nenhum evento selecionado");
+                return;
+            };
+            ui.label(format!("Evento: {name}"));
+            ui.label(format!("Início: {:.3} s", g.start));
+            ui.label(format!("Duração: {:.3} s", g.duration));
+            ui.label(format!("Corte de entrada: {:.3} s", g.trim_in));
+            ui.separator();
+
+            let mut new = g;
+            ui.horizontal(|ui| {
+                ui.label("Fade-in");
+                ui.add(
+                    egui::DragValue::new(&mut new.fade_in)
+                        .range(0.0..=g.duration)
+                        .speed(0.01)
+                        .suffix(" s"),
+                );
+                egui::ComboBox::from_id_salt("fade_in_curve")
+                    .selected_text(new.fade_in_curve.label())
+                    .show_ui(ui, |ui| {
+                        for curve in FadeCurve::ALL {
+                            ui.selectable_value(&mut new.fade_in_curve, curve, curve.label());
+                        }
+                    });
+            });
+            ui.horizontal(|ui| {
+                ui.label("Fade-out");
+                ui.add(
+                    egui::DragValue::new(&mut new.fade_out)
+                        .range(0.0..=g.duration)
+                        .speed(0.01)
+                        .suffix(" s"),
+                );
+                egui::ComboBox::from_id_salt("fade_out_curve")
+                    .selected_text(new.fade_out_curve.label())
+                    .show_ui(ui, |ui| {
+                        for curve in FadeCurve::ALL {
+                            ui.selectable_value(&mut new.fade_out_curve, curve, curve.label());
+                        }
+                    });
+            });
+            // The two fades share the event: whichever was edited wins the room
+            if new.fade_in != g.fade_in {
+                new = edit::set_fade_in(new, new.fade_in);
+            } else if new.fade_out != g.fade_out {
+                new = edit::set_fade_out(new, new.fade_out);
+            }
+            if new != g {
+                change = Some((track_id, event_id, new));
             }
         });
+    if let Some((track_id, event_id, new)) = change {
+        state.apply_geometry(track_id, event_id, new);
+    }
     state.show_inspector = open;
 }
 
@@ -1701,6 +1837,19 @@ fn x_to_time(state: &AppState, left: f32, x: f32) -> f64 {
 
 /// Width of the trim zones at both ends of an event.
 const TRIM_EDGE_PX: f32 = 7.0;
+/// Half-width of the fade handles and the minimum distance they sit from the event edge.
+const FADE_HANDLE_PX: f32 = 6.0;
+const FADE_HANDLE_MIN_OFFSET_PX: f32 = 8.0;
+/// Events narrower than this have no fade handles.
+const FADE_HANDLE_MIN_EVENT_PX: f32 = 28.0;
+
+/// Handle centres (fade-in, fade-out) in pixels for an event spanning `x0..x1`.
+fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) -> (f32, f32) {
+    (
+        x0 + ((ev_fade_in * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
+        x1 - ((ev_fade_out * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
+    )
+}
 
 /// Event under `p` and what a drag from there would do.
 fn hit_event(
@@ -1720,6 +1869,19 @@ fn hit_event(
         if p.x < x0 || p.x > x1 {
             return None;
         }
+        // Fade handles live in the event's header strip and win over the trim zones there
+        let row_top = lane_top + row * TRACK_HEIGHT;
+        if p.y - row_top <= 2.0 + EVENT_HEADER_HEIGHT && x1 - x0 >= FADE_HANDLE_MIN_EVENT_PX {
+            let (hin, hout) =
+                fade_handle_x(ev.fade_in, ev.fade_out, state.pixels_per_second, x0, x1);
+            let (din, dout) = ((p.x - hin).abs(), (p.x - hout).abs());
+            if din <= FADE_HANDLE_PX && din <= dout {
+                return Some((track.id, ev.id, DragMode::FadeIn, ev.geometry()));
+            }
+            if dout <= FADE_HANDLE_PX {
+                return Some((track.id, ev.id, DragMode::FadeOut, ev.geometry()));
+            }
+        }
         let edge = TRIM_EDGE_PX.min((x1 - x0) / 3.0);
         let mode = if p.x - x0 <= edge {
             DragMode::TrimLeft
@@ -1730,6 +1892,74 @@ fn hit_event(
         };
         Some((track.id, ev.id, mode, ev.geometry()))
     })
+}
+
+fn curve_menu(
+    ui: &mut egui::Ui,
+    title: &str,
+    current: FadeCurve,
+    mut apply: impl FnMut(FadeCurve),
+) {
+    ui.menu_button(title, |ui| {
+        for curve in FadeCurve::ALL {
+            if ui
+                .selectable_label(current == curve, curve.label())
+                .clicked()
+            {
+                apply(curve);
+                ui.close_menu();
+            }
+        }
+    });
+}
+
+fn event_context_menu(
+    state: &mut AppState,
+    ui: &mut egui::Ui,
+    track_id: TrackId,
+    event_id: EventId,
+) {
+    let Some(g) = state.event_geometry(track_id, event_id) else {
+        ui.label("Evento não encontrado");
+        return;
+    };
+    curve_menu(ui, "Curva do fade-in", g.fade_in_curve, |c| {
+        state.apply_geometry(
+            track_id,
+            event_id,
+            EventGeometry {
+                fade_in_curve: c,
+                ..g
+            },
+        );
+    });
+    curve_menu(ui, "Curva do fade-out", g.fade_out_curve, |c| {
+        state.apply_geometry(
+            track_id,
+            event_id,
+            EventGeometry {
+                fade_out_curve: c,
+                ..g
+            },
+        );
+    });
+    ui.separator();
+    let has_fades = g.fade_in > 0.0 || g.fade_out > 0.0;
+    if ui
+        .add_enabled(has_fades, egui::Button::new("Remover fades"))
+        .clicked()
+    {
+        state.apply_geometry(
+            track_id,
+            event_id,
+            EventGeometry {
+                fade_in: 0.0,
+                fade_out: 0.0,
+                ..g
+            },
+        );
+        ui.close_menu();
+    }
 }
 
 fn timeline_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -1783,6 +2013,14 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.snapping = !state.snapping;
         }
         ui.separator();
+        if ui
+            .selectable_label(state.project.settings.auto_crossfade, "⤫")
+            .on_hover_text("Crossfade automático entre eventos sobrepostos")
+            .clicked()
+        {
+            state.project.settings.auto_crossfade = !state.project.settings.auto_crossfade;
+            state.forced_dirty = true;
+        }
         // Toolbar zoom is anchored at the edit cursor
         for (glyph, tip, factor) in [("−", "Reduzir zoom", 0.5), ("+", "Ampliar zoom", 2.0)] {
             if icon(ui, glyph, tip) {
@@ -1894,15 +2132,38 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.finish_drag();
     }
 
+    // Right-click on an event: fade curves
+    if response.secondary_clicked() {
+        let pressed = response
+            .interact_pointer_pos()
+            .filter(|p| p.x >= lanes.left() && p.y >= lane_top);
+        state.context_event = pressed
+            .and_then(|p| hit_event(state, lanes.left(), lane_top, p))
+            .map(|h| (h.0, h.1));
+        if let Some((track_id, event_id)) = state.context_event {
+            state.selected_track = Some(track_id);
+            state.selected_event = Some((track_id, event_id));
+        }
+    }
+    response.context_menu(|ui| match state.context_event {
+        Some((track_id, event_id)) => event_context_menu(state, ui, track_id, event_id),
+        None => {
+            ui.label("Clique com o botão direito em um evento");
+        }
+    });
+
     // Cursor feedback
     if let Some(drag) = &state.drag {
         ui.ctx().set_cursor_icon(match drag.mode {
             DragMode::Move => egui::CursorIcon::Grabbing,
+            DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
             _ => egui::CursorIcon::ResizeHorizontal,
         });
     } else if let Some(p) = response.hover_pos().filter(|p| p.x >= lanes.left()) {
         match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
-            Some(DragMode::TrimLeft | DragMode::TrimRight) => {
+            Some(
+                DragMode::TrimLeft | DragMode::TrimRight | DragMode::FadeIn | DragMode::FadeOut,
+            ) => {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
             }
             Some(DragMode::Move) => ui.ctx().set_cursor_icon(egui::CursorIcon::Grab),
@@ -2036,12 +2297,74 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     Color32::from_rgb(150, 215, 245),
                 );
             }
+            if x1 - x0 >= FADE_HANDLE_MIN_EVENT_PX {
+                let pps = state.pixels_per_second;
+                let wave_top = ev_rect.top() + EVENT_HEADER_HEIGHT;
+                let height = ev_rect.bottom() - wave_top;
+                let curve_stroke = Stroke::new(1.5_f32, Color32::from_white_alpha(210));
+                if g.fade_in > 0.0 {
+                    let width = (g.fade_in * pps) as f32;
+                    let points: Vec<Pos2> = (0..=FADE_CURVE_STEPS)
+                        .map(|k| {
+                            let u = f64::from(k) / f64::from(FADE_CURVE_STEPS);
+                            pos2(
+                                x0 + u as f32 * width,
+                                wave_top + (1.0 - g.fade_in_curve.gain(u) as f32) * height,
+                            )
+                        })
+                        .collect();
+                    lane_painter.add(Shape::line(points, curve_stroke));
+                }
+                if g.fade_out > 0.0 {
+                    let width = (g.fade_out * pps) as f32;
+                    let points: Vec<Pos2> = (0..=FADE_CURVE_STEPS)
+                        .map(|k| {
+                            let u = f64::from(k) / f64::from(FADE_CURVE_STEPS);
+                            pos2(
+                                x1 - width + u as f32 * width,
+                                wave_top + (1.0 - g.fade_out_curve.gain(1.0 - u) as f32) * height,
+                            )
+                        })
+                        .collect();
+                    lane_painter.add(Shape::line(points, curve_stroke));
+                }
+                let (hin, hout) = fade_handle_x(g.fade_in, g.fade_out, pps, x0, x1);
+                for hx in [hin, hout] {
+                    lane_painter.rect_filled(
+                        Rect::from_center_size(
+                            pos2(hx, ev_rect.top() + EVENT_HEADER_HEIGHT / 2.0),
+                            vec2(8.0, 8.0),
+                        ),
+                        Rounding::ZERO,
+                        Color32::from_white_alpha(if selected { 240 } else { 130 }),
+                    );
+                }
+            }
             let border = if selected {
                 Color32::WHITE
             } else {
                 Color32::from_gray(15)
             };
             lane_painter.rect_stroke(ev_rect, Rounding::ZERO, Stroke::new(1.0_f32, border));
+        }
+        if track.kind == TrackKind::Audio && state.project.settings.auto_crossfade {
+            for cf in find_crossfades(&track.events) {
+                let cx0 = lanes.left()
+                    + ((cf.start - state.scroll_seconds) * state.pixels_per_second) as f32;
+                let cx1 = lanes.left()
+                    + ((cf.end - state.scroll_seconds) * state.pixels_per_second) as f32;
+                if cx1 < lanes.left() || cx0 > lanes.right() {
+                    continue;
+                }
+                let area = Rect::from_min_max(
+                    pos2(cx0.max(lanes.left() - 1.0), y + 2.0),
+                    pos2(cx1.min(lanes.right() + 1.0), y + TRACK_HEIGHT - 2.0),
+                );
+                lane_painter.rect_filled(area, Rounding::ZERO, Color32::from_white_alpha(28));
+                let stroke = Stroke::new(1.5_f32, Color32::from_white_alpha(200));
+                lane_painter.line_segment([area.left_bottom(), area.right_top()], stroke);
+                lane_painter.line_segment([area.left_top(), area.right_bottom()], stroke);
+            }
         }
     }
 
@@ -2206,6 +2529,8 @@ mod tests {
             trim_in: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: FadeCurve::default(),
+            fade_out_curve: FadeCurve::default(),
         };
         let id = event.id;
         s.history
@@ -2314,9 +2639,13 @@ mod tests {
         s.scroll_seconds = 0.0;
         // event spans 2.0 s .. 6.0 s = 200 px .. 600 px
         let mode_at = |x: f32, y: f32| hit_event(&s, 0.0, 0.0, pos2(x, y)).map(|h| (h.0, h.1, h.2));
-        assert_eq!(mode_at(203.0, 10.0), Some((track, ev, DragMode::TrimLeft)));
-        assert_eq!(mode_at(598.0, 10.0), Some((track, ev, DragMode::TrimRight)));
+        assert_eq!(mode_at(203.0, 40.0), Some((track, ev, DragMode::TrimLeft)));
+        assert_eq!(mode_at(598.0, 40.0), Some((track, ev, DragMode::TrimRight)));
+        assert_eq!(mode_at(400.0, 40.0), Some((track, ev, DragMode::Move)));
         assert_eq!(mode_at(400.0, 10.0), Some((track, ev, DragMode::Move)));
+        // header strip: handles sit 8 px inside each edge while the fades are zero
+        assert_eq!(mode_at(208.0, 10.0), Some((track, ev, DragMode::FadeIn)));
+        assert_eq!(mode_at(592.0, 10.0), Some((track, ev, DragMode::FadeOut)));
         assert_eq!(mode_at(100.0, 10.0), None);
         assert_eq!(mode_at(400.0, TRACK_HEIGHT + 10.0), None);
         assert_eq!(mode_at(400.0, -5.0), None);
@@ -2352,5 +2681,78 @@ mod tests {
         assert_eq!(format_age(0, 7_300), "há 2 h");
         assert_eq!(format_age(0, 3 * 86_400 + 5), "há 3 dia(s)");
         assert_eq!(format_age(500, 100), "agora há pouco");
+    }
+
+    #[test]
+    fn dragging_a_fade_handle_sets_the_fade_in_one_undo_step() {
+        let (mut s, track, ev) = state_with_clip();
+        s.begin_drag(hit(&s, track, ev, DragMode::FadeIn), 2.2);
+        s.update_drag(3.0, None, 0.1, true);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        assert!((g.fade_in - 1.0).abs() < 0.02, "{}", g.fade_in);
+        assert_eq!(g.start, 2.0);
+
+        s.begin_drag(hit(&s, track, ev, DragMode::FadeOut), 5.8);
+        s.update_drag(1000.0, None, 0.1, true);
+        // clamped at zero when dragged past the event's end
+        s.finish_drag();
+        assert_eq!(geometry(&s, track, ev).fade_out, 0.0);
+
+        s.history.undo(&mut s.timeline);
+        assert_eq!(geometry(&s, track, ev).fade_in, 0.0);
+    }
+
+    #[test]
+    fn curve_changes_are_undoable_and_leave_lengths_alone() {
+        let (mut s, track, ev) = state_with_clip();
+        let g = geometry(&s, track, ev);
+        s.apply_geometry(
+            track,
+            ev,
+            EventGeometry {
+                fade_in: 1.0,
+                fade_in_curve: FadeCurve::Smooth,
+                ..g
+            },
+        );
+        let after = geometry(&s, track, ev);
+        assert_eq!(after.fade_in_curve, FadeCurve::Smooth);
+        assert_eq!(after.fade_in, 1.0);
+        s.history.undo(&mut s.timeline);
+        assert_eq!(geometry(&s, track, ev), g);
+        // applying an identical geometry is not an edit
+        let revision = s.history.revision();
+        s.apply_geometry(track, ev, g);
+        assert_eq!(s.history.revision(), revision);
+    }
+
+    #[test]
+    fn mixer_clips_get_crossfades_only_when_enabled() {
+        let (mut s, track, _) = state_with_clip(); // event 2..6
+        add_event(&mut s, track, 5.0, 4.0); // overlaps 5..6
+        s.media.insert(1, test_media());
+        let clips = s.build_clips();
+        assert_eq!(clips.len(), 2);
+        assert!((clips[0].cross_out - 1.0).abs() < 1e-9 && clips[0].cross_in == 0.0);
+        assert!((clips[1].cross_in - 1.0).abs() < 1e-9 && clips[1].cross_out == 0.0);
+
+        s.project.settings.auto_crossfade = false;
+        let clips = s.build_clips();
+        assert!(clips
+            .iter()
+            .all(|c| c.cross_in == 0.0 && c.cross_out == 0.0));
+    }
+
+    fn test_media() -> LoadedMedia {
+        let samples = vec![0.0f32; 200];
+        LoadedMedia {
+            path: PathBuf::from("x.wav"),
+            name: "x.wav".into(),
+            waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
+            stereo: Arc::new(samples),
+            sample_rate: 100,
+            duration: 10.0,
+        }
     }
 }

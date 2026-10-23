@@ -18,6 +18,22 @@ fn clamp_fades(mut g: EventGeometry) -> EventGeometry {
     g
 }
 
+/// Sets the fade-in length (at most the room left before the fade-out starts).
+pub fn set_fade_in(g: EventGeometry, length: f64) -> EventGeometry {
+    EventGeometry {
+        fade_in: length.clamp(0.0, (g.duration - g.fade_out).max(0.0)),
+        ..g
+    }
+}
+
+/// Sets the fade-out length (at most the room left after the fade-in ends).
+pub fn set_fade_out(g: EventGeometry, length: f64) -> EventGeometry {
+    EventGeometry {
+        fade_out: length.clamp(0.0, (g.duration - g.fade_in).max(0.0)),
+        ..g
+    }
+}
+
 /// Moves the event so it starts at `new_start` (never before the timeline origin).
 pub fn move_to(g: EventGeometry, new_start: f64) -> EventGeometry {
     EventGeometry {
@@ -94,6 +110,8 @@ mod tests {
             trim_in,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
         }
     }
 
@@ -155,6 +173,16 @@ mod tests {
         let t = trim_right(g, 1.5, 0.04, None);
         assert_eq!(t.fade_in, 1.0);
         assert!((t.fade_out - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn fade_lengths_are_limited_by_each_other_and_the_event() {
+        let g = geo(0.0, 4.0, 0.0);
+        let g = set_fade_in(g, 1.5);
+        assert_eq!(g.fade_in, 1.5);
+        assert_eq!(set_fade_out(g, 10.0).fade_out, 2.5);
+        assert_eq!(set_fade_in(g, -1.0).fade_in, 0.0);
+        assert_eq!(set_fade_in(set_fade_out(g, 2.0), 9.0).fade_in, 2.0);
     }
 
     #[test]
