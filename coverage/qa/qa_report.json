@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T11:05:54.458690-03:00",
+  "generated_at": "2026-10-24T13:41:56.829462-03:00",
   "platform": "windows",
   "outcome": "pass",
   "standards": [
@@ -34,28 +34,28 @@
       "name": "rustfmt",
       "pillar": "Maintainability",
       "standard": "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764",
-      "duration_ms": 248,
+      "duration_ms": 1806,
       "status": "pass"
     },
     {
       "name": "Clippy (-D warnings)",
       "pillar": "Maintainability",
       "standard": "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764",
-      "duration_ms": 1134,
+      "duration_ms": 46532,
       "status": "pass"
     },
     {
       "name": "Testes do workspace",
       "pillar": "Reliability",
       "standard": "ABNT NBR ISO/IEC/IEEE 29119 (Testes) / ISO/IEC 25010 (Confiabilidade)",
-      "duration_ms": 1111,
+      "duration_ms": 54403,
       "status": "pass"
     },
     {
       "name": "Build release do workspace",
       "pillar": "Portability",
       "standard": "ABNT NBR ISO/IEC 25010 (Portabilidade) - build nativo pela toolchain unica",
-      "duration_ms": 133856,
+      "duration_ms": 203126,
       "status": "pass"
     }
   ],

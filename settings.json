@@ -1,7 +1,7 @@
 {
   "language": "pt-BR",
   "themeEra": 3,
-  "showWelcomeOnStartup": true,
+  "showWelcomeOnStartup": false,
   "supportedLanguages": [
     "pt-BR",
     "en-US",
@@ -11,5 +11,7 @@
     "zh-CN",
     "ja-JP",
     "ru-RU"
-  ]
+  ],
+  "autoFadeOnImport": false,
+  "updatedAt": "2026-10-24T19:41:18.1166526Z"
 }
