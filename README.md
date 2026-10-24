@@ -4,7 +4,7 @@ Editor não linear de vídeo e áudio multiplataforma, escrito em **Rust puro** 
 
 > **Em migração.** A branch `refactor/100-percent-rust` substitui a arquitetura anterior (C# / Avalonia, Rust FFI, C++ e Python) por um único workspace Rust. Os diretórios legados (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) continuam no repositório apenas como referência até cada recurso ser portado e, em seguida, serão removidos.
 
-Consulte [AGENTS.md](./AGENTS.md) para os protocolos de arquitetura (seção 22: *Pure Rust Architecture & Single-Toolchain Protocol*) e [REQUIREMENTS.md](./REQUIREMENTS.md) para o detalhe de versões.
+Consulte [AGENTS.md](./AGENTS.md) para os padrões de arquitetura e codificação (Parte I) e [REQUIREMENTS.md](./REQUIREMENTS.md) para o detalhe de versões.
 
 ## Pré-requisitos para contribuidores
 
@@ -29,6 +29,18 @@ Variáveis de ambiente para o build com FFmpeg (Windows, escopo do usuário; abr
 ```
 
 O nome da pasta do FFmpeg muda a cada versão do pacote: confira o caminho real em `%LOCALAPPDATA%\Microsoft\WinGet\Packages`. Em tempo de execução (inclusive `cargo test --features ffmpeg`) as DLLs do FFmpeg (`bin\`) precisam estar no `PATH` do terminal; o pacote do `winget` adiciona essa pasta ao `PATH`, então abra um terminal novo depois de instalar. Os testes de decodificação geram um clipe com o executável `ffmpeg` do `PATH` e são ignorados em silêncio quando ele não existe. Sem a feature `ffmpeg` o Neoveg abre normalmente e avisa na barra de status que vídeo está desabilitado.
+
+### Ambiente de referência (o que foi instalado na máquina de desenvolvimento)
+
+Resumo do que o projeto usa hoje, para reproduzir o ambiente em outra máquina Windows:
+
+- [x] Rust estável 1.99.1 (`rustup`), alvo `x86_64-pc-windows-msvc`, componentes `clippy`, `rustfmt`, `llvm-tools-preview`, `rust-src` e `rust-docs`
+- [x] Visual Studio 2026 / Build Tools com *Desktop development with C++* (linker MSVC)
+- [x] `cargo-llvm-cov` 0.9.1 (`cargo install cargo-llvm-cov --locked`)
+- [x] FFmpeg 7.1.x compartilhado LGPL (`BtbN.FFmpeg.LGPL.Shared.7.1`) com `FFMPEG_DIR` apontando para a pasta extraída
+- [x] LLVM / `libclang` 19.x com `LIBCLANG_PATH=C:\Program Files\LLVM\bin` (o LLVM 22+ quebra a `ffmpeg-sys-next`)
+- [x] Git e GitHub Desktop (fluxo de branches descrito no AGENTS.md, seção 11)
+- [ ] Nenhum dos itens legados (.NET SDK, CMake, Python) é necessário para o workspace Rust
 
 **Linux (Debian / Ubuntu):**
 
@@ -114,6 +126,41 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 - [ ] Medidores de pico e cópia de logs no visualizador de logs da interface
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov`
 - [ ] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) e atualizar `Dockerfile`, `.gitignore` e scripts de QA para o workspace Rust
+
+### A fazer a partir da pesquisa dos manuais e do `results.md`
+
+Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os links dos manuais estão no histórico do pedido; o servidor do PDF do VP12 bloqueia download automático (HTTP 403) e os PDFs do VP10 e VP18 passam de 10 MB, então precisam ser baixados e lidos manualmente.
+
+**Edição e timeline**
+- [ ] Modos de edição (Ripple off/eventos/faixa/tudo) e *Auto Ripple*
+- [ ] Slip, slide, stretch e *velocity* (envelope de velocidade) de eventos
+- [ ] Seleção múltipla, agrupar (`G`) e desagrupar (`U`), travar faixa/evento
+- [ ] Marcadores (`M`), regiões, marcadores de comando e loop; réguas adicionais
+- [ ] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
+- [ ] Aninhar projetos (*nesting*) e faixas de composição/pai-filho
+- [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
+- [ ] Personalizar teclado, barras de ferramentas e layouts de janela (salvar/restaurar)
+
+**Áudio**
+- [ ] Volume, pan, mute e solo por faixa; Mixing Console com barramentos, sends e inserts
+- [ ] Efeitos de áudio nativos (EQ, compressor, reverb, delay) e hospedagem VST3
+- [ ] Gravação de áudio, entradas de dispositivo e metrônomo
+
+**Vídeo e composição**
+- [ ] Composição multicamada na prévia e modos de composição (mistura)
+- [ ] Track Motion, Pan/Crop de evento com gizmo `'F'` e keyframes
+- [ ] Transições (categorias, presets, parâmetros) e efeitos de vídeo na GPU; OFX
+- [ ] Correção/gradação de cor, LUTs (OCIO) e scopes de vídeo (histograma, parada RGB, vectorscope)
+- [ ] Geradores e Titler/Texto com animação; legendas
+- [ ] Rastreamento de movimento, máscaras e *Smart Mask*
+
+**Projeto, mídia e saída**
+- [ ] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
+- [ ] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
+- [ ] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
+- [ ] Intercâmbio FCP7 XML, FCPXML e EDL
+- [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
+- [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 
 ## Créditos e licenciamento
 
