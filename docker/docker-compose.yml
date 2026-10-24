@@ -4,7 +4,11 @@
 #   docker compose -f docker/docker-compose.yml --profile macos up --build    # + macOS cross build (needs docker/sdk)
 #
 # The repository is bind-mounted read-only at /workspace; Cargo output and the registry cache live in
-# named volumes; artifacts are written to dist/ (dist/linux, dist/macos, dist/reports).
+# bind mounts under NEOVEG_ENV_DIR; artifacts are written to dist/ (linux, macos, macos-native, reports).
+#
+# Heavy files (Cargo registry, target dirs, artifacts, the macOS disk image) live under NEOVEG_ENV_DIR
+# (D:\ambiente_neoveg on the maintainer's Windows machine; scripts/test_rust_crossplatform.ps1 sets it).
+# Defaults keep a plain checkout working: ../.neoveg_env for caches and ../dist for artifacts.
 #
 # Prefer scripts/test_rust_crossplatform.sh (or .ps1): it runs the steps in order, checks the results
 # and fails with a clear message.
@@ -31,9 +35,9 @@ services:
     environment: *environment
     volumes:
       - ..:/workspace:ro
-      - ../dist:/dist
-      - cargo-registry:/usr/local/cargo/registry
-      - target-linux-test:/target
+      - ${NEOVEG_DIST:-../dist}:/dist
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/cargo-registry:/usr/local/cargo/registry
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/target-linux-test:/target
 
   # Optimized Linux binaries (only after the tests passed)
   build-rust-linux-release:
@@ -47,9 +51,9 @@ services:
         condition: service_completed_successfully
     volumes:
       - ..:/workspace:ro
-      - ../dist:/dist
-      - cargo-registry:/usr/local/cargo/registry
-      - target-linux-release:/target
+      - ${NEOVEG_DIST:-../dist}:/dist
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/cargo-registry:/usr/local/cargo/registry
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/target-linux-release:/target
 
   # Optimized macOS binaries (Intel and Apple Silicon) through osxcross. Needs the macOS SDK package in
   # docker/sdk/, so it only starts with `--profile macos`.
@@ -70,12 +74,53 @@ services:
         condition: service_completed_successfully
     volumes:
       - ..:/workspace:ro
-      - ../dist:/dist
-      - cargo-registry:/usr/local/cargo/registry
-      - target-macos:/target
+      - ${NEOVEG_DIST:-../dist}:/dist
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/cargo-registry:/usr/local/cargo/registry
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker/target-macos:/target
 
-volumes:
-  cargo-registry:
-  target-linux-test:
-  target-linux-release:
-  target-macos:
+  # --- Native macOS (Docker-OSX, https://github.com/sickcodes/Docker-OSX) -------------------------------
+  # A real macOS guest under QEMU/KVM. Needs /dev/kvm (Linux host, or Docker Desktop with WSL2 nested
+  # virtualization) and a prepared disk image; see docker/osx/README.md. Profile `macos-native` only.
+  docker-osx:
+    profiles: ["macos-native"]
+    image: ${NEOVEG_OSX_IMAGE:-sickcodes/docker-osx:naked}
+    devices:
+      - /dev/kvm
+    environment:
+      IMAGE_PATH: /image/mac_hdd.img
+      RAM: ${NEOVEG_OSX_RAM:-8}
+      SMP: ${NEOVEG_OSX_SMP:-4}
+      CORES: ${NEOVEG_OSX_SMP:-4}
+      CPU: Haswell-noTSX
+      CPUID_FLAGS: kvm=on,vendor=GenuineIntel,+invtsc,vmware-cpuid-freq=on
+      NOPICKER: "true"
+      EXTRA: -display none
+    volumes:
+      # The macOS hard disk: D:\ambiente_neoveg\docker-osx\mac_hdd.img
+      - ${NEOVEG_ENV_DIR:-../.neoveg_env}/docker-osx:/image
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/10022'"]
+      interval: 15s
+      timeout: 5s
+      retries: 80
+      start_period: 60s
+
+  # Runs `cargo test --workspace` and the release build inside the macOS guest over SSH
+  test-rust-macos-native:
+    profiles: ["macos-native"]
+    build: *linux-build
+    image: neoveg/rust-linux:local
+    command: ["/usr/local/bin/test-macos-native.sh"]
+    init: true
+    environment:
+      OSX_HOST: docker-osx
+      OSX_PORT: "10022"
+      OSX_USER: ${NEOVEG_OSX_USER:-user}
+      OSX_PASSWORD: ${NEOVEG_OSX_PASSWORD:-alpine}
+      NEOVEG_FFMPEG: ${NEOVEG_FFMPEG:-0}
+    depends_on:
+      docker-osx:
+        condition: service_healthy
+    volumes:
+      - ..:/workspace:ro
+      - ${NEOVEG_DIST:-../dist}:/dist

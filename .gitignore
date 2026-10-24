@@ -113,3 +113,4 @@ manuais/
 
 # macOS SDK for the cross-compilation image (Apple license: never commit)
 docker/sdk/*.tar.*
+/.neoveg_env/
