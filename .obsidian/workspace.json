@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "e9d2055b4aefd81b",
+        "id": "4e6b236f2b44e198",
         "type": "tabs",
         "children": [
           {
-            "id": "0059e9dce8b0dfb2",
+            "id": "fa75fcd388e043ea",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "AGENTS.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "AGENTS"
+              "title": "Nova aba"
             }
           }
         ]
@@ -188,19 +184,21 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "0059e9dce8b0dfb2",
+  "active": "fa75fcd388e043ea",
   "lastOpenFiles": [
+    "AGENTS.md",
+    "file:C:/Users/Paulo César/Documents/results.md",
+    "target/release/deps/neoveg.pdb",
+    "target/release/deps/neoveg.exe",
+    "target/release/deps/rustcvOdUOF/libarboard-d6a58529bfed2c68.rlib",
+    "target/release/deps/rustcvOdUOF/libpercent_encoding-d86fd4949899cc85.rlib",
+    "target/release/deps/rustcvOdUOF/libzerotrie-72e52e91b2088bec.rlib",
+    "target/release/deps/rustcvOdUOF/libzerovec-8944b7e0d4cbb13e.rlib",
+    "target/release/deps/rustcvOdUOF/libwriteable-4e5bdc9f0c20d610.rlib",
+    "target/release/deps/rustcvOdUOF/libpotential_utf-15b4bf1df41fbda7.rlib",
+    "target/release/deps/rustcvOdUOF/libutf8_iter-6b89ef623716a741.rlib",
+    "target/release/deps/rustcvOdUOF/libicu_collections-c145e1ec87112955.rlib",
     "RELATORIO_REA_NEOVEG.md",
-    "dist/Neoveg-Portable-win-x64/cpp-extensions/build/ALL_BUILD.dir/MinSizeRel",
-    "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/neoveg_whisper_cli.dir/Release/neoveg-whisper-cli.exe.recipe",
-    "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/CMakeCache.txt",
-    "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/neoveg_cpp_engine.sln",
-    "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/cmake_install.cmake",
-    "dist/Neoveg-Portable-osx-x64/cpp-extensions/build/neoveg_whisper_cli.vcxproj.filters",
-    "docs/index.html",
-    "docs",
-    "docker-compose.yml",
-    "Dockerfile",
     "dist/Neoveg-Portable-win-x64/addon/vcredist2022-2015_14.36.32532/README.md",
     "addon/directx_redist/README.md",
     "addon/vcredist2022-2015_14.36.32532/README.md",
