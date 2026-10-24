@@ -253,6 +253,20 @@ Neoveg aligns its development and QA practice with ISO/IEC 25010 (quality model)
 - **Commits:** Conventional-Commit style (`feat(...)`, `fix(...)`, `docs(...)`, `arch(...)`), subject line in Portuguese without accents; keep generated artifacts (`target/`, `dist/`, `logs/`, `coverage/`) out of Git.
 - **Cloud backup path:** `G:\Meu Drive\vp-rev-eng\teste\teste2`, mirrored with `scripts/sync_gdrive.ps1` (Robocopy). Everything matched by the root `.gitignore` is excluded from both Git and the mirror; keep the script's filters aligned with `.gitignore`. The mirror runs after a successful portable build on Windows or manually.
 
+
+## 12. Pure Rust Cross-Platform Testing & Docker Protocol
+
+The isolated environment lives in `docker/` and builds only the Rust workspace in `crates/`: no .NET, C++ or Python toolchains are installed in the images (Python 3 is present only to run `build_portable.py`). The root `Dockerfile` and `docker-compose.yml` are the legacy multi-language environment of Part II and are not used by this protocol.
+
+- **Layout:** `docker/Dockerfile.rust-linux`, `docker/Dockerfile.rust-macos`, `docker/docker-compose.yml`, `docker/entrypoints/*.sh` (run inside the containers) and `docker/sdk/` (macOS SDK package, never committed).
+- **Linux image:** official `rust` image (`RUST_IMAGE`, default `rust:latest`; pin it for reproducible builds) plus `build-essential`, `pkg-config`, `clang`, `libasound2-dev` (cpal), `libgl1-mesa-dev`, `libx11-dev`, `libwayland-dev`, `libvulkan-dev` and a software Vulkan driver (wgpu/egui), `libavcodec-dev`, `libavformat-dev`, `libavutil-dev` and the other FFmpeg libraries (`ffmpeg-next`), and `xvfb`. The FFmpeg development packages must be 7.1.x to use the `ffmpeg` feature; the default build and the tests do not need them.
+- **macOS image:** `osxcross` with the Rust targets `x86_64-apple-darwin` and `aarch64-apple-darwin`. The macOS SDK is Apple's property and cannot be redistributed: each contributor supplies the package in `docker/sdk/` (see its README). This service sits behind the compose profile `macos`.
+- **Services:** `test-rust-linux` (`cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, all inside Xvfb), `build-rust-linux-release` (artifacts in `dist/linux/`, starts only after the tests passed) and `build-rust-macos-release` (artifacts in `dist/macos/`, also depends on the tests). Packaging reuses `build_portable.py --dist`, so the archives and the standalone executable are identical to a local build.
+- **Isolation:** the repository is mounted read-only at `/workspace`; Cargo output (`CARGO_TARGET_DIR=/target`) and the registry are named volumes, so host `target/` folders are never mixed with Linux artifacts; the containers need no network access besides crates.io and the package mirrors during the build.
+- **What is verified where:** the test suite runs on Linux (container) and natively on the developer's own OS; macOS binaries and test binaries are only compiled in the container because Mach-O executables cannot run on Linux. A green macOS result therefore means "compiles and links", and real macOS runs stay on a Mac.
+- **Single command:** `docker compose -f docker/docker-compose.yml up --build`, or `scripts/test_rust_crossplatform.sh` / `scripts/test_rust_crossplatform.ps1`, which also check that Docker is running, parse `dist/reports/test-linux.txt` (`fmt`, `clippy`, `tests` must be `ok`, `failed=0`, `passed>0`), confirm the artifacts exist and print their SHA-256. Options: `--macos`, `--ffmpeg`, `--no-cache`, `--tests-only`.
+- **Rules:** the environment must stay lint-clean and reproducible (`--locked`); never copy the macOS SDK, credentials or the `dist/` folder into an image or the repository; a change to a native dependency of a crate must update the Linux package list in `Dockerfile.rust-linux` and the list in section 12 of this file.
+
 ---
 
 # Part II — Legacy Protocols (C# / C++ / Python era)

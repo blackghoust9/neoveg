@@ -69,6 +69,32 @@ cargo test --workspace --features neoveg_ui/ffmpeg  # inclui os testes de decodi
 
 Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 
+### Testar e compilar em qualquer máquina (Docker)
+
+O ambiente isolado em `docker/` roda `rustfmt`, `clippy -D warnings` e `cargo test --workspace` num container Linux (com Xvfb para a parte gráfica) e compila os binários otimizados de Linux e, opcionalmente, de macOS (Intel e Apple Silicon). Só precisa do Docker.
+
+```bash
+# um comando: sobe o Linux (testes e, se passarem, o build de release) e grava dist/linux/
+docker compose -f docker/docker-compose.yml up --build        # ou: docker-compose -f docker/docker-compose.yml up --build
+
+# o mesmo, com verificação do resultado, em Linux/macOS e no PowerShell (Windows, Linux, macOS)
+scripts/test_rust_crossplatform.sh
+pwsh scripts/test_rust_crossplatform.ps1                       # Windows PowerShell 5.1: powershell -File scripts\test_rust_crossplatform.ps1
+
+# com o build cruzado de macOS (precisa do pacote do SDK em docker/sdk/, veja docker/sdk/README.md)
+docker compose -f docker/docker-compose.yml --profile macos up --build
+scripts/test_rust_crossplatform.sh --macos
+```
+
+| Serviço | O que faz | Saída |
+| --- | --- | --- |
+| `test-rust-linux` | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` sob Xvfb | `dist/reports/test-linux.txt` |
+| `build-rust-linux-release` | binário otimizado, pasta portátil e `.tar.gz` (só depois dos testes) | `dist/linux/` |
+| `build-rust-macos-release` (perfil `macos`) | compila os testes e o release para `x86_64-apple-darwin` e `aarch64-apple-darwin` com osxcross | `dist/macos/` |
+
+Os testes **rodam** só no Linux; os binários de macOS são apenas compilados no container (não executam em Linux). O script verifica que nenhum teste falhou, que o `rustfmt` e o `clippy` passaram e que os artefatos existem, e imprime os SHA-256. Opções: `--ffmpeg`, `--no-cache`, `--tests-only`, `--macos`.
+
+
 ## Estrutura do workspace
 
 | Crate | Responsabilidade |

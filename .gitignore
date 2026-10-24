@@ -110,3 +110,6 @@ log_erros.txt
 
 # Manuais de referencia (PDFs grandes, uso local)
 manuais/
+
+# macOS SDK for the cross-compilation image (Apple license: never commit)
+docker/sdk/*.tar.*

@@ -1,592 +1,530 @@
-"""
-Neoveg — Automated Multi-Platform Portable Build & Packaging Pipeline (~300MB Target)
-Generates self-contained portable distributions for:
-1. Windows (`win-x64`) -> `dist/Neoveg-Portable-win-x64/Neoveg.exe`
-2. Linux (`linux-x64`) -> `dist/Neoveg-Portable-linux-x64/Neoveg.AppDir` (AppImage structure + `AppRun`)
-3. macOS (`osx-x64` / `osx-arm64`) -> `dist/Neoveg-Portable-osx-x64/Neoveg.app` (Apple `.app` bundle + `Info.plist`)
+#!/usr/bin/env python3
+"""Neoveg packaging and quality driver (Python standard library only).
 
-Pipeline Steps:
-- Step 1: Compiles the Rust FFI Engine (`rust-core` -> `neoveg_core.dll` / `libneoveg_core.so` / `libneoveg_core.dylib`) when `cargo` is available.
-- Step 2: Provisions the isolated FFmpeg & FFprobe runtime per OS (`runtimes/<rid>/ffmpeg/bin/`).
-- Step 3: Publishes the C# Avalonia UI 11 cross-platform desktop application (`dotnet publish`) for each target RID.
-- Step 4: Bundles the recycled Python scripts (`ffmpeg_manager.py`, `rust_bridge.py`, `plugins_engine.py`, `neoveg_scripting.py`, `error_logger.py`), sample media, and `.neoveg` projects into each OS portable package, enforcing a ~200MB–300MB portable footprint budget.
+Neoveg is a pure Rust workspace, so this script only orchestrates `cargo` and packs the result.
+
+    python build_portable.py                 # QA gates, release build and portable packages for this OS
+    python build_portable.py build --ffmpeg  # same, with video decoding (needs FFMPEG_DIR / LIBCLANG_PATH)
+    python build_portable.py build --targets all --skip-qa
+    python build_portable.py qa              # fmt + clippy + tests + release build, writes the QA report
+    python build_portable.py check           # verify the toolchain (and FFmpeg variables with --ffmpeg)
+
+For every target it produces, under `dist/`:
+
+  * `Neoveg-Portable-<rid>/`            the staged portable folder (executable, assets, licenses, launcher)
+  * `Neoveg_v<version>_<rid>_Portable.zip` (Windows) or `.tar.gz` (Linux, macOS)
+  * `neoveg_v<version>_<rid>[.exe]`      the standalone executable (on Windows built with a static C
+                                         runtime, so it needs no Visual C++ redistributable)
+  * `SHA256SUMS.txt` and `build_manifest.json`
+
+Targets (`--targets`): `host` (default), `all`, or a comma list of `win-x64`, `linux-x64`, `osx-x64`,
+`osx-arm64`. A target other than the host needs its Rust target installed (`rustup target add ...`)
+and a working linker, because Neoveg links native windowing and audio libraries.
+
+The QA gates follow AGENTS.md section 3: `cargo fmt --all -- --check`,
+`cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Each step is
+tagged with its ISO/IEC 25010 pillar and written to `logs/neoveg.log`, `coverage/qa/qa_report.json`
+and `docs/qa_report.js` (rendered by `docs/index.html`).
 """
 
 from __future__ import annotations
+
 import argparse
+import datetime as dt
+import hashlib
 import json
 import os
 import platform
+import re
 import shutil
-import stat
 import subprocess
 import sys
-import tempfile
+import tarfile
+import time
+import zipfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-_HERE = Path(__file__).resolve().parent
-ROOT_DIR = _HERE.parent if _HERE.name == "scripts" else _HERE
-DIST_DIR = ROOT_DIR / "dist"
-RUST_DIR = ROOT_DIR / "rust-core"
-CSPROJ_PATH = ROOT_DIR / "desktop-host" / "Neoveg.csproj"
-PYTHON_BACKEND_DIR = ROOT_DIR / "python-backend"
+ROOT = Path(__file__).resolve().parent
+DIST = ROOT / "dist"
+# Cargo may write to another directory (the Docker images set CARGO_TARGET_DIR)
+TARGET_DIR = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target"))
+LOG_FILE = ROOT / "logs" / "neoveg.log"
+QA_JSON = ROOT / "coverage" / "qa" / "qa_report.json"
+QA_JS = ROOT / "docs" / "qa_report.js"
 
-if str(PYTHON_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_BACKEND_DIR))
+for _stream in (sys.stdout, sys.stderr):
+    # Windows consoles default to a legacy code page; keep non-ASCII log text from crashing
+    _reconfigure = getattr(_stream, "reconfigure", None)
+    if callable(_reconfigure):
+        _reconfigure(encoding="utf-8", errors="replace")
 
-import ffmpeg_manager
-import native_ffi_builder
+# rid -> Rust target triple, archive format, executable name
+TARGETS: Dict[str, Dict[str, str]] = {
+    "win-x64": {"triple": "x86_64-pc-windows-msvc", "archive": "zip", "exe": "neoveg.exe"},
+    "linux-x64": {"triple": "x86_64-unknown-linux-gnu", "archive": "tar.gz", "exe": "neoveg"},
+    "osx-x64": {"triple": "x86_64-apple-darwin", "archive": "tar.gz", "exe": "neoveg"},
+    "osx-arm64": {"triple": "aarch64-apple-darwin", "archive": "tar.gz", "exe": "neoveg"},
+}
 
-RECYCLED_PYTHON_SCRIPTS = [
-    "ffmpeg_manager.py",
-    "rust_bridge.py",
-    "native_ffi_builder.py",
-    "generate_history_theme_assets.py",
-    "generate_i18n_resources.py",
-    "neoveg_integration.py",
-    "qa_audit_suite.py",
-    "plugins_engine.py",
-    "neoveg_scripting.py",
-    "media_relinker.py",
-    "error_logger.py",
-    "test_neoveg_engine.py",
-    "requirements.txt",
+# Files copied into every package (source -> name inside the package)
+PAYLOAD_FILES = {
+    "LICENSE": "LICENSE",
+    "AUTHORS.md": "AUTHORS.md",
+    "RELEASE_NOTES.md": "RELEASE_NOTES.md",
+    "README.md": "README.md",
+    "third_party/README.md": "third_party/README.md",
+}
+
+PILLAR_LABELS = {
+    "Performance": "Eficiencia de Desempenho",
+    "Reliability": "Confiabilidade",
+    "Usability": "Usabilidade",
+    "Portability": "Portabilidade",
+    "Maintainability": "Manutenibilidade",
+}
+STANDARDS = [
+    "ABNT NBR ISO/IEC 25010",
+    "ABNT NBR ISO/IEC/IEEE 29119",
+    "ABNT NBR ISO/IEC 12207",
+    "ABNT NBR ISO/IEC 14764",
+    "ABNT NBR ISO/IEC 27001",
 ]
 
 
-def _make_executable(path: Path) -> None:
-    if path.exists() and os.name != "nt":
-        try:
-            mode = path.stat().st_mode
-            path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        except OSError:
-            pass
+# ----------------------------------------------------------------------------- helpers
 
 
-def verify_brand_neutrality_audit() -> Dict[str, Any]:
-    """
-    Runs a pre-build string-audit scan (AGENTS.md Section 19) to verify zero occurrences
-    of prohibited third-party trademarks in tracked source files.
-    """
-    import re as _re
-    terms = ["so" + "ny", "ve" + "gas", "ma" + "gix", "boris" + r"\s*fx", "boris" + "fx", "open" + "ve" + "gas", "k" + "ve" + "gas"]
-    pat = _re.compile("(" + "|".join(terms) + ")", _re.IGNORECASE)
-    violations: List[str] = []
-    for sub in ("desktop-host", "desktop-host.Tests", "rust-core/src", "cpp-extensions/src", "cpp-extensions/include", "python-backend", "scripts"):
-        d = ROOT_DIR / sub
-        if not d.exists():
-            continue
-        for p in d.rglob("*.*"):
-            if any(x in p.parts for x in ("bin", "obj", "target", "build", "build-qa", "__pycache__")):
-                continue
-            if p.suffix.lower() not in (".cs", ".rs", ".cpp", ".h", ".py", ".axaml"):
-                continue
-            txt = p.read_text(encoding="utf-8", errors="ignore")
-            # Ignore regex pattern definitions inside build_portable.py / test_neoveg_engine.py
-            if p.name in ("build_portable.py", "test_neoveg_engine.py"):
-                continue
-            if pat.search(txt):
-                violations.append(str(p.relative_to(ROOT_DIR)))
-    if violations:
-        raise RuntimeError(f"Brand neutrality audit failed on files: {violations}")
-    return {"ok": True, "violations": 0}
+def log(level: str, message: str, source: str = "build_portable") -> None:
+    """Prints a line and appends it to logs/neoveg.log."""
+    stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    line = f"[{stamp}] [{level}] [{source}] {message}"
+    print(f"[{level}] {message}")
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except OSError:
+        pass
 
 
-def build_rust_ffi_core() -> Dict[str, Any]:
-    """Compiles `rust-core` into a dynamic C-ABI library (`cdylib`) via `cargo` or native x86-64 FFI builder."""
-    res: Dict[str, Any] = native_ffi_builder.compile_or_synthesize_rust_core()
-    return res
+def run(cmd: List[str], env: Optional[Dict[str, str]] = None, check: bool = True) -> int:
+    """Runs a command in the repository root, streaming its output."""
+    print("  $ " + " ".join(cmd))
+    merged = {**os.environ, **(env or {})}
+    result = subprocess.run(cmd, cwd=ROOT, env=merged)
+    if check and result.returncode != 0:
+        raise RuntimeError(f"command failed with exit code {result.returncode}: {' '.join(cmd)}")
+    return result.returncode
 
 
-def copy_common_neoveg_payload(target_root: Path, rid: str) -> None:
-    """Copies recycled Python scripts, `.neoveg` projects, media, and isolated FFmpeg runtime slots."""
-    # 1. Recycled Python scripts
-    py_dst = target_root / "python-backend"
-    py_dst.mkdir(parents=True, exist_ok=True)
-    for script_name in RECYCLED_PYTHON_SCRIPTS:
-        src_py = PYTHON_BACKEND_DIR / script_name
-        if src_py.exists():
-            shutil.copy2(src_py, py_dst / script_name)
-
-    # 2. Rust FFI source, C/C++ Extensions source & native runtime slot
-    rust_dst = target_root / "rust-core" / "src"
-    rust_dst.mkdir(parents=True, exist_ok=True)
-    if (RUST_DIR / "Cargo.toml").exists():
-        shutil.copy2(RUST_DIR / "Cargo.toml", target_root / "rust-core" / "Cargo.toml")
-    if (RUST_DIR / "src" / "lib.rs").exists():
-        shutil.copy2(RUST_DIR / "src" / "lib.rs", rust_dst / "lib.rs")
-
-    cpp_src_dir = ROOT_DIR / "cpp-extensions"
-    if cpp_src_dir.exists():
-        for rel_cpp in ("CMakeLists.txt", "include/neoveg_cpp_api.h", "src/neoveg_cpp_engine.cpp"):
-            s_cpp = cpp_src_dir / rel_cpp
-            if s_cpp.exists():
-                d_cpp = target_root / "cpp-extensions" / rel_cpp
-                d_cpp.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(s_cpp, d_cpp)
-
-    native_slot = target_root / "runtimes" / rid / "native"
-    native_slot.mkdir(parents=True, exist_ok=True)
-    src_native = ROOT_DIR / "runtimes" / rid / "native"
-    if src_native.exists():
-        for f in src_native.iterdir():
-            if f.is_file():
-                shutil.copy2(f, native_slot / f.name)
-
-    # 3. Isolated FFmpeg / FFprobe runtime directory
-    ffmpeg_bin_slot = target_root / "runtimes" / rid / "ffmpeg" / "bin"
-    ffmpeg_lib_slot = target_root / "runtimes" / rid / "ffmpeg" / "lib"
-    ffmpeg_bin_slot.mkdir(parents=True, exist_ok=True)
-    ffmpeg_lib_slot.mkdir(parents=True, exist_ok=True)
-
-    src_ffmpeg_slot = ROOT_DIR / "runtimes" / rid / "ffmpeg" / "bin"
-    if src_ffmpeg_slot.exists():
-        for f in src_ffmpeg_slot.iterdir():
-            if f.is_file():
-                shutil.copy2(f, ffmpeg_bin_slot / f.name)
-
-    # 4. Projects, Media, Scripts, Extensions, Historical Theme Assets & Documentation
-    for folder in ("projects", "media", "renders", "scripts", "extensions"):
-        dst_f = target_root / folder
-        dst_f.mkdir(parents=True, exist_ok=True)
-        src_f = ROOT_DIR / folder
-        if src_f.exists():
-            for item in src_f.iterdir():
-                if item.is_file() and item.stat().st_size < 2 * 1024 * 1024:
-                    shutil.copy2(item, dst_f / item.name)
-
-    src_themes = ROOT_DIR / "assets" / "neoveg_history_themes"
-    if src_themes.exists():
-        dst_themes = target_root / "assets" / "neoveg_history_themes"
-        for item in src_themes.rglob("*"):
-            rel = item.relative_to(src_themes)
-            if "references" in rel.parts:
-                continue  # Keep portable bundle lightweight by copying core SVG/PNG/JSON theme assets
-            target_item = dst_themes / rel
-            if item.is_dir():
-                target_item.mkdir(parents=True, exist_ok=True)
-            elif item.is_file():
-                target_item.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, target_item)
-
-    # 5. Harvested Neoveg 3D LUTs (.cube), Presets, and i18n Multi-Language Dictionaries (.axaml / .json)
-    for asset_sub in ("luts", "neoveg_presets", "i18n"):
-        src_sub = ROOT_DIR / "assets" / asset_sub
-        if src_sub.exists():
-            dst_sub = target_root / "assets" / asset_sub
-            for item in src_sub.rglob("*"):
-                rel = item.relative_to(src_sub)
-                target_item = dst_sub / rel
-                if item.is_dir():
-                    target_item.mkdir(parents=True, exist_ok=True)
-                elif item.is_file():
-                    target_item.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(item, target_item)
-
-    src_avalonia_i18n = ROOT_DIR / "desktop-host" / "Assets" / "i18n"
-    if src_avalonia_i18n.exists():
-        for dst_i18n_dir in (
-            target_root / "Assets" / "i18n",
-            target_root / "desktop-host" / "Assets" / "i18n",
-        ):
-            dst_i18n_dir.mkdir(parents=True, exist_ok=True)
-            for item in src_avalonia_i18n.iterdir():
-                if item.is_file():
-                    shutil.copy2(item, dst_i18n_dir / item.name)
-
-    for axaml_name in ("MissingMediaWindow.axaml", "RenderStatusRuler.axaml"):
-        src_axaml = ROOT_DIR / "desktop-host" / "Assets" / axaml_name
-        if src_axaml.exists():
-            for dst_axaml in (
-                target_root / "Assets" / axaml_name,
-                target_root / "assets" / axaml_name,
-                target_root / "desktop-host" / "Assets" / axaml_name,
-            ):
-                dst_axaml.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_axaml, dst_axaml)
-
-    (target_root / "cache" / "prerender").mkdir(parents=True, exist_ok=True)
-
-    src_third_party = ROOT_DIR / "third_party"
-    if src_third_party.exists():
-        dst_tp = target_root / "third_party"
-        if dst_tp.exists():
-            shutil.rmtree(dst_tp, ignore_errors=True)
-        shutil.copytree(
-            src_third_party,
-            dst_tp,
-            ignore=shutil.ignore_patterns(".git", "_upstream"),
-        )
-
-    for package_name in ("vcredist_all_in_one", "vcredist2022-2015_14.36.32532"):
-        vcredist_package = ROOT_DIR / "addon" / package_name
-        if vcredist_package.exists():
-            shutil.copytree(
-                vcredist_package,
-                target_root / "addon" / package_name,
-                dirs_exist_ok=True,
-            )
-
-    for doc in (
-        "AUTHORS.md",
-        "LICENSE",
-        "REQUIREMENTS.md",
-        "README.md",
-        "GUIA_NOVAS_FUNCIONALIDADES.md",
-        "DOCUMENTACAO_SCRIPTS.md",
-        "funcoes_add.txt",
-        "settings.json",
-    ):
-        if (ROOT_DIR / doc).exists():
-            shutil.copy2(ROOT_DIR / doc, target_root / doc)
+def capture(cmd: List[str]) -> Optional[str]:
+    try:
+        out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=True)
+        return out.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
-def publish_avalonia_target(rid: str, self_contained: bool = True) -> Path:
-    """
-    Builds/publishes the Avalonia UI cross-platform target (.NET 8.0 Self-Contained) into a temporary staging folder.
-    Default Windows command:
-        dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true
-    """
-    temp_out = Path(tempfile.gettempdir()) / f"neoveg_publish_{rid}"
-    if temp_out.exists():
-        shutil.rmtree(temp_out, ignore_errors=True)
-    temp_out.mkdir(parents=True, exist_ok=True)
+def workspace_version() -> str:
+    text = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    match = re.search(r"\[workspace\.package\][^\[]*?version\s*=\s*\"([^\"]+)\"", text, re.S)
+    if not match:
+        raise RuntimeError("version not found in [workspace.package] of Cargo.toml")
+    return match.group(1)
 
-    sc_flag = "true" if self_contained else "false"
-    # Canonical command: dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true
-    cmd = [
-        "dotnet",
-        "publish",
-        str(CSPROJ_PATH),
-        "-c",
-        "Release",
-        "-r",
-        rid,
-        "--self-contained",
-        sc_flag,
-        "-p:PublishSingleFile=true",
-        "-p:IncludeNativeLibrariesForSelfExtract=true",
-        f"-p:EnableCompressionInSingleFile={'true' if self_contained else 'false'}",
-        "-o",
-        str(temp_out),
+
+def host_rid() -> str:
+    system = platform.system()
+    machine = platform.machine().lower()
+    if system == "Windows":
+        return "win-x64"
+    if system == "Linux":
+        return "linux-x64"
+    if system == "Darwin":
+        return "osx-arm64" if machine in ("arm64", "aarch64") else "osx-x64"
+    raise RuntimeError(f"unsupported host system: {system}")
+
+
+def host_triple() -> Optional[str]:
+    text = capture(["rustc", "-vV"])
+    if not text:
+        return None
+    match = re.search(r"^host:\s*(\S+)", text, re.M)
+    return match.group(1) if match else None
+
+
+def installed_targets() -> List[str]:
+    text = capture(["rustup", "target", "list", "--installed"])
+    return text.split() if text else []
+
+
+def resolve_targets(spec: str) -> List[str]:
+    if spec == "host":
+        return [host_rid()]
+    if spec == "all":
+        return list(TARGETS)
+    rids = [item.strip() for item in spec.split(",") if item.strip()]
+    unknown = [rid for rid in rids if rid not in TARGETS]
+    if unknown:
+        raise SystemExit(f"unknown target(s): {', '.join(unknown)}; choose from {', '.join(TARGETS)}")
+    return rids
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+# ----------------------------------------------------------------------------- check
+
+
+def ffmpeg_environment() -> List[str]:
+    """Problems with the FFmpeg build variables (empty when everything is in place)."""
+    problems = []
+    ffmpeg_dir = os.environ.get("FFMPEG_DIR")
+    libclang = os.environ.get("LIBCLANG_PATH")
+    if not ffmpeg_dir or not Path(ffmpeg_dir).is_dir():
+        problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")
+    elif not (Path(ffmpeg_dir) / "include").is_dir():
+        problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")
+    if not libclang or not Path(libclang).is_dir():
+        problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")
+    return problems
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    ok = True
+    for tool in ("cargo", "rustc", "rustup"):
+        version = capture([tool, "--version"])
+        print(f"{'OK  ' if version else 'FAIL'} {tool}: {version or 'not found'}")
+        ok = ok and bool(version)
+    components = capture(["rustup", "component", "list", "--installed"]) or ""
+    for component in ("clippy", "rustfmt"):
+        present = component in components
+        print(f"{'OK  ' if present else 'FAIL'} component {component}")
+        ok = ok and present
+    print(f"INFO host target: {host_triple()} ({host_rid()})")
+    if args.ffmpeg:
+        problems = ffmpeg_environment()
+        for problem in problems:
+            print(f"FAIL {problem}")
+        print("OK   FFmpeg variables" if not problems else "")
+        ok = ok and not problems
+    return 0 if ok else 1
+
+
+# ----------------------------------------------------------------------------- QA
+
+
+def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
+    maintain = "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764"
+    testing = "ABNT NBR ISO/IEC/IEEE 29119 (Testes) / ISO/IEC 25010 (Confiabilidade)"
+    portable = "ABNT NBR ISO/IEC 25010 (Portabilidade) - build nativo pela toolchain unica"
+    test_cmd = ["cargo", "test", "--workspace"]
+    steps: List[Dict[str, object]] = [
+        {"name": "rustfmt", "pillar": "Maintainability", "standard": maintain,
+         "cmd": ["cargo", "fmt", "--all", "--", "--check"]},
+        {"name": "Clippy (-D warnings)", "pillar": "Maintainability", "standard": maintain,
+         "cmd": ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]},
+        {"name": "Testes do workspace", "pillar": "Reliability", "standard": testing, "cmd": test_cmd},
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        cmd_multi = [
-            "dotnet",
-            "publish",
-            str(CSPROJ_PATH),
-            "-c",
-            "Release",
-            "-r",
-            rid,
-            "--self-contained",
-            sc_flag,
-            "-o",
-            str(temp_out),
-        ]
-        proc = subprocess.run(cmd_multi, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(f"dotnet build/publish failed for {rid}:\n{proc.stdout}\n{proc.stderr}")
-    return temp_out
+    if getattr(args, "ffmpeg", False):
+        steps.append({"name": "Testes com FFmpeg", "pillar": "Reliability", "standard": testing,
+                      "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"]})
+    steps.append({"name": "Build release do workspace", "pillar": "Portability", "standard": portable,
+                  "cmd": ["cargo", "build", "--workspace", "--release"]})
+    return steps
 
 
-def package_windows_portable(self_contained: bool = True) -> Dict[str, Any]:
-    """Builds the Windows (`win-x64`) portable package and updates root `Neoveg.exe` & `Neoveg.exe`."""
-    rid = "win-x64"
-    staged = publish_avalonia_target(rid, self_contained=self_contained)
-    out_dir = DIST_DIR / "Neoveg-Portable-win-x64"
-    if out_dir.exists():
-        for old_file in out_dir.iterdir():
-            if old_file.is_file() and old_file.suffix.lower() in (".dll", ".exe", ".json", ".pdb"):
-                try:
-                    old_file.unlink()
-                except OSError:
-                    pass
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    for item in staged.iterdir():
-        if item.is_file():
-            shutil.copy2(item, out_dir / item.name)
-
-    copy_common_neoveg_payload(out_dir, rid)
-
-    # Copy addon/vcredist2022-2015_14.36.32532/ prerequisite directory for Windows installer/setup scripts
-    src_vcredist_dir = ROOT_DIR / "addon" / "vcredist2022-2015_14.36.32532"
-    if src_vcredist_dir.exists():
-        dst_vcredist_dir = out_dir / "addon" / "vcredist2022-2015_14.36.32532"
-        dst_vcredist_dir.mkdir(parents=True, exist_ok=True)
-        for vc_item in src_vcredist_dir.iterdir():
-            if vc_item.is_file():
-                shutil.copy2(vc_item, dst_vcredist_dir / vc_item.name)
-
-    for legal_doc in ("AUTHORS.md", "LICENSE"):
-        if (ROOT_DIR / legal_doc).exists():
-            shutil.copy2(ROOT_DIR / legal_doc, out_dir / legal_doc)
-
-    for dll_name in ("neoveg_core.dll", "neoveg_cpp_engine.dll", "neoveg_cpp_engine.dll"):
-        native_dll = ROOT_DIR / "runtimes" / rid / "native" / dll_name
-        if native_dll.exists():
-            for dst_dll in [out_dir / dll_name, ROOT_DIR / dll_name]:
-                try:
-                    shutil.copy2(native_dll, dst_dll)
-                except OSError:
-                    pass
-
-    # Also copy the standalone single-file Avalonia executable to workspace root (`Neoveg.exe` and `Neoveg.exe`)
-    exe_src = out_dir / "Neoveg.exe"
-    if exe_src.exists():
-        for target_exe in [
-            ROOT_DIR / "Neoveg.exe",
-            ROOT_DIR / "Neoveg.exe",
-        ]:
-            try:
-                target_exe.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(exe_src, target_exe)
-            except OSError:
-                pass
-
-    total_bytes = sum(f.stat().st_size for f in out_dir.rglob("*") if f.is_file())
-    if os.name == "nt" and exe_src.exists():
-        (ROOT_DIR / "Executar_Neoveg.cmd").write_text(
-            '@echo off\r\nSET SEE_MASK_NOZONECHECKS=1\r\nstart "" "%~dp0dist\\Neoveg-Portable-win-x64\\Neoveg.exe" %*\r\n',
-            encoding="utf-8",
+def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
+    pillars: Dict[str, Dict[str, Any]] = {}
+    for step in steps:
+        entry = pillars.setdefault(
+            str(step["pillar"]),
+            {"label": PILLAR_LABELS[str(step["pillar"])], "status": "pass", "passed": 0, "total": 0},
         )
-        (out_dir / "Executar_Neoveg.cmd").write_text(
-            '@echo off\r\nSET SEE_MASK_NOZONECHECKS=1\r\nstart "" "%~dp0Neoveg.exe" %*\r\n',
-            encoding="utf-8",
-        )
-        # Synchronize the fresh Windows Portable build into %LOCALAPPDATA%\Neoveg\AppCache\
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            app_cache_dir = Path(local_app_data) / "Neoveg" / "AppCache"
-            try:
-                app_cache_dir.mkdir(parents=True, exist_ok=True)
-                for f_item in out_dir.iterdir():
-                    if f_item.is_file():
-                        shutil.copy2(f_item, app_cache_dir / f_item.name)
-                for sub_dir_name in ("Assets", "assets", "runtimes", "scripts", "python-backend"):
-                    src_sub_d = out_dir / sub_dir_name
-                    if src_sub_d.exists():
-                        shutil.copytree(src_sub_d, app_cache_dir / sub_dir_name, dirs_exist_ok=True)
-            except OSError:
-                pass
-        ps_unblock = (
-            "$ErrorActionPreference = 'SilentlyContinue'; "
-            f"Unblock-File -Path '{exe_src}'; "
-            f"Unblock-File -Path '{ROOT_DIR / 'Neoveg.exe'}';"
-        )
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps_unblock], capture_output=True, check=False)
-    return {
-        "platform": "Windows (win-x64)",
-        "output_dir": str(out_dir),
-        "executable": str(exe_src),
-        "size_mb": round(total_bytes / (1024 * 1024), 2),
+        entry["total"] += 1
+        if step["status"] == "pass":
+            entry["passed"] += 1
+        else:
+            entry["status"] = "fail"
+    report = {
+        "generated_at": dt.datetime.now().astimezone().isoformat(),
+        "platform": platform.system().lower(),
+        "outcome": outcome,
+        "standards": STANDARDS,
+        "pillars": pillars,
+        "steps": [{k: v for k, v in s.items() if k != "cmd"} for s in steps],
+        "environment": {"rustc": capture(["rustc", "--version"]), "cargo": capture(["cargo", "--version"])},
     }
+    QA_JSON.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(report, indent=2, ensure_ascii=False)
+    QA_JSON.write_text(text + "\n", encoding="utf-8")
+    QA_JS.parent.mkdir(parents=True, exist_ok=True)
+    QA_JS.write_text("window.NEOVEG_QA_REPORT = " + text + ";\n", encoding="utf-8")
 
 
-def package_linux_appimage(self_contained: bool = True) -> Dict[str, Any]:
-    """Builds the Linux (`linux-x64`) AppDir structure (`.AppImage` ready)."""
-    rid = "linux-x64"
-    staged = publish_avalonia_target(rid, self_contained=self_contained)
-    appdir = DIST_DIR / "Neoveg-Portable-linux-x64" / "Neoveg.AppDir"
-    usr_bin = appdir / "usr" / "bin"
-    usr_lib = appdir / "usr" / "lib"
-    usr_bin.mkdir(parents=True, exist_ok=True)
-    usr_lib.mkdir(parents=True, exist_ok=True)
-
-    for item in staged.iterdir():
-        if item.is_file():
-            shutil.copy2(item, usr_bin / item.name)
-            _make_executable(usr_bin / item.name)
-
-    copy_common_neoveg_payload(usr_bin, rid)
-
-    for legal_doc in ("AUTHORS.md", "LICENSE"):
-        if (ROOT_DIR / legal_doc).exists():
-            shutil.copy2(ROOT_DIR / legal_doc, appdir / legal_doc)
-
-    # Create AppRun entry point
-    apprun = appdir / "AppRun"
-    apprun.write_text(
-        """#!/usr/bin/env bash
-set -e
-HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/bin/runtimes/linux-x64/native:${HERE}/usr/bin/runtimes/linux-x64/ffmpeg/lib:${LD_LIBRARY_PATH}"
-export PATH="${HERE}/usr/bin/runtimes/linux-x64/ffmpeg/bin:${HERE}/usr/bin:${PATH}"
-export FREI0R_PATH="${HERE}/usr/bin/plugins/frei0r:${FREI0R_PATH}"
-export LADSPA_PATH="${HERE}/usr/bin/plugins/ladspa:${LADSPA_PATH}"
-exec "${HERE}/usr/bin/Neoveg" "$@"
-""",
-        encoding="utf-8",
-        newline="\n",
-    )
-    _make_executable(apprun)
-
-    # Create FreeDesktop `.desktop` manifest
-    desktop_file = appdir / "neoveg.desktop"
-    desktop_file.write_text(
-        """[Desktop Entry]
-Type=Application
-Name=Neoveg
-Comment=Cross-Platform Non-Linear Video & Audio Editor (Avalonia UI + Rust FFI + Python FFmpeg)
-Exec=Neoveg
-Icon=neoveg
-Categories=AudioVideo;Video;AudioVideoEditing;
-Terminal=false
-""",
-        encoding="utf-8",
-        newline="\n",
-    )
-
-    # Optional: invoke `appimagetool` if available on Linux host
-    appimage_out = DIST_DIR / "Neoveg-x86_64.AppImage"
-    appimagetool = shutil.which("appimagetool")
-    if appimagetool and platform.system().lower() == "linux":
-        subprocess.run([appimagetool, str(appdir), str(appimage_out)], check=False)
-
-    total_bytes = sum(f.stat().st_size for f in appdir.rglob("*") if f.is_file())
-    return {
-        "platform": "Linux (.AppImage / AppDir linux-x64)",
-        "output_dir": str(appdir),
-        "apprun": str(apprun),
-        "size_mb": round(total_bytes / (1024 * 1024), 2),
-    }
+def cmd_qa(args: argparse.Namespace) -> int:
+    steps = qa_steps(args)
+    failed = False
+    for step in steps:
+        source = f"QA/{step['pillar']}"
+        log("INFO", f"START {step['name']} - {step['standard']}", source)
+        started = time.monotonic()
+        code = run(list(step["cmd"]), check=False)  # type: ignore[arg-type]
+        step["duration_ms"] = int((time.monotonic() - started) * 1000)
+        step["status"] = "pass" if code == 0 else "fail"
+        log("INFO" if code == 0 else "ERROR", f"{'PASS' if code == 0 else 'FAIL'} {step['name']}", source)
+        if code != 0:
+            failed = True
+            break  # later steps would only repeat the failure
+    write_qa_report(steps, "fail" if failed else "pass")
+    print(f"QA report: {QA_JSON.relative_to(ROOT)}")
+    return 1 if failed else 0
 
 
-def package_macos_app_bundle(self_contained: bool = True) -> Dict[str, Any]:
-    """Builds the macOS (`osx-x64`) Apple `.app` Application Bundle (`Neoveg.app`)."""
-    rid = "osx-x64"
-    staged = publish_avalonia_target(rid, self_contained=self_contained)
-    app_bundle = DIST_DIR / "Neoveg-Portable-osx-x64" / "Neoveg.app"
-    contents = app_bundle / "Contents"
-    macos_dir = contents / "MacOS"
-    resources_dir = contents / "Resources"
-    frameworks_dir = contents / "Frameworks"
+# ----------------------------------------------------------------------------- build
 
-    macos_dir.mkdir(parents=True, exist_ok=True)
-    resources_dir.mkdir(parents=True, exist_ok=True)
-    frameworks_dir.mkdir(parents=True, exist_ok=True)
 
-    for item in staged.iterdir():
-        if item.is_file():
-            shutil.copy2(item, macos_dir / item.name)
-            _make_executable(macos_dir / item.name)
+def cargo_build(rid: str, ffmpeg: bool) -> Path:
+    """Builds the release binary for `rid` and returns its path."""
+    info = TARGETS[rid]
+    triple = info["triple"]
+    is_host = triple == host_triple()
+    if not is_host and triple not in installed_targets():
+        raise RuntimeError(f"Rust target {triple} is not installed: rustup target add {triple}")
+    cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
+    env: Dict[str, str] = {}
+    if ffmpeg:
+        cmd += ["--features", "ffmpeg"]
+    if not is_host:
+        cmd += ["--target", triple]
+    if "windows-msvc" in triple:
+        # Static C runtime: the portable exe does not need the Visual C++ redistributable
+        flags = os.environ.get("RUSTFLAGS", "")
+        env["RUSTFLAGS"] = (flags + " -C target-feature=+crt-static").strip()
+    log("INFO", f"building {rid} ({triple}){' with FFmpeg' if ffmpeg else ''}")
+    run(cmd, env)
+    base = TARGET_DIR / ("release" if is_host else f"{triple}/release")
+    binary = base / info["exe"]
+    if not binary.is_file():
+        raise RuntimeError(f"expected binary not found: {binary}")
+    return binary
 
-    copy_common_neoveg_payload(macos_dir, rid)
 
-    for legal_doc in ("AUTHORS.md", "LICENSE"):
-        if (ROOT_DIR / legal_doc).exists():
-            shutil.copy2(ROOT_DIR / legal_doc, resources_dir / legal_doc)
+def copy_payload(root: Path) -> None:
+    for source, name in PAYLOAD_FILES.items():
+        src = ROOT / source
+        if src.is_file():
+            dst = root / name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+    i18n = ROOT / "assets" / "i18n"
+    if i18n.is_dir():
+        # Only the runtime resources (JSON); the .axaml files belong to the legacy C# UI
+        target = root / "Assets" / "i18n"
+        target.mkdir(parents=True, exist_ok=True)
+        for item in i18n.glob("*.json"):
+            shutil.copy2(item, target / item.name)
 
-    info_plist = contents / "Info.plist"
-    info_plist.write_text(
-        """<?xml version="1.0" encoding="UTF-8"?>
+
+def copy_ffmpeg_runtime(rid: str, destination: Path) -> None:
+    """Copies the FFmpeg shared libraries next to the executable (direct launches must not rely on PATH)."""
+    ffmpeg_dir = os.environ.get("FFMPEG_DIR")
+    if not ffmpeg_dir:
+        return
+    base = Path(ffmpeg_dir)
+    if rid == "win-x64":
+        patterns = [(base / "bin", "*.dll")]
+    elif rid == "linux-x64":
+        patterns = [(base / "lib", "libav*.so*"), (base / "lib", "libsw*.so*")]
+    else:
+        log("WARN", f"FFmpeg libraries are not bundled for {rid}; install FFmpeg 7.1 with Homebrew")
+        return
+    destination.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for folder, pattern in patterns:
+        for lib in folder.glob(pattern):
+            if lib.is_file():
+                shutil.copy2(lib, destination / lib.name)
+                count += 1
+    log("INFO", f"{count} FFmpeg libraries copied for {rid}")
+
+
+LINUX_LAUNCHER = """#!/bin/sh
+# Neoveg portable launcher: finds the bundled FFmpeg libraries without touching the system.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$HERE/neoveg" "$@"
+"""
+
+MAC_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>Neoveg</string>
-    <key>CFBundleDisplayName</key>
-    <string>Neoveg</string>
-    <key>CFBundleIdentifier</key>
-    <string>org.neoveg.app</string>
-    <key>CFBundleVersion</key>
-    <string>21.2.0</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleExecutable</key>
-    <string>Neoveg</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
+  <key>CFBundleName</key><string>Neoveg</string>
+  <key>CFBundleDisplayName</key><string>Neoveg</string>
+  <key>CFBundleIdentifier</key><string>org.neoveg.app</string>
+  <key>CFBundleExecutable</key><string>neoveg</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>{version}</string>
+  <key>CFBundleVersion</key><string>{version}</string>
+  <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
-""",
-        encoding="utf-8",
-        newline="\n",
-    )
-
-    total_bytes = sum(f.stat().st_size for f in app_bundle.rglob("*") if f.is_file())
-    return {
-        "platform": "macOS (.app Bundle osx-x64)",
-        "output_dir": str(app_bundle),
-        "info_plist": str(info_plist),
-        "size_mb": round(total_bytes / (1024 * 1024), 2),
-    }
+"""
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Neoveg Cross-Platform Portable Builder")
-    parser.add_argument(
-        "--targets",
-        default="all",
-        choices=["all", "windows", "linux", "macos"],
-        help="Target OS packages to build",
-    )
-    parser.add_argument(
-        "--framework-dependent",
-        action="store_true",
-        help="Build compact framework-dependent packages instead of full self-contained (~300MB) bundles",
-    )
-    args = parser.parse_args()
-
-    print("=== Neoveg Cross-Platform Portable Build System ===")
-    audit_res = verify_brand_neutrality_audit()
-    print(f"[0/4] Brand Neutrality String-Audit Scan (AGENTS.md Sec. 19): {audit_res['ok']}")
-
-    # Step 1: Provision isolated FFmpeg/ffprobe for host OS (with full portable binaries for ~300MB bundle)
-    mgr: ffmpeg_manager.IsolatedFFmpegManager = ffmpeg_manager.IsolatedFFmpegManager(ROOT_DIR)
-    ff_res: Dict[str, Any] = mgr.provision_isolated_runtime(copy_binaries=True)
-    print(f"[1/4] Isolated FFmpeg/ffprobe Provisioned ({ff_res['rid']}): {ff_res['ok']}")
-
-    # Step 2: Build Rust FFI Core (`cdylib`)
-    rust_res: Dict[str, Any] = build_rust_ffi_core()
-    print(f"[2/4] Rust FFI Core (`neoveg_core`): {rust_res['mode'] if 'mode' in rust_res else 'Compiled'}")
-
-    # Step 3: Publish & Assemble OS Portable Packages
-    self_contained = not args.framework_dependent
-    results: List[Dict[str, Any]] = []
-
-    if args.targets in ("all", "windows"):
-        print("[3/4] Packaging Windows Portable (win-x64)...")
-        results.append(package_windows_portable(self_contained=self_contained))
-
-    if args.targets in ("all", "linux"):
-        print("[3/4] Packaging Linux Portable AppImage (.AppDir linux-x64)...")
-        results.append(package_linux_appimage(self_contained=self_contained))
-
-    if args.targets in ("all", "macos"):
-        print("[3/4] Packaging macOS Portable Bundle (Neoveg.app osx-x64)...")
-        results.append(package_macos_app_bundle(self_contained=self_contained))
-
-    manifest_path = DIST_DIR / "build_manifest.json"
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(
-        json.dumps({"ok": True, "packages": results, "rust_ffi": rust_res}, indent=2),
-        encoding="utf-8",
-    )
-    print("[4/4] Portable Build Complete! Summary:")
-    print(json.dumps(results, indent=2))
-
-    if os.name == "nt":
-        sync_script = ROOT_DIR / "scripts" / "sync_gdrive.ps1"
-        print("[5/5] Synchronizing workspace to Google Drive...")
-        proc = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(sync_script),
-            ],
-            cwd=ROOT_DIR,
-            check=False,
+def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool) -> Path:
+    """Builds dist/Neoveg-Portable-<rid>/ from the compiled binary."""
+    stage = DIST / f"Neoveg-Portable-{rid}"
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+    exe = TARGETS[rid]["exe"]
+    if rid.startswith("osx"):
+        macos = stage / "Neoveg.app" / "Contents" / "MacOS"
+        macos.mkdir(parents=True)
+        shutil.copy2(binary, macos / exe)
+        (stage / "Neoveg.app" / "Contents" / "Info.plist").write_text(
+            MAC_PLIST.format(version=version), encoding="utf-8"
         )
-        if proc.returncode != 0:
-            print(f"[WARN] Google Drive sync returned exit code {proc.returncode}; local portable packages in dist/ are ready.")
+        copy_payload(stage / "Neoveg.app" / "Contents" / "Resources")
+        copy_payload(stage)
+        if ffmpeg:
+            copy_ffmpeg_runtime(rid, macos)
+        return stage
+    shutil.copy2(binary, stage / exe)
+    copy_payload(stage)
+    if rid == "linux-x64":
+        launcher = stage / "neoveg.sh"
+        launcher.write_text(LINUX_LAUNCHER, encoding="utf-8", newline="\n")
+        if ffmpeg:
+            copy_ffmpeg_runtime(rid, stage / "lib")
+    elif ffmpeg:
+        copy_ffmpeg_runtime(rid, stage)
+    return stage
+
+
+def make_archive(stage: Path, rid: str, version: str) -> Path:
+    kind = TARGETS[rid]["archive"]
+    name = f"Neoveg_v{version}_{rid}_Portable.{kind}"
+    archive = DIST / name
+    if archive.exists():
+        archive.unlink()
+    executables = {TARGETS[rid]["exe"], "neoveg.sh"}
+    if kind == "zip":
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+            for path in sorted(stage.rglob("*")):
+                if path.is_file():
+                    bundle.write(path, Path(stage.name) / path.relative_to(stage))
+    else:
+        def keep_exec_bit(info: tarfile.TarInfo) -> tarfile.TarInfo:
+            if Path(info.name).name in executables:
+                info.mode = 0o755
+            return info
+
+        with tarfile.open(archive, "w:gz") as bundle:
+            bundle.add(stage, arcname=stage.name, filter=keep_exec_bit)
+    return archive
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    global DIST
+    if args.dist:
+        DIST = Path(args.dist).resolve()
+    version = workspace_version()
+    rids = resolve_targets(args.targets)
+    if args.ffmpeg:
+        problems = ffmpeg_environment()
+        if problems:
+            for problem in problems:
+                log("ERROR", problem)
+            return 1
+    if not args.skip_qa:
+        log("INFO", "running the quality gates before packaging (use --skip-qa to bypass)")
+        if cmd_qa(args) != 0:
+            log("ERROR", "quality gates failed; no package was produced")
+            return 1
+    DIST.mkdir(parents=True, exist_ok=True)
+    manifest: Dict[str, object] = {
+        "version": version,
+        "generated_at": dt.datetime.now().astimezone().isoformat(),
+        "ffmpeg": bool(args.ffmpeg),
+        "packages": [],
+    }
+    failures: List[str] = []
+    for rid in rids:
+        try:
+            binary = cargo_build(rid, args.ffmpeg)
+            exe_name = f"neoveg_v{version}_{rid}" + (".exe" if rid == "win-x64" else "")
+            standalone = DIST / exe_name
+            shutil.copy2(binary, standalone)
+            stage = stage_package(rid, binary, version, args.ffmpeg)
+            files = [standalone]
+            if not args.no_archive:
+                files.append(make_archive(stage, rid, version))
+            for path in files:
+                manifest["packages"].append(  # type: ignore[union-attr]
+                    {"target": rid, "file": path.name, "bytes": path.stat().st_size, "sha256": sha256(path)}
+                )
+                log("INFO", f"{path.name}: {path.stat().st_size / 1_048_576:.1f} MiB")
+        except (RuntimeError, OSError) as error:
+            log("ERROR", f"{rid}: {error}")
+            failures.append(rid)
+    (DIST / "build_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    lines = [f"{p['sha256']}  {p['file']}" for p in manifest["packages"]]  # type: ignore[union-attr]
+    (DIST / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if args.sync:
+        sync = ROOT / "scripts" / "sync_gdrive.ps1"
+        if sync.is_file() and platform.system() == "Windows":
+            run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(sync)], check=False)
+        else:
+            log("WARN", "--sync needs Windows and scripts/sync_gdrive.ps1")
+    if failures:
+        log("ERROR", f"failed targets: {', '.join(failures)}")
+        return 1
+    log("INFO", f"packages written to {DIST}")
+    return 0
+
+
+# ----------------------------------------------------------------------------- main
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Neoveg packaging and QA driver")
+    sub = parser.add_subparsers(dest="command")
+
+    def common(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--ffmpeg", action="store_true", help="build with the ffmpeg feature (video decoding)")
+
+    build = sub.add_parser("build", help="QA gates, release build, portable folders, archives and the exe")
+    common(build)
+    build.add_argument("--targets", default="host", help="host (default), all, or win-x64,linux-x64,osx-x64,osx-arm64")
+    build.add_argument("--skip-qa", action="store_true", help="skip fmt/clippy/tests (not for releases)")
+    build.add_argument("--no-archive", action="store_true", help="only stage the folders and the exe")
+    build.add_argument("--dist", default="", help="output folder (default: dist/ in the repository)")
+    build.add_argument("--sync", action="store_true", help="mirror the workspace to the cloud folder afterwards (Windows)")
+    qa = sub.add_parser("qa", help="run the quality gates and write the QA report")
+    common(qa)
+    check = sub.add_parser("check", help="verify the toolchain")
+    common(check)
+
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv or argv[0] not in ("build", "qa", "check", "-h", "--help"):
+        argv = ["build"] + argv  # `python build_portable.py --ffmpeg` means build
+    args = parser.parse_args(argv)
+    handlers = {"build": cmd_build, "qa": cmd_qa, "check": cmd_check}
+    return handlers[args.command](args)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except RuntimeError as error:
+        log("ERROR", str(error))
+        sys.exit(1)
