@@ -173,3 +173,1070 @@ Implementation Guidelines for Neoveg:
 Sources:
   - Classic NLE editing and mixing manuals (handles, curve names, crossfade display)
 Research Date: 2026-10-23
+
+
+----------------------------------------------------------------------
+7. Feature Name: Event Selection, Cut/Copy/Paste, Delete and Trim Commands
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Selection: click = one event; Shift+click = contiguous range; Ctrl+click = toggle one; Ctrl+A =
+    all; "Select Events to End" = the event and every later event on the track; "Select Timeline
+    Events" from the media pool = every event using that media. Rectangular (marquee) selection with
+    the Selection tool; the right button during the drag cycles rectangle / time / track selection.
+    Dragging on the marker bar or an empty area makes a TIME selection; double-click on the marker
+    bar selects the whole project. The selection start/end/length boxes accept absolute values or
+    relative "+N"/"-N" (in the ruler unit, e.g. frames). [OFFICIAL]
+  - "[" / "]" select the start/end of an event for keyboard edge trimming; Ctrl+[ / Ctrl+] move to
+    the previous/next selected event's edge; Ctrl+Shift+[ / ] turn that event into a time selection.
+  - Cut/Copy of a TIME selection acts on every track: events crossing the selection edges are split.
+    Cut/Copy/Delete of SELECTED events inside a time selection only affects those events (also split
+    at the selection edges). Paste puts events ON TOP of existing ones (overlap -> crossfade);
+    Paste Insert (Ctrl+Shift+V) pushes later events away and splits an event under the cursor;
+    Paste Repeat (Ctrl+B) pastes N copies end-to-end or every X time units.
+  - Ctrl+drag copies; right-drag opens a Move Here / Copy Here / Shuffle Events menu.
+  - Trim (keep only the selection), Trim Start (Alt+[) and Trim End (Alt+]) cut the event to the cursor.
+  - Split (S): no selection -> events under the cursor on ALL tracks; time selection -> split at both
+    edges on all tracks; selected events + time selection -> only the selected events.
+  - Insert Empty Event; Insert Time (blank space at the cursor on selected tracks or on all tracks).
+Implementation Guidelines for Neoveg:
+  - Model selection as a set of event ids plus an optional time range in neoveg_engine; keep
+    split/cut/paste/trim as pure functions returning an EditCommand (one undo step each).
+  - Today only single-event select, split and delete exist; the rest is roadmap.
+Sources: Classic NLE v13 manual, chapter "Editing events on the timeline" (pp. 131-149).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+8. Feature Name: Post-Edit Ripple, Shuffle, Edge Trimming and Expanded Edit
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Ripple applies after: trim / slip-trim / slide / stretch, move, cut, paste, delete. Scopes:
+    Affected Tracks (events, keyframes, envelopes on the edited tracks) | Affected Tracks + Markers
+    and Regions (also CD/command markers and bus-track envelopes) | All Tracks, Markers and Regions.
+    Manual keys: F (affected tracks), Ctrl+F (+markers/keyframes/envelopes), Ctrl+Shift+F
+    (everything). Auto Ripple toggle: Ctrl+L, with a drop-down for the scope. [OFFICIAL]
+  - Shuffle: right-drag an event -> "Shuffle Events", or the Shuffle tool; reorders a sequence in
+    one operation without needing ripple mode.
+  - Edge trimming by keyboard (numeric keypad): 7/9 (or [ ]) pick previous/next edge, 1/3 trim one
+    FRAME left/right, 4/6 trim one PIXEL (zoom-dependent), 5 exits. Modifiers on 1/3/4/6:
+    Ctrl = time compress/stretch, Alt = slip-trim, Ctrl+Alt = slide a crossfade (adjacent trim).
+    Outside edge mode, 1/3/4/6 nudge selected events by frame/pixel. Ctrl+Shift+Alt+wheel = frame,
+    Ctrl+Shift+wheel = pixel.
+  - Mouse modifiers: Shift while dragging an edge ignores event grouping (fast J/L cuts);
+    Ctrl+drag edge = time stretch (a zigzag line is drawn between stretched video frames);
+    Alt+drag edge = slip-trim (opposite edge fixed); Alt+drag body = slip; Ctrl+Alt+drag body =
+    slide; Ctrl+Alt+drag the edge between two events = adjacent (rolling) trim;
+    Ctrl+Alt+Shift+click = split, +drag = split and trim in the drag direction (eraser).
+  - Dragging an edge past the end of the media repeats it when the event's Loop switch is on,
+    otherwise silence is drawn. Unreadable video frames are drawn red.
+  - Expanded Edit Mode (Numpad 5, double-click an edge, Edit > Select > Enter Expanded Edit Mode):
+    the track is temporarily shown as A roll / B roll with the unused frames on both sides of the
+    edit point, red brackets on the edge(s) being trimmed, a split-screen preview of both sides,
+    and "cut arrow" dragging for rolling edits. A loop region around the edit point lets the user
+    trim while playing. Esc / Numpad 5 / double-click leaves it.
+  - Slip vs slide: slip keeps the event's place and moves the media under it; slide keeps the media
+    and moves the event (and trims the neighbours).
+Implementation Guidelines for Neoveg:
+  - neoveg_engine: RippleScope enum + pure `ripple_after(edit, scope)`; TrimMode {Normal, Slip,
+    Slide, Stretch, Roll}. The UI maps modifier keys (Alt / Ctrl+Alt / Ctrl) to modes. NOTE: Neoveg
+    currently uses Alt = ignore snapping while dragging (AGENTS.md 4.3); keep that for plain moves
+    and document any deviation before adopting Alt = slip.
+  - Existing Neoveg trims already keep trim_in aligned and clamp to the source; slip needs trim_in
+    changes without moving the event.
+Sources: Classic NLE v13 manual pp. 131-165; v12 Reviewer's Guide ("Expanded Edit Mode").
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+9. Feature Name: Snapping Variants, Snap Offset and Quantize Rules
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Snap targets with snapping on: other events' edges, the cursor, time-selection edges, the first
+    and last edge of a dragged group. Separate toggles: Snap to Grid (Ctrl+F8), Snap to Markers
+    (Shift+F8; markers, regions, CD tracks/indexes, command markers, optionally media markers shown
+    in events), Snap to All Events (Ctrl+Shift+F8; edges on OTHER tracks).
+  - Shift temporarily inverts snapping (overrides when on, enables when off).
+  - Each event has a draggable "snap offset" flag (white triangle, lower left) that moves the snap
+    point inside the event.
+  - Snap indicator: a line in the track when snapping to an event; full timeline height for
+    cursor/marker/selection/grid; DASHED when the snap point is off-frame and Quantize to Frames
+    will round it.
+  - Quantize to Frames (independent of snapping) forces frame boundaries for: moving video events,
+    the cursor, selections, markers/regions. Audio-only edits are not quantized when the preference
+    "Do not quantize to frames for audio-only edits" is set. If a drag group holds video, the first
+    video event is the one quantized. Non-frame-aligned splits can produce a short dissolve in
+    the render, which is why quantizing is the default.
+Implementation Guidelines for Neoveg:
+  - Neoveg currently uses ONE snap flag (F8) and Alt = ignore; extend `snap` in neoveg_engine to a
+    SnapSources bitset (grid, markers, all events, cursor) and add the dashed-indicator state.
+  - Add the audio-only quantize exception as a preference (`quantize_audio_edits`).
+Sources: Classic NLE v13 manual pp. 137-140. See also entries 1 and 2.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+10. Feature Name: Event Envelopes, Switches, Takes, Groups and Sync Links
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Audio event envelopes: fade-in, fade-out, overall level (gain shown in dB while dragging).
+    Video event envelopes: fade-in/out, opacity (%), VELOCITY (speed over time; negative = reverse;
+    presets from -100% through 0% freeze to 300%; the event duration does not change, so at 200%
+    the remainder is a last-frame freeze or extra source), and a Transition Progress envelope
+    (hold, reverse, repeat inside a transition). Event envelopes are evaluated AFTER the track
+    envelope/fader. Ctrl or right-button drag = fine adjustment; with several events selected the
+    change applies to all of them. Fades between overlapping events cannot be dragged while
+    automatic crossfades are on.
+  - Switches (Edit > Switches / Event Properties): Mute, Lock, Loop, Invert Phase (audio),
+    Normalize (audio, with Recalculate after trimming), Maintain Aspect Ratio (video),
+    Reduce Interlace Flicker (video), Resample = Smart / Force / Disable (Smart resamples only when
+    the event's calculated rate differs from the project rate AND the project is >= 24 fps).
+  - Audio event channel/stream selection (non-destructive): Both / Left only / Right only /
+    Combine (mono = sum / 2) / Swap, Channel x or x/y for multichannel, Stream menu for
+    multistream files.
+  - Time stretch / pitch shift: Ctrl+edge drag; keys "=" and "-" = +/- 1 semitone, Ctrl = 1 cent,
+    Shift = 1 octave, Ctrl+Shift = reset. Methods: None, high-quality (Pro, Efficient, Soloist
+    mono/speech, optional formant shift), Classic (with crossfade attributes), loop-tempo based.
+    Playback rate and undersample rate for video events (1 = normal, 0.5 = half speed).
+  - Takes: several media files on one event; Add as Takes; T / Shift+T = next/previous take;
+    Choose Active, Delete Active; "Slip All Takes" option; a copy opened in an external audio
+    editor becomes a new active take.
+  - Groups: G = create (an event belongs to one group at a time); audio+video of one file are
+    grouped automatically; Cut/Copy/Delete All; Ctrl+Shift+U = temporarily ignore grouping.
+    Preference "Cut, copy and delete grouped events".
+  - Sync links: one-way groups. A linked event follows the master but can move independently;
+    linked events are drawn shorter, aligned with the master and outlined purple when the master
+    is selected; they do not contribute to ripple.
+  - A/V sync repair: out-of-sync grouped events are highlighted with the offset shown; right-click
+    Synchronize > By Moving / By Slipping.
+  - Reverse: creates a reversed subclip; an arrow is drawn on the event.
+Implementation Guidelines for Neoveg:
+  - Event struct additions (all `#[serde(default)]`): switches bitflags, envelopes (opacity,
+    velocity, transition progress), take list + active index, group id, sync master id, playback
+    rate.
+  - The mixer already honours gain/fades/crossfades; velocity needs a time-map function shared by
+    audio resampling and video frame lookup.
+Sources: Classic NLE v13 manual pp. 166-186.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+11. Feature Name: Markers, Regions, Command Markers and Loop Region
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - M inserts a marker at the cursor (also during playback) and opens an inline name box; up to 99
+    numbered markers, keys 1-9 (number row) jump to marker N. Regions (R): two numbered tags from
+    the current selection (up to 99); pressing the number selects the region; double-click a tag
+    selects the region; dragging one tag resizes, Alt+drag moves it preserving the length.
+  - Marker bar context menu: Rename, Delete, Go to Start/End, Select Region, Delete All, Delete All
+    in Selection. Shift while dragging overrides snapping. Marker Tool: arrows move between markers
+    in the ACTIVE bar (markers/regions, CD layout, command bar); Shift+arrows extend; Shift+click
+    two tags = range; Ctrl+click toggles; dragging moves the group; Delete removes them.
+  - Command markers: command (URL, Text, closed-caption commands, ...), parameter, comment,
+    position, and saved templates (stored in an XML file).
+  - CD track regions / indexes (up to 99 indexes per track; the first track starts at 2 s);
+    Ctrl+. and Ctrl+, seek next/previous track; "." and "," seek next/previous track or index.
+  - Media markers/regions stored inside the media file (or in a sidecar .sfl) are shown in events
+    (View > Event Media Markers), usable as snap points, editable only in the Trimmer.
+  - Markers and regions can be saved into the rendered file ("Save project markers with media
+    file"); MPEG-2 can render I-frames at markers (DVD chapters).
+  - Loop region = the time selection used for loop playback and "Render loop region only".
+Implementation Guidelines for Neoveg:
+  - Put `markers: Vec<Marker{id,time,name,kind}>` in the project (serde default, empty);
+    `M` is already reserved in AGENTS.md section 4.5; draw on a marker bar above the ruler.
+Sources: Classic NLE v13 manual, chapter "Using markers, regions, and commands" (pp. 217-226).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+12. Feature Name: Trimmer, Subclips, Three/Four-Point Editing
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - The Trimmer opens a media file (drag from Explorer / media pool, or event "Open in Trimmer");
+    it keeps a history drop-down (sortable, clearable); it can show its own video monitor or drive
+    the main preview; a frame thumbnail under the cursor gives frame-accurate arrow-key moves.
+  - I or [ = mark in, O or ] = mark out, Tab / Shift+Tab cycle audio+video / audio only / video only.
+  - Add to Timeline from Cursor / up to Cursor (three-point). Fit to Fill = four-point: the
+    trimmer selection is time-compressed or stretched to fill the timeline selection. Default
+    behaviour is punch-in over existing events; "Enable Timeline Overwrite" replaces content and
+    disables ripple.
+  - Subclips: named range of a media file, optionally reversed, listed in the media pool; "Open
+    Parent Media in Trimmer"; "Select Parent Media" highlights the range. Create Subclip also
+    works from a trimmed event.
+  - Snapshot: copy the current frame to the clipboard or save it to a file (added to the media pool).
+  - Dragging a selection to a track creates one event per stream (audio and video on separate
+    tracks). "Import stereo as dual mono" splits stereo into two mono tracks panned hard L/R.
+  - Preference: double-click on media loads the Trimmer instead of creating an event.
+Implementation Guidelines for Neoveg:
+  - The Trimmer panel is already in the dock layout; it needs a TrimmerState (media, in, out,
+    cursor) in neoveg_ui, with the 3-point/4-point math as pure functions in neoveg_engine.
+Sources: Classic NLE v13 manual pp. 150-158.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+13. Feature Name: Track Headers, Track Groups and Mixer Routing (Buses, Sends, Pan Laws)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Insert audio track (Ctrl+Q) at the end of the list or above the selected header; a video track
+    is inserted at the top. Dropping media on empty timeline space creates the track. Default track
+    properties (volume, pan type, height, FX, compositing mode) are configurable.
+  - Track selection: click, Shift = range, Ctrl = toggle, click the vertical bar under a parent
+    track to select a composited group; faders/sliders act on ALL selected tracks (relative levels
+    kept).
+  - Track groups (adjacent tracks only): collapse/expand, rename via scribble strip, group
+    mute/solo (group solo overrides mutes; group mute overrides solos). Duplicate Track copies
+    events, effects and envelopes. Track colour, height drag, minimize/maximize, "`" minimizes all,
+    Ctrl+Shift+Up/Down changes all heights.
+  - Audio header: arm for record, invert phase, FX, mute, solo (Ctrl+click = exclusive), record
+    input, bus assignment, volume fader (double-click = 0 dB, Ctrl = fine), pan slider
+    (double-click = 0), multipurpose send fader (assignable-FX sends and bus sends), per-track
+    meter with clip indicator. Mute silences the main output and post-fader sends only unless the
+    "prefader sends listen to mute" preference is set.
+  - Trim vs automation: with Automation Settings off the controls are static trim values ADDED to
+    the envelope (e.g. -3 dB trim lowers every envelope point by 3 dB).
+  - Pan modes: Add Channels (linear, one side gains the other), Balance (0/-3/-6 dB centre;
+    linear), Constant Power (for mono sources), Film (5.1, constant power between adjacent
+    speakers; equals Constant Power in stereo).
+  - Buses: up to 26 (A-Z) plus Master, plus up to 26 input buses; default routing is to Master;
+    circular routing is forbidden; deleting a bus reassigns its tracks to the previous bus; bus
+    sends are PRE-fader by default (cue/headphone mixes), FX sends POST-fader by default; "Link to
+    Main Track Pan" applies the track pan to sends, otherwise a centred stereo signal is sent.
+  - Assignable FX chains (send/return style effects) and bus effects are separate from track FX.
+  - Loudness meters: M (400 ms), S (3 s), I (integrated), LRA, true peak (oversampled). EBU R128
+    target -23 LUFS / true peak -1 dBFS; ATSC A/85 target -24 LUFS / -2 dBFS; scales +9 and +18;
+    a loudness log (<name>_loud.txt) can be written at render time or through Tools.
+Implementation Guidelines for Neoveg:
+  - Roadmap order: per-track volume/pan/mute/solo -> pan laws in neoveg_audio::mixer -> buses and
+    sends -> loudness (ITU-R BS.1770 / EBU R128 K-weighting) -> assignable FX.
+  - The Master Bus panel rule in AGENTS.md (only L/R peak meters) stays; loudness goes in its own
+    dockable panel.
+Sources: Classic NLE v13 manual pp. 227-253 (track editing), 331-340 (buses), 444-447 (pan modes),
+  483-487 (loudness).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+14. Feature Name: Automation, Envelopes and Keyframes
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Envelopes (audio: mute, volume, pan, FX/bus sends, plug-in parameters; video: mute, composite
+    level, fade-to-colour with top/bottom colour, velocity) are shown on tracks; keyframes drive
+    track motion, FX and pan/crop. Track-level automation is evaluated BEFORE event-level
+    envelopes.
+  - Envelope editing: double-click adds a point, right-click deletes; segments can be dragged;
+    Ctrl = fine value, Ctrl+Alt = normal value without moving time, Alt = move time only; dragging
+    inside a time selection moves all points in it and adds edge fades; Shift+drag with the brush
+    draws freehand points; Thin All/Selected Points reduces recorded data; Flip inverts around the
+    centre; per-segment curve = Linear, Fast, Slow, Smooth, Sharp or Hold (a sixth type: step).
+    New points inherit the previous point's curve; the default curve per media type is a
+    preference.
+  - A mute envelope is on/off with no fade; mute overrides solo.
+  - Automation recording modes per track: Off (control = static trim), Read (follows the envelope,
+    control locked), Write Touch (writes only while a control is held), Write Latch (writes from
+    the first touch until playback stops). Ctrl+A toggles automation controls on all tracks.
+    Recording is available for track envelopes, plug-in parameters, bus levels, surround pan and
+    video FX.
+  - "Lock Envelopes to Events" makes envelope points and track keyframes move with their events.
+  - Effect automation uses LINEAR interpolation although frequency is logarithmic, so sweeps need
+    Fast (high->low) or Slow (low->high) curves to sound even.
+  - Keyframe animation (track motion, pan/crop): a keyframe timeline with sync-cursor,
+    previous/next keyframe, add (double-click) / delete, interpolation type and smoothness;
+    position, size, rotation, orientation, shadow and glow can be animated.
+Implementation Guidelines for Neoveg:
+  - A generic `Envelope { points: Vec<(f64 time, f64 value, curve)> }` in neoveg_common, evaluated
+    in the mixer (audio thread: precomputed immutable plan) and in the video compositor.
+  - Add `Hold` as an extra interpolation type next to the five existing FadeCurve values for
+    envelopes only (fades keep five).
+Sources: Classic NLE v13 manual pp. 255-274; v11 tutorial booklet (keyframes, automation).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+15. Feature Name: Track Motion, Pan/Crop, Masking and Compositing Modes
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Track Motion (per video track) and Event Pan/Crop (per event) use the same editor: a rectangle
+    in the output frame with corner handles (resize), an outside circle (rotate), centre drag
+    (move), X/Y axes for orientation, and an info panel with Position X/Y, Width/Height (px),
+    Orientation, Rotation and X/Y offset, Keyframe interpolation (smoothness, type) and
+    Workspace/Snap settings. Toolbar toggles: compositing mode, enable rotation, snapping, edit in
+    object space (2D as 3D), prevent movement on X/Y, lock aspect ratio, scale about centre,
+    prevent scaling X/Y, move freely. Context menu: Restore (view/box/rotation/size/centre), Flip
+    Horizontal/Vertical, Match Output Aspect, Match Source Aspect, Make Square Aspect. Track
+    Motion also has Shadow and Glow.
+  - Picture-in-picture is built with two keyframes (e.g. 2 s apart) shrinking the top track.
+  - Masking: anchor/pole polygon editor (anchor create/delete, split tangent, move, zoom,
+    snapping), mode Positive/Negative, anti-alias, opacity, feather type None/In/Out/Both and
+    feather %, context menu Reset Mask, Select/Deselect/Delete anchor|segment|path|all,
+    Initialize and Hide Tangents, Close Path. v12 adds rectangle/oval shape masks (modifiers round
+    the corners and move the centre) and FX masking (apply an effect inside/outside the mask, e.g.
+    blur a face).
+  - Compositing modes (per track; the mode of the higher track decides): Source Alpha (default,
+    uses the alpha channel), Add, Subtract, Multiply (Mask), Screen, Overlay, Hard Light, Dodge,
+    Burn, Darken, Lighten, Difference, Difference Squared, Cut; Custom modes built from
+    Displacement Map, Height Map and Bump Map; 3D Source Alpha converts a 2D track to 3D with
+    Top/Left/Front/Perspective views. Parent/child tracks let one track drive another ("Make
+    Compositing Child").
+Implementation Guidelines for Neoveg:
+  - Compositing math belongs in neoveg_video (CPU reference + wgpu shader per mode, tested against
+    the CPU result). Event Pan/Crop already has the AGENTS.md pop-up requirement; reuse the same
+    widget for Track Motion.
+Sources: Classic NLE v11 tutorial booklet (pt-BR) pp. 31-51; v12 Reviewer's Guide (shape/FX
+  masking); v13 manual ch. 12 and "Compositing and masks".
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+16. Feature Name: Workflow Features Introduced in Versions 12, 18 and 21
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (feature list, as documented):
+  v12: Expanded Edit Mode (entry 8); Smart Proxy (proxy clips swap in automatically per preview
+    quality, the original is used for render); up to 32 effects per chain at event/track/media/
+    project level; OpenFX plug-in SDK; parent/child tracks; shape + FX masking; Color Match (match
+    target clips to a source clip/reference image); S-Log/ACES via OpenColorIO (view transform in
+    project properties, colour space per media and per render template); Project Interchange
+    (import/export other NLE and audio platforms; FCP X export only); simultaneous audio/video
+    fades; L-cut/J-cut improvements; match project to the first media added (auto-prompt); shared
+    Project Media lists; tags in Project Media; vertical docking windows; auto-rename titles from
+    content; credit roll from .txt import; GPU acceleration of titles and text; closed captions
+    (CEA-608/708).
+  v18: Motion Tracker panel (the trace can drive any FX taking a location, including perspective);
+    searchable/filterable/favourite-able FX, transitions and generator lists; 8-bit full-range
+    default pixel format; Black Bar Fill, Denoiser, Flicker Control, Style Transfer, Colorization,
+    Lens Correction zoom; incremental save (Ctrl+Alt+S, auto-numbered); detailed render progress
+    (ETA, end time, size); swap media by folder (same names, any extension); RGB parade
+    Separate/Combined and a skin-tone line in the scopes; export/import of preferences;
+    logarithmic exposure in the Color Grading panel; nested timelines/projects (rebuild offline
+    nested audio).
+  v21: AI Smart Mask 2.0 (up to 8 tracked masks), AI Text-Based Editing (edit the transcript and
+    the timeline follows, and vice versa), AI Speech-to-Text and Text-to-Speech, AI Upscale, AI
+    Z-Depth, Adjustment events (effects apply to the video events beneath), AV1 decode/render and
+    GPU decode for AVC/HEVC, HEIC/HEIF still import, a spacebar-behaviour toggle during playback,
+    options to hide or not create peak (.sfk) cache files, downloadable offline manual.
+Implementation Guidelines for Neoveg:
+  - Treat these as roadmap candidates AFTER the editing/mixing core (entries 7-15). Quick wins that
+    fit the current architecture: incremental save, media swap by folder (reuse the relink
+    matching), search/favourites in the FX and generator lists, RGB parade/scopes as a
+    video-preview panel.
+Sources: Classic NLE v12 Reviewer's Guide; v18 manual "What's new"; v21 manual "What's new".
+Research Date: 2026-10-24
+
+
+----------------------------------------------------------------------
+17. Feature Name: Default Keyboard Map (reference for AGENTS.md section 4.5)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (v13 default configuration; user-customizable):
+  Project: Ctrl+N new, Ctrl+Shift+N new bypassing properties, Ctrl+O open, Ctrl+S save, Alt+Enter
+    project properties, Alt+F4 exit, Ctrl+F4 close.
+  Windows: Alt+0..9 and Ctrl+Alt+1..8 show/hide docked windows (Explorer, Trimmer, Master Bus,
+    Preview, Project Media, Edit Details, Transitions, Video FX, Media Generators, Plug-In Manager,
+    Video Scopes, ...); Ctrl+Tab / F6 next window, Shift+F6 previous; Alt+D,0-9 recall layout,
+    Ctrl+Alt+D,0-9 save layout, Alt+D,D default / A audio mixing / C colour-correction layouts.
+  View: Ctrl+Shift+E envelopes, Ctrl+Shift+I take info, Ctrl+Shift+W waveforms, Ctrl+Shift+C event
+    buttons, Ctrl+Shift+T fade lengths, Ctrl+Shift+O event edge frames; Tab toggles track-list /
+    timeline focus; ` minimize tracks; Ctrl+` default heights; F11 / Ctrl+F11 / Shift+F11 maximize
+    parts of the UI; Up/Down zoom time, Ctrl+Up/Down large zoom or zoom to selection, Alt+Up zoom
+    to frame level, Shift+Up/Down zoom waveform vertically.
+  Cursor: Home/End = selection or view start/end; Ctrl+Home or W / Ctrl+End = project start/end;
+    Page Up/Down = grid marks; Left/Right = 1 pixel (quantize off); Alt+Left/Right = 1 frame;
+    Ctrl+Left/Right = previous/next marker; Ctrl+Alt+Left/Right = event edit points incl. fade edges;
+    F3/F9 jog; Ctrl+G go to; \ centre view on cursor; Shift+Q select loop region; Backspace
+    restores the last five time selections; I / O set in and out; 0-9 marker/region jump;
+    Ctrl+Shift+drag creates a time selection while dragging an event.
+  Editing: Ctrl+X/C/V (also Shift+Delete, Ctrl+Insert, Shift+Insert), Ctrl+Shift+V paste insert,
+    Ctrl+B paste repeat, Delete, Ctrl+T trim to selection, S split, Ctrl+M render to new track,
+    Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z), Shift+F5 rebuild peaks, D / Shift+D next/previous edit tool,
+    Ctrl+D normal tool, Ctrl+Shift+D multicamera mode, G group, U ungroup, Ctrl+U clear group,
+    Shift+G select group, Ctrl+Shift+U ignore grouping, T / Shift+T next/previous take,
+    Numpad / and * = convert cut to transition / transition to cut (Ctrl+Numpad /), Ctrl+E open in
+    audio editor, F ripple, Ctrl+F ripple + markers, Ctrl+Shift+F ripple all, Ctrl+L auto ripple,
+    Ctrl+Shift+X automatic crossfades, F8 snapping, Alt+F8 quantize, Ctrl+F8 grid, Shift+F8
+    markers, Ctrl+Shift+F8 all events, Shift+drag overrides snapping.
+  Transport: Space play/pause (preference: play/stop), Shift+Space or Shift+F12 play from any
+    window, Esc or Space stops, Ctrl+Home / Ctrl+End go to project start/end, Q (or Ctrl+Shift+L)
+    looped playback, Ctrl+R record, Ctrl+Alt+R arm, Alt+Left/Right previous/next frame, Numpad 0
+    preview cursor position (J/K/L are listed next to it for scrubbing; the table's column layout
+    is ambiguous, verify in the app before copying), Shift+M / Shift+B build RAM preview, F7 selective prerender, Ctrl+F7 external
+    monitor, Alt+Shift+4 leave external monitor, Ctrl+Shift+F12 dim master.
+  Tracks: Ctrl+Q audio track, Ctrl+Shift+Q video track, Z / Shift+Z mute (exclusive), X / Shift+X
+    solo, Ctrl+Alt+Z/X group mute/solo, V / Shift+V and P / Shift+P add/remove volume/pan envelope,
+    E / Shift+E cycle effect envelopes, C command marker, M marker, R region, N CD track, Shift+N CD
+    index; Ctrl+Left/Right changes track volume/composite level when the track list has focus.
+  Trimmer: A / Shift+A add media from/to cursor, T / Shift+T transfer selection, Tab audio/video/
+    both, H sort history, Ctrl+H remove current, Ctrl+Shift+H clear, S save markers, Ctrl+P show
+    video in preview.
+  Track Motion: A lock aspect, C scale about centre, O object space, X/Y/Z prevent movement,
+    Shift+X/Y/Z prevent scaling, F8 snapping, Shift+F8 enable rotation, 1-6 3D layouts.
+  Mixing Console: F2 rename, Ctrl+Q add audio track, D/N/W channel width, Shift+C channel list,
+    Shift+R view controls, Up/Down fader, Shift+Up/Down left channel, Ctrl+Up/Down right channel.
+  Mouse wheel: wheel = zoom, Shift+wheel = vertical scroll, Ctrl+wheel = horizontal scroll,
+    Ctrl+Shift+wheel = move cursor in small steps, middle button = scrub rate.
+Implementation Guidelines for Neoveg:
+  - Adopt the same letters where a Neoveg feature exists: S, M, R, G, U, F (ripple), V/P envelopes,
+    Q loop, Ctrl+Shift+V paste insert, Ctrl+B paste repeat. Keep Neoveg's F8 and Space as listed in
+    AGENTS.md 4.5 and add this table's rows as the matching features land.
+Sources: Classic NLE v13 manual, chapter "Keyboard shortcuts" (pp. 639-653).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+18. Feature Name: Render As, Smart Rendering and Multichannel Output
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Render As dialog: output folder + name, Output Format tree of templates (expand/collapse
+    groups, search box, favourites star, "Match project settings" filter plus a "more filters"
+    panel for audio channels, sample rate, frame rate, frame size, aspect, field order),
+    Customize Template (video, audio, preprocessing tabs), render options:
+      * Render loop region only (needs a time selection),
+      * Stretch video to fill output frame size (no letterbox),
+      * Use project output rotation (otherwise media rotation only),
+      * Save project markers in media file (sidecar .sfl when the format cannot hold them),
+      * Save project as path reference in the rendered file (needs a saved project),
+      * Save loudness log next to the media file (<name>_loud.txt, measured after the plug-in
+        chain and before the codec).
+    Progress dialog with taskbar progress; sound when the render takes > 1 min; Open / Open Folder
+    buttons afterwards. The project is never modified by a render.
+  - Smart rendering: unedited frames pass through without recompression for DV AVI/MXF, IMX MXF,
+    XAVC Intra MXF, HD MXF, MPEG-2 (HDV/DVD camcorders), P2, XDCAM EX across matching profiles; width,
+    height, frame rate, field order, profile, level and bit rate of source, project and template
+    must match; frames with effects, compositing or transitions are re-encoded. Preference can turn
+    no-recompress long-GOP rendering off.
+  - Multichannel audio: WAV/W64/AVI/MXF (MXF needs a video stream; DV MXF always 4 channels, HD MXF
+    always 8, IMX MXF 2 or 4). Channel Mapping dialog maps buses to output channels (stereo bus =
+    2 channels, "mono downmix" = 1), reorder with Move Up/Down; no mapping = no multichannel file;
+    template channels > mapping -> extra channels silent, template channels < mapping -> extras
+    ignored. 5.1 projects can render "multiple mono" (six files with suffixes Left, Right, Center,
+    LFE, Left Surround, Right Surround) or a single 5.1 file with channel-mapping metadata.
+  - MPEG: frame width divisible by 16 and height by 2; "render I-frames at markers" for DVD chapters;
+    DVD-compliant frame size/rate/GOP/max bit rate tables (NTSC 29.97 / 23.976 + 2-3 pulldown,
+    PAL 25 fps, GOP <= 36/30, <= 9.8 Mbps); Blu-ray: AVC <= 40 Mbps with listed frame-size/rate
+    pairs; AC-3 64-640 kbps; PCM 48/96 kHz 16/20/24-bit.
+  - Selective prerender (Tools): one temporary file per section that needs it (<= 300 frames,
+    ~40 MB each), so minor edits only invalidate the touched sections; Clean Up Prerendered Video
+    can delete inactive files, all files, or those in a time selection. Final render reuses
+    prerendered sections when the destination format matches.
+Implementation Guidelines for Neoveg:
+  - Make Movie (roadmap) goes through ffmpeg-next encoders behind the `ffmpeg` feature; copy the
+    option names above into the Render dialog; the red/yellow/green render-status bar in
+    AGENTS.md 4.3 is the UI for prerender state. Smart rendering = stream copy when parameters
+    match and no effect touches the frames.
+Sources: Classic NLE v13 manual pp. 481-482 (prerender), 523-534 (Render As), 447-449 (5.1 render).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+19. Feature Name: Project Properties, Media Properties and Project Files
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Project Properties tabs: Video (template + Match Media Settings, width/height, field order
+    None/Upper/Lower, pixel aspect ratio, output rotation, stereoscopic 3D mode, pixel format 8-bit
+    / 32-bit float video levels / 32-bit float full range, compositing gamma 1.000 linear or 2.222,
+    view transform, full-resolution rendering quality Good (bilinear) / Best (bicubic with
+    integration), motion-blur type Gaussian/Pyramid/Box and asymmetric variants, deinterlace method
+    None/Blend/Interpolate (only in Good/Best preview), "adjust source media to better match project
+    or render settings", prerendered-files folder); Audio (master bus mode Stereo / 5.1, number of
+    stereo buses, sample rate, bit depth, resample and stretch quality, 5.1 LFE low-pass filter
+    with cutoff/quality, recorded-files folder); Ruler (time format, start time offset e.g. 1 h,
+    BPM, beats per measure, note per beat); Summary (title, artist, engineer, copyright,
+    comments); Audio CD. "Start all new projects with these settings" persists the choice.
+  - Maximum frame size 4096 x 4096 (2048 x 2048 for AVI/MPEG/QuickTime/WMV/still output).
+  - First video added prompts to match the project to the media; choosing a project file matches
+    that project's settings.
+  - Rotated projects: Output rotation (90 CW / 90 CCW / inverted) rotates the preview; each media has
+    its own Rotation; render uses project rotation only when the option is checked.
+  - Nested projects: drag a project file onto the timeline; the nested master bus becomes a stereo
+    audio event (5.1 downmixed), needs an audio proxy (Rebuild Offline Nested Audio), its markers
+    appear as media markers, "Edit Source Project" opens it in a new window, prerendered video is
+    reused; useful for lower-thirds, multi-format masters and scene-based projects.
+  - Save: auto backup every 5 minutes as <name>.autosave.veg in the temp folder (deleted on exit;
+    offered after a crash), plus .bak beside the project on each save; Save As can "copy media with
+    project" (copy sources or create trimmed copies with extra head/tail), and can export an EDL text
+    file or AAF (Edit Protocol compliant or legacy Avid).
+  - Recent-projects list in the File menu (count configurable).
+Implementation Guidelines for Neoveg:
+  - neoveg_common::project::Settings already carries resolution/fps; add pixel format, field order,
+    audio sample rate/bit depth and ruler offset with `#[serde(default)]`.
+  - Neoveg's autosave (2 min, recovery_*.neoveg) already covers the crash-recovery behaviour; the
+    "collect media" and "trimmed copies" save options are roadmap items for the .neoveg ZIP.
+Sources: Classic NLE v13 manual pp. 47-65.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+20. Feature Name: Effect Chains, Bus/Assignable FX, Transitions and Generated Media
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Audio effects live at five levels: event FX, track FX, bus (insert) FX, assignable FX (up to 32
+    chains x 32 plug-ins, send/return style with per-track send level; Dry Out at -inf gives a
+    wet-only chain), and master bus FX. Track FX run before bus FX. Chains show yellow when
+    non-in-place plug-ins force automatic delay compensation and red when they cannot be used for
+    live input monitoring (bypassed). Bus level can be pre or post insert FX. "Bypass All Audio FX"
+    (Options) with "Keep bypassed FX running" for glitch-free A/B. Drag plug-ins/packages from the
+    Plug-In Manager onto tracks/buses. FX packages (.chain presets) store order and settings; plug-in
+    presets (DirectX presets, VST .fxp/.fxb). Non-real-time event FX render a new file and add it
+    as a new take. Parameter automation needs the plug-in to be automatable (marked in the chooser).
+  - Video effects live at five levels: event, track, media (Project Media, affects every use),
+    project output (Video Output FX), and generator/transition parameters. Order in the chain is
+    draggable; two special markers in the event chain ("Pan/Crop" and, on tracks, "Composite")
+    choose whether an effect runs before or after pan/crop or compositing (avoids blur). Up to 32
+    effects per chain. Shift+drag a preset applies it without opening the dialog; double-click
+    applies to the selection. Split-screen "FX Bypassed" preview compares processed/unprocessed.
+    Keyframe controller at the bottom animates parameters; interpolated between keyframes.
+  - Transitions window: tree + preset thumbnails with animated hover preview, search box. Dropping
+    on: an event end, an overlap, or a cut (cut-to-overlap conversion uses preferences: amount in
+    seconds and alignment before/centre/after the cut; needs enough source on both sides). Dropping
+    on selected events replaces transitions on all of them; drop rules decide whether cuts,
+    crossfades or only transitions are replaced. Length is changed by dragging the edge or the
+    overlap; "transition progress" envelope can hold, reverse or repeat; Ctrl+Numpad / converts back
+    to a cut. Expand Track Layers shows A roll / B roll / transition roll.
+  - Generated media: choose generator + preset, set frame size and length, edit later through the
+    event's Generated Media button, Match Event Length, Replace Plug-In, Media Properties (frame
+    size/rate/field/pixel aspect/rotation); copying prompts "new copy" vs "reference to original";
+    keyframe-animatable.
+  - Titles & Text generator controls: text box, font, size, bold/italic, justification, text colour
+    (picker, names, eyedropper), animation preset (Pro), Scale (1 = none), Location (0,0 lower-left
+    to 1,1 upper-right; can be dragged in the preview with corner handles), anchor point, advanced
+    background colour, tracking, line spacing, outline width/colour, shadow enable/colour/offset
+    X/Y/blur; every parameter has an Animate (keyframe) button. Credit Roll: duration fixes the
+    scroll speed; three text levels (header / single item / dual item with centre width and connector
+    character), effects and scroll direction; .txt import. Titler Pro: splined paths, per-character
+    animation, gradients, glow, blur. Images with alpha (PNG/PSD/TGA) are the alternative; use
+    Source Alpha compositing and keep text inside Title Safe.
+Implementation Guidelines for Neoveg:
+  - Model as `FxChain { items: Vec<FxInstance{plugin_id, params, enabled}> }` attached to
+    event/track/media/project; keep Pan/Crop and Composite as chain markers; neoveg_video renders
+    chains on the GPU; Titles & Text parameters become the TextGenerator struct for the
+    "Neoveg Titles & Text Overlay" generator in AGENTS.md section 9.
+Sources: Classic NLE v13 manual pp. 299-328; v11 tutorial booklet pp. 52-66.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+21. Feature Name: Compositing, Parent/Child Tracks and 3D Track Motion
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - The compositing mode of the HIGHER track decides how much of the lower track shows through; the
+    lowest video track is composited against the background. Level slider (0-100 %, double-click
+    to type) and composite-level envelope control opacity of the whole track; event envelopes
+    control single events.
+  - Parent/child: "Make Compositing Child" nests a track under the parent above it (one level per
+    click; Ctrl moves the track with its children), "Make Compositing Parent" moves out one level.
+    The parent's mode and effects apply to the composite of its children; parent motion moves the
+    whole group. The v4 mask behaviour is reproduced by parent mode Multiply (Mask) plus the Mask
+    Generator track effect.
+  - Modes and their maths (descriptions): Source Alpha, Add, Subtract, Multiply (Mask), Screen
+    (multiply of inverses), Overlay (multiply on dark, screen on light), Hard Light, Dodge, Burn,
+    Darken, Lighten, Difference, Difference Squared (parabolic remap: gentler near black, harsher
+    near white), Cut; Custom mode = 2-to-1 transform plug-ins (Displacement Map: parent pixels
+    offset child X/Y; Height Map: gradient-based refraction; Bump Map: texture/lighting).
+  - 3D compositing: a track in 3D Source Alpha can move/rotate on X, Y, Z; rule 1: 3D tracks under a
+    2D track are rendered in 3D and then composited as a 2D image; rule 2: a 2D track at the root
+    level is a barrier between 3D groups. Track Motion layouts Top / Left / Front / Perspective (and
+    keys 1-6); stereoscopic camera adds Lens Separation (% of frame width; <= ~7 % for a 40-inch HDTV,
+    <= 0.5 % for theatres) and Depth Adjust (0 = screen depth, positive behind the screen, negative
+    in front; never allow divergence). Keyframe presets for 2D and 3D motion are saved separately.
+  - Mask creation: grayscale mask track on top as Multiply (Mask) parent; Mask Generator for
+    colour/gradient/solid masks; event-level Bezier masks live in Event Pan/Crop.
+Implementation Guidelines for Neoveg:
+  - Track struct: `parent: Option<TrackId>` (tree), `composite_mode`, `level`. Implement the tree
+    walk in neoveg_engine and the blend functions in neoveg_video with tests per mode on known
+    pixel values; 3D (Z axis, perspective camera) comes after 2D motion.
+Sources: Classic NLE v13 manual pp. 383-399.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+22. Feature Name: Video Preview Behaviour, Scopes, RAM Preview and External Monitor
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Transport and edit toolbar buttons (names to reuse for tooltips): Record, Loop Playback, Play
+    from Start, Play, Pause, Stop, Go to Start/End, Previous/Next Frame (press and hold repeats),
+    Normal/Shuffle/Slip/Slide/Time-Stretch/Split-Trim tools, Envelope tool, Selection tool, Zoom
+    tool, Delete, Trim, Trim Start/End, Split, Lock, Insert Marker, Insert Region, Enable Snapping,
+    Automatic Crossfades, Auto Ripple, Lock Envelopes to Events, Ignore Event Grouping. Space/F12
+    may toggle Play/Pause (cursor stays) or Play/Stop (cursor returns).
+  - Loop region is grey when loop playback is off and blue when on. Mute All Audio / Mute All Video.
+  - Preview quality: Draft, Preview, Good, Best, Auto; sizes Auto (fits window), Full, Half, Quarter
+    of the project frame size (NTSC 720x480 -> 360x240 / 180x120). Quality is preview-only. Right-click:
+    "Adjust Size and Quality for Optimal Playback" (favour frame rate), Simulate Device Aspect Ratio,
+    Scale to Fit Preview Window, Display at Project Size, Show Status Bar, Show Transport Bar.
+    Status bar shows project size/bit depth/rate, preview size/bit depth/rate, frame number, and
+    the real frame rate when frames are dropped.
+  - Overlays (menu + toggle): Grid (divisions in preferences), Safe Areas (outer action-safe, inner
+    title-safe, percentages in preferences), Closed Captioning CC1-CC4, Color Channel Isolation
+    (R/G/B/Alpha as grayscale). Applied to the Trimmer monitor too.
+  - Snapshot to clipboard / to file (size follows the preview quality; saved file is added to the
+    media pool). Split-screen preview: FX Bypassed or Clipboard comparison, preset halves or a
+    dragged rectangle; also shown temporarily during slip, slide and crossfade-slide.
+  - Dynamic RAM preview: reserve RAM (keep >= 64 MB free), Tools > Build Dynamic RAM Preview over a
+    selection, cache cleared by resizing the preview or changing quality, 0 disables. Selective
+    prerender is the disk-based alternative (entry 18).
+  - External monitor: DVI/extended desktop (no A/V drift), IEEE-1394 DV passthrough, SDI cards;
+    enabled per session (never persisted) so the main window cannot get lost; Alt+Shift+4 or Esc on
+    the secondary display turns it off; option to also show frames in the preview window.
+  - Video scopes window (Update While Playing toggle): Vectorscope (hue = angle, saturation =
+    radius, targets R Mg B Cy G Yl), Waveform (luma or composite, recommended peak 110), Histogram
+    (Luminance, R, G, B, Alpha, stacked, Lightness/a/b; mean and standard deviation values), RGB
+    Parade (0-255); settings: 7.5 IRE setup, Studio RGB (16-235). Scopes can compare the clipboard
+    frame with the current frame (colour matching). Broadcast Colors, Levels and Color Corrector
+    plug-ins fix out-of-gamut values.
+  - Loudness meters: see entry 13.
+Implementation Guidelines for Neoveg:
+  - AGENTS.md 4.2 already lists the quality selector, overlays, snapshots and pop-out; add scopes as
+    a dockable panel computing from the RGBA frame (compute shader or SIMD on a worker thread), and
+    keep Draft/Preview/Good/Best/Auto = 1/4, 1/2, full, full, fit.
+Sources: Classic NLE v13 manual pp. 465-496.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+23. Feature Name: Mixing Console Window
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - One channel strip per audio track, bus, input bus, assignable-FX chain, plus Master and Preview
+    buses. Toolbar: Views (Channel List, View Controls), Properties and Layout, Downmix Output
+    (5.1 -> stereo -> mono monitoring), Dim Output (-20 dB on buses routed to hardware), Insert Audio
+    Track, Insert Assignable FX, Insert Bus, Insert Input Bus.
+  - Control regions per strip (each can be hidden): Insert FX (buttons per plug-in; right-click: show,
+    bypass (red text), remove, presets, replace), Sends (pick bus/FX chain, send fader, pre/post
+    toggle; FX chains also get an input fader and meter), I/O (record input, output bus/device),
+    VU/PPM meters, Peak meters, Faders (automation mode button, arm, input monitor Off/On/Auto,
+    mute, solo, pan, gain, phase invert, pre/post fader insert FX for buses).
+  - Meters: traditional VU (-10..+2 dB, 0 VU = +4 dBu), extended VU (-30..+8), logarithmic VU, UK PPM
+    (1-7 = -12..+12 dBu), EBU PPM (-12..+12, slower decay), DIN PPM (-50..+5), Nordic PPM (-42..+12);
+    labels, peak hold, valley hold, vintage VU calculation; clip indicators with Reset Clip.
+  - Strip width narrow/default/wide (D/N/W), drag a label to reorder, double-click a value to type,
+    Ctrl = fine, wheel over a fader changes it, F2 renames, Delete removes a bus/FX chain.
+  - Input monitoring Auto: heard when stopped and during recording; recording into selected events
+    only monitors while the cursor is over them. Effect automation is bypassed while monitoring.
+Implementation Guidelines for Neoveg:
+  - The Master Bus panel rule in AGENTS.md (L/R dBFS only) stays; this Mixing Console is a separate
+    dockable panel. Build channel strips from a ChannelStrip widget reusing the precision slider.
+Sources: Classic NLE v13 manual pp. 345-361.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+24. Feature Name: Project Media, Adding Media, Multicamera and Slideshows
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Project Media window: Import Media, Capture Video, Extract Audio from CD, Get Media from Web,
+    Remove All Unused Media, Remove Selected, Properties, Media FX, preview with Start/Stop/Auto
+    Preview (audio goes to the Preview bus with its own fader), views List / Details (reorderable,
+    sortable columns, Comments stored in the project) / Thumbnail, Media Tags panel (tags create bins
+    under "Tags", Quick Tags Ctrl+1..9), bins/folders, Replace (updates every event), Recapture,
+    Create Video Proxy (.sfvp0), Select Timeline Events, Match Project Video Settings, pair two
+    files as a stereoscopic 3D subclip, media offline shown as "Media Offline".
+  - Adding media: drag from Explorer or Windows; right-drag shows Add Across Time (end-to-end,
+    optional automatic overlap using the cut-to-overlap amount), Add Across Tracks, Add As Takes,
+    Audio Only / Video Only submenus. Dropping over an event punches in (lies on top); with Auto
+    Ripple the following events move. Multichannel audio is added across tracks (one per channel);
+    5.1 camcorder audio is downmixed in stereo projects. Layered PSD files add one track per layer
+    ("Add Across Tracks"). Image sequences open as one event via "Open sequence" + last image
+    number (each image = 1 frame). Broadcast Wave files import using their timestamps (across tracks or
+    across time). Import Media from Project can merge bins. Still-image default length is a
+    preference (slideshow: length = (audio duration / image count); with overlap L, event length =
+    display + L).
+  - 24p DV pulldown removal (2-3 and 2-3-3-2) configured per file via File Format Properties.
+  - Multicamera: shoot with common timecode or a sync point (slate/clap/flash; sound lags 1 frame per
+    11.5 m); lay out tracks by media timecode or by date/time stamp (timecode drifts up to ~1 s/hour
+    between unsynced cameras); fine-align with waveforms (Numpad 1/3 nudges frames) or by snapping
+    the event snap-offset to the cursor; Create Multicamera Track builds multi-take events whose take
+    order follows track order, with "(no camera)" empty takes; Multicamera mode shows a tiled
+    preview of all takes with the active one outlined (colour configurable), keys 1-9 or clicking
+    choose a take at the call point (event split), Ctrl+number cuts with a crossfade (cut-to-overlap
+    settings), recutting a time selection merges adjacent events of the same take, Expand to
+    Multiple Tracks keeps unused takes as muted events, and effects/envelopes/motion are bypassed in
+    the preview while multicam mode is on to keep frame rate.
+Implementation Guidelines for Neoveg:
+  - Project Media panel exists (media pool); extend with tags, bins, replace, offline state and the
+    right-drag add menu. Multicam depends on takes (entry 10) and event splitting.
+Sources: Classic NLE v13 manual pp. 79-95 and 191-199.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+25. Feature Name: Motion Tracking and AI Tools (Speech/Text-Based Editing, Smart Mask, Upscale, Z-Depth, Adjustment Events)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Motion Tracking panel (v18; Alt+M or Tools > Video > Motion tracking): tracked regions list
+    (add/remove), "track outside mask", precision Fast/Balanced/Accurate, mode Location / Rotation &
+    Location / Scale & Location / Shape & Location (affine) / Perspective, show motion vectors,
+    progress bar (green = frames with data), status line, buttons track forward / backward / both
+    directions / one frame forward / one frame back, and a Motion Transfer menu that sends the data
+    to any event FX parameter that accepts location data (3 levels: event -> FX -> parameter). The
+    result is stored as event envelopes whose timing is relative to the tracked event (moving the
+    target event later breaks the track).
+  - Speech to Text (v21): select audio event, language (Auto detect default), Analyze; transcript view
+    with editable text, Text-Based Editing view (auto-ripple, show pauses above a threshold, file
+    name, timecodes; clicking a word seeks, Shift+click selects a range, Delete removes text and the
+    matching audio; cut/paste text reorders events; trimming events brings text back), Subtitles
+    view (title preset, max characters per line, 1 or 2 lines, Generate Titles creates Titles &
+    Text events on a new track), export as SRT.
+  - Text to Speech: voice, speed, pitch, style, translate text, load text from a Titles & Text
+    event, SSML mode (voice, prosody rate, breaks, language switch); outputs a .wav added to Project
+    Media or inserted on a new "Synthesized Audio" track.
+  - AI Smart Mask 2.0: precision Low/High, Analyze Current Frame (or auto), up to 8 masks, click an
+    object, bounding box with corner/edge handles (Shift = one axis), include points (positive) and
+    exclude points (negative), remove points, View Masking Results, Clear Current Mask, motion
+    tracking with direction, tracking creates keyframes, Complete Masking.
+  - AI Upscale: needs the deep-learning models; must sit BEFORE Pan/Crop in the event chain; as an
+    event effect it upscales to the project size, as a media effect it has a Scaling slider plus
+    cutout position/zoom with Animate. AI Colorization (luminance enhancement, precision Low/Medium/
+    High/Match input, red-green and blue-yellow invert/shift/gain, all automatable). AI Z-Depth
+    (depth threshold between foreground and background layers for depth compositing and depth of
+    field).
+  - Adjustment events (v21): an empty event with special shading on a top track; every video event
+    beneath inherits its effect chain (up to 32 effects); supports fades, opacity, trim/split/
+    copy/paste, mute and lock, overlapping crossfades/transitions; no reverse or velocity; works with
+    the Color Grading panel; combine with adjustment tracks to target groups of tracks.
+Implementation Guidelines for Neoveg:
+  - Tracking: start with Location mode using feature tracking (optical flow) on a worker thread and
+    store results as envelopes (entry 14). Speech to text: whisper.cpp through Rust bindings or
+    out-of-process isolation (AGENTS.md section 9); text-based editing is a view over the event
+    list with word-level timestamps. Adjustment events are cheap once FX chains exist (entry 20):
+    treat them as a track-below effect scope.
+Sources: Classic NLE v18 manual pp. 272-276; v21 manual "Adjustment events", "AI Features",
+  "What's new".
+Research Date: 2026-10-24
+
+
+----------------------------------------------------------------------
+26. Feature Name: Main Menu Inventory (File, Edit, View, Insert, Tools, Options, Help)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (v22 menu resources; 526 entries in the menu bar; mnemonics in brackets):
+  File: New..., New Empty Project, Open, Close, Save, Save As..., Incremental Save, Make Movie (wizard),
+    Render As..., Real-Time Render (audio to WAV in real time, includes external inputs), Import >
+    {Media, Media from Project, AAF, Premiere/After Effects project, FCP7/Resolve XML, FCPX, EDL
+    text, Broadcast Wave, DVD camcorder disc, Closed Captioning}, Export > {project archive, Pro Tools
+    AAF, Media Composer AAF, Premiere/AE, FCP7/Resolve XML, FCPX, EDL text, XDCAM disc}, Add Media,
+    Capture, Extract Audio from CD, Properties, Exit.
+  Edit: Undo/Redo (with history drop-down), Undo All, Clear Edit History, Cut/Copy/Paste, Paste Repeat,
+    Paste Insert, Paste Event Attributes and Selectively Paste Event Attributes (choose which
+    attributes), Delete, Trim, Trim Start/End, Split, SMART SPLIT (removes the time selection from the
+    selected event and smooths the split; default length in frames is a preference), EVENT HEAL (joins
+    two split events from the same source stream), CLOSE GAPS (between selected events, or all events of
+    one track if none selected), Resize Adjustment Event(s) to Project, Navigate (go to time, project
+    start/end, selection/view start/end, grid marks, pixel, frame, marker/region, event edit points
+    including fade edges, selected events, playhead, centre view), Post-Edit Ripple (4 scopes), Select
+    (all, ALL AFTER CURSOR, event start/end, enter/exit expanded edit mode, loop, zoom selection, set
+    selection to view/project/loop region, selection start/end = in/out points, previous/next
+    selected event, restore previous time selection), Editing Tool (Normal, Shuffle, Slip, Slide, Time
+    Stretch/Compress, Split Trim, Envelope, Selection, Zoom, Next/Previous), Switches (Mute, Lock,
+    HOLD LAST FRAME, Loop, TRIM EVENT TO INCLUDE ALL FRAMES, Invert Phase, Normalize, Auto Normalize,
+    Maintain Aspect Ratio, Reduce Interlace Flicker, Resample = Project mode / FRAME BLEND / OPTICAL
+    FLOW / Disable), Take, Group, Stream, Channels.
+  View: toolbar, status bar, Window Layouts (organize, save, save as, reload, default + 10 bundled +
+    10 user slots), windows list, Mixer Preview Fader, Audio/Video Bus Tracks, Event Media Markers,
+    Active Take Information, Audio Event Waveforms, Event Buttons, Event Fade Lengths, Video Event Edge
+    Edit Frames, EVENT HEADERS, EVENT LENGTH, Audio/Video Envelopes submenus (video adds Track
+    Keyframes, Event Velocity, Transition Progress, MOTION BLUR AMOUNT and VIDEO SUPERSAMPLING on the
+    video bus track), Show Envelopes, Minimize All Tracks, Rebuild Audio Peaks.
+  Insert: Audio Envelopes (mute, volume, pan, AUTO DUCKING controller / listener / inherited), Video
+    Envelopes, Audio Track, Video Track, ADJUSTMENT TRACK, Audio Bus, Input Bus, Assignable FX, Insert
+    SUBTITLES from .txt/.csv file or from regions (region names = subtitle text), Add Missing Stream,
+    Empty Event, ADJUSTMENT EVENT, Text, Generated Media, SLIDESHOW wizard, Audio Transition, Time,
+    Marker, Region, CD Track Region/Index, Command.
+  Tools: Audio (open in editor, edit source project, event FX, non-real-time FX, track FX, remove
+    assignable FX), Video (Media FX, Pan/Crop, Event FX, Color Grading panel, Motion Tracking, Track FX,
+    Track Motion, Output FX), Render to New Track, Preview on External Monitor, Selectively Prerender,
+    Clean Up Prerendered, Build/Clear Dynamic RAM Preview, AI Text to Speech, AI Speech to Text, AI Auto
+    Reframe, AI Assistant, print to tape, Lay Out Audio CD, Burn Disc submenu, Generate Loudness Log,
+    Advanced Save, Scripting (run, rescan folder), Multicamera (SYNCHRONIZE AUDIO TO ALIGN EVENTS =
+    align by audio similarity, sync by media timecode or date/time stamp, create track, expand, enable
+    editing, edit multicam audio with video, show full frame on external monitor), Clean Project Media,
+    Rebuild Offline Nested Audio.
+  Options: Quantize to Frames (+ "Show Unquantized Event Edges"), snapping toggles, Grid Spacing (ruler
+    marks, minutes, seconds, ms, frames, measures, quarter / 8th / 16th / 32nd notes and triplets),
+    Ruler Format (see entry 34), Automatic Crossfades, QUICKFADE AUDIO EDITS (rapid fade on audio event
+    edges), Auto Ripple + Ripple scopes, Lock Envelopes to Events, Ignore Event Grouping, Slip All
+    Takes, Loop Playback, Metronome, Loudness Meters submenu (true-peak range -12..-138 dB, scales,
+    blocking filter), Bypass All Audio FX, Mute All Audio/Video, Timecode (MIDI timecode/clock),
+    Customize Toolbar / Timeline Toolbar / Keyboard, Export/Import Preferences, Preferences.
+  Help: contents, what's this, keyboard shortcuts, manual download, interactive tutorials, updates,
+    hardware detection, deactivate, community, debug items.
+Implementation Guidelines for Neoveg:
+  - Use this list as the target menu skeleton (pt-BR labels in Assets/i18n). Cheap wins that fit the
+    current engine: Close Gaps, Event Heal (needs a "same source stream and contiguous" test), Smart
+    Split, Select All After Cursor, Zoom Selection, Undo All / Clear History, Incremental Save, the
+    Paste Attributes pair, grid-spacing choices and ruler formats.
+Sources: results.md section 6 (menu resources of the reference product); Classic NLE v13 manual.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+27. Feature Name: Context Menus (Event, Track, Video Surface, Drag Menus)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (25 popup contexts; the ones that add behaviour):
+  - Audio event: Open in Trimmer / Parent Media; Open in Audio Editor (and "Open Copy" = new take);
+    Edit Source Project; Create Nested Timeline / Open Nested Timeline; Select in Project Media list;
+    BEAT DETECTION (places markers on the media) and TEMPO DETECTION; Re-Analyze Auto Ducking; event FX;
+    non-real-time FX; Paste (selective) attributes; trim/split/heal/close gaps; Add Missing Stream;
+    Create Subclip; Reverse; Select Events to End; Switches, Take, Group, Stream, Channels, Synchronize
+    (by moving / by slipping), Sync Link (create/remove/unlink/select all), Properties.
+  - Video event: same plus Media FX, Pan/Crop, Event FX, Motion Tracking, DETECT SCENES AND SPLIT
+    (splits the event at detected scene changes), Smart Split, Resize Adjustment Event, Pair as
+    Stereoscopic 3D Subclip, Insert/Remove Envelope > Velocity / FREEZE FRAME AT CURSOR (inserts a
+    velocity envelope that freezes the frame) / Transition Progress.
+  - Video surface (right-click in the Preview): same actions on the event under the cursor, plus Edit
+    Generated Media.
+  - Track header: audio (hide in mixer, rename, insert audio / FOLDER track, duplicate, delete,
+    cut/copy/paste/delete, arm, input, output, automation, pan type, envelopes, FX automation
+    envelopes, switches mute/solo/invert phase, default track properties, group, colour, meter
+    options vertical/output, channel width) and video (rename, insert video / adjustment track,
+    duplicate, delete, pair as 3D subclips, envelopes, switches, fade colours top/bottom, expand
+    track layers, default properties, group, colour).
+  - Empty track area: paste, delete, trim, split, heal, close gaps, select all after cursor, insert,
+    duplicate, envelopes, vertical meters.
+  - Time-selection menu: Insert Empty Event, Zoom Selection.
+  - Event right-drag: Move Here, Copy Here, Shuffle Events, Cancel.
+  - Explorer / media right-drag: Add Across Time, Add Across Tracks, Add as Takes, Video Only and Audio
+    Only submenus (same three), Open Project (nested), Cancel; plug-in manager right-drag: Add as Event
+    FX or Non-Real-Time Event FX.
+Implementation Guidelines for Neoveg:
+  - Build the menus from one declarative action table (id, label key, shortcut, enabled predicate) so
+    the main menu, context menus, toolbar tooltips and a future "Customize Keyboard" dialog share the
+    same commands (see entry 28). Scene detection can reuse FFmpeg's scene filter score.
+Sources: results.md section 7.1 (popup bank 1007).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+28. Feature Name: Canonical Command Catalog and Keyboard Map Files
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - 782 canonical command names grouped by prefix (the list behind Customize Keyboard, toolbars and
+    scripts): CursorTo.* (Home, End, Center, LeftByFrame/Grid/Marker/Pixel/Edit/Selected/CDTrack/
+    CDIndex, Marker0-9, LoopHome/End, CycleTimeSelection), Edit.* (Copy, Cut, Paste, PasteInsert,
+    PasteRepeat, PasteEventAttributes, SmartSplit, Split, Trim, Trim.Start/End, Group.*, Take.*,
+    Tool.*, Select.*, Selection.Start/End/Length, Ripple.*, Event.* switches, Undo, Redo, UndoAll),
+    File.*, Insert.*, Options.* (96: ruler formats, snap-to grid sizes, quantize, QuickfadeAudioEdits,
+    ...), Tools.* (68), TrackView.* (222: EnterExpandedEditMode, EventTrimMode.*, Nudge.*,
+    Shuttle.* (JogForward/Reverse and numbered StepForward0-9 / StepReverse), Event.Pitch* (cent,
+    semitone, third, octave), Move.SelectTracksUp/Down, Select.MarkIn/MarkOut/SwapCursor,
+    SelectCursorTo.* (move cursor and extend selection), Insert/Remove Marker|Region|CD*),
+    Transport.* (Play, Pause, Stop, PlayFromStart, PlayToggle, Rec, LoopPlayback, ScrubFwd/Rev, Shuttle,
+    StepForward/StepBack, FFWD, Rew, SetPathAndRecord), Trimmer.* (27: BeatDetection, CreateSubclip,
+    History.*, FitToFill, Overwrite, SyncSelectionFromCursor/UpToCursor, ...), VideoPreview.*
+    (ExternalMonitor.Toggle, Overlay, SplitView), View.* (windows, envelopes visibility, window layouts
+    Load/Save UserLayout0-9), Toggle.* (track motion constraints), Mixer.* (Dim, Downmix, Surround,
+    Metronome).
+  - The default key map is compiled into the product; only changes are persisted in
+    <config>/keyboard.ini (empty by default). Customize Keyboard: tabs per command category, filter
+    box, "Shortcut keys" capture box, Add, Save As (named .ini), delete, import by copying .ini files,
+    restore [Default]; the default map cannot be overwritten; conflicts are shown when assigning.
+  - Scripts can be bound to Tools.Script.Run0-9. Layouts are .VegasWindowLayout files (up to 10 saved
+    shortcuts Alt+D then 0-9).
+Implementation Guidelines for Neoveg:
+  - Define `Command` as a Rust enum/ids table with dotted names (`edit.split`, `transport.play_toggle`),
+    keep user overrides in preferences.json (`keymap: Map<command, Vec<Shortcut>>`) and expose a
+    customizable shortcut dialog. Names above are the reference vocabulary for scripting in Rust.
+Sources: results.md section 13 (command catalog) and 14 (shortcuts note); Classic NLE v13 manual
+  pp. 591-593 (Customizing keyboard shortcuts).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+29. Feature Name: Preferences Catalog (tabs and options)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (option names; defaults are not documented unless stated):
+  General: open last project on startup; confirm media deletion when in use; save active prerenders on
+    close; close media files when not the active app (external editing); close audio/MIDI ports when
+    inactive; update notification; ENABLE AUTOSAVE (temporary project every 5 min); prompt to adjust
+    project settings to first media; Media Manager on/off and usage tracking; check file associations;
+    joystick support; Wave64 for large files and "allow WAV up to 4 GB"; ignore fact chunk in
+    compressed WAV; allow 24p pulldown removal; AAF export frame-unit and clip-based envelope options;
+    import MXF as multichannel; IMPORT STEREO AS DUAL MONO; enable no-recompress long-GOP render;
+    prompt to keep files after recording; CREATE UNDOS FOR FX PARAMETER CHANGES; keep bypassed FX
+    running; auto-name markers/regions when not playing; linear scrub range; Ctrl+drag scrub over events;
+    spacebar/F12 = play/pause instead of play/stop; always draw marker lines; allow edit cursor to be
+    dragged (Shift = time selection without moving it); double-click media loads Trimmer; Trimmer history
+    name order; auto-save Trimmer markers; recent project count; temporary files folder (removable media
+    copies live here and are cleared on exit).
+  Video: dynamic RAM preview max; max rendering threads; GPU acceleration device; frame-number display on
+    thumbnails; thumbnails per event (None / Head / Head,Tail / Head,Center,Tail / All); auto-create proxies
+    for > 4K media; external capture application; action-safe and title-safe %; grid divisions; display at
+    project size; simulate device aspect ratio (leave off for pixel-critical work); preview background
+    colour; stereoscopic mode override; multicam take names/numbers/indicator colour; default track fade
+    top/bottom colours.
+  Preview Device: device (graphics card, IEEE-1394, SDI), conform-output format (only when mismatched /
+    always), psf, 10-bit encoding, sync offset (frames), genlock, recompress edited frames, display frames
+    in preview during playback, use project output rotation, HDR output, deinterlace filter, studio-to-
+    computer RGB, wait for vsync, optimize GPU display.
+  Audio: waveform display while recording, normalize peak level, import audio at project tempo, record to
+    Broadcast Wave, track prefader sends listen to mute, legacy track send gain, prompt when no track is
+    armed, 32-bit VST support, preferred audio editor, metronome sounds (default / custom, normal and
+    accent), loudness log opens in editor. Audio Device: type, playback/recording devices (front, rear,
+    centre/LFE for 5.1), playback buffering (s), track buffering, automatic recording-latency
+    compensation + user offset (samples/ms), audio-capable preview device.
+  Editing: enable looping by default; PRESERVE PITCH WHEN STRETCHING; cut/copy/delete grouped events; do
+    not quantize audio-only edits; collapse loop region when no selection; JKL/shuttle speed; QUICK FADE
+    LENGTH (ms); NEW STILL IMAGE LENGTH (s); default time between CD tracks; cursor preview duration;
+    auto-overlap multiple media + CUT-TO-OVERLAP conversion (amount, alignment before/centred/after);
+    TIME-SELECTION ENVELOPE FADES (length, alignment outside/centred/inside); auto-crop video/still
+    images added to the timeline; smart split default length (frames); change cursor/selected event
+    colour in Auto Ripple; right mouse button switches to the Selection tool.
+  Display: track / envelope / snap colours; icon colour strength; button highlight colour; auto-hide
+    docking area; timeline at bottom; tabs at top of docked windows; allow floating windows to dock
+    (Ctrl overrides); reverse event background colour; High DPI (+ alternate mode); system statistics in
+    the status bar; interface type Dark / Medium / Light / White.
+  External Control & Automation: smooth and thin automation after recording or drawing; set controls to
+    defaults when automation is turned off; available/active control devices; default new envelope
+    types and levels (audio gain, video opacity), FX keyframes, Track Motion and Pan/Crop default
+    smoothness. Sync: MIDI timecode / clock generation and triggering. MIDI and Soft Synth, VST effects,
+    VSTi, CD settings, Deprecated features, File I/O (legacy AVC decoding, experimental HEVC, hardware
+    decoder choice, logging of plug-in loading / reads / renders).
+Implementation Guidelines for Neoveg:
+  - Today Preferences holds language, autosave minutes and auto_fade_on_import. Proposed next keys, all
+    `#[serde(default)]`: quantize_audio_edits, quick_fade_ms, still_image_seconds, cut_to_overlap
+    {seconds, alignment}, envelope_fade {ms, alignment}, preserve_pitch_on_stretch, space_pauses,
+    interface_theme, auto_hide_docks, thumbnails_mode, import_stereo_as_dual_mono, create_fx_undos,
+    smoothness defaults, safe_area percentages and grid divisions.
+Sources: results.md section 8.6; Classic NLE v13 manual pp. 601-636.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+30. Feature Name: Project, Event and Media Properties (dialog fields)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Project Properties (tabs Video, Audio, Ruler, Summary, Audio CD, Folders, Advanced): Video adds HDR
+    mode, ACES version and colour space, view transform, look-modification transform, resample mode,
+    "override project settings when prerendering" (format + template); Folders manage project files
+    (recorded files, prerendered files); Advanced has master display, 360 output, stereo 3D options and
+    "include cancellation in renders".
+  - Audio Event properties: active take name; switches (mute, lock, loop, invert phase, normalize, auto
+    normalize); gain; time-stretch / pitch-shift method with length, pitch change, lock to stretch,
+    preserve formants (entry 10). Video Event properties: take name; switches (mute, lock, maintain aspect
+    ratio, reduce interlace flicker, hold last frame, loop, trim event to include all frames); resample
+    modes; playback rate; undersample rate.
+  - Media properties: file name, tape name, timecode (use file timecode or custom), stream selector,
+    format, attributes, frame rate (image sequences), field order, pixel aspect ratio, ALPHA CHANNEL TYPE
+    (Undefined, None, Straight, Premultiplied, Premultiplied dirty), background colour, COLOUR SPACE and
+    COLOUR RANGE, rotation, stereoscopic mode (Off, pair with next stream, side-by-side half/full,
+    top/bottom half/full, line alternate) and swap left/right. Multi-file editing shows "(differing
+    values)" and only changes fields the user touched. "Save settings to video profiles" teaches the
+    auto-detection (profiles file).
+  - Missing media dialogs: "Search for missing file", "Specify a new location or replacement file",
+    "Ignore and leave offline", "Ignore all missing files"; Search dialog with a "Look in" folder list
+    and Search Now / Stop; "Resolve Media File Error" offers replacement file, ignore, or ignore all
+    subsequent errors. Offline events show "Media Offline".
+Implementation Guidelines for Neoveg:
+  - Relink (neoveg_engine::relink) already has steps 1-2; the missing-media window should offer the same
+    four choices and "ignore all". Add alpha-type and colour-range fields to MediaItem (serde default)
+    before implementing straight/premultiplied compositing.
+Sources: results.md sections 8.2, 8.5, 8.7; Classic NLE v13 manual pp. 47-55, 105-110.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+31. Feature Name: Pan/Crop, Masks and Keyframe Editing (details)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Event Pan/Crop opens inside the Video Event FX window; the chain has a fixed "Pan/Crop" marker so
+    each effect can run before or after the crop (prevents blur). Workspace: zoom, X/Y offset, grid
+    spacing; Edit options: snap to grid, lock aspect, scale about centre, allow movement (horizontal /
+    vertical / unconstrained); Source: maintain aspect ratio, stretch to fill frame (Yes = the selection
+    fills the output, No = the media keeps its size and the outside is cropped). Position: width/height,
+    X/Y centre. Rotation: angle plus a movable rotation centre. Pan-and-scan and Ken Burns effects are
+    keyframed crops. Context menu: Restore, Center, Flip H/V, Match Output Aspect, Match Source Aspect.
+  - Masks (several per event): Bezier path, rectangle/square and oval/circle creation tools; modifiers
+    while drawing: Shift = square/circle, Ctrl = scale from centre, Alt = half-oval or rounded corners;
+    double-click edits properties; Positive/Negative; feather inside/both/outside with % slider; move,
+    scale, rotate (Shift = 15-degree steps), flip, duplicate (Ctrl+drag); "Apply to FX = Yes" confines
+    the event's effects to the mask area (e.g. pixelate a face); masks animate with the Mask keyframe row.
+  - Keyframes: row per animated item (Position, Mask, 2D Shadow, 2D Glow, FX parameters); Insert (copies
+    the previous keyframe, or double-click, or just change a parameter at the cursor), delete, first /
+    previous / next / last (Ctrl+Home/Left/Right/End), Sync Cursor, copy (Ctrl+drag), multi-select (Ctrl /
+    Shift), Alt+drag first or last to rescale spacing, presets (save, recall at cursor, delete; Position /
+    Mask / Shadow / Glow rows have separate preset lists, 2D and 3D separate). SPATIAL interpolation =
+    Smoothness slider (0 = straight lines, higher = curved path; default in preferences); TEMPORAL
+    interpolation = per-keyframe curve Linear, Fast (logarithmic), Slow (logarithmic), Smooth, Sharp, Hold;
+    Curves view allows Manual spline handles and Split Manual (each side separately); Lanes/Curves toggle.
+  - Track keyframes appear under the video track (expand/collapse, lock to events, double-click opens the
+    property page; per-keyframe parameters can not be edited in the track view). Track Motion: 2D shadow
+    and glow (blur %, intensity, colour), parent motion moves the whole composite group.
+Implementation Guidelines for Neoveg:
+  - Reuse FadeCurve for keyframe temporal curves (+ Hold); store spatial smoothness as a Catmull-Rom/
+    Bezier tension per keyframe; the Pan/Crop pop-up from AGENTS.md 4.1 is this window.
+Sources: Classic NLE v13 manual pp. 275-299; v11 tutorial booklet.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+32. Feature Name: Workspace: Docking, Layouts, Explorer, Edit Details, Undo History
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Docking: drop on window top = tab / new docking area; drop at top/bottom edge docks there; hold Ctrl
+    to avoid docking; maximize button fills the docking area; multiple floating docks, also on a second
+    monitor; docking area at bottom by default (preference moves the timeline to the bottom and tabs to
+    the top). Layouts store sizes/positions of all windows and floating docks; up to 10 shortcut slots
+    (Ctrl+Alt+D,n saves; Alt+D,n loads), Organize Layouts dialog (assign, replace, clear, move, activate,
+    delete files), bundled layouts for audio mixing, colour correction, source window, 3-up with
+    trimmer, "add media", "add text", "add generators", "add transitions", "add FX" modes.
+  - Explorer window: back/forward, address bar, tree, contents, up, refresh, delete, favourites (stored
+    in a text file you can copy), preview start/stop/auto, CD info, get media from web, views Details /
+    List / Thumbnail / Regions / Summary / Tree / All Files; regions saved in a file can be dragged onto
+    the timeline.
+  - Edit Details window = spreadsheet over events, selected events, markers, regions, commands and CD
+    track lists: sortable and reorderable columns, drag a heading out to hide it, saved view presets,
+    time columns follow the ruler format, double-click edits a cell.
+  - Undo: unlimited since last save; drop-down history list for multi-step undo/redo; Undo All; Clear
+    Edit History (also cleared on close); preference creates undo steps for FX parameter changes.
+  - Zoom: wheel, Up/Down keys (small) and Ctrl+Up/Down (large or to selection), zoom tool drag, zoom
+    time buttons, track-height zoom buttons, double-click zoom tool = fit everything.
+  - Red Eye Reduction for still images (click and drag selection boxes; applies to every use of the
+    image).
+Implementation Guidelines for Neoveg:
+  - egui_dock already gives docking/floating; add named layout save/restore (serialize DockState to
+    preferences or `layouts/*.neoveg-layout`), Edit Details as a table panel over the engine model, and
+    a history drop-down fed by History::labels() (needs a label per EditCommand).
+Sources: Classic NLE v13 manual pp. 29-46, 185-190, 598-600; results.md section 6.3.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+33. Feature Name: Audio Recording, Metronome and Proxy Rules
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Recording: arm tracks (meter shows input level, plus track FX when monitoring is on), Record starts
+    all armed tracks (or creates a track when none is armed, or asks via preference), Stop opens the
+    Recorded Files dialog (rename / delete / delete all / done), new events and media-pool entries
+    appear. With Loop Playback on, each pass of the loop creates a new take (last = active) and regions
+    mark the takes inside the recorded file (visible in the Trimmer). Recording into a selected event uses
+    the event's length; punch-in uses the selection edges as punch points with pre/post-roll under
+    crossfades (Ctrl+Alt+drag slips them). Input monitoring Off / On / Auto (dry signal is always
+    recorded; effect automation is bypassed while monitoring; chains that cannot run live are bypassed).
+    Record to Broadcast Wave optional; recorded-files folder is a project setting; automatic latency
+    compensation plus a manual offset.
+  - Metronome: Options > Metronome plays at the project tempo during playback and recording; custom
+    normal/accent sounds; never rendered into the mix.
+  - Proxies: right-click media > Create Video Proxy (.sfvp0 beside the original, hidden from the media
+    pool); automatic for > 4K media; preview quality Draft/Preview uses the proxy, Good/Best uses the
+    original; never used for rendering. Audio proxies (.sfap0) exist for nested projects and compressed
+    audio; peak files (.sfk) cache waveforms and can be rebuilt (Shift+F5) or disabled.
+Implementation Guidelines for Neoveg:
+  - Recording needs cpal input + a worker writing WAV; Neoveg's waveform source already builds peaks on
+    workers, so a sidecar `.sfk`-style cache directory per project is a natural next step.
+Sources: Classic NLE v13 manual pp. 102-116, 252-255.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+34. Feature Name: Time Ruler Formats and Grid Spacing
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Ruler formats: Samples; Time (h:m:s.ms); Seconds; Time & Frames (h:m:s.frames); Absolute Frames
+    (sequential from project start); Measures & Beats (measures.beats.ticks, 64 ticks per beat; tempo and
+    meter from Project Properties > Ruler); Feet & Frames 16 mm (40 frames per foot) and 35 mm (16 frames
+    per foot); SMPTE Film Sync IVTC 23.976 (non-drop), SMPTE Film Sync 24 fps, SMPTE EBU 25 fps (PAL
+    DV/D1), SMPTE Non-Drop 29.97, SMPTE Drop 29.97 (NTSC DV/D1, shown with ';'), SMPTE 30 fps (audio/MIDI
+    sync only, never for video), Audio CD Time (75 fps, no offset allowed).
+  - Drop-frame rule: frames are not dropped from the media, only two frame NUMBERS are skipped at every
+    minute boundary except minutes 0, 10, 20, 30, 40, 50 (00:00:59.29 is followed by 00:01:00.02).
+  - Ruler offset (Set Time at Cursor / ruler start time) shifts the displayed origin, e.g. start at 1 h.
+  - Grid spacing menu: Ruler Marks, minutes, seconds, milliseconds, frames, measures, quarter / 8th / 16th /
+    32nd notes and triplets; the SMPTE format in the audio workstation must match the video stripe.
+Implementation Guidelines for Neoveg:
+  - neoveg_common::timecode already implements drop-frame (AGENTS.md 4.3 references 00:01:00;02); add the
+    remaining formats as `RulerFormat` + `format_time(seconds, fmt, project)`, plus ruler start offset in
+    the project settings. Grid spacing choices belong to neoveg_ui::frame_grid (override of the automatic
+    ladder).
+Sources: Classic NLE v13 manual pp. 595-597; results.md section 6.6.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+35. Feature Name: Media Library (tags, palettes, search) of the v10 Media Manager
+----------------------------------------------------------------------
+Classic NLE Exact Behavior (v10 chapter 3; later versions replace it with tags in Project Media):
+  - Media libraries are separate databases (.medialib with a transaction log that must not be deleted);
+    several libraries can exist (per user or machine) for performance; a reference library can supply
+    tags to loop collections.
+  - Add Files to Media Library: folders list, include subfolders, media types (audio, video, images,
+    MIDI), new files only vs all files (re-checks properties), add tags/custom properties stored in the
+    files, and AUTO-TAG FROM PATH (d:\loops\drums\hi-hats gets Drums + Hi-Hats, with a tag thesaurus XML
+    for synonyms). Every scan adds a dated tag to the files it touched.
+  - Tags are hierarchical (a child tag implies its parents when searched); create, rename (tag editor
+    with icon), drag/copy to rearrange, merge subtags, delete; tag mode applies/removes tags by dragging;
+    palette view = grid of tag buttons for focused searching; tags and properties can be saved back into
+    media files so they travel with them.
+Implementation Guidelines for Neoveg:
+  - Keep it simple: Project Media tags first (entry 24), global library later as a SQLite file in the
+    per-user data folder; auto-tag from folder names is cheap and useful.
+Sources: Classic NLE v10 manual chapter 3 "Using the Media Manager" (pp. 73-79); v13 Preferences.
+Research Date: 2026-10-24
