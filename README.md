@@ -129,7 +129,7 @@ Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
 
 ### A fazer a partir da pesquisa dos manuais e do `results.md`
 
-Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os links dos manuais estão no histórico do pedido; o servidor do PDF do VP12 bloqueia download automático (HTTP 403) e os PDFs do VP10 e VP18 passam de 10 MB, então precisam ser baixados e lidos manualmente.
+Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os PDFs ficam em `manuais/` (ignorada pelo Git por causa do tamanho); a lista abaixo já incorpora a leitura deles.
 
 **Edição e timeline**
 - [ ] Modos de edição (Ripple off/eventos/faixa/tudo) e *Auto Ripple*
@@ -161,6 +161,19 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Intercâmbio FCP7 XML, FCPXML e EDL
 - [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
 - [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
+
+**Itens extras vindos dos manuais (VP10–VP21), por versão de origem**
+- [ ] Modo de edição expandido e *rolling edit* pelo teclado numérico, com visão 2-up do ponto de edição (VP12)
+- [ ] Proxies inteligentes: troca automática entre original e proxy conforme a qualidade da prévia; o render usa o original (VP12)
+- [ ] Cadeias de efeitos de até 32 efeitos aplicáveis ao evento, faixa, mídia ou projeto; mascaramento de FX e formas (retângulo, elipse, Bézier) (VP12)
+- [ ] Correspondência de cor entre clipes (*Color Match*) e fluxo S-Log/ACES com OpenColorIO por mídia e projeto (VP12)
+- [ ] Edições em L-cut e J-cut, fades simultâneos de áudio e vídeo e sincronismo de eventos (*sync links*) (VP12/VP13)
+- [ ] Edição multicâmera (sincronizar, criar evento multicâmera, alternar câmeras) e *takes* como versões alternativas do evento (VP13)
+- [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências e trocar arquivos de mídia por pasta (VP18)
+- [ ] Painel de rastreamento de movimento e Black Bar Fill, Denoiser, Flicker Control (VP18)
+- [ ] Eventos de ajuste (*adjustment events*): o efeito vale para os eventos de vídeo abaixo dele (VP21)
+- [ ] Decodificação AV1/HEVC/AVC com aceleração de GPU e suporte a HEIC/HEIF (VP21)
+- [ ] Opções para ocultar ou não criar arquivos de picos de áudio (`.sfk` no VEGAS; equivalente no Neoveg) (VP21)
 
 ## Créditos e licenciamento
 

@@ -107,3 +107,6 @@ node_modules/
 
 # Runtime error log written by the app and the test suites
 log_erros.txt
+
+# Manuais de referencia (PDFs grandes, uso local)
+manuais/
