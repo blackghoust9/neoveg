@@ -47,7 +47,7 @@ Resumo do que o projeto usa hoje, para reproduzir o ambiente em outra máquina W
 ```bash
 sudo apt update && sudo apt install -y build-essential pkg-config \
     libasound2-dev libudev-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-    libxkbcommon-dev libwayland-dev libvulkan-dev
+    libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev
 # opcional, para --features ffmpeg:
 sudo apt install -y libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libclang-dev
 ```
@@ -65,6 +65,9 @@ cargo llvm-cov --workspace --summary-only           # opcional: cobertura
 cargo run --release -p neoveg_ui                    # abre o Neoveg com um projeto vazio (sem vídeo)
 cargo run --release -p neoveg_ui --features ffmpeg  # com decodificação de vídeo na prévia
 cargo test --workspace --features neoveg_ui/ffmpeg  # inclui os testes de decodificação reais
+python build_portable.py                            # QA + exe + pastas e arquivos portáteis em dist/ (só Python padrão)
+python build_portable.py build --ffmpeg --targets all  # com vídeo; alvos de outros sistemas exigem o target do Rust instalado
+python build_portable.py qa                         # só fmt + clippy + testes + build; grava coverage/qa/qa_report.json
 ```
 
 Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
@@ -127,6 +130,9 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Autosave (padrão 2 min, configurável em Editar > Preferências) e recuperação após falha: `recovery_*.neoveg` em `%LOCALAPPDATA%\Neoveg\autosave` (Linux `~/.local/share/neoveg/autosave`, macOS `~/Library/Application Support/neoveg/autosave`); aviso de alterações não salvas ao sair e `*` no título
 - [x] Relink de mídia ausente ao abrir: nome exato e depois nome aproximado (passos 1 e 2)
 - [x] Log central em `logs/neoveg.log` e `logs/crash.log`
+- [x] Seleção de eventos e de tempo, recortar/copiar/colar/colar inserindo/repetir colar, aparar à seleção e dividir em várias faixas (Fase 1, exceto os itens abertos abaixo)
+- [x] Empacotamento: `python build_portable.py` gera o exe, as pastas e os arquivos portáteis e o relatório de QA
+- [x] Tabela de comandos e mapa de teclado personalizável (Editar → Personalizar teclado…), com os atalhos atuais preservados e os atalhos padrão do roteiro já reservados
 
 ### A fazer (em ordem de prioridade)
 
@@ -206,13 +212,15 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs/research/nle_features_research.txt) que descreve o comportamento esperado. Regras de edição ficam como funções puras em `neoveg_engine` com testes; a UI só traduz o ponteiro em chamadas (AGENTS.md 2.3). Todo campo novo de arquivo usa `#[serde(default)]` e tem teste com arquivo antigo.
 
 **Fase 1 — Seleção e comandos de edição básicos (entrada 7)**
-- [ ] `Selection` no engine: conjunto de ids de eventos + intervalo de tempo opcional; Shift = faixa contígua, `Ctrl` = alternar, `Ctrl+A` = tudo, "Selecionar eventos até o fim", seleção por retângulo
+- [x] `Selection` no engine (`neoveg_engine::selection`: conjunto de eventos, evento primário, intervalo de tempo): clique, `Ctrl`+clique alterna, `Shift`+clique seleciona o retângulo entre dois eventos, `Ctrl+A`, "Selecionar eventos até o fim" (menu de contexto); seleção de tempo arrastando no espaço vazio das faixas ou com `I` / `O`
+- [ ] Seleção retangular (já existe `Selection::select_in_rect` no engine; falta a ferramenta de seleção na UI) e mover vários eventos selecionados juntos
 - [ ] Caixas de início/fim/duração da seleção que aceitam valor absoluto ou relativo (`+10`, `-5` na unidade da régua)
-- [ ] Cortar, copiar, colar e excluir com seleção de tempo (divide eventos nas bordas, todas as faixas) e com eventos selecionados (só os selecionados)
-- [ ] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes) e colar repetido (`Ctrl+B`, ponta a ponta ou a cada X)
+- [x] Cortar, copiar, colar e excluir com seleção de tempo (divide eventos nas bordas, todas as faixas) e com eventos selecionados (só os selecionados); cada ação é um único Desfazer (`EditCommand::ReplaceEvents`); itens sem faixa do mesmo tipo são ignorados com aviso
+- [x] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes nas faixas afetadas) e colar repetido (`Ctrl+B`: janela com número de cópias, uma após a outra ou a cada X segundos)
 - [ ] Arrastar com `Ctrl` copia; arrastar com o botão direito abre "Mover aqui / Copiar aqui / Embaralhar"
-- [ ] Aparar à seleção (`Ctrl+T`), aparar início/fim ao cursor (`Alt+[` / `Alt+]`), `[` e `]` selecionam a borda do evento
-- [ ] `S` divide sem seleção em todas as faixas sob o cursor e, com seleção de tempo, nas duas bordas
+- [x] Aparar à seleção (`Ctrl+T`) e aparar início/fim ao cursor (`Alt+[` / `Alt+]`)
+- [ ] `[` e `]` selecionam a borda do evento (modo de aparo por teclado, Fase 2)
+- [x] `S` divide sem seleção em todas as faixas sob o cursor, com eventos selecionados só neles e, com seleção de tempo, nas duas bordas
 - [ ] Inserir evento vazio e inserir tempo (espaço em branco no cursor)
 
 **Fase 2 — Ripple, aparar e edição expandida (entrada 8)**
@@ -280,7 +288,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Projetos aninhados e eventos de ajuste; painel de rastreamento de movimento; ferramentas de IA (transcrição, edição por texto, máscara, upscale)
 
 **Fase 11 — Menus, comandos e preferências (entradas 26 a 29)**
-- [ ] Tabela única de ações (`Command`: id pontuado, rótulo i18n, atalho, predicado de habilitação) usada pelo menu principal, menus de contexto, tooltips e pela janela "Personalizar teclado"; overrides em `preferences.json` (`keymap`)
+- [ ] (núcleo pronto na Fase 13; falta ligar os menus de contexto, a barra de ferramentas e os tooltips) Tabela única de ações (`Command`: id pontuado, rótulo i18n, atalho, predicado de habilitação) usada pelo menu principal, menus de contexto, tooltips e pela janela "Personalizar teclado"; overrides em `preferences.json` (`keymap`)
 - [ ] Comandos baratos que cabem no motor atual: Fechar espaços (Close Gaps), Reunir evento (Event Heal), Divisão inteligente (Smart Split), Selecionar tudo após o cursor, Zoom na seleção, Desfazer tudo e Limpar histórico, Colar atributos (inteiro e seletivo)
 - [ ] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
 - [ ] Detectar cenas e dividir (filtro de cena do FFmpeg), Congelar quadro no cursor (envelope de velocidade), detecção de batidas e de andamento
@@ -296,6 +304,33 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Gravação de áudio (armar faixa, takes em laço, punch-in com pré/pós-roll, monitoração Off/On/Auto, metrônomo) com entrada `cpal`
 - [ ] Cache de picos por mídia em disco (equivalente aos arquivos `.sfk`), com reconstrução manual e opção para desligar; proxies de vídeo (`Draft`/`Preview` usam o proxy, `Good`/`Best` o original; automático acima de 4K)
 - [ ] Biblioteca de mídia com tags hierárquicas, paleta de tags e tags automáticas a partir do caminho da pasta
+
+**Fase 13 — Atalhos de teclado (entrada 17 e AGENTS.md 4.5)**
+
+Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, relido com as colunas alinhadas). Cada item só entra no AGENTS.md como "implemented" quando a função existir; todos devem ser regraváveis em `keymap` (`preferences.json`).
+- [x] Infraestrutura: tabela de comandos (`neoveg_common::commands`), mapa padrão e `keymap` do usuário em `preferences.json` (`neoveg_common::keymap`, só as diferenças), despacho pelos atalhos na UI e janela **Editar → Personalizar teclado…** (filtro, captura de tecla, remover, restaurar um comando ou tudo, aviso de conflito)
+- [ ] Personalizar teclado, próximos passos: mapas nomeados (salvar como, importar, excluir), atalhos em sequência (`Alt+D`, `0`–`9`), teclas do teclado numérico (o egui não as distingue), dicas de atalho em todos os menus e nos tooltips, tradução dos rótulos dos comandos para os outros idiomas
+- [ ] Projeto e janelas: `Ctrl+N`, `Ctrl+Shift+N` (sem diálogo), `Ctrl+F4` fechar, `Alt+Enter` propriedades; `Alt+0` foco na timeline, `Alt+1`…`Alt+9` e `Ctrl+Alt+1`…`8` abrem/ocultam painéis; `F6`/`Ctrl+Tab` próxima janela; `Alt+D`+`0`–`9` carrega layout, `Ctrl+Alt+D`+`0`–`9` salva, `Alt+D`+`D`/`A`/`C` layouts padrão, áudio e cor
+- [ ] Visualização: `Ctrl+Shift+I` info do take, `Ctrl+Shift+W` ondas, `Ctrl+Shift+C` botões do evento, `Ctrl+Shift+T` comprimento dos fades, `Ctrl+Shift+E` envelopes, `B` barramentos de áudio, `Ctrl+Shift+B` barramento de vídeo, `Ctrl+Shift+K` marcadores de mídia, `Tab` alterna foco entre lista de faixas e timeline, `Alt+Shift+↑/↓` troca de faixa, `` ` `` minimiza faixas, `Ctrl+Shift+↑/↓` altura das faixas, `F11`/`Ctrl+F11`/`Shift+F11` maximizar áreas, `↑/↓` zoom horizontal, `Ctrl+↑/↓` zoom grande ou na seleção, `Alt+↑` um quadro por miniatura, `Shift+↑/↓` zoom vertical das ondas
+- [ ] Cursor e seleção: `\` centraliza, `Ctrl+G` ir para, `Ctrl+Shift+G` fim da seleção, `Home`/`End`, `Ctrl+Home`/`W` e `Ctrl+End`, `Shift+Q` região de laço, `Backspace` últimas 5 seleções, `Page Up/Down` marcas da grade, `Alt+←/→` um quadro (decidir convivência com `←`/`→`), `Ctrl+←/→` marcador anterior/próximo, `Ctrl+Alt+←/→` pontos de edição, `F3`/`F9` jog, `Alt+↓` cursor para o playhead, `0`–`9` marcadores/regiões, `I`/`O` pontos de entrada e saída, `Ctrl+Shift+arrastar` seleção de tempo sobre evento
+- [ ] Edição: `Ctrl+X/C/V` (e `Shift+Delete`, `Ctrl+Insert`, `Shift+Insert`), `Ctrl+Shift+V`, `Ctrl+B`, `Ctrl+T`, `Ctrl+M`, `Alt+Backspace` desfazer, `Shift+F5` reconstruir picos, `Ctrl+D`/`D`/`Shift+D` ferramentas, `Ctrl+A`/`Ctrl+Shift+A`, `Ctrl+[`/`]`, `Alt+[`/`]`, `Ctrl+Shift+[`/`]`
+- [ ] Aparar e mover no teclado numérico: `7`/`9`, `5`, `1`/`3`, `4`/`6`, `8`/`2` (mover entre faixas) e os modificadores `Ctrl` (esticar), `Alt` (slip), `Shift` (corte em J/L), `Ctrl+Alt` (slide/aparo adjacente), `Ctrl+Alt+Shift`; modificadores de mouse (`Alt`+arrastar slip, `Shift`+borda, `Ctrl+Alt`+borda, `Ctrl+Alt+Shift`+clique divide, `Ctrl`+borda estica, `Alt+Shift`+evento)
+- [ ] Altura/tom e takes: `=`/`-` (semitom), `Ctrl` (centésimo), `Shift` (oitava), `Ctrl+Shift` zera; `T`/`Shift+T` takes; `Num /`, `Num *`, `Num -` corte para transição; `Ctrl+Num /` transição para corte; `Ctrl+E` editor de áudio
+- [ ] Reprodução e gravação: `Ctrl+R`, `Ctrl+Alt+R`, `Ctrl+Alt+Shift+R`, `Q`/`Ctrl+Shift+L`, `Shift+Space`/`Shift+F12`, `Ctrl+Space`/`F12`, `Enter`/`Ctrl+F12`, `Esc`, `Alt+←/→`, `Ctrl+Shift+F12` (atenuar master), `Num 0` prévia do cursor, `J`/`K`/`L`, `Shift+M` pré-renderizar, `Shift+B` prévia em RAM, `Alt+Shift+4` monitor externo, `Ctrl+Shift+D` multicâmera, `1`–`9` e `Ctrl+1`–`9` escolher take
+- [ ] Faixas: `Z`/`Shift+Z`, `X`/`Shift+X`, `Ctrl+Alt+Z/X` (grupos), `Ctrl+←/→` volume, `Ctrl+Shift+←/→` pan, `V`/`Shift+V`, `P`/`Shift+P`, `E`/`Shift+E`, `Ctrl+U`, `Shift+G`, `Ctrl+Shift+U`, `C` comando, `R` região, `N` / `Shift+N` faixa e índice de CD
+- [ ] Trimmer, Track Motion, Surround Panner, Mixing Console e roda do mouse: tabelas da entrada 17 (conferir a roda e o Mixing Console no aplicativo)
+
+**Fase 14 — Funcionalidades que o Neoveg ainda não tem (inventário a partir dos manuais e do `results.md`)**
+- [ ] Legendas e closed caption: importar/exportar SRT, SCC, MCC, SMI, RT; comandos 608CC1–CC4 com `[BR]`; sincronizar legendas com `Ctrl+K`; sobreposição CC1–CC4 na prévia; legendas a partir de regiões ou de `.txt`/`.csv`
+- [ ] Gerenciamento de cor: formato de pixel float de 32 bits, espaço de cor por mídia, transformações de visualização (ACES/OCIO), LUTs `.cube`, painel de gradação de cor, scopes
+- [ ] Áudio avançado: surround 5.1 com painel Surround Panner, leis de pan, buses/sends/inserts, FX atribuíveis, compensação de atraso de plug-ins, VST3, gravação com monitoração, normalização, esticar sem mudar o tom, formantes
+- [ ] 3D estereoscópico (modos lado a lado, anaglífico, linha alternada), plug-in de ajuste 3D e pareamento de subclipes
+- [ ] Formatos e fluxos profissionais: HDV/XDCAM/RED/AVCHD/P2, proxy-first com relink por pasta, renderização inteligente (sem recompressão), saída multicanal com mapeamento de canais
+- [ ] Linha de comando (`neoveg --open`, `--run-script`), scripting e extensões em Rust, comandos reutilizados por um controle remoto local
+- [ ] Controle externo: superfícies MIDI, joystick para pan, remoto pela rede; sincronismo por MIDI timecode e MIDI clock
+- [ ] Saída para disco (CD/DVD/Blu-ray) e upload direto para sites de vídeo (baixa prioridade)
+- [ ] Modelos de projeto (cerca de 30 predefinições de saída), "iniciar novos projetos com estas configurações", predefinições de renderização por finalidade
+- [ ] Efeitos padrão ao importar áudio (Noise Gate, EQ e Compressor na faixa), Chroma Key, Pitch Shift e Reverb nativos
 
 ## Créditos e licenciamento
 

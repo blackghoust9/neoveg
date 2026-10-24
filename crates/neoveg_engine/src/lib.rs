@@ -4,9 +4,12 @@ pub mod autosave;
 pub mod command;
 pub mod crossfade;
 pub mod edit;
+pub mod ops;
 pub mod project_file;
 pub mod relink;
+pub mod selection;
 pub mod timeline;
 
-pub use command::{EditCommand, History};
+pub use command::{EditCommand, History, TrackChange};
+pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TrackKind};

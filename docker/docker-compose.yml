@@ -27,6 +27,7 @@ services:
     build: *linux-build
     image: neoveg/rust-linux:local
     command: ["/usr/local/bin/test-linux.sh"]
+    init: true
     environment: *environment
     volumes:
       - ..:/workspace:ro
@@ -39,6 +40,7 @@ services:
     build: *linux-build
     image: neoveg/rust-linux:local
     command: ["/usr/local/bin/build-linux.sh"]
+    init: true
     environment: *environment
     depends_on:
       test-rust-linux:
@@ -61,6 +63,7 @@ services:
         OSXCROSS_REF: ${OSXCROSS_REF:-master}
     image: neoveg/rust-macos:local
     command: ["/usr/local/bin/build-macos.sh"]
+    init: true
     environment: *environment
     depends_on:
       test-rust-linux:

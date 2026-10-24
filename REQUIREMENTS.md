@@ -40,7 +40,7 @@ No extra packages beyond a current graphics driver. The default MSVC target (`x8
 sudo apt update && sudo apt install -y \
     build-essential pkg-config \
     libasound2-dev libudev-dev \
-    libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev libwayland-dev \
+    libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
     libvulkan-dev
 ```
 

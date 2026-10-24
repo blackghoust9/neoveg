@@ -3,6 +3,7 @@
 mod app;
 mod frame_grid;
 mod precision_slider;
+mod shortcuts;
 mod waveform_paint;
 
 use eframe::egui;

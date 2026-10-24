@@ -22,7 +22,7 @@ RUN apt-get update \
         libasound2-dev libudev-dev \
         # window system, OpenGL and Vulkan (egui / eframe / wgpu)
         libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev \
-        libwayland-dev libvulkan-dev \
+        libxkbcommon-x11-dev libwayland-dev libvulkan-dev \
         # software Vulkan so wgpu has an adapter inside the container
         libvulkan1 mesa-vulkan-drivers \
         # FFmpeg bindings (feature `ffmpeg`)

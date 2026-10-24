@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eframe::egui::{
-    self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Pos2, Rect, Rounding, Sense, Shape,
-    Stroke, TextureHandle,
+    self, pos2, vec2, Align2, Color32, FontId, Key, Pos2, Rect, Rounding, Sense, Shape, Stroke,
+    TextureHandle,
 };
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use neoveg_audio::decode::decode_file;
@@ -17,7 +17,9 @@ use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::AudioPlayer;
 use neoveg_audio::waveform::WaveformSource;
+use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::keymap::{KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
@@ -25,15 +27,20 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
+use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
 use neoveg_engine::EventGeometry;
-use neoveg_engine::{EditCommand, EventId, History, Timeline, TrackEvent, TrackId, TrackKind};
+use neoveg_engine::{
+    EditCommand, EventId, EventRef, History, Selection, TimeRange, Timeline, TrackEvent, TrackId,
+    TrackKind,
+};
 use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::precision_slider::PrecisionSlider;
+use crate::shortcuts::{from_egui, to_egui};
 use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
@@ -131,11 +138,19 @@ struct ActivePlayer {
     player: AudioPlayer,
 }
 
+/// Options of the "Repetir colar" dialog.
+struct RepeatDialog {
+    count: u32,
+    spaced: bool,
+    seconds: f64,
+}
+
 struct AppState {
     project: ProjectInfo,
     timeline: Timeline,
     history: History,
     prefs: Preferences,
+    keymap: KeyMap,
     media: HashMap<u64, LoadedMedia>,
 
     playhead: f64,
@@ -144,7 +159,12 @@ struct AppState {
     pixels_per_second: f64,
     scroll_seconds: f64,
     selected_track: Option<TrackId>,
-    selected_event: Option<(TrackId, EventId)>,
+    selection: Selection,
+    /// Range chosen by dragging on empty lane space or with `I` / `O`.
+    time_selection: Option<TimeRange>,
+    range_anchor: Option<f64>,
+    clipboard: Option<Clipboard>,
+    repeat_dialog: Option<RepeatDialog>,
 
     meter: Arc<PeakMeter>,
     master_volume: f32,
@@ -154,6 +174,11 @@ struct AppState {
     bars_texture: Option<TextureHandle>,
     quality: usize,
     show_preferences: bool,
+    show_keymap: bool,
+    keymap_filter: String,
+    /// Command waiting for the next key press in the "Personalizar teclado" window.
+    capture_for: Option<Command>,
+    keymap_message: String,
     show_inspector: bool,
     video_info: HashMap<u64, VideoInfo>,
     frame_worker: Option<FrameWorker>,
@@ -186,12 +211,17 @@ impl AppState {
         let prefs = Preferences::default_path()
             .map(|p| Preferences::load(&p))
             .unwrap_or_default();
+        let (keymap, warnings) = prefs.key_map();
+        for w in warnings {
+            tracing::warn!("[WARN] keymap: {w}");
+        }
         let (loader_tx, loader_rx) = channel();
         Self {
             project: ProjectInfo::create_empty(),
             timeline: Timeline::new(),
             history: History::new(),
             prefs,
+            keymap,
             media: HashMap::new(),
             playhead: 0.0,
             playing: false,
@@ -199,7 +229,11 @@ impl AppState {
             pixels_per_second: 100.0,
             scroll_seconds: 0.0,
             selected_track: None,
-            selected_event: None,
+            selection: Selection::new(),
+            time_selection: None,
+            range_anchor: None,
+            clipboard: None,
+            repeat_dialog: None,
             meter: Arc::new(PeakMeter::new()),
             master_volume: 1.0,
             active_player: None,
@@ -207,6 +241,10 @@ impl AppState {
             bars_texture: None,
             quality: 4,
             show_preferences: false,
+            show_keymap: false,
+            keymap_filter: String::new(),
+            capture_for: None,
+            keymap_message: String::new(),
             show_inspector: false,
             video_info: HashMap::new(),
             frame_worker: None,
@@ -245,6 +283,7 @@ impl AppState {
             std::mem::replace(&mut self.loader_rx, channel().1),
         );
         *self = Self::new();
+        self.keymap = prefs.key_map().0;
         self.prefs = prefs;
         self.frame_worker = worker;
         self.pending_recovery = recovery;
@@ -269,43 +308,213 @@ impl AppState {
         }
     }
 
+    // ---- selection, clipboard and compound edits ---------------------------------------------------
+
+    /// Runs an operation from `neoveg_engine::ops` as one undo step. Returns the outcome's
+    /// `touched` events when something changed.
+    fn apply_outcome(&mut self, outcome: Option<ops::Outcome>) -> Option<Vec<EventRef>> {
+        let outcome = outcome?;
+        let touched = outcome.touched.clone();
+        self.history
+            .execute(&mut self.timeline, outcome.command)
+            .then(|| {
+                self.selection.retain_existing(&self.timeline);
+                touched
+            })
+    }
+
+    /// Events the next trim/split acts on: the selection, or the event under the cursor on the
+    /// selected track.
+    fn trim_targets(&self) -> Vec<EventRef> {
+        let refs = self.selection.refs();
+        if !refs.is_empty() {
+            return refs;
+        }
+        self.selected_track
+            .and_then(|t| self.timeline.event_at(t, self.playhead).map(|e| (t, e.id)))
+            .into_iter()
+            .collect()
+    }
+
     fn split_at_playhead(&mut self) {
-        let Some(track_id) = self.selected_track else {
-            return;
+        let refs = self.selection.refs();
+        let scope = if refs.is_empty() {
+            Scope::AllTracks
+        } else {
+            Scope::Events(&refs)
         };
-        let Some(event_id) = self
-            .timeline
-            .event_at(track_id, self.playhead)
-            .map(|e| e.id)
-        else {
-            return;
+        let outcome = match self.time_selection {
+            Some(range) => ops::split_range(&mut self.timeline, range, scope),
+            None => ops::split_at(&mut self.timeline, self.playhead, scope),
         };
-        if let Some(cmd) = EditCommand::split(&mut self.timeline, track_id, event_id, self.playhead)
-        {
-            self.history.execute(&mut self.timeline, cmd);
+        self.apply_outcome(outcome);
+    }
+
+    /// Delete: selected events, or the time selection (all tracks, or only the selected events).
+    fn delete_selection(&mut self) {
+        let refs = self.selection.refs();
+        let outcome = match (self.time_selection, refs.is_empty()) {
+            (Some(range), false) => {
+                ops::remove_range(&mut self.timeline, range, Scope::Events(&refs), false)
+            }
+            (Some(range), true) => {
+                ops::remove_range(&mut self.timeline, range, Scope::AllTracks, false)
+            }
+            (None, false) => ops::delete_events(&self.timeline, &refs),
+            (None, true) => None,
+        };
+        self.apply_outcome(outcome);
+    }
+
+    /// Copies the time selection (or the selected events when there is none) to the clipboard.
+    fn copy_selection(&mut self) -> bool {
+        let refs = self.selection.refs();
+        let clip = match self.time_selection {
+            Some(range) => {
+                let scope = if refs.is_empty() {
+                    Scope::AllTracks
+                } else {
+                    Scope::Events(&refs)
+                };
+                ops::copy_range(&self.timeline, range, scope)
+            }
+            None if !refs.is_empty() => ops::copy_events(&self.timeline, &refs),
+            None => None,
+        };
+        match clip {
+            Some(clip) => {
+                self.status = format!("{} evento(s) copiado(s)", clip.items.len());
+                self.clipboard = Some(clip);
+                true
+            }
+            None => false,
         }
     }
 
-    fn delete_selected_event(&mut self) {
-        let Some((track_id, event_id)) = self.selected_event else {
+    fn cut_selection(&mut self) {
+        if self.copy_selection() {
+            self.delete_selection();
+        }
+    }
+
+    /// Index of the track where a paste starts: the selected track, else the first one.
+    fn paste_base_track(&self) -> usize {
+        self.selected_track
+            .and_then(|id| self.timeline.tracks.iter().position(|t| t.id == id))
+            .unwrap_or(0)
+    }
+
+    fn report_paste(&mut self, result: Option<(ops::Outcome, usize)>) {
+        let Some((outcome, skipped)) = result else {
+            self.status = "Nada para colar nesta posição".into();
             return;
         };
-        let Some(track) = self.timeline.track(track_id) else {
+        if let Some(touched) = self.apply_outcome(Some(outcome)) {
+            self.status = if skipped == 0 {
+                format!("{} evento(s) colado(s)", touched.len())
+            } else {
+                format!(
+                    "{} evento(s) colado(s); {skipped} sem faixa do mesmo tipo",
+                    touched.len()
+                )
+            };
+            self.selection.set(touched);
+        }
+    }
+
+    fn paste_clipboard(&mut self, mode: PasteMode) {
+        let Some(clip) = self.clipboard.clone() else {
+            self.status = "A área de transferência está vazia".into();
             return;
         };
-        let Some(index) = track.events.iter().position(|e| e.id == event_id) else {
+        let base = self.paste_base_track();
+        let result = ops::paste(&mut self.timeline, &clip, self.playhead, base, mode);
+        self.report_paste(result);
+    }
+
+    fn paste_repeated(&mut self, count: usize, spacing: RepeatSpacing) {
+        let Some(clip) = self.clipboard.clone() else {
+            self.status = "A área de transferência está vazia".into();
             return;
         };
-        let event = track.events[index].clone();
-        self.history.execute(
+        let base = self.paste_base_track();
+        let result = ops::paste_repeat(
             &mut self.timeline,
-            EditCommand::RemoveEvent {
-                track_id,
-                index,
-                event,
-            },
+            &clip,
+            self.playhead,
+            base,
+            count,
+            spacing,
         );
-        self.selected_event = None;
+        self.report_paste(result);
+    }
+
+    fn trim_to_time_selection(&mut self) {
+        let Some(range) = self.time_selection else {
+            return;
+        };
+        let mut targets = self.selection.refs();
+        if targets.is_empty() {
+            targets = self
+                .timeline
+                .tracks
+                .iter()
+                .flat_map(|t| t.events.iter().map(move |e| (t.id, e.id)))
+                .collect();
+        }
+        let outcome = ops::trim_to_range(&self.timeline, &targets, range);
+        self.apply_outcome(outcome);
+    }
+
+    fn trim_edge_to_playhead(&mut self, start: bool) {
+        let targets = self.trim_targets();
+        let outcome = if start {
+            ops::trim_start_to(&self.timeline, &targets, self.playhead)
+        } else {
+            ops::trim_end_to(&self.timeline, &targets, self.playhead)
+        };
+        self.apply_outcome(outcome);
+    }
+
+    /// `I` / `O`: moves one end of the time selection to the cursor (at least one frame long).
+    fn set_selection_edge(&mut self, start: bool) {
+        let frame = 1.0 / self.project.settings.fps;
+        let t = self.playhead;
+        let range = match (self.time_selection, start) {
+            (Some(r), true) => TimeRange::new(t, r.end.max(t + frame)),
+            (Some(r), false) => TimeRange::new(r.start.min((t - frame).max(0.0)), t),
+            (None, true) => TimeRange::new(t, t + frame),
+            (None, false) => TimeRange::new((t - frame).max(0.0), t),
+        };
+        self.time_selection = (!range.is_empty()).then_some(range);
+    }
+
+    fn select_all_events(&mut self) {
+        self.selection.select_all(&self.timeline);
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection.clear();
+        self.time_selection = None;
+    }
+
+    /// Whether `command` can do something right now (greys out menu items).
+    fn command_enabled(&self, command: Command) -> bool {
+        let has_events = !self.selection.is_empty();
+        let has_range = self.time_selection.is_some();
+        match command {
+            Command::EditUndo => self.history.can_undo(),
+            Command::EditRedo => self.history.can_redo(),
+            Command::EditCut
+            | Command::EditCopy
+            | Command::EditDelete
+            | Command::EditSelectNone => has_events || has_range,
+            Command::EditPaste | Command::EditPasteInsert | Command::EditPasteRepeat => {
+                self.clipboard.is_some()
+            }
+            Command::EditTrimToSelection => has_range,
+            _ => true,
+        }
     }
 
     // ---- media import --------------------------------------------------------------------------
@@ -458,7 +667,8 @@ impl AppState {
         self.video_texture = None;
         self.last_frame_key = None;
         self.selected_track = None;
-        self.selected_event = None;
+        self.selection.clear();
+        self.time_selection = None;
         self.playhead = 0.0;
         self.scroll_seconds = 0.0;
 
@@ -550,7 +760,9 @@ impl AppState {
     fn begin_drag(&mut self, hit: (TrackId, EventId, DragMode, EventGeometry), pointer_time: f64) {
         let (track_id, event_id, mode, origin) = hit;
         self.selected_track = Some(track_id);
-        self.selected_event = Some((track_id, event_id));
+        if !self.selection.contains((track_id, event_id)) {
+            self.selection.select_only((track_id, event_id));
+        }
         self.drag = Some(EventDrag {
             mode,
             track_id,
@@ -667,7 +879,7 @@ impl AppState {
             },
         );
         self.selected_track = Some(d.target_track);
-        self.selected_event = Some((d.target_track, d.event_id));
+        self.selection.select_only((d.target_track, d.event_id));
     }
 
     // ---- unsaved changes and autosave -----------------------------------------------------------
@@ -1087,79 +1299,109 @@ impl AppState {
     }
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.wants_keyboard_input() {
+        if ctx.wants_keyboard_input() || self.capture_for.is_some() {
             return;
         }
         let now = ctx.input(|i| i.time);
-        let fps = self.project.settings.fps;
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F8)) {
-            self.snapping = !self.snapping;
-            self.status = if self.snapping {
-                "Alinhamento ligado".into()
-            } else {
-                "Alinhamento desligado".into()
-            };
-        }
-        let (save_as, save, open) = ctx.input_mut(|i| {
-            (
-                i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::S),
-                i.consume_key(Modifiers::COMMAND, Key::S),
-                i.consume_key(Modifiers::COMMAND, Key::O),
-            )
+        // Bindings with more modifiers are consumed first so Ctrl+Shift+Q is not read as Ctrl+Q
+        let pressed: Vec<Command> = ctx.input_mut(|i| {
+            self.keymap
+                .dispatch_order()
+                .into_iter()
+                .filter(|(_, command)| command.implemented())
+                .filter_map(|(shortcut, command)| {
+                    let (modifiers, key) = to_egui(shortcut)?;
+                    i.consume_key(modifiers, key).then_some(command)
+                })
+                .collect()
         });
-        if save_as {
-            self.save_project(true);
-        } else if save {
-            self.save_project(false);
+        for command in pressed {
+            self.run_command(command, ctx, now);
         }
-        if open {
-            self.open_project(ctx);
-        }
-        // Shifted variants are consumed first so Ctrl+Shift+Q is not read as Ctrl+Q
-        let keys = ctx.input_mut(|i| {
-            let ctrl_shift = Modifiers::COMMAND | Modifiers::SHIFT;
-            (
-                i.consume_key(ctrl_shift, Key::Q),
-                i.consume_key(ctrl_shift, Key::Z),
-                i.consume_key(Modifiers::COMMAND, Key::Q),
-                i.consume_key(Modifiers::COMMAND, Key::Z),
-                i.consume_key(Modifiers::COMMAND, Key::Y),
-                i.consume_key(Modifiers::NONE, Key::Space),
-                i.consume_key(Modifiers::NONE, Key::S),
-                i.consume_key(Modifiers::NONE, Key::Delete),
-                i.consume_key(Modifiers::NONE, Key::ArrowLeft),
-                i.consume_key(Modifiers::NONE, Key::ArrowRight),
-            )
-        });
-        let (add_video, redo_shift, add_audio, undo, redo, space, split, delete, left, right) =
-            keys;
+    }
 
-        if add_video {
-            self.add_track(TrackKind::Video);
+    /// Runs a command. Commands that are not implemented yet do nothing.
+    fn run_command(&mut self, command: Command, ctx: &egui::Context, now: f64) {
+        match command {
+            Command::FileOpen => self.open_project(ctx),
+            Command::FileSave => self.save_project(false),
+            Command::FileSaveAs => self.save_project(true),
+            Command::EditUndo => {
+                self.history.undo(&mut self.timeline);
+            }
+            Command::EditRedo => {
+                self.history.redo(&mut self.timeline);
+            }
+            Command::EditDelete => self.delete_selection(),
+            Command::EditSplit => self.split_at_playhead(),
+            Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
+            Command::InsertVideoTrack => self.add_track(TrackKind::Video),
+            Command::CursorLeftByFrame => self.step_frames(-1.0, now),
+            Command::CursorRightByFrame => self.step_frames(1.0, now),
+            Command::TransportPlayToggle => self.toggle_play(now),
+            Command::OptionsSnapping => {
+                self.snapping = !self.snapping;
+                self.status = if self.snapping {
+                    "Alinhamento ligado".into()
+                } else {
+                    "Alinhamento desligado".into()
+                };
+            }
+            Command::OptionsAutoCrossfade => {
+                self.project.settings.auto_crossfade = !self.project.settings.auto_crossfade;
+                self.forced_dirty = true;
+            }
+            Command::EditCut => self.cut_selection(),
+            Command::EditCopy => {
+                self.copy_selection();
+            }
+            Command::EditPaste => self.paste_clipboard(PasteMode::Overlay),
+            Command::EditPasteInsert => self.paste_clipboard(PasteMode::Insert),
+            Command::EditPasteRepeat => {
+                if self.clipboard.is_some() {
+                    self.repeat_dialog = Some(RepeatDialog {
+                        count: 2,
+                        spaced: false,
+                        seconds: 1.0,
+                    });
+                } else {
+                    self.status = "A área de transferência está vazia".into();
+                }
+            }
+            Command::EditTrimToSelection => self.trim_to_time_selection(),
+            Command::EditTrimStart => self.trim_edge_to_playhead(true),
+            Command::EditTrimEnd => self.trim_edge_to_playhead(false),
+            Command::EditSelectAll => self.select_all_events(),
+            Command::EditSelectNone => self.clear_selection(),
+            Command::SelectionSetIn => self.set_selection_edge(true),
+            Command::SelectionSetOut => self.set_selection_edge(false),
+            _ => {}
         }
-        if add_audio {
-            self.add_track(TrackKind::Audio);
+    }
+
+    /// Moves the cursor by whole frames; keyboard navigation restarts the caret blink.
+    fn step_frames(&mut self, frames: f64, now: f64) {
+        let fps = self.project.settings.fps;
+        let frame = (self.playhead * fps).round() + frames;
+        self.playhead = (frame / fps).max(0.0);
+        self.blink_origin = now;
+    }
+
+    /// Menu label followed by the first shortcut of `command`.
+    fn with_hint(&self, text: &str, command: Command) -> String {
+        match self.keymap.shortcuts_for(command).first() {
+            Some(shortcut) => format!("{text}  {shortcut}"),
+            None => text.to_string(),
         }
-        if undo {
-            self.history.undo(&mut self.timeline);
-        }
-        if redo || redo_shift {
-            self.history.redo(&mut self.timeline);
-        }
-        if space {
-            self.toggle_play(now);
-        }
-        if split {
-            self.split_at_playhead();
-        }
-        if delete {
-            self.delete_selected_event();
-        }
-        if left || right {
-            let frame = (self.playhead * fps).round() + if right { 1.0 } else { -1.0 };
-            self.playhead = (frame / fps).max(0.0);
-            // Keyboard frame navigation restarts the caret blink
-            self.blink_origin = now;
+    }
+
+    /// Saves the user's keyboard changes to the preferences file.
+    fn persist_keymap(&mut self) {
+        self.prefs.keymap = self.keymap.to_overrides();
+        if let Some(path) = Preferences::default_path() {
+            if let Err(e) = self.prefs.save(&path) {
+                tracing::warn!("[WARN] cannot save preferences: {e}");
+            }
         }
     }
 }
@@ -1224,6 +1466,7 @@ impl eframe::App for NeovegApp {
         self.state.poll_loader();
         self.state.poll_frames(ctx);
         self.state.request_preview_frame(ctx.pixels_per_point());
+        self.state.selection.retain_existing(&self.state.timeline);
         self.state.handle_shortcuts(ctx);
         self.state.advance_transport(ctx);
         // Master fader drives the live output gain
@@ -1260,6 +1503,8 @@ impl eframe::App for NeovegApp {
             });
 
         preferences_window(ctx, &mut self.state);
+        keymap_window(ctx, &mut self.state);
+        repeat_paste_window(ctx, &mut self.state);
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
@@ -1291,16 +1536,25 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.new_project();
                 ui.close_menu();
             }
-            if ui.button("Abrir…  Ctrl+O").clicked() {
+            if ui
+                .button(state.with_hint("Abrir…", Command::FileOpen))
+                .clicked()
+            {
                 let ctx = ui.ctx().clone();
                 state.open_project(&ctx);
                 ui.close_menu();
             }
-            if ui.button("Salvar  Ctrl+S").clicked() {
+            if ui
+                .button(state.with_hint("Salvar", Command::FileSave))
+                .clicked()
+            {
                 state.save_project(false);
                 ui.close_menu();
             }
-            if ui.button("Salvar como…  Ctrl+Shift+S").clicked() {
+            if ui
+                .button(state.with_hint("Salvar como…", Command::FileSaveAs))
+                .clicked()
+            {
                 state.save_project(true);
                 ui.close_menu();
             }
@@ -1319,7 +1573,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui
                 .add_enabled(
                     state.history.can_undo(),
-                    egui::Button::new("Desfazer  Ctrl+Z"),
+                    egui::Button::new(state.with_hint("Desfazer", Command::EditUndo)),
                 )
                 .clicked()
             {
@@ -1329,13 +1583,36 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui
                 .add_enabled(
                     state.history.can_redo(),
-                    egui::Button::new("Refazer  Ctrl+Y"),
+                    egui::Button::new(state.with_hint("Refazer", Command::EditRedo)),
                 )
                 .clicked()
             {
                 state.history.redo(&mut state.timeline);
                 ui.close_menu();
             }
+            ui.separator();
+            for command in [
+                Command::EditCut,
+                Command::EditCopy,
+                Command::EditPaste,
+                Command::EditPasteInsert,
+                Command::EditPasteRepeat,
+                Command::EditDelete,
+            ] {
+                command_item(state, ui, command);
+            }
+            ui.separator();
+            for command in [
+                Command::EditSplit,
+                Command::EditTrimToSelection,
+                Command::EditTrimStart,
+                Command::EditTrimEnd,
+            ] {
+                command_item(state, ui, command);
+            }
+            ui.separator();
+            command_item(state, ui, Command::EditSelectAll);
+            command_item(state, ui, Command::EditSelectNone);
             ui.separator();
             let mut auto = state.project.settings.auto_crossfade;
             if ui.checkbox(&mut auto, "Crossfade automático").changed() {
@@ -1345,6 +1622,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             if ui.button("Preferências…").clicked() {
                 state.show_preferences = true;
+                ui.close_menu();
+            }
+            if ui.button("Personalizar teclado…").clicked() {
+                state.show_keymap = true;
                 ui.close_menu();
             }
         });
@@ -1358,6 +1639,202 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
         });
     });
+}
+
+/// A menu entry that runs `command`, with its shortcut and enabled state.
+fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
+    let enabled = state.command_enabled(command);
+    let label = state.with_hint(command.label(), command);
+    if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+        let ctx = ui.ctx().clone();
+        let now = ctx.input(|i| i.time);
+        state.run_command(command, &ctx, now);
+        ui.close_menu();
+    }
+}
+
+/// "Repetir colar…": number of copies and spacing.
+fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(mut dialog) = state.repeat_dialog.take() else {
+        return;
+    };
+    let mut keep_open = true;
+    let mut confirmed = false;
+    egui::Window::new("Repetir colar")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Número de cópias");
+                ui.add(egui::DragValue::new(&mut dialog.count).range(1..=999));
+            });
+            ui.radio_value(&mut dialog.spaced, false, "Uma após a outra");
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut dialog.spaced, true, "A cada");
+                ui.add_enabled(
+                    dialog.spaced,
+                    egui::DragValue::new(&mut dialog.seconds)
+                        .range(0.04..=3600.0)
+                        .speed(0.1)
+                        .suffix(" s"),
+                );
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Colar").clicked() {
+                    confirmed = true;
+                }
+            });
+        });
+    if confirmed {
+        let spacing = if dialog.spaced {
+            RepeatSpacing::Every(dialog.seconds)
+        } else {
+            RepeatSpacing::EndToEnd
+        };
+        state.paste_repeated(dialog.count as usize, spacing);
+    } else if keep_open {
+        state.repeat_dialog = Some(dialog);
+    }
+}
+
+/// "Personalizar teclado": lists every command, lets the user capture a new shortcut for it,
+/// remove shortcuts and restore the defaults. Changes are saved immediately.
+fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_keymap {
+        state.capture_for = None;
+        return;
+    }
+    // While a command waits for a key, the next key press becomes its shortcut
+    if let Some(target) = state.capture_for {
+        let pressed = ctx.input(|i| {
+            i.events.iter().find_map(|event| match event {
+                egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    repeat: false,
+                    ..
+                } => Some((*key, *modifiers)),
+                _ => None,
+            })
+        });
+        if let Some((key, modifiers)) = pressed {
+            if key == Key::Escape && !modifiers.any() {
+                state.keymap_message = "Atribuição cancelada".into();
+            } else if let Some(shortcut) = from_egui(key, modifiers) {
+                state.keymap_message = match state.keymap.bind(target, shortcut.clone()) {
+                    Some(other) => format!(
+                        "{shortcut} saiu de «{}» e foi para «{}»",
+                        other.label(),
+                        target.label()
+                    ),
+                    None => format!("{shortcut} atribuído a «{}»", target.label()),
+                };
+                state.persist_keymap();
+            } else {
+                state.keymap_message = "Essa tecla não pode ser usada como atalho".into();
+            }
+            state.capture_for = None;
+        }
+        ctx.request_repaint();
+    }
+
+    let mut open = true;
+    egui::Window::new("Personalizar teclado")
+        .open(&mut open)
+        .default_width(520.0)
+        .default_height(480.0)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Filtro:");
+                ui.text_edit_singleline(&mut state.keymap_filter);
+                if ui.button("Restaurar tudo").clicked() {
+                    state.keymap = KeyMap::defaults();
+                    state.persist_keymap();
+                    state.keymap_message = "Atalhos padrão restaurados".into();
+                }
+            });
+            if let Some(target) = state.capture_for {
+                ui.colored_label(
+                    Color32::from_rgb(0xF1, 0xC4, 0x0F),
+                    format!(
+                        "Pressione a combinação para «{}» (Esc cancela)",
+                        target.label()
+                    ),
+                );
+            } else if !state.keymap_message.is_empty() {
+                ui.label(state.keymap_message.clone());
+            }
+            ui.separator();
+            let filter = state.keymap_filter.to_lowercase();
+            let overridden = state.keymap.to_overrides();
+            let mut remove: Option<Shortcut> = None;
+            let mut reset: Option<Command> = None;
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for category in Category::ALL {
+                    let commands: Vec<Command> = Command::ALL
+                        .iter()
+                        .copied()
+                        .filter(|c| c.category() == category)
+                        .filter(|c| {
+                            filter.is_empty()
+                                || c.label().to_lowercase().contains(&filter)
+                                || c.id().contains(&filter)
+                        })
+                        .collect();
+                    if commands.is_empty() {
+                        continue;
+                    }
+                    ui.heading(category.label());
+                    for command in commands {
+                        ui.horizontal_wrapped(|ui| {
+                            let label = if command.implemented() {
+                                command.label().to_string()
+                            } else {
+                                format!("{} (em breve)", command.label())
+                            };
+                            ui.add_sized([230.0, 20.0], egui::Label::new(label).truncate());
+                            for shortcut in state.keymap.shortcuts_for(command) {
+                                if ui
+                                    .small_button(format!("{shortcut} ✕"))
+                                    .on_hover_text("Remover este atalho")
+                                    .clicked()
+                                {
+                                    remove = Some(shortcut);
+                                }
+                            }
+                            if ui
+                                .small_button("＋")
+                                .on_hover_text("Atribuir atalho")
+                                .clicked()
+                            {
+                                state.capture_for = Some(command);
+                                state.keymap_message.clear();
+                            }
+                            if overridden.contains_key(command.id())
+                                && ui
+                                    .small_button("↺")
+                                    .on_hover_text("Restaurar o padrão deste comando")
+                                    .clicked()
+                            {
+                                reset = Some(command);
+                            }
+                        });
+                    }
+                }
+            });
+            if let Some(shortcut) = remove {
+                state.keymap.unbind(&shortcut);
+                state.persist_keymap();
+            }
+            if let Some(command) = reset {
+                state.keymap.reset_command(command);
+                state.persist_keymap();
+            }
+        });
+    state.show_keymap = open;
 }
 
 fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
@@ -1496,7 +1973,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     egui::Window::new("Inspetor")
         .open(&mut open)
         .show(ctx, |ui| {
-            let selected = state.selected_event.and_then(|(track_id, event_id)| {
+            let selected = state.selection.primary().and_then(|(track_id, event_id)| {
                 let name = state
                     .timeline
                     .track(track_id)?
@@ -1923,6 +2400,16 @@ fn event_context_menu(
         ui.label("Evento não encontrado");
         return;
     };
+    for command in [Command::EditCut, Command::EditCopy, Command::EditDelete] {
+        command_item(state, ui, command);
+    }
+    if ui.button("Selecionar eventos até o fim").clicked() {
+        state
+            .selection
+            .select_to_end(&state.timeline, (track_id, event_id));
+        ui.close_menu();
+    }
+    ui.separator();
     curve_menu(ui, "Curva do fade-in", g.fade_in_curve, |c| {
         state.apply_geometry(
             track_id,
@@ -2078,8 +2565,23 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
                 if response.clicked() && !in_ruler {
                     state.selected_track = track_id;
-                    state.selected_event =
+                    let hit =
                         track_id.and_then(|id| state.timeline.event_at(id, t).map(|e| (id, e.id)));
+                    let modifiers = ui.input(|i| i.modifiers);
+                    match hit {
+                        Some(event) if modifiers.command => state.selection.toggle(event),
+                        Some(event) if modifiers.shift => {
+                            state.selection.extend_to(&state.timeline, event);
+                        }
+                        Some(event) => {
+                            state.selection.select_only(event);
+                            state.time_selection = None;
+                        }
+                        None => {
+                            state.selection.clear();
+                            state.time_selection = None;
+                        }
+                    }
                 }
             } else if response.clicked() && track_id.is_some() {
                 state.selected_track = track_id;
@@ -2092,9 +2594,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if response.drag_started() {
         let press = ui.input(|i| i.pointer.press_origin());
         if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= lane_top) {
+            let t = x_to_time(state, lanes.left(), p.x);
             if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
-                let t = x_to_time(state, lanes.left(), p.x);
                 state.begin_drag(hit, t);
+            } else {
+                state.range_anchor = Some(edit::quantize(t.max(0.0), fps));
             }
         }
     }
@@ -2128,8 +2632,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ui.ctx().request_repaint();
         }
     }
+    if let (Some(anchor), Some(p)) = (state.range_anchor, response.interact_pointer_pos()) {
+        let t = edit::quantize(x_to_time(state, lanes.left(), p.x).max(0.0), fps);
+        let range = TimeRange::new(anchor, t);
+        state.time_selection = (!range.is_empty()).then_some(range);
+        ui.ctx().request_repaint();
+    }
     if response.drag_stopped() {
         state.finish_drag();
+        state.range_anchor = None;
     }
 
     // Right-click on an event: fade curves
@@ -2142,7 +2653,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             .map(|h| (h.0, h.1));
         if let Some((track_id, event_id)) = state.context_event {
             state.selected_track = Some(track_id);
-            state.selected_event = Some((track_id, event_id));
+            if !state.selection.contains((track_id, event_id)) {
+                state.selection.select_only((track_id, event_id));
+            }
         }
     }
     response.context_menu(|ui| match state.context_event {
@@ -2262,7 +2775,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             }
             let ev_rect =
                 Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
-            let selected = state.selected_event == Some((track.id, ev.id));
+            let selected = state.selection.contains((track.id, ev.id));
             lane_painter.rect_filled(ev_rect, Rounding::ZERO, base);
             lane_painter.rect_filled(
                 Rect::from_min_size(ev_rect.min, vec2(ev_rect.width(), EVENT_HEADER_HEIGHT)),
@@ -2364,6 +2877,27 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 let stroke = Stroke::new(1.5_f32, Color32::from_white_alpha(200));
                 lane_painter.line_segment([area.left_bottom(), area.right_top()], stroke);
                 lane_painter.line_segment([area.left_top(), area.right_bottom()], stroke);
+            }
+        }
+    }
+
+    // Time selection: translucent band over the lanes and the ruler
+    if let Some(range) = state.time_selection {
+        let x0 = to_x(range.start).clamp(lanes.left(), lanes.right());
+        let x1 = to_x(range.end).clamp(lanes.left(), lanes.right());
+        if x1 > x0 {
+            let band = Rect::from_min_max(
+                pos2(x0, rect.top() + RULER_HEIGHT - 6.0),
+                pos2(x1, rect.bottom()),
+            );
+            lane_painter.rect_filled(
+                band,
+                Rounding::ZERO,
+                Color32::from_rgba_unmultiplied(0x29, 0x80, 0xB9, 48),
+            );
+            let edge = Stroke::new(hairline, Color32::from_rgb(0x34, 0x98, 0xDB));
+            for x in [x0, x1] {
+                lane_painter.line_segment([pos2(x, band.top()), pos2(x, band.bottom())], edge);
             }
         }
     }
@@ -2754,5 +3288,165 @@ mod tests {
             sample_rate: 100,
             duration: 10.0,
         }
+    }
+
+    // ---- selection, clipboard and compound edits ------------------------------------------------
+
+    fn spans(s: &AppState, track_id: TrackId) -> Vec<(f64, f64)> {
+        s.timeline
+            .track(track_id)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (e.start, e.end()))
+            .collect()
+    }
+
+    fn run(s: &mut AppState, command: Command) {
+        s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn cut_then_paste_moves_an_event_and_each_step_is_undoable() {
+        let (mut s, track, ev) = state_with_clip();
+        s.selection.select_only((track, ev));
+        run(&mut s, Command::EditCut);
+        assert!(spans(&s, track).is_empty());
+        assert!(s.clipboard.is_some());
+        assert!(
+            s.selection.is_empty(),
+            "the cut event is no longer selected"
+        );
+
+        s.playhead = 10.0;
+        run(&mut s, Command::EditPaste);
+        assert_eq!(spans(&s, track), vec![(10.0, 14.0)]);
+        assert_eq!(s.selection.len(), 1, "the pasted event ends up selected");
+
+        s.history.undo(&mut s.timeline);
+        assert!(spans(&s, track).is_empty());
+        s.history.undo(&mut s.timeline);
+        assert_eq!(spans(&s, track), vec![(2.0, 6.0)]);
+    }
+
+    #[test]
+    fn copy_keeps_the_original_and_paste_insert_pushes_later_events() {
+        let (mut s, track, ev) = state_with_clip();
+        add_event(&mut s, track, 8.0, 2.0);
+        s.selection.select_only((track, ev));
+        run(&mut s, Command::EditCopy);
+        assert_eq!(spans(&s, track).len(), 2);
+
+        s.playhead = 7.0;
+        run(&mut s, Command::EditPasteInsert);
+        assert_eq!(
+            spans(&s, track),
+            vec![(2.0, 6.0), (7.0, 11.0), (12.0, 14.0)],
+            "the clip is 4 s long, so the event that started at 8 s moves to 12 s"
+        );
+    }
+
+    #[test]
+    fn set_in_and_out_make_a_time_selection_that_delete_removes() {
+        let (mut s, track, _) = state_with_clip();
+        s.playhead = 3.0;
+        run(&mut s, Command::SelectionSetIn);
+        s.playhead = 5.0;
+        run(&mut s, Command::SelectionSetOut);
+        let range = s.time_selection.unwrap();
+        assert_eq!((range.start, range.end), (3.0, 5.0));
+
+        run(&mut s, Command::EditDelete);
+        assert_eq!(spans(&s, track), vec![(2.0, 3.0), (5.0, 6.0)]);
+        s.history.undo(&mut s.timeline);
+        assert_eq!(spans(&s, track), vec![(2.0, 6.0)]);
+    }
+
+    #[test]
+    fn trim_to_selection_keeps_only_the_selected_time() {
+        let (mut s, track, _) = state_with_clip();
+        s.time_selection = Some(TimeRange::new(3.0, 5.0));
+        run(&mut s, Command::EditTrimToSelection);
+        assert_eq!(spans(&s, track), vec![(3.0, 5.0)]);
+        assert_eq!(s.timeline.track(track).unwrap().events[0].trim_in, 1.0);
+    }
+
+    #[test]
+    fn trim_start_and_end_follow_the_cursor() {
+        let (mut s, track, ev) = state_with_clip();
+        s.selection.select_only((track, ev));
+        s.playhead = 3.0;
+        run(&mut s, Command::EditTrimStart);
+        s.playhead = 5.0;
+        run(&mut s, Command::EditTrimEnd);
+        assert_eq!(spans(&s, track), vec![(3.0, 5.0)]);
+    }
+
+    #[test]
+    fn split_without_a_selection_cuts_every_track_under_the_cursor() {
+        let (mut s, first, _) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let second = s.selected_track.unwrap();
+        add_event(&mut s, second, 0.0, 8.0);
+        s.selection.clear();
+        s.playhead = 3.0;
+        run(&mut s, Command::EditSplit);
+        assert_eq!(spans(&s, first), vec![(2.0, 3.0), (3.0, 6.0)]);
+        assert_eq!(spans(&s, second), vec![(0.0, 3.0), (3.0, 8.0)]);
+        s.history.undo(&mut s.timeline);
+        assert_eq!(spans(&s, first).len(), 1);
+        assert_eq!(spans(&s, second).len(), 1);
+    }
+
+    #[test]
+    fn split_with_a_selection_only_cuts_the_selected_events() {
+        let (mut s, first, ev) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let second = s.selected_track.unwrap();
+        add_event(&mut s, second, 0.0, 8.0);
+        s.selection.select_only((first, ev));
+        s.playhead = 3.0;
+        run(&mut s, Command::EditSplit);
+        assert_eq!(spans(&s, first).len(), 2);
+        assert_eq!(spans(&s, second).len(), 1);
+    }
+
+    #[test]
+    fn select_all_and_delete_clears_everything_then_none_clears_the_range() {
+        let (mut s, track, _) = state_with_clip();
+        add_event(&mut s, track, 8.0, 2.0);
+        run(&mut s, Command::EditSelectAll);
+        assert_eq!(s.selection.len(), 2);
+        run(&mut s, Command::EditDelete);
+        assert!(spans(&s, track).is_empty());
+
+        s.time_selection = Some(TimeRange::new(1.0, 2.0));
+        run(&mut s, Command::EditSelectNone);
+        assert!(s.time_selection.is_none() && s.selection.is_empty());
+    }
+
+    #[test]
+    fn repeated_paste_is_one_undo_step() {
+        let (mut s, track, ev) = state_with_clip();
+        s.selection.select_only((track, ev));
+        run(&mut s, Command::EditCopy);
+        s.playhead = 20.0;
+        s.paste_repeated(3, RepeatSpacing::EndToEnd);
+        assert_eq!(
+            spans(&s, track),
+            vec![(2.0, 6.0), (20.0, 24.0), (24.0, 28.0), (28.0, 32.0)]
+        );
+        s.history.undo(&mut s.timeline);
+        assert_eq!(spans(&s, track), vec![(2.0, 6.0)]);
+    }
+
+    #[test]
+    fn paste_with_an_empty_clipboard_reports_it_and_changes_nothing() {
+        let (mut s, track, _) = state_with_clip();
+        let revision = s.history.revision();
+        run(&mut s, Command::EditPaste);
+        assert_eq!(s.history.revision(), revision);
+        assert_eq!(spans(&s, track).len(), 1);
+        assert!(s.status.contains("vazia"));
     }
 }

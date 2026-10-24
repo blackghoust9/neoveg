@@ -76,6 +76,7 @@ Dependency direction: `neoveg_common` is the base; `neoveg_audio`, `neoveg_video
   - Format: `cargo fmt --all -- --check`
   - Coverage: `cargo llvm-cov --workspace --summary-only`
   - Run: `cargo run --release -p neoveg_ui` (add `--features ffmpeg` for video)
+  - Package and QA report: `python build_portable.py` (QA gates, release build, portable folders, archives and the standalone exe for this OS), `python build_portable.py qa` (gates and report only), `python build_portable.py check` (toolchain)
 - **FFmpeg feature toolchain:** FFmpeg **7.1.x shared** build with headers and import libraries (`FFMPEG_DIR`), LLVM / `libclang` **19.x** (`LIBCLANG_PATH`; LLVM 22 or newer breaks `ffmpeg-sys-next` 7.1.3), and the FFmpeg DLLs on `PATH` at run time. Test it with `cargo test --workspace --features neoveg_ui/ffmpeg`. The decoding tests build a clip with the `ffmpeg` command-line tool and skip silently when it is missing.
 - **Tests are mandatory for new behavior:** unit tests for pure rules, round-trip tests for file formats (including older-version files), and state-level tests for UI logic. Do not weaken or delete a test to make a change pass.
 - **Benchmarks and profiling:** waveform and mixer benchmarks belong in Criterion (`benches/`), and Tracy is the profiler for representative timeline and rendering workloads. The legacy `rust-core` already has an `audio_peaks` benchmark to port.
@@ -151,7 +152,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | Shortcut | Action | State |
 | :--- | :--- | :--- |
 | `Ctrl+Q` / `Ctrl+Shift+Q` | Insert audio / video track | implemented |
-| `S` | Split the selected track's event at the cursor | implemented |
+| `S` | Split at the cursor: the selected events, or the events under the cursor on every track when nothing is selected; with a time selection, at both of its edges | implemented |
 | `Space` | Play / pause | implemented |
 | `←` / `→` | Move the cursor one frame | implemented |
 | `Delete` | Remove the selected event | implemented |
@@ -160,6 +161,36 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / save / save as | implemented |
 | `M` | Marker | planned |
 | `G` / `U` | Group / ungroup | planned |
+| `R` | Region from the time selection | planned |
+| `I` / `O` | Set the time selection in / out point at the cursor | implemented |
+| `Ctrl+A` / `Ctrl+Shift+A` | Select all events / clear the selection and the time selection | implemented |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / copy / paste events or the time selection (paste at the cursor on the selected track) | implemented |
+| `Ctrl+Shift+V` / `Ctrl+B` | Paste insert / paste repeat (opens a dialog) | implemented |
+| `Ctrl+T` | Trim events to the time selection | implemented |
+| `Alt+[` / `Alt+]` | Trim event start / end to the cursor | implemented |
+| `[` / `]` or `Numpad 7` / `Numpad 9` | Select previous / next event edge (edge-trim mode) | planned |
+| `Numpad 1` / `3`, `4` / `6` | Trim or nudge by one frame / one pixel (modifiers: `Ctrl` stretch, `Alt` slip, `Ctrl+Alt` slide) | planned |
+| `Numpad 5` | Enter / exit expanded edit mode | planned |
+| `F` / `Ctrl+F` / `Ctrl+Shift+F` | Post-edit ripple: affected tracks / + markers / everything | planned |
+| `Ctrl+L` | Auto ripple | planned |
+| `Ctrl+Shift+X` | Automatic crossfades | planned |
+| `Ctrl+F8` / `Shift+F8` / `Ctrl+Shift+F8` | Snap to grid / markers / all events | planned |
+| `Alt+F8` | Quantize to frames | planned |
+| `Z` / `X` | Mute / solo selected tracks (`Shift` = exclusive) | planned |
+| `V` / `P` | Insert, show or hide the track volume / pan envelope (`Shift` removes) | planned |
+| `Ctrl+Shift+E` | Show or hide envelopes | planned |
+| `Q` | Loop playback | planned |
+| `Shift+Q` | Select the loop region | planned |
+| `Ctrl+Home` / `Ctrl+End` | Go to project start / end | planned |
+| `Ctrl+←` / `Ctrl+→` | Previous / next marker | planned |
+| `Ctrl+G` | Go to time | planned |
+| `Ctrl+M` | Render to new track | planned |
+| `Alt+0` … `Alt+9`, `Ctrl+Alt+1` … `8` | Show or hide the docked windows (timeline focus, Explorer, Trimmer, Master Bus, Preview, Project Media, …) | planned |
+| `Alt+D`, `0`–`9` / `Ctrl+Alt+D`, `0`–`9` | Recall / save window layout | planned |
+
+**How shortcuts are implemented:** every action is a `Command` in `neoveg_common::commands` (stable dotted id, pt-BR label, category, `implemented()` flag); `neoveg_common::keymap` holds the default bindings and the user's overrides (`keymap` in `preferences.json`, only the commands that differ from the defaults, an empty list meaning unbound); `neoveg_ui::shortcuts` converts egui key events. The UI dispatches by command, never by a hard-coded key, and shows shortcut hints in menus from the active map. A new command needs an entry in the `commands!` table, a default in `DEFAULT_BINDINGS` (the tests reject duplicate shortcuts and unparseable defaults) and an arm in `AppState::run_command`; **Editar → Personalizar teclado…** lists it automatically. Commands with `implemented() == false` own their default shortcut but do nothing until the feature lands.
+
+**Source and rules for the planned rows:** they come from the default key map of the reference manuals (research entry 17 in `docs/research/nle_features_research.txt`). Divergences already accepted: Neoveg keeps `←` / `→` for one frame (the reference uses `Alt+←` / `Alt+→` and uses the plain arrows for one pixel when quantize is off) and keeps `Alt` as "ignore snapping" while dragging (the reference uses `Shift` for that and `Alt` for slip). Any shortcut added here must also be listed in the customizable key map (`keymap` in `preferences.json`) so users can rebind it.
 
 ---
 
@@ -196,7 +227,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
   | Preferences (`preferences.json`) | `%APPDATA%\neoveg\` | `~/.config/neoveg/` | `~/Library/Application Support/neoveg/` |
   | Logs | `logs/` beside the executable | same | same |
 
-- **Portable release:** build with `cargo build --release -p neoveg_ui` (add `--features ffmpeg` for video and ship the FFmpeg shared libraries beside the executable, because direct launches must not depend on an inherited `PATH`). Archive names: `dist/Neoveg_v1.0.0_win-x64_Portable.zip`, `dist/Neoveg_v1.0.0_linux-x64_Portable.tar.gz`, `dist/Neoveg_v1.0.0_osx-x64_Portable.tar.gz`, `dist/Neoveg_v1.0.0_osx-arm64_Portable.tar.gz` (or a universal archive / `.app` bundle). Every package includes `RELEASE_NOTES.md`, `AUTHORS.md` and `LICENSE`. (The Rust packaging script is still to be written.)
+- **Portable release:** build with `cargo build --release -p neoveg_ui` (add `--features ffmpeg` for video and ship the FFmpeg shared libraries beside the executable, because direct launches must not depend on an inherited `PATH`). Archive names (`<version>` is `[workspace.package].version` in `Cargo.toml`): `dist/Neoveg_v<version>_win-x64_Portable.zip`, `..._linux-x64_Portable.tar.gz`, `..._osx-x64_Portable.tar.gz`, `..._osx-arm64_Portable.tar.gz`, plus the standalone `dist/neoveg_v<version>_<rid>[.exe]`, `dist/SHA256SUMS.txt` and `dist/build_manifest.json`. Every package includes `RELEASE_NOTES.md`, `AUTHORS.md` and `LICENSE`. `build_portable.py` (Python standard library only, build tooling and not application code) produces all of this: it runs the quality gates first (`--skip-qa` is for local experiments only), builds the Windows target with a static C runtime so no Visual C++ redistributable is needed, bundles the FFmpeg libraries next to the executable when `--features ffmpeg` is requested (`--ffmpeg`), writes `neoveg.sh` for Linux and an `.app` bundle for macOS, and builds targets of other operating systems only when asked with `--targets` and the Rust target is installed.
 - **Cross-platform boundary:** Windows-only prerequisites and installers never run on Linux or macOS.
 
 ---
@@ -242,7 +273,7 @@ Neoveg aligns its development and QA practice with ISO/IEC 25010 (quality model)
 - **Maintainability:** strict crate boundaries (section 2.1), pure testable rules, `clippy -D warnings` and `rustfmt`.
 - **Testing (29119):** unit, integration and state-level UI tests run by `cargo test --workspace`, with coverage evidence from `cargo llvm-cov`.
 - **Security and memory safety (27001):** safe Rust, bounds-checked buffers, overflow-aware time and size arithmetic, and per-user data locations.
-- **Traceability:** each automated QA step of the QA runner is tagged with its ISO/IEC 25010 pillar and the ABNT NBR / ISO/IEC requirement it evidences, recorded in `logs/neoveg.log` and `coverage/qa/qa_report.json` (rendered by `docs/index.html`). The legacy runners `scripts/run_qa_suite.ps1` / `.sh` do this today; the Rust QA runner that replaces them must keep it.
+- **Traceability:** each automated QA step of the QA runner is tagged with its ISO/IEC 25010 pillar and the ABNT NBR / ISO/IEC requirement it evidences, recorded in `logs/neoveg.log` and `coverage/qa/qa_report.json` (rendered by `docs/index.html`). `python build_portable.py qa` does this today (rustfmt, clippy, tests and release build, each tagged with its pillar and standard).
 
 ---
 
@@ -272,6 +303,8 @@ The isolated environment lives in `docker/` and builds only the Rust workspace i
 # Part II — Legacy Protocols (C# / C++ / Python era)
 
 > These protocols belong to the previous architecture and apply **only** to the legacy directories while they remain as a porting reference. They are not requirements for new Rust code. Where they overlap with Part I, Part I wins. The original per-file notes for the C# UI (file names such as `MainWindow.cs`) are in Git history before commit `7afb8dc`; their behavioral rules are restated in section 4.
+
+> **Removed scripts:** the helper scripts these appendices cite (`scripts/run_qa_suite.*`, `scripts/neoveg.sh` / `.bat`, `scripts/install_prerequisites.*`, `scripts/install_vcredist.bat`, `scripts/check_env.*`, `scripts/build*`, `scripts/update_third_party.py`, `scripts/audit_trademarks.py`, `scripts/test_neoveg_engine.py` and the C# / Python example scripts) were deleted when the project moved to pure Rust; they remain in Git history. `scripts/sync_gdrive.ps1` (cloud mirror) and the root `build_portable.py` (packaging and QA) are the only scripts kept.
 
 ## Appendix A. Legacy Naming, Layout & Subsystems
 

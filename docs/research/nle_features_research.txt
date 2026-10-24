@@ -516,56 +516,107 @@ Research Date: 2026-10-24
 ----------------------------------------------------------------------
 17. Feature Name: Default Keyboard Map (reference for AGENTS.md section 4.5)
 ----------------------------------------------------------------------
-Classic NLE Exact Behavior (v13 default configuration; user-customizable):
+Classic NLE Exact Behavior (v13 default configuration, re-read from the PDF pages 639-653 with the
+command/shortcut columns re-aligned; user-customizable):
   Project: Ctrl+N new, Ctrl+Shift+N new bypassing properties, Ctrl+O open, Ctrl+S save, Alt+Enter
-    project properties, Alt+F4 exit, Ctrl+F4 close.
-  Windows: Alt+0..9 and Ctrl+Alt+1..8 show/hide docked windows (Explorer, Trimmer, Master Bus,
-    Preview, Project Media, Edit Details, Transitions, Video FX, Media Generators, Plug-In Manager,
-    Video Scopes, ...); Ctrl+Tab / F6 next window, Shift+F6 previous; Alt+D,0-9 recall layout,
-    Ctrl+Alt+D,0-9 save layout, Alt+D,D default / A audio mixing / C colour-correction layouts.
-  View: Ctrl+Shift+E envelopes, Ctrl+Shift+I take info, Ctrl+Shift+W waveforms, Ctrl+Shift+C event
-    buttons, Ctrl+Shift+T fade lengths, Ctrl+Shift+O event edge frames; Tab toggles track-list /
-    timeline focus; ` minimize tracks; Ctrl+` default heights; F11 / Ctrl+F11 / Shift+F11 maximize
-    parts of the UI; Up/Down zoom time, Ctrl+Up/Down large zoom or zoom to selection, Alt+Up zoom
-    to frame level, Shift+Up/Down zoom waveform vertically.
-  Cursor: Home/End = selection or view start/end; Ctrl+Home or W / Ctrl+End = project start/end;
-    Page Up/Down = grid marks; Left/Right = 1 pixel (quantize off); Alt+Left/Right = 1 frame;
-    Ctrl+Left/Right = previous/next marker; Ctrl+Alt+Left/Right = event edit points incl. fade edges;
-    F3/F9 jog; Ctrl+G go to; \ centre view on cursor; Shift+Q select loop region; Backspace
-    restores the last five time selections; I / O set in and out; 0-9 marker/region jump;
-    Ctrl+Shift+drag creates a time selection while dragging an event.
-  Editing: Ctrl+X/C/V (also Shift+Delete, Ctrl+Insert, Shift+Insert), Ctrl+Shift+V paste insert,
-    Ctrl+B paste repeat, Delete, Ctrl+T trim to selection, S split, Ctrl+M render to new track,
-    Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z), Shift+F5 rebuild peaks, D / Shift+D next/previous edit tool,
-    Ctrl+D normal tool, Ctrl+Shift+D multicamera mode, G group, U ungroup, Ctrl+U clear group,
-    Shift+G select group, Ctrl+Shift+U ignore grouping, T / Shift+T next/previous take,
-    Numpad / and * = convert cut to transition / transition to cut (Ctrl+Numpad /), Ctrl+E open in
-    audio editor, F ripple, Ctrl+F ripple + markers, Ctrl+Shift+F ripple all, Ctrl+L auto ripple,
-    Ctrl+Shift+X automatic crossfades, F8 snapping, Alt+F8 quantize, Ctrl+F8 grid, Shift+F8
-    markers, Ctrl+Shift+F8 all events, Shift+drag overrides snapping.
-  Transport: Space play/pause (preference: play/stop), Shift+Space or Shift+F12 play from any
-    window, Esc or Space stops, Ctrl+Home / Ctrl+End go to project start/end, Q (or Ctrl+Shift+L)
-    looped playback, Ctrl+R record, Ctrl+Alt+R arm, Alt+Left/Right previous/next frame, Numpad 0
-    preview cursor position (J/K/L are listed next to it for scrubbing; the table's column layout
-    is ambiguous, verify in the app before copying), Shift+M / Shift+B build RAM preview, F7 selective prerender, Ctrl+F7 external
-    monitor, Alt+Shift+4 leave external monitor, Ctrl+Shift+F12 dim master.
-  Tracks: Ctrl+Q audio track, Ctrl+Shift+Q video track, Z / Shift+Z mute (exclusive), X / Shift+X
-    solo, Ctrl+Alt+Z/X group mute/solo, V / Shift+V and P / Shift+P add/remove volume/pan envelope,
-    E / Shift+E cycle effect envelopes, C command marker, M marker, R region, N CD track, Shift+N CD
-    index; Ctrl+Left/Right changes track volume/composite level when the track list has focus.
-  Trimmer: A / Shift+A add media from/to cursor, T / Shift+T transfer selection, Tab audio/video/
-    both, H sort history, Ctrl+H remove current, Ctrl+Shift+H clear, S save markers, Ctrl+P show
-    video in preview.
-  Track Motion: A lock aspect, C scale about centre, O object space, X/Y/Z prevent movement,
-    Shift+X/Y/Z prevent scaling, F8 snapping, Shift+F8 enable rotation, 1-6 3D layouts.
-  Mixing Console: F2 rename, Ctrl+Q add audio track, D/N/W channel width, Shift+C channel list,
-    Shift+R view controls, Up/Down fader, Shift+Up/Down left channel, Ctrl+Up/Down right channel.
-  Mouse wheel: wheel = zoom, Shift+wheel = vertical scroll, Ctrl+wheel = horizontal scroll,
-    Ctrl+Shift+wheel = move cursor in small steps, middle button = scrub rate.
+    project properties, Alt+F4 exit, Ctrl+F4 close project.
+  Windows (show/hide when not docked): Alt+0 focus the timeline, Alt+1 Explorer, Alt+2 Trimmer, Alt+3
+    Master Bus, Alt+4 Video Preview, Alt+5 Project Media, Alt+6 Edit Details, Alt+7 Transitions, Alt+8
+    Video FX, Alt+9 Media Generators, Ctrl+Alt+1 Plug-In Manager, Ctrl+Alt+2 Video Scopes, Ctrl+Alt+3
+    Surround Panner, Ctrl+Alt+4 Media Manager, Ctrl+Alt+5 XDCAM Explorer, Ctrl+Alt+6 Mixing Console,
+    Ctrl+Alt+7 Device Explorer, Ctrl+Alt+8 Loudness Meters. B = audio bus tracks, Ctrl+Shift+B = video
+    bus track, Ctrl+Shift+K = event media markers.
+  View: Ctrl+Shift+I active take info, Ctrl+Shift+W waveforms on events, Ctrl+Shift+C event buttons,
+    Ctrl+Shift+T event fade lengths, Ctrl+Shift+O event edge frames while slipping/sliding,
+    Ctrl+Shift+E envelopes; F6 or Ctrl+Tab next window, Shift+F6 or Ctrl+Shift+Tab previous; Alt+D then
+    0-9 recall layout, Ctrl+Alt+D then 0-9 save layout, Alt+D then D / A / C load the default / audio
+    mixing / colour correction layout; Tab toggles focus between track list and timeline,
+    Alt+Shift+Up/Down previous/next track; Ctrl+Shift+Up/Down all track heights; ` minimize/restore
+    tracks; Ctrl+` default heights; F11 or Alt+` minimize the docking area; Ctrl+F11 or Ctrl+Alt+`
+    maximize the timeline (hides docking area and track list); Shift+F11 or Shift+Alt+` minimize the
+    track list; Up/Down small horizontal zoom; Ctrl+Up/Down large zoom or zoom to selection; Alt+Up
+    zoom until each thumbnail is one frame; Shift+Up/Down vertical waveform zoom.
+  Cursor, loop region and time selection (with Shift most of these also select): \ centre view on
+    cursor; Ctrl+G go to; Ctrl+Shift+G set end of time selection; Home / End = start / end of selection
+    or view; Ctrl+Home or W / Ctrl+End = project start / end; Shift+Q select loop region; Backspace
+    restore the previous five time selections; Page Up/Down grid marks; Left/Right one pixel (quantize
+    off); Alt+Left/Right one frame; Ctrl+Left/Right previous/next marker; Ctrl+Alt+Left/Right previous/
+    next event edit point (including fade edges); F3/F9 jog left/right (when not in edge-trimming mode or
+    during playback); Alt+Down moves the edit cursor to the playback cursor; 0-9 (number row) jump to
+    marker / select region; Ctrl+, / Ctrl+. previous/next CD track; , / . previous/next CD index or
+    region; I and O set in and out points; Ctrl+Shift+drag creates a time selection while dragging an
+    event.
+  General editing: Ctrl+X or Shift+Delete cut; Ctrl+C or Ctrl+Insert copy; Ctrl+V or Shift+Insert paste;
+    Ctrl+Shift+V paste insert; Ctrl+B paste repeat; Delete; Ctrl+T trim event to selection; Ctrl+M render
+    to new track; Ctrl+Z or Alt+Backspace undo; Ctrl+Shift+Z or Ctrl+Y redo; Shift+F5 rebuild audio
+    peaks; Ctrl+D normal tool; D next tool; Shift+D previous tool; Ctrl+Shift+D multicamera editing.
+  Event selection: Shift+click range; Ctrl+click toggle; Ctrl+A all; Ctrl+Shift+A none; S split at
+    cursor; Ctrl+T trim/crop; Ctrl+[ cursor to edge of previous selected event; Alt+[ trim start to
+    cursor; Ctrl+Shift+[ time-select previous selected event; Ctrl+] cursor to edge of next selected
+    event; Alt+] trim end to cursor; Ctrl+Shift+] time-select next selected event.
+  Edge trimming and moving (numeric keypad): 7 or [ select the start edge (previous edge); 9 or ]
+    select the end edge (next edge); F3/F9 trim left/right while in edge mode; 5 enter/exit expanded edit
+    mode; 1/3 move or trim one FRAME; Ctrl+1/3 time compress/stretch one frame; Alt+1/3 slip-trim one
+    frame; Shift+1/3 L/J trim by frames (ignores grouping); Ctrl+Alt+1/3 slide a transition or crossfade
+    one frame (adjacent trim); Ctrl+Alt+Shift+1/3 L/J cut by frames; 4/6 and the same modifiers do the
+    same per PIXEL; 8/2 move selected events up/down one track.
+  Mouse modifiers: Alt+drag inside event = slip; Alt+drag edge = slip-trim; Shift+drag edge = L/J trim
+    (ignore grouping); Ctrl+Alt+drag edge = trim adjacent; Ctrl+Alt+Shift+drag edge = adjacent trim
+    ignoring grouping; Alt+Shift+drag event = slip-trim the right edge; Ctrl+Alt+Shift+click or drag =
+    split or split/trim; Ctrl+Alt+drag middle of event = slide; Ctrl+Alt+drag over a crossfade = slide
+    the crossfade; Ctrl+drag edge = stretch/compress while trimming; Shift+drag overrides snapping;
+    Ctrl+drag duplicates; right-drag opens the move/copy/shuffle menu.
+  Pitch and takes: = / Ctrl+= / Shift+= raise pitch one semitone / cent / octave; - / Ctrl+- / Shift+-
+    lower; Ctrl+Shift+= or Ctrl+Shift+- reset; T / Shift+T next/previous take; Numpad / , * , - convert a
+    cut to a transition (three presets); Ctrl+Numpad / converts a transition back to a cut; Ctrl+E open in
+    audio editor.
+  Playback and recording: Ctrl+Alt+R arm; Ctrl+Alt+Shift+R arm and set recording path; Ctrl+R record;
+    Q or Ctrl+Shift+L looped playback; Shift+Space or Shift+F12 play from start; Space start playback;
+    Ctrl+Space or F12 play from any window; Enter or Ctrl+F12 play/pause; Space or Esc stop; Ctrl+Home /
+    Ctrl+End go to start / end; Alt+Left / Alt+Right previous/next frame; Ctrl+Shift+F12 dim master bus;
+    Numpad 0 preview cursor position; J, K or L scrub/shuttle; Shift+M selectively prerender; Shift+B build
+    dynamic RAM preview; Alt+Shift+4 toggle external monitor; F7 generate MIDI timecode; Shift+F7
+    generate MIDI clock; Ctrl+F7 trigger from MIDI timecode; Ctrl+Shift+D multicamera mode; 1-9 choose
+    multicamera take; Ctrl+1-9 choose take with a crossfade. (Preference: Space/F12 as play/pause.)
+  Timeline and tracks: Ctrl+Q audio track; Ctrl+Shift+Q video track; Ctrl+Left/Right track volume /
+    composite level (track list focus); Ctrl+Shift+Left/Right pan / fade-to-colour; Z mute; Shift+Z mute
+    exclusive; X solo; Shift+X solo exclusive; Ctrl+Alt+Z / Ctrl+Alt+Shift+Z mute track group (exclusive);
+    Ctrl+Alt+X / Ctrl+Alt+Shift+X solo track group (exclusive); Alt+F8 quantize to frames; F8 snapping;
+    Ctrl+F8 grid; Shift+F8 markers; Ctrl+Shift+F8 all events; F ripple affected tracks; Ctrl+F ripple
+    +markers/bus tracks; Ctrl+Shift+F ripple all; Ctrl+L auto ripple; Ctrl+Shift+X automatic crossfades;
+    G group; U ungroup; Ctrl+Shift+U ignore grouping; Ctrl+U clear group; Shift+G select group; V / Shift+V
+    insert-show / remove volume envelope; P / Shift+P pan envelope; E and Shift+E cycle effect envelopes;
+    with an envelope point selected and the mouse held, Numpad 8/2 nudge a pixel vertically, 4/6 horizontally;
+    Ctrl+drag envelope point = fine value; Ctrl+Alt+drag = normal value, Alt+drag = move in time only;
+    C command marker; M marker; R region; N CD track region; Shift+N CD track index.
+  Trimmer: A / Shift+A add media from / to cursor; T / Shift+T transfer timeline selection after / before
+    the cursor; Tab audio/video/both; Ctrl+Shift+Up/Down audio/video height; H sort history; Ctrl+Shift+H
+    clear history; Ctrl+H remove current from history; S save markers/regions; Shift+S toggle automatic
+    saving; Ctrl+E open in audio editor; Ctrl+P show video in the preview window.
+  Track Motion: 1-6 3D layouts; A lock aspect; C scale about centre; O object space; X / Y / Z prevent
+    movement; Shift+X / Y / Z prevent scaling; F8 snapping; Shift+F8 enable rotation. Red Eye Reduction:
+    arrows scroll (Shift = fast), Page Up/Down and Home/End jump, \ centre.
+  Surround Panner (Ctrl adds fine steps): Shift+drag constrains to a line through the centre; Alt+drag
+    constant radius (Move Freely); Alt+wheel / Alt+Shift+drag maximum circle; Alt+Shift+wheel or Up/Down /
+    Page Up/Down moves forward/back; wheel or Left/Right moves sideways; numeric keypad jumps to corners.
+  Mixing Console: F2 rename channel; Ctrl+Q insert audio track; D / N / W cycle default / narrow / wide
+    strips; Shift+H hide channel; Shift+C channel list; Q show/hide all strips; U audio buses; A audio tracks;
+    E assignable FX; T master; P preview bus; F fader ticks; I labels; H faders; M insert FX; S I/O; Up/Down
+    adjust fader, Shift+Up/Down and Ctrl+Up/Down left/right channel of a stereo fader (the PDF columns
+    for this table are misaligned; verify before copying).
+  Misc: F1 help; Shift+F1 what's this; Shift+F10 shortcut menu; Ctrl+drag fine fader; Alt+drag keyframes
+    changes relative spacing; Alt+drag region tag moves a region keeping its length. Multimedia keys:
+    Play/Pause, Stop, Mute, Volume Up/Down (track volume), Next/Prev Track (track focus).
+  Mouse wheel (order of the PDF columns; verify vertical/horizontal in the app): wheel = zoom;
+    Ctrl+wheel = scroll vertically; Shift+wheel = scroll horizontally; Ctrl+Shift+wheel = move the cursor in small increments; Ctrl+Alt+Shift+wheel = trim the selected edge
+    one pixel/frame in edge mode; click wheel and move = scrub rate; hover a fader and wheel = adjust
+    (Ctrl = fine).
 Implementation Guidelines for Neoveg:
-  - Adopt the same letters where a Neoveg feature exists: S, M, R, G, U, F (ripple), V/P envelopes,
-    Q loop, Ctrl+Shift+V paste insert, Ctrl+B paste repeat. Keep Neoveg's F8 and Space as listed in
-    AGENTS.md 4.5 and add this table's rows as the matching features land.
+  - Adopt the same keys where a Neoveg feature exists (S, M, R, G, U, F ripple, V/P envelopes, Q loop,
+    Ctrl+Shift+V paste insert, Ctrl+B paste repeat, I/O points, Z/X mute/solo). Keep Neoveg's F8 and
+    Space as listed in AGENTS.md 4.5 and add this table's rows as the matching features land. The table
+    was re-read from the PDF in a second pass (column alignment recovered from the order of commands and
+    keys); the Mixing Console and mouse-wheel rows remain approximate.
 Sources: Classic NLE v13 manual, chapter "Keyboard shortcuts" (pp. 639-653).
 Research Date: 2026-10-24
 
@@ -1239,4 +1290,170 @@ Implementation Guidelines for Neoveg:
   - Keep it simple: Project Media tags first (entry 24), global library later as a SQLite file in the
     per-user data folder; auto-tag from folder names is cheap and useful.
 Sources: Classic NLE v10 manual chapter 3 "Using the Media Manager" (pp. 73-79); v13 Preferences.
+Research Date: 2026-10-24
+
+
+----------------------------------------------------------------------
+36. Feature Name: 5.1 Surround Mixing and Stereoscopic 3D Projects
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - 5.1 surround: Project Properties > Audio > Master bus mode = 5.1 Surround (track headers and Master Bus
+    window switch to surround). Channels: L, R, C, LFE, Ls, Rs; LFE audio is limited to ~25-120 Hz and an
+    optional low-pass filter (cutoff, quality) is applied to tracks routed to LFE. Only the Surround Master
+    bus accepts 5.1 input; a track routed to another bus delivers stereo to that bus and the bus does the
+    surround pan. Output routing: three stereo pairs (front, rear, centre+LFE) to devices chosen in
+    Preferences > Audio Device or per master channel; surround panning is unavailable for tracks routed
+    to a hardware output. Surround Panner window: pan point, mute/solo per speaker icon (Ctrl+click =
+    solo), centre fader (trim + keyframe automation), keyframed pan, joystick support; per-channel plug-in
+    settings via effect automation "Enable" boxes; per-channel master faders (trim only, not automatable).
+    Pan modes: Add Channels, Balance, Constant Power, Film (entry 13). Render: six mono files or a single
+    5.1 file with channel-mapping metadata; AC-3 needs the 5.1 template.
+  - Loudness metering applies a ~1.5 dB gain to the surround channels when the master bus is 5.1.
+  - Stereoscopic 3D: project mode Off, Side by side (half/full), Top/bottom (half/full), Anaglyphic
+    (red/cyan, amber/blue, green/magenta), Line alternate, Checkerboard, Left only, Right only, Blend,
+    Difference; Swap Left/Right; crosstalk cancellation (active for anaglyph at any quality, for the
+    other modes only at Good/Best; optionally included in renders). Separate preview mode in
+    Preferences and on external monitors (3D Vision, 3D TVs). Media properties give each file its own
+    3D mode; paired streams ("pair with next stream"); Pair as Stereoscopic 3D Subclip from events,
+    tracks or project-media selections (files named _L/_R are auto-paired); alignment by audio clap or
+    snap offset, opacity 50 % check; Stereoscopic 3D Adjust plug-in (horizontal/vertical offset, zoom,
+    keystone, rotation) at media, event, track or output level; depth rules: keep action behind the screen
+    plane and never allow divergence (distant points no more than ~2.5 inches apart on the largest screen:
+    52 px for 1920 wide on a 106-inch 16:9); per-eye checkboxes on effects; 3D camera in 3D track motion.
+Implementation Guidelines for Neoveg:
+  - Both are far down the roadmap; the engine decisions that matter now are (a) keep `channels` as a
+    layout enum (Mono, Stereo, Surround51) in neoveg_common instead of a bare u16 and (b) keep the pan
+    law as a function of the layout, so 5.1 later does not break the mixer plan format.
+Sources: Classic NLE v13 manual chapters 8 and 23 (pp. 201-212, 433-450).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+37. Feature Name: Colour Management (32-bit float, ACES, OpenColorIO)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Pixel formats: 8-bit, 32-bit float (video levels), 32-bit float (full range). Colour management is
+    available only in 32-bit float full range; compositing gamma 1.000 (linear) or 2.222.
+  - View transform (Project Properties): Off (compatible with older projects), ACES RRT (sRGB) for
+    desktop displays, ACES RRT (P3 DCI) and (CIE XYZ) for projectors, Log (sRGB) for inspection only.
+  - Per-media colour space (Media Properties, used only when colour management is on): Default (Rec. 709),
+    ACES (OpenEXR), ADX 10-bit / 16-bit film scans, Sony S-Log1 (F35/F3), S-Log2 (F65 3200 K / 5500 K), Arri
+    Alexa Log C (V3 EI 800), Log. Per-render-template colour space: Default (project view transform for
+    8/10-bit sRGB and Rec. 709, ACES for float formats), ACES RRT outputs (sRGB, Rec. 709, P3 DCI, P3
+    D60, CIE XYZ), ADX, camera log spaces.
+  - Concepts: S-Log keeps highlight detail but looks flat and is not for direct delivery; ACES IDT -> scene
+    linear -> RRT -> ODT; the active OpenColorIO configuration can be swapped (e.g. studio configs), keeping
+    results consistent with other OCIO applications. Later versions add HDR mode, ACES version, look
+    modification transform and a Color Grading panel with logarithmic exposure.
+Implementation Guidelines for Neoveg:
+  - Use the `opencolorio` bindings or reimplement a small subset (matrix + 1D/3D LUT .cube) in
+    neoveg_video; keep frames as RGBA8 until a float pipeline exists. Store `color_space` on MediaItem
+    and `view_transform` in project settings (serde default = Rec.709/Off).
+Sources: Classic NLE v13 manual chapter 22 (pp. 421-431); v12 Reviewer's Guide.
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+38. Feature Name: Closed Captions, Subtitles and Timecode Synchronization
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Captions: CEA-608 and CEA-708 containers with 608; CC1-CC4 (CC1 uplifts to 708 Service 1, CC3 to Service
+    2 in XDCAM HD/HD422 MXF); ATSC/SCTE in MPEG-2; Line 21 for 720x486 (or taller) at 29.97 fps (not for
+    DVD MPEG-2); VANC over HD SDI. Embedded captions are read as media markers and cached in a sidecar
+    .scc named after the media; "Promote Media Closed Captioning" turns them into command markers on the
+    timeline. Import from .scc (auto-read when named <media>.scc), .rt, .srt, .smi, .txt, .mcc, .sub; markers
+    are placed by file timecode (use a ruler offset to shift). Sync tool: in Edit Details > Commands, press
+    Ctrl+K during playback to drop each caption at the cursor in sequence. Editing: Insert > Command (C):
+    command 608CC1/CC3 (also CC2/CC4), parameter, comment text with [BR] line breaks; pop-on captions by
+    default. Render: embedded in XDCAM MXF and MPEG-2, otherwise a sidecar .scc; preview overlays CC1-CC4.
+  - Later versions: AI speech to text creates Titles & Text subtitle events, SRT export, subtitles from
+    regions or from .txt/.csv (entry 25, 26).
+  - Timecode sync: Options > Timecode: generate MIDI timecode (frame rate and output device in the Sync
+    preferences, shown by right-clicking the time display > MIDI Timecode Out), generate MIDI clock (24
+    ticks per quarter note, tempo from the ruler), trigger playback from incoming MTC (display shows
+    "Listening..." or "Wrong format"); needs word-clock for lock.
+Implementation Guidelines for Neoveg:
+  - Subtitle import/export (SRT first) is a self-contained crate-level feature with a pure parser/serializer
+    in neoveg_engine and tests. 608/708 embedding is out of scope until the render path exists. MIDI
+    sync could use `midir`; low priority.
+Sources: Classic NLE v13 manual chapters 24 and 27 (pp. 451-456, 497-499).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+39. Feature Name: Camera Media Workflows, Disc Output and External Control
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Camera formats edited natively without transcoding: HDV (MPEG-2 transport streams, optional scene
+    detection while capturing), XDCAM / XDCAM HD / EX (MXF or MP4, essence marks, multichannel audio, proxy
+    and full-resolution files can be mixed on one timeline), RED R3D (rollover files of 2 GB: dragging any
+    one places the whole clip; decode properties stored in a .SfDecProp sidecar, edited for many files at
+    once; double-click resets a slider, Clip Default / Factory Default buttons), AVCHD (5.1 downmixed in
+    stereo projects; GPU-assisted AVC encoding with Automatic / GPU if available / CPU only), P2, XAVC,
+    NXCAM via the Device Explorer. Proxy-first workflow: edit proxies from a wireless adapter, then relink to
+    full-resolution clips folder by folder before rendering.
+  - Disc output: Track-at-once CD (2 s gaps, close session), Disc-at-once Red Book CD (CD layout bar, track
+    regions and indexes, UPC/MCN, 2 s offset), DVD and Blu-ray (with or without menus via the authoring
+    application), "burn loop region only", test-then-burn, eject, erase RW.
+  - Remote control: companion mobile app over the network (transport, scrub, markers, undo/redo, review of
+    projects) enabled in External Control; hardware control surfaces (Mackie Control Universal + up to four
+    extenders, Frontier TranzPort, PreSonus FaderPort, up to five generic MIDI surfaces) work regardless of
+    focus; joystick for panning, colour-corrector wheels and other controls.
+Implementation Guidelines for Neoveg:
+  - Out of scope for the near term except: (a) rollover/sidecar handling can reuse the relink step, (b)
+    proxy-first = relink with a folder pair, (c) a simple local HTTP/WebSocket remote could reuse the
+    command table (entry 28). Disc burning is not planned.
+Sources: Classic NLE v13 manual chapters 17-21, 28, 31-32 (pp. 401-420, 501-510, 539-585).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+40. Feature Name: Scripting, Extensions and Command-Line Options
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Scripts (C#, JScript, VB.NET; compiled or text) run from Tools > Scripting, a Script Menu folder scanned
+    at startup (Rescan Script Menu Folder), Run Script for ad-hoc files, optional 16x16 PNG icon with the
+    script's name for toolbars, and keyboard assignments. Scripts can delete/read/write files and run
+    programs, so the manual warns to inspect them first. Example scripts add an effect preset to all media
+    (plug-in name + preset name variables).
+  - Extensions are compiled modules loaded at startup under View / Edit / Tools > Extensions, persistent,
+    able to react to project changes, control playback and show non-modal UI; they can be put on toolbars
+    and given shortcuts.
+  - Command line: /NOLOGO, /OPEN <media or project>, /RUNSCRIPT (/SCRIPT) <file>, /SCRIPTARGS <args>,
+    /CMDMODULE <extension.dll>, /OPENPRJ (open the project referenced in a rendered file), /COLORS 0|1.
+  - Rendered files can carry a path reference to the project (entry 18); "Edit Source Project" opens it.
+Implementation Guidelines for Neoveg:
+  - AGENTS.md section 9 asks for scripting in Rust: expose the command table (entry 28) and the engine
+    model through a sandboxed scripting layer (Rhai or mlua, off by default, with a confirmation dialog for
+    unknown scripts) and a `neoveg --open <project>` / `--run-script <file>` command line (clap).
+Sources: Classic NLE v13 manual chapter 33 (pp. 585-589).
+Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+41. Feature Name: Tutorial-Level Workflow Facts (v11 booklet): Defaults, Chroma Key, Pitch Shift, Output Formats
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Default audio track effects: a track created by importing audio carries three basic effects (Track
+    Noise Gate, Track EQ, Track Compressor) that are edited through Track FX.
+  - Chroma Key: choose a key colour with the eyedropper, Low and High Threshold shape the resulting alpha,
+    Blur amount feathers the edge; the keyed track must sit above the replacement background; keep the
+    subject free of colours similar to the key.
+  - Pitch Shift: semitones and cents sliders, Accuracy, optional anti-alias filter, "Preserve Duration"
+    with a Speech setting; Reverb: preset list plus Reverberation Mode.
+  - Stereoscopic 3D Adjust plug-in basics: horizontal offset, automatic crop, floating windows (which eye
+    dominates).
+  - Render formats listed for orientation: audio (ATRAC, AIFF, Dolby AC-3, FLAC, MP3, Ogg Vorbis, PCA, Wave64,
+    WAV, WMA) and video (image sequence, AVC/AAC MP4, MPEG-1, MPEG-2, QuickTime, RealMedia, Sony AVC, MXF,
+    AVI, WMV, XDCAM). Render dialog: output file, format, render options, metadata options; template dialog
+    tabs Audio, Video, Bit Rate, Index/Summary, Project; the template matching the project is marked
+    with "="; YouTube example: WMV 6 Mbps 720p30, CBR, 5 s keyframe interval, 3 s compression buffer,
+    smoothness 85-95, audio 192 kbps 48 kHz stereo. Direct upload to a video site from File. Advice: more
+    RAM beats raising process priority.
+  - Templates for new projects match the output: 360p web (640x360, 29.97), HD web (1280x720, 29.97), DVD 4:3
+    / 16:9 (720x480, 29.97); about 30 built-in project templates; "Start all new projects with these
+    settings".
+  - Import tricks: right-drag a video and choose Audio only / Video only > Add across tracks.
+  - Saving: native project file + backup + peak caches; crash-recovery prompt on the next start (compare
+    Neoveg autosave, AGENTS.md section 5).
+Implementation Guidelines for Neoveg:
+  - Provide render presets named by purpose (Web 720p, Web 1080p, Archive lossless, Audio only WAV/FLAC/
+    Ogg/MP3) over FFmpeg encoders; mark the preset that matches the project; default track chain
+    (gate + EQ + compressor) is a candidate for the first built-in audio effects.
+Sources: Classic NLE v11 tutorial booklet (pt-BR), pp. 8-78.
 Research Date: 2026-10-24

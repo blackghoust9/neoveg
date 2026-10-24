@@ -3,6 +3,14 @@
 use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
 use neoveg_common::fade::FadeCurve;
 
+/// The whole event list of one track before and after an edit.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrackChange {
+    pub track_id: TrackId,
+    pub before: Vec<TrackEvent>,
+    pub after: Vec<TrackEvent>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditCommand {
     AddTrack {
@@ -38,6 +46,11 @@ pub enum EditCommand {
         at: f64,
         original_duration: f64,
         original_fade_out: f64,
+    },
+    /// Compound edit (cut, paste, trim, multi-track split...) stored as the affected tracks'
+    /// event lists, so any combination of changes is one exactly reversible undo step.
+    ReplaceEvents {
+        changes: Vec<TrackChange>,
     },
 }
 
@@ -105,6 +118,17 @@ impl EditCommand {
                 new,
                 ..
             } => relocate(tl, *from_track, *to_track, *event_id, *new),
+            Self::ReplaceEvents { changes } => {
+                if changes.iter().any(|c| tl.track(c.track_id).is_none()) {
+                    return false;
+                }
+                for c in changes {
+                    if let Some(t) = tl.track_mut(c.track_id) {
+                        t.events = c.after.clone();
+                    }
+                }
+                true
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -173,6 +197,13 @@ impl EditCommand {
                 ..
             } => {
                 relocate(tl, *to_track, *from_track, *event_id, *old);
+            }
+            Self::ReplaceEvents { changes } => {
+                for c in changes {
+                    if let Some(t) = tl.track_mut(c.track_id) {
+                        t.events = c.before.clone();
+                    }
+                }
             }
             Self::SplitEvent {
                 track_id,
