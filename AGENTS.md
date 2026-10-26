@@ -159,9 +159,9 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `F8` | Toggle snapping | implemented |
 | `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo | implemented |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / save / save as | implemented |
-| `M` | Marker | planned |
+| `M` | Marker (opens the inline name box) | implemented |
 | `G` / `U` | Group / ungroup | planned |
-| `R` | Region from the time selection | planned |
+| `R` | Region from the time selection | implemented |
 | `I` / `O` | Set the time selection in / out point at the cursor | implemented |
 | `Ctrl+A` / `Ctrl+Shift+A` | Select all events / clear the selection and the time selection | implemented |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / copy / paste events or the time selection (paste at the cursor on the selected track) | implemented |
@@ -179,10 +179,11 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Z` / `X` | Mute / solo selected tracks (`Shift` = exclusive) | planned |
 | `V` / `P` | Insert, show or hide the track volume / pan envelope (`Shift` removes) | planned |
 | `Ctrl+Shift+E` | Show or hide envelopes | planned |
-| `Q` | Loop playback | planned |
-| `Shift+Q` | Select the loop region | planned |
+| `Q` | Loop playback | implemented |
+| `Shift+Q` | Set the loop region (time selection or region under the cursor) | implemented |
 | `Ctrl+Home` / `Ctrl+End` | Go to project start / end | planned |
-| `Ctrl+←` / `Ctrl+→` | Previous / next marker | planned |
+| `Ctrl+←` / `Ctrl+→` | Previous / next marker or region edge | implemented |
+| `1`–`9`, `0` | Go to the 1st–9th, 10th marker (by time) | implemented |
 | `Ctrl+G` | Go to time | planned |
 | `Ctrl+M` | Render to new track | planned |
 | `Alt+0` … `Alt+9`, `Ctrl+Alt+1` … `8` | Show or hide the docked windows (timeline focus, Explorer, Trimmer, Master Bus, Preview, Project Media, …) | planned |

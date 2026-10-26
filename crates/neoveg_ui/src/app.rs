@@ -663,6 +663,17 @@ impl AppState {
         }
     }
 
+    /// `1`–`9` and `0` (the tenth): cursor to the n-th marker by time.
+    fn jump_to_marker_number(&mut self, n: usize, now: f64) {
+        match markers::marker_by_number(&self.timeline, n) {
+            Some(marker) => {
+                self.playhead = marker.time;
+                self.blink_origin = now;
+            }
+            None => self.status = format!("Não há marcador {n}"),
+        }
+    }
+
     fn remove_mark(&mut self, id: MarkId) {
         if let Some(command) = markers::remove_mark(&self.timeline, id) {
             self.history.execute(&mut self.timeline, command);
@@ -1656,6 +1667,9 @@ impl AppState {
             Command::InsertRegion => self.insert_region(),
             Command::CursorPreviousMarker => self.jump_to_mark(false, now),
             Command::CursorNextMarker => self.jump_to_mark(true, now),
+            c if c.marker_number().is_some() => {
+                self.jump_to_marker_number(c.marker_number().unwrap_or(1), now);
+            }
             _ => {}
         }
     }
@@ -4171,6 +4185,28 @@ mod tests {
         s.finish_mark_drag();
         assert_eq!(s.timeline.markers[0].time, 5.0);
         assert_eq!(s.history.revision(), revision);
+    }
+
+    #[test]
+    fn number_keys_jump_to_the_nth_marker() {
+        let (mut s, _, _) = state_with_clip();
+        for t in [7.0, 3.0, 5.0] {
+            s.playhead = t;
+            run(&mut s, Command::InsertMarker);
+            s.commit_name_edit();
+        }
+        run(&mut s, Command::CursorMarker1);
+        assert_eq!(s.playhead, 3.0);
+        run(&mut s, Command::CursorMarker3);
+        assert_eq!(s.playhead, 7.0);
+        run(&mut s, Command::CursorMarker2);
+        assert_eq!(s.playhead, 5.0);
+        run(&mut s, Command::CursorMarker4);
+        assert_eq!(
+            s.playhead, 5.0,
+            "a missing marker leaves the cursor and says so"
+        );
+        assert!(s.status.contains('4'));
     }
 
     #[test]

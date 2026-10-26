@@ -138,6 +138,16 @@ commands! {
     CursorSelectionEnd => ("cursor.selection_end", "Ir para o fim da seleção ou da vista", Cursor, false),
     CursorPreviousMarker => ("cursor.previous_marker", "Marcador anterior", Cursor, true),
     CursorNextMarker => ("cursor.next_marker", "Próximo marcador", Cursor, true),
+    CursorMarker1 => ("cursor.marker_one", "Ir para o marcador 1", Cursor, true),
+    CursorMarker2 => ("cursor.marker_two", "Ir para o marcador 2", Cursor, true),
+    CursorMarker3 => ("cursor.marker_three", "Ir para o marcador 3", Cursor, true),
+    CursorMarker4 => ("cursor.marker_four", "Ir para o marcador 4", Cursor, true),
+    CursorMarker5 => ("cursor.marker_five", "Ir para o marcador 5", Cursor, true),
+    CursorMarker6 => ("cursor.marker_six", "Ir para o marcador 6", Cursor, true),
+    CursorMarker7 => ("cursor.marker_seven", "Ir para o marcador 7", Cursor, true),
+    CursorMarker8 => ("cursor.marker_eight", "Ir para o marcador 8", Cursor, true),
+    CursorMarker9 => ("cursor.marker_nine", "Ir para o marcador 9", Cursor, true),
+    CursorMarker10 => ("cursor.marker_ten", "Ir para o marcador 10", Cursor, true),
     CursorPreviousEdit => ("cursor.previous_edit", "Ponto de edição anterior", Cursor, false),
     CursorNextEdit => ("cursor.next_edit", "Próximo ponto de edição", Cursor, false),
     CursorGoTo => ("cursor.go_to", "Ir para o tempo…", Cursor, false),
@@ -187,6 +197,25 @@ impl Command {
     /// Looks a command up by its stable identifier.
     pub fn from_id(id: &str) -> Option<Command> {
         Command::ALL.iter().copied().find(|c| c.id() == id)
+    }
+}
+
+impl Command {
+    /// `1`–`10` for the commands that jump to the n-th marker (the `0` key is the tenth).
+    pub fn marker_number(self) -> Option<usize> {
+        match self {
+            Command::CursorMarker1 => Some(1),
+            Command::CursorMarker2 => Some(2),
+            Command::CursorMarker3 => Some(3),
+            Command::CursorMarker4 => Some(4),
+            Command::CursorMarker5 => Some(5),
+            Command::CursorMarker6 => Some(6),
+            Command::CursorMarker7 => Some(7),
+            Command::CursorMarker8 => Some(8),
+            Command::CursorMarker9 => Some(9),
+            Command::CursorMarker10 => Some(10),
+            _ => None,
+        }
     }
 }
 
