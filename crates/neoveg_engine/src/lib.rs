@@ -16,6 +16,7 @@ pub mod mix;
 pub mod navigation;
 pub mod ops;
 pub mod project_file;
+pub mod project_manager;
 pub mod relink;
 pub mod selection;
 pub mod timeline;

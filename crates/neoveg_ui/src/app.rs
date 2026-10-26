@@ -2175,6 +2175,7 @@ impl AppState {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         self.project.media_pool.push(MediaRef {
+            subproject: false,
             id: media_id,
             path: path.to_string_lossy().into_owned(),
             duration_seconds: info.duration,
@@ -2384,6 +2385,7 @@ impl AppState {
     fn place_media(&mut self, media: LoadedMedia) {
         let media_id = self.timeline.alloc_id();
         self.project.media_pool.push(MediaRef {
+            subproject: false,
             id: media_id,
             path: media.path.to_string_lossy().into_owned(),
             duration_seconds: media.duration,
@@ -6283,6 +6285,7 @@ mod tests {
         s.add_track(TrackKind::Audio);
         let track_id = s.selected_track.unwrap();
         s.project.media_pool.push(MediaRef {
+            subproject: false,
             id: 1,
             path: "x.wav".into(),
             duration_seconds: 10.0,
@@ -7243,11 +7246,13 @@ mod tests {
     fn pool() -> Vec<MediaRef> {
         vec![
             MediaRef {
+                subproject: false,
                 id: 1,
                 path: r"C:\media\Entrevista 01.mp4".into(),
                 duration_seconds: 60.0,
             },
             MediaRef {
+                subproject: false,
                 id: 2,
                 path: "/home/u/cobertura.mov".into(),
                 duration_seconds: 12.0,

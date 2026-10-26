@@ -169,6 +169,7 @@ mod tests {
         history.execute(&mut tl, EditCommand::AddTrack { track });
         let media_id = tl.alloc_id();
         info.media_pool.push(MediaRef {
+            subproject: false,
             id: media_id,
             path: "C:/nada/a.wav".into(),
             duration_seconds: 4.0,
