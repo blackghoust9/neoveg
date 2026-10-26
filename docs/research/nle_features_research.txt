@@ -1642,3 +1642,60 @@ Implementation Guidelines for Neoveg:
 Sources: VEGAS_Pro_18_EN.pdf (pp. 28-31, 122-126, 150-152, 246-247, 278, 287-289, 309, 567-575) and
   VEGAS_Pro_18_EN_Keyboard_shortcuts.pdf, local copies in G:\Meu Drive\vp-rev-eng\teste\teste2\pdfs.
 Research Date: 2026-10-26
+
+----------------------------------------------------------------------
+44. Feature Name: Cross-version PDF Study (v9, v10, v11, v13, v18, v21 manuals): Scrubbing, Preferences That Change Editing, Take FX Check
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from the local PDFs in G:\Meu Drive\vp-rev-eng\teste\teste2\pdfs: 5649010.pdf = v9 manual (486 p.),
+   6918831.pdf = v10 (538 p.), 5828511.pdf = v11 (510 p.), vegaspro13-0-manual-enu-477102.pdf = v13 (692 p.),
+   VEGAS_Pro_18_EN.pdf = v18 (592 p.), manual_vegaspro21_en.pdf = v21 (1206 p.), 5680056.pdf = an early
+   Sonic Foundry Vegas Pro manual (312 p.), 2585676.pdf = Vegas Pro Production Assistant (63 p.),
+   5639017.pdf = v13 Steam release notes (5 p.), VEGAS_Movie_Studio_15_EN.pdf and
+   VEGASDVDArchitect_Manual_EN.pdf (not used for the editing rules).)
+  - "Take FX" check: the strings "Take FX" / "take effects" occur in none of the manuals (v9 to v21). The audio
+    FX levels in every version are Audio Event FX, Track FX, bus FX, assignable FX and the master bus; the
+    video levels are Media FX, Event FX, Track FX and Video Output FX. Takes only switch which source take an
+    event plays (T / Shift+T) and carry their own pitch / stretch settings. The pipeline requested for Neoveg
+    (Media FX > Take FX > Event FX > Track FX > Master) is therefore a Neoveg design, not a reference rule.
+  - Scrubbing with J, K and L (v13 manual pp. 21-22, unchanged in v18 / v21): J = reverse scrub; pressing J
+    again accelerates the reverse rate; K = pause; L = forward scrub, pressing again accelerates; holding K while
+    pressing J or L emulates a shuttle knob (slow reverse / slow forward). The speed and range come from the
+    Preferences > Editing > "JKL / shuttle speed" list (a multimedia controller uses the same setting; the old
+    forum value "fast allows up to 20x" matches the highest entry). Other scrubbing: drag the playhead above the
+    timeline to shuttle from the cursor; Alt+click-drag on the ruler places the cursor and scrubs in the drag
+    direction; the mouse wheel with Ctrl+Shift / Ctrl+Alt+Shift changes the scrub rate during playback.
+  - Controllers: F3 / F9 are the jog / edit keys; Enter is play / pause; while paused the knob jogs by frame;
+    in edge-trim mode it trims the edge (Ctrl+Alt = trim adjacent); during playback it is a variable-speed
+    shuttle.
+  - Preferences > Editing that change timeline rules (v13 pp. 626-628, same in v18 / v21):
+      * Quick fade length for audio events + Options > Quickfade Audio Edits: a very short fade is put on the
+        edges of audio events so cuts and splits do not click; turning the option off leaves new events
+        unfaded and existing fades untouched (Neoveg: a 5-10 ms default fade on split / trim edges).
+      * Do not quantize to frames for audio-only edits: audio moves, trims and envelope times stay sub-frame
+        even when Quantize to Frames is on.
+      * Cut, copy and delete grouped events: with it on the operation affects the whole group.
+      * Collapse loop region when no time selection is present: the loop region resets (or keeps the last one).
+      * New still image length; default time between CD tracks; cursor preview duration (Numpad 0 creates a
+        temporary selection centred on the cursor and plays it, looping when loop playback is on).
+      * Automatically overlap multiple selected media when added: dragging several files overlaps them (needs
+        Automatic Crossfades), otherwise they go end to end.
+      * Cut-to-overlap conversion: converting a cut to a transition extends one or both events so they
+        overlap by an "Amount"; Alignment = Before cut (overlap ends at the cut), Centered on cut, or After cut
+        (overlap starts at the cut); the same amount is used by the auto-overlap above.
+  - Newer features worth tracking (v21 "What's new", pp. 21-25): Adjustment events (effects on an event apply to
+    every video event below it); AI Text-Based Editing (edit the transcript and the events follow, and the
+    reverse); AI Smart Mask 2.0 (up to eight masks with tracking); AI Z-Depth; AV1 decoding / rendering; a
+    button toggling the spacebar behaviour during playback; preferences to hide .sfk peak files or not create
+    them; Media Share; HEIC/HEIF import; scripting access to adjustment events.
+Implementation Guidelines for Neoveg:
+  - J / K / L: implement as transport commands with a speed ladder (1x, 2x, 4x, 8x, 16x, 20x) per extra press and
+    K+J / K+L slow shuttle; expose the top speed as a preference ("JKL / shuttle speed"). They are still
+    marked planned in the key map and are not bound by default for that reason.
+  - Add the Preferences above as `Preferences` fields with `#[serde(default)]`: quickfade length + toggle,
+    no-quantize-for-audio, group-aware cut / copy / delete, collapse loop region, cursor preview duration,
+    still image length, auto-overlap and cut-to-overlap amount / alignment.
+  - Do not model Take FX; the chain stays Event (when added) > Track > Master for audio and
+    Media > Event > Track > Output for video.
+Sources: the PDFs listed above (v13 pp. 21-22, 581-583, 626-628; v18 pp. 122-126; v21 pp. 21-25).
+Research Date: 2026-10-26
