@@ -12,7 +12,6 @@ use crate::command::EditCommand;
 use crate::edl::{ImportReport, MediaMatch};
 use crate::fcp7::{path_to_url, url_to_path, XmlClip, XmlMedia};
 use crate::markers;
-use crate::selection::TimeRange;
 use crate::timeline::{Timeline, TrackEvent, TrackId, TrackKind};
 
 /// Parsed Final Cut Pro `<fcpxml>` sequence ready to be placed onto a [`Timeline`].
@@ -65,7 +64,8 @@ fn frame_duration_rational(fps: f64) -> (i64, i64) {
         30.0
     };
     let nominal = safe.round().max(1.0) as i64;
-    let ntsc = ((safe * 1.001) - nominal as f64).abs() < 0.05 && (safe - nominal as f64).abs() > 1e-3;
+    let ntsc =
+        ((safe * 1.001) - nominal as f64).abs() < 0.05 && (safe - nominal as f64).abs() > 1e-3;
     if ntsc {
         (1001, nominal * 1000)
     } else {
@@ -160,11 +160,7 @@ pub fn export(
                             path_to_url(&m.path),
                             m.duration.max(needed).max(min_seq),
                         ),
-                        None => (
-                            ev.name.clone(),
-                            path_to_url(&ev.name),
-                            needed.max(min_seq),
-                        ),
+                        None => (ev.name.clone(), path_to_url(&ev.name), needed.max(min_seq)),
                     };
                     assets.push(AssetRow {
                         res_id,
@@ -314,7 +310,11 @@ struct LaneClip {
 
 /// Parses a Final Cut Pro `<fcpxml>` document.
 pub fn parse(text: &str) -> Result<ParsedFcpxml, String> {
-    let doc = roxmltree::Document::parse(text)
+    let opts = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        ..Default::default()
+    };
+    let doc = roxmltree::Document::parse_with_options(text, opts)
         .map_err(|e| format!("FCPXML malformado: {e}"))?;
     let root = doc.root_element();
     if !root.tag_name().name().eq_ignore_ascii_case("fcpxml") {
@@ -363,9 +363,9 @@ pub fn parse(text: &str) -> Result<ParsedFcpxml, String> {
                             .map(str::to_owned)
                     });
                     let path = src_raw.as_deref().map(url_to_path);
-                    let file_name = path.as_deref().map(|p| {
-                        p.rsplit(['/', '\\']).next().unwrap_or(p).to_owned()
-                    });
+                    let file_name = path
+                        .as_deref()
+                        .map(|p| p.rsplit(['/', '\\']).next().unwrap_or(p).to_owned());
                     let name = child
                         .attribute("name")
                         .map(str::to_owned)
@@ -570,19 +570,23 @@ fn collect_item(
             .map(str::to_owned)
             .or_else(|| asset.map(|a| a.name.clone()))
             .unwrap_or_else(|| "Clipe".into());
-        lane_map.entry((kind_tag, lane)).or_default().push(LaneClip {
-            clip: XmlClip {
-                kind,
-                track: 1,
-                name,
-                file_name: asset.and_then(|a| a.file_name.clone()),
-                path: asset.and_then(|a| a.path.clone()),
-                start: offset.max(0.0),
-                duration,
-                trim_in: start.max(0.0),
-            },
-            enabled,
-        });
+        let clip_start = offset.max(0.0);
+        lane_map
+            .entry((kind_tag, lane))
+            .or_default()
+            .push(LaneClip {
+                clip: XmlClip {
+                    kind,
+                    track: 1,
+                    name,
+                    file_name: asset.and_then(|a| a.file_name.clone()),
+                    path: asset.and_then(|a| a.path.clone()),
+                    start: clip_start,
+                    end: clip_start + duration,
+                    source_in: start.max(0.0),
+                },
+                enabled,
+            });
     }
 
     let child_shift = offset - start;
@@ -618,9 +622,9 @@ pub fn import_into_timeline(
                 .push(format!("{}: mídia não encontrada no projeto", clip.name));
             continue;
         };
-        let trim_in = clip.trim_in.max(0.0);
+        let trim_in = clip.source_in.max(0.0);
         let available = (media.duration - trim_in).max(0.0);
-        let duration = clip.duration.min(available);
+        let duration = (clip.end - clip.start).max(0.0).min(available);
         if duration <= 1e-6 {
             report
                 .skipped
@@ -664,18 +668,28 @@ pub fn import_into_timeline(
     for (track_id, event) in events {
         commands.push(EditCommand::AddEvent { track_id, event });
     }
-    for (label, start, dur) in &doc.markers {
-        let cmd = match dur {
-            Some(d) => markers::add_region(
-                timeline,
-                TimeRange::new(*start, *start + *d),
-                Some(label.as_str()),
-            ),
-            None => markers::add_marker(timeline, *start, Some(label.as_str())),
-        };
-        if let Some(cmd) = cmd {
-            commands.push(cmd);
+    if !doc.markers.is_empty() {
+        let before = timeline.marks();
+        let mut after = before.clone();
+        for (label, start, dur) in &doc.markers {
+            let id = timeline.alloc_id();
+            match dur {
+                Some(d) => after.regions.push(markers::Region {
+                    id,
+                    start: start.max(0.0),
+                    end: (*start + *d).max(start.max(0.0) + 1e-3),
+                    name: label.clone(),
+                }),
+                None => after.markers.push(markers::Marker {
+                    id,
+                    time: start.max(0.0),
+                    name: label.clone(),
+                }),
+            }
         }
+        after.markers.sort_by(|a, b| a.time.total_cmp(&b.time));
+        after.regions.sort_by(|a, b| a.start.total_cmp(&b.start));
+        commands.push(EditCommand::ReplaceMarks { before, after });
     }
     Some((EditCommand::Batch(commands), report))
 }
@@ -684,6 +698,7 @@ pub fn import_into_timeline(
 mod tests {
     use super::*;
     use crate::command::History;
+    use crate::selection::TimeRange;
 
     fn sample_project() -> (Timeline, Vec<XmlMedia>) {
         let mut tl = Timeline::new();
@@ -752,7 +767,11 @@ mod tests {
         let (cmd, report) = import_into_timeline(&mut dest, &parsed, |clip| {
             media
                 .iter()
-                .find(|m| clip.path.as_deref() == Some(m.path.as_str()))
+                .find(|m| {
+                    clip.path
+                        .as_deref()
+                        .is_some_and(|p| p.replace('\\', "/") == m.path.replace('\\', "/"))
+                })
                 .map(|m| MediaMatch {
                     media_id: m.id,
                     duration: m.duration,
@@ -806,7 +825,7 @@ mod tests {
             .find(|c| c.kind == TrackKind::Audio)
             .unwrap();
         assert!((music.start - 1.0).abs() < 1e-6);
-        assert!((music.duration - 4.0).abs() < 1e-6);
+        assert!(((music.end - music.start) - 4.0).abs() < 1e-6);
     }
 
     #[test]

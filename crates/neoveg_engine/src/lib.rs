@@ -8,6 +8,7 @@ pub mod edit;
 pub mod edl;
 pub mod effects;
 pub mod fcp7;
+pub mod fcpxml;
 pub mod groups;
 pub mod markers;
 pub mod mix;
