@@ -1,6 +1,8 @@
 //! Audio DSP adapted from FilmCraft's `filmcraft-audio-dsp` (MIT OR Apache-2.0, used under MIT):
 //! the ITU-R BS.1770-4 / EBU R128 loudness meter and the effects the tracks can use (parametric
-//! and 3-band EQ, compressor, gate, limiter, delay and reverb) with the filters they need.
+//! and 3-band EQ, graphic EQ, notch / classical / FFT filters, compressor, gate, limiter, delay,
+//! reverb, DeHum and DeNoise) with the filters they need, and the offline analysis behind
+//! auto-ducking.
 //!
 //! Provenance, licence and the list of changes are in `third_party/filmcraft/`. The code is
 //! dependency-free; after construction `process`, `set_param` and `reset` never allocate, so
@@ -17,8 +19,11 @@
 )]
 
 pub mod biquad;
+pub mod design;
+pub mod ducking;
 mod effect;
 pub mod effects;
+pub mod fft;
 pub mod loudness;
 pub mod oversample;
 mod smooth;

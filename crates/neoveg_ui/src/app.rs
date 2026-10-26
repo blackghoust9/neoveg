@@ -44,7 +44,7 @@ use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
-use crate::fx_panel::{self, FxAction, FxPanelState};
+use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::precision_slider::PrecisionSlider;
 use crate::shortcuts::{from_egui, to_egui};
@@ -1743,6 +1743,18 @@ impl AppState {
         let mut changed = false;
         for action in actions {
             let command = match action {
+                FxAction::Duck(duck) => match target {
+                    FxTarget::Track(id) => match duck {
+                        DuckAction::Enable(on) => fx::enable_ducking(&self.timeline, id, on),
+                        DuckAction::Controller(controller, on) => {
+                            fx::set_controller(&self.timeline, id, controller, on)
+                        }
+                        DuckAction::Param(param, value) => {
+                            fx::set_duck_param(&self.timeline, id, param, value)
+                        }
+                    },
+                    FxTarget::Master => None,
+                },
                 FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
                 FxAction::Remove(i) => fx::remove_effect(&self.timeline, target, i),
                 FxAction::Move { from, to } => fx::move_effect(&self.timeline, target, from, to),
@@ -2877,7 +2889,11 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let chain = fx::chain(&state.timeline, target)
         .map(<[_]>::to_vec)
         .unwrap_or_default();
-    let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain);
+    let duck = match target {
+        FxTarget::Track(id) => fx_panel::duck_view(&state.timeline, id),
+        FxTarget::Master => None,
+    };
+    let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref());
     state.apply_fx_actions(target, actions);
 }
 
@@ -4850,6 +4866,58 @@ mod tests {
             "the effect chain of track 2 is found by this index"
         );
         assert_eq!(fx_panel::fx_plan(&s.timeline).tracks.len(), 2);
+    }
+
+    #[test]
+    fn ducking_actions_edit_the_selected_track_and_reach_the_audio_plan() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let voice = s.selected_track.unwrap();
+        s.add_track(TrackKind::Audio);
+        let music = s.selected_track.unwrap();
+        let (target, _) = s.fx_target().unwrap();
+        assert_eq!(target, FxTarget::Track(music));
+        let revision = s.history.revision();
+
+        s.apply_fx_actions(
+            target,
+            vec![
+                FxAction::Duck(DuckAction::Enable(true)),
+                FxAction::Duck(DuckAction::Controller(voice, true)),
+                FxAction::Duck(DuckAction::Param(fx::DuckParam::ReduceDb, 20.0)),
+            ],
+        );
+        assert_eq!(s.history.revision(), revision + 3, "one undo step each");
+        let plan = fx_panel::fx_plan(&s.timeline);
+        let spec = plan.duck[1].as_ref().unwrap();
+        assert_eq!((spec.controllers.clone(), spec.reduce_db), (vec![0], 20.0));
+        assert!(plan.duck[0].is_none());
+
+        run(&mut s, Command::EditUndo);
+        assert_eq!(
+            s.timeline
+                .track(music)
+                .unwrap()
+                .ducking
+                .as_ref()
+                .unwrap()
+                .reduce_db,
+            15.0
+        );
+        s.apply_fx_actions(target, vec![FxAction::Duck(DuckAction::Enable(false))]);
+        assert!(s.timeline.track(music).unwrap().ducking.is_none());
+    }
+
+    #[test]
+    fn ducking_is_a_track_setting_and_is_ignored_for_the_master_bus() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let revision = s.history.revision();
+        s.apply_fx_actions(
+            FxTarget::Master,
+            vec![FxAction::Duck(DuckAction::Enable(true))],
+        );
+        assert_eq!(s.history.revision(), revision);
     }
 
     #[test]

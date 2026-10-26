@@ -7,10 +7,15 @@
 
 pub mod dynamics;
 pub mod eq;
+pub mod filters;
+pub mod restoration;
+mod stft;
 pub mod time;
 
 pub use dynamics::{Compressor, Gate, Limiter};
 pub use eq::{ParametricEq, SimpleEq};
+pub use filters::{FftFilter, FullParametricEq, GraphicEq, NotchFilter, ScientificFilter};
+pub use restoration::{DeHum, DeNoise};
 pub use time::{Delay, Reverb};
 
 use crate::dsp::{AudioEffect, ParamSpec};
@@ -21,6 +26,7 @@ pub enum Category {
     Filter,
     Dynamics,
     Time,
+    Restoration,
 }
 
 impl Category {
@@ -30,6 +36,7 @@ impl Category {
             Category::Filter => "Filtros e equalização",
             Category::Dynamics => "Dinâmica",
             Category::Time => "Tempo e espaço",
+            Category::Restoration => "Restauração",
         }
     }
 }
@@ -41,8 +48,8 @@ pub struct EffectInfo {
     pub name: &'static str,
     pub category: Category,
     pub params: &'static [ParamSpec],
-    /// `true` when the effect delays the signal (look-ahead). Such an effect would shift one track
-    /// against the others, so it is only offered on the master bus.
+    /// `true` when the effect delays the signal (look-ahead, FFT window). The mixer compensates the
+    /// delay so tracks stay aligned.
     pub has_latency: bool,
     /// Construct an instance for `(sample_rate, channels)`.
     pub create: fn(f32, usize) -> Box<dyn AudioEffect>,
@@ -92,6 +99,63 @@ static REGISTRY: &[EffectInfo] = &[
     entry!("limiter", "Limitador", Dynamics, true, Limiter),
     entry!("delay", "Delay", Time, false, Delay),
     entry!("reverb", "Reverb", Time, false, Reverb),
+    entry!(
+        "graphic_eq_10",
+        "Equalizador gráfico (10 bandas)",
+        Filter,
+        false,
+        GraphicEq<10>
+    ),
+    entry!(
+        "graphic_eq_20",
+        "Equalizador gráfico (20 bandas)",
+        Filter,
+        false,
+        GraphicEq<20>
+    ),
+    entry!(
+        "graphic_eq_30",
+        "Equalizador gráfico (30 bandas)",
+        Filter,
+        false,
+        GraphicEq<30>
+    ),
+    entry!(
+        "parametric_eq_full",
+        "Equalizador paramétrico (completo)",
+        Filter,
+        false,
+        FullParametricEq
+    ),
+    entry!("notch_filter", "Filtro notch", Filter, false, NotchFilter),
+    entry!(
+        "scientific_filter",
+        "Filtro clássico (passa-baixas, passa-altas, passa-faixa)",
+        Filter,
+        false,
+        ScientificFilter
+    ),
+    entry!(
+        "fft_filter",
+        "Filtro FFT (curva desenhada)",
+        Filter,
+        true,
+        FftFilter
+    ),
+    entry!(
+        "dehum",
+        "DeHum (zumbido de rede)",
+        Restoration,
+        false,
+        DeHum
+    ),
+    entry!(
+        "denoise",
+        "DeNoise (redução de ruído)",
+        Restoration,
+        true,
+        DeNoise
+    ),
 ];
 
 /// All registered effects.
@@ -156,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_limiter_reports_latency_and_the_flag_says_so() {
+    fn the_latency_flag_matches_what_each_effect_reports() {
         for e in effects() {
             let fx = (e.create)(SR, 2);
             assert_eq!(fx.latency() > 0, e.has_latency, "{}", e.id);

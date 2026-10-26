@@ -2,7 +2,8 @@
 
 use crate::markers::Marks;
 use crate::timeline::{
-    EventGeometry, EventId, Timeline, Track, TrackEffect, TrackEvent, TrackId, TIME_EPSILON,
+    EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
+    TIME_EPSILON,
 };
 use neoveg_common::fade::FadeCurve;
 
@@ -74,6 +75,12 @@ pub enum EditCommand {
         target: FxTarget,
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
+    },
+    /// Any change to a track's auto-ducking (on / off, controllers, amounts): one undo step.
+    SetDucking {
+        track_id: TrackId,
+        before: Option<TrackDucking>,
+        after: Option<TrackDucking>,
     },
 }
 
@@ -157,6 +164,9 @@ impl EditCommand {
                 true
             }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
+            Self::SetDucking {
+                track_id, after, ..
+            } => set_ducking(tl, *track_id, after),
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -238,6 +248,11 @@ impl EditCommand {
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
             }
+            Self::SetDucking {
+                track_id, before, ..
+            } => {
+                set_ducking(tl, *track_id, before);
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -255,6 +270,16 @@ impl EditCommand {
                 }
             }
         }
+    }
+}
+
+fn set_ducking(tl: &mut Timeline, track_id: TrackId, ducking: &Option<TrackDucking>) -> bool {
+    match tl.track_mut(track_id) {
+        Some(t) => {
+            t.ducking = ducking.clone();
+            true
+        }
+        None => false,
     }
 }
 

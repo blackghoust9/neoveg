@@ -18,6 +18,8 @@ struct PlaybackState {
     /// Timeline position in seconds (`f64` bits).
     position: AtomicU64,
     playing: AtomicBool,
+    /// Set by `play_from`: the callback restarts the mixer at `position` (priming the effects).
+    needs_prime: AtomicBool,
     /// Master gain (`f64` bits).
     volume: AtomicU64,
     /// Loop start and end in seconds (`f64` bits); the loop is off while `end <= start`.
@@ -75,6 +77,7 @@ impl AudioPlayer {
             end: mixer.end(),
             position: AtomicU64::new(0f64.to_bits()),
             playing: AtomicBool::new(false),
+            needs_prime: AtomicBool::new(false),
             volume: AtomicU64::new(1.0f64.to_bits()),
             loop_start: AtomicU64::new(0f64.to_bits()),
             loop_end: AtomicU64::new(0f64.to_bits()),
@@ -85,6 +88,11 @@ impl AudioPlayer {
         // Built here, outside the callback: the meter allocates its gating histograms once
         let mut feeder =
             LoudnessFeeder::new(f64::from(config.sample_rate.0), Arc::clone(&loudness));
+
+        // `heard_pos` is the programme position being sent to the device; `mix_pos` runs
+        // `lead` frames ahead of it, because the effect chains delay what goes through them
+        let (mut mix_pos, mut heard_pos) = (0.0f64, 0.0f64);
+        let lead = mixer.lead_frames();
 
         let stream = device
             .build_output_stream(
@@ -97,10 +105,31 @@ impl AudioPlayer {
                     }
                     feeder.begin_buffer();
                     let volume = f64::from_bits(cb_state.volume.load(Ordering::Relaxed)) as f32;
-                    let mut pos = f64::from_bits(cb_state.position.load(Ordering::Relaxed));
                     let loop_start = f64::from_bits(cb_state.loop_start.load(Ordering::Relaxed));
                     let loop_end = f64::from_bits(cb_state.loop_end.load(Ordering::Relaxed));
                     let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
+
+                    if cb_state.needs_prime.swap(false, Ordering::Relaxed) {
+                        // Start (or seek): run the lead-in through the chains and drop it, so the
+                        // first frame heard is the programme at the requested position
+                        heard_pos = f64::from_bits(cb_state.position.load(Ordering::Relaxed));
+                        let mut t = heard_pos;
+                        let mut done = 0;
+                        while done < lead {
+                            let n = (lead - done).min(MAX_BLOCK);
+                            mixer.begin(n);
+                            for i in 0..n {
+                                t = wrap_loop(t, loop_start, loop_end);
+                                if t < cb_state.end {
+                                    mixer.add_frame(i, t);
+                                }
+                                t += step;
+                            }
+                            mixer.finish(n);
+                            done += n;
+                        }
+                        mix_pos = t;
+                    }
 
                     // The buffer is cut into blocks: every block is mixed per frame (positions,
                     // loop and end of the programme), then the effect chains run on the blocks
@@ -108,13 +137,16 @@ impl AudioPlayer {
                         let frames = block.len() / out_channels;
                         mixer.begin(frames);
                         for i in 0..frames {
-                            pos = wrap_loop(pos, loop_start, loop_end);
-                            if pos < cb_state.end {
-                                mixer.add_frame(i, pos);
-                            } else {
+                            heard_pos = wrap_loop(heard_pos, loop_start, loop_end);
+                            mix_pos = wrap_loop(mix_pos, loop_start, loop_end);
+                            if mix_pos < cb_state.end {
+                                mixer.add_frame(i, mix_pos);
+                            }
+                            if heard_pos >= cb_state.end {
                                 cb_state.playing.store(false, Ordering::Relaxed);
                             }
-                            pos += step;
+                            heard_pos += step;
+                            mix_pos += step;
                         }
                         mixer.finish(frames);
                         let (mix_l, mix_r) = mixer.out();
@@ -134,7 +166,9 @@ impl AudioPlayer {
                         }
                     }
 
-                    cb_state.position.store(pos.to_bits(), Ordering::Relaxed);
+                    cb_state
+                        .position
+                        .store(heard_pos.to_bits(), Ordering::Relaxed);
                     cb_meter.set(peak_l, peak_r);
                     feeder.end_buffer(data.len() / out_channels.max(1));
                 },
@@ -161,6 +195,7 @@ impl AudioPlayer {
         self.state
             .position
             .store(seconds.max(0.0).to_bits(), Ordering::Relaxed);
+        self.state.needs_prime.store(true, Ordering::Relaxed);
         self.state.playing.store(true, Ordering::Relaxed);
     }
 

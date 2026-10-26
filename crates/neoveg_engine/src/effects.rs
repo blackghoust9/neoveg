@@ -5,7 +5,7 @@
 //! stores the registry id and the parameter values the user chose (see [`TrackEffect`]).
 
 use crate::command::{EditCommand, FxTarget};
-use crate::timeline::{Timeline, TrackEffect};
+use crate::timeline::{Timeline, TrackDucking, TrackEffect, TrackId, TrackKind};
 
 /// Longest effect chain of a track or of the master bus.
 pub const MAX_EFFECTS: usize = 8;
@@ -125,6 +125,110 @@ pub fn reset_param(
     })
 }
 
+// ---- auto-ducking ----------------------------------------------------------------------------------
+
+/// A number of a track's auto-ducking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuckParam {
+    Sensitivity,
+    ReduceDb,
+    FadeSeconds,
+}
+
+impl DuckParam {
+    /// Lowest and highest value.
+    pub fn range(self) -> (f32, f32) {
+        match self {
+            DuckParam::Sensitivity => (0.0, 10.0),
+            DuckParam::ReduceDb => (3.0, 40.0),
+            DuckParam::FadeSeconds => (0.05, 5.0),
+        }
+    }
+}
+
+fn edit_ducking(
+    timeline: &Timeline,
+    track_id: TrackId,
+    change: impl FnOnce(&mut Option<TrackDucking>) -> bool,
+) -> Option<EditCommand> {
+    let before = timeline.track(track_id)?.ducking.clone();
+    let mut after = before.clone();
+    if !change(&mut after) || before == after {
+        return None;
+    }
+    Some(EditCommand::SetDucking {
+        track_id,
+        before,
+        after,
+    })
+}
+
+/// Turns auto-ducking on (with the default amounts and no controllers yet) or off.
+pub fn enable_ducking(timeline: &Timeline, track_id: TrackId, on: bool) -> Option<EditCommand> {
+    edit_ducking(timeline, track_id, |d| {
+        match (on, d.is_some()) {
+            (true, false) => *d = Some(TrackDucking::default()),
+            (false, true) => *d = None,
+            _ => return false,
+        }
+        true
+    })
+}
+
+/// Adds or removes `controller` from the tracks this track ducks for. Only other audio tracks can
+/// be controllers. `None` when ducking is off or nothing changes.
+pub fn set_controller(
+    timeline: &Timeline,
+    track_id: TrackId,
+    controller: TrackId,
+    on: bool,
+) -> Option<EditCommand> {
+    let valid = controller != track_id
+        && timeline
+            .track(controller)
+            .is_some_and(|t| t.kind == TrackKind::Audio);
+    if !valid {
+        return None;
+    }
+    edit_ducking(timeline, track_id, |d| {
+        let Some(duck) = d else {
+            return false;
+        };
+        let present = duck.controllers.contains(&controller);
+        match (on, present) {
+            (true, false) => duck.controllers.push(controller),
+            (false, true) => duck.controllers.retain(|c| *c != controller),
+            _ => return false,
+        }
+        true
+    })
+}
+
+/// Sets one amount (kept inside its range). `None` when ducking is off or nothing changes.
+pub fn set_duck_param(
+    timeline: &Timeline,
+    track_id: TrackId,
+    param: DuckParam,
+    value: f32,
+) -> Option<EditCommand> {
+    if !value.is_finite() {
+        return None;
+    }
+    let (lo, hi) = param.range();
+    let value = value.clamp(lo, hi);
+    edit_ducking(timeline, track_id, |d| {
+        let Some(duck) = d else {
+            return false;
+        };
+        match param {
+            DuckParam::Sensitivity => duck.sensitivity = value,
+            DuckParam::ReduceDb => duck.reduce_db = value,
+            DuckParam::FadeSeconds => duck.fade_s = value,
+        }
+        true
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +342,68 @@ mod tests {
         let back: crate::timeline::Track =
             serde_json::from_str(&serde_json::to_string(&with).unwrap()).unwrap();
         assert_eq!(back.effects, with.effects);
+    }
+
+    #[test]
+    fn ducking_is_switched_on_with_controllers_and_amounts_and_each_change_is_one_step() {
+        let (mut tl, mut h, target) = setup();
+        let FxTarget::Track(music) = target else {
+            unreachable!()
+        };
+        let voice = tl.new_track(TrackKind::Audio);
+        let voice_id = voice.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: voice }));
+        let video = tl.new_track(TrackKind::Video);
+        let video_id = video.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: video }));
+
+        assert!(
+            set_controller(&tl, music, voice_id, true).is_none(),
+            "ducking is off"
+        );
+        exec!(tl, h, enable_ducking(&tl, music, true));
+        assert!(enable_ducking(&tl, music, true).is_none(), "already on");
+        exec!(tl, h, set_controller(&tl, music, voice_id, true));
+        assert!(set_controller(&tl, music, voice_id, true).is_none());
+        assert!(
+            set_controller(&tl, music, music, true).is_none(),
+            "not itself"
+        );
+        assert!(
+            set_controller(&tl, music, video_id, true).is_none(),
+            "video has no audio"
+        );
+        exec!(
+            tl,
+            h,
+            set_duck_param(&tl, music, DuckParam::ReduceDb, 100.0)
+        );
+        let duck = tl.track(music).unwrap().ducking.clone().unwrap();
+        assert_eq!(duck.controllers, [voice_id]);
+        assert_eq!(duck.reduce_db, 40.0, "clamped to its range");
+
+        assert!(h.undo(&mut tl));
+        assert_eq!(
+            tl.track(music).unwrap().ducking.as_ref().unwrap().reduce_db,
+            15.0
+        );
+        exec!(tl, h, set_controller(&tl, music, voice_id, false));
+        exec!(tl, h, enable_ducking(&tl, music, false));
+        assert!(tl.track(music).unwrap().ducking.is_none());
+        assert!(set_duck_param(&tl, music, DuckParam::Sensitivity, 5.0).is_none());
+    }
+
+    #[test]
+    fn projects_saved_before_ducking_still_load_and_the_defaults_fill_missing_numbers() {
+        let track: crate::timeline::Track =
+            serde_json::from_str(r#"{"id":1,"kind":"Audio","name":"A","muted":false,"events":[]}"#)
+                .unwrap();
+        assert!(track.ducking.is_none());
+        assert!(!serde_json::to_string(&track).unwrap().contains("ducking"));
+        let duck: TrackDucking = serde_json::from_str(r#"{"controllers":[2]}"#).unwrap();
+        assert_eq!(
+            (duck.sensitivity, duck.reduce_db, duck.fade_s),
+            (6.0, 15.0, 0.8)
+        );
     }
 }

@@ -20,6 +20,12 @@
 | `crates/neoveg_audio/src/dsp/effects/eq.rs` | `audio-dsp/src/effects/eq.rs` | Equalizador paramétrico e de 3 bandas |
 | `crates/neoveg_audio/src/dsp/effects/dynamics.rs` | `audio-dsp/src/effects/dynamics.rs` | Compressor, expansor/gate e limitador de pico verdadeiro |
 | `crates/neoveg_audio/src/dsp/effects/time.rs` | `audio-dsp/src/effects/time.rs` | Delay e reverb |
+| `crates/neoveg_audio/src/dsp/effects/filters.rs` | `audio-dsp/src/effects/filters.rs` | Equalizadores gráficos de 10, 20 e 30 bandas, paramétrico completo, notch, filtros clássicos (Butterworth, Chebyshev, Bessel, Elíptico) e filtro FFT |
+| `crates/neoveg_audio/src/dsp/effects/restoration.rs` | `audio-dsp/src/effects/restoration.rs` | DeHum (pente de notches em 50/60 Hz) e DeNoise (porta espectral por STFT) |
+| `crates/neoveg_audio/src/dsp/effects/stft.rs` | `audio-dsp/src/effects/stft.rs` | Processamento por STFT usado pelo DeNoise e pelo filtro FFT |
+| `crates/neoveg_audio/src/dsp/design.rs` | `audio-dsp/src/design.rs` | Projeto de filtros clássicos em seções biquad |
+| `crates/neoveg_audio/src/dsp/fft.rs` | `audio-dsp/src/fft.rs` | FFT |
+| `crates/neoveg_audio/src/dsp/ducking.rs` | `audio-dsp/src/ducking.rs` | Análise do auto-ducking: regiões de atividade e curva de ganho (os keyframes de descida e subida) |
 | `crates/neoveg_audio/src/dsp/effects/mod.rs` | trecho de `audio-dsp/src/effects/mod.rs` | Registro dos efeitos (só os 7 que o Neoveg oferece) e seus testes de consistência |
 
 Cada arquivo mantém, no topo, o aviso de origem e de copyright.
@@ -30,13 +36,14 @@ Cada arquivo mantém, no topo, o aviso de origem e de copyright.
 - Formatação com `rustfmt`; o código segue com o estilo original.
 - Em `dsp/mod.rs`, as funções auxiliares (`flush` e utilitários de teste) foram reproduzidas a partir
   de `audio-dsp/src/lib.rs`, e alguns lints do clippy foram silenciados só nesse módulo.
-- Em `effects/mod.rs` só foram registrados os 7 efeitos usados; os nomes dos efeitos ficaram em pt-BR e foram acrescentados `has_latency` e `Category::label`.
+- Em `effects/mod.rs` só foram registrados os 16 efeitos usados; os nomes dos efeitos ficaram em pt-BR e foram acrescentados `has_latency` e `Category::label`.
 - Os testes unitários de todos os arquivos copiados foram mantidos. Os testes de oráculo contra o `ffmpeg`
   (`audio-dsp/tests/loudness_oracle.rs`) **não** foram trazidos.
 
 ## Como o Neoveg usa
 
 - **Loudness:** o callback de áudio (`neoveg_audio::playback`) alimenta o medidor com as amostras estéreo que vão de fato para a placa de som e publica as leituras por atômicos (`neoveg_audio::readout`). O painel **Loudness** da interface mostra essas leituras.
+- **Auto-ducking:** `neoveg_audio::duck` mede o nível das faixas de controle a cada 10 ms, acha os trechos com som com as funções do FilmCraft (`dsp::ducking`) e monta a curva de ganho da faixa abaixada; a análise roda ao iniciar a reprodução. A medição do nível é código do Neoveg.
 - **Efeitos:** a cadeia de cada faixa e a do master ficam no projeto (`neoveg_engine::effects`); `neoveg_audio::fxmixer` cria os efeitos fora do callback e roda as cadeias em blocos dentro dele. O painel **Efeitos de Áudio** edita a cadeia da faixa selecionada ou do master.
 - Nada disso aloca memória durante a reprodução.
 

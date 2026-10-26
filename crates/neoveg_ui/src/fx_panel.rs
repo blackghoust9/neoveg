@@ -7,14 +7,51 @@
 use eframe::egui::{self, Slider};
 use neoveg_audio::dsp::effects::{self, EffectInfo};
 use neoveg_audio::dsp::{ParamSpec, Unit};
-use neoveg_audio::fxmixer::{EffectSpec, FxPlan};
-use neoveg_engine::{Timeline, TrackEffect};
+use neoveg_audio::fxmixer::{DuckSpec, EffectSpec, FxPlan};
+use neoveg_engine::effects::DuckParam;
+use neoveg_engine::{Timeline, TrackDucking, TrackEffect, TrackId, TrackKind};
 
 use crate::icons::{self, Icon};
+
+/// What the user did in the auto-ducking section.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DuckAction {
+    Enable(bool),
+    Controller(TrackId, bool),
+    Param(DuckParam, f32),
+}
+
+/// The auto-ducking of the selected track and the tracks it can duck for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DuckView {
+    pub ducking: Option<TrackDucking>,
+    /// Every other audio track, as `(id, name)`.
+    pub candidates: Vec<(TrackId, String)>,
+}
+
+/// The numbers of the auto-ducking section, with the descriptions the sliders are built from.
+const DUCK_SPECS: [(DuckParam, ParamSpec); 3] = [
+    (
+        DuckParam::Sensitivity,
+        ParamSpec::new("sensitivity", "Sensibilidade", 0.0, 10.0, 6.0, Unit::None),
+    ),
+    (
+        DuckParam::ReduceDb,
+        ParamSpec::new("reduce", "Redução", 3.0, 40.0, 15.0, Unit::Decibels),
+    ),
+    (
+        DuckParam::FadeSeconds,
+        ParamSpec::new("fade", "Transição", 0.05, 5.0, 0.8, Unit::Seconds),
+    ),
+];
+
+/// Index the sliders of the auto-ducking section use for their drafts (no effect has it).
+const DUCK_INDEX: usize = usize::MAX;
 
 /// What the user did in the panel.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FxAction {
+    Duck(DuckAction),
     Add(&'static str),
     Remove(usize),
     Move {
@@ -50,12 +87,24 @@ pub struct FxPanelState {
 
 // ---- pure helpers -------------------------------------------------------------------------------
 
-/// The effects offered for a chain: the master bus also gets the ones that delay the signal.
-pub fn available_effects(master: bool) -> Vec<&'static EffectInfo> {
-    effects::effects()
-        .iter()
-        .filter(|e| master || !e.has_latency)
-        .collect()
+/// The effects offered for a chain. Effects that delay the signal are fine anywhere: the mixer
+/// compensates the delay so tracks stay aligned.
+pub fn available_effects() -> Vec<&'static EffectInfo> {
+    effects::effects().iter().collect()
+}
+
+/// The auto-ducking of `track_id` and the other audio tracks it can listen to.
+pub fn duck_view(timeline: &Timeline, track_id: TrackId) -> Option<DuckView> {
+    let track = timeline.track(track_id)?;
+    Some(DuckView {
+        ducking: track.ducking.clone(),
+        candidates: timeline
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Audio && t.id != track_id)
+            .map(|t| (t.id, t.name.clone()))
+            .collect(),
+    })
 }
 
 /// Value of `spec` in `effect`: what the user stored (kept inside the range) or the default.
@@ -129,7 +178,36 @@ pub fn fx_plan(timeline: &Timeline) -> FxPlan {
             .map(|t| spec_chain(&t.effects))
             .collect(),
         master: spec_chain(&timeline.master_effects),
+        duck: timeline
+            .tracks
+            .iter()
+            .map(|t| duck_spec(timeline, t))
+            .collect(),
     }
+}
+
+/// The ducking of `track` as the mixer wants it: controllers become track indices, and tracks that
+/// no longer exist, are not audio or are the track itself are left out.
+fn duck_spec(timeline: &Timeline, track: &neoveg_engine::Track) -> Option<DuckSpec> {
+    let duck = track.ducking.as_ref()?;
+    let mut controllers: Vec<usize> = duck
+        .controllers
+        .iter()
+        .filter_map(|id| {
+            timeline
+                .tracks
+                .iter()
+                .position(|t| t.id == *id && t.kind == TrackKind::Audio && t.id != track.id)
+        })
+        .collect();
+    controllers.sort_unstable();
+    controllers.dedup();
+    Some(DuckSpec {
+        controllers,
+        sensitivity: duck.sensitivity,
+        reduce_db: duck.reduce_db,
+        fade_s: duck.fade_s,
+    })
 }
 
 // ---- drawing ----------------------------------------------------------------------------------------
@@ -140,6 +218,7 @@ pub fn fx_ui(
     panel: &mut FxPanelState,
     title: &str,
     chain: &[TrackEffect],
+    duck: Option<&DuckView>,
 ) -> Vec<FxAction> {
     let mut actions = Vec::new();
     ui.horizontal(|ui| {
@@ -158,9 +237,10 @@ pub fn fx_ui(
                     effects::Category::Filter,
                     effects::Category::Dynamics,
                     effects::Category::Time,
+                    effects::Category::Restoration,
                 ] {
                     ui.weak(category.label());
-                    for info in available_effects(panel.master)
+                    for info in available_effects()
                         .into_iter()
                         .filter(|e| e.category == category)
                     {
@@ -180,8 +260,69 @@ pub fn fx_ui(
             ui.separator();
             effect_ui(ui, panel, index, chain.len(), effect, &mut actions);
         }
+        if let Some(view) = duck {
+            ducking_ui(ui, panel, view, &mut actions);
+        }
     });
     actions
+}
+
+/// The auto-ducking section: on / off, the tracks that make this one duck, and the amounts.
+fn ducking_ui(
+    ui: &mut egui::Ui,
+    panel: &mut FxPanelState,
+    view: &DuckView,
+    actions: &mut Vec<FxAction>,
+) {
+    ui.separator();
+    let mut on = view.ducking.is_some();
+    if ui
+        .checkbox(
+            &mut on,
+            "Auto-ducking: abaixar esta faixa quando outras tiverem som",
+        )
+        .changed()
+    {
+        actions.push(FxAction::Duck(DuckAction::Enable(on)));
+    }
+    let Some(duck) = &view.ducking else {
+        return;
+    };
+    ui.weak("A análise é feita ao iniciar a reprodução, e a faixa desce antes do som entrar.");
+    if view.candidates.is_empty() {
+        ui.weak("Não há outras faixas de áudio.");
+    } else {
+        ui.label("Abaixar quando houver som em:");
+        for (id, name) in &view.candidates {
+            let mut selected = duck.controllers.contains(id);
+            if ui.checkbox(&mut selected, name).changed() {
+                actions.push(FxAction::Duck(DuckAction::Controller(*id, selected)));
+            }
+        }
+    }
+    if duck.controllers.is_empty() {
+        ui.colored_label(
+            egui::Color32::from_rgb(241, 196, 15),
+            "Marque ao menos uma faixa de controle.",
+        );
+    }
+    for (param, spec) in &DUCK_SPECS {
+        let current = match param {
+            DuckParam::Sensitivity => duck.sensitivity,
+            DuckParam::ReduceDb => duck.reduce_db,
+            DuckParam::FadeSeconds => duck.fade_s,
+        };
+        ui.horizontal(|ui| {
+            ui.add_sized([120.0, 18.0], egui::Label::new(spec.name).truncate());
+            let mut committed = Vec::new();
+            slider(ui, panel, DUCK_INDEX, spec, current, &mut committed);
+            for action in committed {
+                if let FxAction::SetParam { value, .. } = action {
+                    actions.push(FxAction::Duck(DuckAction::Param(*param, value)));
+                }
+            }
+        });
+    }
 }
 
 fn effect_ui(
@@ -383,11 +524,80 @@ mod tests {
     }
 
     #[test]
-    fn tracks_are_not_offered_effects_that_delay_the_signal_but_the_master_is() {
-        assert!(available_effects(false).iter().all(|e| !e.has_latency));
-        assert!(available_effects(false).iter().all(|e| e.id != "limiter"));
-        assert!(available_effects(true).iter().any(|e| e.id == "limiter"));
-        assert!(available_effects(false).len() + 1 == available_effects(true).len());
+    fn every_registered_effect_is_offered_including_the_ones_with_latency() {
+        let offered = available_effects();
+        assert_eq!(offered.len(), effects::effects().len());
+        for id in [
+            "limiter",
+            "denoise",
+            "fft_filter",
+            "notch_filter",
+            "scientific_filter",
+        ] {
+            assert!(offered.iter().any(|e| e.id == id), "{id}");
+        }
+    }
+
+    #[test]
+    fn the_ducking_sliders_cover_the_ranges_the_engine_accepts() {
+        for (param, spec) in &DUCK_SPECS {
+            assert_eq!((spec.min, spec.max), param.range(), "{}", spec.id);
+            assert!(spec.default >= spec.min && spec.default <= spec.max);
+        }
+        let defaults = TrackDucking::default();
+        assert_eq!(DUCK_SPECS[0].1.default, defaults.sensitivity);
+        assert_eq!(DUCK_SPECS[1].1.default, defaults.reduce_db);
+        assert_eq!(DUCK_SPECS[2].1.default, defaults.fade_s);
+    }
+
+    #[test]
+    fn the_ducking_view_lists_the_other_audio_tracks_only() {
+        let mut tl = Timeline::new();
+        for kind in [
+            TrackKind::Audio,
+            TrackKind::Video,
+            TrackKind::Audio,
+            TrackKind::Audio,
+        ] {
+            let track = tl.new_track(kind);
+            tl.tracks.push(track);
+        }
+        let first = tl.tracks[0].id;
+        let view = duck_view(&tl, first).unwrap();
+        assert!(view.ducking.is_none());
+        let names: Vec<&str> = view.candidates.iter().map(|c| c.1.as_str()).collect();
+        assert_eq!(
+            names,
+            ["Audio 2", "Audio 3"],
+            "no video track and not itself"
+        );
+        assert!(duck_view(&tl, 9999).is_none());
+    }
+
+    #[test]
+    fn the_plan_turns_controllers_into_track_indices_and_drops_the_invalid_ones() {
+        let mut tl = Timeline::new();
+        for kind in [TrackKind::Audio, TrackKind::Audio, TrackKind::Video] {
+            let track = tl.new_track(kind);
+            tl.tracks.push(track);
+        }
+        let (music, voice, video) = (tl.tracks[0].id, tl.tracks[1].id, tl.tracks[2].id);
+        tl.tracks[0].ducking = Some(TrackDucking {
+            controllers: vec![voice, voice, video, music, 9999],
+            reduce_db: 18.0,
+            ..Default::default()
+        });
+        let plan = fx_plan(&tl);
+        assert_eq!(plan.duck.len(), 3);
+        assert!(plan.duck[1].is_none() && plan.duck[2].is_none());
+        let spec = plan.duck[0].as_ref().unwrap();
+        assert_eq!(spec.controllers, [1], "only the other audio track, once");
+        assert_eq!(spec.reduce_db, 18.0);
+        assert!(!plan.is_empty());
+
+        // Ducking with nothing to listen to is as good as none
+        tl.tracks[0].ducking = Some(TrackDucking::default());
+        assert!(fx_plan(&tl).is_empty());
     }
 
     #[test]

@@ -110,6 +110,44 @@ impl TrackEffect {
     }
 }
 
+fn default_sensitivity() -> f32 {
+    6.0
+}
+fn default_reduce_db() -> f32 {
+    15.0
+}
+fn default_fade_s() -> f32 {
+    0.8
+}
+
+/// Auto-ducking of a track (typically music): whenever the `controllers` tracks (dialogue, effects)
+/// have sound, this track is turned down by `reduce_db`, with a smooth ramp that starts before the
+/// sound does. The analysis is done when playback starts, on the controllers' audio.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackDucking {
+    pub controllers: Vec<TrackId>,
+    /// 0 to 10: how quiet a controller may be and still count (higher is more sensitive).
+    #[serde(default = "default_sensitivity")]
+    pub sensitivity: f32,
+    /// How much the track is turned down, dB (positive).
+    #[serde(default = "default_reduce_db")]
+    pub reduce_db: f32,
+    /// Length of the down and up ramps, seconds.
+    #[serde(default = "default_fade_s")]
+    pub fade_s: f32,
+}
+
+impl Default for TrackDucking {
+    fn default() -> Self {
+        Self {
+            controllers: Vec::new(),
+            sensitivity: default_sensitivity(),
+            reduce_db: default_reduce_db(),
+            fade_s: default_fade_s(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub id: TrackId,
@@ -120,6 +158,9 @@ pub struct Track {
     /// Effect chain, applied in order to the sum of the track's events (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<TrackEffect>,
+    /// Auto-ducking against other tracks (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ducking: Option<TrackDucking>,
 }
 
 /// A project timeline. A new timeline has no tracks.
@@ -181,6 +222,7 @@ impl Timeline {
             muted: false,
             events: Vec::new(),
             effects: Vec::new(),
+            ducking: None,
         }
     }
 

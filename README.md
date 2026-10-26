@@ -178,7 +178,10 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 **Áudio**
 - [ ] Volume, pan, mute e solo por faixa; Mixing Console com barramentos, sends e inserts
 - [x] Efeitos de áudio nativos por faixa e no master (adaptados do FilmCraft): equalizador paramétrico e de 3 bandas, compressor, expansor/gate, limitador (só no master, por ter latência), delay e reverb; cadeia de até 8 efeitos com bypass, ordem e parâmetros, salva no projeto, um passo de desfazer por ação; painel **Efeitos de Áudio**; ao mudar a cadeia durante a reprodução o áudio recomeça no cursor
-- [ ] Mais efeitos do `audio-dsp` (filtros, DeNoise, DeHum, pitch, chorus/flanger, multibanda, auto-ducking), nomes de parâmetros em pt-BR, compensação de latência por faixa, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros e hospedagem VST3
+- [x] Filtros (equalizadores gráficos de 10/20/30 bandas, paramétrico completo, notch, filtros clássicos Butterworth/Chebyshev/Bessel/Elíptico, filtro FFT), DeHum e DeNoise do `audio-dsp`, disponíveis em qualquer faixa e no master
+- [x] Compensação de latência: efeitos com latência (limitador, DeNoise, filtro FFT) não deslocam a faixa em relação às outras nem ao vídeo; o mixer atrasa as faixas mais rápidas e adianta a mixagem pelo atraso total
+- [x] Auto-ducking por faixa (a música desce quando as faixas de controle têm som): sensibilidade, redução em dB e transição; a análise roda ao iniciar a reprodução e a curva começa a descer antes do som entrar
+- [ ] Mais efeitos do `audio-dsp` (pitch, chorus/flanger, multibanda, DeEsser, DeReverb, click remover), nomes de parâmetros em pt-BR, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem VST3
 - [ ] Gravação de áudio, entradas de dispositivo e metrônomo
 
 **Vídeo e composição**
@@ -301,7 +304,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
 - [ ] Detectar cenas e dividir (filtro de cena do FFmpeg), Congelar quadro no cursor (envelope de velocidade), detecção de batidas e de andamento
 - [ ] Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade
-- [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking (controlador/ouvinte), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
+- [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking por keyframes de volume (o por faixa já existe), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
 
 **Fase 12 — Propriedades, régua e espaço de trabalho (entradas 30 a 35)**
 - [ ] Propriedades do projeto: formato de pixel, ordem de campos, taxa de amostragem e profundidade de bits, início da régua, BPM e compasso, pastas de gravação e pré-renderização, espaço de cor (ACES/OCIO) — tudo com valor padrão para abrir projetos antigos

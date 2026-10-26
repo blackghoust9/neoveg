@@ -17,5 +17,6 @@ pub use command::{EditCommand, FxTarget, History, TrackChange};
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{
-    EventGeometry, EventId, GroupId, Timeline, Track, TrackEffect, TrackEvent, TrackId, TrackKind,
+    EventGeometry, EventId, GroupId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent,
+    TrackId, TrackKind,
 };

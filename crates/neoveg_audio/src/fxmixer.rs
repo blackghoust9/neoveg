@@ -8,6 +8,7 @@
 
 use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
+use crate::duck::{analyze, DuckCurve};
 use crate::mixer::{plan_end, MixClip};
 
 /// Most frames the mixer handles per block; the callback cuts longer buffers into blocks.
@@ -21,16 +22,34 @@ pub struct EffectSpec {
     pub params: Vec<(String, f32)>,
 }
 
-/// The effect chains of a project: one per track (indexed like `MixClip::track`) and the master's.
+/// Auto-ducking of one track: it is turned down by `reduce_db` while the `controllers` tracks
+/// (indices like `MixClip::track`) have sound.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DuckSpec {
+    pub controllers: Vec<usize>,
+    pub sensitivity: f32,
+    pub reduce_db: f32,
+    pub fade_s: f32,
+}
+
+/// The effect chains of a project: one per track (indexed like `MixClip::track`) and the master's,
+/// plus the auto-ducking of the tracks that have it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FxPlan {
     pub tracks: Vec<Vec<EffectSpec>>,
     pub master: Vec<EffectSpec>,
+    /// Indexed like `tracks`; may be shorter.
+    pub duck: Vec<Option<DuckSpec>>,
 }
 
 impl FxPlan {
     pub fn is_empty(&self) -> bool {
-        self.master.is_empty() && self.tracks.iter().all(Vec::is_empty)
+        self.master.is_empty()
+            && self.tracks.iter().all(Vec::is_empty)
+            && self
+                .duck
+                .iter()
+                .all(|d| d.as_ref().is_none_or(|d| d.controllers.is_empty()))
     }
 }
 
@@ -59,13 +78,51 @@ fn build_chain(specs: &[EffectSpec], sample_rate: f32) -> Vec<Box<dyn AudioEffec
         .collect()
 }
 
+/// A fixed delay of whole frames on a stereo bus (delay compensation).
+struct FrameDelay {
+    left: Vec<f32>,
+    right: Vec<f32>,
+    pos: usize,
+}
+
+impl FrameDelay {
+    fn new(frames: usize) -> Self {
+        Self {
+            left: vec![0.0; frames],
+            right: vec![0.0; frames],
+            pos: 0,
+        }
+    }
+
+    fn process(&mut self, l: &mut [f32], r: &mut [f32]) {
+        let len = self.left.len();
+        if len == 0 {
+            return;
+        }
+        for (l, r) in l.iter_mut().zip(r.iter_mut()) {
+            std::mem::swap(l, &mut self.left[self.pos]);
+            std::mem::swap(r, &mut self.right[self.pos]);
+            self.pos = (self.pos + 1) % len;
+        }
+    }
+}
+
 pub struct BlockMixer {
     clips: Vec<MixClip>,
     /// Bus of every clip (0 is the dry bus).
     clip_bus: Vec<usize>,
     /// Effect chain of every bus; entry 0 (the dry bus) is always empty.
     chains: Vec<Vec<Box<dyn AudioEffect>>>,
+    /// Auto-ducking curve of every bus (entry 0 never has one) and the buses that have one.
+    ducks: Vec<Option<DuckCurve>>,
+    ducked: Vec<usize>,
+    /// Gain of every bus at the frame being mixed (1 unless the bus is ducked).
+    gains: Vec<f32>,
     master: Vec<Box<dyn AudioEffect>>,
+    /// Delay that brings every bus to the latency of the slowest one.
+    delays: Vec<FrameDelay>,
+    /// How many frames the whole mix lags behind the positions fed to it.
+    lead: usize,
     bus_l: Vec<Vec<f32>>,
     bus_r: Vec<Vec<f32>>,
     out_l: Vec<f32>,
@@ -75,28 +132,65 @@ pub struct BlockMixer {
 
 impl BlockMixer {
     pub fn new(clips: Vec<MixClip>, plan: &FxPlan, sample_rate: f32) -> Self {
+        let end = plan_end(&clips);
         let mut chains: Vec<Vec<Box<dyn AudioEffect>>> = vec![Vec::new()];
-        let mut bus_of_track = Vec::with_capacity(plan.tracks.len());
-        for specs in &plan.tracks {
-            let chain = build_chain(specs, sample_rate);
-            if chain.is_empty() {
+        let mut ducks: Vec<Option<DuckCurve>> = vec![None];
+        let track_count = plan.tracks.len().max(plan.duck.len());
+        let mut bus_of_track = Vec::with_capacity(track_count);
+        for t in 0..track_count {
+            let chain = plan
+                .tracks
+                .get(t)
+                .map(|specs| build_chain(specs, sample_rate))
+                .unwrap_or_default();
+            let curve = plan
+                .duck
+                .get(t)
+                .and_then(Option::as_ref)
+                .filter(|d| !d.controllers.is_empty())
+                .map(|d| {
+                    let controllers: Vec<&MixClip> = clips
+                        .iter()
+                        .filter(|c| d.controllers.contains(&c.track))
+                        .collect();
+                    analyze(&controllers, end, d.sensitivity, d.reduce_db, d.fade_s)
+                })
+                .filter(|c| !c.is_flat());
+            if chain.is_empty() && curve.is_none() {
                 bus_of_track.push(0);
             } else {
+                // A ducked track needs its own bus even without effects
                 bus_of_track.push(chains.len());
                 chains.push(chain);
+                ducks.push(curve);
             }
         }
         let clip_bus = clips
             .iter()
             .map(|c| bus_of_track.get(c.track).copied().unwrap_or(0))
             .collect();
+        let latency =
+            |chain: &[Box<dyn AudioEffect>]| chain.iter().map(|e| e.latency()).sum::<usize>();
+        let bus_latency: Vec<usize> = chains.iter().map(|c| latency(c)).collect();
+        let slowest = bus_latency.iter().copied().max().unwrap_or(0);
+        let delays = bus_latency
+            .iter()
+            .map(|l| FrameDelay::new(slowest - l))
+            .collect();
+        let master = build_chain(&plan.master, sample_rate);
+        let lead = slowest + latency(&master);
         let buses = chains.len();
         Self {
-            end: plan_end(&clips),
+            end,
             clips,
             clip_bus,
+            ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
+            gains: vec![1.0; buses],
+            ducks,
             chains,
-            master: build_chain(&plan.master, sample_rate),
+            master,
+            delays,
+            lead,
             bus_l: vec![vec![0.0; MAX_BLOCK]; buses],
             bus_r: vec![vec![0.0; MAX_BLOCK]; buses],
             out_l: vec![0.0; MAX_BLOCK],
@@ -107,6 +201,28 @@ impl BlockMixer {
     /// End of the last clip, seconds.
     pub fn end(&self) -> f64 {
         self.end
+    }
+
+    /// Frames by which the mix lags behind the positions it is fed: the longest effect chain of a
+    /// track plus the master's. Feed the mixer positions that many frames ahead of what should
+    /// be heard (after [`prime`](Self::prime)) and everything lines up.
+    pub fn lead_frames(&self) -> usize {
+        self.lead
+    }
+
+    /// Runs [`lead_frames`](Self::lead_frames) frames from `start` and throws the result away, so
+    /// that the first frame heard afterwards is the mix at `start`.
+    pub fn prime(&mut self, start: f64, step: f64) {
+        let mut done = 0;
+        while done < self.lead {
+            let n = (self.lead - done).min(MAX_BLOCK);
+            self.begin(n);
+            for i in 0..n {
+                self.add_frame(i, start + (done + i) as f64 * step);
+            }
+            self.finish(n);
+            done += n;
+        }
     }
 
     /// Starts a block of `frames` frames (at most [`MAX_BLOCK`]): clears the buses.
@@ -120,10 +236,16 @@ impl BlockMixer {
     /// Adds every clip's sample at timeline time `t` to frame `i` of the block.
     #[inline]
     pub fn add_frame(&mut self, i: usize, t: f64) {
+        for &bus in &self.ducked {
+            if let Some(curve) = &self.ducks[bus] {
+                self.gains[bus] = curve.gain(t);
+            }
+        }
         for (clip, &bus) in self.clips.iter().zip(&self.clip_bus) {
             let (l, r) = clip.sample_at(t);
-            self.bus_l[bus][i] += l;
-            self.bus_r[bus][i] += r;
+            let gain = self.gains[bus];
+            self.bus_l[bus][i] += l * gain;
+            self.bus_r[bus][i] += r * gain;
         }
     }
 
@@ -131,11 +253,12 @@ impl BlockMixer {
     /// effects. The result is in [`out`](Self::out).
     pub fn finish(&mut self, frames: usize) {
         let n = frames.min(MAX_BLOCK);
-        for (bus, chain) in self.chains.iter_mut().enumerate().skip(1) {
+        for (bus, chain) in self.chains.iter_mut().enumerate() {
             let (l, r) = (&mut self.bus_l[bus][..n], &mut self.bus_r[bus][..n]);
             for effect in chain.iter_mut() {
                 effect.process(&mut [&mut *l, &mut *r]);
             }
+            self.delays[bus].process(l, r);
         }
         self.out_l[..n].copy_from_slice(&self.bus_l[0][..n]);
         self.out_r[..n].copy_from_slice(&self.bus_r[0][..n]);
@@ -229,6 +352,7 @@ mod tests {
                 )],
             ],
             master: vec![],
+            ..Default::default()
         };
         let clips = vec![constant(0, 0.25, 1.0), constant(1, 0.5, 1.0)];
         let mut mixer = BlockMixer::new(clips, &plan, RATE as f32);
@@ -247,6 +371,7 @@ mod tests {
         let plan = FxPlan {
             tracks: vec![],
             master: vec![spec("limiter", &[("ceiling", -1.0)])],
+            ..Default::default()
         };
         let clips = vec![constant(0, 1.5, 1.0), constant(1, 1.5, 1.0)];
         let mut mixer = BlockMixer::new(clips, &plan, RATE as f32);
@@ -268,6 +393,7 @@ mod tests {
                 &[("time", 7.0), ("feedback", 40.0), ("mix", 50.0)],
             )]],
             master: vec![spec("compressor", &[("threshold", -30.0), ("ratio", 8.0)])],
+            ..Default::default()
         };
         let clips = || vec![constant(0, 0.4, 0.3)];
         let mut a = BlockMixer::new(clips(), &plan, RATE as f32);
@@ -287,6 +413,7 @@ mod tests {
         let plan = FxPlan {
             tracks: vec![vec![spec("does_not_exist", &[])]],
             master: vec![spec("also_missing", &[])],
+            ..Default::default()
         };
         // Track 0 has only an unknown effect, track 5 is not in the plan at all
         let clips = vec![constant(0, 0.2, 0.2), constant(5, 0.1, 0.2)];
@@ -296,17 +423,201 @@ mod tests {
         assert!(is_known_effect("reverb") && !is_known_effect("does_not_exist"));
     }
 
+    /// Renders the way the audio callback does: primes the mixer, then feeds it positions that
+    /// many frames ahead, so output frame `j` is the mix at `j / RATE` seconds.
+    fn render_aligned(mixer: &mut BlockMixer, frames: usize) -> Vec<f32> {
+        let step = 1.0 / f64::from(RATE);
+        mixer.prime(0.0, step);
+        let lead = mixer.lead_frames();
+        let mut out = Vec::new();
+        let mut done = 0;
+        while done < frames {
+            let n = MAX_BLOCK.min(frames - done);
+            mixer.begin(n);
+            for i in 0..n {
+                mixer.add_frame(i, (lead + done + i) as f64 * step);
+            }
+            mixer.finish(n);
+            out.extend_from_slice(&mixer.out().0[..n]);
+            done += n;
+        }
+        out
+    }
+
+    /// A clip that starts at `start` seconds with a constant value.
+    fn step_at(track: usize, value: f32, start: f64) -> MixClip {
+        MixClip {
+            start,
+            ..constant(track, value, 1.0 - start)
+        }
+    }
+
+    #[test]
+    fn an_effect_with_latency_does_not_shift_its_track_against_the_others() {
+        // Two identical steps at 0.2 s; only track 1 goes through a look-ahead limiter
+        let plan = FxPlan {
+            tracks: vec![vec![], vec![spec("limiter", &[("ceiling", 0.0)])]],
+            master: vec![],
+            ..Default::default()
+        };
+        let clips = vec![step_at(0, 0.3, 0.2), step_at(1, 0.3, 0.2)];
+        let mut mixer = BlockMixer::new(clips, &plan, RATE as f32);
+        assert!(mixer.lead_frames() > 0, "the limiter looks ahead");
+        let out = render_aligned(&mut mixer, RATE as usize / 2);
+
+        let step = (0.2 * f64::from(RATE)) as usize;
+        assert!(
+            out[step - 4].abs() < 1e-3,
+            "before the step: {}",
+            out[step - 4]
+        );
+        // Both tracks switch on together, so the sum goes straight to 0.6 (no 0.3 plateau)
+        assert!(
+            (out[step + 8] - 0.6).abs() < 0.02,
+            "just after: {}",
+            out[step + 8]
+        );
+    }
+
+    #[test]
+    fn the_frame_delay_shifts_a_stream_by_exactly_its_length_across_blocks() {
+        let mut delay = FrameDelay::new(3);
+        let input: Vec<f32> = (1..=10).map(|v| v as f32).collect();
+        let (mut l, mut r) = (input.clone(), input.clone());
+        // Cut in uneven blocks
+        for range in [0..4, 4..5, 5..10] {
+            delay.process(&mut l[range.clone()], &mut r[range]);
+        }
+        assert_eq!(l, [0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+        assert_eq!(l, r);
+        // No delay is a no-op
+        let mut none = FrameDelay::new(0);
+        let mut x = vec![1.0f32, 2.0];
+        let mut y = x.clone();
+        none.process(&mut x, &mut y);
+        assert_eq!(x, [1.0, 2.0]);
+    }
+
+    #[test]
+    fn the_master_chain_latency_is_part_of_the_lead() {
+        let plan = FxPlan {
+            tracks: vec![],
+            master: vec![spec("limiter", &[])],
+            ..Default::default()
+        };
+        let mut mixer = BlockMixer::new(vec![step_at(0, 0.3, 0.2)], &plan, RATE as f32);
+        assert!(mixer.lead_frames() > 0);
+        let out = render_aligned(&mut mixer, RATE as usize / 2);
+        let step = (0.2 * f64::from(RATE)) as usize;
+        assert!(out[step - 4].abs() < 1e-3);
+        assert!((out[step + 8] - 0.3).abs() < 0.02, "{}", out[step + 8]);
+    }
+
+    #[test]
+    fn a_project_without_latency_has_no_lead() {
+        let mixer = BlockMixer::new(vec![constant(0, 0.1, 0.1)], &FxPlan::default(), RATE as f32);
+        assert_eq!(mixer.lead_frames(), 0);
+    }
+
+    /// `value` from `start` for `seconds` on `track`.
+    fn burst(track: usize, value: f32, start: f64, seconds: f64) -> MixClip {
+        MixClip {
+            start,
+            ..constant(track, value, seconds)
+        }
+    }
+
+    fn duck_plan(controllers: Vec<usize>, sensitivity: f32) -> FxPlan {
+        FxPlan {
+            tracks: vec![vec![], vec![]],
+            master: vec![],
+            duck: vec![
+                None,
+                Some(DuckSpec {
+                    controllers,
+                    sensitivity,
+                    reduce_db: 12.0,
+                    fade_s: 0.2,
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn music_is_turned_down_while_the_voice_speaks_and_comes_back() {
+        // Voice on track 0 from 1 s to 2 s; music on track 1 for 3 s
+        let clips = vec![burst(0, 0.3, 1.0, 1.0), constant(1, 0.5, 3.0)];
+        let mut mixer = BlockMixer::new(clips, &duck_plan(vec![0], 6.0), RATE as f32);
+        let (l, _) = render(&mut mixer, RATE as usize * 3, 480);
+        let at = |seconds: f64| l[(seconds * f64::from(RATE)) as usize];
+
+        assert!((at(0.5) - 0.5).abs() < 1e-3, "before: {}", at(0.5));
+        let ducked = 0.3 + 0.5 * 10f32.powf(-12.0 / 20.0);
+        assert!(
+            (at(1.5) - ducked).abs() < 0.01,
+            "during: {} vs {ducked}",
+            at(1.5)
+        );
+        assert!((at(2.8) - 0.5).abs() < 1e-3, "after: {}", at(2.8));
+        // The music starts coming down before the voice is there
+        assert!(at(0.9) < 0.49, "the ramp begins early: {}", at(0.9));
+    }
+
+    #[test]
+    fn ducking_without_usable_controllers_changes_nothing() {
+        let clips = || vec![burst(0, 0.3, 1.0, 1.0), constant(1, 0.5, 3.0)];
+        for plan in [duck_plan(vec![], 6.0), duck_plan(vec![7], 6.0)] {
+            let mut mixer = BlockMixer::new(clips(), &plan, RATE as f32);
+            let (l, _) = render(&mut mixer, RATE as usize * 2, 480);
+            assert!((l[(1.5 * f64::from(RATE)) as usize] - 0.8).abs() < 1e-3);
+        }
+        // A voice too quiet for the sensitivity does not duck either
+        let quiet = vec![burst(0, 0.001, 1.0, 1.0), constant(1, 0.5, 3.0)];
+        let mut mixer = BlockMixer::new(quiet, &duck_plan(vec![0], 0.0), RATE as f32);
+        let (l, _) = render(&mut mixer, RATE as usize * 2, 480);
+        assert!((l[(1.5 * f64::from(RATE)) as usize] - 0.501).abs() < 1e-3);
+    }
+
+    #[test]
+    fn a_ducked_track_keeps_its_effects_and_only_that_track_is_ducked() {
+        // The voice itself is never ducked, and the music still goes through its own chain
+        let plan = FxPlan {
+            tracks: vec![
+                vec![],
+                vec![spec(
+                    "delay",
+                    &[("time", 10.0), ("feedback", 0.0), ("mix", 0.0)],
+                )],
+            ],
+            duck: duck_plan(vec![0], 6.0).duck,
+            ..Default::default()
+        };
+        let clips = vec![burst(0, 0.3, 1.0, 1.0), constant(1, 0.5, 3.0)];
+        let mut mixer = BlockMixer::new(clips, &plan, RATE as f32);
+        let (l, _) = render(&mut mixer, RATE as usize * 2, 480);
+        let during = l[(1.5 * f64::from(RATE)) as usize];
+        let ducked = 0.3 + 0.5 * 10f32.powf(-12.0 / 20.0);
+        assert!((during - ducked).abs() < 0.02, "{during} vs {ducked}");
+    }
+
     #[test]
     fn an_empty_plan_is_empty_and_a_plan_with_any_effect_is_not() {
         assert!(FxPlan::default().is_empty());
         assert!(FxPlan {
             tracks: vec![vec![], vec![]],
-            master: vec![]
+            master: vec![],
+            ..Default::default()
         }
         .is_empty());
+        assert!(!duck_plan(vec![0], 6.0).is_empty());
+        assert!(
+            duck_plan(vec![], 6.0).is_empty(),
+            "ducking without controllers does nothing"
+        );
         assert!(!FxPlan {
             tracks: vec![vec![], vec![spec("reverb", &[])]],
-            master: vec![]
+            master: vec![],
+            ..Default::default()
         }
         .is_empty());
     }
