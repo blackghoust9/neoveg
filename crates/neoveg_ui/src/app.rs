@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::theme as ui_theme;
 use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Key, Pos2, Rect, Rounding, Sense, Shape, Stroke,
     TextureHandle,
@@ -24,6 +25,7 @@ use neoveg_common::keymap::{KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
+use neoveg_common::theme::{self, Theme};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::captions;
@@ -217,6 +219,12 @@ struct AppState {
     bars_texture: Option<TextureHandle>,
     quality: usize,
     show_preferences: bool,
+    /// Tab of the preferences window.
+    prefs_tab: PrefsTab,
+    /// (theme id, theme file) the interface is currently painted with.
+    theme_applied: Option<(String, String)>,
+    /// Message about the theme file (read errors, saves), shown in the preferences window.
+    theme_note: String,
     show_keymap: bool,
     keymap_filter: String,
     /// Command waiting for the next key press in the "Personalizar teclado" window.
@@ -636,6 +644,9 @@ impl AppState {
             bars_texture: None,
             quality: 4,
             show_preferences: false,
+            prefs_tab: PrefsTab::General,
+            theme_applied: None,
+            theme_note: String::new(),
             show_keymap: false,
             keymap_filter: String::new(),
             capture_for: None,
@@ -2343,7 +2354,7 @@ pub struct NeovegApp {
 
 impl NeovegApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        ui_theme::apply(&cc.egui_ctx, &Theme::default());
 
         let mut dock = DockState::new(vec![Tab::Preview]);
         let surface = dock.main_surface_mut();
@@ -2389,6 +2400,8 @@ impl eframe::App for NeovegApp {
                     _ => self.state.find_recoveries(),
                 };
                 splash.step_done(now, detail);
+                // The startup screen already wears the user's theme
+                sync_theme(ctx, &mut self.state);
             }
             if splash.show(ctx, now) {
                 self.splash = None;
@@ -2447,6 +2460,7 @@ impl eframe::App for NeovegApp {
                 );
             });
 
+        sync_theme(ctx, &mut self.state);
         preferences_window(ctx, &mut self.state);
         keymap_window(ctx, &mut self.state);
         repeat_paste_window(ctx, &mut self.state);
@@ -2839,37 +2853,140 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
     state.show_keymap = open;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PrefsTab {
+    General,
+    Themes,
+}
+
+/// Repaints the interface when the chosen theme (or the file it points to) changed.
+fn sync_theme(ctx: &egui::Context, state: &mut AppState) {
+    let key = (state.prefs.theme.clone(), state.prefs.theme_file.clone());
+    if state.theme_applied.as_ref() == Some(&key) {
+        return;
+    }
+    let (resolved, warning) = state.prefs.resolve_theme();
+    if let Some(warning) = warning {
+        tracing::warn!("[WARN] theme: {warning}");
+        state.theme_note = warning;
+    }
+    ui_theme::apply(ctx, &resolved);
+    state.theme_applied = Some(key);
+}
+
+fn save_prefs(prefs: &Preferences) {
+    if let Some(path) = Preferences::default_path() {
+        if let Err(e) = prefs.save(&path) {
+            tracing::warn!("[WARN] cannot save preferences: {e}");
+        }
+    }
+}
+
 fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_preferences;
     let mut prefs = state.prefs.clone();
+    let mut tab = state.prefs_tab;
+    let mut reload = false;
+    let mut note = std::mem::take(&mut state.theme_note);
     egui::Window::new("Preferências")
         .open(&mut open)
         .collapsible(false)
+        .default_width(420.0)
         .show(ctx, |ui| {
-            egui::ComboBox::from_label("Idioma")
-                .selected_text(prefs.language.clone())
-                .show_ui(ui, |ui| {
-                    for lang in LANGUAGES {
-                        ui.selectable_value(&mut prefs.language, lang.to_string(), lang);
-                    }
-                });
             ui.horizontal(|ui| {
-                ui.label("Autosave (minutos, 0 = desligado)");
-                ui.add(egui::DragValue::new(&mut prefs.autosave_minutes).range(0..=120));
+                ui.selectable_value(&mut tab, PrefsTab::General, "Geral");
+                ui.selectable_value(&mut tab, PrefsTab::Themes, "Temas");
             });
-            ui.checkbox(
-                &mut prefs.auto_fade_on_import,
-                "Fade-in/out automático ao importar mídia",
-            );
+            ui.separator();
+            match tab {
+                PrefsTab::General => {
+                    egui::ComboBox::from_label("Idioma")
+                        .selected_text(prefs.language.clone())
+                        .show_ui(ui, |ui| {
+                            for lang in LANGUAGES {
+                                ui.selectable_value(&mut prefs.language, lang.to_string(), lang);
+                            }
+                        });
+                    ui.horizontal(|ui| {
+                        ui.label("Autosave (minutos, 0 = desligado)");
+                        ui.add(egui::DragValue::new(&mut prefs.autosave_minutes).range(0..=120));
+                    });
+                    ui.checkbox(
+                        &mut prefs.auto_fade_on_import,
+                        "Fade-in/out automático ao importar mídia",
+                    );
+                }
+                PrefsTab::Themes => {
+                    for id in theme::BUILTIN_IDS {
+                        ui.radio_value(&mut prefs.theme, id.to_string(), theme::builtin_name(id));
+                    }
+                    ui.radio_value(
+                        &mut prefs.theme,
+                        theme::CUSTOM_THEME_ID.to_string(),
+                        "Personalizado (arquivo .json)",
+                    );
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Abrir tema…").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Tema do Neoveg", &["json"])
+                                .pick_file()
+                            {
+                                match Theme::load(&path) {
+                                    Ok(theme) => {
+                                        note = format!("Tema \"{}\" carregado", theme.name);
+                                        prefs.theme = theme::CUSTOM_THEME_ID.into();
+                                        prefs.theme_file = path.display().to_string();
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("[WARN] theme: {e}");
+                                        note = e;
+                                    }
+                                }
+                            }
+                        }
+                        if ui.button("Exportar tema atual…").clicked() {
+                            let (current, _) = prefs.resolve_theme();
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Tema do Neoveg", &["json"])
+                                .set_file_name("meu_tema.json")
+                                .save_file()
+                            {
+                                note = match current.save(&path) {
+                                    Ok(()) => format!("Tema salvo em {}", path.display()),
+                                    Err(e) => format!("Falha ao salvar o tema: {e}"),
+                                };
+                            }
+                        }
+                        if ui
+                            .add_enabled(
+                                prefs.theme == theme::CUSTOM_THEME_ID,
+                                egui::Button::new("Recarregar"),
+                            )
+                            .on_hover_text("Lê o arquivo de tema de novo")
+                            .clicked()
+                        {
+                            reload = true;
+                        }
+                    });
+                    if prefs.theme == theme::CUSTOM_THEME_ID {
+                        ui.small(format!("Arquivo: {}", prefs.theme_file));
+                    }
+                    if !note.is_empty() {
+                        ui.label(note.as_str());
+                    }
+                }
+            }
         });
     if prefs != state.prefs {
-        if let Some(path) = Preferences::default_path() {
-            if let Err(e) = prefs.save(&path) {
-                tracing::warn!("[WARN] cannot save preferences: {e}");
-            }
-        }
+        save_prefs(&prefs);
         state.prefs = prefs;
     }
+    if reload {
+        state.theme_applied = None;
+    }
+    state.prefs_tab = tab;
+    state.theme_note = note;
     state.show_preferences = open;
 }
 
@@ -3302,7 +3419,17 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     state.apply_fx_actions(target, actions);
 }
 
+/// Shortest meter that keeps the 0 / -6 / -12 scale labels apart.
+const METER_MIN_HEIGHT: f32 = 130.0;
+
 fn master_bus_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    // A short panel scrolls instead of squeezing the dBFS scale into overlapping labels
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| master_bus_content(state, ui));
+}
+
+fn master_bus_content(state: &mut AppState, ui: &mut egui::Ui) {
     // Meters only ever show what the audio pipeline reported; stopped means zero
     let (l, r) = if state.playing {
         state.meter.peak()
@@ -3310,7 +3437,7 @@ fn master_bus_ui(state: &mut AppState, ui: &mut egui::Ui) {
         (0.0, 0.0)
     };
 
-    let meter_h = (ui.available_height() - 80.0).max(60.0);
+    let meter_h = (ui.available_height() - 80.0).max(METER_MIN_HEIGHT);
     let (rect, _) = ui.allocate_exact_size(vec2(150.0, meter_h), Sense::hover());
     let painter = ui.painter_at(rect);
     let (top, bottom) = (rect.top() + 6.0, rect.bottom() - 6.0);
@@ -3329,7 +3456,7 @@ fn master_bus_ui(state: &mut AppState, ui: &mut egui::Ui) {
             Align2::RIGHT_CENTER,
             label,
             FontId::monospace(10.0),
-            Color32::from_gray(150),
+            ui.visuals().weak_text_color(),
         );
     }
     for (i, level) in [l, r].into_iter().enumerate() {
@@ -3899,15 +4026,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // ---- drawing ---------------------------------------------------------------------------------
     let painter = ui.painter_at(rect);
     let lane_painter = painter.with_clip_rect(lanes);
-    painter.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(26, 28, 33));
+    let pal = ui_theme::palette();
+    painter.rect_filled(rect, Rounding::ZERO, pal.timeline_bg);
 
     for (i, _) in state.timeline.tracks.iter().enumerate() {
         let y = lane_top + i as f32 * TRACK_HEIGHT;
-        let shade = if i % 2 == 0 { 31 } else { 28 };
         lane_painter.rect_filled(
             Rect::from_min_max(pos2(lanes.left(), y), pos2(lanes.right(), y + TRACK_HEIGHT)),
             Rounding::ZERO,
-            Color32::from_rgb(shade, shade + 2, shade + 6),
+            if i % 2 == 0 { pal.lane } else { pal.lane_alt },
         );
     }
 
@@ -3924,8 +4051,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.scroll_seconds,
         lanes.width() as f64,
     );
-    let minor = Stroke::new(hairline, Color32::from_rgb(0x2C, 0x30, 0x38));
-    let major = Stroke::new(hairline, Color32::from_rgb(0x4A, 0x50, 0x5E));
+    let minor = Stroke::new(hairline, pal.grid_minor);
+    let major = Stroke::new(hairline, pal.grid_major);
     for &t in &grid.minor_times {
         let x = to_x(t);
         lane_painter.line_segment([pos2(x, lane_top), pos2(x, rect.bottom())], minor);
@@ -3944,7 +4071,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Align2::LEFT_TOP,
             seconds_to_timecode(t, fps, drop_frame),
             FontId::monospace(10.0),
-            Color32::from_gray(160),
+            ui.visuals().weak_text_color(),
         );
     }
 
@@ -4062,8 +4189,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     for (i, track) in state.timeline.tracks.iter().enumerate() {
         let y = lane_top + i as f32 * TRACK_HEIGHT;
         let base = match track.kind {
-            TrackKind::Audio => Color32::from_rgb(38, 82, 120),
-            TrackKind::Video => Color32::from_rgb(88, 66, 130),
+            TrackKind::Audio => pal.audio_clip,
+            TrackKind::Video => pal.video_clip,
         };
         for ev in &track.events {
             let dragging = state
@@ -4299,7 +4426,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     header_painter.rect_filled(
         Rect::from_min_max(rect.min, pos2(lanes.left(), rect.bottom())),
         Rounding::ZERO,
-        Color32::from_rgb(35, 38, 45),
+        pal.header,
     );
     // Only the selected track's number-box dot blinks (white/black); the others stay static
     let blink_on = ((now / BLINK_SECONDS) as i64) % 2 == 0;
@@ -4308,7 +4435,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let row = Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
         let selected = state.selected_track == Some(track.id);
         if selected {
-            header_painter.rect_filled(row, Rounding::ZERO, Color32::from_rgb(48, 54, 66));
+            header_painter.rect_filled(row, Rounding::ZERO, pal.header_selected);
         }
         header_painter.rect_stroke(
             row,
@@ -4324,7 +4451,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Color32::BLACK
             }
         } else {
-            Color32::from_gray(90)
+            ui.visuals().weak_text_color()
         };
         header_painter.text(
             badge.left_center() + vec2(5.0, 0.0),
@@ -4338,14 +4465,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Align2::LEFT_CENTER,
             (i + 1).to_string(),
             FontId::monospace(11.0),
-            Color32::from_gray(210),
+            ui.visuals().text_color(),
         );
         header_painter.text(
             row.min + vec2(46.0, 8.0),
             Align2::LEFT_TOP,
             &track.name,
             FontId::proportional(11.0),
-            Color32::from_gray(200),
+            ui.visuals().text_color(),
         );
     }
     if state.timeline.tracks.is_empty() {
@@ -4354,13 +4481,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Align2::LEFT_TOP,
             "Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo",
             FontId::proportional(11.0),
-            Color32::from_gray(120),
+            ui.visuals().weak_text_color(),
         );
     }
 
     // Playhead: blue pentagonal head, 1 physical-pixel guide line, caret blink while paused
-    let blue = Color32::from_rgb(0x29, 0x80, 0xB9);
-    let bright = Color32::from_rgb(0x34, 0x98, 0xDB);
+    let blue = pal.accent;
+    let bright = pal.accent_bright;
     let px = to_x(state.playhead);
     if px >= lanes.left() - 8.0 && px <= lanes.right() + 8.0 {
         let alpha =

@@ -7,4 +7,5 @@ pub mod logging;
 pub mod paths;
 pub mod preferences;
 pub mod project;
+pub mod theme;
 pub mod timecode;

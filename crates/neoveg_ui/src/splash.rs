@@ -473,8 +473,28 @@ struct Floater {
     color: Color32,
 }
 
-const BLUE: Color32 = Color32::from_rgb(0x29, 0x80, 0xB9);
-const CYAN: Color32 = Color32::from_rgb(0x3A, 0xC7, 0xE0);
+/// The theme's accent colors tint the screen; the other floater colors stay fixed.
+fn blue() -> Color32 {
+    crate::theme::palette().accent
+}
+
+fn cyan() -> Color32 {
+    crate::theme::palette().accent_bright
+}
+
+/// Dark backdrop tinted by the theme's timeline color (even for a light theme).
+fn backdrop() -> (Color32, Color32) {
+    let base = crate::theme::palette().timeline_bg;
+    let dark = |k: f32| {
+        Color32::from_rgb(
+            (base.r() as f32 * k) as u8,
+            (base.g() as f32 * k) as u8,
+            (base.b() as f32 * k) as u8,
+        )
+    };
+    (dark(0.35), dark(0.7))
+}
+
 const PURPLE: Color32 = Color32::from_rgb(0x8E, 0x5C, 0xD0);
 const PINK: Color32 = Color32::from_rgb(0xE0, 0x5A, 0x9A);
 const GOLD: Color32 = Color32::from_rgb(0xF1, 0xC4, 0x0F);
@@ -511,7 +531,7 @@ fn floaters() -> Vec<Floater> {
             (0.30, 0.55, 0.10),
             0.0,
             0.035,
-            BLUE,
+            blue(),
         ),
         f(
             2,
@@ -521,7 +541,7 @@ fn floaters() -> Vec<Floater> {
             (0.15, 0.70, 0.05),
             1.3,
             0.04,
-            CYAN,
+            cyan(),
         ),
         f(
             0,
@@ -581,7 +601,7 @@ fn floaters() -> Vec<Floater> {
             (0.20, 0.50, 0.30),
             0.9,
             0.02,
-            CYAN,
+            cyan(),
         ),
         f(
             2,
@@ -601,7 +621,7 @@ fn floaters() -> Vec<Floater> {
             (0.45, 0.25, 0.20),
             3.6,
             0.02,
-            BLUE,
+            blue(),
         ),
     ]
 }
@@ -721,11 +741,11 @@ fn paint_background(painter: &egui::Painter, rect: Rect, t: f32, opacity: f32) {
     gradient_rect(
         painter,
         rect,
-        with_alpha(Color32::from_rgb(7, 9, 18), opacity),
-        with_alpha(Color32::from_rgb(20, 24, 44), opacity),
+        with_alpha(backdrop().0, opacity),
+        with_alpha(backdrop().1, opacity),
     );
     let size = rect.width().min(rect.height());
-    for (i, (color, radius, speed)) in [(BLUE, 0.7, 0.13), (PURPLE, 0.6, 0.10), (TEAL, 0.5, 0.17)]
+    for (i, (color, radius, speed)) in [(blue(), 0.7, 0.13), (PURPLE, 0.6, 0.10), (TEAL, 0.5, 0.17)]
         .into_iter()
         .enumerate()
     {
@@ -813,7 +833,7 @@ fn paint_reel_art(painter: &egui::Painter, area: Rect, t: f32, opacity: f32) {
     let step = frame_w + gap;
     let playhead_x = area.center().x + area.width() * 0.12;
     let first = ((strip.left() - frame_w - scroll) / step).floor() as i32;
-    let palette = [BLUE, PURPLE, TEAL, PINK, GOLD, CYAN];
+    let palette = [blue(), PURPLE, TEAL, PINK, GOLD, cyan()];
     for n in first..first + (strip.width() / step) as i32 + 4 {
         let left = strip.left() - scroll + n as f32 * step;
         let frame = Rect::from_min_size(
@@ -914,7 +934,7 @@ fn paint_reel_art(painter: &egui::Painter, area: Rect, t: f32, opacity: f32) {
     // The reel, on top of the strip's start: flanges, six rotating holes, hub and bolts
     painter.circle_filled(reel_c + vec2(4.0, 6.0), reel_r, a(Color32::BLACK, 0.35));
     painter.circle_filled(reel_c, reel_r, a(Color32::from_rgb(36, 40, 54), 1.0));
-    painter.circle_stroke(reel_c, reel_r, Stroke::new(3.0_f32, a(BLUE, 1.0)));
+    painter.circle_stroke(reel_c, reel_r, Stroke::new(3.0_f32, a(blue(), 1.0)));
     painter.circle_stroke(
         reel_c,
         reel_r * 0.86,
@@ -937,7 +957,7 @@ fn paint_reel_art(painter: &egui::Painter, area: Rect, t: f32, opacity: f32) {
             Stroke::new(1.0_f32, a(Color32::WHITE, 0.18)),
         );
     }
-    painter.circle_filled(reel_c, reel_r * 0.2, a(CYAN, 1.0));
+    painter.circle_filled(reel_c, reel_r * 0.2, a(cyan(), 1.0));
     painter.circle_filled(reel_c, reel_r * 0.1, a(Color32::from_rgb(14, 16, 24), 1.0));
     for k in 0..4 {
         let ang = spin * 1.5 + k as f32 * PI / 2.0;
@@ -956,7 +976,7 @@ fn paint_reel_art(painter: &egui::Painter, area: Rect, t: f32, opacity: f32) {
                 pos2(playhead_x, area.top() + 8.0),
                 pos2(playhead_x, area.bottom() - 2.0),
             ],
-            Stroke::new(w, a(CYAN, al * (0.6 + 0.4 * glow))),
+            Stroke::new(w, a(cyan(), al * (0.6 + 0.4 * glow))),
         );
     }
     painter.line_segment(
@@ -975,7 +995,7 @@ fn paint_reel_art(painter: &egui::Painter, area: Rect, t: f32, opacity: f32) {
             pos2(playhead_x, top + 17.0),
             pos2(playhead_x - 7.0, top + 10.0),
         ],
-        a(BLUE, 1.0),
+        a(blue(), 1.0),
         Stroke::new(1.0_f32, a(Color32::from_rgb(0x34, 0x98, 0xDB), 1.0)),
     ));
 }
@@ -1015,7 +1035,7 @@ fn paint_name(painter: &egui::Painter, center: Pos2, size: f32, t: f32, opacity:
         let pos = pos2(x + w / 2.0, center.y + anim.rise * size + bob);
         let font_i = FontId::proportional(size * anim.scale);
         let along = i as f32 / (letters.len() - 1) as f32;
-        let base = lerp_color(BLUE, lerp_color(CYAN, PURPLE, along), along.sqrt());
+        let base = lerp_color(blue(), lerp_color(cyan(), PURPLE, along), along.sqrt());
         let shine = if sweep >= 0.0 {
             smoothstep(0.22, 0.0, (along - sweep * 1.3 + 0.15).abs())
         } else {
@@ -1117,7 +1137,7 @@ impl Splash {
         }
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(Color32::from_rgb(7, 9, 18)))
+            .frame(egui::Frame::none().fill(backdrop().0))
             .show(ctx, |ui| {
                 let rect = ui.max_rect();
                 let painter = ui.painter_at(rect);
@@ -1188,7 +1208,7 @@ impl Splash {
             Align2::RIGHT_BOTTOM,
             format!("{:.0}%", self.shown_progress * 100.0),
             FontId::monospace(13.0),
-            with_alpha(CYAN, opacity),
+            with_alpha(cyan(), opacity),
         );
         painter.rect_filled(
             bar,
@@ -1203,8 +1223,8 @@ impl Splash {
             gradient_rect_h(
                 painter,
                 fill,
-                with_alpha(BLUE, opacity),
-                with_alpha(CYAN, opacity),
+                with_alpha(blue(), opacity),
+                with_alpha(cyan(), opacity),
             );
             // A light that runs along the filled part
             let sweep = (t * 0.9).fract();

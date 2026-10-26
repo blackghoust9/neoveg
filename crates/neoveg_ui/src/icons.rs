@@ -61,6 +61,19 @@ impl Icon {
     }
 }
 
+/// The icon's resting color on the current theme: neutral icons follow the text color and the
+/// colored ones are darkened on a light theme so they stay readable.
+fn themed_tint(icon: Icon, visuals: &egui::Visuals) -> Color32 {
+    let tint = icon.tint();
+    if tint == Color32::from_gray(205) {
+        visuals.text_color()
+    } else if visuals.dark_mode {
+        tint
+    } else {
+        tint.gamma_multiply(0.55)
+    }
+}
+
 /// Drawing surface over the unit square `0..1` mapped onto the largest centred square of a rect.
 struct Canvas {
     origin: Pos2,
@@ -308,9 +321,9 @@ pub fn icon_button_sized(
         let painter = ui.painter();
         let hovered = response.hovered();
         let fill = if selected {
-            Color32::from_rgb(0x2A, 0x45, 0x63)
+            ui.visuals().selection.bg_fill
         } else if hovered {
-            Color32::from_gray(58)
+            ui.visuals().widgets.hovered.bg_fill
         } else {
             Color32::TRANSPARENT
         };
@@ -319,15 +332,18 @@ pub fn icon_button_sized(
             painter.rect_stroke(
                 rect,
                 Rounding::ZERO,
-                Stroke::new(1.0_f32, Color32::from_rgb(0x3A, 0x7B, 0xBF)),
+                Stroke::new(1.0_f32, ui.visuals().selection.stroke.color),
             );
         }
         let color = if !ui.is_enabled() {
-            Color32::from_gray(90)
-        } else if hovered || selected {
-            icon.tint().gamma_multiply(1.15)
+            ui.visuals().weak_text_color()
         } else {
-            icon.tint()
+            let tint = themed_tint(icon, ui.visuals());
+            if hovered || selected {
+                tint.gamma_multiply(1.15)
+            } else {
+                tint
+            }
         };
         painter.extend(shapes(icon, rect.shrink(side * 0.18), color));
     }

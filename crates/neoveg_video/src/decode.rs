@@ -247,11 +247,6 @@ impl VideoDecoder {
     }
 }
 
-/// Decodes the first video frame of `path` to RGBA at source size.
-pub fn decode_first_frame(path: &Path) -> Result<FrameBuffer, String> {
-    VideoDecoder::open(path)?.frame_at(0.0, 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

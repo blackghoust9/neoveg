@@ -16,6 +16,10 @@ pub struct Preferences {
     pub show_welcome_on_startup: bool,
     /// Minutes between automatic recovery saves (0 disables autosave).
     pub autosave_minutes: u32,
+    /// Built-in theme id, or `custom` to use `theme_file`.
+    pub theme: String,
+    /// Path of the user's theme `.json` (used when `theme` is `custom`).
+    pub theme_file: String,
     /// Keyboard shortcuts that differ from the defaults: command id -> shortcuts (empty = unbound).
     pub keymap: BTreeMap<String, Vec<String>>,
 }
@@ -27,12 +31,27 @@ impl Default for Preferences {
             auto_fade_on_import: false,
             show_welcome_on_startup: false,
             autosave_minutes: 2,
+            theme: "modern-carbon-dark".into(),
+            theme_file: String::new(),
             keymap: BTreeMap::new(),
         }
     }
 }
 
 impl Preferences {
+    /// The theme to show: the user's file when selected and readable, else the chosen built-in
+    /// (Modern Carbon Dark when unknown). The second value is a warning for a broken file.
+    pub fn resolve_theme(&self) -> (crate::theme::Theme, Option<String>) {
+        use crate::theme::{Theme, CUSTOM_THEME_ID};
+        if self.theme == CUSTOM_THEME_ID {
+            return match Theme::load(Path::new(&self.theme_file)) {
+                Ok(theme) => (theme, None),
+                Err(e) => (Theme::default(), Some(e)),
+            };
+        }
+        (Theme::builtin(&self.theme).unwrap_or_default(), None)
+    }
+
     /// The effective keyboard map (defaults plus this user's overrides) and any warnings about
     /// entries that could not be applied.
     pub fn key_map(&self) -> (KeyMap, Vec<String>) {
@@ -89,6 +108,23 @@ mod tests {
         assert!(!p.show_welcome_on_startup);
         // Files written before the keymap existed keep the default shortcuts
         assert!(p.keymap.is_empty());
+    }
+
+    #[test]
+    fn theme_resolves_builtins_and_falls_back_on_a_broken_file() {
+        let mut p = Preferences::default();
+        assert_eq!(p.resolve_theme().0.name, "Modern Carbon Dark");
+        p.theme = "classic-silver".into();
+        assert!(!p.resolve_theme().0.dark);
+        p.theme = "unknown".into();
+        assert_eq!(p.resolve_theme().0.name, "Modern Carbon Dark");
+        p.theme = "custom".into();
+        p.theme_file = "/missing/theme.json".into();
+        let (theme, warning) = p.resolve_theme();
+        assert_eq!(theme.name, "Modern Carbon Dark");
+        assert!(warning.is_some());
+        let old: Preferences = serde_json::from_str(r#"{"language":"pt-BR"}"#).unwrap();
+        assert_eq!(old.theme, "modern-carbon-dark");
     }
 
     #[test]

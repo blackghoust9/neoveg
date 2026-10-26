@@ -126,6 +126,21 @@ pub fn loudness_ui(
     playing: bool,
     target_index: &mut usize,
 ) -> bool {
+    // A short panel scrolls so the readouts under the bars are never cut off
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            loudness_content(ui, snapshot, playing, target_index)
+        })
+        .inner
+}
+
+fn loudness_content(
+    ui: &mut egui::Ui,
+    snapshot: LoudnessSnapshot,
+    playing: bool,
+    target_index: &mut usize,
+) -> bool {
     *target_index = (*target_index).min(TARGETS.len() - 1);
     let target = TARGETS[*target_index];
     let shown = displayed(snapshot, playing);
@@ -153,7 +168,7 @@ pub fn loudness_ui(
     });
 
     // Bars: momentary and short-term, with the target line and the integrated loudness marker
-    let bars_h = (ui.available_height() - 150.0).max(70.0);
+    let bars_h = (ui.available_height() - 150.0).max(130.0);
     let (rect, _) = ui.allocate_exact_size(vec2(190.0, bars_h), Sense::hover());
     let painter = ui.painter_at(rect);
     let (top, bottom) = (rect.top() + 6.0, rect.bottom() - 6.0);
@@ -165,7 +180,7 @@ pub fn loudness_ui(
             Align2::RIGHT_CENTER,
             format!("{db:.0}"),
             FontId::monospace(10.0),
-            Color32::from_gray(150),
+            ui.visuals().weak_text_color(),
         );
     }
     let bars = [("M", shown.momentary_lufs), ("S", shown.short_term_lufs)];
@@ -192,7 +207,7 @@ pub fn loudness_ui(
             Align2::CENTER_TOP,
             label,
             FontId::monospace(10.0),
-            Color32::from_gray(170),
+            ui.visuals().weak_text_color(),
         );
     }
     let bars_right = rect.left() + 40.0 + 44.0 + 32.0;
