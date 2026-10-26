@@ -1457,3 +1457,62 @@ Implementation Guidelines for Neoveg:
     (gate + EQ + compressor) is a candidate for the first built-in audio effects.
 Sources: Classic NLE v11 tutorial booklet (pt-BR), pp. 8-78.
 Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+42. Feature Name: Cross-check against the current official help (2026): Shortcuts, Crossfades, Envelopes, FX Order
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Playback: Space start; Enter or Ctrl+F12 play/pause; Space or Esc stop; Shift+Space or Shift+F12 play from
+    start; Ctrl+Space or F12 play from any window; J, K or L scrub/shuttle; F3 / F9 jog left / right (not in
+    edge-trim mode or during playback); Alt+Left / Alt+Right previous / next frame; Ctrl+Home / Ctrl+End go
+    to project start / end; Numpad 0 preview cursor position; Ctrl+Shift+F12 dims the master bus output.
+  - Split: S splits the events at the cursor; Alt+S "Smart Split" of the selected event.
+  - Markers and regions: M marker, C command marker, R region, N CD track region, Shift+N CD track index;
+    Ctrl+Left / Ctrl+Right previous / next marker; 0-9 (not the keypad) move to the matching marker or select
+    the matching region; Q or Ctrl+Shift+L loop playback; Shift+Q select the loop region.
+  - Zoom: Up / Down small horizontal steps (timeline focus); Ctrl+Up / Ctrl+Down large steps or zoom to the
+    selection; Alt+Up zooms until each video thumbnail is one frame; mouse wheel zooms; Shift+Up / Down zoom the
+    waveforms vertically; Ctrl+Shift+Up / Down change the height of all tracks; ` minimizes / restores track
+    height; Ctrl+` default heights; Ctrl+F11 maximizes the timeline. No numeric zoom limit is documented
+    (Neoveg keeps its own limit: 15 to 480,000 px/s, AGENTS.md section 4.3).
+  - Grouping: G group, U ungroup, Ctrl+Shift+U ignore grouping, Ctrl+U clear the group without deleting events,
+    Shift+G select every event of the group.
+  - Snapping: F8 on / off; Ctrl+F8 grid; Shift+F8 markers; Ctrl+Shift+F8 all events; Alt+F8 quantize to frames;
+    Shift+drag overrides snapping (or enables it when it is off). (Neoveg uses Alt for the override, see
+    AGENTS.md section 4.5.)
+  - Ripple: F affected tracks; Ctrl+F affected tracks, bus tracks, markers and regions; Ctrl+Shift+F everything;
+    Ctrl+L auto ripple.
+  - Trim: Ctrl+T trim / crop to the selection; Alt+[ / Alt+] trim start / end to the cursor; Numpad 7 or [ and
+    Numpad 9 or ] enter edge-trim mode; Numpad 1 / 3 one frame; 4 / 6 one pixel; Shift = L/J trim, Alt = slip,
+    Ctrl = stretch, Ctrl+Alt = slide a transition or crossfade; Ctrl+drag an edge stretches the media; Numpad 5
+    toggles expanded edit mode.
+  - Mute / solo: Z mute selected tracks, Shift+Z mute only this track (removes the others from the mute group);
+    X solo, Shift+X solo only this track; Ctrl+Alt+Z / X act on the track group, with Shift for "only this
+    group".
+  - Undo / redo: Ctrl+Z or Alt+Backspace; Ctrl+Shift+Z or Ctrl+Y.
+  - Automatic crossfades (Options menu toggle): a crossfade is created when an event is dragged so that it
+    overlaps another event on the same track (audio and video); no minimum overlap is stated. The curve is any
+    combination of fast, slow, linear, smooth and sharp (right-click the overlap > Fade Type). Fades of
+    overlapping events cannot be adjusted by hand while automatic crossfades are on. A video crossfade can be
+    converted into a transition (right-click > Transition, or drop one from the Transitions window).
+  - Fades and envelopes: the fade handles are the upper-left / upper-right corners of an event; dragging the end
+    of the fade back to the edge removes it; with several events selected their fades move together; Ctrl or the
+    right mouse button while dragging gives fine steps; right-click a fade or envelope segment for the Fade
+    Types menu; View > Event Fade Lengths shows the lengths on selected events. An event envelope belongs to the
+    track it is on and is calculated after the track fader. Transitions progress linearly 0-100 % unless a
+    transition progress envelope is added.
+  - FX order: audio runs event FX > track FX > bus FX > master bus FX (entry 20); video runs media FX > event FX >
+    track FX > parent-track FX > video output FX (community-documented order, matching the five levels of entry
+    20). "Take FX" is not described in the official pages checked; the request's chain Media FX > Take FX > Event
+    FX > Track FX > Master FX is therefore Neoveg's own design: Take FX is a chain that belongs to one take
+    (applied first, so switching take switches its processing), then Event FX, Track FX and the master chain.
+Implementation Guidelines for Neoveg:
+  - Keep the key map of AGENTS.md section 4.5 aligned with this list; the commands still marked planned (edge
+    trim, ripple, snap variants, track groups, zoom variants, jog) can be taken from here without further
+    research.
+  - Implement Take FX only together with a take model (several takes per event); until then the audio chain
+    levels are Event-less: Track FX and Master FX (28 effects, AGENTS.md section 4.4).
+Sources: Vegas Pro 2026 help, Keyboard shortcuts (cdn.borisfx.com/borisfx/Documentation/vegas/2026/en/content/
+  topics/13-appendix/shortcutkeys.htm), Event envelopes (.../7-edit/event_envelopes.htm), Automatic crossfades
+  (.../7-edit/autocrossfades.htm); Vegas Pro community forum threads on FX order (video).
+Research Date: 2026-10-26
