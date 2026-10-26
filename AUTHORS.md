@@ -24,6 +24,12 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 ---
 
+## 1-B. Arte própria
+
+- **Tela de carregamento** (`crates/neoveg_ui/src/splash.rs`): as formas 3D, o carretel de filme com a fita de quadros, o playhead e a animação do nome NEOVEG são trabalho original do Neoveg, desenhados em código com formas do egui, sem imagens nem fontes de terceiros, e liberados com o projeto sob a licença **MIT**. Nenhuma arte, ícone ou imagem de outro editor foi usada como base.
+
+---
+
 ## 2. Camada Desktop & Interface Gráfica (`desktop-host/Neoveg.csproj` — C# / .NET)
 
 | Pacote / Biblioteca | Versão | Autores / Organização | Licença (SPDX) | Utilização no Neoveg |

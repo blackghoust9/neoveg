@@ -154,6 +154,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
 - [x] Ícones vetoriais próprios na barra da timeline (`neoveg_ui/src/icons.rs`, 16 pictogramas planos, no lugar dos emojis); falta levá-los aos demais painéis e ao menu
+- [x] Tela de carregamento nova (`neoveg_ui/src/splash.rs`): formas 3D flutuando (projeção e sombreamento por software, com paralaxe do mouse), o nome NEOVEG animado em 3D, arte original animada de um carretel de filme desenrolando quadros sob o playhead (licença MIT) e barra de progresso que acompanha as etapas reais de inicialização (preferências, placa de vídeo, saída de áudio, efeitos, decodificador de vídeo e recuperação de projetos); qualquer tecla ou clique pula a espera
 - [ ] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark)
 - [ ] Abas no rodapé em todos os painéis (hoje só o painel de Mídia; o `egui_dock` não posiciona a barra embaixo)
 - [ ] Medidores de pico e cópia de logs no visualizador de logs da interface

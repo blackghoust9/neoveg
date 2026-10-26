@@ -48,6 +48,7 @@ use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::precision_slider::PrecisionSlider;
 use crate::shortcuts::{from_egui, to_egui};
+use crate::splash::Splash;
 use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
@@ -254,8 +255,19 @@ struct AppState {
     loader_rx: Receiver<LoadMsg>,
 }
 
+/// What the startup screen says it is loading, in the order the steps run.
+const STARTUP_STEPS: [&str; 6] = [
+    "Preferências e atalhos de teclado",
+    "Placa de vídeo e renderizador",
+    "Saída de áudio",
+    "Efeitos de áudio",
+    "Decodificador de vídeo",
+    "Projetos para recuperar",
+];
+
 impl AppState {
-    fn new() -> Self {
+    /// Startup step 1: the user's preferences and keyboard map.
+    fn load_preferences(&mut self) -> String {
         let prefs = Preferences::default_path()
             .map(|p| Preferences::load(&p))
             .unwrap_or_default();
@@ -263,6 +275,71 @@ impl AppState {
         for w in warnings {
             tracing::warn!("[WARN] keymap: {w}");
         }
+        let overrides = prefs.keymap.len();
+        let detail = format!(
+            "Idioma {}; {} atalhos personalizados; salvamento automático a cada {} min",
+            prefs.language, overrides, prefs.autosave_minutes
+        );
+        self.prefs = prefs;
+        self.keymap = keymap;
+        detail
+    }
+
+    /// Startup step 3: the sound card the audio will play on.
+    fn probe_audio(&mut self) -> String {
+        match neoveg_audio::playback::probe_output() {
+            Ok(info) => format!(
+                "{} · {} Hz · {} canais",
+                info.device, info.sample_rate, info.channels
+            ),
+            Err(e) => {
+                tracing::warn!("[WARN] audio output: {e}");
+                self.status = format!("Saída de áudio indisponível: {e}");
+                "Sem saída de áudio: o projeto abre sem som".into()
+            }
+        }
+    }
+
+    /// Startup step 5: the worker thread that decodes video frames.
+    fn start_frame_worker(&mut self, ctx: &egui::Context) -> String {
+        let repaint = ctx.clone();
+        match FrameWorker::spawn(move || repaint.request_repaint()) {
+            Ok(worker) => {
+                self.frame_worker = Some(worker);
+                "Pronto".into()
+            }
+            Err(e) => {
+                tracing::warn!("[WARN] {e}");
+                self.status = e.clone();
+                e
+            }
+        }
+    }
+
+    /// Startup step 6: recovery files left by a session that did not close cleanly.
+    fn find_recoveries(&mut self) -> String {
+        let Some(dir) = autosave_dir() else {
+            return "Pasta de recuperação indisponível".into();
+        };
+        autosave::prune_older_than(&dir, Duration::from_secs(30 * 86_400));
+        self.pending_recovery = autosave::list_recoveries(&dir);
+        if self.pending_recovery.is_empty() {
+            return "Nenhum projeto para recuperar".into();
+        }
+        tracing::warn!(
+            "[WARN] {} unsaved project(s) found for recovery",
+            self.pending_recovery.len()
+        );
+        format!(
+            "{} projeto(s) não salvo(s) encontrado(s)",
+            self.pending_recovery.len()
+        )
+    }
+
+    fn new() -> Self {
+        // Defaults only: the user's preferences are read by the first startup step
+        let prefs = Preferences::default();
+        let keymap = prefs.key_map().0;
         let (loader_tx, loader_rx) = channel();
         Self {
             project: ProjectInfo::create_empty(),
@@ -1992,6 +2069,10 @@ struct MarkDrag {
 pub struct NeovegApp {
     dock: DockState<Tab>,
     state: AppState,
+    /// The startup screen, until it has faded out.
+    splash: Option<Splash>,
+    /// Name of the graphics adapter (known when the window is created).
+    gpu: String,
 }
 
 impl NeovegApp {
@@ -2008,32 +2089,47 @@ impl NeovegApp {
         // The loudness readouts live in their own panel under the master bus
         surface.split_below(master, 0.55, vec![Tab::Loudness]);
 
-        let mut state = AppState::new();
-        let repaint = cc.egui_ctx.clone();
-        match FrameWorker::spawn(move || repaint.request_repaint()) {
-            Ok(worker) => state.frame_worker = Some(worker),
-            Err(e) => {
-                tracing::warn!("[WARN] {e}");
-                state.status = e;
-            }
+        let gpu = cc.wgpu_render_state.as_ref().map_or_else(
+            || "Renderizador padrão".to_owned(),
+            |render| {
+                let info = render.adapter.get_info();
+                format!("{} · {:?}", info.name, info.backend)
+            },
+        );
+        Self {
+            dock,
+            state: AppState::new(),
+            splash: Some(Splash::new(&STARTUP_STEPS)),
+            gpu,
         }
-        if let Some(dir) = autosave_dir() {
-            autosave::prune_older_than(&dir, Duration::from_secs(30 * 86_400));
-            state.pending_recovery = autosave::list_recoveries(&dir);
-            if !state.pending_recovery.is_empty() {
-                tracing::warn!(
-                    "[WARN] {} unsaved project(s) found for recovery",
-                    state.pending_recovery.len()
-                );
-            }
-        }
-        Self { dock, state }
     }
 }
 
 impl eframe::App for NeovegApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = ctx.input(|i| i.time);
+        if let Some(splash) = &mut self.splash {
+            // One startup step per frame, so the screen keeps animating while the program loads
+            if let Some(step) = splash.pacing.pending_step(now) {
+                let detail = match step {
+                    0 => self.state.load_preferences(),
+                    1 => self.gpu.clone(),
+                    2 => self.state.probe_audio(),
+                    3 => format!(
+                        "{} efeitos prontos",
+                        neoveg_audio::dsp::effects::warm_up(48_000.0)
+                    ),
+                    4 => self.state.start_frame_worker(ctx),
+                    _ => self.state.find_recoveries(),
+                };
+                splash.step_done(now, detail);
+            }
+            if splash.show(ctx, now) {
+                self.splash = None;
+            } else {
+                return;
+            }
+        }
         self.state.maybe_autosave(now);
         self.state.update_title(ctx);
         if ctx.input(|i| i.viewport().close_requested()) && !self.state.allow_close {

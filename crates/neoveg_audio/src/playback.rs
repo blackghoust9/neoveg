@@ -38,6 +38,32 @@ pub fn wrap_loop(pos: f64, start: f64, end: f64) -> f64 {
     start + (pos - end) % length
 }
 
+/// What the default output device offers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutputInfo {
+    pub device: String,
+    pub sample_rate: u32,
+    pub channels: u16,
+}
+
+/// Looks at the default output device without opening a stream (used at startup to say what
+/// audio the program will play on).
+pub fn probe_output() -> Result<OutputInfo, String> {
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or("nenhum dispositivo de saída de áudio")?;
+    let config = device
+        .default_output_config()
+        .map_err(|e| format!("configuração de saída: {e}"))?;
+    Ok(OutputInfo {
+        device: device
+            .name()
+            .unwrap_or_else(|_| "dispositivo padrão".into()),
+        sample_rate: config.sample_rate().0,
+        channels: config.channels(),
+    })
+}
+
 /// Plays a mix of clips through the default output device.
 pub struct AudioPlayer {
     // Kept alive for the duration of playback; dropping it closes the device.

@@ -8,6 +8,7 @@ mod icons;
 mod loudness_panel;
 mod precision_slider;
 mod shortcuts;
+mod splash;
 mod waveform_paint;
 
 use eframe::egui;

@@ -35,6 +35,14 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/storytold/filmcraft",
     },
     Credit {
+        name: "Tela de carregamento e ícones do Neoveg",
+        used_for: "Formas 3D, carretel de filme animado, animação do nome e ícones vetoriais: \
+                   arte original desenhada em código",
+        authors: "Neoveg Contributors",
+        license: "MIT",
+        url: "https://github.com/blackghoust9/neoveg",
+    },
+    Credit {
         name: "egui / eframe",
         used_for: "Interface gráfica",
         authors: "Emil Ernerfeldt and contributors",

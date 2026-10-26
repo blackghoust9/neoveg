@@ -173,6 +173,20 @@ pub fn create_effect(id: &str, sample_rate: f32, channels: usize) -> Option<Box<
     effect_info(id).map(|e| (e.create)(sample_rate, channels))
 }
 
+/// Builds every registered effect once at `sample_rate` and runs a short silent block through it
+/// (so the memory is touched before the first playback). Returns how many effects are ready.
+pub fn warm_up(sample_rate: f32) -> usize {
+    REGISTRY
+        .iter()
+        .filter(|info| {
+            let mut effect = (info.create)(sample_rate, 2);
+            let (mut l, mut r) = ([0.0f32; 64], [0.0f32; 64]);
+            effect.process(&mut [&mut l, &mut r]);
+            l.iter().chain(&r).all(|v| v.is_finite())
+        })
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +198,11 @@ mod tests {
     fn noise(seed: u64, n: usize, amp: f32) -> Vec<f32> {
         let mut r = Rng::new(seed);
         (0..n).map(|_| r.uniform() * amp).collect()
+    }
+
+    #[test]
+    fn warm_up_readies_every_effect() {
+        assert_eq!(warm_up(44_100.0), effects().len());
     }
 
     #[test]
