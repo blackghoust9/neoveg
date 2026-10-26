@@ -4,6 +4,7 @@ pub mod autosave;
 pub mod command;
 pub mod crossfade;
 pub mod edit;
+pub mod groups;
 pub mod markers;
 pub mod ops;
 pub mod project_file;
@@ -14,4 +15,6 @@ pub mod timeline;
 pub use command::{EditCommand, History, TrackChange};
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
-pub use timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TrackKind};
+pub use timeline::{
+    EventGeometry, EventId, GroupId, Timeline, Track, TrackEvent, TrackId, TrackKind,
+};

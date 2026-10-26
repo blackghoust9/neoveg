@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use crate::command::{EditCommand, TrackChange};
 use crate::selection::{EventRef, TimeRange};
-use crate::timeline::{EventId, Timeline, TrackEvent, TrackId, TrackKind, TIME_EPSILON};
+use crate::timeline::{EventId, GroupId, Timeline, TrackEvent, TrackId, TrackKind, TIME_EPSILON};
 
 /// A command plus the events the UI should select once it ran (pasted or created events).
 #[derive(Debug, Clone, PartialEq)]
@@ -127,13 +127,13 @@ fn split_list(
 }
 
 /// Per-track copies of the event lists, edited and then diffed into one command.
-struct Draft {
+pub(crate) struct Draft {
     before: BTreeMap<TrackId, Vec<TrackEvent>>,
     after: BTreeMap<TrackId, Vec<TrackEvent>>,
 }
 
 impl Draft {
-    fn new(timeline: &Timeline) -> Self {
+    pub(crate) fn new(timeline: &Timeline) -> Self {
         let before: BTreeMap<_, _> = timeline
             .tracks
             .iter()
@@ -145,12 +145,12 @@ impl Draft {
         }
     }
 
-    fn list(&mut self, track: TrackId) -> Option<&mut Vec<TrackEvent>> {
+    pub(crate) fn list(&mut self, track: TrackId) -> Option<&mut Vec<TrackEvent>> {
         self.after.get_mut(&track)
     }
 
     /// The command for every track whose events changed, or `None` when nothing changed.
-    fn finish(self) -> Option<EditCommand> {
+    pub(crate) fn finish(self) -> Option<EditCommand> {
         let mut changes = Vec::new();
         for (track_id, mut after) in self.after {
             after.sort_by(|a, b| a.start.total_cmp(&b.start));
@@ -327,6 +327,8 @@ fn place(
 ) -> (Vec<(TrackId, TrackEvent)>, usize) {
     let mut placed = Vec::new();
     let mut skipped = 0;
+    // Every pasted copy forms its own groups, never joining the events it was copied from
+    let mut groups: BTreeMap<GroupId, GroupId> = BTreeMap::new();
     for item in &clip.items {
         let target = timeline
             .tracks
@@ -337,6 +339,9 @@ fn place(
             Some(track_id) => {
                 let mut event = item.event.clone();
                 event.id = timeline.alloc_id();
+                if let Some(old) = event.group {
+                    event.group = Some(*groups.entry(old).or_insert_with(|| timeline.alloc_id()));
+                }
                 event.start = (at + item.event.start).max(0.0);
                 placed.push((track_id, event));
             }
@@ -504,12 +509,32 @@ fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Optio
     let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
     let mut alloc = || timeline.alloc_id();
     let mut touched = Vec::new();
+    // (group, split time) -> group of the right-hand halves, so a split cuts a group in two
+    let mut halves: Vec<(GroupId, f64, GroupId)> = Vec::new();
     for track_id in track_ids {
         let Some(list) = draft.list(track_id) else {
             continue;
         };
         for &at in times {
             let created = split_list(list, at, &mut alloc, |e| scope.includes(track_id, e.id));
+            for id in &created {
+                if let Some(e) = list.iter_mut().find(|e| e.id == *id) {
+                    if let Some(old) = e.group {
+                        let known = halves
+                            .iter()
+                            .find(|(g, t, _)| *g == old && (*t - at).abs() <= TIME_EPSILON);
+                        let new = match known {
+                            Some((_, _, new)) => *new,
+                            None => {
+                                let new = alloc();
+                                halves.push((old, at, new));
+                                new
+                            }
+                        };
+                        e.group = Some(new);
+                    }
+                }
+            }
             touched.extend(created.into_iter().map(|id| (track_id, id)));
         }
     }

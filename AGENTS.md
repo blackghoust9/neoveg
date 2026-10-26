@@ -93,7 +93,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 
 - **Clean startup:** Neoveg opens directly in the main workspace with an empty project (0 tracks, 0 media clips, `show_welcome_on_startup = false`).
 - **Themes:** keep visual fidelity with the Classic NLE themes (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark).
-- **Icon-only buttons:** toolbar and panel buttons show graphical icons only; names, shortcuts and descriptions appear exclusively as hover tooltips.
+- **Icon-only buttons:** toolbar and panel buttons show graphical icons only; names, shortcuts and descriptions appear exclusively as hover tooltips. Icons are original flat vector pictograms drawn with egui shapes (`neoveg_ui/src/icons.rs`, `icons::icon_button`), never emoji or font glyphs, so they look the same on every OS; a new icon is a variant of `Icon` plus its drawing, and the tests check that it stays inside its frame.
 - **Floating and undockable panels:** the primary panels (**Timeline**, **Video Preview**, **Trimmer / Project Media** and **Master Bus Mixer**) can be detached into independent floating windows; closing a floating window docks it back into its workspace slot.
 - **Main toolbar:** the primary icon toolbar sits directly below the multi-track timeline.
 - **Docked panel tabs:** every docked window with tabs (Project Media, Trimmer, Video FX, Audio FX, Transitions, Generators, dockable extensions) uses the compact footer tab pattern: tab strip at the bottom of the window, compact flat headers (font size 11, padding `6,2,6,2`, 22 px high, no selection pipe), a horizontally scrolling strip with left/right arrow buttons (and mouse-wheel scrolling) that appear only when the tabs do not fit, and the selected tab always scrolled into view. Tabs stay undockable by dragging them out of the strip. `egui_dock` cannot place its own strip at the bottom, so grouped panels draw their own footer tabs (`footer_tabs` in `neoveg_ui`).
@@ -129,6 +129,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
   - Trimming keeps the source aligned (`trim_in` follows the left edge), never reveals media before the source start or after its end, and keeps at least one frame. Fades are re-clamped to the event.
   - **Snapping** (toggle `F8` or the toolbar magnet; hold `Alt` while dragging to ignore it) aligns to the origin, the playhead and the edges of other events within `8 px`; otherwise starts and trim edges are quantized to frames.
   - A drag previews live and changes the timeline only on release, as **one** undo step. `Esc` cancels. The lane area scrolls automatically when the pointer rests within `28 px` of its ends. A read-out shows the start timecode and duration.
+  - **Multiple selection:** `Ctrl`+click toggles, `Shift`+click selects the range, `Shift`+drag over empty lane draws a selection rectangle (`Ctrl` keeps the current selection). Dragging one selected event moves the whole selection in time as one undo step, never before zero.
   - Cursors: resize arrows on trim zones and handles, grab / grabbing on the body.
 
 ### 4.4. Audio
@@ -160,7 +161,8 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo | implemented |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / save / save as | implemented |
 | `M` | Marker (opens the inline name box) | implemented |
-| `G` / `U` | Group / ungroup | planned |
+| `G` / `U` | Group / ungroup the selected events (a group is selected, moved and split together) | implemented |
+| `Ctrl+Shift+U` | Ignore event grouping (clicks select a single event) | implemented |
 | `R` | Region from the time selection | implemented |
 | `I` / `O` | Set the time selection in / out point at the cursor | implemented |
 | `Ctrl+A` / `Ctrl+Shift+A` | Select all events / clear the selection and the time selection | implemented |

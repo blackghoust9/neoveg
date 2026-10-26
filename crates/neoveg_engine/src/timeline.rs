@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
 pub type EventId = u64;
+pub type GroupId = u64;
 
 /// Tolerance used when comparing event boundaries.
 pub const TIME_EPSILON: f64 = 1e-6;
@@ -32,6 +33,9 @@ pub struct TrackEvent {
     pub fade_in_curve: FadeCurve,
     #[serde(default)]
     pub fade_out_curve: FadeCurve,
+    /// Events that share a group are selected and moved together (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<GroupId>,
 }
 
 impl TrackEvent {

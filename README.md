@@ -141,7 +141,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Composição de várias faixas de vídeo na prévia (hoje aparece só a faixa de vídeo mais alta sob o cursor)
 - [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
-- [ ] Slip, slide e stretch de eventos; ripple; agrupar (`G`) e desagrupar (`U`); seleção múltipla
+- [ ] Slip, slide e stretch de eventos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
 - [ ] Aparar com o mouse em eventos de mídia gerada (hoje o limite de fonte só vale para mídia importada)
 - [ ] Marcadores (`M`), regiões e loop
 - [ ] Volume, pan, mute e solo por faixa; barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
@@ -153,6 +153,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Transcrição de fala para legendas (Whisper) e chaveamento de croma (CorridorKey)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
+- [x] Ícones vetoriais próprios na barra da timeline (`neoveg_ui/src/icons.rs`, 16 pictogramas planos, no lugar dos emojis); falta levá-los aos demais painéis e ao menu
 - [ ] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark)
 - [ ] Abas no rodapé em todos os painéis (hoje só o painel de Mídia; o `egui_dock` não posiciona a barra embaixo)
 - [ ] Medidores de pico e cópia de logs no visualizador de logs da interface
@@ -166,7 +167,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 **Edição e timeline**
 - [ ] Modos de edição (Ripple off/eventos/faixa/tudo) e *Auto Ripple*
 - [ ] Slip, slide, stretch e *velocity* (envelope de velocidade) de eventos
-- [ ] Seleção múltipla, agrupar (`G`) e desagrupar (`U`), travar faixa/evento
+- [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
+- [ ] Travar faixa/evento
 - [ ] Marcadores (`M`), regiões, marcadores de comando e loop; réguas adicionais
 - [ ] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
 - [ ] Aninhar projetos (*nesting*) e faixas de composição/pai-filho
@@ -213,7 +215,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 1 — Seleção e comandos de edição básicos (entrada 7)**
 - [x] `Selection` no engine (`neoveg_engine::selection`: conjunto de eventos, evento primário, intervalo de tempo): clique, `Ctrl`+clique alterna, `Shift`+clique seleciona o retângulo entre dois eventos, `Ctrl+A`, "Selecionar eventos até o fim" (menu de contexto); seleção de tempo arrastando no espaço vazio das faixas ou com `I` / `O`
-- [ ] Seleção retangular (já existe `Selection::select_in_rect` no engine; falta a ferramenta de seleção na UI) e mover vários eventos selecionados juntos
+- [x] Seleção retangular (`Shift` + arrastar no espaço vazio das faixas; `Ctrl` mantém a seleção atual) e mover vários eventos selecionados juntos (só no tempo, sem passar de zero, um passo de desfazer)
 - [ ] Caixas de início/fim/duração da seleção que aceitam valor absoluto ou relativo (`+10`, `-5` na unidade da régua)
 - [x] Cortar, copiar, colar e excluir com seleção de tempo (divide eventos nas bordas, todas as faixas) e com eventos selecionados (só os selecionados); cada ação é um único Desfazer (`EditCommand::ReplaceEvents`); itens sem faixa do mesmo tipo são ignorados com aviso
 - [x] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes nas faixas afetadas) e colar repetido (`Ctrl+B`: janela com número de cópias, uma após a outra ou a cada X segundos)
@@ -246,7 +248,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Seleção não destrutiva de canal/stream de áudio (ambos, esquerdo, direito, combinar, trocar, canal x)
 - [ ] Esticar no tempo e mudar o tom (teclas `=` e `-`), taxa de reprodução e subamostragem de vídeo
 - [ ] Takes por evento (adicionar como take, `T` / `Shift+T`, escolher/apagar ativo, "slip em todos os takes")
-- [ ] Grupos (`G`, `U`, `Ctrl+Shift+U`, selecionar grupo) e vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)
+- [x] Grupos (`G`, `U`, `Ctrl+Shift+U` ignora o agrupamento): `group` no evento (`#[serde(default)]`), clicar, `Ctrl`+clicar ou selecionar com retângulo pega o grupo inteiro, o grupo se move junto, dividir parte o grupo em dois e colar cria um grupo próprio; canto laranja no evento e botão 🔗 na barra
+- [ ] Vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)
 - [ ] Reverter evento (cria subclipe revertido)
 
 **Fase 5 — Marcadores, regiões e laço (entrada 11)**

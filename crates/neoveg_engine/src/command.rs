@@ -156,6 +156,7 @@ impl EditCommand {
                 let left = &mut t.events[i];
                 let left_duration = at - left.start;
                 let right = TrackEvent {
+                    group: None,
                     id: *new_event_id,
                     name: left.name.clone(),
                     media_id: left.media_id,
@@ -350,6 +351,7 @@ mod tests {
         assert!(history.execute(&mut tl, EditCommand::AddTrack { track }));
         let event_id = tl.alloc_id();
         let event = TrackEvent {
+            group: None,
             id: event_id,
             name: "clip".into(),
             media_id: Some(1),

@@ -1,0 +1,382 @@
+//! Vector toolbar icons drawn with egui shapes.
+//!
+//! Flat, monochrome pictograms in the spirit of classic NLE toolbars: original artwork, no bitmap
+//! assets, so they stay crisp at any scale and monitor DPI and follow the colours of the theme.
+//! Every icon is described on a unit square and turned into shapes by [`shapes`], which is pure
+//! and testable without a window.
+
+use eframe::egui::{self, vec2, Color32, Pos2, Rect, Response, Rounding, Sense, Shape, Stroke};
+
+macro_rules! icons {
+    ($($name:ident),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum Icon {
+            $($name),+
+        }
+
+        impl Icon {
+            /// Every icon, so tests cover new ones automatically.
+            #[cfg(test)]
+            pub const ALL: &'static [Icon] = &[$(Icon::$name),+];
+        }
+    };
+}
+
+icons! {
+    GoToStart,
+    Play,
+    Pause,
+    Stop,
+    Split,
+    Undo,
+    Redo,
+    AddAudioTrack,
+    AddVideoTrack,
+    Loop,
+    Group,
+    Snap,
+    Crossfade,
+    ZoomOut,
+    ZoomIn,
+    Reset,
+}
+
+impl Icon {
+    /// The colour of the icon at rest; hovering brightens it.
+    pub fn tint(self) -> Color32 {
+        match self {
+            Icon::Play => Color32::from_rgb(0x6D, 0xD4, 0x7E),
+            Icon::Stop => Color32::from_rgb(0xD8, 0x7A, 0x7A),
+            Icon::AddAudioTrack => Color32::from_rgb(0x6C, 0xB4, 0xE4),
+            Icon::AddVideoTrack => Color32::from_rgb(0xB4, 0x9A, 0xE6),
+            _ => Color32::from_gray(205),
+        }
+    }
+}
+
+/// Drawing surface over the unit square `0..1` mapped onto the largest centred square of a rect.
+struct Canvas {
+    origin: Pos2,
+    size: f32,
+    color: Color32,
+    width: f32,
+    /// Draws the icon flipped left to right (Redo is a mirrored Undo).
+    mirror: bool,
+    shapes: Vec<Shape>,
+}
+
+type Pt = (f32, f32);
+
+impl Canvas {
+    fn new(rect: Rect, color: Color32) -> Self {
+        let size = rect.width().min(rect.height());
+        Self {
+            origin: rect.center() - vec2(size, size) / 2.0,
+            size,
+            color,
+            width: (size * 0.09).max(1.0),
+            mirror: false,
+            shapes: Vec::new(),
+        }
+    }
+
+    fn p(&self, (x, y): Pt) -> Pos2 {
+        let x = if self.mirror { 1.0 - x } else { x };
+        self.origin + vec2(x, y) * self.size
+    }
+
+    fn pts(&self, points: &[Pt]) -> Vec<Pos2> {
+        points.iter().map(|&p| self.p(p)).collect()
+    }
+
+    fn stroke(&self, scale: f32) -> Stroke {
+        Stroke::new(self.width * scale, self.color)
+    }
+
+    fn line(&mut self, a: Pt, b: Pt, scale: f32) {
+        let stroke = self.stroke(scale);
+        self.shapes
+            .push(Shape::line_segment([self.p(a), self.p(b)], stroke));
+    }
+
+    fn path(&mut self, points: &[Pt]) {
+        let stroke = self.stroke(1.0);
+        self.shapes.push(Shape::line(self.pts(points), stroke));
+    }
+
+    /// Filled convex polygon.
+    fn fill(&mut self, points: &[Pt]) {
+        self.shapes.push(Shape::convex_polygon(
+            self.pts(points),
+            self.color,
+            Stroke::NONE,
+        ));
+    }
+
+    fn fill_rect(&mut self, (x0, y0): Pt, (x1, y1): Pt) {
+        self.fill(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
+    }
+
+    fn outline_rect(&mut self, (x0, y0): Pt, (x1, y1): Pt) {
+        let stroke = self.stroke(1.0);
+        let rect = Rect::from_two_pos(self.p((x0, y0)), self.p((x1, y1)));
+        self.shapes
+            .push(Shape::rect_stroke(rect, Rounding::ZERO, stroke));
+    }
+
+    fn circle(&mut self, (cx, cy): Pt, r: f32) {
+        let stroke = self.stroke(1.0);
+        self.shapes.push(Shape::circle_stroke(
+            self.p((cx, cy)),
+            r * self.size,
+            stroke,
+        ));
+    }
+
+    /// Triangle whose tip is `tip`, pointing along `dir` (a unit vector in icon space).
+    fn arrowhead(&mut self, tip: Pt, dir: Pt, length: f32) {
+        let (dx, dy) = dir;
+        let (px, py) = (-dy, dx);
+        let base = (tip.0 - dx * length, tip.1 - dy * length);
+        let half = length * 0.55;
+        self.fill(&[
+            tip,
+            (base.0 + px * half, base.1 + py * half),
+            (base.0 - px * half, base.1 - py * half),
+        ]);
+    }
+
+    fn plus(&mut self, (cx, cy): Pt, half: f32) {
+        self.line((cx - half, cy), (cx + half, cy), 1.0);
+        self.line((cx, cy - half), (cx, cy + half), 1.0);
+    }
+}
+
+/// Points of an arc of the circle at `centre`; angles in degrees, measured clockwise on screen
+/// from the right (so `270` is the top).
+fn arc((cx, cy): Pt, r: f32, from: f32, to: f32, steps: u32) -> Vec<Pt> {
+    (0..=steps)
+        .map(|i| {
+            let a = (from + (to - from) * i as f32 / steps as f32).to_radians();
+            (cx + r * a.cos(), cy + r * a.sin())
+        })
+        .collect()
+}
+
+/// An arc with an arrowhead at its end, as on Undo and Reset.
+fn arc_arrow(c: &mut Canvas, centre: Pt, r: f32, from: f32, to: f32) {
+    c.path(&arc(centre, r, from, to, 20));
+    let end = (to).to_radians();
+    let tip = (centre.0 + r * end.cos(), centre.1 + r * end.sin());
+    // Direction of travel along the arc
+    let sweep = if to < from { -1.0 } else { 1.0 };
+    let dir = (-end.sin() * sweep, end.cos() * sweep);
+    c.arrowhead((tip.0 + dir.0 * 0.07, tip.1 + dir.1 * 0.07), dir, 0.2);
+}
+
+fn draw(c: &mut Canvas, icon: Icon) {
+    match icon {
+        Icon::GoToStart => {
+            c.fill_rect((0.2, 0.2), (0.3, 0.8));
+            c.fill(&[(0.8, 0.2), (0.8, 0.8), (0.36, 0.5)]);
+        }
+        Icon::Play => c.fill(&[(0.28, 0.16), (0.28, 0.84), (0.82, 0.5)]),
+        Icon::Pause => {
+            c.fill_rect((0.24, 0.2), (0.42, 0.8));
+            c.fill_rect((0.58, 0.2), (0.76, 0.8));
+        }
+        Icon::Stop => c.fill_rect((0.22, 0.22), (0.78, 0.78)),
+        Icon::Split => {
+            // The cursor line with a clip on each side of it
+            c.fill(&[(0.38, 0.08), (0.62, 0.08), (0.5, 0.24)]);
+            c.line((0.5, 0.22), (0.5, 0.92), 1.0);
+            c.outline_rect((0.12, 0.38), (0.42, 0.78));
+            c.outline_rect((0.58, 0.38), (0.88, 0.78));
+        }
+        Icon::Undo => arc_arrow(c, (0.5, 0.58), 0.27, 25.0, -170.0),
+        Icon::Redo => {
+            c.mirror = true;
+            arc_arrow(c, (0.5, 0.58), 0.27, 25.0, -170.0);
+        }
+        Icon::AddAudioTrack => {
+            c.fill_rect((0.08, 0.44), (0.24, 0.68));
+            c.fill(&[(0.24, 0.44), (0.44, 0.3), (0.44, 0.82), (0.24, 0.68)]);
+            c.path(&arc((0.44, 0.56), 0.2, -50.0, 50.0, 8));
+            c.plus((0.78, 0.22), 0.12);
+        }
+        Icon::AddVideoTrack => {
+            c.outline_rect((0.08, 0.42), (0.6, 0.88));
+            c.fill(&[(0.27, 0.54), (0.27, 0.76), (0.44, 0.65)]);
+            c.fill(&[(0.6, 0.56), (0.84, 0.46), (0.84, 0.84), (0.6, 0.74)]);
+            c.plus((0.74, 0.2), 0.12);
+        }
+        Icon::Loop => {
+            c.path(&[(0.2, 0.5), (0.2, 0.3), (0.66, 0.3)]);
+            c.arrowhead((0.84, 0.3), (1.0, 0.0), 0.2);
+            c.path(&[(0.8, 0.5), (0.8, 0.7), (0.34, 0.7)]);
+            c.arrowhead((0.16, 0.7), (-1.0, 0.0), 0.2);
+        }
+        Icon::Group => {
+            c.outline_rect((0.1, 0.1), (0.58, 0.58));
+            let faded = c.color;
+            c.color = faded.gamma_multiply(0.45);
+            c.fill_rect((0.42, 0.42), (0.9, 0.9));
+            c.color = faded;
+            c.outline_rect((0.42, 0.42), (0.9, 0.9));
+        }
+        Icon::Snap => {
+            // Horseshoe magnet with two lit poles
+            c.path(&arc((0.5, 0.5), 0.26, 180.0, 360.0, 16));
+            c.line((0.24, 0.5), (0.24, 0.72), 1.0);
+            c.line((0.76, 0.5), (0.76, 0.72), 1.0);
+            c.fill_rect((0.14, 0.7), (0.34, 0.86));
+            c.fill_rect((0.66, 0.7), (0.86, 0.86));
+        }
+        Icon::Crossfade => {
+            c.outline_rect((0.1, 0.18), (0.9, 0.82));
+            c.line((0.2, 0.7), (0.8, 0.3), 1.0);
+            c.line((0.2, 0.3), (0.8, 0.7), 1.0);
+        }
+        Icon::ZoomOut | Icon::ZoomIn => {
+            c.circle((0.42, 0.42), 0.26);
+            c.line((0.62, 0.62), (0.86, 0.86), 1.7);
+            c.line((0.3, 0.42), (0.54, 0.42), 1.0);
+            if icon == Icon::ZoomIn {
+                c.line((0.42, 0.3), (0.42, 0.54), 1.0);
+            }
+        }
+        Icon::Reset => arc_arrow(c, (0.5, 0.5), 0.3, -50.0, -330.0),
+    }
+}
+
+/// The shapes of `icon` inside `rect`, in `color`.
+pub fn shapes(icon: Icon, rect: Rect, color: Color32) -> Vec<Shape> {
+    let mut canvas = Canvas::new(rect, color);
+    draw(&mut canvas, icon);
+    canvas.shapes
+}
+
+/// Side of the square toolbar buttons, in points.
+pub const BUTTON_SIZE: f32 = 26.0;
+
+/// A flat, square-cornered icon button; the name and shortcut go in `tooltip`. `selected` shows
+/// the pressed state of a toggle.
+pub fn icon_button(ui: &mut egui::Ui, icon: Icon, tooltip: &str, selected: bool) -> Response {
+    icon_button_sized(ui, icon, tooltip, selected, BUTTON_SIZE)
+}
+
+pub fn icon_button_sized(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    tooltip: &str,
+    selected: bool,
+    side: f32,
+) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        let hovered = response.hovered();
+        let fill = if selected {
+            Color32::from_rgb(0x2A, 0x45, 0x63)
+        } else if hovered {
+            Color32::from_gray(58)
+        } else {
+            Color32::TRANSPARENT
+        };
+        painter.rect_filled(rect, Rounding::ZERO, fill);
+        if selected {
+            painter.rect_stroke(
+                rect,
+                Rounding::ZERO,
+                Stroke::new(1.0_f32, Color32::from_rgb(0x3A, 0x7B, 0xBF)),
+            );
+        }
+        let color = if !ui.is_enabled() {
+            Color32::from_gray(90)
+        } else if hovered || selected {
+            icon.tint().gamma_multiply(1.15)
+        } else {
+            icon.tint()
+        };
+        painter.extend(shapes(icon, rect.shrink(side * 0.18), color));
+    }
+    response.on_hover_text(tooltip)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::pos2;
+
+    fn frame() -> Rect {
+        Rect::from_min_size(pos2(10.0, 20.0), vec2(24.0, 24.0))
+    }
+
+    #[test]
+    fn every_icon_draws_something_inside_its_frame() {
+        let bounds = frame().expand(1.0);
+        for &icon in Icon::ALL {
+            let shapes = shapes(icon, frame(), Color32::WHITE);
+            assert!(!shapes.is_empty(), "{icon:?} draws nothing");
+            for shape in &shapes {
+                let r = shape.visual_bounding_rect();
+                assert!(
+                    bounds.contains_rect(r),
+                    "{icon:?} leaves its frame: {r:?} outside {bounds:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn icons_scale_with_their_frame_and_stay_centred() {
+        for &icon in Icon::ALL {
+            let small = Rect::from_min_size(pos2(0.0, 0.0), vec2(16.0, 16.0));
+            let big = Rect::from_min_size(pos2(100.0, 100.0), vec2(64.0, 64.0));
+            let union = |rect| {
+                shapes(icon, rect, Color32::WHITE)
+                    .iter()
+                    .map(Shape::visual_bounding_rect)
+                    .fold(Rect::NOTHING, Rect::union)
+            };
+            let (s, b) = (union(small), union(big));
+            assert!(b.width() > s.width() * 3.0, "{icon:?} does not scale");
+            // A non-square frame draws in its largest centred square
+            let wide = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 16.0));
+            let w = union(wide);
+            assert!(
+                (w.center().x - wide.center().x).abs() < 4.0,
+                "{icon:?} is off centre"
+            );
+        }
+    }
+
+    #[test]
+    fn redo_is_the_mirror_image_of_undo() {
+        let bounds = |icon| {
+            shapes(icon, frame(), Color32::WHITE)
+                .iter()
+                .map(Shape::visual_bounding_rect)
+                .fold(Rect::NOTHING, Rect::union)
+        };
+        let (undo, redo) = (bounds(Icon::Undo), bounds(Icon::Redo));
+        let centre = frame().center().x;
+        assert!(((undo.left() - centre) + (redo.right() - centre)).abs() < 0.5);
+        assert!((undo.height() - redo.height()).abs() < 0.01);
+    }
+
+    #[test]
+    fn zoom_in_adds_the_vertical_stroke() {
+        let count = |icon| shapes(icon, frame(), Color32::WHITE).len();
+        assert_eq!(count(Icon::ZoomIn), count(Icon::ZoomOut) + 1);
+    }
+
+    #[test]
+    fn tints_are_visible_on_the_dark_toolbar() {
+        for &icon in Icon::ALL {
+            let c = icon.tint();
+            let luma = (u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b())) / 3;
+            assert!(luma > 120, "{icon:?} is too dark: {c:?}");
+        }
+    }
+}

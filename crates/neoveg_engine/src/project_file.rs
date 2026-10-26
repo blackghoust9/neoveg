@@ -174,6 +174,7 @@ mod tests {
             duration_seconds: 4.0,
         });
         let event = TrackEvent {
+            group: None,
             id: tl.alloc_id(),
             name: "a.wav".into(),
             media_id: Some(media_id),
@@ -276,5 +277,24 @@ mod tests {
         assert_eq!(loaded.markers, tl.markers);
         assert_eq!(loaded.regions, tl.regions);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn projects_saved_before_groups_still_load_and_ungrouped_events_stay_compact() {
+        let event: crate::timeline::TrackEvent = serde_json::from_str(
+            r#"{"id":1,"name":"a","media_id":null,"start":0.0,"duration":2.0,
+                "trim_in":0.0,"fade_in":0.0,"fade_out":0.0}"#,
+        )
+        .unwrap();
+        assert_eq!(event.group, None);
+        assert!(!serde_json::to_string(&event).unwrap().contains("group"));
+
+        let grouped = crate::timeline::TrackEvent {
+            group: Some(7),
+            ..event
+        };
+        let back: crate::timeline::TrackEvent =
+            serde_json::from_str(&serde_json::to_string(&grouped).unwrap()).unwrap();
+        assert_eq!(back.group, Some(7));
     }
 }

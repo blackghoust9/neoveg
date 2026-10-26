@@ -2,6 +2,7 @@
 
 mod app;
 mod frame_grid;
+mod icons;
 mod precision_slider;
 mod shortcuts;
 mod waveform_paint;

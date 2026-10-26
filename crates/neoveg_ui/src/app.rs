@@ -27,6 +27,7 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
+use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
@@ -41,6 +42,7 @@ use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
+use crate::icons::{self, Icon};
 use crate::precision_slider::PrecisionSlider;
 use crate::shortcuts::{from_egui, to_egui};
 use crate::waveform_paint::paint_waveform;
@@ -140,6 +142,19 @@ struct EventDrag {
     current: EventGeometry,
     /// Pointer time minus event start at the press (keeps the grabbed point under the cursor).
     grab_offset: f64,
+    /// Every event that moves with this one (the whole selection), empty for a single event.
+    moving: Vec<EventRef>,
+}
+
+/// A rectangle being dragged over the lanes with Shift: it selects the events it touches.
+struct Marquee {
+    anchor_time: f64,
+    /// Row in lane units from the top of the first track (fractional while the pointer is inside).
+    anchor_row: f32,
+    current_time: f64,
+    current_row: f32,
+    /// Ctrl: the events already selected stay selected.
+    additive: bool,
 }
 
 struct ActivePlayer {
@@ -209,6 +224,9 @@ struct AppState {
     context_mark: Option<MarkId>,
     name_edit: Option<NameEdit>,
     mark_drag: Option<MarkDrag>,
+    /// Ctrl+Shift+U: clicking one event of a group selects only that event.
+    ignore_grouping: bool,
+    marquee: Option<Marquee>,
     snapping: bool,
     /// `Q`: playback repeats over [`AppState::loop_args`].
     looping: bool,
@@ -282,6 +300,8 @@ impl AppState {
             context_mark: None,
             name_edit: None,
             mark_drag: None,
+            ignore_grouping: false,
+            marquee: None,
             snapping: true,
             looping: false,
             loop_region: None,
@@ -788,6 +808,12 @@ impl AppState {
                 self.clipboard.is_some()
             }
             Command::EditTrimToSelection => has_range,
+            Command::EditGroup => self.selection.len() >= 2,
+            Command::EditUngroup => self
+                .selection
+                .refs()
+                .into_iter()
+                .any(|e| groups::group_members(&self.timeline, e).len() > 1),
             _ => true,
         }
     }
@@ -1002,11 +1028,11 @@ impl AppState {
     // ---- mouse editing ---------------------------------------------------------------------------
 
     /// Times events can snap to: the origin, the playhead and the edges of every other event.
-    fn snap_candidates(&self, exclude: (TrackId, EventId)) -> Vec<f64> {
+    fn snap_candidates(&self, exclude: &[EventRef]) -> Vec<f64> {
         let mut times = vec![0.0, self.playhead];
         for track in &self.timeline.tracks {
             for ev in &track.events {
-                if (track.id, ev.id) != exclude {
+                if !exclude.contains(&(track.id, ev.id)) {
                     times.push(ev.start);
                     times.push(ev.end());
                 }
@@ -1036,8 +1062,14 @@ impl AppState {
         let (track_id, event_id, mode, origin) = hit;
         self.selected_track = Some(track_id);
         if !self.selection.contains((track_id, event_id)) {
-            self.selection.select_only((track_id, event_id));
+            self.click_select((track_id, event_id));
         }
+        // A move drags the whole selection (a group is selected as a whole)
+        let moving = if mode == DragMode::Move && self.selection.len() > 1 {
+            self.selection.refs()
+        } else {
+            Vec::new()
+        };
         self.drag = Some(EventDrag {
             mode,
             track_id,
@@ -1046,6 +1078,7 @@ impl AppState {
             origin,
             current: origin,
             grab_offset: pointer_time - origin.start,
+            moving,
         });
     }
 
@@ -1063,7 +1096,11 @@ impl AppState {
         let fps = self.project.settings.fps;
         let min_len = 1.0 / fps.max(1.0);
         let candidates = if snap_enabled {
-            self.snap_candidates((drag.track_id, drag.event_id))
+            if drag.moving.len() > 1 {
+                self.snap_candidates(&drag.moving)
+            } else {
+                self.snap_candidates(&[(drag.track_id, drag.event_id)])
+            }
         } else {
             Vec::new()
         };
@@ -1077,8 +1114,13 @@ impl AppState {
                 let start = edit::snap_block(raw, drag.origin.duration, &candidates, threshold)
                     .unwrap_or_else(|| edit::quantize(raw, fps));
                 drag.current = edit::move_to(drag.origin, start);
-                // Events only move between tracks of their own kind
-                if let Some(track) = row_track.and_then(|id| self.timeline.track(id)) {
+                if drag.moving.len() > 1 {
+                    // A block moves in time only, and none of it may start before zero
+                    let earliest = self.earliest_start(&drag.moving);
+                    let delta = (drag.current.start - drag.origin.start).max(-earliest);
+                    drag.current = edit::move_to(drag.origin, drag.origin.start + delta);
+                } else if let Some(track) = row_track.and_then(|id| self.timeline.track(id)) {
+                    // Events only move between tracks of their own kind
                     let same_kind = self
                         .timeline
                         .track(drag.track_id)
@@ -1140,6 +1182,14 @@ impl AppState {
         let Some(d) = self.drag.take() else {
             return;
         };
+        if d.moving.len() > 1 {
+            // The whole selection moved by the same amount: one undo step, selection unchanged
+            let delta = d.current.start - d.origin.start;
+            if let Some(outcome) = groups::move_events(&self.timeline, &d.moving, delta) {
+                self.history.execute(&mut self.timeline, outcome.command);
+            }
+            return;
+        }
         if d.current == d.origin && d.target_track == d.track_id {
             return;
         }
@@ -1154,7 +1204,132 @@ impl AppState {
             },
         );
         self.selected_track = Some(d.target_track);
-        self.selection.select_only((d.target_track, d.event_id));
+        if d.target_track != d.track_id || !self.selection.contains((d.target_track, d.event_id)) {
+            self.selection.select_only((d.target_track, d.event_id));
+        }
+    }
+
+    fn earliest_start(&self, events: &[EventRef]) -> f64 {
+        events
+            .iter()
+            .filter_map(|&(track_id, event_id)| {
+                self.timeline
+                    .track(track_id)?
+                    .events
+                    .iter()
+                    .find(|e| e.id == event_id)
+                    .map(|e| e.start)
+            })
+            .fold(f64::INFINITY, f64::min)
+            .max(0.0)
+    }
+
+    // ---- multiple selection and groups -------------------------------------------------------
+
+    /// The events a click on `event` selects: its whole group unless grouping is ignored.
+    fn clicked_members(&self, event: EventRef) -> Vec<EventRef> {
+        if self.ignore_grouping {
+            vec![event]
+        } else {
+            groups::group_members(&self.timeline, event)
+        }
+    }
+
+    /// Plain click: the event, or its whole group, becomes the selection.
+    fn click_select(&mut self, event: EventRef) {
+        let members = self.clicked_members(event);
+        self.selection.select_many(members, event);
+    }
+
+    /// Ctrl-click: adds or removes the event, or its whole group.
+    fn click_toggle(&mut self, event: EventRef) {
+        let members = self.clicked_members(event);
+        self.selection.toggle_many(&members, event);
+    }
+
+    /// Shift-click: the range up to `event`, completed with the groups it touches.
+    fn click_extend(&mut self, event: EventRef) {
+        self.selection.extend_to(&self.timeline, event);
+        self.include_groups_in_selection();
+    }
+
+    fn include_groups_in_selection(&mut self) {
+        if !self.ignore_grouping {
+            let all = groups::expand_to_groups(&self.timeline, &self.selection.refs());
+            self.selection.add_all(all);
+        }
+    }
+
+    /// Rectangular selection: events touching `a_time..b_time` on the rows between the two
+    /// fractional rows (first track = row 0). `additive` keeps the current selection.
+    fn select_rect(&mut self, a_time: f64, b_time: f64, a_row: f32, b_row: f32, additive: bool) {
+        let first = a_row.min(b_row).floor().max(0.0) as usize;
+        let last = a_row.max(b_row).floor().max(0.0) as usize;
+        let tracks: Vec<TrackId> = self
+            .timeline
+            .tracks
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| (first..=last).contains(i))
+            .map(|(_, t)| t.id)
+            .collect();
+        let previous = self.selection.refs();
+        self.selection.select_in_rect(
+            &self.timeline,
+            Some(&tracks),
+            TimeRange::new(a_time, b_time),
+        );
+        if additive {
+            self.selection.add_all(previous);
+        }
+        self.include_groups_in_selection();
+        self.time_selection = None;
+    }
+
+    fn finish_marquee(&mut self) {
+        if let Some(m) = self.marquee.take() {
+            self.select_rect(
+                m.anchor_time,
+                m.current_time,
+                m.anchor_row,
+                m.current_row,
+                m.additive,
+            );
+        }
+    }
+
+    /// `G`: the selected events become one group.
+    fn group_selection(&mut self) {
+        let refs = self.selection.refs();
+        match groups::group_events(&mut self.timeline, &refs) {
+            Some(outcome) => {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.status = format!("{} eventos agrupados", refs.len());
+            }
+            None => self.status = "Selecione dois ou mais eventos para agrupar".into(),
+        }
+    }
+
+    /// `U`: dissolves the groups of the selected events.
+    fn ungroup_selection(&mut self) {
+        let refs = self.selection.refs();
+        match groups::ungroup_events(&self.timeline, &refs) {
+            Some(outcome) => {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.status = "Eventos desagrupados".into();
+            }
+            None => self.status = "Nenhum evento agrupado na seleção".into(),
+        }
+    }
+
+    /// `Ctrl+Shift+U`: clicks select single events of a group (or the whole group again).
+    fn toggle_ignore_grouping(&mut self) {
+        self.ignore_grouping = !self.ignore_grouping;
+        self.status = if self.ignore_grouping {
+            "Agrupamento ignorado: os cliques selecionam um evento".into()
+        } else {
+            "Agrupamento ativo".into()
+        };
     }
 
     // ---- unsaved changes and autosave -----------------------------------------------------------
@@ -1271,6 +1446,7 @@ impl AppState {
         };
         let video_track = self.track_of_kind(TrackKind::Video);
         let event = TrackEvent {
+            group: None,
             id: self.timeline.alloc_id(),
             name: name.clone(),
             media_id: Some(media_id),
@@ -1293,6 +1469,7 @@ impl AppState {
         if let Some(audio) = audio {
             let audio_track = self.track_of_kind(TrackKind::Audio);
             let event = TrackEvent {
+                group: None,
                 id: self.timeline.alloc_id(),
                 name: name.clone(),
                 media_id: Some(media_id),
@@ -1431,6 +1608,7 @@ impl AppState {
             0.0
         };
         let event = TrackEvent {
+            group: None,
             id: self.timeline.alloc_id(),
             name: media.name.clone(),
             media_id: Some(media_id),
@@ -1661,6 +1839,9 @@ impl AppState {
             Command::EditSelectNone => self.clear_selection(),
             Command::SelectionSetIn => self.set_selection_edge(true),
             Command::SelectionSetOut => self.set_selection_edge(false),
+            Command::EditGroup => self.group_selection(),
+            Command::EditUngroup => self.ungroup_selection(),
+            Command::EditIgnoreGrouping => self.toggle_ignore_grouping(),
             Command::TransportLoop => self.toggle_loop(),
             Command::SelectionLoopRegion => self.set_loop_region(),
             Command::InsertMarker => self.insert_marker(),
@@ -1924,6 +2105,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.separator();
             for command in [
+                Command::EditGroup,
+                Command::EditUngroup,
+                Command::EditIgnoreGrouping,
+            ] {
+                command_item(state, ui, command);
+            }
+            ui.separator();
+            for command in [
                 Command::EditSplit,
                 Command::EditTrimToSelection,
                 Command::EditTrimStart,
@@ -2119,7 +2308,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                             ui.add_sized([230.0, 20.0], egui::Label::new(label).truncate());
                             for shortcut in state.keymap.shortcuts_for(command) {
                                 if ui
-                                    .small_button(format!("{shortcut} ✕"))
+                                    .small_button(format!("{shortcut} ×"))
                                     .on_hover_text("Remover este atalho")
                                     .clicked()
                                 {
@@ -2127,7 +2316,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                                 }
                             }
                             if ui
-                                .small_button("＋")
+                                .small_button("+")
                                 .on_hover_text("Atribuir atalho")
                                 .clicked()
                             {
@@ -2135,10 +2324,14 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                                 state.keymap_message.clear();
                             }
                             if overridden.contains_key(command.id())
-                                && ui
-                                    .small_button("↺")
-                                    .on_hover_text("Restaurar o padrão deste comando")
-                                    .clicked()
+                                && icons::icon_button_sized(
+                                    ui,
+                                    Icon::Reset,
+                                    "Restaurar o padrão deste comando",
+                                    false,
+                                    20.0,
+                                )
+                                .clicked()
                             {
                                 reset = Some(command);
                             }
@@ -2721,7 +2914,13 @@ fn event_context_menu(
         ui.label("Evento não encontrado");
         return;
     };
-    for command in [Command::EditCut, Command::EditCopy, Command::EditDelete] {
+    for command in [
+        Command::EditCut,
+        Command::EditCopy,
+        Command::EditDelete,
+        Command::EditGroup,
+        Command::EditUngroup,
+    ] {
         command_item(state, ui, command);
     }
     if ui.button("Selecionar eventos até o fim").clicked() {
@@ -2779,66 +2978,94 @@ fn timeline_ui(state: &mut AppState, ui: &mut egui::Ui) {
 fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let now = ui.input(|i| i.time);
     ui.horizontal(|ui| {
-        let icon = |ui: &mut egui::Ui, glyph: &str, tip: &str| {
-            ui.button(glyph).on_hover_text(tip).clicked()
+        let icon = |ui: &mut egui::Ui, which: Icon, tip: &str| {
+            icons::icon_button(ui, which, tip, false).clicked()
         };
-        if icon(ui, "⏮", "Ir para o início") {
+        if icon(ui, Icon::GoToStart, "Ir para o início") {
             state.playhead = 0.0;
             state.blink_origin = now;
         }
-        let play_glyph = if state.playing { "⏸" } else { "▶" };
-        if icon(ui, play_glyph, "Reproduzir / Pausar (Espaço)") {
+        let play_icon = if state.playing {
+            Icon::Pause
+        } else {
+            Icon::Play
+        };
+        if icon(ui, play_icon, "Reproduzir / Pausar (Espaço)") {
             state.toggle_play(now);
         }
-        if icon(ui, "⏹", "Parar") {
+        if icon(ui, Icon::Stop, "Parar") {
             state.stop();
         }
         ui.separator();
-        if icon(ui, "✂", "Dividir no cursor (S)") {
+        if icon(ui, Icon::Split, "Dividir no cursor (S)") {
             state.split_at_playhead();
         }
-        if icon(ui, "↶", "Desfazer (Ctrl+Z)") {
+        if icon(ui, Icon::Undo, "Desfazer (Ctrl+Z)") {
             state.history.undo(&mut state.timeline);
         }
-        if icon(ui, "↷", "Refazer (Ctrl+Y)") {
+        if icon(ui, Icon::Redo, "Refazer (Ctrl+Y)") {
             state.history.redo(&mut state.timeline);
         }
         ui.separator();
-        if icon(ui, "🔊+", "Inserir faixa de áudio (Ctrl+Q)") {
+        if icon(ui, Icon::AddAudioTrack, "Inserir faixa de áudio (Ctrl+Q)") {
             state.add_track(TrackKind::Audio);
         }
-        if icon(ui, "🎞+", "Inserir faixa de vídeo (Ctrl+Shift+Q)") {
+        if icon(
+            ui,
+            Icon::AddVideoTrack,
+            "Inserir faixa de vídeo (Ctrl+Shift+Q)",
+        ) {
             state.add_track(TrackKind::Video);
         }
-        if ui
-            .selectable_label(state.looping, "🔁")
-            .on_hover_text("Reprodução em laço (Q); Shift+Q define a região de laço")
-            .clicked()
+        if icons::icon_button(
+            ui,
+            Icon::Loop,
+            "Reprodução em laço (Q); Shift+Q define a região de laço",
+            state.looping,
+        )
+        .clicked()
         {
             state.toggle_loop();
         }
+        if icons::icon_button(
+            ui,
+            Icon::Group,
+            "Agrupamento de eventos (G agrupa, U desagrupa, Ctrl+Shift+U ignora)",
+            !state.ignore_grouping,
+        )
+        .clicked()
+        {
+            state.toggle_ignore_grouping();
+        }
         ui.separator();
-        if ui
-            .selectable_label(state.snapping, "🧲")
-            .on_hover_text(
-                "Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)",
-            )
-            .clicked()
+        if icons::icon_button(
+            ui,
+            Icon::Snap,
+            "Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)",
+            state.snapping,
+        )
+        .clicked()
         {
             state.snapping = !state.snapping;
         }
         ui.separator();
-        if ui
-            .selectable_label(state.project.settings.auto_crossfade, "⤫")
-            .on_hover_text("Crossfade automático entre eventos sobrepostos")
-            .clicked()
+        if icons::icon_button(
+            ui,
+            Icon::Crossfade,
+            "Crossfade automático entre eventos sobrepostos",
+            state.project.settings.auto_crossfade,
+        )
+        .clicked()
         {
             state.project.settings.auto_crossfade = !state.project.settings.auto_crossfade;
             state.forced_dirty = true;
         }
         // Toolbar zoom is anchored at the edit cursor
-        for (glyph, tip, factor) in [("−", "Reduzir zoom", 0.5), ("+", "Ampliar zoom", 2.0)] {
-            if icon(ui, glyph, tip) {
+        for (which, tip, factor) in [
+            (Icon::ZoomOut, "Reduzir zoom", 0.5),
+            (Icon::ZoomIn, "Ampliar zoom", 2.0),
+        ] {
+            if icon(ui, which, tip) {
                 let offset = state.playhead - state.scroll_seconds;
                 state.pixels_per_second = (state.pixels_per_second * factor)
                     .clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND);
@@ -2926,12 +3153,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         track_id.and_then(|id| state.timeline.event_at(id, t).map(|e| (id, e.id)));
                     let modifiers = ui.input(|i| i.modifiers);
                     match hit {
-                        Some(event) if modifiers.command => state.selection.toggle(event),
+                        Some(event) if modifiers.command => state.click_toggle(event),
                         Some(event) if modifiers.shift => {
-                            state.selection.extend_to(&state.timeline, event);
+                            state.click_extend(event);
                         }
                         Some(event) => {
-                            state.selection.select_only(event);
+                            state.click_select(event);
                             state.time_selection = None;
                         }
                         None => {
@@ -2954,6 +3181,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let t = x_to_time(state, lanes.left(), p.x);
             if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
                 state.begin_drag(hit, t);
+            } else if ui.input(|i| i.modifiers.shift) {
+                // Shift + drag over empty lane: rectangular selection
+                let row = (p.y - lane_top) / TRACK_HEIGHT;
+                state.marquee = Some(Marquee {
+                    anchor_time: t.max(0.0),
+                    anchor_row: row,
+                    current_time: t.max(0.0),
+                    current_row: row,
+                    additive: ui.input(|i| i.modifiers.command),
+                });
             } else {
                 state.range_anchor = Some(edit::quantize(t.max(0.0), fps));
             }
@@ -2998,6 +3235,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ui.ctx().request_repaint();
         }
     }
+    if state.marquee.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.marquee = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let t = x_to_time(state, lanes.left(), p.x).max(0.0);
+            if let Some(m) = &mut state.marquee {
+                m.current_time = t;
+                m.current_row = (p.y - lane_top) / TRACK_HEIGHT;
+            }
+            ui.ctx().request_repaint();
+        }
+    }
     if let (Some(anchor), Some(p)) = (state.range_anchor, response.interact_pointer_pos()) {
         let t = edit::quantize(x_to_time(state, lanes.left(), p.x).max(0.0), fps);
         let range = TimeRange::new(anchor, t);
@@ -3006,6 +3255,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     }
     if response.drag_stopped() {
         state.finish_mark_drag();
+        state.finish_marquee();
         state.finish_drag();
         state.range_anchor = None;
     }
@@ -3022,7 +3272,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         if let Some((track_id, event_id)) = state.context_event {
             state.selected_track = Some(track_id);
             if !state.selection.contains((track_id, event_id)) {
-                state.selection.select_only((track_id, event_id));
+                state.click_select((track_id, event_id));
             }
         }
     }
@@ -3279,7 +3529,23 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 .drag
                 .as_ref()
                 .filter(|d| d.track_id == track.id && d.event_id == ev.id);
-            let g = dragging.map_or_else(|| ev.geometry(), |d| d.current);
+            let shifted = state
+                .drag
+                .as_ref()
+                .filter(|d| {
+                    d.moving.len() > 1
+                        && !(d.track_id == track.id && d.event_id == ev.id)
+                        && d.moving.contains(&(track.id, ev.id))
+                })
+                .map(|d| d.current.start - d.origin.start);
+            let g = match (dragging, shifted) {
+                (Some(d), _) => d.current,
+                (None, Some(delta)) => EventGeometry {
+                    start: ev.start + delta,
+                    ..ev.geometry()
+                },
+                _ => ev.geometry(),
+            };
             let row_y = dragging
                 .and_then(|d| {
                     state
@@ -3320,6 +3586,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 FontId::proportional(10.0),
                 Color32::from_gray(225),
             );
+            if ev.group.is_some() {
+                // Orange corner: the event belongs to a group
+                lane_painter.add(Shape::convex_polygon(
+                    vec![
+                        pos2(ev_rect.right() - 9.0, ev_rect.top()),
+                        pos2(ev_rect.right(), ev_rect.top()),
+                        pos2(ev_rect.right(), ev_rect.top() + 9.0),
+                    ],
+                    Color32::from_rgb(0xE6, 0x7E, 0x22),
+                    Stroke::NONE,
+                ));
+            }
 
             if let Some(media) = ev.media_id.and_then(|id| state.media.get(&id)) {
                 let wave_rect = Rect::from_min_max(
@@ -3431,6 +3709,25 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 lane_painter.line_segment([pos2(x, band.top()), pos2(x, band.bottom())], edge);
             }
         }
+    }
+
+    if let Some(m) = &state.marquee {
+        let (x0, x1) = (to_x(m.anchor_time), to_x(m.current_time));
+        let (y0, y1) = (
+            lane_top + m.anchor_row * TRACK_HEIGHT,
+            lane_top + m.current_row * TRACK_HEIGHT,
+        );
+        let area = Rect::from_two_pos(pos2(x0, y0), pos2(x1, y1)).intersect(lanes);
+        lane_painter.rect_filled(
+            area,
+            Rounding::ZERO,
+            Color32::from_rgba_unmultiplied(0xF3, 0x9C, 0x12, 40),
+        );
+        lane_painter.rect_stroke(
+            area,
+            Rounding::ZERO,
+            Stroke::new(hairline, Color32::from_rgb(0xF3, 0x9C, 0x12)),
+        );
     }
 
     // Live read-out while dragging: start and length of the event
@@ -3593,6 +3890,7 @@ mod tests {
 
     fn add_event(s: &mut AppState, track_id: TrackId, start: f64, duration: f64) -> EventId {
         let event = TrackEvent {
+            group: None,
             id: s.timeline.alloc_id(),
             name: "a".into(),
             media_id: Some(1),
@@ -3728,7 +4026,7 @@ mod tests {
         let (mut s, track, ev) = state_with_clip();
         add_event(&mut s, track, 10.0, 2.0);
         s.playhead = 7.5;
-        let c = s.snap_candidates((track, ev));
+        let c = s.snap_candidates(&[(track, ev)]);
         assert!(c.contains(&7.5) && c.contains(&10.0) && c.contains(&12.0) && c.contains(&0.0));
         assert!(!c.contains(&2.0) && !c.contains(&6.0));
     }
@@ -4207,6 +4505,134 @@ mod tests {
             "a missing marker leaves the cursor and says so"
         );
         assert!(s.status.contains('4'));
+    }
+
+    /// Two events on one track and one on a second audio track, none selected.
+    fn state_with_three_events() -> (AppState, [EventRef; 3]) {
+        let (mut s, track, ev) = state_with_clip();
+        let b = add_event(&mut s, track, 10.0, 2.0);
+        s.add_track(TrackKind::Audio);
+        let other = s.timeline.tracks[1].id;
+        let c = add_event(&mut s, other, 14.0, 2.0);
+        s.selection.clear();
+        (s, [(track, ev), (track, b), (other, c)])
+    }
+
+    #[test]
+    fn group_and_ungroup_commands_are_one_undo_step_each() {
+        let (mut s, [a, b, _]) = state_with_three_events();
+        run(&mut s, Command::EditGroup);
+        assert!(s.status.contains("dois"), "one event cannot be grouped");
+        s.selection.set([a, b]);
+        let revision = s.history.revision();
+        run(&mut s, Command::EditGroup);
+        assert_eq!(s.history.revision(), revision + 1);
+        assert_eq!(groups::group_members(&s.timeline, a).len(), 2);
+
+        run(&mut s, Command::EditUngroup);
+        assert_eq!(groups::group_members(&s.timeline, a).len(), 1);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(groups::group_members(&s.timeline, a).len(), 2);
+    }
+
+    #[test]
+    fn clicking_a_grouped_event_selects_the_group_unless_grouping_is_ignored() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        s.selection.set([a, b]);
+        run(&mut s, Command::EditGroup);
+        s.selection.clear();
+
+        s.click_select(a);
+        assert_eq!(s.selection.len(), 2);
+        s.click_select(c);
+        assert_eq!(s.selection.refs(), vec![c]);
+
+        s.click_toggle(b);
+        assert_eq!(s.selection.len(), 3, "Ctrl-click adds the whole group");
+        s.click_toggle(a);
+        assert_eq!(s.selection.refs(), vec![c], "and removes it again");
+
+        run(&mut s, Command::EditIgnoreGrouping);
+        assert!(s.ignore_grouping);
+        s.click_select(a);
+        assert_eq!(s.selection.refs(), vec![a]);
+    }
+
+    #[test]
+    fn dragging_one_selected_event_moves_the_whole_selection_in_one_undo_step() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        s.selection.set([a, b, c]);
+        let hit = (a.0, a.1, DragMode::Move, geometry(&s, a.0, a.1));
+        s.begin_drag(hit, 3.0);
+        assert_eq!(s.drag.as_ref().unwrap().moving.len(), 3);
+        s.update_drag(8.0, Some(a.0), 0.0, false);
+        let revision = s.history.revision();
+        s.finish_drag();
+
+        let delta = 5.0;
+        for (r, old) in [(a, 2.0), (b, 10.0), (c, 14.0)] {
+            let start = geometry(&s, r.0, r.1).start;
+            assert!(
+                (start - (old + delta)).abs() < 0.05,
+                "{start} vs {}",
+                old + delta
+            );
+        }
+        assert_eq!(s.history.revision(), revision + 1);
+        assert_eq!(s.selection.len(), 3, "the selection survives the move");
+        run(&mut s, Command::EditUndo);
+        assert_eq!(geometry(&s, b.0, b.1).start, 10.0);
+        assert_eq!(geometry(&s, c.0, c.1).start, 14.0);
+    }
+
+    #[test]
+    fn a_block_move_stops_when_the_earliest_event_reaches_zero() {
+        let (mut s, [a, b, _]) = state_with_three_events();
+        s.selection.set([a, b]);
+        let hit = (a.0, a.1, DragMode::Move, geometry(&s, a.0, a.1));
+        s.begin_drag(hit, 3.0);
+        s.update_drag(-50.0, Some(a.0), 0.0, false);
+        s.finish_drag();
+        assert_eq!(geometry(&s, a.0, a.1).start, 0.0);
+        assert!(
+            (geometry(&s, b.0, b.1).start - 8.0).abs() < 1e-6,
+            "distance kept"
+        );
+    }
+
+    #[test]
+    fn rectangular_selection_takes_the_touched_events_on_the_covered_rows() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        // First track only: times 0..11 touch a (2-6) and b (10-12)
+        s.select_rect(0.0, 11.0, 0.2, 0.8, false);
+        assert_eq!(s.selection.refs(), vec![a, b]);
+        // Both tracks, later times
+        s.select_rect(13.0, 20.0, 0.5, 1.5, false);
+        assert_eq!(s.selection.refs(), vec![c]);
+        // Ctrl keeps what was selected
+        s.select_rect(0.0, 3.0, 0.5, 0.6, true);
+        let mut got = s.selection.refs();
+        got.sort();
+        let mut want = vec![a, c];
+        want.sort();
+        assert_eq!(got, want);
+        // Empty space clears
+        s.select_rect(100.0, 120.0, 0.0, 1.0, false);
+        assert!(s.selection.is_empty());
+    }
+
+    #[test]
+    fn a_rectangle_that_touches_one_grouped_event_selects_the_whole_group() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        s.selection.set([a, c]);
+        run(&mut s, Command::EditGroup);
+        s.select_rect(0.0, 3.0, 0.1, 0.9, false);
+        let mut got = s.selection.refs();
+        got.sort();
+        let mut want = vec![a, c];
+        want.sort();
+        assert_eq!(got, want);
+        assert!(!got.contains(&b));
     }
 
     #[test]

@@ -52,6 +52,7 @@ mod tests {
 
     fn ev(id: u64, start: f64, duration: f64) -> TrackEvent {
         TrackEvent {
+            group: None,
             id,
             name: format!("e{id}"),
             media_id: Some(1),
