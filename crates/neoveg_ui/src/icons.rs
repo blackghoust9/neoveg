@@ -508,6 +508,7 @@ pub fn paint_svg(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bo
 }
 
 /// A flat, square-cornered button showing an SVG icon (the same look as [`icon_button`]).
+#[allow(dead_code)] // for the event-header buttons (pan/crop, event FX) and the auto ripple toggle
 pub fn svg_button(ui: &mut egui::Ui, icon: SvgIcon, tooltip: &str, selected: bool) -> Response {
     let side = BUTTON_SIZE;
     let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());

@@ -311,7 +311,7 @@ pub fn paint_track_envelopes(
             }
         }
         if poly.len() >= 2 {
-            painter.add(Shape::line(poly, Stroke::new(1.6, color)));
+            painter.add(Shape::line(poly, Stroke::new(1.6_f32, color)));
         }
 
         // Keyframe square handles
@@ -334,7 +334,7 @@ pub fn paint_track_envelopes(
             painter.rect_stroke(
                 node_rect,
                 Rounding::ZERO,
-                Stroke::new(1.0, Color32::from_black_alpha(200)),
+                Stroke::new(1.0_f32, Color32::from_black_alpha(200)),
             );
             if is_active {
                 let text = format_envelope_value(&track.effects, &env.target, pt.value);

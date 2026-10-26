@@ -3628,6 +3628,15 @@ fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
     }
 }
 
+/// One slider of the color correction window: label, value, range, default and the readout.
+type GradeRow<'a> = (
+    &'static str,
+    &'a mut f32,
+    std::ops::RangeInclusive<f32>,
+    f32,
+    fn(f32) -> String,
+);
+
 /// Ferramentas → Correção de cor: primary correction of the video. The sliders act on a draft that
 /// is shown at once and committed as one undo step when the drag ends.
 fn grade_window(ctx: &egui::Context, state: &mut AppState) {
@@ -3644,13 +3653,7 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            let rows: [(
-                &str,
-                &mut f32,
-                std::ops::RangeInclusive<f32>,
-                f32,
-                fn(f32) -> String,
-            ); 7] = [
+            let rows: [GradeRow; 7] = [
                 ("Exposição", &mut grade.exposure, -4.0..=4.0, 0.0, |v| {
                     format!("{v:+.2} EV")
                 }),
