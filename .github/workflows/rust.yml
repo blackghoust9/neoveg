@@ -1,0 +1,82 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main", "refactor/**"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    name: Gates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Same native libraries as docker/Dockerfile.rust-linux (cpal, egui/wgpu)
+      - name: System libraries (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libasound2-dev libudev-dev libgl1-mesa-dev libx11-dev libxcursor-dev
+          libxrandr-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
+          libvulkan-dev
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: tests
+        run: cargo test --workspace --locked
+
+  package:
+    name: Portable package (${{ matrix.os }})
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: System libraries (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libasound2-dev libudev-dev libgl1-mesa-dev libx11-dev libxcursor-dev
+          libxrandr-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
+          libvulkan-dev
+
+      # The quality job already ran the gates for this commit
+      - name: Build and package
+        run: python build_portable.py build --skip-qa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neoveg-${{ runner.os }}
+          path: |
+            dist/Neoveg_v*_Portable.*
+            dist/neoveg_v*
+            dist/SHA256SUMS.txt
+            dist/build_manifest.json
+          if-no-files-found: error
