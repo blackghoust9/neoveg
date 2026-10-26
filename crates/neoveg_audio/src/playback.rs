@@ -25,6 +25,33 @@ struct PlaybackState {
     /// Loop start and end in seconds (`f64` bits); the loop is off while `end <= start`.
     loop_start: AtomicU64,
     loop_end: AtomicU64,
+    /// Playback speed (`f64` bits): `1.0` normal, above 1 faster, negative backwards (J / K / L).
+    speed: AtomicU64,
+}
+
+/// Speeds the L and J keys step through, one press each (the manual's "press again to accelerate").
+pub const SHUTTLE_LADDER: [f64; 5] = [1.0, 2.0, 4.0, 8.0, 16.0];
+
+/// Speed after pressing `L` while playing at `current` (negative = backwards): forward at normal
+/// speed when stopped or going backwards, one step faster otherwise, never above the last step.
+pub fn shuttle_forward(current: f64) -> f64 {
+    if !current.is_finite() || current <= 0.0 {
+        return SHUTTLE_LADDER[0];
+    }
+    SHUTTLE_LADDER
+        .iter()
+        .copied()
+        .find(|s| *s > current + 1e-9)
+        .unwrap_or(SHUTTLE_LADDER[SHUTTLE_LADDER.len() - 1])
+}
+
+/// Speed after pressing `J`: backwards at normal speed when stopped or going forward, one step
+/// faster backwards otherwise.
+pub fn shuttle_reverse(current: f64) -> f64 {
+    if !current.is_finite() || current >= 0.0 {
+        return -SHUTTLE_LADDER[0];
+    }
+    -shuttle_forward(-current)
 }
 
 /// Where `pos` lands after a loop `[start, end)` is applied: positions at or past `end` wrap to
@@ -109,6 +136,7 @@ impl AudioPlayer {
             volume: AtomicU64::new(1.0f64.to_bits()),
             loop_start: AtomicU64::new(0f64.to_bits()),
             loop_end: AtomicU64::new(0f64.to_bits()),
+            speed: AtomicU64::new(1.0f64.to_bits()),
         });
 
         let cb_state = Arc::clone(&state);
@@ -133,6 +161,8 @@ impl AudioPlayer {
                     }
                     feeder.begin_buffer();
                     let volume = f64::from_bits(cb_state.volume.load(Ordering::Relaxed)) as f32;
+                    let speed = f64::from_bits(cb_state.speed.load(Ordering::Relaxed));
+                    let advance = step * speed;
                     let loop_start = f64::from_bits(cb_state.loop_start.load(Ordering::Relaxed));
                     let loop_end = f64::from_bits(cb_state.loop_end.load(Ordering::Relaxed));
                     let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
@@ -170,11 +200,11 @@ impl AudioPlayer {
                             if mix_pos < cb_state.end {
                                 mixer.add_frame(i, mix_pos);
                             }
-                            if heard_pos >= cb_state.end {
+                            if heard_pos >= cb_state.end || heard_pos < 0.0 {
                                 cb_state.playing.store(false, Ordering::Relaxed);
                             }
-                            heard_pos += step;
-                            mix_pos += step;
+                            heard_pos += advance;
+                            mix_pos += advance;
                         }
                         mixer.finish(frames);
                         let (mix_l, mix_r) = mixer.out();
@@ -252,6 +282,16 @@ impl AudioPlayer {
         f64::from_bits(self.state.position.load(Ordering::Relaxed))
     }
 
+    /// Playback speed: `1.0` normal, `2.0` double, negative backwards (scrubbing with J and L).
+    pub fn set_speed(&self, speed: f64) {
+        let speed = if speed.is_finite() {
+            speed.clamp(-32.0, 32.0)
+        } else {
+            1.0
+        };
+        self.state.speed.store(speed.to_bits(), Ordering::Relaxed);
+    }
+
     pub fn set_volume(&self, linear: f32) {
         self.state
             .volume
@@ -277,7 +317,30 @@ impl AudioPlayer {
 
 #[cfg(test)]
 mod tests {
-    use super::wrap_loop;
+    use super::{shuttle_forward, shuttle_reverse, wrap_loop};
+
+    #[test]
+    fn the_shuttle_keys_climb_the_ladder_and_turn_around() {
+        assert_eq!(shuttle_forward(0.0), 1.0);
+        assert_eq!(shuttle_forward(1.0), 2.0);
+        assert_eq!(shuttle_forward(2.0), 4.0);
+        assert_eq!(shuttle_forward(16.0), 16.0, "stops at the top step");
+        assert_eq!(
+            shuttle_forward(-4.0),
+            1.0,
+            "L while going back plays forward"
+        );
+        assert_eq!(shuttle_reverse(0.0), -1.0);
+        assert_eq!(shuttle_reverse(-1.0), -2.0);
+        assert_eq!(shuttle_reverse(-16.0), -16.0);
+        assert_eq!(
+            shuttle_reverse(8.0),
+            -1.0,
+            "J while going forward plays backwards"
+        );
+        assert_eq!(shuttle_forward(f64::NAN), 1.0);
+        assert_eq!(shuttle_reverse(f64::NAN), -1.0);
+    }
 
     #[test]
     fn positions_before_the_end_are_untouched() {

@@ -87,6 +87,14 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/prokopyl/clack",
     },
     Credit {
+        name: "Candle (candle-core / candle-nn / candle-transformers)",
+        used_for: "Transcrição automática de fala para legendas com modelos OpenAI Whisper \
+                   (safetensors e GGUF) em Rust puro",
+        authors: "Laurent Mazare, Hugging Face and the Candle contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/huggingface/candle",
+    },
+    Credit {
         name: "cpal",
         used_for: "Saída de áudio no hardware",
         authors: "RustAudio contributors",

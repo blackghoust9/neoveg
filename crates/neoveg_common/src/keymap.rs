@@ -238,6 +238,9 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     // Enter also plays/pauses in the reference map; it is left unbound here because Enter
     // activates a focused button in egui.
     (Command::TransportPlayToggle, &["Space"]),
+    (Command::TransportShuttleReverse, &["J"]),
+    (Command::TransportShuttlePause, &["K"]),
+    (Command::TransportShuttleForward, &["L"]),
     (Command::TransportStop, &["Escape"]),
     (Command::TransportPlayFromStart, &["Shift+Space"]),
     (Command::TransportLoop, &["Q"]),
@@ -520,7 +523,7 @@ mod tests {
     fn reset_restores_defaults() {
         let mut map = KeyMap::defaults();
         map.clear_command(Command::EditSplit);
-        map.bind(Command::EditSplit, sc("K"));
+        map.bind(Command::EditSplit, sc("F10"));
         map.reset_command(Command::EditSplit);
         assert_eq!(map.shortcuts_for(Command::EditSplit), vec![sc("S")]);
         assert_eq!(map.to_overrides(), BTreeMap::new());
@@ -530,12 +533,12 @@ mod tests {
     fn overrides_round_trip_and_only_store_differences() {
         let mut map = KeyMap::defaults();
         map.clear_command(Command::EditSplit);
-        map.bind(Command::EditSplit, sc("K"));
+        map.bind(Command::EditSplit, sc("F10"));
         map.bind(Command::EditSplit, sc("Ctrl+K"));
         map.unbind(&sc("Alt+Backspace"));
         let overrides = map.to_overrides();
         assert_eq!(overrides.len(), 2);
-        assert_eq!(overrides["edit.split"], vec!["Ctrl+K", "K"]);
+        assert_eq!(overrides["edit.split"], vec!["Ctrl+K", "F10"]);
         assert_eq!(overrides["edit.undo"], vec!["Ctrl+Z"]);
 
         let (rebuilt, warnings) = KeyMap::from_overrides(&overrides);
@@ -558,14 +561,14 @@ mod tests {
             ("no.such.command".to_string(), vec!["Ctrl+Q".to_string()]),
             (
                 "edit.split".to_string(),
-                vec!["Banana".to_string(), "K".to_string()],
+                vec!["Banana".to_string(), "F10".to_string()],
             ),
             // Takes Ctrl+Q from "insert audio track"
             ("edit.undo".to_string(), vec!["Ctrl+Q".to_string()]),
         ]);
         let (map, warnings) = KeyMap::from_overrides(&overrides);
         assert_eq!(warnings.len(), 3, "{warnings:?}");
-        assert_eq!(map.command_for(&sc("K")), Some(Command::EditSplit));
+        assert_eq!(map.command_for(&sc("F10")), Some(Command::EditSplit));
         assert_eq!(map.command_for(&sc("Ctrl+Q")), Some(Command::EditUndo));
         assert!(map.shortcuts_for(Command::InsertAudioTrack).is_empty());
     }

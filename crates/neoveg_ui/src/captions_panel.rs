@@ -1,13 +1,19 @@
 //! Subtitles: the "Legendas" tab of the media panel and the text drawn over the video preview.
 //!
 //! The panel lists the captions of the project, lets the user edit their text and times, add
-//! them at the cursor, import or export SubRip / WebVTT files and jump to one. It never touches the
-//! project: it returns [`CaptionAction`]s and the application turns each one into one undoable
-//! command (`neoveg_engine::captions`).
+//! them at the cursor, import or export SubRip / WebVTT files, transcribe timeline speech locally
+//! with Whisper (`neoveg_audio::whisper`), and jump to one. It never touches the project: it
+//! returns [`CaptionAction`]s and the application turns each one into one undoable command
+//! (`neoveg_engine::captions`).
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{mpsc, Arc};
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect};
+use neoveg_audio::mixer::MixClip;
+use neoveg_audio::whisper::{self, TranscriptSegment};
 use neoveg_engine::{Caption, CaptionId};
 
 use crate::icons::{self, Icon};
@@ -31,14 +37,193 @@ pub enum CaptionAction {
     Import,
     Export,
     Clear,
+    /// Open a folder picker to select a local Whisper model folder.
+    PickWhisperModel,
+    /// Start background Whisper speech-to-subtitles transcription of the timeline audio.
+    StartWhisper,
+    /// Commit completed Whisper segments to the timeline as a single undoable command.
+    ApplyWhisper {
+        segments: Vec<TranscriptSegment>,
+        replace_all: bool,
+    },
 }
 
-#[derive(Debug, Default)]
+struct WhisperJob {
+    rx: mpsc::Receiver<Result<Vec<TranscriptSegment>, String>>,
+    cancel: Arc<AtomicBool>,
+    progress_bits: Arc<AtomicU32>,
+    replace_all: bool,
+}
+
+impl std::fmt::Debug for WhisperJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WhisperJob")
+            .field(
+                "progress",
+                &f32::from_bits(self.progress_bits.load(Ordering::Relaxed)),
+            )
+            .field("replace_all", &self.replace_all)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 pub struct CaptionsPanelState {
     /// Text being edited, until the box loses focus.
     text_drafts: HashMap<CaptionId, String>,
     /// Start and end being dragged, until the drag ends.
     time_drafts: HashMap<CaptionId, (f64, f64)>,
+    /// Selected Whisper model directory (`config.json`, `tokenizer.json`, `model.safetensors` / `.gguf`).
+    pub whisper_model_dir: Option<PathBuf>,
+    /// Whisper language code (`"pt"`, `"en"`, ..., or `"auto"`).
+    pub whisper_language: String,
+    /// Whether Whisper output replaces existing project captions instead of appending.
+    pub whisper_replace_all: bool,
+    /// Latest status or error message from Whisper transcription.
+    pub whisper_status: Option<String>,
+    whisper_job: Option<WhisperJob>,
+}
+
+impl Default for CaptionsPanelState {
+    fn default() -> Self {
+        Self {
+            text_drafts: HashMap::new(),
+            time_drafts: HashMap::new(),
+            whisper_model_dir: default_whisper_model_dir(),
+            whisper_language: "pt".into(),
+            whisper_replace_all: false,
+            whisper_status: None,
+            whisper_job: None,
+        }
+    }
+}
+
+fn default_whisper_model_dir() -> Option<PathBuf> {
+    if let Some(env_dir) = std::env::var_os("NEOVEG_WHISPER_MODEL") {
+        let p = PathBuf::from(env_dir);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    neoveg_common::paths::app_data_dir()
+        .map(|d| d.join("models").join("whisper"))
+        .filter(|d| d.join("config.json").is_file())
+}
+
+impl CaptionsPanelState {
+    pub fn is_transcribing(&self) -> bool {
+        self.whisper_job.is_some()
+    }
+
+    pub fn whisper_progress(&self) -> Option<f32> {
+        self.whisper_job
+            .as_ref()
+            .map(|j| f32::from_bits(j.progress_bits.load(Ordering::Relaxed)).clamp(0.0, 1.0))
+    }
+
+    pub fn cancel_whisper(&mut self) {
+        if let Some(job) = &self.whisper_job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Launches a background worker thread running pure-Rust Whisper over `clips` (`0..duration_s`).
+    pub fn start_whisper(
+        &mut self,
+        clips: Vec<MixClip>,
+        duration_s: f64,
+        on_wakeup: impl Fn() + Send + Sync + 'static,
+    ) -> Result<(), String> {
+        if self.whisper_job.is_some() {
+            return Err("Já existe uma transcrição Whisper em andamento.".into());
+        }
+        let Some(model_dir) = self.whisper_model_dir.clone() else {
+            let msg = "Selecione primeiro uma pasta de modelo Whisper.".to_owned();
+            self.whisper_status = Some(msg.clone());
+            return Err(msg);
+        };
+        if clips.is_empty() || duration_s <= 0.0 {
+            let msg = "Nenhum evento de áudio ativo na linha do tempo para transcrever.".to_owned();
+            self.whisper_status = Some(msg.clone());
+            return Err(msg);
+        }
+
+        let (tx, rx) = mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress_bits = Arc::new(AtomicU32::new(0.0_f32.to_bits()));
+        let cancel_worker = Arc::clone(&cancel);
+        let progress_worker = Arc::clone(&progress_bits);
+        let lang = self.whisper_language.clone();
+        let replace_all = self.whisper_replace_all;
+        let wakeup = Arc::new(on_wakeup);
+
+        let spawn_res = std::thread::Builder::new()
+            .name("neoveg-whisper".into())
+            .spawn(move || {
+                let wakeup_progress = Arc::clone(&wakeup);
+                let result = whisper::transcribe_clips(
+                    &model_dir,
+                    &clips,
+                    duration_s,
+                    Some(&lang),
+                    &cancel_worker,
+                    move |p| {
+                        progress_worker.store(p.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+                        wakeup_progress();
+                    },
+                );
+                let _ = tx.send(result);
+                wakeup();
+            });
+
+        if let Err(e) = spawn_res {
+            let msg = format!("Falha ao iniciar thread Whisper: {e}");
+            self.whisper_status = Some(msg.clone());
+            return Err(msg);
+        }
+
+        self.whisper_status = Some("Transcrevendo áudio com Whisper…".into());
+        self.whisper_job = Some(WhisperJob {
+            rx,
+            cancel,
+            progress_bits,
+            replace_all,
+        });
+        Ok(())
+    }
+
+    /// Polls the background Whisper worker without blocking; returns [`CaptionAction::ApplyWhisper`]
+    /// when transcription succeeds.
+    pub fn poll_whisper(&mut self) -> Option<CaptionAction> {
+        let outcome = self.whisper_job.as_ref()?.rx.try_recv().ok()?;
+        let replace_all = self
+            .whisper_job
+            .take()
+            .map(|j| j.replace_all)
+            .unwrap_or(false);
+
+        match outcome {
+            Ok(segments) => {
+                if segments.is_empty() {
+                    self.whisper_status = Some("Whisper concluído: nenhuma fala detectada.".into());
+                    None
+                } else {
+                    self.whisper_status = Some(format!(
+                        "Whisper: {} legenda(s) transcrita(s).",
+                        segments.len()
+                    ));
+                    Some(CaptionAction::ApplyWhisper {
+                        segments,
+                        replace_all,
+                    })
+                }
+            }
+            Err(err) => {
+                self.whisper_status = Some(err);
+                None
+            }
+        }
+    }
 }
 
 // ---- pure helpers -------------------------------------------------------------------------------
@@ -140,6 +325,10 @@ pub fn captions_ui(
     playhead: f64,
 ) -> Vec<CaptionAction> {
     let mut actions = Vec::new();
+    if let Some(done_action) = panel.poll_whisper() {
+        actions.push(done_action);
+    }
+
     ui.horizontal(|ui| {
         if icons::icon_button(ui, Icon::Add, "Adicionar uma legenda no cursor", false).clicked() {
             actions.push(CaptionAction::Add);
@@ -172,9 +361,95 @@ pub fn captions_ui(
         });
         ui.weak(format!("{} legenda(s)", captions.len()));
     });
+
+    ui.horizontal_wrapped(|ui| {
+        let running = panel.is_transcribing();
+        ui.add_enabled_ui(!running, |ui| {
+            if icons::icon_button(
+                ui,
+                Icon::Import,
+                "Selecionar pasta do modelo Whisper (config.json, tokenizer.json, model.safetensors/.gguf)…",
+                panel.whisper_model_dir.is_some(),
+            )
+            .clicked()
+            {
+                actions.push(CaptionAction::PickWhisperModel);
+            }
+
+            let selected_label = if panel.whisper_language == "auto" {
+                "Auto".to_owned()
+            } else {
+                whisper::SUPPORTED_LANGUAGES
+                    .iter()
+                    .find(|(code, _)| *code == panel.whisper_language)
+                    .map(|(code, name)| format!("{name} ({code})"))
+                    .unwrap_or_else(|| panel.whisper_language.clone())
+            };
+
+            egui::ComboBox::from_id_salt("whisper_lang_combo")
+                .width(122.0)
+                .selected_text(selected_label)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut panel.whisper_language,
+                        "auto".to_owned(),
+                        "Detectar idioma (Auto)",
+                    );
+                    for &(code, name) in whisper::SUPPORTED_LANGUAGES {
+                        ui.selectable_value(
+                            &mut panel.whisper_language,
+                            code.to_owned(),
+                            format!("{name} ({code})"),
+                        );
+                    }
+                });
+
+            ui.checkbox(&mut panel.whisper_replace_all, "Substituir")
+                .on_hover_text("Substituir as legendas existentes ao concluir a transcrição");
+        });
+
+        if let Some(progress) = panel.whisper_progress() {
+            ui.add(
+                egui::ProgressBar::new(progress)
+                    .show_percentage()
+                    .desired_width(105.0),
+            );
+            if icons::icon_button(ui, Icon::Stop, "Cancelar transcrição Whisper", false).clicked()
+            {
+                panel.cancel_whisper();
+            }
+        } else {
+            let has_model = panel.whisper_model_dir.is_some();
+            ui.add_enabled_ui(has_model, |ui| {
+                if icons::icon_button(
+                    ui,
+                    Icon::Record,
+                    "Transcrever fala da linha do tempo com Whisper (Rust puro)",
+                    false,
+                )
+                .clicked()
+                {
+                    actions.push(CaptionAction::StartWhisper);
+                }
+            });
+        }
+
+        let model_hint = panel
+            .whisper_model_dir
+            .as_deref()
+            .and_then(|p| p.file_name().or_else(|| p.as_os_str().into()))
+            .map(|n| format!("Whisper: {}", n.to_string_lossy()))
+            .unwrap_or_else(|| "Whisper: selecione a pasta do modelo".into());
+        ui.weak(model_hint);
+    });
+
+    if let Some(status) = &panel.whisper_status {
+        ui.weak(status);
+    }
+
     ui.separator();
     if captions.is_empty() {
-        ui.weak("Nenhuma legenda. Adicione uma no cursor ou importe um arquivo SRT ou WebVTT.");
+        ui.weak("Nenhuma legenda. Adicione uma no cursor, importe SRT/WebVTT ou transcreva com Whisper.");
         return actions;
     }
 
@@ -355,5 +630,45 @@ segunda linha",
         // Three lines, each drawn six times for the outline and once for the white text
         assert_eq!(texts(&[&first, &second]), 3 * 7);
         assert_eq!(texts(&[]), 0);
+    }
+
+    #[test]
+    fn whisper_panel_state_rejects_missing_model_and_delivers_completed_segments() {
+        let mut state = CaptionsPanelState {
+            whisper_model_dir: None,
+            ..Default::default()
+        };
+        assert!(state.start_whisper(Vec::new(), 0.0, || {}).is_err());
+
+        let (tx, rx) = mpsc::channel();
+        state.whisper_job = Some(WhisperJob {
+            rx,
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress_bits: Arc::new(AtomicU32::new(0.5_f32.to_bits())),
+            replace_all: true,
+        });
+        assert!(state.is_transcribing());
+        assert!((state.whisper_progress().unwrap() - 0.5).abs() < 1e-6);
+
+        tx.send(Ok(vec![TranscriptSegment {
+            start_s: 1.0,
+            end_s: 2.5,
+            text: "Teste Whisper".into(),
+        }]))
+        .unwrap();
+
+        let action = state.poll_whisper();
+        assert!(!state.is_transcribing());
+        assert_eq!(
+            action,
+            Some(CaptionAction::ApplyWhisper {
+                segments: vec![TranscriptSegment {
+                    start_s: 1.0,
+                    end_s: 2.5,
+                    text: "Teste Whisper".into(),
+                }],
+                replace_all: true,
+            })
+        );
     }
 }

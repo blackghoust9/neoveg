@@ -329,6 +329,8 @@ struct AppState {
     media_tab: usize,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
+    /// Speed of the J / K / L keys: `1.0` normal, negative backwards.
+    shuttle_speed: f64,
     /// Open projects (one tab each) and the sub-projects of the active one.
     tabs: Tabs,
     project_path: Option<PathBuf>,
@@ -809,6 +811,59 @@ impl AppState {
                     None
                 }
                 CaptionAction::Clear => captions::clear_captions(&self.timeline),
+                CaptionAction::PickWhisperModel => {
+                    if let Some(dir) = rfd::FileDialog::new()
+                        .set_title("Selecionar pasta do modelo Whisper (config.json, tokenizer.json, model.safetensors/.gguf)")
+                        .pick_folder()
+                    {
+                        self.status = format!("Modelo Whisper selecionado: {}", dir.display());
+                        self.captions_panel.whisper_model_dir = Some(dir);
+                        self.captions_panel.whisper_status = None;
+                    }
+                    None
+                }
+                CaptionAction::StartWhisper => {
+                    let clips = self.build_clips();
+                    let dur = neoveg_audio::mixer::plan_end(&clips);
+                    let repaint = self.tabs.ctx.clone();
+                    match self.captions_panel.start_whisper(clips, dur, move || {
+                        if let Some(ctx) = &repaint {
+                            ctx.request_repaint();
+                        }
+                    }) {
+                        Ok(()) => {
+                            self.status = "Transcrevendo fala com Whisper em segundo plano…".into();
+                        }
+                        Err(err) => {
+                            self.status = err;
+                        }
+                    }
+                    None
+                }
+                CaptionAction::ApplyWhisper {
+                    segments,
+                    replace_all,
+                } => {
+                    let mut doc = captions::Document {
+                        cues: segments
+                            .into_iter()
+                            .map(|seg| captions::Cue {
+                                start: seg.start_s,
+                                end: seg.end_s,
+                                text: seg.text,
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    };
+                    doc.normalize();
+                    let count = doc.cues.len();
+                    let cmd = captions::import_document(&mut self.timeline, &doc, 0.0, replace_all);
+                    if cmd.is_some() {
+                        self.status = format!("Whisper: {count} legenda(s) adicionada(s).");
+                    }
+                    cmd
+                }
             };
             if let Some(command) = command {
                 self.history.execute(&mut self.timeline, command);
@@ -978,6 +1033,7 @@ impl AppState {
             loop_region: None,
             media_tab: 0,
             window_request: None,
+            shuttle_speed: 1.0,
             tabs: Tabs::default(),
             project_path: None,
             status: "Projeto vazio".into(),
@@ -2427,6 +2483,36 @@ impl AppState {
 
     // ---- transport -----------------------------------------------------------------------------
 
+    /// `L` / `J`: starts playing forward / backwards, and every further press of the same key goes
+    /// faster (1x, 2x, 4x, 8x, 16x); the other key turns around. `K` pauses.
+    fn shuttle(&mut self, forward: bool, now: f64) {
+        let current = if self.playing {
+            self.shuttle_speed
+        } else {
+            0.0
+        };
+        let speed = if forward {
+            neoveg_audio::playback::shuttle_forward(current)
+        } else {
+            neoveg_audio::playback::shuttle_reverse(current)
+        };
+        if !self.playing {
+            // Going backwards from the very start has nowhere to go
+            if !forward && self.playhead <= 0.0 {
+                self.status = "O cursor já está no início".into();
+                return;
+            }
+            self.shuttle_speed = speed;
+            self.toggle_play(now);
+            self.shuttle_speed = speed;
+        }
+        self.shuttle_speed = speed;
+        if let Some(active) = &self.active_player {
+            active.player.set_speed(speed);
+        }
+        self.status = format!("Reprodução {speed:+.0}x");
+    }
+
     fn toggle_play(&mut self, now: f64) {
         if self.playing {
             self.stop();
@@ -2840,6 +2926,7 @@ impl AppState {
         ) {
             Ok(player) => {
                 player.set_volume(self.master_volume);
+                player.set_speed(self.shuttle_speed);
                 player.set_loop(self.loop_args());
                 player.play_from(self.playhead);
                 Some(ActivePlayer { player })
@@ -2990,6 +3077,12 @@ impl AppState {
             Command::EditUngroup => self.ungroup_selection(),
             Command::EditIgnoreGrouping => self.toggle_ignore_grouping(),
             Command::TransportLoop => self.toggle_loop(),
+            Command::TransportShuttleForward => self.shuttle(true, now),
+            Command::TransportShuttleReverse => self.shuttle(false, now),
+            Command::TransportShuttlePause => {
+                self.shuttle_speed = 1.0;
+                self.stop();
+            }
             Command::SelectionLoopRegion => self.set_loop_region(),
             Command::InsertMarker => self.insert_marker(),
             Command::InsertRegion => self.insert_region(),
@@ -3247,6 +3340,9 @@ impl eframe::App for NeovegApp {
             }
         }
         self.state.poll_loader();
+        if let Some(whisper_done) = self.state.captions_panel.poll_whisper() {
+            self.state.apply_caption_actions(vec![whisper_done], now);
+        }
         self.state.poll_frames(ctx);
         self.state.request_preview_frame(ctx.pixels_per_point());
         self.state.selection.retain_existing(&self.state.timeline);
@@ -7276,6 +7372,34 @@ mod tests {
             revision + 6,
             "clearing nothing changes nothing"
         );
+
+        let before_whisper = s.history.revision();
+        s.apply_caption_actions(
+            vec![CaptionAction::ApplyWhisper {
+                segments: vec![
+                    neoveg_audio::whisper::TranscriptSegment {
+                        start_s: 0.5,
+                        end_s: 2.0,
+                        text: "Primeira fala".into(),
+                    },
+                    neoveg_audio::whisper::TranscriptSegment {
+                        start_s: 2.2,
+                        end_s: 4.0,
+                        text: "Segunda fala".into(),
+                    },
+                ],
+                replace_all: true,
+            }],
+            0.0,
+        );
+        assert_eq!(s.timeline.captions.len(), 2);
+        assert_eq!(
+            s.history.revision(),
+            before_whisper + 1,
+            "Whisper import must commit as one undo step"
+        );
+        run(&mut s, Command::EditUndo);
+        assert!(s.timeline.captions.is_empty());
     }
 
     fn edl_event(reel: &str, clip: Option<&str>, file: Option<&str>) -> EdlEvent {

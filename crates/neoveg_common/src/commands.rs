@@ -162,6 +162,9 @@ commands! {
     TransportStop => ("transport.stop", "Parar", Transport, false),
     TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, false),
     TransportLoop => ("transport.loop", "Reprodução em laço", Transport, true),
+    TransportShuttleReverse => ("transport.shuttle_reverse", "Voltar (J; de novo acelera)", Transport, true),
+    TransportShuttlePause => ("transport.shuttle_pause", "Pausar (K)", Transport, true),
+    TransportShuttleForward => ("transport.shuttle_forward", "Avançar (L; de novo acelera)", Transport, true),
     TransportRecord => ("transport.record", "Gravar", Transport, true),
 
     // ---- Opções

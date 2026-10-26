@@ -131,13 +131,13 @@ mod tests {
     fn keymap_overrides_survive_a_save_and_load() {
         let mut p = Preferences::default();
         p.keymap
-            .insert("edit.split".into(), vec!["K".into(), "Ctrl+K".into()]);
+            .insert("edit.split".into(), vec!["F10".into(), "Ctrl+K".into()]);
         let json = serde_json::to_string(&p).unwrap();
         let back: Preferences = serde_json::from_str(&json).unwrap();
         assert_eq!(back, p);
         let (map, warnings) = back.key_map();
         assert!(warnings.is_empty());
-        let k = "K".parse().unwrap();
+        let k = "F10".parse().unwrap();
         assert_eq!(
             map.command_for(&k),
             Some(crate::commands::Command::EditSplit)
