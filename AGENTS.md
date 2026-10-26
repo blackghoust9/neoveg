@@ -178,7 +178,8 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Numpad 1` / `3`, `4` / `6` | Trim or nudge by one frame / one pixel (modifiers: `Ctrl` stretch, `Alt` slip, `Ctrl+Alt` slide) | planned |
 | `Numpad 5` | Enter / exit expanded edit mode | planned |
 | `F` / `Ctrl+F` / `Ctrl+Shift+F` | Post-edit ripple: affected tracks / + markers / everything | planned |
-| `Ctrl+L` | Auto ripple | planned |
+| `Ctrl+L` | Auto ripple: deleting events closes the gap they leave | implemented |
+| `Ctrl+Delete` | Ripple delete: remove the selected events and move the later ones of each track earlier | implemented |
 | `Ctrl+Shift+X` | Automatic crossfades | implemented |
 | `Ctrl+F8` / `Shift+F8` / `Ctrl+Shift+F8` | Snap to grid / markers / all events | planned |
 | `Alt+F8` | Quantize to frames | planned |

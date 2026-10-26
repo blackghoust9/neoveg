@@ -182,6 +182,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::FileProperties, &["Alt+Enter"]),
     (Command::EditUndo, &["Ctrl+Z", "Alt+Backspace"]),
     (Command::EditRedo, &["Ctrl+Y", "Ctrl+Shift+Z"]),
+    (Command::EditRippleDelete, &["Ctrl+Delete"]),
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
     (Command::EditCut, &["Ctrl+X", "Shift+Delete"]),

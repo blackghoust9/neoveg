@@ -143,8 +143,9 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
 - [ ] Slip, slide e stretch de eventos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
 - [ ] Aparar com o mouse em eventos de mídia gerada (hoje o limite de fonte só vale para mídia importada)
-- [ ] Marcadores (`M`), regiões e loop
-- [ ] Volume, pan, mute e solo por faixa; barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
+- [x] Marcadores (`M`), regiões e loop
+- [x] Volume, pan, mute e solo por faixa
+- [ ] Barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
 - [ ] Efeitos de vídeo e transições na GPU (`wgpu`), composição e Pan/Crop do evento
 - [ ] Geradores de mídia (títulos, cor sólida, padrão de teste) e janela de títulos
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
@@ -152,7 +153,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Importação e exportação de listas de edição CMX 3600 (`.edl`): exporta os cortes da faixa selecionada com os comentários de nome do clipe e arquivo, importa cortes (transições lidas como corte, com aviso) para as mídias que já estão no projeto, em um passo de desfazer
 - [x] Importação e exportação de XML do Final Cut Pro 7 (`xmeml` v5): todas as faixas e clipes (posição, entrada e saída da fonte, nomes e caminhos), importando para as mídias do projeto em um passo de desfazer
 - [x] Importação e exportação de FCPXML do Final Cut Pro (`<fcpxml version="1.10">`): tempos racionais exatos por quadro (`1001/30000s`, `1/25s`), faixas conectadas de vídeo e áudio, marcadores e regiões, em um passo de desfazer
-- [ ] OTIO (OpenTimelineIO)
+- [x] Importação e exportação de OpenTimelineIO (`.otio` JSON em Rust puro: `Timeline.1`, `Stack.1`, `Track.1`, `Clip.1`/`Clip.2`, `Gap.1`, `Transition.1` para crossfades, `LinearTimeWarp.1` para time-stretch e `Marker.2` para marcadores e regiões, em um passo de desfazer)
 - [x] Transcrição automática de fala para legendas com Whisper em Rust puro (`neoveg_audio::whisper` sobre `candle-transformers`, pesos `.safetensors` e `.gguf`, 9 idiomas + detecção automática, em thread própria e como um passo de desfazer na aba **Legendas**)
 - [ ] Chaveamento de croma (CorridorKey)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
@@ -173,18 +174,21 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os PDFs ficam em `manuais/` (ignorada pelo Git por causa do tamanho); a lista abaixo já incorpora a leitura deles.
 
 **Edição e timeline**
-- [ ] Modos de edição (Ripple off/eventos/faixa/tudo) e *Auto Ripple*
+- [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
+- [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar
 - [ ] Slip, slide, stretch e *velocity* (envelope de velocidade) de eventos
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
 - [ ] Travar faixa/evento
-- [ ] Marcadores (`M`), regiões, marcadores de comando e loop; réguas adicionais
+- [x] Marcadores (`M`), regiões e loop
+- [ ] Marcadores de comando e réguas adicionais
 - [ ] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
-- [ ] Aninhar projetos (*nesting*) e faixas de composição/pai-filho
+- [x] Aninhar projetos (*nesting*) em abas, com validação de ciclos
+- [ ] Faixas de composição pai/filho
 - [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
 - [ ] Personalizar teclado, barras de ferramentas e layouts de janela (salvar/restaurar)
 
 **Áudio**
-- [ ] Volume, pan, mute e solo por faixa; Mixing Console com barramentos, sends e inserts
+- [ ] Mixing Console com barramentos, sends e inserts (volume, pan, mute e solo por faixa já existem)
 - [x] Efeitos de áudio nativos por faixa e no master (adaptados do FilmCraft): equalizador paramétrico e de 3 bandas, compressor, expansor/gate, limitador (só no master, por ter latência), delay e reverb; cadeia de até 8 efeitos com bypass, ordem e parâmetros, salva no projeto, um passo de desfazer por ação; painel **Efeitos de Áudio**; ao mudar a cadeia durante a reprodução o áudio recomeça no cursor
 - [x] Filtros (equalizadores gráficos de 10/20/30 bandas, paramétrico completo, notch, filtros clássicos Butterworth/Chebyshev/Bessel/Elíptico, filtro FFT), DeHum e DeNoise do `audio-dsp`, disponíveis em qualquer faixa e no master
 - [x] Compensação de latência: efeitos com latência (limitador, DeNoise, filtro FFT) não deslocam a faixa em relação às outras nem ao vídeo; o mixer atrasa as faixas mais rápidas e adianta a mixagem pelo atraso total
@@ -217,7 +221,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
 - [ ] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
 - [ ] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
-- [x] Intercâmbio FCP7 XML, FCPXML e EDL
+- [x] Intercâmbio FCP7 XML, FCPXML, OpenTimelineIO (`.otio`) e EDL
 - [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
 - [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 

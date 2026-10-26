@@ -46,6 +46,7 @@ use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::mix;
 use neoveg_engine::navigation;
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
+use neoveg_engine::otio;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
 use neoveg_engine::timeline::TIME_EPSILON;
@@ -329,6 +330,8 @@ struct AppState {
     media_tab: usize,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
+    /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
+    auto_ripple: bool,
     /// Speed of the J / K / L keys: `1.0` normal, negative backwards.
     shuttle_speed: f64,
     /// Open projects (one tab each) and the sub-projects of the active one.
@@ -591,6 +594,82 @@ impl AppState {
                 )
             }
             None => "Nenhum clipe do FCPXML tem mídia no projeto: importe as mídias antes".into(),
+        };
+    }
+
+    /// File > Export OTIO: OpenTimelineIO `.otio` JSON (`Timeline.1`, `Stack.1`, `Track.1`, `Clip.1`, `Transition.1`).
+    fn export_otio(&mut self) {
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            self.status = "A linha do tempo está vazia: nada para exportar".into();
+            return;
+        }
+        let media = self.xml_media_pool();
+        let s = &self.project.settings;
+        let text = otio::export(
+            &self.timeline,
+            &media,
+            &self.project.name,
+            s.fps,
+            s.width,
+            s.height,
+        );
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("OpenTimelineIO", &["otio"])
+            .set_file_name(format!("{}.otio", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        match std::fs::write(&path, text) {
+            Ok(()) => self.status = format!("OTIO exportado: {}", path.display()),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar o OTIO: {e}");
+            }
+        }
+    }
+
+    /// File > Import OTIO: imports OpenTimelineIO `.otio` clips, transitions, time-warps and markers in one undo step.
+    fn import_otio(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("OpenTimelineIO", &["otio", "json"])
+            .pick_file()
+        else {
+            return;
+        };
+        let text = match std::fs::read(&path) {
+            Ok(bytes) => captions::decode_text(&bytes),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler o OTIO: {e}");
+                return;
+            }
+        };
+        let doc = match otio::parse(&text) {
+            Ok(doc) => doc,
+            Err(e) => {
+                tracing::warn!("[WARN] {}: {e}", path.display());
+                self.status = format!("Não foi possível abrir o OTIO: {e}");
+                return;
+            }
+        };
+        for warning in &doc.warnings {
+            tracing::warn!("[WARN] {}: {warning}", path.display());
+        }
+        let pool = self.project.media_pool.clone();
+        let imported =
+            otio::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        self.status = match imported {
+            Some((command, report)) => {
+                self.history.execute(&mut self.timeline, command);
+                self.last_frame_key = None;
+                format!(
+                    "OTIO importado: {} clipe(s); {} sem mídia no projeto",
+                    report.added,
+                    report.skipped.len()
+                )
+            }
+            None => "Nenhum clipe do OTIO tem mídia no projeto: importe as mídias antes".into(),
         };
     }
 
@@ -1033,6 +1112,7 @@ impl AppState {
             loop_region: None,
             media_tab: 0,
             window_request: None,
+            auto_ripple: false,
             shuttle_speed: 1.0,
             tabs: Tabs::default(),
             project_path: None,
@@ -1104,8 +1184,24 @@ impl AppState {
     }
 
     /// Delete: selected events, or the time selection (all tracks, or only the selected events).
+    /// Deletes the selected events and moves the later ones of each track earlier to close the gap.
+    fn ripple_delete_selection(&mut self) {
+        let refs = self.selection.refs();
+        if refs.is_empty() {
+            self.status = "Selecione os eventos a excluir".into();
+            return;
+        }
+        let outcome = neoveg_engine::ripple::ripple_delete_events(&self.timeline, &refs);
+        self.apply_outcome(outcome);
+        self.selection.clear();
+    }
+
     fn delete_selection(&mut self) {
         let refs = self.selection.refs();
+        if self.auto_ripple && self.time_selection.is_none() && !refs.is_empty() {
+            self.ripple_delete_selection();
+            return;
+        }
         let outcome = match (self.time_selection, refs.is_empty()) {
             (Some(range), false) => {
                 ops::remove_range(&mut self.timeline, range, Scope::Events(&refs), false)
@@ -3006,6 +3102,15 @@ impl AppState {
             Command::EditUndo => self.undo(),
             Command::EditRedo => self.redo(),
             Command::EditDelete => self.delete_selection(),
+            Command::EditRippleDelete => self.ripple_delete_selection(),
+            Command::OptionsAutoRipple => {
+                self.auto_ripple = !self.auto_ripple;
+                self.status = if self.auto_ripple {
+                    "Ripple automático ligado: excluir fecha o espaço".into()
+                } else {
+                    "Ripple automático desligado".into()
+                };
+            }
             Command::ViewFocusTimeline => {
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
             }
@@ -3504,6 +3609,20 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .clicked()
             {
                 state.export_fcpxml();
+                ui.close_menu();
+            }
+            if ui.button("Importar OpenTimelineIO (.otio)…").clicked() {
+                state.import_otio();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
+                    egui::Button::new("Exportar OpenTimelineIO (.otio)…"),
+                )
+                .clicked()
+            {
+                state.export_otio();
                 ui.close_menu();
             }
             if ui.button("Importar legendas (SRT, WebVTT)…").clicked() {
@@ -7585,5 +7704,66 @@ mod tests {
         let restored = geometry(&s, track, ev);
         assert!((restored.duration - 4.0).abs() < 1e-6);
         assert!((restored.playback_rate - 1.0).abs() < 1e-6);
+    }
+}
+
+#[cfg(test)]
+mod ripple_tests {
+    use super::*;
+
+    fn state_with_three_events() -> (AppState, TrackId, Vec<EventId>) {
+        let mut s = AppState::new();
+        let mut track = s.timeline.new_track(TrackKind::Audio);
+        let mut ids = Vec::new();
+        for (start, duration) in [(0.0, 2.0), (2.0, 3.0), (6.0, 1.0)] {
+            let event = TrackEvent {
+                id: s.timeline.alloc_id(),
+                start,
+                duration,
+                media_id: Some(1),
+                ..TrackEvent::default()
+            };
+            ids.push(event.id);
+            track.events.push(event);
+        }
+        let id = track.id;
+        s.timeline.tracks.push(track);
+        (s, id, ids)
+    }
+
+    fn starts(s: &AppState) -> Vec<f64> {
+        s.timeline.tracks[0]
+            .events
+            .iter()
+            .map(|e| e.start)
+            .collect()
+    }
+
+    #[test]
+    fn ripple_delete_closes_the_gap_in_one_undo_step() {
+        let (mut s, track, ids) = state_with_three_events();
+        s.selection.select_only((track, ids[1]));
+        s.ripple_delete_selection();
+        assert_eq!(starts(&s), vec![0.0, 3.0]);
+        assert!(s.selection.is_empty());
+        s.undo();
+        assert_eq!(starts(&s), vec![0.0, 2.0, 6.0]);
+        // Nothing selected: a hint, no change
+        s.ripple_delete_selection();
+        assert!(s.status.contains("Selecione"));
+        assert_eq!(starts(&s), vec![0.0, 2.0, 6.0]);
+    }
+
+    #[test]
+    fn plain_delete_only_ripples_while_auto_ripple_is_on() {
+        let (mut s, track, ids) = state_with_three_events();
+        s.selection.select_only((track, ids[0]));
+        s.delete_selection();
+        assert_eq!(starts(&s), vec![2.0, 6.0], "a plain delete leaves the gap");
+        s.undo();
+        s.auto_ripple = true;
+        s.selection.select_only((track, ids[0]));
+        s.delete_selection();
+        assert_eq!(starts(&s), vec![0.0, 4.0], "auto ripple closes it");
     }
 }
