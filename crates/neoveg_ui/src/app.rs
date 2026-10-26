@@ -7,6 +7,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+mod tabs;
+
 use crate::theme as ui_theme;
 use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Key, Pos2, Rect, Rounding, Sense, Shape, Stroke,
@@ -56,6 +58,7 @@ use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::lut::Lut;
 use neoveg_video::scopes::Scopes;
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
+use tabs::{close_tab_window, project_tab_bar, Tabs};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
@@ -326,6 +329,8 @@ struct AppState {
     media_tab: usize,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
+    /// Open projects (one tab each) and the sub-projects of the active one.
+    tabs: Tabs,
     project_path: Option<PathBuf>,
     status: String,
 
@@ -973,30 +978,12 @@ impl AppState {
             loop_region: None,
             media_tab: 0,
             window_request: None,
+            tabs: Tabs::default(),
             project_path: None,
             status: "Projeto vazio".into(),
             loader_tx,
             loader_rx,
         }
-    }
-
-    fn new_project(&mut self) {
-        self.stop();
-        let prefs = self.prefs.clone();
-        let worker = self.frame_worker.take();
-        let recovery = std::mem::take(&mut self.pending_recovery);
-        self.discard_own_recovery();
-        let (tx, rx) = (
-            self.loader_tx.clone(),
-            std::mem::replace(&mut self.loader_rx, channel().1),
-        );
-        *self = Self::new();
-        self.keymap = prefs.key_map().0;
-        self.prefs = prefs;
-        self.frame_worker = worker;
-        self.pending_recovery = recovery;
-        self.loader_tx = tx;
-        self.loader_rx = rx;
     }
 
     fn drop_frame(&self) -> bool {
@@ -1515,6 +1502,7 @@ impl AppState {
         let has_events = !self.selection.is_empty();
         let has_range = self.time_selection.is_some();
         match command {
+            Command::FileCreateSubproject => has_events,
             Command::EditUndo => self.history.can_undo(),
             Command::EditRedo => self.history.can_redo(),
             Command::EditCut
@@ -1722,7 +1710,7 @@ impl AppState {
             .project
             .media_pool
             .iter()
-            .filter(|m| !still_missing.contains(&m.id))
+            .filter(|m| !still_missing.contains(&m.id) && !m.subproject)
             .map(|m| (m.id, PathBuf::from(&m.path)))
             .collect();
         for (id, media_path) in to_load {
@@ -2081,6 +2069,7 @@ impl AppState {
 
     /// The project now matches what is on disk: no unsaved changes, no pending recovery file.
     fn mark_clean(&mut self) {
+        self.tabs.bump();
         self.saved_revision = self.history.revision();
         self.forced_dirty = false;
         self.last_autosave_revision = None;
@@ -2297,12 +2286,14 @@ impl AppState {
     /// Asks the decoder thread for the frame under the playhead (topmost video track wins).
     fn request_preview_frame(&mut self, ppp: f32) {
         let max_width = self.preview_max_width(ppp);
-        let target = self
-            .timeline
+        // A sub-project plays through the expansion of its events
+        let flat = self.flattened();
+        let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
+        let target = timeline
             .tracks
             .iter()
-            .filter(|t| t.kind == TrackKind::Video && self.timeline.audible(t))
-            .find_map(|t| self.timeline.event_at(t.id, self.playhead))
+            .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
+            .find_map(|t| timeline.event_at(t.id, self.playhead))
             .and_then(|e| {
                 let rate = edit::clamp_playback_rate(e.playback_rate);
                 Some((e.media_id?, (self.playhead - e.start) * rate + e.trim_in))
@@ -2316,7 +2307,11 @@ impl AppState {
         let Some(worker) = &self.frame_worker else {
             return;
         };
-        let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+        let item = flat
+            .as_ref()
+            .and_then(|f| f.extra_media.iter().find(|m| m.id == media_id))
+            .or_else(|| self.project.media_pool.iter().find(|m| m.id == media_id));
+        let Some(item) = item else {
             return;
         };
         let fps = self
@@ -2458,13 +2453,20 @@ impl AppState {
     /// Every audible audio event with decoded media, ready for the mixer. Overlapping events on a
     /// track crossfade when automatic crossfades are on.
     fn build_clips(&self) -> Vec<MixClip> {
+        // Sub-projects are played as their own tracks, expanded at the right time
+        match self.flattened() {
+            Some(flat) => self.build_clips_for(&flat.timeline),
+            None => self.build_clips_for(&self.timeline),
+        }
+    }
+
+    fn build_clips_for(&self, timeline: &Timeline) -> Vec<MixClip> {
         let mut clips = Vec::new();
-        for (track_index, track) in self
-            .timeline
+        for (track_index, track) in timeline
             .tracks
             .iter()
             .enumerate()
-            .filter(|(_, t)| t.kind == TrackKind::Audio && self.timeline.audible(t))
+            .filter(|(_, t)| t.kind == TrackKind::Audio && timeline.audible(t))
         {
             let crossfades = if self.project.settings.auto_crossfade {
                 find_crossfades(&track.events)
@@ -2574,6 +2576,16 @@ impl AppState {
                     FxTarget::Master => None,
                 },
                 FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
+                FxAction::AddClap(kind) => fx::add_effect(&self.timeline, target, &kind),
+                FxAction::BrowseClapFile => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Plug-in CLAP", &["clap"])
+                        .pick_file()
+                    {
+                        self.fx.start_file_clap_scan(path);
+                    }
+                    None
+                }
                 FxAction::Remove(i) => fx::remove_effect(&self.timeline, target, i),
                 FxAction::Move { from, to } => fx::move_effect(&self.timeline, target, from, to),
                 FxAction::Bypass(i, bypass) => fx::set_bypass(&self.timeline, target, i, bypass),
@@ -2899,6 +2911,8 @@ impl AppState {
     /// Runs a command. Commands that are not implemented yet do nothing.
     fn run_command(&mut self, command: Command, ctx: &egui::Context, now: f64) {
         match command {
+            Command::FileNew => self.new_tab(),
+            Command::FileCreateSubproject => self.create_subproject_from_selection(),
             Command::FileOpen => self.open_project(ctx),
             Command::FileSave => self.save_project(false),
             Command::FileSaveAs => self.save_project(true),
@@ -3244,6 +3258,15 @@ impl eframe::App for NeovegApp {
         }
 
         egui::TopBottomPanel::top("menu").show(ctx, |ui| menu_bar(ui, &mut self.state));
+        if self.state.tabs.ctx.is_none() {
+            self.state.tabs.ctx = Some(ctx.clone());
+        }
+        egui::TopBottomPanel::top("project_tabs")
+            .show(ctx, |ui| project_tab_bar(ui, &mut self.state));
+        close_tab_window(ctx, &mut self.state);
+        if let Some(path) = self.state.tabs.open_request.take() {
+            self.state.open_path_in_tab(&path, ctx);
+        }
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(&self.state.status);
@@ -3306,10 +3329,17 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     egui::menu::bar(ui, |ui| {
         ui.menu_button("Arquivo", |ui| {
-            if ui.button("Novo projeto").clicked() {
-                state.new_project();
+            command_item(state, ui, Command::FileNew);
+            if ui.button("Abrir em nova aba…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Projeto Neoveg", &[project_file::EXTENSION])
+                    .pick_file()
+                {
+                    state.tabs.open_request = Some(path);
+                }
                 ui.close_menu();
             }
+            command_item(state, ui, Command::FileCreateSubproject);
             if ui
                 .button(state.with_hint("Abrir…", Command::FileOpen))
                 .clicked()
@@ -5001,6 +5031,15 @@ fn event_context_menu(
         ui.label("Evento não encontrado");
         return;
     };
+    if let Some(path) = state.subproject_path_of(track_id, event_id) {
+        if ui.button("Abrir sub-projeto em uma aba").clicked() {
+            state.tabs.open_request = Some(path);
+            ui.close_menu();
+        }
+        ui.separator();
+    }
+    command_item(state, ui, Command::FileCreateSubproject);
+    ui.separator();
     for command in [
         Command::EditCut,
         Command::EditCopy,
@@ -5253,6 +5292,17 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         if let Some(p) = press.filter(|p| in_mark_strip(*p)) {
             let t = x_to_time(state, lanes.left(), p.x);
             state.begin_mark_drag(t, mark_tolerance);
+        }
+    }
+    if response.double_clicked() {
+        let on_event = response
+            .interact_pointer_pos()
+            .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
+            .and_then(|p| hit_event(state, lanes.left(), ruler_bottom, p));
+        if let Some((track_id, event_id, _, _)) = on_event {
+            if let Some(path) = state.subproject_path_of(track_id, event_id) {
+                state.tabs.open_request = Some(path);
+            }
         }
     }
     if response.double_clicked() {

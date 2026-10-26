@@ -11,3 +11,10 @@ tracing.workspace = true
 symphonia = { version = "0.5", features = ["all"] }
 cpal = "0.15"
 nnnoiseless = { version = "0.5", default-features = false }
+clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "latency", "audio-ports", "log"] }
+
+[dev-dependencies]
+clack-plugin = "0.2"
+clack-host = { version = "0.2", features = ["clack-plugin"] }
+clack-extensions = { version = "0.2", features = ["clack-host", "clack-plugin", "params", "latency", "audio-ports", "log"] }

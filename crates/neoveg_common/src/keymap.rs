@@ -177,7 +177,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::FileSave, &["Ctrl+S"]),
     (Command::FileSaveAs, &["Ctrl+Shift+S"]),
     (Command::FileNew, &["Ctrl+N"]),
-    (Command::FileNewQuick, &["Ctrl+Shift+N"]),
+    (Command::FileCreateSubproject, &["Ctrl+Shift+N"]),
     (Command::FileClose, &["Ctrl+F4"]),
     (Command::FileProperties, &["Alt+Enter"]),
     (Command::EditUndo, &["Ctrl+Z", "Alt+Backspace"]),

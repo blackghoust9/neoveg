@@ -1,6 +1,7 @@
 //! Audio pipeline: decoding (symphonia), hardware output (cpal), real peak and loudness meters and
 //! waveforms.
 
+pub mod clap_host;
 pub mod decode;
 pub mod dsp;
 pub mod duck;

@@ -235,10 +235,11 @@ impl ProjectManager {
     /// The id of the open project saved at `path`.
     pub fn find_by_path(&self, path: &Path) -> Option<ProjectId> {
         let wanted = key_of(path);
-        self.order
-            .iter()
-            .copied()
-            .find(|id| self.projects[id].path.as_deref().map(key_of) == Some(wanted.clone()))
+        self.order.iter().copied().find(|id| {
+            self.projects
+                .get(id)
+                .is_some_and(|p| p.path.as_deref().map(key_of) == Some(wanted.clone()))
+        })
     }
 
     /// Moves a project out (to edit it) keeping its tab; give it back with [`put`](Self::put).
@@ -693,6 +694,10 @@ mod tests {
         let id = manager.register(ProjectInfo::create_empty(), Timeline::new(), None);
         let other = manager.register(ProjectInfo::create_empty(), Timeline::new(), None);
         let project = manager.take(id).unwrap();
+        assert!(
+            manager.find_by_path(Path::new("nada.neoveg")).is_none(),
+            "a taken project does not break lookups"
+        );
         assert!(manager.get(id).is_none());
         assert_eq!(manager.ids(), &[id, other], "the tab stays");
         manager.put(project);

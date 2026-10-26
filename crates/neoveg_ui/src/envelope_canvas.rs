@@ -3,6 +3,7 @@
 use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Rounding, Shape, Stroke,
 };
+use neoveg_audio::clap_host;
 use neoveg_audio::dsp::effects;
 use neoveg_engine::{
     AutomationTarget, EnvelopePoint, EnvelopeShape, Track, TrackEffect, TrackEnvelope, TrackId,
@@ -46,11 +47,24 @@ pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, 
         AutomationTarget::EffectParam {
             effect_index,
             param_id,
-        } => chain
-            .get(*effect_index)
-            .and_then(|fx| effects::effect_info(&fx.kind))
-            .and_then(|info| info.params.iter().find(|p| p.id == param_id))
-            .map_or((0.0, 1.0, 0.0), |spec| (spec.min, spec.max, spec.default)),
+        } => {
+            let Some(fx) = chain.get(*effect_index) else {
+                return (0.0, 1.0, 0.0);
+            };
+            if let Some(spec) = effects::effect_info(&fx.kind)
+                .and_then(|info| info.params.iter().find(|p| p.id == param_id))
+            {
+                return (spec.min, spec.max, spec.default);
+            }
+            if clap_host::is_clap_kind(&fx.kind) {
+                if let Some(p) = clap_host::plugin_info(&fx.kind)
+                    .and_then(|info| info.params.into_iter().find(|p| p.id == *param_id))
+                {
+                    return (p.min, p.max, p.default);
+                }
+            }
+            (0.0, 1.0, 0.0)
+        }
     }
 }
 
@@ -72,19 +86,27 @@ pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String 
             effect_index,
             param_id,
         } => {
-            if let Some(info) = chain
-                .get(*effect_index)
-                .and_then(|fx| effects::effect_info(&fx.kind))
-            {
-                let pname = info
-                    .params
-                    .iter()
-                    .find(|p| p.id == param_id)
-                    .map_or(param_id.as_str(), |p| p.name);
-                format!("{} · {pname}", info.name)
-            } else {
-                target.label()
+            if let Some(fx) = chain.get(*effect_index) {
+                if let Some(info) = effects::effect_info(&fx.kind) {
+                    let pname = info
+                        .params
+                        .iter()
+                        .find(|p| p.id == param_id)
+                        .map_or(param_id.as_str(), |p| p.name);
+                    return format!("{} · {pname}", info.name);
+                }
+                if clap_host::is_clap_kind(&fx.kind) {
+                    if let Some(cinfo) = clap_host::plugin_info(&fx.kind) {
+                        let pname = cinfo
+                            .params
+                            .iter()
+                            .find(|p| p.id == *param_id)
+                            .map_or(param_id.as_str(), |p| p.name.as_str());
+                        return format!("{} · {pname}", cinfo.name);
+                    }
+                }
             }
+            target.label()
         }
     }
 }

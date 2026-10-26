@@ -4,7 +4,11 @@
 //! stored in the project (`neoveg_engine::effects`). The panel never touches the project: it
 //! returns [`FxAction`]s and the application turns each one into one undoable command.
 
+use std::path::PathBuf;
+use std::sync::mpsc;
+
 use eframe::egui::{self, Slider};
+use neoveg_audio::clap_host::{self, ClapParamInfo, ClapPluginInfo};
 use neoveg_audio::dsp::effects::{self, EffectInfo};
 use neoveg_audio::dsp::{ParamSpec, Unit};
 use neoveg_audio::fxmixer::{
@@ -60,6 +64,8 @@ const DUCK_INDEX: usize = usize::MAX;
 pub enum FxAction {
     Duck(DuckAction),
     Add(&'static str),
+    AddClap(String),
+    BrowseClapFile,
     Remove(usize),
     Move {
         from: usize,
@@ -95,6 +101,9 @@ pub struct FxPanelState {
     /// Edit the master bus instead of the selected track.
     pub master: bool,
     draft: Option<Draft>,
+    clap_scan_rx: Option<mpsc::Receiver<usize>>,
+    clap_file_rx: Option<mpsc::Receiver<Result<Vec<ClapPluginInfo>, String>>>,
+    clap_status: Option<String>,
 }
 
 impl FxPanelState {
@@ -111,6 +120,88 @@ impl FxPanelState {
         }
         let active_index = chain[..draft.index].iter().filter(|e| !e.bypass).count();
         Some((active_index, draft.param.as_str(), draft.value))
+    }
+
+    /// Starts scanning standard system CLAP folders on a background worker thread.
+    pub fn start_system_clap_scan(&mut self) {
+        if self.clap_scan_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = mpsc::channel();
+        self.clap_scan_rx = Some(rx);
+        self.clap_status = Some("Procurando plug-ins CLAP nas pastas do sistema…".into());
+        std::thread::Builder::new()
+            .name("neoveg-clap-scan".into())
+            .spawn(move || {
+                let count = clap_host::scan_system_plugins().len();
+                let _ = tx.send(count);
+            })
+            .ok();
+    }
+
+    /// Starts scanning a single `.clap` bundle chosen by the user on a background worker thread.
+    pub fn start_file_clap_scan(&mut self, path: PathBuf) {
+        let (tx, rx) = mpsc::channel();
+        self.clap_file_rx = Some(rx);
+        self.clap_status = Some(format!("Carregando {}…", path.display()));
+        std::thread::Builder::new()
+            .name("neoveg-clap-file".into())
+            .spawn(move || {
+                let res = clap_host::scan_clap_file(&path);
+                let _ = tx.send(res);
+            })
+            .ok();
+    }
+
+    fn poll_clap_workers(&mut self, ctx: &egui::Context, actions: &mut Vec<FxAction>, full: bool) {
+        if let Some(rx) = &self.clap_scan_rx {
+            match rx.try_recv() {
+                Ok(count) => {
+                    self.clap_scan_rx = None;
+                    self.clap_status = Some(if count == 0 {
+                        "Nenhum plug-in CLAP encontrado nas pastas padrão.".into()
+                    } else {
+                        format!("{count} plug-in(s) CLAP disponíveis.")
+                    });
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(80));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.clap_scan_rx = None;
+                }
+            }
+        }
+        if let Some(rx) = &self.clap_file_rx {
+            match rx.try_recv() {
+                Ok(Ok(found)) => {
+                    self.clap_file_rx = None;
+                    if found.is_empty() {
+                        self.clap_status =
+                            Some("O arquivo .clap não contém plug-ins compatíveis.".into());
+                    } else {
+                        if !full {
+                            actions.push(FxAction::AddClap(found[0].kind.clone()));
+                        }
+                        self.clap_status = Some(format!(
+                            "Plug-in CLAP carregado: {} ({} encontrado(s)).",
+                            found[0].name,
+                            found.len()
+                        ));
+                    }
+                }
+                Ok(Err(err)) => {
+                    self.clap_file_rx = None;
+                    self.clap_status = Some(format!("Erro ao carregar CLAP: {err}"));
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(80));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.clap_file_rx = None;
+                }
+            }
+        }
     }
 }
 
@@ -153,6 +244,24 @@ pub fn effective_value(effect: &TrackEffect, spec: &ParamSpec) -> f32 {
         .params
         .get(spec.id)
         .map_or(spec.default, |v| spec.sanitize(*v))
+}
+
+/// Effective sanitized value of a dynamic CLAP parameter in `effect`.
+pub fn effective_clap_value(effect: &TrackEffect, param: &ClapParamInfo) -> f32 {
+    let raw = effect
+        .params
+        .get(&param.id)
+        .copied()
+        .unwrap_or(param.default);
+    if raw.is_nan() {
+        return param.default;
+    }
+    let clamped = raw.clamp(param.min, param.max);
+    if param.stepped {
+        clamped.round()
+    } else {
+        clamped
+    }
 }
 
 /// A parameter value as shown next to its slider.
@@ -370,24 +479,72 @@ pub fn fx_ui(
     });
 
     let full = chain.len() >= neoveg_engine::effects::MAX_EFFECTS;
-    ui.add_enabled_ui(!full, |ui| {
-        egui::ComboBox::from_id_salt("fx_add")
-            .selected_text("Adicionar efeito…")
-            .width(200.0)
-            .show_ui(ui, |ui| {
-                for category in effects::Category::ALL {
-                    ui.weak(category.label());
-                    for info in available_effects()
-                        .into_iter()
-                        .filter(|e| e.category == category)
-                    {
-                        if ui.selectable_label(false, info.name).clicked() {
-                            actions.push(FxAction::Add(info.id));
+    panel.poll_clap_workers(ui.ctx(), &mut actions, full);
+    let clap_plugins = clap_host::cached_plugins();
+
+    ui.horizontal(|ui| {
+        ui.add_enabled_ui(!full, |ui| {
+            egui::ComboBox::from_id_salt("fx_add")
+                .selected_text("Adicionar efeito…")
+                .width(200.0)
+                .show_ui(ui, |ui| {
+                    for category in effects::Category::ALL {
+                        ui.weak(category.label());
+                        for info in available_effects()
+                            .into_iter()
+                            .filter(|e| e.category == category)
+                        {
+                            if ui.selectable_label(false, info.name).clicked() {
+                                actions.push(FxAction::Add(info.id));
+                            }
                         }
                     }
-                }
-            });
+                    if !clap_plugins.is_empty() {
+                        ui.separator();
+                        ui.weak("Plug-ins CLAP");
+                        for plugin in &clap_plugins {
+                            let label = if plugin.vendor.is_empty() {
+                                plugin.name.clone()
+                            } else {
+                                format!("{} ({})", plugin.name, plugin.vendor)
+                            };
+                            if ui.selectable_label(false, label).clicked() {
+                                actions.push(FxAction::AddClap(plugin.kind.clone()));
+                            }
+                        }
+                    }
+                });
+        });
+
+        let scanning = panel.clap_scan_rx.is_some();
+        ui.add_enabled_ui(!scanning, |ui| {
+            if icons::icon_button_sized(
+                ui,
+                Icon::Reset,
+                "Procurar plug-ins CLAP instalados nas pastas padrão do sistema",
+                false,
+                22.0,
+            )
+            .clicked()
+            {
+                panel.start_system_clap_scan();
+            }
+        });
+        if icons::icon_button_sized(
+            ui,
+            Icon::Import,
+            "Carregar arquivo de plug-in de áudio CLAP (.clap)…",
+            false,
+            22.0,
+        )
+        .clicked()
+        {
+            actions.push(FxAction::BrowseClapFile);
+        }
     });
+    if let Some(status) = &panel.clap_status {
+        ui.weak(status);
+    }
     if chain.is_empty() {
         ui.weak("Sem efeitos. Os efeitos rodam na ordem da lista.");
     }
@@ -486,7 +643,13 @@ fn effect_ui(
     effect: &TrackEffect,
     actions: &mut Vec<FxAction>,
 ) {
-    let info = effects::effect_info(&effect.kind);
+    let is_clap = clap_host::is_clap_kind(&effect.kind);
+    let clap_info = is_clap
+        .then(|| clap_host::plugin_info(&effect.kind))
+        .flatten();
+    let info = (!is_clap)
+        .then(|| effects::effect_info(&effect.kind))
+        .flatten();
     ui.horizontal(|ui| {
         if icons::icon_button_sized(
             ui,
@@ -499,8 +662,20 @@ fn effect_ui(
         {
             actions.push(FxAction::Bypass(index, !effect.bypass));
         }
-        let name = info.map_or(effect.kind.as_str(), |i| i.name);
+        let name = if let Some(ci) = &clap_info {
+            ci.name.as_str()
+        } else {
+            info.map_or(effect.kind.as_str(), |i| i.name)
+        };
         ui.strong(name);
+        if is_clap {
+            ui.weak("CLAP");
+            if let Some(ci) = &clap_info {
+                if ci.latency > 0 {
+                    ui.weak(format!("({} am.)", ci.latency));
+                }
+            }
+        }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if icons::icon_button_sized(ui, Icon::Remove, "Remover o efeito", false, 22.0).clicked()
             {
@@ -528,6 +703,27 @@ fn effect_ui(
             });
         });
     });
+    if is_clap {
+        let Some(ci) = clap_info else {
+            ui.colored_label(
+                egui::Color32::from_rgb(231, 76, 60),
+                "Plug-in CLAP ausente neste sistema: ele é ignorado na reprodução.",
+            );
+            return;
+        };
+        if effect.bypass {
+            ui.weak("Em bypass");
+        }
+        ui.add_enabled_ui(!effect.bypass, |ui| {
+            if ci.params.is_empty() {
+                ui.weak("Este plug-in CLAP não expõe parâmetros editáveis.");
+            }
+            for param in &ci.params {
+                clap_param_row(ui, panel, index, effect, param, actions);
+            }
+        });
+        return;
+    }
     let Some(info) = info else {
         ui.colored_label(
             egui::Color32::from_rgb(231, 76, 60),
@@ -671,6 +867,86 @@ fn slider(
     response
 }
 
+fn clap_param_row(
+    ui: &mut egui::Ui,
+    panel: &mut FxPanelState,
+    index: usize,
+    effect: &TrackEffect,
+    param: &ClapParamInfo,
+    actions: &mut Vec<FxAction>,
+) {
+    let current = effective_clap_value(effect, param);
+    ui.horizontal(|ui| {
+        ui.add_sized([120.0, 18.0], egui::Label::new(&param.name).truncate());
+        let response =
+            if param.stepped && (param.min - 0.0).abs() < 1e-6 && (param.max - 1.0).abs() < 1e-6 {
+                let mut on = current >= 0.5;
+                let resp = ui.checkbox(&mut on, "");
+                if resp.changed() {
+                    actions.push(FxAction::SetParam {
+                        index,
+                        param: param.id.clone(),
+                        value: if on { 1.0 } else { 0.0 },
+                    });
+                }
+                resp
+            } else {
+                let dragging = panel
+                    .draft
+                    .as_ref()
+                    .filter(|d| d.index == index && d.param == param.id);
+                let mut value = dragging.map_or(current, |d| d.value);
+                let mut s = Slider::new(&mut value, param.min..=param.max);
+                if param.stepped {
+                    s = s.integer();
+                }
+                let resp = ui.add(s);
+                if resp.changed() {
+                    panel.draft = Some(Draft {
+                        index,
+                        param: param.id.clone(),
+                        value: if param.stepped { value.round() } else { value },
+                    });
+                }
+                let finished = resp.drag_stopped()
+                    || resp.lost_focus()
+                    || (resp.changed() && !resp.dragged() && !resp.has_focus());
+                if finished {
+                    if let Some(draft) = panel
+                        .draft
+                        .take_if(|d| d.index == index && d.param == param.id)
+                    {
+                        if (draft.value - current).abs() > f32::EPSILON {
+                            actions.push(FxAction::SetParam {
+                                index,
+                                param: draft.param,
+                                value: draft.value,
+                            });
+                        }
+                    }
+                }
+                resp
+            };
+        response.context_menu(|ui| {
+            if ui.button("Restaurar o padrão").clicked() {
+                actions.push(FxAction::ResetParam {
+                    index,
+                    param: param.id.clone(),
+                });
+                ui.close_menu();
+            }
+            if !panel.master && ui.button("Automatizar parâmetro na faixa").clicked() {
+                actions.push(FxAction::ToggleAutomate {
+                    index,
+                    param: param.id.clone(),
+                    value: current,
+                });
+                ui.close_menu();
+            }
+        });
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -744,6 +1020,7 @@ mod tests {
                 param: "ratio".into(),
                 value: 6.0,
             }),
+            ..Default::default()
         };
         assert_eq!(
             panel.active_effect_draft(&chain),
@@ -917,5 +1194,45 @@ mod tests {
         assert!((plan.mix[1].gain - 0.501_187).abs() < 1e-3);
         assert_eq!((plan.mix[1].pan, plan.mix[1].invert), (-0.5, true));
         assert_eq!(plan.pan_law, neoveg_common::pan::PanLaw::ConstantPower);
+    }
+
+    #[test]
+    fn clap_effect_values_clamp_and_round_when_stepped_and_plan_preserves_clap_kind() {
+        let cont = ClapParamInfo {
+            id: "1".into(),
+            clap_id: 1,
+            name: "Cutoff".into(),
+            min: 20.0,
+            max: 20_000.0,
+            default: 1_000.0,
+            stepped: false,
+            is_bypass: false,
+        };
+        let step = ClapParamInfo {
+            id: "2".into(),
+            clap_id: 2,
+            name: "Mode".into(),
+            min: 0.0,
+            max: 3.0,
+            default: 1.0,
+            stepped: true,
+            is_bypass: false,
+        };
+        let mut fx = TrackEffect::new("clap:C:/CLAP/Test.clap::com.vendor.test");
+        assert_eq!(effective_clap_value(&fx, &cont), 1_000.0);
+        fx.params.insert("1".into(), 50_000.0);
+        assert_eq!(effective_clap_value(&fx, &cont), 20_000.0);
+        fx.params.insert("2".into(), 2.4);
+        assert_eq!(effective_clap_value(&fx, &step), 2.0);
+
+        let mut tl = Timeline::new();
+        let tr = tl.new_track(TrackKind::Audio);
+        tl.tracks.push(tr);
+        tl.tracks[0].effects.push(fx);
+        let plan = fx_plan(&tl);
+        assert_eq!(
+            plan.tracks[0][0].kind,
+            "clap:C:/CLAP/Test.clap::com.vendor.test"
+        );
     }
 }

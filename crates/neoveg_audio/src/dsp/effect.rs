@@ -143,6 +143,11 @@ pub trait AudioEffect: Send {
     fn id(&self) -> &'static str;
     /// Parameter descriptions (same as the registry entry's).
     fn params(&self) -> &'static [ParamSpec];
+    /// Dynamic parameter `(id, default)` pairs for hosted plug-ins whose parameter list is
+    /// discovered at run time rather than compiled into a static table.
+    fn dynamic_params(&self) -> &[(String, f32)] {
+        &[]
+    }
     /// Set a parameter by id; the value is clamped to its range. Returns `false` for unknown ids.
     /// Takes effect smoothly from the next processed sample.
     fn set_param(&mut self, id: &str, value: f32) -> bool;

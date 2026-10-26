@@ -79,6 +79,14 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/gfx-rs/wgpu",
     },
     Credit {
+        name: "clack (clack-host / clack-extensions)",
+        used_for: "Host de plug-ins de áudio CLAP nas cadeias de faixa e do master, com \
+                   automação de parâmetros e compensação de latência (PDC)",
+        authors: "Prokopyl and the Clack contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/prokopyl/clack",
+    },
+    Credit {
         name: "cpal",
         used_for: "Saída de áudio no hardware",
         authors: "RustAudio contributors",

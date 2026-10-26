@@ -9,6 +9,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
+use crate::clap_host::{create_clap_effect, is_clap_kind, parse_clap_kind};
 use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
 use crate::duck::{analyze, DuckCurve, SidechainFollower};
@@ -173,7 +174,11 @@ impl FxPlan {
 /// Creates the effect `spec` describes, or `None` for an unknown id. Parameters are clamped to
 /// their range by the effect; unknown parameter ids are ignored.
 fn build(spec: &EffectSpec, sample_rate: f32) -> Option<Box<dyn AudioEffect>> {
-    let mut effect = create_effect(&spec.kind, sample_rate, 2)?;
+    let mut effect = if is_clap_kind(&spec.kind) {
+        create_clap_effect(&spec.kind, sample_rate)?
+    } else {
+        create_effect(&spec.kind, sample_rate, 2)?
+    };
     for (id, value) in &spec.params {
         effect.set_param(id, *value);
     }
@@ -239,7 +244,7 @@ struct LiveParamSlot {
     bus: Option<usize>,
     /// Index among the instantiated effects in that chain.
     fx_index: usize,
-    id: &'static str,
+    id: String,
     bits: AtomicU32,
     dirty: AtomicBool,
 }
@@ -490,7 +495,18 @@ impl BlockMixer {
                                 track: Some(t),
                                 bus: Some(bus),
                                 fx_index,
-                                id: spec.id,
+                                id: spec.id.to_string(),
+                                bits: AtomicU32::new(val.to_bits()),
+                                dirty: AtomicBool::new(false),
+                            });
+                        }
+                        for (dyn_id, dyn_default) in fx.dynamic_params() {
+                            let val = fx.param(dyn_id).unwrap_or(*dyn_default);
+                            live_params.push(LiveParamSlot {
+                                track: Some(t),
+                                bus: Some(bus),
+                                fx_index,
+                                id: dyn_id.clone(),
                                 bits: AtomicU32::new(val.to_bits()),
                                 dirty: AtomicBool::new(false),
                             });
@@ -590,7 +606,18 @@ impl BlockMixer {
                         track: None,
                         bus: None,
                         fx_index,
-                        id: spec.id,
+                        id: spec.id.to_string(),
+                        bits: AtomicU32::new(val.to_bits()),
+                        dirty: AtomicBool::new(false),
+                    });
+                }
+                for (dyn_id, dyn_default) in fx.dynamic_params() {
+                    let val = fx.param(dyn_id).unwrap_or(*dyn_default);
+                    live_params.push(LiveParamSlot {
+                        track: None,
+                        bus: None,
+                        fx_index,
+                        id: dyn_id.clone(),
                         bits: AtomicU32::new(val.to_bits()),
                         dirty: AtomicBool::new(false),
                     });
@@ -698,7 +725,7 @@ impl BlockMixer {
                     None => self.master.get_mut(slot.fx_index),
                 };
                 if let Some(fx) = fx {
-                    fx.set_param(slot.id, value);
+                    fx.set_param(&slot.id, value);
                 }
             }
         }
@@ -807,9 +834,10 @@ impl BlockMixer {
     }
 }
 
-/// `true` when the registry knows an effect with this id.
+/// `true` when the registry knows a built-in effect with this id or `kind` is a well-formed CLAP
+/// plug-in identifier (`"clap:<path>::<plugin_id>"`).
 pub fn is_known_effect(kind: &str) -> bool {
-    effect_info(kind).is_some()
+    effect_info(kind).is_some() || parse_clap_kind(kind).is_some()
 }
 
 #[cfg(test)]
@@ -1365,5 +1393,67 @@ mod tests {
             (last - 0.5).abs() < 0.03,
             "sidechain released and +6 dB FX / -6 dB vol envelopes cancelled to 0.5: {last}"
         );
+    }
+
+    #[test]
+    fn clap_plugin_in_block_mixer_receives_latency_compensation_and_live_param_updates() {
+        let clap_kind = crate::clap_host::tests::BUILTIN_TEST_KIND;
+        // Track 0 has a 16-sample-latency CLAP gain plug-in set to 2.0x; Track 1 is dry (-1.0).
+        // With a pulse on both tracks at frame 32, PDC must align Track 1 to Track 0's 16-sample
+        // latency so both arrive at output frame 32 + 16 = 48!
+        let mut pulse_pos = vec![0.0_f32; 256 * 2];
+        pulse_pos[32 * 2] = 0.5;
+        pulse_pos[32 * 2 + 1] = 0.5;
+        let mut pulse_neg = vec![0.0_f32; 256 * 2];
+        pulse_neg[32 * 2] = -1.0;
+        pulse_neg[32 * 2 + 1] = -1.0;
+
+        let clips = vec![
+            MixClip {
+                samples: Arc::new(pulse_pos),
+                source_rate: RATE,
+                start: 0.0,
+                duration: 256.0 / f64::from(RATE),
+                gain: 1.0,
+                track: 0,
+                ..Default::default()
+            },
+            MixClip {
+                samples: Arc::new(pulse_neg),
+                source_rate: RATE,
+                start: 0.0,
+                duration: 256.0 / f64::from(RATE),
+                gain: 1.0,
+                track: 1,
+                ..Default::default()
+            },
+        ];
+        let plan = FxPlan {
+            tracks: vec![vec![spec(clap_kind, &[("1", 2.0)])], vec![]],
+            ..Default::default()
+        };
+        let (mut mixer, live) = BlockMixer::with_live_controls(clips, &plan, RATE as f32);
+        assert_eq!(mixer.lead_frames(), 16);
+
+        // Prime + render 128 frames: 0.5 * 2.0 (CLAP) + (-1.0) (dry) must cancel to 0 everywhere!
+        mixer.prime(0.0, 1.0 / f64::from(RATE));
+        let step = 1.0 / f64::from(RATE);
+        mixer.begin(128);
+        for i in 0..128 {
+            mixer.add_frame(i, (16 + i) as f64 * step);
+        }
+        mixer.finish(128);
+        let max_err = mixer.out().0[..128]
+            .iter()
+            .copied()
+            .map(f32::abs)
+            .fold(0.0_f32, f32::max);
+        assert!(
+            max_err < 1e-5,
+            "PDC failed to align CLAP track with dry track: max_err={max_err}"
+        );
+
+        // Live parameter update works on the dynamic CLAP parameter ID `"1"`.
+        assert!(live.set_param(Some(0), 0, "1", 3.0));
     }
 }

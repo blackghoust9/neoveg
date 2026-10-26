@@ -155,6 +155,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] OTIO (OpenTimelineIO)
 - [ ] Transcrição de fala para legendas (Whisper) e chaveamento de croma (CorridorKey)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
+- [x] Vários projetos em abas e sub-projetos aninhados: `ProjectManager` (abrir, fechar, trocar), `MediaSource::SubProject`, validação de dependência circular, `Ctrl+Shift+N` cria um sub-projeto a partir da seleção, duplo clique no evento abre a aba, reprodução de áudio e vídeo expandindo o sub-projeto
 - [x] Janelas: `Alt+0/2/3/4/5`, `Ctrl+Alt+2/7/9` mostram, trazem para a frente ou fecham cada janela acoplável; Exibir → Layouts salva e restaura até 9 layouts e o layout padrão
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
 - [x] Ícones vetoriais próprios na barra da timeline (`neoveg_ui/src/icons.rs`, 16 pictogramas planos, no lugar dos emojis); falta levá-los aos demais painéis e ao menu
@@ -190,7 +191,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Redução de ruído por IA: efeito **RNNoise** (crate `nnnoiseless`, BSD-3-Clause), com mix e ganho de saída, compensação de latência e conversão de taxa para dispositivos de 44,1, 96 e 32 kHz
 - [x] Nomes e rótulos dos parâmetros dos efeitos em pt-BR
 - [x] Desfazer e refazer com a reprodução em andamento (o áudio recomeça no cursor com a cadeia restaurada)
-- [ ] Automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
+- [x] Automação de parâmetros por envelopes editáveis na timeline (`V` volume, `P` pan, `Ctrl+Shift+E` mostrar/ocultar e parâmetros de efeitos), ducking em tempo real por sidechain pós-FX/pós-fader e hospedagem de plug-ins de áudio CLAP (`.clap`) via `clack-host` com compensação automática de latência (PDC)
+- [ ] Hospedagem de plug-ins VST3
 - [x] Metrônomo: clique por tempo com acento no primeiro tempo do compasso (andamento e compasso fazem parte do projeto), em Ferramentas → Metrônomo
 - [x] Navegação do cursor: `Ctrl+Home` / `Ctrl+End`, `Home` / `End`, `Ctrl+Alt+←/→` (bordas de eventos e de fades), `\` (centralizar) e `Ctrl+G` (ir para o tempo, em timecode, minutos:segundos, segundos ou quadros)
 - [x] Gravação de áudio do dispositivo de entrada padrão (`Ctrl+R` ou o botão vermelho da barra): callback sem alocação nem bloqueio, escrita em WAV float por thread própria, nível de entrada real na barra de status, e a tomada entra na linha do tempo no ponto onde a gravação começou
@@ -213,7 +215,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
 - [ ] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
 - [ ] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
-- [ ] Intercâmbio FCP7 XML, FCPXML e EDL
+- [x] Intercâmbio FCP7 XML, FCPXML e EDL
 - [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
 - [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 
