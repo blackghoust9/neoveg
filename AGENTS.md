@@ -190,8 +190,8 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+G` | Go to time (timecode, minutes:seconds, seconds or frames) | implemented |
 | `Home` / `End` / `Ctrl+Alt+←` / `Ctrl+Alt+→` / `\` | Cursor to the start / end of the time selection or view; to the previous / next event or fade edge; centre the view on the cursor | implemented |
 | `Ctrl+M` | Render to new track | planned |
-| `Alt+0` … `Alt+9`, `Ctrl+Alt+1` … `8` | Show or hide the docked windows (timeline focus, Explorer, Trimmer, Master Bus, Preview, Project Media, …) | planned |
-| `Alt+D`, `0`–`9` / `Ctrl+Alt+D`, `0`–`9` | Recall / save window layout | planned |
+| `Alt+0`, `Alt+2` … `Alt+5`, `Ctrl+Alt+2`, `Ctrl+Alt+7`, `Ctrl+Alt+9` | Show / hide the Timeline, Trimmer, Master Bus, Preview, Project Media, Video Scopes, Loudness and Audio Effects windows (in front -> closed, behind a tab -> raised, closed -> back); the others (Explorer, Project Notes, Transitions, Video FX, ...) are planned | implemented |
+| Exibir → Layouts | Save / recall window layouts 1-9 and the default layout (session only; the `Alt+D` chords are planned) | implemented |
 
 **How shortcuts are implemented:** every action is a `Command` in `neoveg_common::commands` (stable dotted id, pt-BR label, category, `implemented()` flag); `neoveg_common::keymap` holds the default bindings and the user's overrides (`keymap` in `preferences.json`, only the commands that differ from the defaults, an empty list meaning unbound); `neoveg_ui::shortcuts` converts egui key events. The UI dispatches by command, never by a hard-coded key, and shows shortcut hints in menus from the active map. A new command needs an entry in the `commands!` table, a default in `DEFAULT_BINDINGS` (the tests reject duplicate shortcuts and unparseable defaults) and an arm in `AppState::run_command`; **Editar → Personalizar teclado…** lists it automatically. Commands with `implemented() == false` own their default shortcut but do nothing until the feature lands.
 

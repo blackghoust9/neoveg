@@ -12,7 +12,7 @@ use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Key, Pos2, Rect, Rounding, Sense, Shape, Stroke,
     TextureHandle,
 };
-use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
+use egui_dock::{DockArea, DockState, Node, NodeIndex, Style, TabViewer};
 use neoveg_audio::decode::decode_file;
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::metronome::{click_clips, Metronome};
@@ -35,6 +35,7 @@ use neoveg_engine::edit;
 use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
 use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
+use neoveg_engine::fcpxml;
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::mix;
@@ -117,6 +118,17 @@ impl Tab {
             Tab::Scopes => "Scopes de Vídeo",
         }
     }
+}
+
+/// What a window command asks of the dock.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum WindowAction {
+    /// Show the window (bring it to the front, or put it back when it was closed); when it is
+    /// already in front, close it.
+    Toggle(Tab),
+    SaveLayout(usize),
+    RecallLayout(usize),
+    DefaultLayout,
 }
 
 /// Decoded audio kept in memory for waveform drawing and playback.
@@ -296,6 +308,8 @@ struct AppState {
     /// `Shift+Q`: the span that loops; without one the time selection (or the whole project) does.
     loop_region: Option<TimeRange>,
     media_tab: usize,
+    /// A window command the dock must carry out (the dock lives outside `AppState`).
+    window_request: Option<WindowAction>,
     project_path: Option<PathBuf>,
     status: String,
 
@@ -384,16 +398,10 @@ const STARTUP_STEPS: [&str; 6] = [
 ];
 
 impl AppState {
-    // ---- FCP7 XML --------------------------------------------------------------------------------
+    // ---- FCP7 XML & FCPXML -----------------------------------------------------------------------
 
-    /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
-    fn export_fcp7(&mut self) {
-        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
-            self.status = "A linha do tempo está vazia: nada para exportar".into();
-            return;
-        }
-        let media: Vec<XmlMedia> = self
-            .project
+    fn xml_media_pool(&self) -> Vec<XmlMedia> {
+        self.project
             .media_pool
             .iter()
             .map(|m| XmlMedia {
@@ -411,7 +419,16 @@ impl AppState {
                 path: m.path.clone(),
                 duration: m.duration_seconds,
             })
-            .collect();
+            .collect()
+    }
+
+    /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
+    fn export_fcp7(&mut self) {
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            self.status = "A linha do tempo está vazia: nada para exportar".into();
+            return;
+        }
+        let media = self.xml_media_pool();
         let text = fcp7::export(
             &self.timeline,
             &media,
@@ -474,6 +491,83 @@ impl AppState {
                 )
             }
             None => "Nenhum clipe do XML tem mídia no projeto: importe as mídias antes".into(),
+        };
+    }
+
+    /// File > Export FCPXML: Final Cut Pro `<fcpxml version="1.10">` with rational frame times.
+    fn export_fcpxml(&mut self) {
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            self.status = "A linha do tempo está vazia: nada para exportar".into();
+            return;
+        }
+        let media = self.xml_media_pool();
+        let s = &self.project.settings;
+        let text = fcpxml::export(
+            &self.timeline,
+            &media,
+            &self.project.name,
+            s.fps,
+            s.width,
+            s.height,
+            s.sample_rate,
+        );
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Final Cut Pro FCPXML", &["fcpxml"])
+            .set_file_name(format!("{}.fcpxml", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        match std::fs::write(&path, text) {
+            Ok(()) => self.status = format!("FCPXML exportado: {}", path.display()),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar o FCPXML: {e}");
+            }
+        }
+    }
+
+    /// File > Import FCPXML: places the clips and markers whose media is in the project, as one undo step.
+    fn import_fcpxml(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Final Cut Pro FCPXML", &["fcpxml", "xml"])
+            .pick_file()
+        else {
+            return;
+        };
+        let text = match std::fs::read(&path) {
+            Ok(bytes) => captions::decode_text(&bytes),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler o FCPXML: {e}");
+                return;
+            }
+        };
+        let doc = match fcpxml::parse(&text) {
+            Ok(doc) => doc,
+            Err(e) => {
+                tracing::warn!("[WARN] {}: {e}", path.display());
+                self.status = format!("Não foi possível abrir o FCPXML: {e}");
+                return;
+            }
+        };
+        for warning in &doc.warnings {
+            tracing::warn!("[WARN] {}: {warning}", path.display());
+        }
+        let pool = self.project.media_pool.clone();
+        let imported =
+            fcpxml::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        self.status = match imported {
+            Some((command, report)) => {
+                self.history.execute(&mut self.timeline, command);
+                self.last_frame_key = None;
+                format!(
+                    "FCPXML importado: {} clipe(s); {} sem mídia no projeto",
+                    report.added,
+                    report.skipped.len()
+                )
+            }
+            None => "Nenhum clipe do FCPXML tem mídia no projeto: importe as mídias antes".into(),
         };
     }
 
@@ -853,6 +947,7 @@ impl AppState {
             looping: false,
             loop_region: None,
             media_tab: 0,
+            window_request: None,
             project_path: None,
             status: "Projeto vazio".into(),
             loader_tx,
@@ -2644,6 +2739,30 @@ impl AppState {
             Command::EditUndo => self.undo(),
             Command::EditRedo => self.redo(),
             Command::EditDelete => self.delete_selection(),
+            Command::ViewFocusTimeline => {
+                self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
+            }
+            Command::ViewProjectMedia => {
+                self.media_tab = 0;
+                self.window_request = Some(WindowAction::Toggle(Tab::Media));
+            }
+            Command::ViewTrimmer => {
+                self.media_tab = 1;
+                self.window_request = Some(WindowAction::Toggle(Tab::Media));
+            }
+            Command::ViewMasterBus => {
+                self.window_request = Some(WindowAction::Toggle(Tab::MasterBus))
+            }
+            Command::ViewPreview => self.window_request = Some(WindowAction::Toggle(Tab::Preview)),
+            Command::ViewLoudnessMeters => {
+                self.window_request = Some(WindowAction::Toggle(Tab::Loudness));
+            }
+            Command::ViewVideoScopes => {
+                self.window_request = Some(WindowAction::Toggle(Tab::Scopes))
+            }
+            Command::ViewAudioEffects => {
+                self.window_request = Some(WindowAction::Toggle(Tab::AudioFx))
+            }
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -2781,6 +2900,8 @@ struct MarkDrag {
 
 pub struct NeovegApp {
     dock: DockState<Tab>,
+    /// Layouts saved with the Exibir menu (session only).
+    layouts: [Option<DockState<Tab>>; 10],
     state: AppState,
     /// The startup screen, until it has faded out.
     splash: Option<Splash>,
@@ -2788,20 +2909,89 @@ pub struct NeovegApp {
     gpu: String,
 }
 
+/// What [`toggle_window`] did.
+#[derive(Debug, PartialEq, Eq)]
+enum WindowChange {
+    /// The window was behind another tab and is now in front.
+    Raised,
+    /// The window was in front and is now closed.
+    Closed,
+    /// The window was closed and is now back.
+    Opened,
+}
+
+/// Show / hide a window: bring it to the front when it is hidden behind a tab, close it when it is
+/// in front, and put it back in the focused panel when it was closed.
+fn toggle_window(dock: &mut DockState<Tab>, tab: Tab) -> WindowChange {
+    match dock.find_tab(&tab) {
+        Some((surface, node, index)) => {
+            let in_front = matches!(
+                &dock[surface][node],
+                Node::Leaf { active, .. } if *active == index
+            );
+            if in_front {
+                dock.remove_tab((surface, node, index));
+                WindowChange::Closed
+            } else {
+                dock.set_active_tab((surface, node, index));
+                WindowChange::Raised
+            }
+        }
+        None => {
+            dock.push_to_focused_leaf(tab);
+            WindowChange::Opened
+        }
+    }
+}
+
+/// The workspace Neoveg opens with.
+fn default_dock() -> DockState<Tab> {
+    let mut dock = DockState::new(vec![Tab::Preview]);
+    let surface = dock.main_surface_mut();
+    let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
+    let [preview, media] = surface.split_left(top, 0.28, vec![Tab::Media]);
+    // The effects of the selected track sit under the project media
+    surface.split_below(media, 0.55, vec![Tab::AudioFx]);
+    let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
+    // The loudness readouts live in their own panel under the master bus
+    // and the video scopes are a tab beside them
+    surface.split_below(master, 0.55, vec![Tab::Loudness, Tab::Scopes]);
+    dock
+}
+
 impl NeovegApp {
+    /// Carries out a window command: show / hide a window, or save / recall a layout.
+    fn apply_window_action(&mut self, action: WindowAction) {
+        match action {
+            WindowAction::Toggle(tab) => {
+                self.state.status = match toggle_window(&mut self.dock, tab) {
+                    WindowChange::Closed => format!("{} fechada", tab.title()),
+                    WindowChange::Opened => format!("{} aberta", tab.title()),
+                    WindowChange::Raised => return,
+                };
+            }
+            WindowAction::SaveLayout(slot) => {
+                if let Some(entry) = self.layouts.get_mut(slot) {
+                    *entry = Some(self.dock.clone());
+                    self.state.status = format!("Layout {slot} salvo");
+                }
+            }
+            WindowAction::RecallLayout(slot) => match self.layouts.get(slot).cloned().flatten() {
+                Some(layout) => {
+                    self.dock = layout;
+                    self.state.status = format!("Layout {slot} restaurado");
+                }
+                None => self.state.status = format!("O layout {slot} ainda não foi salvo"),
+            },
+            WindowAction::DefaultLayout => {
+                self.dock = default_dock();
+                self.state.status = "Layout padrão restaurado".into();
+            }
+        }
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         ui_theme::apply(&cc.egui_ctx, &Theme::default());
-
-        let mut dock = DockState::new(vec![Tab::Preview]);
-        let surface = dock.main_surface_mut();
-        let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
-        let [preview, media] = surface.split_left(top, 0.28, vec![Tab::Media]);
-        // The effects of the selected track sit under the project media
-        surface.split_below(media, 0.55, vec![Tab::AudioFx]);
-        let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
-        // The loudness readouts live in their own panel under the master bus
-        // and the video scopes are a tab beside them
-        surface.split_below(master, 0.55, vec![Tab::Loudness, Tab::Scopes]);
 
         let gpu = cc.wgpu_render_state.as_ref().map_or_else(
             || "Renderizador padrão".to_owned(),
@@ -2811,7 +3001,8 @@ impl NeovegApp {
             },
         );
         Self {
-            dock,
+            dock: default_dock(),
+            layouts: Default::default(),
             state: AppState::new(),
             splash: Some(Splash::new(&STARTUP_STEPS)),
             gpu,
@@ -2845,6 +3036,9 @@ impl eframe::App for NeovegApp {
             } else {
                 return;
             }
+        }
+        if let Some(action) = self.state.window_request.take() {
+            self.apply_window_action(action);
         }
         self.state.maybe_autosave(now);
         self.state.update_title(ctx);
@@ -2991,6 +3185,20 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.export_fcp7();
                 ui.close_menu();
             }
+            if ui.button("Importar FCPXML (Final Cut Pro)…").clicked() {
+                state.import_fcpxml();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
+                    egui::Button::new("Exportar FCPXML (Final Cut Pro)…"),
+                )
+                .clicked()
+            {
+                state.export_fcpxml();
+                ui.close_menu();
+            }
             if ui.button("Importar legendas (SRT, WebVTT)…").clicked() {
                 state.import_captions();
                 ui.close_menu();
@@ -3127,6 +3335,40 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         });
         ui.menu_button("Exibir", |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
+            ui.separator();
+            for command in [
+                Command::ViewPreview,
+                Command::ViewProjectMedia,
+                Command::ViewTrimmer,
+                Command::ViewAudioEffects,
+                Command::ViewMasterBus,
+                Command::ViewLoudnessMeters,
+                Command::ViewVideoScopes,
+                Command::ViewFocusTimeline,
+            ] {
+                command_item(state, ui, command);
+            }
+            ui.separator();
+            ui.menu_button("Layouts", |ui| {
+                if ui.button("Layout padrão").clicked() {
+                    state.window_request = Some(WindowAction::DefaultLayout);
+                    ui.close_menu();
+                }
+                ui.separator();
+                for slot in 1..=9 {
+                    if ui.button(format!("Restaurar layout {slot}")).clicked() {
+                        state.window_request = Some(WindowAction::RecallLayout(slot));
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                for slot in 1..=9 {
+                    if ui.button(format!("Salvar layout {slot}")).clicked() {
+                        state.window_request = Some(WindowAction::SaveLayout(slot));
+                        ui.close_menu();
+                    }
+                }
+            });
         });
         ui.menu_button("Ajuda", |ui| {
             if ui.button("Créditos e licenças…").clicked() {
@@ -5471,6 +5713,38 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn windows_toggle_between_front_closed_and_back() {
+        let mut dock = default_dock();
+        // Scopes sit behind Loudness: the first press raises it, the second closes it
+        assert_eq!(toggle_window(&mut dock, Tab::Scopes), WindowChange::Raised);
+        assert_eq!(toggle_window(&mut dock, Tab::Scopes), WindowChange::Closed);
+        assert!(dock.find_tab(&Tab::Scopes).is_none());
+        assert_eq!(toggle_window(&mut dock, Tab::Scopes), WindowChange::Opened);
+        assert!(dock.find_tab(&Tab::Scopes).is_some());
+        // Every window of the default layout can be found
+        for tab in [
+            Tab::Preview,
+            Tab::Timeline,
+            Tab::Media,
+            Tab::MasterBus,
+            Tab::Loudness,
+            Tab::AudioFx,
+        ] {
+            assert!(default_dock().find_tab(&tab).is_some(), "{tab:?}");
+        }
+    }
+
+    #[test]
+    fn a_saved_layout_survives_closing_windows() {
+        let mut dock = default_dock();
+        let saved = dock.clone();
+        toggle_window(&mut dock, Tab::MasterBus);
+        assert!(dock.find_tab(&Tab::MasterBus).is_none());
+        dock = saved;
+        assert!(dock.find_tab(&Tab::MasterBus).is_some());
+    }
+
     use super::*;
 
     fn state_with_clip() -> (AppState, TrackId, EventId) {

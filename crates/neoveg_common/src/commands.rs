@@ -185,12 +185,14 @@ commands! {
     TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, false),
 
     // ---- Exibir
-    ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, false),
-    ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, false),
-    ViewTrimmer => ("view.trimmer", "Trimmer", View, false),
-    ViewMasterBus => ("view.master_bus", "Barramento master", View, false),
-    ViewPreview => ("view.preview", "Prévia de vídeo", View, false),
-    ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, false),
+    ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, true),
+    ViewTrimmer => ("view.trimmer", "Trimmer", View, true),
+    ViewMasterBus => ("view.master_bus", "Barramento master", View, true),
+    ViewPreview => ("view.preview", "Prévia de vídeo", View, true),
+    ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
+    ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
+    ViewAudioEffects => ("view.audio_effects", "Efeitos de áudio", View, true),
 }
 
 impl Command {
