@@ -85,6 +85,34 @@ pub struct FxPanelState {
     draft: Option<Draft>,
 }
 
+impl FxPanelState {
+    /// While the user drags a parameter slider on an unbypassed effect in `chain`, returns
+    /// `(active_fx_index, param_id, draft_value)` so live playback can glide to it immediately.
+    pub fn active_effect_draft(&self, chain: &[TrackEffect]) -> Option<(usize, &str, f32)> {
+        let draft = self.draft.as_ref()?;
+        if draft.index == DUCK_INDEX {
+            return None;
+        }
+        let target = chain.get(draft.index)?;
+        if target.bypass {
+            return None;
+        }
+        let active_index = chain[..draft.index].iter().filter(|e| !e.bypass).count();
+        Some((active_index, draft.param.as_str(), draft.value))
+    }
+}
+
+/// Human-readable pt-BR label for a parameter group prefix (`"b1"` → `"Banda 1"`).
+pub fn group_label(prefix: &str) -> String {
+    if let Some(num) = prefix
+        .strip_prefix('b')
+        .filter(|s| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()))
+    {
+        return format!("Banda {num}");
+    }
+    prefix.to_string()
+}
+
 // ---- pure helpers -------------------------------------------------------------------------------
 
 /// The effects offered for a chain. Effects that delay the signal are fine anywhere: the mixer
@@ -246,12 +274,7 @@ pub fn fx_ui(
             .selected_text("Adicionar efeito…")
             .width(200.0)
             .show_ui(ui, |ui| {
-                for category in [
-                    effects::Category::Filter,
-                    effects::Category::Dynamics,
-                    effects::Category::Time,
-                    effects::Category::Restoration,
-                ] {
+                for category in effects::Category::ALL {
                     ui.weak(category.label());
                     for info in available_effects()
                         .into_iter()
@@ -407,7 +430,7 @@ fn effect_ui(
                     }
                 }
                 Some(prefix) => {
-                    egui::CollapsingHeader::new(prefix)
+                    egui::CollapsingHeader::new(group_label(prefix))
                         .id_salt((index, &effect.kind, prefix))
                         .default_open(false)
                         .show(ui, |ui| {
@@ -540,15 +563,73 @@ mod tests {
     fn every_registered_effect_is_offered_including_the_ones_with_latency() {
         let offered = available_effects();
         assert_eq!(offered.len(), effects::effects().len());
+        for category in effects::Category::ALL {
+            assert!(
+                offered.iter().any(|e| e.category == category),
+                "category {category:?} should offer at least one effect"
+            );
+        }
+        for info in &offered {
+            for p in info.params {
+                assert!(
+                    !matches!(
+                        p.name,
+                        "Threshold"
+                            | "Output Gain"
+                            | "Make-up Gain"
+                            | "Release"
+                            | "Feedback"
+                            | "Delay Time"
+                            | "Room Size"
+                    ),
+                    "{}.{} still has English display name `{}`",
+                    info.id,
+                    p.id,
+                    p.name
+                );
+            }
+        }
         for id in [
             "limiter",
             "denoise",
             "fft_filter",
             "notch_filter",
             "scientific_filter",
+            "chorus_flanger",
+            "pitch_shifter",
+            "stereo_width",
         ] {
             assert!(offered.iter().any(|e| e.id == id), "{id}");
         }
+    }
+
+    #[test]
+    fn active_effect_draft_skips_bypassed_effects_and_ducking() {
+        let mut bypassed = TrackEffect::new("reverb");
+        bypassed.bypass = true;
+        let chain = vec![
+            TrackEffect::new("simple_eq"),
+            bypassed,
+            TrackEffect::new("compressor"),
+        ];
+        let mut panel = FxPanelState {
+            master: false,
+            draft: Some(Draft {
+                index: 2,
+                param: "ratio".into(),
+                value: 6.0,
+            }),
+        };
+        assert_eq!(
+            panel.active_effect_draft(&chain),
+            Some((1, "ratio", 6.0)),
+            "bypassed reverb at index 1 is skipped in the active mixer chain"
+        );
+        panel.draft.as_mut().unwrap().index = 1;
+        assert_eq!(panel.active_effect_draft(&chain), None);
+        panel.draft.as_mut().unwrap().index = DUCK_INDEX;
+        assert_eq!(panel.active_effect_draft(&chain), None);
+        assert_eq!(group_label("b3"), "Banda 3");
     }
 
     #[test]

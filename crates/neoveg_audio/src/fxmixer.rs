@@ -299,9 +299,8 @@ impl BlockMixer {
                 .filter(|c| !c.is_flat());
             let mix = plan.mix.get(t).copied().unwrap_or_default();
             let has_clips = clips.iter().any(|c| c.track == t);
-            if !live_mode && chain.is_empty() && curve.is_none() && mix.is_neutral() {
-                bus_of_track.push(0);
-            } else if live_mode && !has_clips && chain.is_empty() && curve.is_none() {
+            let plain = chain.is_empty() && curve.is_none();
+            if (!live_mode && plain && mix.is_neutral()) || (live_mode && !has_clips && plain) {
                 bus_of_track.push(0);
             } else {
                 let bus = chains.len();

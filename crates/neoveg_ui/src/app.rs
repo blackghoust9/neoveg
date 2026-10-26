@@ -46,6 +46,7 @@ use neoveg_engine::{
     TrackId, TrackKind,
 };
 use neoveg_video::info::{is_video_path, VideoInfo};
+use neoveg_video::lut::Lut;
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
@@ -239,6 +240,9 @@ struct AppState {
     frame_worker: Option<FrameWorker>,
     video_texture: Option<TextureHandle>,
     last_frame_key: Option<(u64, i64, u32)>,
+    /// The color table loaded for `Timeline::video_lut` (`None` inside when the file is unusable).
+    lut_cache: Option<(String, Option<Arc<Lut>>)>,
+    last_lut_path: Option<String>,
     preview_pane_width: f32,
     session_id: String,
     saved_revision: u64,
@@ -661,6 +665,8 @@ impl AppState {
             frame_worker: None,
             video_texture: None,
             last_frame_key: None,
+            lut_cache: None,
+            last_lut_path: None,
             preview_pane_width: 640.0,
             session_id: autosave::new_session_id(),
             saved_revision: 0,
@@ -737,6 +743,8 @@ impl AppState {
             .execute(&mut self.timeline, outcome.command)
             .then(|| {
                 self.selection.retain_existing(&self.timeline);
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
                 touched
             })
     }
@@ -1559,6 +1567,8 @@ impl AppState {
                     new,
                 },
             );
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
         }
     }
 
@@ -1572,6 +1582,8 @@ impl AppState {
             let delta = d.current.start - d.origin.start;
             if let Some(outcome) = groups::move_events(&self.timeline, &d.moving, delta) {
                 self.history.execute(&mut self.timeline, outcome.command);
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
             }
             return;
         }
@@ -1592,6 +1604,8 @@ impl AppState {
         if d.target_track != d.track_id || !self.selection.contains((d.target_track, d.event_id)) {
             self.selection.select_only((d.target_track, d.event_id));
         }
+        self.restart_audio_if_playing();
+        self.last_frame_key = None;
     }
 
     fn earliest_start(&self, events: &[EventRef]) -> f64 {
@@ -1893,6 +1907,38 @@ impl AppState {
         (width as u32).max(64)
     }
 
+    /// The color table of the project, loaded once per path (a broken file is reported once).
+    fn current_lut(&mut self) -> Option<Arc<Lut>> {
+        let path = self.timeline.video_lut.clone()?;
+        if let Some((cached, lut)) = &self.lut_cache {
+            if *cached == path {
+                return lut.clone();
+            }
+        }
+        let loaded = std::fs::read_to_string(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| Lut::parse_cube(&text));
+        let lut = match loaded {
+            Ok(lut) => Some(Arc::new(lut)),
+            Err(e) => {
+                tracing::warn!("[WARN] cannot use the LUT {path}: {e}");
+                self.status = format!("LUT inválida: {e}");
+                None
+            }
+        };
+        self.lut_cache = Some((path, lut.clone()));
+        self.last_frame_key = None;
+        lut
+    }
+
+    /// Sets the color table of the video (one undo step) and redraws the preview.
+    fn set_video_lut(&mut self, lut: Option<String>) {
+        if let Some(command) = mix::set_video_lut(&self.timeline, lut) {
+            self.history.execute(&mut self.timeline, command);
+        }
+        self.last_frame_key = None;
+    }
+
     /// Asks the decoder thread for the frame under the playhead (topmost video track wins).
     fn request_preview_frame(&mut self, ppp: f32) {
         let max_width = self.preview_max_width(ppp);
@@ -1908,6 +1954,7 @@ impl AppState {
             self.last_frame_key = None;
             return;
         };
+        let lut = self.current_lut();
         let Some(worker) = &self.frame_worker else {
             return;
         };
@@ -1920,6 +1967,11 @@ impl AppState {
             .map_or(self.project.settings.fps, |i| i.fps);
         let frame = (seconds * fps).round() as i64;
         let key = (media_id, frame, max_width);
+        // An undo of the LUT changes the picture without changing the frame key
+        if self.last_lut_path != self.timeline.video_lut {
+            self.last_lut_path = self.timeline.video_lut.clone();
+            self.last_frame_key = None;
+        }
         if self.last_frame_key != Some(key) {
             self.last_frame_key = Some(key);
             worker.request(FrameRequest {
@@ -1928,6 +1980,7 @@ impl AppState {
                 // frame-aligned so the decoder returns exactly this picture
                 seconds: frame as f64 / fps,
                 max_width,
+                lut,
             });
         }
     }
@@ -2141,6 +2194,7 @@ impl AppState {
         }
         if changed {
             self.restart_audio_if_playing();
+            self.last_frame_key = None;
         }
     }
 
@@ -2164,6 +2218,7 @@ impl AppState {
         }
         if changed {
             self.restart_audio_if_playing();
+            self.last_frame_key = None;
         }
     }
 
@@ -2205,6 +2260,7 @@ impl AppState {
             return;
         }
         if let Some(active) = self.active_player.take() {
+            self.playhead = active.player.position_seconds();
             active.player.stop();
         }
         self.active_player = self.start_audio();
@@ -2215,13 +2271,17 @@ impl AppState {
 
     fn undo(&mut self) {
         if self.history.undo(&mut self.timeline) {
+            self.selection.retain_existing(&self.timeline);
             self.restart_audio_if_playing();
+            self.last_frame_key = None;
         }
     }
 
     fn redo(&mut self) {
         if self.history.redo(&mut self.timeline) {
+            self.selection.retain_existing(&self.timeline);
             self.restart_audio_if_playing();
+            self.last_frame_key = None;
         }
     }
 
@@ -2734,6 +2794,30 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_inspector = true;
                 ui.close_menu();
             }
+            ui.menu_button("LUT de cor do vídeo", |ui| {
+                let current = state.timeline.video_lut.clone();
+                if ui.selectable_label(current.is_none(), "Nenhuma").clicked() {
+                    state.set_video_lut(None);
+                    ui.close_menu();
+                }
+                for (name, path) in bundled_luts() {
+                    let on = current.as_deref() == Some(path.as_str());
+                    if ui.selectable_label(on, name).clicked() {
+                        state.set_video_lut(Some(path));
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                if ui.button("Abrir arquivo .cube…").clicked() {
+                    if let Some(file) = rfd::FileDialog::new()
+                        .add_filter("LUT de cor", &["cube"])
+                        .pick_file()
+                    {
+                        state.set_video_lut(Some(file.display().to_string()));
+                    }
+                    ui.close_menu();
+                }
+            });
         });
         ui.menu_button("Exibir", |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
@@ -2745,6 +2829,42 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
         });
     });
+}
+
+/// The `.cube` tables that ship with Neoveg (`assets/luts` beside the executable or in the working
+/// directory): display name and path.
+fn bundled_luts() -> Vec<(String, String)> {
+    let mut dirs = vec![std::path::PathBuf::from("assets/luts")];
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+    {
+        dirs.push(dir.join("Assets/luts"));
+        dirs.push(dir.join("assets/luts"));
+    }
+    let mut found: Vec<(String, String)> = Vec::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("cube"))
+            {
+                let name = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                if !found.iter().any(|(n, _)| *n == name) {
+                    found.push((name, path.display().to_string()));
+                }
+            }
+        }
+    }
+    found.sort();
+    found
 }
 
 /// Help → Credits: authors and licences of the code Neoveg is built on.
@@ -3543,6 +3663,20 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if let Some(track) = state.timeline.track(id).cloned() {
             let mix_actions =
                 mixer_panel::mixer_ui(ui, &mut state.mixer, &track, state.timeline.pan_law);
+            if let (Some(active), Some(preview)) =
+                (&state.active_player, state.mixer.preview_mix(&track))
+            {
+                if let Some(idx) = state.timeline.tracks.iter().position(|t| t.id == id) {
+                    active.player.set_track_mix(
+                        idx,
+                        neoveg_audio::fxmixer::TrackMixSpec {
+                            gain: preview.gain(),
+                            pan: preview.pan,
+                            invert: preview.invert_phase,
+                        },
+                    );
+                }
+            }
             state.apply_mix_actions(id, mix_actions);
             ui.separator();
         }
@@ -3555,6 +3689,19 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         FxTarget::Master => None,
     };
     let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref());
+    if let (Some(active), Some((fx_idx, param, val))) =
+        (&state.active_player, state.fx.active_effect_draft(&chain))
+    {
+        let track_idx = match target {
+            FxTarget::Track(id) => state.timeline.tracks.iter().position(|t| t.id == id),
+            FxTarget::Master => None,
+        };
+        if matches!(target, FxTarget::Master) || track_idx.is_some() {
+            active
+                .player
+                .set_effect_param(track_idx, fx_idx, param, val);
+        }
+    }
     state.apply_fx_actions(target, actions);
 }
 

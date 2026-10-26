@@ -115,6 +115,14 @@ pub fn set_pan_law(timeline: &Timeline, law: PanLaw) -> Option<EditCommand> {
     })
 }
 
+/// Sets (or clears) the `.cube` color table of the video.
+pub fn set_video_lut(timeline: &Timeline, lut: Option<String>) -> Option<EditCommand> {
+    (timeline.video_lut != lut).then(|| EditCommand::SetVideoLut {
+        before: timeline.video_lut.clone(),
+        after: lut,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,6 +250,25 @@ mod tests {
         assert!(tl.audible(tl.track(vid).unwrap()));
         go(set_muted(&tl, vid, true).unwrap(), &mut history, &mut tl);
         assert!(!tl.audible(tl.track(vid).unwrap()));
+    }
+
+    #[test]
+    fn the_video_lut_is_one_undo_step_and_survives_saving() {
+        let (mut tl, _, _) = project();
+        let mut history = History::new();
+        assert!(set_video_lut(&tl, None).is_none());
+        go(
+            set_video_lut(&tl, Some("CINEMATIC.cube".into())).unwrap(),
+            &mut history,
+            &mut tl,
+        );
+        let json = serde_json::to_string(&tl).unwrap();
+        let back: Timeline = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.video_lut.as_deref(), Some("CINEMATIC.cube"));
+        assert!(history.undo(&mut tl));
+        assert!(tl.video_lut.is_none());
+        let old: Timeline = serde_json::from_str(r#"{"tracks":[],"next_id":0}"#).unwrap();
+        assert!(old.video_lut.is_none());
     }
 
     #[test]

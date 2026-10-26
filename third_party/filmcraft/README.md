@@ -44,7 +44,7 @@ Cada arquivo mantém, no topo, o aviso de origem e de copyright.
 - Formatação com `rustfmt`; o código segue com o estilo original.
 - Em `dsp/mod.rs`, as funções auxiliares (`flush` e utilitários de teste) foram reproduzidas a partir
   de `audio-dsp/src/lib.rs`, e alguns lints do clippy foram silenciados só nesse módulo.
-- Em `effects/mod.rs` só foram registrados os 28 efeitos usados (os de `audio-dsp` que dependem de convolução, ambisonics, guitarra e do modelo de projeto ficaram de fora); os nomes dos efeitos ficaram em pt-BR e foram acrescentados `has_latency` e `Category::label`.
+- Em `effects/mod.rs` só foram registrados os 28 efeitos usados (os de `audio-dsp` que dependem de convolução, ambisonics, guitarra e do modelo de projeto ficaram de fora); os nomes dos efeitos, dos parâmetros e das opções de escolha ficaram em pt-BR (mantendo os identificadores internos dos parâmetros) e foram acrescentados `has_latency` e `Category::label`.
 - Em `captions.rs` o tempo passou de ticks para segundos (`f64`), as cadeias `let` da edição 2024 foram reescritas para a 2021, e o modelo de projeto do FilmCraft (faixas de legenda, ticks) foi trocado pelo `Caption` e pelos comandos do Neoveg, que são código próprio.
 - Os testes unitários de todos os arquivos copiados foram mantidos. Os testes de oráculo contra o `ffmpeg`
   (`audio-dsp/tests/loudness_oracle.rs`) **não** foram trazidos.

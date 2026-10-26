@@ -33,6 +33,22 @@ pub struct MixerPanelState {
     draft: Option<(TrackId, Control, f32)>,
 }
 
+impl MixerPanelState {
+    /// Returns `track`'s mix with the in-progress fader or pan drag overlaid for live auditioning.
+    pub fn preview_mix(&self, track: &Track) -> Option<TrackMix> {
+        let (draft_track, control, value) = self.draft?;
+        if draft_track != track.id {
+            return None;
+        }
+        let mut mix = track.mix();
+        match control {
+            Control::Volume => mix.volume_db = value,
+            Control::Pan => mix.pan = value,
+        }
+        Some(mix)
+    }
+}
+
 /// `"-6.0 dB"`, `"-∞"` at the bottom of the fader.
 pub fn format_db(db: f32) -> String {
     if db <= TrackMix::VOLUME_RANGE_DB.0 {

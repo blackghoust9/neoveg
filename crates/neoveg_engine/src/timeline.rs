@@ -286,6 +286,9 @@ pub struct Timeline {
     /// How the pan controls of the tracks turn into left / right gains.
     #[serde(default, skip_serializing_if = "is_default_law")]
     pub pan_law: PanLaw,
+    /// Path of the `.cube` color table applied to the video (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_lut: Option<String>,
     next_id: u64,
 }
 

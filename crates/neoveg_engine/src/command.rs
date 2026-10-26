@@ -93,6 +93,11 @@ pub enum EditCommand {
         before: TrackMix,
         after: TrackMix,
     },
+    /// The color table of the video (a `.cube` path), or none.
+    SetVideoLut {
+        before: Option<String>,
+        after: Option<String>,
+    },
     /// The pan law of the project.
     SetPanLaw {
         before: PanLaw,
@@ -207,6 +212,10 @@ impl EditCommand {
                 tl.pan_law = *after;
                 true
             }
+            Self::SetVideoLut { after, .. } => {
+                tl.video_lut = after.clone();
+                true
+            }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SetDucking {
                 track_id, after, ..
@@ -301,6 +310,7 @@ impl EditCommand {
                 set_track_mix(tl, *track_id, *before);
             }
             Self::SetPanLaw { before, .. } => tl.pan_law = *before,
+            Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
             }
