@@ -250,4 +250,31 @@ mod tests {
                 .unwrap();
         assert!(settings.auto_crossfade);
     }
+
+    #[test]
+    fn projects_saved_before_markers_still_load() {
+        let tl: Timeline = serde_json::from_str(r#"{"tracks":[],"next_id":3}"#).unwrap();
+        assert!(tl.markers.is_empty() && tl.regions.is_empty());
+    }
+
+    #[test]
+    fn markers_and_regions_survive_a_save() {
+        let dir = std::env::temp_dir().join(format!("neoveg_marks_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (info, mut tl) = sample_project();
+        let mut history = crate::command::History::new();
+        let c = crate::markers::add_marker(&mut tl, 1.5, Some("A")).unwrap();
+        history.execute(&mut tl, c);
+        let c =
+            crate::markers::add_region(&mut tl, crate::selection::TimeRange::new(2.0, 3.0), None)
+                .unwrap();
+        history.execute(&mut tl, c);
+
+        let path = dir.join("m.neoveg");
+        save(&path, &info, &tl).unwrap();
+        let (_, loaded) = load(&path).unwrap();
+        assert_eq!(loaded.markers, tl.markers);
+        assert_eq!(loaded.regions, tl.regions);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

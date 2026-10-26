@@ -124,8 +124,8 @@ commands! {
     // ---- Inserir
     InsertAudioTrack => ("insert.audio_track", "Inserir faixa de áudio", Insert, true),
     InsertVideoTrack => ("insert.video_track", "Inserir faixa de vídeo", Insert, true),
-    InsertMarker => ("insert.marker", "Inserir marcador", Insert, false),
-    InsertRegion => ("insert.region", "Inserir região", Insert, false),
+    InsertMarker => ("insert.marker", "Inserir marcador", Insert, true),
+    InsertRegion => ("insert.region", "Inserir região", Insert, true),
     InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, false),
     RenderToNewTrack => ("tools.render_to_new_track", "Renderizar para nova faixa", Insert, false),
 
@@ -136,21 +136,21 @@ commands! {
     CursorProjectEnd => ("cursor.project_end", "Ir para o fim do projeto", Cursor, false),
     CursorSelectionStart => ("cursor.selection_start", "Ir para o início da seleção ou da vista", Cursor, false),
     CursorSelectionEnd => ("cursor.selection_end", "Ir para o fim da seleção ou da vista", Cursor, false),
-    CursorPreviousMarker => ("cursor.previous_marker", "Marcador anterior", Cursor, false),
-    CursorNextMarker => ("cursor.next_marker", "Próximo marcador", Cursor, false),
+    CursorPreviousMarker => ("cursor.previous_marker", "Marcador anterior", Cursor, true),
+    CursorNextMarker => ("cursor.next_marker", "Próximo marcador", Cursor, true),
     CursorPreviousEdit => ("cursor.previous_edit", "Ponto de edição anterior", Cursor, false),
     CursorNextEdit => ("cursor.next_edit", "Próximo ponto de edição", Cursor, false),
     CursorGoTo => ("cursor.go_to", "Ir para o tempo…", Cursor, false),
     CursorCenterView => ("cursor.center_view", "Centralizar a vista no cursor", Cursor, false),
     SelectionSetIn => ("selection.set_in", "Definir ponto de entrada", Cursor, true),
     SelectionSetOut => ("selection.set_out", "Definir ponto de saída", Cursor, true),
-    SelectionLoopRegion => ("selection.loop_region", "Selecionar a região de laço", Cursor, false),
+    SelectionLoopRegion => ("selection.loop_region", "Selecionar a região de laço", Cursor, true),
 
     // ---- Reprodução
     TransportPlayToggle => ("transport.play_toggle", "Reproduzir / pausar", Transport, true),
     TransportStop => ("transport.stop", "Parar", Transport, false),
     TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, false),
-    TransportLoop => ("transport.loop", "Reprodução em laço", Transport, false),
+    TransportLoop => ("transport.loop", "Reprodução em laço", Transport, true),
     TransportRecord => ("transport.record", "Gravar", Transport, false),
 
     // ---- Opções

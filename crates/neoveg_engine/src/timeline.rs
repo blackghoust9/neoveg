@@ -1,5 +1,6 @@
 //! Timeline, tracks and events. Times are seconds (`f64`, sub-frame precision).
 
+use crate::markers::{Marker, Region};
 use neoveg_common::fade::FadeCurve;
 use serde::{Deserialize, Serialize};
 
@@ -94,6 +95,12 @@ pub struct Track {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
     pub tracks: Vec<Track>,
+    /// Named points on the ruler (older projects have none).
+    #[serde(default)]
+    pub markers: Vec<Marker>,
+    /// Named spans on the ruler (older projects have none).
+    #[serde(default)]
+    pub regions: Vec<Region>,
     next_id: u64,
 }
 

@@ -250,10 +250,12 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Reverter evento (cria subclipe revertido)
 
 **Fase 5 — Marcadores, regiões e laço (entrada 11)**
-- [ ] `markers: Vec<Marker>` no projeto (`#[serde(default)]`), barra de marcadores acima da régua, `M` com nome inline, teclas `0`–`9` saltam para marcadores
-- [ ] Regiões (`R`), mover/redimensionar etiquetas, apagar tudo / apagar na seleção, ferramenta de marcador com seleção múltipla
+- [x] `markers` e `regions` na timeline (`#[serde(default)]`, um passo de desfazer cada), marcadores e regiões desenhados na régua, `M` insere, `R` cria região da seleção de tempo, `Ctrl+←` / `Ctrl+→` saltam entre marcadores e bordas de região, menu de contexto da régua (remover, apagar)
+- [ ] Nome inline ao inserir (`rename_mark` já existe no engine), arrastar marcadores e bordas de região, teclas `0`–`9` (`marker_by_number` já existe no engine)
+- [ ] Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)
 - [ ] Marcadores de comando (comando, parâmetro, comentário, modelos) e marcadores de mídia mostrados nos eventos (snap opcional)
-- [ ] Região de laço (`Shift+Q`), reprodução em laço (`Q`) e "renderizar só a região de laço"
+- [x] Região de laço (`Shift+Q`: seleção de tempo ou região sob o cursor; sem nenhuma, limpa) e reprodução em laço (`Q`, botão 🔁) sem emenda no callback de áudio; o laço usa a região de laço, senão a seleção, senão o projeto inteiro
+- [ ] "Renderizar só a região de laço" (depende da exportação)
 
 **Fase 6 — Trimmer (entrada 12)**
 - [ ] `TrimmerState` (mídia, entrada, saída, cursor) com histórico; `I` e `O` marcam entrada e saída

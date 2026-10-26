@@ -1,5 +1,6 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
+use crate::markers::Marks;
 use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
 use neoveg_common::fade::FadeCurve;
 
@@ -51,6 +52,12 @@ pub enum EditCommand {
     /// event lists, so any combination of changes is one exactly reversible undo step.
     ReplaceEvents {
         changes: Vec<TrackChange>,
+    },
+    /// Any change to the markers and regions (add, move, rename, delete): the whole set before
+    /// and after, so it is one exactly reversible undo step.
+    ReplaceMarks {
+        before: Marks,
+        after: Marks,
     },
 }
 
@@ -129,6 +136,10 @@ impl EditCommand {
                 }
                 true
             }
+            Self::ReplaceMarks { after, .. } => {
+                tl.set_marks(after);
+                true
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -205,6 +216,7 @@ impl EditCommand {
                     }
                 }
             }
+            Self::ReplaceMarks { before, .. } => tl.set_marks(before),
             Self::SplitEvent {
                 track_id,
                 event_id,

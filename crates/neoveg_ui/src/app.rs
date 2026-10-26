@@ -15,7 +15,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use neoveg_audio::decode::decode_file;
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::mixer::MixClip;
-use neoveg_audio::playback::AudioPlayer;
+use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
@@ -27,6 +27,7 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
+use neoveg_engine::markers::{self, MarkId};
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
@@ -45,6 +46,10 @@ use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
 const RULER_HEIGHT: f32 = 24.0;
+/// Height of the marker / region strip at the bottom of the ruler.
+const MARK_STRIP_HEIGHT: f32 = 10.0;
+/// How close (in pixels) a right-click must be to a marker to pick it.
+const MARK_HIT_PX: f32 = 6.0;
 const TRACK_HEIGHT: f32 = 64.0;
 const EVENT_HEADER_HEIGHT: f32 = 14.0;
 const MIN_PIXELS_PER_SECOND: f64 = 15.0;
@@ -197,7 +202,13 @@ struct AppState {
     window_title: String,
     drag: Option<EventDrag>,
     context_event: Option<(TrackId, EventId)>,
+    /// Marker or region under the pointer when the ruler's context menu was opened.
+    context_mark: Option<MarkId>,
     snapping: bool,
+    /// `Q`: playback repeats over [`AppState::loop_args`].
+    looping: bool,
+    /// `Shift+Q`: the span that loops; without one the time selection (or the whole project) does.
+    loop_region: Option<TimeRange>,
     media_tab: usize,
     project_path: Option<PathBuf>,
     status: String,
@@ -263,7 +274,10 @@ impl AppState {
             window_title: String::new(),
             drag: None,
             context_event: None,
+            context_mark: None,
             snapping: true,
+            looping: false,
+            loop_region: None,
             media_tab: 0,
             project_path: None,
             status: "Projeto vazio".into(),
@@ -487,6 +501,144 @@ impl AppState {
             (None, false) => TimeRange::new((t - frame).max(0.0), t),
         };
         self.time_selection = (!range.is_empty()).then_some(range);
+    }
+
+    // ---- markers and regions -----------------------------------------------------------------
+
+    /// `M`: marker at the cursor.
+    fn insert_marker(&mut self) {
+        let command = markers::add_marker(&mut self.timeline, self.playhead, None);
+        self.status = match command {
+            Some(command) => {
+                self.history.execute(&mut self.timeline, command);
+                "Marcador inserido".into()
+            }
+            None => "Já existe um marcador neste ponto".into(),
+        };
+    }
+
+    /// `R`: region over the time selection.
+    fn insert_region(&mut self) {
+        let Some(range) = self.time_selection else {
+            self.status = "Marque um intervalo (I / O) para criar uma região".into();
+            return;
+        };
+        if let Some(command) = markers::add_region(&mut self.timeline, range, None) {
+            self.history.execute(&mut self.timeline, command);
+            self.status = "Região inserida".into();
+        }
+    }
+
+    /// `Ctrl+←` / `Ctrl+→`: cursor to the previous / next marker or region edge.
+    fn jump_to_mark(&mut self, forward: bool, now: f64) {
+        let target = if forward {
+            markers::next_stop(&self.timeline, self.playhead)
+        } else {
+            markers::previous_stop(&self.timeline, self.playhead)
+        };
+        match target {
+            Some(t) => {
+                self.playhead = t;
+                self.blink_origin = now;
+            }
+            None => {
+                self.status = if forward {
+                    "Não há marcador adiante".into()
+                } else {
+                    "Não há marcador antes".into()
+                };
+            }
+        }
+    }
+
+    fn remove_mark(&mut self, id: MarkId) {
+        if let Some(command) = markers::remove_mark(&self.timeline, id) {
+            self.history.execute(&mut self.timeline, command);
+        }
+    }
+
+    /// Clears the markers and regions inside the time selection, or all of them without one.
+    fn clear_marks(&mut self) {
+        if let Some(command) = markers::clear_marks(&self.timeline, self.time_selection) {
+            self.history.execute(&mut self.timeline, command);
+        }
+    }
+
+    /// Marker or region under `time`, within `tolerance` seconds of a marker or inside a region.
+    fn mark_at(&self, time: f64, tolerance: f64) -> Option<MarkId> {
+        let marker = self
+            .timeline
+            .markers
+            .iter()
+            .find(|m| (m.time - time).abs() <= tolerance)
+            .map(|m| m.id);
+        marker.or_else(|| {
+            self.timeline
+                .regions
+                .iter()
+                .find(|r| time >= r.start && time <= r.end)
+                .map(|r| r.id)
+        })
+    }
+
+    // ---- loop playback -----------------------------------------------------------------------
+
+    /// What loops: the loop region, else the time selection, else the whole project.
+    fn loop_bounds(&self) -> Option<TimeRange> {
+        let explicit = self
+            .loop_region
+            .or(self.time_selection)
+            .filter(|r| !r.is_empty());
+        explicit.or_else(|| {
+            let duration = self.timeline.duration();
+            (duration > 0.0).then(|| TimeRange::new(0.0, duration))
+        })
+    }
+
+    /// Loop start and end handed to the player, `None` while loop playback is off.
+    fn loop_args(&self) -> Option<(f64, f64)> {
+        if !self.looping {
+            return None;
+        }
+        self.loop_bounds().map(|r| (r.start, r.end))
+    }
+
+    fn sync_loop(&self) {
+        if let Some(active) = &self.active_player {
+            active.player.set_loop(self.loop_args());
+        }
+    }
+
+    /// `Q`: loop playback on / off.
+    fn toggle_loop(&mut self) {
+        self.looping = !self.looping;
+        self.sync_loop();
+        self.status = if self.looping {
+            "Reprodução em laço ligada".into()
+        } else {
+            "Reprodução em laço desligada".into()
+        };
+    }
+
+    /// `Shift+Q`: the time selection (else the region under the cursor) becomes the loop region;
+    /// with neither, the loop region is cleared.
+    fn set_loop_region(&mut self) {
+        let under_cursor = self
+            .timeline
+            .regions
+            .iter()
+            .find(|r| self.playhead >= r.start && self.playhead < r.end)
+            .map(|r| r.range());
+        self.loop_region = self
+            .time_selection
+            .filter(|r| !r.is_empty())
+            .or(under_cursor);
+        self.sync_loop();
+        self.status = if self.loop_region.is_some() {
+            "Região de laço definida".into()
+        } else {
+            "Região de laço removida".into()
+        };
     }
 
     fn select_all_events(&mut self) {
@@ -1189,6 +1341,12 @@ impl AppState {
         if self.playhead >= self.timeline.duration() {
             self.playhead = 0.0;
         }
+        // A loop starts from its own start when the cursor lies outside it
+        if let Some((start, end)) = self.loop_args() {
+            if self.playhead < start || self.playhead >= end {
+                self.playhead = start;
+            }
+        }
         self.playing = true;
         self.blink_origin = now;
         self.active_player = self.start_audio();
@@ -1257,6 +1415,7 @@ impl AppState {
         match AudioPlayer::new(clips, Arc::clone(&self.meter)) {
             Ok(player) => {
                 player.set_volume(self.master_volume);
+                player.set_loop(self.loop_args());
                 player.play_from(self.playhead);
                 Some(ActivePlayer { player })
             }
@@ -1289,10 +1448,14 @@ impl AppState {
             }
             None => {
                 self.playhead += dt;
+                if let Some((start, end)) = self.loop_args() {
+                    self.playhead = wrap_loop(self.playhead, start, end);
+                }
                 false
             }
         };
-        if ended || self.playhead >= self.timeline.duration() {
+        let finished = ended || self.playhead >= self.timeline.duration();
+        if finished && self.loop_args().is_none() {
             self.stop();
         }
         ctx.request_repaint();
@@ -1375,6 +1538,12 @@ impl AppState {
             Command::EditSelectNone => self.clear_selection(),
             Command::SelectionSetIn => self.set_selection_edge(true),
             Command::SelectionSetOut => self.set_selection_edge(false),
+            Command::TransportLoop => self.toggle_loop(),
+            Command::SelectionLoopRegion => self.set_loop_region(),
+            Command::InsertMarker => self.insert_marker(),
+            Command::InsertRegion => self.insert_region(),
+            Command::CursorPreviousMarker => self.jump_to_mark(false, now),
+            Command::CursorNextMarker => self.jump_to_mark(true, now),
             _ => {}
         }
     }
@@ -2489,6 +2658,13 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icon(ui, "🎞+", "Inserir faixa de vídeo (Ctrl+Shift+Q)") {
             state.add_track(TrackKind::Video);
         }
+        if ui
+            .selectable_label(state.looping, "🔁")
+            .on_hover_text("Reprodução em laço (Q); Shift+Q define a região de laço")
+            .clicked()
+        {
+            state.toggle_loop();
+        }
         ui.separator();
         if ui
             .selectable_label(state.snapping, "🧲")
@@ -2651,6 +2827,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.context_event = pressed
             .and_then(|p| hit_event(state, lanes.left(), lane_top, p))
             .map(|h| (h.0, h.1));
+        state.context_mark = None;
         if let Some((track_id, event_id)) = state.context_event {
             state.selected_track = Some(track_id);
             if !state.selection.contains((track_id, event_id)) {
@@ -2658,10 +2835,43 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             }
         }
     }
-    response.context_menu(|ui| match state.context_event {
-        Some((track_id, event_id)) => event_context_menu(state, ui, track_id, event_id),
-        None => {
-            ui.label("Clique com o botão direito em um evento");
+    if response.secondary_clicked() {
+        let in_ruler = response
+            .interact_pointer_pos()
+            .filter(|p| p.x >= lanes.left() && p.y < lane_top);
+        state.context_mark = in_ruler.and_then(|p| {
+            let tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
+            state.mark_at(x_to_time(state, lanes.left(), p.x), tolerance)
+        });
+    }
+    response.context_menu(|ui| match (state.context_event, state.context_mark) {
+        (Some((track_id, event_id)), _) => event_context_menu(state, ui, track_id, event_id),
+        (None, Some(id)) => {
+            if ui.button("Remover marcador ou região").clicked() {
+                state.remove_mark(id);
+                ui.close_menu();
+            }
+            if ui.button("Apagar todos os marcadores e regiões").clicked() {
+                state.time_selection = None;
+                state.clear_marks();
+                ui.close_menu();
+            }
+        }
+        (None, None) => {
+            for command in [Command::InsertMarker, Command::InsertRegion] {
+                command_item(state, ui, command);
+            }
+            if ui
+                .add_enabled(
+                    !state.timeline.marks().is_empty(),
+                    egui::Button::new("Apagar marcadores e regiões"),
+                )
+                .on_hover_text("Na seleção de tempo; sem ela, todos")
+                .clicked()
+            {
+                state.clear_marks();
+                ui.close_menu();
+            }
         }
     });
 
@@ -2733,6 +2943,82 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             seconds_to_timecode(t, fps, drop_frame),
             FontId::monospace(10.0),
             Color32::from_gray(160),
+        );
+    }
+
+    // Loop region: a bar along the top edge of the ruler, brighter while loop playback is on
+    if let Some(range) = state.loop_region {
+        let (x0, x1) = (to_x(range.start), to_x(range.end));
+        let bar = Rect::from_min_max(
+            pos2(x0.max(lanes.left()), rect.top()),
+            pos2(x1.min(lanes.right()), rect.top() + 3.0),
+        );
+        if bar.width() > 0.0 {
+            let alpha = if state.looping { 255 } else { 110 };
+            lane_painter.rect_filled(
+                bar,
+                Rounding::ZERO,
+                Color32::from_rgba_unmultiplied(0x3A, 0xC7, 0xE0, alpha),
+            );
+        }
+    }
+
+    // Regions (band along the bottom of the ruler) and markers (flag plus a guide line)
+    let strip_top = rect.top() + RULER_HEIGHT - MARK_STRIP_HEIGHT;
+    for region in &state.timeline.regions {
+        let (x0, x1) = (to_x(region.start), to_x(region.end));
+        if x1 < lanes.left() || x0 > lanes.right() {
+            continue;
+        }
+        let band = Rect::from_min_max(
+            pos2(x0.max(lanes.left() - 1.0), strip_top),
+            pos2(x1.min(lanes.right() + 1.0), rect.top() + RULER_HEIGHT),
+        );
+        lane_painter.rect_filled(
+            band,
+            Rounding::ZERO,
+            Color32::from_rgba_unmultiplied(0x2E, 0xCC, 0x71, 70),
+        );
+        let edge = Stroke::new(hairline, Color32::from_rgb(0x2E, 0xCC, 0x71));
+        for x in [x0, x1] {
+            lane_painter.line_segment([pos2(x, strip_top), pos2(x, rect.bottom())], edge);
+        }
+        lane_painter.text(
+            pos2(x0.max(lanes.left()) + 3.0, strip_top),
+            Align2::LEFT_TOP,
+            &region.name,
+            FontId::proportional(9.0),
+            Color32::from_gray(235),
+        );
+    }
+    for marker in &state.timeline.markers {
+        let x = to_x(marker.time);
+        if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
+            continue;
+        }
+        let color = Color32::from_rgb(0xF1, 0xC4, 0x0F);
+        lane_painter.line_segment(
+            [pos2(x, strip_top), pos2(x, rect.bottom())],
+            Stroke::new(hairline, color.gamma_multiply(0.6)),
+        );
+        lane_painter.add(Shape::convex_polygon(
+            vec![
+                pos2(x, strip_top),
+                pos2(
+                    x + MARK_STRIP_HEIGHT * 0.7,
+                    strip_top + MARK_STRIP_HEIGHT * 0.35,
+                ),
+                pos2(x, strip_top + MARK_STRIP_HEIGHT * 0.7),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+        lane_painter.text(
+            pos2(x + MARK_STRIP_HEIGHT * 0.9, strip_top),
+            Align2::LEFT_TOP,
+            &marker.name,
+            FontId::proportional(9.0),
+            color,
         );
     }
 
@@ -3438,6 +3724,113 @@ mod tests {
         );
         s.history.undo(&mut s.timeline);
         assert_eq!(spans(&s, track), vec![(2.0, 6.0)]);
+    }
+
+    #[test]
+    fn marker_and_region_commands_are_undoable_and_mark_the_project_dirty() {
+        let (mut s, _, _) = state_with_clip();
+        let revision = s.history.revision();
+        s.playhead = 2.0;
+        run(&mut s, Command::InsertMarker);
+        assert_eq!(s.timeline.markers.len(), 1);
+        assert!(s.history.revision() > revision);
+
+        run(&mut s, Command::InsertMarker);
+        assert_eq!(s.timeline.markers.len(), 1, "same point twice adds nothing");
+
+        run(&mut s, Command::InsertRegion);
+        assert!(
+            s.timeline.regions.is_empty(),
+            "no time selection, no region"
+        );
+        s.time_selection = Some(TimeRange::new(1.0, 3.0));
+        run(&mut s, Command::InsertRegion);
+        assert_eq!(s.timeline.regions.len(), 1);
+
+        run(&mut s, Command::EditUndo);
+        assert!(s.timeline.regions.is_empty());
+        run(&mut s, Command::EditUndo);
+        assert!(s.timeline.markers.is_empty());
+    }
+
+    #[test]
+    fn ctrl_arrows_jump_between_markers_and_region_edges() {
+        let (mut s, _, _) = state_with_clip();
+        for t in [1.0, 4.0] {
+            s.playhead = t;
+            run(&mut s, Command::InsertMarker);
+        }
+        s.playhead = 0.0;
+        run(&mut s, Command::CursorNextMarker);
+        assert_eq!(s.playhead, 1.0);
+        run(&mut s, Command::CursorNextMarker);
+        assert_eq!(s.playhead, 4.0);
+        run(&mut s, Command::CursorNextMarker);
+        assert_eq!(s.playhead, 4.0, "stays put after the last marker");
+        run(&mut s, Command::CursorPreviousMarker);
+        assert_eq!(s.playhead, 1.0);
+    }
+
+    #[test]
+    fn mark_at_picks_a_marker_by_tolerance_and_a_region_by_span() {
+        let (mut s, _, _) = state_with_clip();
+        s.playhead = 5.0;
+        run(&mut s, Command::InsertMarker);
+        s.time_selection = Some(TimeRange::new(8.0, 10.0));
+        run(&mut s, Command::InsertRegion);
+        let marker = s.timeline.markers[0].id;
+        let region = s.timeline.regions[0].id;
+        assert_eq!(s.mark_at(5.04, 0.05), Some(marker));
+        assert_eq!(s.mark_at(9.0, 0.05), Some(region));
+        assert_eq!(s.mark_at(7.0, 0.05), None);
+
+        s.remove_mark(marker);
+        assert!(s.timeline.markers.is_empty());
+        s.time_selection = None;
+        s.clear_marks();
+        assert!(s.timeline.regions.is_empty());
+    }
+
+    #[test]
+    fn loop_bounds_prefer_the_loop_region_then_the_selection_then_the_project() {
+        let (mut s, _, _) = state_with_clip();
+        let whole = s.timeline.duration();
+        assert_eq!(s.loop_bounds(), Some(TimeRange::new(0.0, whole)));
+
+        s.time_selection = Some(TimeRange::new(3.0, 5.0));
+        assert_eq!(s.loop_bounds(), Some(TimeRange::new(3.0, 5.0)));
+
+        run(&mut s, Command::SelectionLoopRegion);
+        s.time_selection = None;
+        assert_eq!(s.loop_bounds(), Some(TimeRange::new(3.0, 5.0)));
+
+        run(&mut s, Command::SelectionLoopRegion);
+        assert!(
+            s.loop_region.is_none(),
+            "no selection and no region clears it"
+        );
+        assert_eq!(s.loop_bounds(), Some(TimeRange::new(0.0, whole)));
+    }
+
+    #[test]
+    fn q_toggles_the_loop_and_only_then_are_bounds_sent_to_the_player() {
+        let (mut s, _, _) = state_with_clip();
+        assert!(s.loop_args().is_none());
+        run(&mut s, Command::TransportLoop);
+        assert!(s.looping && s.loop_args().is_some());
+        run(&mut s, Command::TransportLoop);
+        assert!(!s.looping && s.loop_args().is_none());
+    }
+
+    #[test]
+    fn shift_q_takes_the_region_under_the_cursor() {
+        let (mut s, _, _) = state_with_clip();
+        s.time_selection = Some(TimeRange::new(6.0, 9.0));
+        run(&mut s, Command::InsertRegion);
+        s.time_selection = None;
+        s.playhead = 7.0;
+        run(&mut s, Command::SelectionLoopRegion);
+        assert_eq!(s.loop_region, Some(TimeRange::new(6.0, 9.0)));
     }
 
     #[test]

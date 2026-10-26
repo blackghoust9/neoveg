@@ -18,6 +18,20 @@ struct PlaybackState {
     playing: AtomicBool,
     /// Master gain (`f64` bits).
     volume: AtomicU64,
+    /// Loop start and end in seconds (`f64` bits); the loop is off while `end <= start`.
+    loop_start: AtomicU64,
+    loop_end: AtomicU64,
+}
+
+/// Where `pos` lands after a loop `[start, end)` is applied: positions at or past `end` wrap to
+/// the start of the loop, keeping the overshoot so playback stays sample-accurate. A loop that is
+/// empty or reversed leaves `pos` unchanged.
+pub fn wrap_loop(pos: f64, start: f64, end: f64) -> f64 {
+    let length = end - start;
+    if length <= 0.0 || pos < end {
+        return pos;
+    }
+    start + (pos - end) % length
 }
 
 /// Plays a mix of clips through the default output device.
@@ -53,6 +67,8 @@ impl AudioPlayer {
             position: AtomicU64::new(0f64.to_bits()),
             playing: AtomicBool::new(false),
             volume: AtomicU64::new(1.0f64.to_bits()),
+            loop_start: AtomicU64::new(0f64.to_bits()),
+            loop_end: AtomicU64::new(0f64.to_bits()),
         });
 
         let cb_state = Arc::clone(&state);
@@ -69,9 +85,12 @@ impl AudioPlayer {
                     }
                     let volume = f64::from_bits(cb_state.volume.load(Ordering::Relaxed)) as f32;
                     let mut pos = f64::from_bits(cb_state.position.load(Ordering::Relaxed));
+                    let loop_start = f64::from_bits(cb_state.loop_start.load(Ordering::Relaxed));
+                    let loop_end = f64::from_bits(cb_state.loop_end.load(Ordering::Relaxed));
                     let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
 
                     for frame in data.chunks_mut(out_channels) {
+                        pos = wrap_loop(pos, loop_start, loop_end);
                         let (l, r) = if pos < cb_state.end {
                             let (l, r) = mix_frame(&cb_state.clips, pos);
                             ((l * volume).clamp(-1.0, 1.0), (r * volume).clamp(-1.0, 1.0))
@@ -117,6 +136,16 @@ impl AudioPlayer {
         self.state.playing.store(true, Ordering::Relaxed);
     }
 
+    /// Loops playback over `range` (seconds), or plays through to the end with `None`. Safe to
+    /// call while playing.
+    pub fn set_loop(&self, range: Option<(f64, f64)>) {
+        let (start, end) = range.unwrap_or((0.0, 0.0));
+        self.state
+            .loop_start
+            .store(start.max(0.0).to_bits(), Ordering::Relaxed);
+        self.state.loop_end.store(end.to_bits(), Ordering::Relaxed);
+    }
+
     pub fn stop(&self) {
         self.state.playing.store(false, Ordering::Relaxed);
         self.meter.reset();
@@ -135,5 +164,34 @@ impl AudioPlayer {
         self.state
             .volume
             .store((linear.max(0.0) as f64).to_bits(), Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wrap_loop;
+
+    #[test]
+    fn positions_before_the_end_are_untouched() {
+        assert_eq!(wrap_loop(1.0, 2.0, 5.0), 1.0);
+        assert_eq!(wrap_loop(4.999, 2.0, 5.0), 4.999);
+    }
+
+    #[test]
+    fn reaching_the_end_wraps_to_the_start_keeping_the_overshoot() {
+        assert_eq!(wrap_loop(5.0, 2.0, 5.0), 2.0);
+        assert!((wrap_loop(5.25, 2.0, 5.0) - 2.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_huge_overshoot_still_lands_inside_the_loop() {
+        let p = wrap_loop(100.0, 2.0, 5.0);
+        assert!((2.0..5.0).contains(&p), "{p}");
+    }
+
+    #[test]
+    fn empty_or_reversed_loops_are_off() {
+        assert_eq!(wrap_loop(9.0, 0.0, 0.0), 9.0);
+        assert_eq!(wrap_loop(9.0, 5.0, 2.0), 9.0);
     }
 }
