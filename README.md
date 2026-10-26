@@ -189,7 +189,9 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Nomes e rótulos dos parâmetros dos efeitos em pt-BR
 - [x] Desfazer e refazer com a reprodução em andamento (o áudio recomeça no cursor com a cadeia restaurada)
 - [ ] Automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
-- [ ] Gravação de áudio, entradas de dispositivo e metrônomo
+- [x] Metrônomo: clique por tempo com acento no primeiro tempo do compasso (andamento e compasso fazem parte do projeto), em Ferramentas → Metrônomo
+- [x] Navegação do cursor: `Ctrl+Home` / `Ctrl+End`, `Home` / `End`, `Ctrl+Alt+←/→` (bordas de eventos e de fades), `\` (centralizar) e `Ctrl+G` (ir para o tempo, em timecode, minutos:segundos, segundos ou quadros)
+- [ ] Gravação de áudio e entradas de dispositivo
 
 **Vídeo e composição**
 - [ ] Composição multicamada na prévia e modos de composição (mistura)

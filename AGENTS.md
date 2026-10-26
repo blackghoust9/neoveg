@@ -184,10 +184,11 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+Shift+E` | Show or hide envelopes | planned |
 | `Q` | Loop playback | implemented |
 | `Shift+Q` | Set the loop region (time selection or region under the cursor) | implemented |
-| `Ctrl+Home` / `Ctrl+End` | Go to project start / end | planned |
+| `Ctrl+Home` / `Ctrl+End` | Go to project start / end | implemented |
 | `Ctrl+←` / `Ctrl+→` | Previous / next marker or region edge | implemented |
 | `1`–`9`, `0` | Go to the 1st–9th, 10th marker (by time) | implemented |
-| `Ctrl+G` | Go to time | planned |
+| `Ctrl+G` | Go to time (timecode, minutes:seconds, seconds or frames) | implemented |
+| `Home` / `End` / `Ctrl+Alt+←` / `Ctrl+Alt+→` / `\` | Cursor to the start / end of the time selection or view; to the previous / next event or fade edge; centre the view on the cursor | implemented |
 | `Ctrl+M` | Render to new track | planned |
 | `Alt+0` … `Alt+9`, `Ctrl+Alt+1` … `8` | Show or hide the docked windows (timeline focus, Explorer, Trimmer, Master Bus, Preview, Project Media, …) | planned |
 | `Alt+D`, `0`–`9` / `Ctrl+Alt+D`, `0`–`9` | Recall / save window layout | planned |

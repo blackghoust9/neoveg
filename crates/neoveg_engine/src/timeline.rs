@@ -21,6 +21,22 @@ pub enum TrackKind {
     Audio,
 }
 
+fn default_playback_rate() -> f64 {
+    1.0
+}
+
+fn is_unity_rate(rate: &f64) -> bool {
+    (*rate - 1.0).abs() < 1e-6
+}
+
+fn default_preserve_pitch() -> bool {
+    true
+}
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrackEvent {
     pub id: EventId,
@@ -37,9 +53,38 @@ pub struct TrackEvent {
     pub fade_in_curve: FadeCurve,
     #[serde(default)]
     pub fade_out_curve: FadeCurve,
+    /// Playback speed factor (`1.0` = normal, `0.5` = half speed, `2.0` = double speed).
+    #[serde(
+        default = "default_playback_rate",
+        skip_serializing_if = "is_unity_rate"
+    )]
+    pub playback_rate: f64,
+    /// When `true`, time-stretching keeps the original pitch via WSOLA; when `false`, varispeed.
+    #[serde(default = "default_preserve_pitch", skip_serializing_if = "is_true")]
+    pub preserve_pitch: bool,
     /// Events that share a group are selected and moved together (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<GroupId>,
+}
+
+impl Default for TrackEvent {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: String::new(),
+            media_id: None,
+            start: 0.0,
+            duration: 0.0,
+            trim_in: 0.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            fade_in_curve: FadeCurve::default(),
+            fade_out_curve: FadeCurve::default(),
+            playback_rate: 1.0,
+            preserve_pitch: true,
+            group: None,
+        }
+    }
 }
 
 impl TrackEvent {
@@ -58,6 +103,24 @@ pub struct EventGeometry {
     pub fade_out: f64,
     pub fade_in_curve: FadeCurve,
     pub fade_out_curve: FadeCurve,
+    pub playback_rate: f64,
+    pub preserve_pitch: bool,
+}
+
+impl Default for EventGeometry {
+    fn default() -> Self {
+        Self {
+            start: 0.0,
+            duration: 0.0,
+            trim_in: 0.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            fade_in_curve: FadeCurve::default(),
+            fade_out_curve: FadeCurve::default(),
+            playback_rate: 1.0,
+            preserve_pitch: true,
+        }
+    }
 }
 
 impl EventGeometry {
@@ -76,6 +139,8 @@ impl TrackEvent {
             fade_out: self.fade_out,
             fade_in_curve: self.fade_in_curve,
             fade_out_curve: self.fade_out_curve,
+            playback_rate: self.playback_rate,
+            preserve_pitch: self.preserve_pitch,
         }
     }
 
@@ -87,6 +152,8 @@ impl TrackEvent {
         self.fade_out = g.fade_out;
         self.fade_in_curve = g.fade_in_curve;
         self.fade_out_curve = g.fade_out_curve;
+        self.playback_rate = g.playback_rate;
+        self.preserve_pitch = g.preserve_pitch;
     }
 }
 

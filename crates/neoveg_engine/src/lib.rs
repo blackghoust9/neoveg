@@ -11,6 +11,7 @@ pub mod fcp7;
 pub mod groups;
 pub mod markers;
 pub mod mix;
+pub mod navigation;
 pub mod ops;
 pub mod project_file;
 pub mod relink;

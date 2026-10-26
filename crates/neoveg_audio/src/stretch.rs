@@ -157,8 +157,8 @@ fn wsola_stereo(
 
     // Mono downmix used only for phase-coherent grain similarity search across both channels.
     let mut mono = Vec::with_capacity(in_frames);
-    for frame in samples.chunks_exact(2) {
-        mono.push(0.5 * (frame[0] + frame[1]));
+    for &[l, r] in samples.as_chunks::<2>().0 {
+        mono.push(0.5 * (l + r));
     }
 
     // Periodic Hann window of even length W: w[k] + w[k + W/2] == 1.0 identically.
@@ -206,13 +206,13 @@ fn wsola_stereo(
         let chosen = best_wsola_offset(&mono, natural_next, lo, hi, nominal as usize, hop_s);
         let is_last = out_pos + hop_s >= out_frames;
 
-        for k in 0..win_frames {
+        for (k, &hk) in hann.iter().enumerate() {
             let dst = out_pos + k;
             if dst >= alloc_frames {
                 break;
             }
             let src = chosen + k;
-            let w = if is_last && k >= hop_s { 1.0 } else { hann[k] };
+            let w = if is_last && k >= hop_s { 1.0 } else { hk };
             out[dst * 2] += samples[src * 2] * w;
             out[dst * 2 + 1] += samples[src * 2 + 1] * w;
         }
@@ -261,11 +261,8 @@ fn best_wsola_offset(
         cand += c_step;
     }
     if natural_next >= lo && natural_next <= hi {
-        let score = normalized_corr_strided(
-            ref_slice,
-            &mono[natural_next..natural_next + hop_s],
-            k_step,
-        );
+        let score =
+            normalized_corr_strided(ref_slice, &mono[natural_next..natural_next + hop_s], k_step);
         if score >= best_score {
             best_pos = natural_next;
         }

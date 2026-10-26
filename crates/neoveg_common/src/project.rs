@@ -12,6 +12,20 @@ pub struct ProjectSettings {
     /// Overlapping events on the same track crossfade automatically.
     #[serde(default = "default_true")]
     pub auto_crossfade: bool,
+    /// Tempo of the metronome and of the beat grid, beats per minute.
+    #[serde(default = "default_bpm")]
+    pub bpm: f32,
+    /// Beats in a bar (the metronome accents the first one).
+    #[serde(default = "default_beats_per_bar")]
+    pub beats_per_bar: u32,
+}
+
+fn default_bpm() -> f32 {
+    120.0
+}
+
+fn default_beats_per_bar() -> u32 {
+    4
 }
 
 fn default_true() -> bool {
@@ -26,6 +40,8 @@ impl Default for ProjectSettings {
             fps: 29.97,
             sample_rate: 48_000,
             auto_crossfade: true,
+            bpm: default_bpm(),
+            beats_per_bar: default_beats_per_bar(),
         }
     }
 }

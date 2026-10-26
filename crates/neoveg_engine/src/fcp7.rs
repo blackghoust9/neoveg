@@ -442,11 +442,7 @@ pub fn import_into_timeline(
                 start: clip.start.max(0.0),
                 duration,
                 trim_in,
-                fade_in: 0.0,
-                fade_out: 0.0,
-                fade_in_curve: Default::default(),
-                fade_out_curve: Default::default(),
-                group: None,
+                ..Default::default()
             },
         ));
         report.added += 1;
@@ -483,11 +479,7 @@ mod tests {
                 start,
                 duration,
                 trim_in,
-                fade_in: 0.0,
-                fade_out: 0.0,
-                fade_in_curve: Default::default(),
-                fade_out_curve: Default::default(),
-                group: None,
+                ..Default::default()
             });
         };
         add(&mut tl, &mut video, 0.0, 4.0, 2.0, 1, "Entrevista & <cena>");

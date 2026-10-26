@@ -185,6 +185,7 @@ mod tests {
             fade_out: 0.2,
             fade_in_curve: neoveg_common::fade::FadeCurve::Smooth,
             fade_out_curve: neoveg_common::fade::FadeCurve::Fast,
+            ..Default::default()
         };
         history.execute(&mut tl, EditCommand::AddEvent { track_id, event });
         (info, tl)
@@ -291,10 +292,14 @@ mod tests {
 
         let grouped = crate::timeline::TrackEvent {
             group: Some(7),
+            playback_rate: 1.5,
+            preserve_pitch: false,
             ..event
         };
         let back: crate::timeline::TrackEvent =
             serde_json::from_str(&serde_json::to_string(&grouped).unwrap()).unwrap();
         assert_eq!(back.group, Some(7));
+        assert!((back.playback_rate - 1.5).abs() < 1e-9);
+        assert!(!back.preserve_pitch);
     }
 }

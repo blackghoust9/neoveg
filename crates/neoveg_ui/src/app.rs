@@ -15,6 +15,7 @@ use eframe::egui::{
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use neoveg_audio::decode::decode_file;
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
+use neoveg_audio::metronome::{click_clips, Metronome};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::readout::LoudnessReadout;
@@ -37,6 +38,7 @@ use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::mix;
+use neoveg_engine::navigation;
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
@@ -145,6 +147,8 @@ enum DragMode {
     Move,
     TrimLeft,
     TrimRight,
+    StretchLeft,
+    StretchRight,
     FadeIn,
     FadeOut,
 }
@@ -185,6 +189,8 @@ struct RepeatDialog {
     seconds: f64,
 }
 
+type StretchCacheKey = (u64, u64, u64, u64, bool);
+
 struct AppState {
     project: ProjectInfo,
     timeline: Timeline,
@@ -192,6 +198,8 @@ struct AppState {
     prefs: Preferences,
     keymap: KeyMap,
     media: HashMap<u64, LoadedMedia>,
+    /// Cached WSOLA / varispeed slices keyed by `(media_id, trim_bits, dur_bits, rate_bits, preserve_pitch)`.
+    stretch_cache: std::cell::RefCell<HashMap<StretchCacheKey, Arc<Vec<f32>>>>,
 
     playhead: f64,
     playing: bool,
@@ -205,6 +213,10 @@ struct AppState {
     range_anchor: Option<f64>,
     clipboard: Option<Clipboard>,
     repeat_dialog: Option<RepeatDialog>,
+    /// Text of the open "go to time" box.
+    goto_dialog: Option<String>,
+    /// Width of the lane area in points, from the last drawn frame.
+    lanes_width: f32,
 
     meter: Arc<PeakMeter>,
     /// EBU R128 readings published by the audio callback.
@@ -237,6 +249,10 @@ struct AppState {
     capture_for: Option<Command>,
     keymap_message: String,
     show_inspector: bool,
+    /// The metronome clicks during playback.
+    metronome_on: bool,
+    metronome_volume: f32,
+    show_metronome: bool,
     video_info: HashMap<u64, VideoInfo>,
     frame_worker: Option<FrameWorker>,
     video_texture: Option<TextureHandle>,
@@ -757,6 +773,7 @@ impl AppState {
             prefs,
             keymap,
             media: HashMap::new(),
+            stretch_cache: std::cell::RefCell::new(HashMap::new()),
             playhead: 0.0,
             playing: false,
             blink_origin: 0.0,
@@ -768,6 +785,8 @@ impl AppState {
             range_anchor: None,
             clipboard: None,
             repeat_dialog: None,
+            goto_dialog: None,
+            lanes_width: 800.0,
             meter: Arc::new(PeakMeter::new()),
             loudness: Arc::new(LoudnessReadout::new()),
             loudness_target: 0,
@@ -789,6 +808,9 @@ impl AppState {
             capture_for: None,
             keymap_message: String::new(),
             show_inspector: false,
+            metronome_on: false,
+            metronome_volume: 0.5,
+            show_metronome: false,
             video_info: HashMap::new(),
             frame_worker: None,
             video_texture: None,
@@ -1175,6 +1197,54 @@ impl AppState {
     }
 
     /// `Ctrl+←` / `Ctrl+→`: cursor to the previous / next marker or region edge.
+    /// Puts the cursor at `time` and scrolls the timeline when it would be off screen.
+    fn go_to_time(&mut self, time: f64, now: f64) {
+        self.playhead = time.max(0.0);
+        self.blink_origin = now;
+        let visible = f64::from(self.lanes_width.max(50.0)) / self.pixels_per_second;
+        if self.playhead < self.scroll_seconds || self.playhead > self.scroll_seconds + visible {
+            self.scroll_seconds = (self.playhead - visible * 0.2).max(0.0);
+        }
+    }
+
+    /// `Home` / `End`: the start / end of the time selection, else of the visible area.
+    fn go_to_selection_edge(&mut self, end: bool, now: f64) {
+        let visible = f64::from(self.lanes_width.max(50.0)) / self.pixels_per_second;
+        let target = match (self.time_selection, end) {
+            (Some(range), false) => range.start,
+            (Some(range), true) => range.end,
+            (None, false) => self.scroll_seconds,
+            (None, true) => self.scroll_seconds + visible,
+        };
+        self.playhead = target.max(0.0);
+        self.blink_origin = now;
+    }
+
+    /// `Ctrl+Alt+Left` / `Ctrl+Alt+Right`: the previous / next event or fade edge.
+    fn jump_to_edit_point(&mut self, forward: bool, now: f64) {
+        let target = if forward {
+            navigation::next_edit_point(&self.timeline, self.playhead)
+        } else {
+            navigation::previous_edit_point(&self.timeline, self.playhead)
+        };
+        match target {
+            Some(t) => self.go_to_time(t, now),
+            None => {
+                self.status = if forward {
+                    "Não há ponto de edição adiante".into()
+                } else {
+                    "Não há ponto de edição antes".into()
+                };
+            }
+        }
+    }
+
+    /// `\`: scrolls so the cursor is in the middle of the view.
+    fn center_view_on_cursor(&mut self) {
+        let visible = f64::from(self.lanes_width.max(50.0)) / self.pixels_per_second;
+        self.scroll_seconds = (self.playhead - visible / 2.0).max(0.0);
+    }
+
     fn jump_to_mark(&mut self, forward: bool, now: f64) {
         let target = if forward {
             markers::next_stop(&self.timeline, self.playhead)
@@ -1658,6 +1728,12 @@ impl AppState {
                 let len = self.source_len(drag.track_id, drag.event_id);
                 drag.current = edit::trim_right(drag.origin, snap(pointer_time), min_len, len);
             }
+            DragMode::StretchLeft => {
+                drag.current = edit::stretch_left(drag.origin, snap(pointer_time), min_len);
+            }
+            DragMode::StretchRight => {
+                drag.current = edit::stretch_right(drag.origin, snap(pointer_time), min_len);
+            }
             DragMode::FadeIn => {
                 let length = edit::quantize(pointer_time - drag.origin.start, fps);
                 drag.current = edit::set_fade_in(drag.origin, length);
@@ -1982,8 +2058,7 @@ impl AppState {
             trim_in: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
-            fade_in_curve: FadeCurve::default(),
-            fade_out_curve: FadeCurve::default(),
+            ..Default::default()
         };
         self.history.execute(
             &mut self.timeline,
@@ -2005,8 +2080,7 @@ impl AppState {
                 trim_in: 0.0,
                 fade_in: fade,
                 fade_out: fade,
-                fade_in_curve: FadeCurve::default(),
-                fade_out_curve: FadeCurve::default(),
+                ..Default::default()
             };
             self.history.execute(
                 &mut self.timeline,
@@ -2076,7 +2150,10 @@ impl AppState {
             .iter()
             .filter(|t| t.kind == TrackKind::Video && self.timeline.audible(t))
             .find_map(|t| self.timeline.event_at(t.id, self.playhead))
-            .and_then(|e| Some((e.media_id?, self.playhead - e.start + e.trim_in)));
+            .and_then(|e| {
+                let rate = edit::clamp_playback_rate(e.playback_rate);
+                Some((e.media_id?, (self.playhead - e.start) * rate + e.trim_in))
+            });
         let Some((media_id, seconds)) = target else {
             self.video_texture = None;
             self.last_frame_key = None;
@@ -2183,8 +2260,7 @@ impl AppState {
             trim_in: 0.0,
             fade_in: fade,
             fade_out: fade,
-            fade_in_curve: FadeCurve::default(),
-            fade_out_curve: FadeCurve::default(),
+            ..Default::default()
         };
         self.status = format!("Importado: {}", media.name);
         self.media.insert(media_id, media);
@@ -2243,7 +2319,10 @@ impl AppState {
                     .fold(0.0, f64::max)
             };
             for e in &track.events {
-                let Some(media) = e.media_id.and_then(|id| self.media.get(&id)) else {
+                let Some(media_id) = e.media_id else {
+                    continue;
+                };
+                let Some(media) = self.media.get(&media_id) else {
                     continue;
                 };
                 // The fade-out of the earlier event mirrors the later event's fade-in curve
@@ -2254,12 +2333,42 @@ impl AppState {
                     .map(|later| later.fade_in_curve)
                     .next()
                     .unwrap_or_default();
+                let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate) {
+                    (Arc::clone(&media.stereo), e.trim_in)
+                } else {
+                    let rate = neoveg_audio::stretch::clamp_rate(e.playback_rate);
+                    let key = (
+                        media_id,
+                        e.trim_in.to_bits(),
+                        e.duration.to_bits(),
+                        rate.to_bits(),
+                        e.preserve_pitch,
+                    );
+                    let mut cache = self.stretch_cache.borrow_mut();
+                    if cache.len() > 64 {
+                        cache.clear();
+                    }
+                    let buf = cache
+                        .entry(key)
+                        .or_insert_with(|| {
+                            neoveg_audio::stretch::stretch_clip_slice(
+                                &media.stereo,
+                                media.sample_rate,
+                                e.trim_in,
+                                e.duration,
+                                rate,
+                                e.preserve_pitch,
+                            )
+                        })
+                        .clone();
+                    (buf, 0.0)
+                };
                 clips.push(MixClip {
-                    samples: Arc::clone(&media.stereo),
+                    samples,
                     source_rate: media.sample_rate,
                     start: e.start,
                     duration: e.duration,
-                    trim_in: e.trim_in,
+                    trim_in,
                     gain: 1.0,
                     fade_in: e.fade_in,
                     fade_out: e.fade_out,
@@ -2413,8 +2522,24 @@ impl AppState {
         }
     }
 
+    /// The clicks of the metronome from the cursor on (none when it is off).
+    fn metronome_clips(&self) -> Vec<MixClip> {
+        if !self.metronome_on {
+            return Vec::new();
+        }
+        let settings = &self.project.settings;
+        let metronome = Metronome {
+            bpm: settings.bpm,
+            beats_per_bar: settings.beats_per_bar,
+            volume: self.metronome_volume,
+        };
+        let end = navigation::project_end(&self.timeline).max(self.playhead + 60.0);
+        click_clips(&metronome, self.playhead, end, settings.sample_rate)
+    }
+
     fn start_audio(&mut self) -> Option<ActivePlayer> {
-        let clips = self.build_clips();
+        let mut clips = self.build_clips();
+        clips.extend(self.metronome_clips());
         if clips.is_empty() {
             return None;
         }
@@ -2552,6 +2677,22 @@ impl AppState {
             Command::SelectionLoopRegion => self.set_loop_region(),
             Command::InsertMarker => self.insert_marker(),
             Command::InsertRegion => self.insert_region(),
+            Command::CursorProjectStart => self.go_to_time(0.0, now),
+            Command::CursorProjectEnd => {
+                self.go_to_time(navigation::project_end(&self.timeline), now);
+            }
+            Command::CursorSelectionStart => self.go_to_selection_edge(false, now),
+            Command::CursorSelectionEnd => self.go_to_selection_edge(true, now),
+            Command::CursorPreviousEdit => self.jump_to_edit_point(false, now),
+            Command::CursorNextEdit => self.jump_to_edit_point(true, now),
+            Command::CursorCenterView => self.center_view_on_cursor(),
+            Command::CursorGoTo => {
+                self.goto_dialog = Some(seconds_to_timecode(
+                    self.playhead,
+                    self.project.settings.fps,
+                    is_drop_frame_rate(self.project.settings.fps),
+                ));
+            }
             Command::CursorPreviousMarker => self.jump_to_mark(false, now),
             Command::CursorNextMarker => self.jump_to_mark(true, now),
             Command::TrackMute
@@ -2743,6 +2884,8 @@ impl eframe::App for NeovegApp {
         preferences_window(ctx, &mut self.state);
         keymap_window(ctx, &mut self.state);
         repeat_paste_window(ctx, &mut self.state);
+        goto_window(ctx, &mut self.state);
+        metronome_window(ctx, &mut self.state);
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
@@ -2936,6 +3079,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_inspector = true;
                 ui.close_menu();
             }
+            if ui.button("Metrônomo…").clicked() {
+                state.show_metronome = true;
+                ui.close_menu();
+            }
             ui.menu_button("LUT de cor do vídeo", |ui| {
                 let current = state.timeline.video_lut.clone();
                 if ui.selectable_label(current.is_none(), "Nenhuma").clicked() {
@@ -3028,6 +3175,106 @@ fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
         let now = ctx.input(|i| i.time);
         state.run_command(command, &ctx, now);
         ui.close_menu();
+    }
+}
+
+/// Ferramentas → Metrônomo: on / off, tempo, beats per bar and loudness. The tempo belongs to the
+/// project; changing anything while playing restarts the audio at the cursor.
+fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_metronome {
+        return;
+    }
+    let mut open = true;
+    let before = (
+        state.metronome_on,
+        state.metronome_volume,
+        state.project.settings.bpm,
+        state.project.settings.beats_per_bar,
+    );
+    egui::Window::new("Metrônomo")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            ui.checkbox(
+                &mut state.metronome_on,
+                "Tocar o clique durante a reprodução",
+            );
+            ui.horizontal(|ui| {
+                ui.label("Andamento (bpm)");
+                let (lo, hi) = Metronome::BPM_RANGE;
+                ui.add(
+                    egui::DragValue::new(&mut state.project.settings.bpm)
+                        .range(lo..=hi)
+                        .speed(0.5)
+                        .fixed_decimals(1),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("Tempos por compasso");
+                ui.add(
+                    egui::DragValue::new(&mut state.project.settings.beats_per_bar).range(1..=16),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("Volume");
+                ui.add(
+                    PrecisionSlider::new(&mut state.metronome_volume, 0.0..=1.0, 0.5).width(120.0),
+                );
+            });
+        });
+    state.show_metronome = open;
+    let after = (
+        state.metronome_on,
+        state.metronome_volume,
+        state.project.settings.bpm,
+        state.project.settings.beats_per_bar,
+    );
+    if before != after {
+        state.restart_audio_if_playing();
+    }
+}
+
+/// Ctrl+G: type a time (timecode, minutes:seconds, seconds or frames) and the cursor goes there.
+fn goto_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(mut text) = state.goto_dialog.take() else {
+        return;
+    };
+    let fps = state.project.settings.fps;
+    let (mut go, mut cancel) = (false, false);
+    egui::Window::new("Ir para o tempo")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
+            if !edit.has_focus() && !edit.lost_focus() {
+                edit.request_focus();
+            }
+            let valid = navigation::parse_time(&text, fps).is_some();
+            if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && valid {
+                go = true;
+            }
+            ui.weak("00:01:02:10, 1:02,5, 62,5 ou 1500f");
+            ui.horizontal(|ui| {
+                if ui.add_enabled(valid, egui::Button::new("Ir")).clicked() {
+                    go = true;
+                }
+                if ui.button("Cancelar").clicked() {
+                    cancel = true;
+                }
+            });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
+        });
+    if go {
+        if let Some(time) = navigation::parse_time(&text, fps) {
+            let now = ctx.input(|i| i.time);
+            state.go_to_time(time, now);
+        }
+    } else if !cancel {
+        state.goto_dialog = Some(text);
     }
 }
 
@@ -3485,6 +3732,33 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             ui.separator();
 
             let mut new = g;
+            let fps_min_len = 1.0 / state.project.settings.fps.max(1.0);
+            ui.horizontal(|ui| {
+                ui.label("Velocidade");
+                let mut rate = edit::clamp_playback_rate(new.playback_rate);
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut rate)
+                            .range(edit::MIN_PLAYBACK_RATE..=edit::MAX_PLAYBACK_RATE)
+                            .speed(0.01)
+                            .fixed_decimals(2)
+                            .suffix("×"),
+                    )
+                    .on_hover_text("0,25× a 4,00× (Ctrl + arrastar borda do evento na timeline)")
+                    .changed()
+                {
+                    new = edit::set_playback_rate(new, rate, fps_min_len);
+                }
+                if ui
+                    .small_button("1,00×")
+                    .on_hover_text("Restaurar velocidade original")
+                    .clicked()
+                {
+                    new = edit::set_playback_rate(new, 1.0, fps_min_len);
+                }
+            });
+            ui.checkbox(&mut new.preserve_pitch, "Preservar tom ao esticar (WSOLA)");
+            ui.separator();
             ui.horizontal(|ui| {
                 ui.label("Fade-in");
                 ui.add(
@@ -4109,6 +4383,46 @@ fn event_context_menu(
         );
         ui.close_menu();
     }
+    ui.separator();
+    let fps_min_len = 1.0 / state.project.settings.fps.max(1.0);
+    ui.menu_button("Velocidade (Time-Stretch)", |ui| {
+        for &(rate, label) in &[
+            (0.25, "0,25× (câmera lenta 4×)"),
+            (0.50, "0,50× (metade)"),
+            (0.75, "0,75×"),
+            (1.00, "1,00× (normal)"),
+            (1.25, "1,25×"),
+            (1.50, "1,50×"),
+            (2.00, "2,00× (dobro)"),
+            (4.00, "4,00×"),
+        ] {
+            let active = (g.playback_rate - rate).abs() < 1e-3;
+            if ui.selectable_label(active, label).clicked() {
+                state.apply_geometry(
+                    track_id,
+                    event_id,
+                    edit::set_playback_rate(g, rate, fps_min_len),
+                );
+                ui.close_menu();
+            }
+        }
+        ui.separator();
+        let mut preserve = g.preserve_pitch;
+        if ui
+            .checkbox(&mut preserve, "Preservar tom (WSOLA)")
+            .changed()
+        {
+            state.apply_geometry(
+                track_id,
+                event_id,
+                EventGeometry {
+                    preserve_pitch: preserve,
+                    ..g
+                },
+            );
+            ui.close_menu();
+        }
+    });
 }
 
 fn timeline_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -4225,6 +4539,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     let fps = state.project.settings.fps;
     let drop_frame = state.drop_frame();
     let lanes = Rect::from_min_max(pos2(rect.left() + HEADER_WIDTH, rect.top()), rect.max);
+    state.lanes_width = lanes.width();
 
     // ---- zoom / scroll (zoom anchored at the pointer) ------------------------------------------
     if response.hovered() {
@@ -4340,7 +4655,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let press = ui.input(|i| i.pointer.press_origin());
         if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= lane_top) {
             let t = x_to_time(state, lanes.left(), p.x);
-            if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
+            if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
+                if ui.input(|i| i.modifiers.command) {
+                    hit.2 = match hit.2 {
+                        DragMode::TrimLeft => DragMode::StretchLeft,
+                        DragMode::TrimRight => DragMode::StretchRight,
+                        other => other,
+                    };
+                }
                 state.begin_drag(hit, t);
             } else if ui.input(|i| i.modifiers.shift) {
                 // Shift + drag over empty lane: rectangular selection
@@ -4507,7 +4829,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     } else if let Some(p) = response.hover_pos().filter(|p| p.x >= lanes.left()) {
         match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
             Some(
-                DragMode::TrimLeft | DragMode::TrimRight | DragMode::FadeIn | DragMode::FadeOut,
+                DragMode::TrimLeft
+                | DragMode::TrimRight
+                | DragMode::StretchLeft
+                | DragMode::StretchRight
+                | DragMode::FadeIn
+                | DragMode::FadeOut,
             ) => {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
             }
@@ -4745,10 +5072,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Rounding::ZERO,
                 Color32::from_black_alpha(90),
             );
+            let rate = edit::clamp_playback_rate(g.playback_rate);
+            let title = if (rate - 1.0).abs() > 1e-3 {
+                format!("{} [{rate:.2}×]", ev.name)
+            } else {
+                ev.name.clone()
+            };
             lane_painter.text(
                 ev_rect.min + vec2(4.0, 1.0),
                 Align2::LEFT_TOP,
-                &ev.name,
+                &title,
                 FontId::proportional(10.0),
                 Color32::from_gray(225),
             );
@@ -4774,8 +5107,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     pos2(ev_rect.right().min(lanes.right()), ev_rect.bottom()),
                 );
                 let visible_offset = (wave_rect.left() - x0) as f64 / state.pixels_per_second;
-                let start_frame = (g.trim_in + visible_offset) * media.sample_rate as f64;
-                let frames_per_pixel = media.sample_rate as f64 / state.pixels_per_second;
+                let start_frame = (g.trim_in + visible_offset * rate) * media.sample_rate as f64;
+                let frames_per_pixel = media.sample_rate as f64 * rate / state.pixels_per_second;
                 paint_waveform(
                     &lane_painter,
                     wave_rect,
@@ -5112,17 +5445,12 @@ mod tests {
 
     fn add_event(s: &mut AppState, track_id: TrackId, start: f64, duration: f64) -> EventId {
         let event = TrackEvent {
-            group: None,
             id: s.timeline.alloc_id(),
             name: "a".into(),
             media_id: Some(1),
             start,
             duration,
-            trim_in: 0.0,
-            fade_in: 0.0,
-            fade_out: 0.0,
-            fade_in_curve: FadeCurve::default(),
-            fade_out_curve: FadeCurve::default(),
+            ..Default::default()
         };
         let id = event.id;
         s.history
@@ -6201,5 +6529,34 @@ mod tests {
             None,
             "video headers have no solo button"
         );
+    }
+
+    #[test]
+    fn ctrl_edge_stretch_scales_playback_rate_and_builds_stretched_mix_clip_with_undo() {
+        let (mut s, track, ev) = state_with_clip(); // 2.0 .. 6.0 (4 s)
+        s.project.settings.fps = 25.0;
+        s.media.insert(1, test_media());
+
+        s.begin_drag(hit(&s, track, ev, DragMode::StretchRight), 6.0);
+        // Stretch right edge from 6.0 to 10.0 -> 8.0 s duration -> 0.5x rate
+        s.update_drag(10.0, None, 0.1, false);
+        s.finish_drag();
+
+        let g = geometry(&s, track, ev);
+        assert!((g.duration - 8.0).abs() < 1e-6);
+        assert!((g.playback_rate - 0.5).abs() < 1e-6);
+        assert!(g.preserve_pitch);
+
+        let clips = s.build_clips();
+        assert_eq!(clips.len(), 1);
+        assert!((clips[0].duration - 8.0).abs() < 1e-6);
+        assert_eq!(clips[0].trim_in, 0.0);
+        assert!(!clips[0].samples.is_empty());
+
+        // Single undo restores 1.0x rate and 4.0 s duration
+        s.undo();
+        let restored = geometry(&s, track, ev);
+        assert!((restored.duration - 4.0).abs() < 1e-6);
+        assert!((restored.playback_rate - 1.0).abs() < 1e-6);
     }
 }

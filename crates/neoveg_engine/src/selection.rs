@@ -283,17 +283,12 @@ pub(crate) mod tests {
             for k in 0..3 {
                 let id = tl.alloc_id();
                 track.events.push(TrackEvent {
-                    group: None,
                     id,
                     name: format!("e{k}"),
                     media_id: Some(1),
                     start: f64::from(k) * 3.0,
                     duration: 2.0,
-                    trim_in: 0.0,
-                    fade_in: 0.0,
-                    fade_out: 0.0,
-                    fade_in_curve: Default::default(),
-                    fade_out_curve: Default::default(),
+                    ..Default::default()
                 });
             }
             tl.tracks.push(track);
