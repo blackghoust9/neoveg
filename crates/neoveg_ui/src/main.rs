@@ -7,6 +7,7 @@ mod frame_grid;
 mod fx_panel;
 mod icons;
 mod loudness_panel;
+mod mixer_panel;
 mod precision_slider;
 mod shortcuts;
 mod splash;

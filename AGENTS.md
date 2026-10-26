@@ -176,10 +176,10 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Numpad 5` | Enter / exit expanded edit mode | planned |
 | `F` / `Ctrl+F` / `Ctrl+Shift+F` | Post-edit ripple: affected tracks / + markers / everything | planned |
 | `Ctrl+L` | Auto ripple | planned |
-| `Ctrl+Shift+X` | Automatic crossfades | planned |
+| `Ctrl+Shift+X` | Automatic crossfades | implemented |
 | `Ctrl+F8` / `Shift+F8` / `Ctrl+Shift+F8` | Snap to grid / markers / all events | planned |
 | `Alt+F8` | Quantize to frames | planned |
-| `Z` / `X` | Mute / solo selected tracks (`Shift` = exclusive) | planned |
+| `Z` / `X` | Mute / solo selected tracks (`Shift` = exclusive) | implemented |
 | `V` / `P` | Insert, show or hide the track volume / pan envelope (`Shift` removes) | planned |
 | `Ctrl+Shift+E` | Show or hide envelopes | planned |
 | `Q` | Loop playback | implemented |

@@ -156,7 +156,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
 - [x] Ícones vetoriais próprios na barra da timeline (`neoveg_ui/src/icons.rs`, 16 pictogramas planos, no lugar dos emojis); falta levá-los aos demais painéis e ao menu
 - [x] Tela de carregamento nova (`neoveg_ui/src/splash.rs`): formas 3D flutuando (projeção e sombreamento por software, com paralaxe do mouse), o nome NEOVEG animado em 3D, arte original animada de um carretel de filme desenrolando quadros sob o playhead (licença MIT) e barra de progresso que acompanha as etapas reais de inicialização (preferências, placa de vídeo, saída de áudio, efeitos, decodificador de vídeo e recuperação de projetos); qualquer tecla ou clique pula a espera
-- [ ] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark)
+- [x] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark) e temas personalizados em `.json` (`Editar → Preferências → Temas`)
 - [ ] Abas no rodapé em todos os painéis (hoje só o painel de Mídia; o `egui_dock` não posiciona a barra embaixo)
 - [ ] Medidores de pico e cópia de logs no visualizador de logs da interface
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov`
@@ -277,7 +277,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Modo sobrescrever linha do tempo e importar estéreo como mono duplo
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
-- [ ] Volume, pan (leis Add Channels / Balance 0, -3, -6 dB / Constant Power), mudo, solo (exclusivo com `Ctrl`) e inverter fase por faixa; operar em todas as faixas selecionadas
+- [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução
 - [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), duplicar faixa, cor e altura de faixa, minimizar/maximizar
 - [ ] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
 - [ ] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa"

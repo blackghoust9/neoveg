@@ -7,7 +7,7 @@
 use eframe::egui::{self, Slider};
 use neoveg_audio::dsp::effects::{self, EffectInfo};
 use neoveg_audio::dsp::{ParamSpec, Unit};
-use neoveg_audio::fxmixer::{DuckSpec, EffectSpec, FxPlan};
+use neoveg_audio::fxmixer::{DuckSpec, EffectSpec, FxPlan, TrackMixSpec};
 use neoveg_engine::effects::DuckParam;
 use neoveg_engine::{Timeline, TrackDucking, TrackEffect, TrackId, TrackKind};
 
@@ -169,7 +169,7 @@ fn spec_chain(chain: &[TrackEffect]) -> Vec<EffectSpec> {
 }
 
 /// What the mixer needs to play the project: every track's chain (indexed like the tracks of the
-/// timeline) and the master's, without the bypassed effects.
+/// timeline) and the master's, without the bypassed effects, plus the per-track mixer settings.
 pub fn fx_plan(timeline: &Timeline) -> FxPlan {
     FxPlan {
         tracks: timeline
@@ -183,6 +183,19 @@ pub fn fx_plan(timeline: &Timeline) -> FxPlan {
             .iter()
             .map(|t| duck_spec(timeline, t))
             .collect(),
+        mix: timeline
+            .tracks
+            .iter()
+            .map(|t| {
+                let m = t.mix();
+                TrackMixSpec {
+                    gain: m.gain(),
+                    pan: m.pan,
+                    invert: m.invert_phase,
+                }
+            })
+            .collect(),
+        pan_law: timeline.pan_law,
     }
 }
 
@@ -677,5 +690,26 @@ mod tests {
         assert_eq!(plan.master.len(), 1);
         assert!(!plan.is_empty());
         assert!(fx_plan(&Timeline::new()).is_empty());
+    }
+
+    #[test]
+    fn the_plan_carries_per_track_mixer_settings_and_pan_law() {
+        let mut tl = Timeline::new();
+        let a = tl.new_track(TrackKind::Audio);
+        let b = tl.new_track(TrackKind::Audio);
+        tl.tracks.push(a);
+        tl.tracks.push(b);
+        assert!(fx_plan(&tl).is_empty(), "neutral faders keep the plan dry");
+
+        tl.tracks[1].volume_db = -6.0;
+        tl.tracks[1].pan = -0.5;
+        tl.tracks[1].invert_phase = true;
+        tl.pan_law = neoveg_common::pan::PanLaw::ConstantPower;
+        let plan = fx_plan(&tl);
+        assert!(!plan.is_empty());
+        assert!(plan.mix[0].is_neutral());
+        assert!((plan.mix[1].gain - 0.501_187).abs() < 1e-3);
+        assert_eq!((plan.mix[1].pan, plan.mix[1].invert), (-0.5, true));
+        assert_eq!(plan.pan_law, neoveg_common::pan::PanLaw::ConstantPower);
     }
 }

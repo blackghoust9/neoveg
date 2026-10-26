@@ -9,6 +9,7 @@ pub mod edl;
 pub mod effects;
 pub mod groups;
 pub mod markers;
+pub mod mix;
 pub mod ops;
 pub mod project_file;
 pub mod relink;
@@ -21,5 +22,5 @@ pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{
     EventGeometry, EventId, GroupId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent,
-    TrackId, TrackKind,
+    TrackId, TrackKind, TrackMix,
 };

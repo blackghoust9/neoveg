@@ -35,6 +35,7 @@ use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
+use neoveg_engine::mix;
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
@@ -51,6 +52,7 @@ use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
+use crate::mixer_panel::{self, MixAction, MixerPanelState};
 use crate::precision_slider::PrecisionSlider;
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
@@ -212,6 +214,8 @@ struct AppState {
     captions_panel: CaptionsPanelState,
     /// Audio effects panel (target and the slider being dragged).
     fx: FxPanelState,
+    /// Per-track mixer strip (fader or pan being dragged).
+    mixer: MixerPanelState,
     master_volume: f32,
     active_player: Option<ActivePlayer>,
 
@@ -638,6 +642,7 @@ impl AppState {
             show_credits: false,
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
+            mixer: MixerPanelState::default(),
             master_volume: 1.0,
             active_player: None,
             show_bars: false,
@@ -1186,6 +1191,14 @@ impl AppState {
                 .refs()
                 .into_iter()
                 .any(|e| groups::group_members(&self.timeline, e).len() > 1),
+            Command::TrackMute | Command::TrackMuteExclusive => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some(),
+            Command::TrackSolo | Command::TrackSoloExclusive => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some_and(|t| t.kind == TrackKind::Audio),
             _ => true,
         }
     }
@@ -1887,7 +1900,7 @@ impl AppState {
             .timeline
             .tracks
             .iter()
-            .filter(|t| t.kind == TrackKind::Video && !t.muted)
+            .filter(|t| t.kind == TrackKind::Video && self.timeline.audible(t))
             .find_map(|t| self.timeline.event_at(t.id, self.playhead))
             .and_then(|e| Some((e.media_id?, self.playhead - e.start + e.trim_in)));
         let Some((media_id, seconds)) = target else {
@@ -2025,7 +2038,7 @@ impl AppState {
         self.active_player = self.start_audio();
     }
 
-    /// Every unmuted audio event with decoded media, ready for the mixer. Overlapping events on a
+    /// Every audible audio event with decoded media, ready for the mixer. Overlapping events on a
     /// track crossfade when automatic crossfades are on.
     fn build_clips(&self) -> Vec<MixClip> {
         let mut clips = Vec::new();
@@ -2034,7 +2047,7 @@ impl AppState {
             .tracks
             .iter()
             .enumerate()
-            .filter(|(_, t)| t.kind == TrackKind::Audio && !t.muted)
+            .filter(|(_, t)| t.kind == TrackKind::Audio && self.timeline.audible(t))
         {
             let crossfades = if self.project.settings.auto_crossfade {
                 find_crossfades(&track.events)
@@ -2126,11 +2139,89 @@ impl AppState {
                 changed |= self.history.execute(&mut self.timeline, command);
             }
         }
-        if changed && self.playing && self.active_player.is_some() {
-            if let Some(active) = self.active_player.take() {
-                active.player.stop();
+        if changed {
+            self.restart_audio_if_playing();
+        }
+    }
+
+    /// Runs what the user did in a track's mixer strip; each action is one undo step.
+    fn apply_mix_actions(&mut self, track_id: TrackId, actions: Vec<MixAction>) {
+        let mut changed = false;
+        for action in actions {
+            let command = match action {
+                MixAction::Mute(on) => mix::set_muted(&self.timeline, track_id, on),
+                MixAction::MuteExclusive => mix::mute_exclusive(&self.timeline, track_id),
+                MixAction::Solo(on) => mix::set_solo(&self.timeline, track_id, on),
+                MixAction::SoloExclusive => mix::solo_exclusive(&self.timeline, track_id),
+                MixAction::Phase(on) => mix::set_invert_phase(&self.timeline, track_id, on),
+                MixAction::Volume(db) => mix::set_volume_db(&self.timeline, track_id, db),
+                MixAction::Pan(pan) => mix::set_pan(&self.timeline, track_id, pan),
+                MixAction::PanLaw(law) => mix::set_pan_law(&self.timeline, law),
+            };
+            if let Some(command) = command {
+                changed |= self.history.execute(&mut self.timeline, command);
             }
-            self.active_player = self.start_audio();
+        }
+        if changed {
+            self.restart_audio_if_playing();
+        }
+    }
+
+    /// `Z` / `Shift+Z` / `X` / `Shift+X`: mute or solo on the selected track.
+    fn run_track_mix_command(&mut self, command: Command) {
+        let Some(track_id) = self.selected_track else {
+            self.status = "Selecione uma faixa primeiro".into();
+            return;
+        };
+        let Some(track) = self.timeline.track(track_id) else {
+            return;
+        };
+        let action = match command {
+            Command::TrackMute => MixAction::Mute(!track.muted),
+            Command::TrackMuteExclusive => MixAction::MuteExclusive,
+            Command::TrackSolo => {
+                if track.kind != TrackKind::Audio {
+                    self.status = "Solo só se aplica a faixas de áudio".into();
+                    return;
+                }
+                MixAction::Solo(!track.solo)
+            }
+            Command::TrackSoloExclusive => {
+                if track.kind != TrackKind::Audio {
+                    self.status = "Solo só se aplica a faixas de áudio".into();
+                    return;
+                }
+                MixAction::SoloExclusive
+            }
+            _ => return,
+        };
+        self.apply_mix_actions(track_id, vec![action]);
+    }
+
+    /// Restarts live playback at the cursor so effect, mixer or undo/redo edits take effect
+    /// immediately. Zeroes the peak meter when every track is now silent.
+    fn restart_audio_if_playing(&mut self) {
+        if !self.playing {
+            return;
+        }
+        if let Some(active) = self.active_player.take() {
+            active.player.stop();
+        }
+        self.active_player = self.start_audio();
+        if self.active_player.is_none() {
+            self.meter.reset();
+        }
+    }
+
+    fn undo(&mut self) {
+        if self.history.undo(&mut self.timeline) {
+            self.restart_audio_if_playing();
+        }
+    }
+
+    fn redo(&mut self) {
+        if self.history.redo(&mut self.timeline) {
+            self.restart_audio_if_playing();
         }
     }
 
@@ -2221,12 +2312,8 @@ impl AppState {
             Command::FileOpen => self.open_project(ctx),
             Command::FileSave => self.save_project(false),
             Command::FileSaveAs => self.save_project(true),
-            Command::EditUndo => {
-                self.history.undo(&mut self.timeline);
-            }
-            Command::EditRedo => {
-                self.history.redo(&mut self.timeline);
-            }
+            Command::EditUndo => self.undo(),
+            Command::EditRedo => self.redo(),
             Command::EditDelete => self.delete_selection(),
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
@@ -2279,6 +2366,10 @@ impl AppState {
             Command::InsertRegion => self.insert_region(),
             Command::CursorPreviousMarker => self.jump_to_mark(false, now),
             Command::CursorNextMarker => self.jump_to_mark(true, now),
+            Command::TrackMute
+            | Command::TrackMuteExclusive
+            | Command::TrackSolo
+            | Command::TrackSoloExclusive => self.run_track_mix_command(command),
             c if c.marker_number().is_some() => {
                 self.jump_to_marker_number(c.marker_number().unwrap_or(1), now);
             }
@@ -2565,7 +2656,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 )
                 .clicked()
             {
-                state.history.undo(&mut state.timeline);
+                state.undo();
                 ui.close_menu();
             }
             if ui
@@ -2575,7 +2666,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 )
                 .clicked()
             {
-                state.history.redo(&mut state.timeline);
+                state.redo();
                 ui.close_menu();
             }
             ui.separator();
@@ -2623,6 +2714,19 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui.button("Personalizar teclado…").clicked() {
                 state.show_keymap = true;
                 ui.close_menu();
+            }
+        });
+        ui.menu_button("Faixas", |ui| {
+            command_item(state, ui, Command::InsertAudioTrack);
+            command_item(state, ui, Command::InsertVideoTrack);
+            ui.separator();
+            for command in [
+                Command::TrackMute,
+                Command::TrackMuteExclusive,
+                Command::TrackSolo,
+                Command::TrackSoloExclusive,
+            ] {
+                command_item(state, ui, command);
             }
         });
         ui.menu_button("Ferramentas", |ui| {
@@ -3394,20 +3498,55 @@ fn fmt_db(linear: f32) -> String {
     }
 }
 
-/// The audio effects panel: the chain of the selected audio track or of the master bus.
+/// The audio effects and per-track mixer panel: the strip + chain of the selected audio track,
+/// mute for a selected video track, or the master bus chain.
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let (target, title) = match state.fx_target() {
         Some(found) => found,
         None => {
-            // Keep the Track / Master switch reachable even with nothing selected
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut state.fx.master, false, "Faixa");
                 ui.selectable_value(&mut state.fx.master, true, "Master");
             });
-            ui.weak("Selecione uma faixa de áudio para ver os efeitos dela.");
+            if let Some(video) = state
+                .selected_track
+                .and_then(|id| state.timeline.track(id).cloned())
+                .filter(|t| t.kind == TrackKind::Video)
+            {
+                let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                ui.horizontal(|ui| {
+                    if icons::icon_button(
+                        ui,
+                        Icon::Mute,
+                        "Mudo na faixa de vídeo (Z; Ctrl+clique = só esta faixa)",
+                        video.muted,
+                    )
+                    .clicked()
+                    {
+                        let action = if exclusive {
+                            MixAction::MuteExclusive
+                        } else {
+                            MixAction::Mute(!video.muted)
+                        };
+                        state.apply_mix_actions(video.id, vec![action]);
+                    }
+                    ui.label(&video.name);
+                });
+                ui.weak("Faixa de vídeo: sem efeitos de áudio.");
+            } else {
+                ui.weak("Selecione uma faixa de áudio para ver o mixer e os efeitos dela.");
+            }
             return;
         }
     };
+    if let FxTarget::Track(id) = target {
+        if let Some(track) = state.timeline.track(id).cloned() {
+            let mix_actions =
+                mixer_panel::mixer_ui(ui, &mut state.mixer, &track, state.timeline.pan_law);
+            state.apply_mix_actions(id, mix_actions);
+            ui.separator();
+        }
+    }
     let chain = fx::chain(&state.timeline, target)
         .map(<[_]>::to_vec)
         .unwrap_or_default();
@@ -3492,6 +3631,52 @@ fn master_bus_content(state: &mut AppState, ui: &mut egui::Ui) {
 
 fn x_to_time(state: &AppState, left: f32, x: f32) -> f64 {
     state.scroll_seconds + (x - left) as f64 / state.pixels_per_second
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeaderControl {
+    Mute,
+    Solo,
+    Phase,
+}
+
+impl HeaderControl {
+    fn icon(self) -> Icon {
+        match self {
+            Self::Mute => Icon::Mute,
+            Self::Solo => Icon::Solo,
+            Self::Phase => Icon::Phase,
+        }
+    }
+
+    fn tooltip(self) -> &'static str {
+        match self {
+            Self::Mute => "Mudo (Z; Ctrl+clique = só esta faixa)",
+            Self::Solo => "Solo (X; Ctrl+clique = só esta faixa)",
+            Self::Phase => "Inverter a fase",
+        }
+    }
+}
+
+/// Rectangles of the Mute, Solo and Phase buttons inside a track header row.
+fn header_buttons(row: Rect, kind: TrackKind) -> Vec<(HeaderControl, Rect)> {
+    let side = 20.0;
+    let y = row.top() + 34.0;
+    let button = |x: f32| Rect::from_min_size(pos2(row.left() + x, y), vec2(side, side));
+    match kind {
+        TrackKind::Audio => vec![
+            (HeaderControl::Mute, button(6.0)),
+            (HeaderControl::Solo, button(29.0)),
+            (HeaderControl::Phase, button(52.0)),
+        ],
+        TrackKind::Video => vec![(HeaderControl::Mute, button(6.0))],
+    }
+}
+
+fn hit_header_control(row: Rect, kind: TrackKind, p: Pos2) -> Option<HeaderControl> {
+    header_buttons(row, kind)
+        .into_iter()
+        .find_map(|(control, r)| r.contains(p).then_some(control))
 }
 
 /// Width of the trim zones at both ends of an event.
@@ -3669,10 +3854,10 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.split_at_playhead();
         }
         if icon(ui, Icon::Undo, "Desfazer (Ctrl+Z)") {
-            state.history.undo(&mut state.timeline);
+            state.undo();
         }
         if icon(ui, Icon::Redo, "Refazer (Ctrl+Y)") {
-            state.history.redo(&mut state.timeline);
+            state.redo();
         }
         ui.separator();
         if icon(ui, Icon::AddAudioTrack, "Inserir faixa de áudio (Ctrl+Q)") {
@@ -3837,6 +4022,25 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
             } else if response.clicked() && track_id.is_some() {
                 state.selected_track = track_id;
+                let row_idx = row as usize;
+                if let Some(track) = state.timeline.tracks.get(row_idx).cloned() {
+                    let y = rect.top() + RULER_HEIGHT + row_idx as f32 * TRACK_HEIGHT;
+                    let row_rect = Rect::from_min_max(
+                        pos2(rect.left(), y),
+                        pos2(lanes.left(), y + TRACK_HEIGHT),
+                    );
+                    if let Some(ctrl) = hit_header_control(row_rect, track.kind, p) {
+                        let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                        let action = match ctrl {
+                            HeaderControl::Mute if exclusive => MixAction::MuteExclusive,
+                            HeaderControl::Mute => MixAction::Mute(!track.muted),
+                            HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
+                            HeaderControl::Solo => MixAction::Solo(!track.solo),
+                            HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
+                        };
+                        state.apply_mix_actions(track.id, vec![action]);
+                    }
+                }
             }
         }
     }
@@ -4192,6 +4396,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             TrackKind::Audio => pal.audio_clip,
             TrackKind::Video => pal.video_clip,
         };
+        let base = if state.timeline.audible(track) {
+            base
+        } else {
+            base.gamma_multiply(0.45)
+        };
         for ev in &track.events {
             let dragging = state
                 .drag
@@ -4474,6 +4683,62 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::proportional(11.0),
             ui.visuals().text_color(),
         );
+
+        // Per-track Mute / Solo / Phase buttons and compact dB + Pan readout
+        let hover_pos = response.hover_pos();
+        for (ctrl, btn_rect) in header_buttons(row, track.kind) {
+            let active = match ctrl {
+                HeaderControl::Mute => track.muted,
+                HeaderControl::Solo => track.solo,
+                HeaderControl::Phase => track.invert_phase,
+            };
+            let hovered = hover_pos.is_some_and(|p| btn_rect.contains(p));
+            let fill = match (ctrl, active, hovered) {
+                (HeaderControl::Mute, true, _) => Color32::from_rgb(0xC0, 0x39, 0x2B),
+                (HeaderControl::Solo, true, _) => Color32::from_rgb(0xD3, 0x54, 0x00),
+                (HeaderControl::Phase, true, _) => ui.visuals().selection.bg_fill,
+                (_, false, true) => ui.visuals().widgets.hovered.bg_fill,
+                _ => Color32::from_black_alpha(45),
+            };
+            header_painter.rect_filled(btn_rect, Rounding::ZERO, fill);
+            let fg = if active {
+                Color32::WHITE
+            } else {
+                ui.visuals().text_color()
+            };
+            header_painter.extend(icons::shapes(ctrl.icon(), btn_rect.shrink(3.5), fg));
+        }
+        if track.kind == TrackKind::Audio {
+            let db_short = if track.volume_db <= neoveg_engine::TrackMix::VOLUME_RANGE_DB.0 {
+                "-∞".to_string()
+            } else {
+                format!("{:+.1}", track.volume_db)
+            };
+            let pan_short = mixer_panel::format_pan(track.pan).replace(' ', "");
+            header_painter.text(
+                row.min + vec2(77.0, 44.0),
+                Align2::LEFT_CENTER,
+                format!("{db_short} {pan_short}"),
+                FontId::monospace(9.5),
+                ui.visuals().weak_text_color(),
+            );
+        }
+    }
+    if let Some(p) = response
+        .hover_pos()
+        .filter(|p| p.x < lanes.left() && p.y >= lane_top)
+    {
+        let row_idx = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+        if row_idx >= 0.0 {
+            if let Some(track) = state.timeline.tracks.get(row_idx as usize) {
+                let y = lane_top + row_idx * TRACK_HEIGHT;
+                let row =
+                    Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
+                if let Some(ctrl) = hit_header_control(row, track.kind, p) {
+                    response.clone().on_hover_text(ctrl.tooltip());
+                }
+            }
+        }
     }
     if state.timeline.tracks.is_empty() {
         header_painter.text(
@@ -5562,5 +5827,90 @@ mod tests {
         assert_eq!(s.history.revision(), revision);
         assert_eq!(spans(&s, track).len(), 1);
         assert!(s.status.contains("vazia"));
+    }
+
+    #[test]
+    fn mute_and_solo_shortcuts_act_on_the_selected_track_and_filter_build_clips() {
+        let (mut s, first, _) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let second = s.selected_track.unwrap();
+        add_event(&mut s, second, 0.0, 2.0);
+        s.media.insert(1, test_media());
+
+        assert_eq!(s.build_clips().len(), 2);
+        // Solo on `second`: only `second` plays
+        run(&mut s, Command::TrackSolo);
+        assert!(s.timeline.track(second).unwrap().solo);
+        let clips = s.build_clips();
+        assert_eq!(clips.len(), 1);
+        assert_eq!(clips[0].track, 1);
+
+        // Exclusive solo on `first`: swaps solo in one undo step
+        s.selected_track = Some(first);
+        let rev = s.history.revision();
+        run(&mut s, Command::TrackSoloExclusive);
+        assert_eq!(s.history.revision(), rev + 1);
+        assert!(s.timeline.track(first).unwrap().solo && !s.timeline.track(second).unwrap().solo);
+        assert_eq!(s.build_clips()[0].track, 0);
+
+        // Mute overrides solo on the same track
+        run(&mut s, Command::TrackMute);
+        assert!(s.build_clips().is_empty());
+
+        // Exclusive mute on `second`: clears `first`'s mute and mutes `second`
+        s.selected_track = Some(second);
+        run(&mut s, Command::TrackMuteExclusive);
+        assert!(!s.timeline.track(first).unwrap().muted && s.timeline.track(second).unwrap().muted);
+
+        run(&mut s, Command::EditUndo);
+        assert!(s.timeline.track(first).unwrap().muted && !s.timeline.track(second).unwrap().muted);
+    }
+
+    #[test]
+    fn mixer_actions_update_track_fader_pan_phase_and_pan_law_with_undo() {
+        let (mut s, track, _) = state_with_clip();
+        let rev = s.history.revision();
+        s.apply_mix_actions(
+            track,
+            vec![
+                MixAction::Volume(-6.0),
+                MixAction::Pan(0.4),
+                MixAction::Phase(true),
+                MixAction::PanLaw(neoveg_common::pan::PanLaw::ConstantPower),
+            ],
+        );
+        assert_eq!(s.history.revision(), rev + 4);
+        let plan = fx_panel::fx_plan(&s.timeline);
+        assert_eq!((plan.mix[0].pan, plan.mix[0].invert), (0.4, true));
+        assert_eq!(plan.pan_law, neoveg_common::pan::PanLaw::ConstantPower);
+
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.pan_law, neoveg_common::pan::PanLaw::Balance);
+    }
+
+    #[test]
+    fn header_controls_hit_test_audio_and_video_rows() {
+        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
+        assert_eq!(
+            hit_header_control(row, TrackKind::Audio, pos2(12.0, 142.0)),
+            Some(HeaderControl::Mute)
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Audio, pos2(35.0, 142.0)),
+            Some(HeaderControl::Solo)
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Audio, pos2(58.0, 142.0)),
+            Some(HeaderControl::Phase)
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Video, pos2(12.0, 142.0)),
+            Some(HeaderControl::Mute)
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Video, pos2(35.0, 142.0)),
+            None,
+            "video headers have no solo button"
+        );
     }
 }

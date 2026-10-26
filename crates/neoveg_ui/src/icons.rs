@@ -46,6 +46,9 @@ icons! {
     Add,
     Import,
     Export,
+    Mute,
+    Solo,
+    Phase,
 }
 
 impl Icon {
@@ -270,6 +273,30 @@ fn draw(c: &mut Canvas, icon: Icon) {
             // Power symbol: a ring open at the top and a stroke through the gap
             c.path(&arc((0.5, 0.56), 0.3, -60.0, 240.0, 20));
             c.line((0.5, 0.12), (0.5, 0.52), 1.2);
+        }
+        Icon::Mute => {
+            // A speaker with a cross over its sound
+            c.fill(&[
+                (0.14, 0.38),
+                (0.3, 0.38),
+                (0.5, 0.2),
+                (0.5, 0.8),
+                (0.3, 0.62),
+                (0.14, 0.62),
+            ]);
+            c.line((0.62, 0.38), (0.88, 0.62), 1.0);
+            c.line((0.88, 0.38), (0.62, 0.62), 1.0);
+        }
+        Icon::Solo => {
+            // Headphones
+            c.path(&arc((0.5, 0.56), 0.32, 180.0, 360.0, 16));
+            c.fill_rect((0.14, 0.54), (0.3, 0.82));
+            c.fill_rect((0.7, 0.54), (0.86, 0.82));
+        }
+        Icon::Phase => {
+            // A circle with a slash: polarity inversion
+            c.circle((0.5, 0.5), 0.32);
+            c.line((0.26, 0.74), (0.74, 0.26), 1.0);
         }
         Icon::Remove => {
             c.line((0.24, 0.24), (0.76, 0.76), 1.1);

@@ -10,6 +10,7 @@ use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
 use crate::duck::{analyze, DuckCurve};
 use crate::mixer::{plan_end, MixClip};
+use neoveg_common::pan::PanLaw;
 
 /// Most frames the mixer handles per block; the callback cuts longer buffers into blocks.
 pub const MAX_BLOCK: usize = 512;
@@ -32,6 +33,39 @@ pub struct DuckSpec {
     pub fade_s: f32,
 }
 
+/// The fader, pan and phase of one track, applied after its effects.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrackMixSpec {
+    /// Linear gain of the fader.
+    pub gain: f32,
+    /// `-1.0` (left) to `1.0` (right).
+    pub pan: f32,
+    pub invert: bool,
+}
+
+impl Default for TrackMixSpec {
+    fn default() -> Self {
+        Self {
+            gain: 1.0,
+            pan: 0.0,
+            invert: false,
+        }
+    }
+}
+
+impl TrackMixSpec {
+    pub fn is_neutral(&self) -> bool {
+        self.gain == 1.0 && self.pan == 0.0 && !self.invert
+    }
+
+    /// Left and right multipliers under `law`, with the polarity flip folded in.
+    fn gains(&self, law: PanLaw) -> (f32, f32) {
+        let (l, r) = law.gains(self.pan);
+        let sign = if self.invert { -1.0 } else { 1.0 };
+        (l * self.gain * sign, r * self.gain * sign)
+    }
+}
+
 /// The effect chains of a project: one per track (indexed like `MixClip::track`) and the master's,
 /// plus the auto-ducking of the tracks that have it.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -40,6 +74,9 @@ pub struct FxPlan {
     pub master: Vec<EffectSpec>,
     /// Indexed like `tracks`; may be shorter.
     pub duck: Vec<Option<DuckSpec>>,
+    /// Fader, pan and phase of the tracks, indexed like `tracks`; may be shorter.
+    pub mix: Vec<TrackMixSpec>,
+    pub pan_law: PanLaw,
 }
 
 impl FxPlan {
@@ -50,6 +87,7 @@ impl FxPlan {
                 .duck
                 .iter()
                 .all(|d| d.as_ref().is_none_or(|d| d.controllers.is_empty()))
+            && self.mix.iter().all(TrackMixSpec::is_neutral)
     }
 }
 
@@ -116,6 +154,8 @@ pub struct BlockMixer {
     /// Auto-ducking curve of every bus (entry 0 never has one) and the buses that have one.
     ducks: Vec<Option<DuckCurve>>,
     ducked: Vec<usize>,
+    /// Left / right multipliers of every bus after its effects (fader, pan, phase).
+    bus_mix: Vec<(f32, f32)>,
     /// Gain of every bus at the frame being mixed (1 unless the bus is ducked).
     gains: Vec<f32>,
     master: Vec<Box<dyn AudioEffect>>,
@@ -135,7 +175,8 @@ impl BlockMixer {
         let end = plan_end(&clips);
         let mut chains: Vec<Vec<Box<dyn AudioEffect>>> = vec![Vec::new()];
         let mut ducks: Vec<Option<DuckCurve>> = vec![None];
-        let track_count = plan.tracks.len().max(plan.duck.len());
+        let mut bus_mix: Vec<(f32, f32)> = vec![(1.0, 1.0)];
+        let track_count = plan.tracks.len().max(plan.duck.len()).max(plan.mix.len());
         let mut bus_of_track = Vec::with_capacity(track_count);
         for t in 0..track_count {
             let chain = plan
@@ -156,13 +197,15 @@ impl BlockMixer {
                     analyze(&controllers, end, d.sensitivity, d.reduce_db, d.fade_s)
                 })
                 .filter(|c| !c.is_flat());
-            if chain.is_empty() && curve.is_none() {
+            let mix = plan.mix.get(t).copied().unwrap_or_default();
+            if chain.is_empty() && curve.is_none() && mix.is_neutral() {
                 bus_of_track.push(0);
             } else {
-                // A ducked track needs its own bus even without effects
+                // A ducked or mixed track needs its own bus even without effects
                 bus_of_track.push(chains.len());
                 chains.push(chain);
                 ducks.push(curve);
+                bus_mix.push(mix.gains(plan.pan_law));
             }
         }
         let clip_bus = clips
@@ -186,6 +229,7 @@ impl BlockMixer {
             clip_bus,
             ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
             gains: vec![1.0; buses],
+            bus_mix,
             ducks,
             chains,
             master,
@@ -259,6 +303,13 @@ impl BlockMixer {
                 effect.process(&mut [&mut *l, &mut *r]);
             }
             self.delays[bus].process(l, r);
+            let (gl, gr) = self.bus_mix[bus];
+            if (gl, gr) != (1.0, 1.0) {
+                for (l, r) in l.iter_mut().zip(r.iter_mut()) {
+                    *l *= gl;
+                    *r *= gr;
+                }
+            }
         }
         self.out_l[..n].copy_from_slice(&self.bus_l[0][..n]);
         self.out_r[..n].copy_from_slice(&self.bus_r[0][..n]);
@@ -363,6 +414,82 @@ mod tests {
         // Later both are: 0.25 dry + 0.5 delayed
         let settled = l[RATE as usize / 4];
         assert!((settled - 0.75).abs() < 0.02, "settled: {settled}");
+    }
+
+    fn mix_plan(mix: Vec<TrackMixSpec>, pan_law: PanLaw) -> FxPlan {
+        FxPlan {
+            tracks: vec![vec![]; mix.len()],
+            mix,
+            pan_law,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_neutral_mixer_keeps_the_plan_empty_and_the_sound_unchanged() {
+        let plan = mix_plan(vec![TrackMixSpec::default(); 2], PanLaw::ConstantPower);
+        assert!(plan.is_empty());
+        let mut mixer = BlockMixer::new(
+            vec![constant(0, 0.25, 0.2), constant(1, 0.5, 0.2)],
+            &plan,
+            RATE as f32,
+        );
+        let (l, r) = render(&mut mixer, 480, 480);
+        assert!((l[100] - 0.75).abs() < 1e-6 && (r[100] - 0.75).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_fader_scales_only_its_own_track() {
+        let half = TrackMixSpec {
+            gain: 0.5,
+            ..Default::default()
+        };
+        let plan = mix_plan(vec![TrackMixSpec::default(), half], PanLaw::Balance);
+        assert!(!plan.is_empty());
+        let mut mixer = BlockMixer::new(
+            vec![constant(0, 0.2, 0.2), constant(1, 0.4, 0.2)],
+            &plan,
+            RATE as f32,
+        );
+        let (l, _) = render(&mut mixer, 480, 480);
+        assert!((l[100] - 0.4).abs() < 1e-6, "{}", l[100]);
+    }
+
+    #[test]
+    fn pan_moves_a_track_between_the_channels() {
+        let hard_right = TrackMixSpec {
+            pan: 1.0,
+            ..Default::default()
+        };
+        let plan = mix_plan(vec![hard_right], PanLaw::Balance);
+        let mut mixer = BlockMixer::new(vec![constant(0, 0.5, 0.2)], &plan, RATE as f32);
+        let (l, r) = render(&mut mixer, 480, 480);
+        assert!(l[100].abs() < 1e-6 && (r[100] - 0.5).abs() < 1e-6);
+        let half = TrackMixSpec {
+            pan: 0.0,
+            gain: 1.0,
+            invert: false,
+        };
+        let linear = mix_plan(vec![half, hard_right], PanLaw::Linear);
+        let mut mixer = BlockMixer::new(vec![constant(1, 0.5, 0.2)], &linear, RATE as f32);
+        let (l, r) = render(&mut mixer, 480, 480);
+        assert!(l[100].abs() < 1e-6 && (r[100] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn inverting_the_phase_cancels_against_the_original() {
+        let flip = TrackMixSpec {
+            invert: true,
+            ..Default::default()
+        };
+        let plan = mix_plan(vec![TrackMixSpec::default(), flip], PanLaw::Balance);
+        let mut mixer = BlockMixer::new(
+            vec![constant(0, 0.4, 0.2), constant(1, 0.4, 0.2)],
+            &plan,
+            RATE as f32,
+        );
+        let (l, r) = render(&mut mixer, 480, 480);
+        assert!(l[100].abs() < 1e-6 && r[100].abs() < 1e-6);
     }
 
     #[test]
@@ -540,6 +667,7 @@ mod tests {
                     fade_s: 0.2,
                 }),
             ],
+            ..Default::default()
         }
     }
 

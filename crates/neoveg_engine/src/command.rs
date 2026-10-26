@@ -4,9 +4,10 @@ use crate::captions::Caption;
 use crate::markers::Marks;
 use crate::timeline::{
     EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
-    TIME_EPSILON,
+    TrackMix, TIME_EPSILON,
 };
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::pan::PanLaw;
 
 /// Where an effect chain lives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +86,17 @@ pub enum EditCommand {
     ReplaceCaptions {
         before: Vec<Caption>,
         after: Vec<Caption>,
+    },
+    /// Any change to a track's mixer controls (mute, solo, fader, pan, phase): one undo step.
+    SetTrackMix {
+        track_id: TrackId,
+        before: TrackMix,
+        after: TrackMix,
+    },
+    /// The pan law of the project.
+    SetPanLaw {
+        before: PanLaw,
+        after: PanLaw,
     },
     /// Any change to a track's auto-ducking (on / off, controllers, amounts): one undo step.
     SetDucking {
@@ -188,6 +200,13 @@ impl EditCommand {
                 tl.captions = after.clone();
                 true
             }
+            Self::SetTrackMix {
+                track_id, after, ..
+            } => set_track_mix(tl, *track_id, *after),
+            Self::SetPanLaw { after, .. } => {
+                tl.pan_law = *after;
+                true
+            }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SetDucking {
                 track_id, after, ..
@@ -276,6 +295,12 @@ impl EditCommand {
                 }
             }
             Self::ReplaceCaptions { before, .. } => tl.captions = before.clone(),
+            Self::SetTrackMix {
+                track_id, before, ..
+            } => {
+                set_track_mix(tl, *track_id, *before);
+            }
+            Self::SetPanLaw { before, .. } => tl.pan_law = *before,
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
             }
@@ -301,6 +326,16 @@ impl EditCommand {
                 }
             }
         }
+    }
+}
+
+fn set_track_mix(tl: &mut Timeline, track_id: TrackId, mix: TrackMix) -> bool {
+    match tl.track_mut(track_id) {
+        Some(t) => {
+            t.set_mix(mix);
+            true
+        }
+        None => false,
     }
 }
 

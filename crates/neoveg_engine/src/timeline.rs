@@ -5,6 +5,7 @@ use crate::markers::{Marker, Region};
 use std::collections::BTreeMap;
 
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::pan::PanLaw;
 use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
@@ -121,6 +122,67 @@ fn default_fade_s() -> f32 {
     0.8
 }
 
+/// The mixer controls of a track: mute, solo, fader, pan and phase invert.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TrackMix {
+    pub muted: bool,
+    pub solo: bool,
+    /// Fader after the track's effects, in dB (`0` = unity).
+    pub volume_db: f32,
+    /// `-1.0` (left) to `1.0` (right).
+    pub pan: f32,
+    /// Flips the polarity of the track.
+    pub invert_phase: bool,
+}
+
+impl Default for TrackMix {
+    fn default() -> Self {
+        Self {
+            muted: false,
+            solo: false,
+            volume_db: 0.0,
+            pan: 0.0,
+            invert_phase: false,
+        }
+    }
+}
+
+impl TrackMix {
+    /// Lowest and highest fader value, dB.
+    pub const VOLUME_RANGE_DB: (f32, f32) = (-60.0, 12.0);
+
+    /// `true` when the fader, pan and phase leave the audio untouched.
+    pub fn is_neutral(&self) -> bool {
+        self.volume_db == 0.0 && self.pan == 0.0 && !self.invert_phase
+    }
+
+    /// Linear gain of the fader.
+    pub fn gain(&self) -> f32 {
+        if self.volume_db <= Self::VOLUME_RANGE_DB.0 {
+            0.0
+        } else {
+            10f32.powf(self.volume_db / 20.0)
+        }
+    }
+
+    /// The same controls with every value clamped to its range (and NaN made neutral).
+    pub fn sanitized(mut self) -> Self {
+        let (lo, hi) = Self::VOLUME_RANGE_DB;
+        self.volume_db = if self.volume_db.is_finite() {
+            self.volume_db.clamp(lo, hi)
+        } else {
+            0.0
+        };
+        self.pan = if self.pan.is_finite() {
+            self.pan.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        self
+    }
+}
+
 /// Auto-ducking of a track (typically music): whenever the `controllers` tracks (dialogue, effects)
 /// have sound, this track is turned down by `reduce_db`, with a smooth ramp that starts before the
 /// sound does. The analysis is done when playback starts, on the controllers' audio.
@@ -155,6 +217,17 @@ pub struct Track {
     pub kind: TrackKind,
     pub name: String,
     pub muted: bool,
+    /// Solo: while any audio track is soloed, only the soloed ones are heard.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub solo: bool,
+    /// Fader after the track's effects, dB (older projects have unity).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub volume_db: f32,
+    /// Pan, `-1.0` to `1.0` (older projects have the center).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub pan: f32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub invert_phase: bool,
     pub events: Vec<TrackEvent>,
     /// Effect chain, applied in order to the sum of the track's events (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -162,6 +235,36 @@ pub struct Track {
     /// Auto-ducking against other tracks (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ducking: Option<TrackDucking>,
+}
+
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
+}
+
+fn is_default_law(law: &PanLaw) -> bool {
+    *law == PanLaw::default()
+}
+
+impl Track {
+    /// The mixer controls of the track.
+    pub fn mix(&self) -> TrackMix {
+        TrackMix {
+            muted: self.muted,
+            solo: self.solo,
+            volume_db: self.volume_db,
+            pan: self.pan,
+            invert_phase: self.invert_phase,
+        }
+    }
+
+    pub fn set_mix(&mut self, mix: TrackMix) {
+        let mix = mix.sanitized();
+        self.muted = mix.muted;
+        self.solo = mix.solo;
+        self.volume_db = mix.volume_db;
+        self.pan = mix.pan;
+        self.invert_phase = mix.invert_phase;
+    }
 }
 
 /// A project timeline. A new timeline has no tracks.
@@ -180,6 +283,9 @@ pub struct Timeline {
     /// Effect chain of the master bus, applied after every track is summed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub master_effects: Vec<TrackEffect>,
+    /// How the pan controls of the tracks turn into left / right gains.
+    #[serde(default, skip_serializing_if = "is_default_law")]
+    pub pan_law: PanLaw,
     next_id: u64,
 }
 
@@ -224,10 +330,30 @@ impl Timeline {
             kind,
             name: format!("{label} {number}"),
             muted: false,
+            solo: false,
+            volume_db: 0.0,
+            pan: 0.0,
+            invert_phase: false,
             events: Vec::new(),
             effects: Vec::new(),
             ducking: None,
         }
+    }
+
+    /// `true` when the track is heard (or shown, for video): not muted and, for audio tracks
+    /// while any audio track is soloed, soloed.
+    pub fn audible(&self, track: &Track) -> bool {
+        if track.muted {
+            return false;
+        }
+        if track.kind != TrackKind::Audio {
+            return true;
+        }
+        let any_solo = self
+            .tracks
+            .iter()
+            .any(|t| t.kind == TrackKind::Audio && t.solo);
+        !any_solo || track.solo
     }
 
     /// The event under `time` on `track_id`, if any.

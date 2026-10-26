@@ -176,10 +176,10 @@ commands! {
     RippleAll => ("edit.ripple.all", "Ripple em tudo", Options, false),
 
     // ---- Faixas
-    TrackMute => ("track.mute", "Mudo na faixa", Track, false),
-    TrackMuteExclusive => ("track.mute_exclusive", "Mudo só nesta faixa", Track, false),
-    TrackSolo => ("track.solo", "Solo na faixa", Track, false),
-    TrackSoloExclusive => ("track.solo_exclusive", "Solo só nesta faixa", Track, false),
+    TrackMute => ("track.mute", "Mudo na faixa", Track, true),
+    TrackMuteExclusive => ("track.mute_exclusive", "Mudo só nesta faixa", Track, true),
+    TrackSolo => ("track.solo", "Solo na faixa", Track, true),
+    TrackSoloExclusive => ("track.solo_exclusive", "Solo só nesta faixa", Track, true),
     TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, false),
     TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, false),
     TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, false),
