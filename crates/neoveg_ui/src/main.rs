@@ -3,6 +3,7 @@
 mod app;
 mod captions_panel;
 mod credits;
+mod envelope_canvas;
 mod frame_grid;
 mod fx_panel;
 mod icons;

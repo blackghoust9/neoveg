@@ -229,6 +229,21 @@ pub fn set_duck_param(
     })
 }
 
+/// Switches auto-ducking between pre-playback lookahead (`false`) and live sidechain (`true`).
+pub fn set_duck_realtime(
+    timeline: &Timeline,
+    track_id: TrackId,
+    realtime: bool,
+) -> Option<EditCommand> {
+    edit_ducking(timeline, track_id, |d| {
+        let Some(duck) = d else {
+            return false;
+        };
+        duck.realtime = realtime;
+        true
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

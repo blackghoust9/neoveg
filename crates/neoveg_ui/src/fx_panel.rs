@@ -7,9 +7,15 @@
 use eframe::egui::{self, Slider};
 use neoveg_audio::dsp::effects::{self, EffectInfo};
 use neoveg_audio::dsp::{ParamSpec, Unit};
-use neoveg_audio::fxmixer::{DuckSpec, EffectSpec, FxPlan, TrackMixSpec};
+use neoveg_audio::fxmixer::{
+    AutomationCurve, AutomationKey, DuckSpec, EffectSpec, FxPlan, ParamAutomationSpec, TrackMixSpec,
+};
+use neoveg_common::fade::FadeCurve;
 use neoveg_engine::effects::DuckParam;
-use neoveg_engine::{Timeline, TrackDucking, TrackEffect, TrackId, TrackKind};
+use neoveg_engine::{
+    AutomationTarget, EnvelopeShape, Timeline, TrackDucking, TrackEffect, TrackEnvelope, TrackId,
+    TrackKind,
+};
 
 use crate::icons::{self, Icon};
 
@@ -17,6 +23,7 @@ use crate::icons::{self, Icon};
 #[derive(Debug, Clone, PartialEq)]
 pub enum DuckAction {
     Enable(bool),
+    Realtime(bool),
     Controller(TrackId, bool),
     Param(DuckParam, f32),
 }
@@ -67,6 +74,11 @@ pub enum FxAction {
     ResetParam {
         index: usize,
         param: String,
+    },
+    ToggleAutomate {
+        index: usize,
+        param: String,
+        value: f32,
     },
 }
 
@@ -196,9 +208,76 @@ fn spec_chain(chain: &[TrackEffect]) -> Vec<EffectSpec> {
         .collect()
 }
 
+fn to_automation_curve(env: &TrackEnvelope) -> Option<AutomationCurve> {
+    if !env.enabled || env.points.is_empty() {
+        return None;
+    }
+    let keys = env
+        .points
+        .iter()
+        .map(|p| AutomationKey {
+            time: p.time,
+            value: p.value,
+            curve: match p.shape {
+                EnvelopeShape::Linear => Some(FadeCurve::Linear),
+                EnvelopeShape::Fast => Some(FadeCurve::Fast),
+                EnvelopeShape::Slow => Some(FadeCurve::Slow),
+                EnvelopeShape::Smooth => Some(FadeCurve::Smooth),
+                EnvelopeShape::Sharp => Some(FadeCurve::Sharp),
+                EnvelopeShape::Hold => None,
+            },
+        })
+        .collect();
+    Some(AutomationCurve { keys })
+}
+
+fn collect_param_envelopes(
+    track: Option<usize>,
+    chain: &[TrackEffect],
+    envelopes: &[TrackEnvelope],
+    out: &mut Vec<ParamAutomationSpec>,
+) {
+    for env in envelopes {
+        let AutomationTarget::EffectParam {
+            effect_index,
+            param_id,
+        } = &env.target
+        else {
+            continue;
+        };
+        let Some(target_fx) = chain.get(*effect_index) else {
+            continue;
+        };
+        if target_fx.bypass {
+            continue;
+        }
+        let Some(curve) = to_automation_curve(env) else {
+            continue;
+        };
+        let active_fx_index = chain[..*effect_index].iter().filter(|e| !e.bypass).count();
+        out.push(ParamAutomationSpec {
+            track,
+            active_fx_index,
+            param_id: param_id.clone(),
+            curve,
+        });
+    }
+}
+
 /// What the mixer needs to play the project: every track's chain (indexed like the tracks of the
-/// timeline) and the master's, without the bypassed effects, plus the per-track mixer settings.
+/// timeline) and the master's, without the bypassed effects, plus the per-track mixer settings,
+/// automation envelopes and sidechain ducking.
 pub fn fx_plan(timeline: &Timeline) -> FxPlan {
+    let mut param_envelopes = Vec::new();
+    for (ti, t) in timeline.tracks.iter().enumerate() {
+        collect_param_envelopes(Some(ti), &t.effects, &t.envelopes, &mut param_envelopes);
+    }
+    collect_param_envelopes(
+        None,
+        &timeline.master_effects,
+        &timeline.master_envelopes,
+        &mut param_envelopes,
+    );
     FxPlan {
         tracks: timeline
             .tracks
@@ -224,6 +303,27 @@ pub fn fx_plan(timeline: &Timeline) -> FxPlan {
             })
             .collect(),
         pan_law: timeline.pan_law,
+        track_vol_envelopes: timeline
+            .tracks
+            .iter()
+            .map(|t| {
+                t.envelopes
+                    .iter()
+                    .find(|e| e.target == AutomationTarget::Volume)
+                    .and_then(to_automation_curve)
+            })
+            .collect(),
+        track_pan_envelopes: timeline
+            .tracks
+            .iter()
+            .map(|t| {
+                t.envelopes
+                    .iter()
+                    .find(|e| e.target == AutomationTarget::Pan)
+                    .and_then(to_automation_curve)
+            })
+            .collect(),
+        param_envelopes,
     }
 }
 
@@ -248,6 +348,7 @@ fn duck_spec(timeline: &Timeline, track: &neoveg_engine::Track) -> Option<DuckSp
         sensitivity: duck.sensitivity,
         reduce_db: duck.reduce_db,
         fade_s: duck.fade_s,
+        realtime: duck.realtime,
     })
 }
 
@@ -324,7 +425,23 @@ fn ducking_ui(
     let Some(duck) = &view.ducking else {
         return;
     };
-    ui.weak("A análise é feita ao iniciar a reprodução, e a faixa desce antes do som entrar.");
+    let mut realtime = duck.realtime;
+    if ui
+        .checkbox(
+            &mut realtime,
+            "Sidechain em tempo real (pós-FX e pós-fader)",
+        )
+        .changed()
+    {
+        actions.push(FxAction::Duck(DuckAction::Realtime(realtime)));
+    }
+    if duck.realtime {
+        ui.weak(
+            "O detector acompanha ao vivo o áudio pós-efeitos e pós-fader das faixas de controle.",
+        );
+    } else {
+        ui.weak("A análise é feita ao iniciar a reprodução, e a faixa desce antes do som entrar.");
+    }
     if view.candidates.is_empty() {
         ui.weak("Não há outras faixas de áudio.");
     } else {
@@ -493,6 +610,14 @@ fn param_row(
                 actions.push(FxAction::ResetParam {
                     index,
                     param: spec.id.into(),
+                });
+                ui.close_menu();
+            }
+            if !panel.master && ui.button("Automatizar parâmetro na faixa").clicked() {
+                actions.push(FxAction::ToggleAutomate {
+                    index,
+                    param: spec.id.into(),
+                    value: current,
                 });
                 ui.close_menu();
             }

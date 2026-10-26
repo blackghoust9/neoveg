@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod fade;
+pub mod grade;
 pub mod keymap;
 pub mod logging;
 pub mod pan;

@@ -5,6 +5,7 @@
 
 use crate::command::EditCommand;
 use crate::timeline::{Timeline, TrackId, TrackKind, TrackMix};
+use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
 
 fn replace(
@@ -112,6 +113,15 @@ pub fn set_pan_law(timeline: &Timeline, law: PanLaw) -> Option<EditCommand> {
     (timeline.pan_law != law).then_some(EditCommand::SetPanLaw {
         before: timeline.pan_law,
         after: law,
+    })
+}
+
+/// Sets the primary color correction of the video (values are clamped to their ranges).
+pub fn set_video_grade(timeline: &Timeline, grade: Grade) -> Option<EditCommand> {
+    let after = grade.sanitized();
+    (timeline.video_grade != after).then_some(EditCommand::SetVideoGrade {
+        before: timeline.video_grade,
+        after,
     })
 }
 
@@ -250,6 +260,31 @@ mod tests {
         assert!(tl.audible(tl.track(vid).unwrap()));
         go(set_muted(&tl, vid, true).unwrap(), &mut history, &mut tl);
         assert!(!tl.audible(tl.track(vid).unwrap()));
+    }
+
+    #[test]
+    fn the_color_grade_is_one_undo_step_clamped_and_saved_only_when_set() {
+        let (mut tl, _, _) = project();
+        let mut history = History::new();
+        assert!(set_video_grade(&tl, Grade::default()).is_none());
+        let json = serde_json::to_string(&tl).unwrap();
+        assert!(
+            !json.contains("video_grade"),
+            "a neutral grade is not written"
+        );
+        let grade = Grade {
+            exposure: 99.0,
+            saturation: -0.5,
+            ..Grade::default()
+        };
+        go(set_video_grade(&tl, grade).unwrap(), &mut history, &mut tl);
+        assert_eq!(tl.video_grade.exposure, 4.0);
+        let back: Timeline = serde_json::from_str(&serde_json::to_string(&tl).unwrap()).unwrap();
+        assert_eq!(back.video_grade, tl.video_grade);
+        assert!(history.undo(&mut tl));
+        assert!(tl.video_grade.is_neutral());
+        assert!(history.redo(&mut tl));
+        assert_eq!(tl.video_grade.saturation, -0.5);
     }
 
     #[test]

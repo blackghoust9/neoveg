@@ -3,6 +3,7 @@
 pub mod frame;
 pub mod generators;
 pub mod gpu;
+pub mod grading;
 pub mod info;
 pub mod lut;
 pub mod scopes;

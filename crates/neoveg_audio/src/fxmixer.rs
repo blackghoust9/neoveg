@@ -11,8 +11,9 @@ use std::sync::Arc;
 
 use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
-use crate::duck::{analyze, DuckCurve};
+use crate::duck::{analyze, DuckCurve, SidechainFollower};
 use crate::mixer::{plan_end, MixClip};
+use neoveg_common::fade::FadeCurve;
 use neoveg_common::pan::PanLaw;
 
 /// Most frames the mixer handles per block; the callback cuts longer buffers into blocks.
@@ -27,13 +28,73 @@ pub struct EffectSpec {
 }
 
 /// Auto-ducking of one track: it is turned down by `reduce_db` while the `controllers` tracks
-/// (indices like `MixClip::track`) have sound.
-#[derive(Debug, Clone, PartialEq)]
+/// (indices like `MixClip::track`) have sound. When `realtime` is `true`, a live sidechain
+/// envelope follower reacts to the controllers' post-FX, post-fader signal instead of pre-analysis.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct DuckSpec {
     pub controllers: Vec<usize>,
     pub sensitivity: f32,
     pub reduce_db: f32,
     pub fade_s: f32,
+    pub realtime: bool,
+}
+
+/// One keyframe in an audio automation curve (`curve == None` means hold/step until the next key).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AutomationKey {
+    pub time: f64,
+    pub value: f32,
+    pub curve: Option<FadeCurve>,
+}
+
+/// Sorted keyframe curve evaluated with zero allocations inside the audio callback.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct AutomationCurve {
+    pub keys: Vec<AutomationKey>,
+}
+
+impl AutomationCurve {
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
+    #[inline]
+    pub fn value_at(&self, t: f64) -> Option<f32> {
+        let (first, last) = (self.keys.first()?, self.keys.last()?);
+        if t <= first.time {
+            return Some(first.value);
+        }
+        if t >= last.time {
+            return Some(last.value);
+        }
+        let idx = self.keys.partition_point(|k| k.time <= t);
+        if idx == 0 {
+            return Some(first.value);
+        }
+        if idx >= self.keys.len() {
+            return Some(last.value);
+        }
+        let a = self.keys[idx - 1];
+        let b = self.keys[idx];
+        let span = b.time - a.time;
+        if span <= 1e-6 {
+            return Some(b.value);
+        }
+        let Some(curve) = a.curve else {
+            return Some(a.value);
+        };
+        let u = curve.gain(((t - a.time) / span).clamp(0.0, 1.0)) as f32;
+        Some(a.value + (b.value - a.value) * u)
+    }
+}
+
+/// Automation curve driving a single effect parameter on a track (`Some(track)`) or master (`None`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParamAutomationSpec {
+    pub track: Option<usize>,
+    pub active_fx_index: usize,
+    pub param_id: String,
+    pub curve: AutomationCurve,
 }
 
 /// The fader, pan and phase of one track, applied after its effects.
@@ -80,6 +141,12 @@ pub struct FxPlan {
     /// Fader, pan and phase of the tracks, indexed like `tracks`; may be shorter.
     pub mix: Vec<TrackMixSpec>,
     pub pan_law: PanLaw,
+    /// Optional volume automation curves (in dB, `-60.0..=12.0`), indexed like `tracks`.
+    pub track_vol_envelopes: Vec<Option<AutomationCurve>>,
+    /// Optional pan automation curves (`-1.0..=1.0`), indexed like `tracks`.
+    pub track_pan_envelopes: Vec<Option<AutomationCurve>>,
+    /// Effect parameter automation curves for track and master chains.
+    pub param_envelopes: Vec<ParamAutomationSpec>,
 }
 
 impl FxPlan {
@@ -91,6 +158,15 @@ impl FxPlan {
                 .iter()
                 .all(|d| d.as_ref().is_none_or(|d| d.controllers.is_empty()))
             && self.mix.iter().all(TrackMixSpec::is_neutral)
+            && self
+                .track_vol_envelopes
+                .iter()
+                .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
+            && self
+                .track_pan_envelopes
+                .iter()
+                .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
+            && self.param_envelopes.iter().all(|p| p.curve.is_empty())
     }
 }
 
@@ -213,6 +289,50 @@ impl LiveControls {
     }
 }
 
+struct RealtimeDuckSlot {
+    target_bus: usize,
+    ctrl_start: usize,
+    ctrl_end: usize,
+    follower: SidechainFollower,
+}
+
+struct BusMixAutoSlot {
+    base_gain: f32,
+    base_pan: f32,
+    invert: bool,
+    pan_law: PanLaw,
+    vol_curve: Option<AutomationCurve>,
+    pan_curve: Option<AutomationCurve>,
+}
+
+impl BusMixAutoSlot {
+    #[inline]
+    fn gains_at(&self, t: f64) -> (f32, f32) {
+        let gain = match self.vol_curve.as_ref().and_then(|c| c.value_at(t)) {
+            Some(db) if db <= -60.0 => 0.0,
+            Some(db) => 10.0_f32.powf(db / 20.0),
+            None => self.base_gain,
+        };
+        let pan = self
+            .pan_curve
+            .as_ref()
+            .and_then(|c| c.value_at(t))
+            .unwrap_or(self.base_pan)
+            .clamp(-1.0, 1.0);
+        let (l, r) = self.pan_law.gains(pan);
+        let sign = if self.invert { -1.0 } else { 1.0 };
+        (l * gain * sign, r * gain * sign)
+    }
+}
+
+struct ParamAutoSlot {
+    /// `Some(bus)` for a track effect chain, `None` for the master chain.
+    bus: Option<usize>,
+    fx_index: usize,
+    param_id: String,
+    curve: AutomationCurve,
+}
+
 pub struct BlockMixer {
     clips: Vec<MixClip>,
     /// Bus of every clip (0 is the dry bus).
@@ -222,9 +342,16 @@ pub struct BlockMixer {
     /// Auto-ducking curve of every bus (entry 0 never has one) and the buses that have one.
     ducks: Vec<Option<DuckCurve>>,
     ducked: Vec<usize>,
+    /// Real-time post-FX / post-fader sidechain followers and flattened controller bus indices.
+    realtime_ducks: Vec<RealtimeDuckSlot>,
+    sidechain_buses: Vec<usize>,
     /// Left / right multipliers of every bus after its effects (fader, pan, phase).
     bus_mix: Vec<(f32, f32)>,
-    /// Gain of every bus at the frame being mixed (1 unless the bus is ducked).
+    /// Optional per-bus volume/pan automation slots (indexed by `bus`).
+    bus_mix_auto: Vec<Option<BusMixAutoSlot>>,
+    /// Effect parameter automation slots evaluated at the start of each block.
+    param_auto: Vec<ParamAutoSlot>,
+    /// Gain of every bus at the frame being mixed (1 unless the bus is lookahead-ducked).
     gains: Vec<f32>,
     master: Vec<Box<dyn AudioEffect>>,
     /// Delay that brings every bus to the latency of the slowest one.
@@ -236,6 +363,9 @@ pub struct BlockMixer {
     out_l: Vec<f32>,
     out_r: Vec<f32>,
     end: f64,
+    block_t0: f64,
+    block_t1: f64,
+    block_has_time: bool,
     live: Option<Arc<LiveControls>>,
 }
 
@@ -268,12 +398,22 @@ impl BlockMixer {
         let mut chains: Vec<Vec<Box<dyn AudioEffect>>> = vec![Vec::new()];
         let mut ducks: Vec<Option<DuckCurve>> = vec![None];
         let mut bus_mix: Vec<(f32, f32)> = vec![(1.0, 1.0)];
+        let mut bus_mix_auto: Vec<Option<BusMixAutoSlot>> = vec![None];
         let max_clip_track = clips.iter().map(|c| c.track + 1).max().unwrap_or(0);
+        let max_param_track = plan
+            .param_envelopes
+            .iter()
+            .filter_map(|p| p.track.map(|t| t + 1))
+            .max()
+            .unwrap_or(0);
         let track_count = plan
             .tracks
             .len()
             .max(plan.duck.len())
             .max(plan.mix.len())
+            .max(plan.track_vol_envelopes.len())
+            .max(plan.track_pan_envelopes.len())
+            .max(max_param_track)
             .max(max_clip_track);
         let mut bus_of_track = Vec::with_capacity(track_count);
         let mut live_buses = Vec::new();
@@ -284,11 +424,13 @@ impl BlockMixer {
                 .get(t)
                 .map(|specs| build_chain(specs, sample_rate))
                 .unwrap_or_default();
-            let curve = plan
+            let duck_spec = plan
                 .duck
                 .get(t)
                 .and_then(Option::as_ref)
-                .filter(|d| !d.controllers.is_empty())
+                .filter(|d| !d.controllers.is_empty());
+            let curve = duck_spec
+                .filter(|d| !d.realtime)
                 .map(|d| {
                     let controllers: Vec<&MixClip> = clips
                         .iter()
@@ -297,9 +439,37 @@ impl BlockMixer {
                     analyze(&controllers, end, d.sensitivity, d.reduce_db, d.fade_s)
                 })
                 .filter(|c| !c.is_flat());
+            let is_rt_ducked = duck_spec.is_some_and(|d| d.realtime);
+            let is_rt_controller = plan
+                .duck
+                .iter()
+                .flatten()
+                .any(|d| d.realtime && !d.controllers.is_empty() && d.controllers.contains(&t));
+            let vol_curve = plan
+                .track_vol_envelopes
+                .get(t)
+                .and_then(Option::as_ref)
+                .filter(|c| !c.is_empty())
+                .cloned();
+            let pan_curve = plan
+                .track_pan_envelopes
+                .get(t)
+                .and_then(Option::as_ref)
+                .filter(|c| !c.is_empty())
+                .cloned();
+            let has_param_auto = plan
+                .param_envelopes
+                .iter()
+                .any(|p| p.track == Some(t) && !p.curve.is_empty());
             let mix = plan.mix.get(t).copied().unwrap_or_default();
             let has_clips = clips.iter().any(|c| c.track == t);
-            let plain = chain.is_empty() && curve.is_none();
+            let plain = chain.is_empty()
+                && curve.is_none()
+                && !is_rt_ducked
+                && !is_rt_controller
+                && vol_curve.is_none()
+                && pan_curve.is_none()
+                && !has_param_auto;
             if (!live_mode && plain && mix.is_neutral()) || (live_mode && !has_clips && plain) {
                 bus_of_track.push(0);
             } else {
@@ -327,12 +497,78 @@ impl BlockMixer {
                         }
                     }
                 }
+                let mix_auto =
+                    (vol_curve.is_some() || pan_curve.is_some()).then_some(BusMixAutoSlot {
+                        base_gain: mix.gain,
+                        base_pan: mix.pan,
+                        invert: mix.invert,
+                        pan_law: plan.pan_law,
+                        vol_curve,
+                        pan_curve,
+                    });
                 bus_of_track.push(bus);
                 chains.push(chain);
                 ducks.push(curve);
                 bus_mix.push((gl, gr));
+                bus_mix_auto.push(mix_auto);
             }
         }
+        let mut realtime_ducks = Vec::new();
+        let mut sidechain_buses = Vec::new();
+        for (t, maybe_duck) in plan.duck.iter().enumerate() {
+            let Some(d) = maybe_duck
+                .as_ref()
+                .filter(|d| d.realtime && !d.controllers.is_empty())
+            else {
+                continue;
+            };
+            let target_bus = bus_of_track.get(t).copied().unwrap_or(0);
+            if target_bus == 0 {
+                continue;
+            }
+            let ctrl_start = sidechain_buses.len();
+            for &ctrl_track in &d.controllers {
+                if let Some(&cbus) = bus_of_track.get(ctrl_track) {
+                    if cbus != 0
+                        && cbus != target_bus
+                        && !sidechain_buses[ctrl_start..].contains(&cbus)
+                    {
+                        sidechain_buses.push(cbus);
+                    }
+                }
+            }
+            let ctrl_end = sidechain_buses.len();
+            if ctrl_end > ctrl_start {
+                realtime_ducks.push(RealtimeDuckSlot {
+                    target_bus,
+                    ctrl_start,
+                    ctrl_end,
+                    follower: SidechainFollower::new(
+                        sample_rate,
+                        d.sensitivity,
+                        d.reduce_db,
+                        d.fade_s,
+                    ),
+                });
+            }
+        }
+        let param_auto: Vec<ParamAutoSlot> = plan
+            .param_envelopes
+            .iter()
+            .filter(|p| !p.curve.is_empty())
+            .filter_map(|p| {
+                let bus = match p.track {
+                    Some(t) => Some(*bus_of_track.get(t).filter(|&&b| b != 0)?),
+                    None => None,
+                };
+                Some(ParamAutoSlot {
+                    bus,
+                    fx_index: p.active_fx_index,
+                    param_id: p.param_id.clone(),
+                    curve: p.curve.clone(),
+                })
+            })
+            .collect();
         let clip_bus = clips
             .iter()
             .map(|c| bus_of_track.get(c.track).copied().unwrap_or(0))
@@ -377,8 +613,12 @@ impl BlockMixer {
                 clips,
                 clip_bus,
                 ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
+                realtime_ducks,
+                sidechain_buses,
                 gains: vec![1.0; buses],
                 bus_mix,
+                bus_mix_auto,
+                param_auto,
                 ducks,
                 chains,
                 master,
@@ -388,6 +628,9 @@ impl BlockMixer {
                 bus_r: vec![vec![0.0; MAX_BLOCK]; buses],
                 out_l: vec![0.0; MAX_BLOCK],
                 out_r: vec![0.0; MAX_BLOCK],
+                block_t0: 0.0,
+                block_t1: 0.0,
+                block_has_time: false,
                 live: live.clone(),
             },
             live,
@@ -425,6 +668,7 @@ impl BlockMixer {
     /// lock-free live parameter or fader updates queued by the UI thread.
     pub fn begin(&mut self, frames: usize) {
         let n = frames.min(MAX_BLOCK);
+        self.block_has_time = false;
         for bus in self.bus_l.iter_mut().chain(self.bus_r.iter_mut()) {
             bus[..n].fill(0.0);
         }
@@ -463,6 +707,11 @@ impl BlockMixer {
     /// Adds every clip's sample at timeline time `t` to frame `i` of the block.
     #[inline]
     pub fn add_frame(&mut self, i: usize, t: f64) {
+        if !self.block_has_time {
+            self.block_t0 = t;
+            self.block_has_time = true;
+        }
+        self.block_t1 = t;
         for &bus in &self.ducked {
             if let Some(curve) = &self.ducks[bus] {
                 self.gains[bus] = curve.gain(t);
@@ -476,22 +725,67 @@ impl BlockMixer {
         }
     }
 
-    /// Ends the block: runs every track's effects on its bus, sums the buses and runs the master
-    /// effects. The result is in [`out`](Self::out).
+    /// Ends the block: runs every track's effects on its bus, applies latency alignment, fader/pan
+    /// automation and real-time sidechain ducking, sums the buses and runs the master effects.
     pub fn finish(&mut self, frames: usize) {
         let n = frames.min(MAX_BLOCK);
+        if self.block_has_time {
+            for slot in &self.param_auto {
+                let Some(val) = slot.curve.value_at(self.block_t0) else {
+                    continue;
+                };
+                let fx = match slot.bus {
+                    Some(bus) => self
+                        .chains
+                        .get_mut(bus)
+                        .and_then(|c| c.get_mut(slot.fx_index)),
+                    None => self.master.get_mut(slot.fx_index),
+                };
+                if let Some(fx) = fx {
+                    fx.set_param(&slot.param_id, val);
+                }
+            }
+        }
         for (bus, chain) in self.chains.iter_mut().enumerate() {
             let (l, r) = (&mut self.bus_l[bus][..n], &mut self.bus_r[bus][..n]);
             for effect in chain.iter_mut() {
                 effect.process(&mut [&mut *l, &mut *r]);
             }
             self.delays[bus].process(l, r);
-            let (gl, gr) = self.bus_mix[bus];
-            if (gl, gr) != (1.0, 1.0) {
-                for (l, r) in l.iter_mut().zip(r.iter_mut()) {
-                    *l *= gl;
-                    *r *= gr;
+            if let Some(auto_mix) = self
+                .bus_mix_auto
+                .get(bus)
+                .and_then(Option::as_ref)
+                .filter(|_| self.block_has_time && n > 0)
+            {
+                let (gl0, gr0) = auto_mix.gains_at(self.block_t0);
+                let (gl1, gr1) = auto_mix.gains_at(self.block_t1);
+                let inv = if n > 1 { 1.0 / (n - 1) as f32 } else { 0.0 };
+                for (i, (ls, rs)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
+                    let frac = i as f32 * inv;
+                    *ls *= gl0 + (gl1 - gl0) * frac;
+                    *rs *= gr0 + (gr1 - gr0) * frac;
                 }
+            } else {
+                let (gl, gr) = self.bus_mix[bus];
+                if (gl, gr) != (1.0, 1.0) {
+                    for (l, r) in l.iter_mut().zip(r.iter_mut()) {
+                        *l *= gl;
+                        *r *= gr;
+                    }
+                }
+            }
+        }
+        for slot in &mut self.realtime_ducks {
+            for i in 0..n {
+                let (mut sl, mut sr) = (0.0_f32, 0.0_f32);
+                for &cbus in &self.sidechain_buses[slot.ctrl_start..slot.ctrl_end] {
+                    sl += self.bus_l[cbus][i];
+                    sr += self.bus_r[cbus][i];
+                }
+                let g = slot.follower.next_gain(0.5 * (sl * sl + sr * sr));
+                self.bus_l[slot.target_bus][i] *= g;
+                self.bus_r[slot.target_bus][i] *= g;
             }
         }
         self.out_l[..n].copy_from_slice(&self.bus_l[0][..n]);
@@ -848,6 +1142,7 @@ mod tests {
                     sensitivity,
                     reduce_db: 12.0,
                     fade_s: 0.2,
+                    realtime: false,
                 }),
             ],
             ..Default::default()
@@ -972,6 +1267,103 @@ mod tests {
             (r1[500] - (-1.0)).abs() < 0.02,
             "right inverted and +6 dB boosted: {}",
             r1[500]
+        );
+    }
+
+    #[test]
+    fn realtime_sidechain_reacts_to_live_controller_fader_and_automation_curves_drive_mix_and_fx() {
+        // Track 0: key signal (constant 0.4); Track 1: music (constant 0.5) ducked by 12 dB in realtime
+        let plan = FxPlan {
+            tracks: vec![vec![], vec![spec("amplify", &[("gain", 0.0)])]],
+            duck: vec![
+                None,
+                Some(DuckSpec {
+                    controllers: vec![0],
+                    sensitivity: 6.0,
+                    reduce_db: 12.0,
+                    fade_s: 0.1,
+                    realtime: true,
+                }),
+            ],
+            track_vol_envelopes: vec![
+                None,
+                Some(AutomationCurve {
+                    keys: vec![
+                        AutomationKey {
+                            time: 0.0,
+                            value: 0.0,
+                            curve: Some(FadeCurve::Linear),
+                        },
+                        AutomationKey {
+                            time: 2.0,
+                            value: -6.0206,
+                            curve: Some(FadeCurve::Linear),
+                        },
+                    ],
+                }),
+            ],
+            param_envelopes: vec![ParamAutomationSpec {
+                track: Some(1),
+                active_fx_index: 0,
+                param_id: "gain".into(),
+                curve: AutomationCurve {
+                    keys: vec![
+                        AutomationKey {
+                            time: 0.0,
+                            value: 0.0,
+                            curve: None,
+                        },
+                        AutomationKey {
+                            time: 1.5,
+                            value: 6.0206,
+                            curve: None,
+                        },
+                    ],
+                },
+            }],
+            ..Default::default()
+        };
+        let clips = vec![constant(0, 0.4, 3.0), constant(1, 0.5, 3.0)];
+        let (mut mixer, live) = BlockMixer::with_live_controls(clips, &plan, RATE as f32);
+
+        // Render first 0.5 s: track 0 (0.4) keys real-time ducking on track 1 (~0.5 * 0.2512)
+        let (l0, _) = render(&mut mixer, RATE as usize / 2, 256);
+        let expected_ducked =
+            0.4 + 0.5 * 10.0_f32.powf(-12.0 / 20.0) * 10.0_f32.powf(-1.505 / 20.0);
+        assert!(
+            (*l0.last().unwrap() - expected_ducked).abs() < 0.04,
+            "ducked sum: {} vs {expected_ducked}",
+            l0.last().unwrap()
+        );
+
+        // Pull controller track 0 fader down to 0.0 live -> sidechain releases!
+        assert!(live.set_track_mix(
+            0,
+            TrackMixSpec {
+                gain: 0.0,
+                pan: 0.0,
+                invert: false,
+            },
+        ));
+        let step = 1.0 / f64::from(RATE);
+        let mut last = 0.0;
+        let start_frame = RATE as usize / 2;
+        // Advance past 2.0 s: amplify env boosts +6 dB while vol env attenuates -6 dB -> net ~0.5!
+        let frames_more = RATE as usize * 2;
+        let mut done = 0;
+        while done < frames_more {
+            let n = 256.min(frames_more - done);
+            mixer.begin(n);
+            for i in 0..n {
+                mixer.add_frame(i, (start_frame + done + i) as f64 * step);
+            }
+            mixer.finish(n);
+            last = mixer.out().0[n - 1];
+            done += n;
+        }
+        assert!(
+            (last - 0.5).abs() < 0.03,
+            "sidechain released and +6 dB FX / -6 dB vol envelopes cancelled to 0.5: {last}"
         );
     }
 }

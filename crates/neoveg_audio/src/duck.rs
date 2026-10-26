@@ -139,6 +139,65 @@ pub fn analyze(
     }
 }
 
+/// Real-time zero-allocation sidechain envelope follower driven by the post-FX, post-fader audio
+/// of controller buses inside [`crate::fxmixer::BlockMixer`].
+#[derive(Debug, Clone)]
+pub struct SidechainFollower {
+    threshold_power: f32,
+    target_gain: f32,
+    det_alpha: f32,
+    atk_alpha: f32,
+    rel_alpha: f32,
+    hold_samples: usize,
+    hold_left: usize,
+    power_env: f32,
+    current_gain: f32,
+}
+
+impl SidechainFollower {
+    pub fn new(sample_rate: f32, sensitivity: f32, reduce_db: f32, fade_s: f32) -> Self {
+        let sr = sample_rate.max(1000.0);
+        let threshold_db = sensitivity_threshold_db(sensitivity);
+        let threshold_power = 10.0_f32.powf(threshold_db / 10.0);
+        let target_gain = 10.0_f32.powf(-reduce_db.abs() / 20.0);
+        let coeff = |tau_s: f32| 1.0 - (-1.0 / (tau_s.max(0.001) * sr)).exp();
+        let attack_s = (fade_s * 0.15).clamp(0.005, 0.15);
+        let release_s = fade_s.clamp(0.03, 5.0);
+        Self {
+            threshold_power,
+            target_gain,
+            det_alpha: coeff(0.008),
+            atk_alpha: coeff(attack_s),
+            rel_alpha: coeff(release_s * 0.35),
+            hold_samples: (0.15 * sr).round() as usize,
+            hold_left: 0,
+            power_env: 0.0,
+            current_gain: 1.0,
+        }
+    }
+
+    /// Feeds one stereo key sample's mean square power `0.5 * (l*l + r*r)` and returns the linear
+    /// ducking gain to apply to the target bus sample (`1.0` when idle, `target_gain` when keyed).
+    #[inline]
+    pub fn next_gain(&mut self, key_power: f32) -> f32 {
+        self.power_env += self.det_alpha * (key_power - self.power_env);
+        if self.power_env >= self.threshold_power {
+            self.hold_left = self.hold_samples;
+        } else if self.hold_left > 0 {
+            self.hold_left -= 1;
+        }
+        let active = self.hold_left > 0;
+        let goal = if active { self.target_gain } else { 1.0 };
+        let alpha = if goal < self.current_gain {
+            self.atk_alpha
+        } else {
+            self.rel_alpha
+        };
+        self.current_gain += alpha * (goal - self.current_gain);
+        self.current_gain
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +286,31 @@ mod tests {
         assert_eq!(curve.gain_db(0.0), 0.0);
         assert!((curve.gain_db(1.5) - -5.0).abs() < 1e-5);
         assert_eq!(curve.gain_db(9.0), -10.0);
+    }
+
+    #[test]
+    fn realtime_sidechain_follower_attenuates_on_signal_holds_and_releases() {
+        let sr = 48_000.0;
+        let mut sc = SidechainFollower::new(sr, 6.0, 12.0, 0.2);
+        // Silence keeps gain at unity
+        for _ in 0..4800 {
+            assert!((sc.next_gain(0.0) - 1.0).abs() < 1e-5);
+        }
+        // Loud key signal (0.3 amplitude -> power 0.09) drives gain to ~-12 dB (0.2512)
+        let mut g = 1.0;
+        for _ in 0..12_000 {
+            g = sc.next_gain(0.09);
+        }
+        assert!((g - 0.2512).abs() < 0.02, "ducked gain: {g}");
+        // 50 ms micro-gap stays held down
+        for _ in 0..2400 {
+            g = sc.next_gain(0.0);
+        }
+        assert!((g - 0.2512).abs() < 0.02, "held gain: {g}");
+        // Extended silence releases smoothly back to unity
+        for _ in 0..48_000 {
+            g = sc.next_gain(0.0);
+        }
+        assert!((g - 1.0).abs() < 0.02, "released gain: {g}");
     }
 }

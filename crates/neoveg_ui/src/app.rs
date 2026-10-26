@@ -23,6 +23,7 @@ use neoveg_audio::record::Recorder;
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::grade::Grade;
 use neoveg_common::keymap::{KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
@@ -35,6 +36,7 @@ use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
 use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
+use neoveg_engine::envelope::{self, AutomationTarget, EnvelopeShape};
 use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
 use neoveg_engine::fcpxml;
 use neoveg_engine::groups;
@@ -56,6 +58,7 @@ use neoveg_video::scopes::Scopes;
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
+use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
@@ -286,6 +289,13 @@ struct AppState {
     /// The color table loaded for `Timeline::video_lut` (`None` inside when the file is unusable).
     lut_cache: Option<(String, Option<Arc<Lut>>)>,
     last_lut_path: Option<String>,
+    last_grade: Grade,
+    /// Color correction window: open flag and the value being dragged (applied live, committed on release).
+    show_grade: bool,
+    grade_draft: Option<Grade>,
+    /// The correction the SMPTE bars texture and scopes were built with.
+    bars_grade: Option<Grade>,
+    bars_scopes_rev: u64,
     preview_pane_width: f32,
     session_id: String,
     saved_revision: u64,
@@ -298,7 +308,9 @@ struct AppState {
     allow_close: bool,
     window_title: String,
     drag: Option<EventDrag>,
+    env_drag: Option<EnvelopeDrag>,
     context_event: Option<(TrackId, EventId)>,
+    context_envelope: Option<EnvelopeHit>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
     context_mark: Option<MarkId>,
     name_edit: Option<NameEdit>,
@@ -931,6 +943,11 @@ impl AppState {
             last_frame_key: None,
             lut_cache: None,
             last_lut_path: None,
+            last_grade: Grade::default(),
+            show_grade: false,
+            grade_draft: None,
+            bars_grade: None,
+            bars_scopes_rev: 0,
             preview_pane_width: 640.0,
             session_id: autosave::new_session_id(),
             saved_revision: 0,
@@ -943,7 +960,9 @@ impl AppState {
             allow_close: false,
             window_title: String::new(),
             drag: None,
+            env_drag: None,
             context_event: None,
+            context_envelope: None,
             context_mark: None,
             name_edit: None,
             mark_drag: None,
@@ -1516,7 +1535,11 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some(),
-            Command::TrackSolo | Command::TrackSoloExclusive => self
+            Command::TrackSolo
+            | Command::TrackSoloExclusive
+            | Command::TrackVolumeEnvelope
+            | Command::TrackPanEnvelope
+            | Command::TrackToggleEnvelopes => self
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Audio),
@@ -2224,6 +2247,20 @@ impl AppState {
         (width as u32).max(64)
     }
 
+    /// The correction in effect: the one being dragged in the window, else the project's.
+    fn effective_grade(&self) -> Grade {
+        self.grade_draft.unwrap_or(self.timeline.video_grade)
+    }
+
+    /// Commits the correction (one undo step) and redraws the preview.
+    fn commit_grade(&mut self, grade: Grade) {
+        self.grade_draft = None;
+        if let Some(command) = mix::set_video_grade(&self.timeline, grade) {
+            self.history.execute(&mut self.timeline, command);
+        }
+        self.last_frame_key = None;
+    }
+
     /// The color table of the project, loaded once per path (a broken file is reported once).
     fn current_lut(&mut self) -> Option<Arc<Lut>> {
         let path = self.timeline.video_lut.clone()?;
@@ -2288,8 +2325,11 @@ impl AppState {
         let frame = (seconds * fps).round() as i64;
         let key = (media_id, frame, max_width);
         // An undo of the LUT changes the picture without changing the frame key
-        if self.last_lut_path != self.timeline.video_lut {
+        if self.last_lut_path != self.timeline.video_lut
+            || self.last_grade != self.effective_grade()
+        {
             self.last_lut_path = self.timeline.video_lut.clone();
+            self.last_grade = self.effective_grade();
             self.last_frame_key = None;
         }
         if self.last_frame_key != Some(key) {
@@ -2301,6 +2341,7 @@ impl AppState {
                 seconds: frame as f64 / fps,
                 max_width,
                 lut,
+                grade: self.effective_grade(),
             });
         }
     }
@@ -2520,6 +2561,7 @@ impl AppState {
                 FxAction::Duck(duck) => match target {
                     FxTarget::Track(id) => match duck {
                         DuckAction::Enable(on) => fx::enable_ducking(&self.timeline, id, on),
+                        DuckAction::Realtime(on) => fx::set_duck_realtime(&self.timeline, id, on),
                         DuckAction::Controller(controller, on) => {
                             fx::set_controller(&self.timeline, id, controller, on)
                         }
@@ -2541,6 +2583,19 @@ impl AppState {
                 FxAction::ResetParam { index, param } => {
                     fx::reset_param(&self.timeline, target, index, &param)
                 }
+                FxAction::ToggleAutomate {
+                    index,
+                    param,
+                    value,
+                } => envelope::toggle_envelope(
+                    &self.timeline,
+                    target,
+                    AutomationTarget::EffectParam {
+                        effect_index: index,
+                        param_id: param,
+                    },
+                    value,
+                ),
             };
             if let Some(command) = command {
                 changed |= self.history.execute(&mut self.timeline, command);
@@ -2605,6 +2660,58 @@ impl AppState {
             _ => return,
         };
         self.apply_mix_actions(track_id, vec![action]);
+    }
+
+    fn run_track_envelope_command(&mut self, command: Command) {
+        let Some(track_id) = self.selected_track else {
+            self.status = "Selecione uma faixa de áudio primeiro".into();
+            return;
+        };
+        let Some(track) = self.timeline.track(track_id) else {
+            return;
+        };
+        if track.kind != TrackKind::Audio {
+            self.status = "Envelopes de volume e pan aplicam-se a faixas de áudio".into();
+            return;
+        }
+        let target = FxTarget::Track(track_id);
+        let cmd = match command {
+            Command::TrackVolumeEnvelope => envelope::toggle_envelope(
+                &self.timeline,
+                target,
+                AutomationTarget::Volume,
+                track.volume_db,
+            ),
+            Command::TrackPanEnvelope => {
+                envelope::toggle_envelope(&self.timeline, target, AutomationTarget::Pan, track.pan)
+            }
+            Command::TrackToggleEnvelopes => envelope::toggle_all_envelopes(&self.timeline, target),
+            _ => None,
+        };
+        if let Some(cmd) = cmd {
+            if self.history.execute(&mut self.timeline, cmd) {
+                self.restart_audio_if_playing();
+            }
+        }
+    }
+
+    /// Commits a finished keyframe drag as a single undo step.
+    fn finish_envelope_drag(&mut self) {
+        let Some(drag) = self.env_drag.take() else {
+            return;
+        };
+        if let Some(cmd) = envelope::move_keyframe(
+            &self.timeline,
+            FxTarget::Track(drag.track_id),
+            &drag.target,
+            drag.index,
+            (drag.time, drag.value),
+            drag.bounds,
+        ) {
+            if self.history.execute(&mut self.timeline, cmd) {
+                self.restart_audio_if_playing();
+            }
+        }
     }
 
     /// Restarts live playback at the cursor so effect, mixer or undo/redo edits take effect
@@ -2892,6 +2999,9 @@ impl AppState {
             | Command::TrackMuteExclusive
             | Command::TrackSolo
             | Command::TrackSoloExclusive => self.run_track_mix_command(command),
+            Command::TrackVolumeEnvelope
+            | Command::TrackPanEnvelope
+            | Command::TrackToggleEnvelopes => self.run_track_envelope_command(command),
             c if c.marker_number().is_some() => {
                 self.jump_to_marker_number(c.marker_number().unwrap_or(1), now);
             }
@@ -3050,6 +3160,7 @@ impl NeovegApp {
 
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         ui_theme::apply(&cc.egui_ctx, &Theme::default());
+        icons::install(&cc.egui_ctx);
 
         let gpu = cc.wgpu_render_state.as_ref().map_or_else(
             || "Renderizador padrão".to_owned(),
@@ -3164,6 +3275,7 @@ impl eframe::App for NeovegApp {
         repeat_paste_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
+        grade_window(ctx, &mut self.state);
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
@@ -3365,10 +3477,22 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            ui.separator();
+            for command in [
+                Command::TrackVolumeEnvelope,
+                Command::TrackPanEnvelope,
+                Command::TrackToggleEnvelopes,
+            ] {
+                command_item(state, ui, command);
+            }
         });
         ui.menu_button("Ferramentas", |ui| {
             if ui.button("Inspetor").clicked() {
                 state.show_inspector = true;
+                ui.close_menu();
+            }
+            if ui.button("Correção de cor…").clicked() {
+                state.show_grade = true;
                 ui.close_menu();
             }
             if ui.button("Metrônomo…").clicked() {
@@ -3501,6 +3625,87 @@ fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
         let now = ctx.input(|i| i.time);
         state.run_command(command, &ctx, now);
         ui.close_menu();
+    }
+}
+
+/// Ferramentas → Correção de cor: primary correction of the video. The sliders act on a draft that
+/// is shown at once and committed as one undo step when the drag ends.
+fn grade_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_grade {
+        return;
+    }
+    let mut open = true;
+    let mut grade = state.effective_grade();
+    let mut finished = false;
+    let mut changed = false;
+    let mut reset = false;
+    egui::Window::new("Correção de cor")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            let rows: [(
+                &str,
+                &mut f32,
+                std::ops::RangeInclusive<f32>,
+                f32,
+                fn(f32) -> String,
+            ); 7] = [
+                ("Exposição", &mut grade.exposure, -4.0..=4.0, 0.0, |v| {
+                    format!("{v:+.2} EV")
+                }),
+                (
+                    "Temperatura",
+                    &mut grade.temperature,
+                    -1.0..=1.0,
+                    0.0,
+                    |v| format!("{:+.0}", v * 100.0),
+                ),
+                ("Matiz (tint)", &mut grade.tint, -1.0..=1.0, 0.0, |v| {
+                    format!("{:+.0}", v * 100.0)
+                }),
+                ("Pretos (lift)", &mut grade.lift, -0.5..=0.5, 0.0, |v| {
+                    format!("{:+.0}", v * 200.0)
+                }),
+                ("Contraste", &mut grade.contrast, -1.0..=1.0, 0.0, |v| {
+                    format!("{:+.0}", v * 100.0)
+                }),
+                ("Gama", &mut grade.gamma, 0.2..=3.0, 1.0, |v| {
+                    format!("{v:.2}")
+                }),
+                ("Saturação", &mut grade.saturation, -1.0..=1.0, 0.0, |v| {
+                    format!("{:+.0}", v * 100.0)
+                }),
+            ];
+            for (label, value, range, default, format) in rows {
+                ui.horizontal(|ui| {
+                    ui.allocate_ui(egui::vec2(96.0, 18.0), |ui| ui.label(label));
+                    let response = ui.add(PrecisionSlider::new(value, range, default).width(150.0));
+                    changed |= response.changed();
+                    finished |= response.drag_stopped()
+                        || response.lost_focus()
+                        || (response.changed() && !response.dragged() && !response.has_focus());
+                    ui.monospace(format(*value));
+                });
+            }
+            ui.separator();
+            if ui.button("Restaurar tudo").clicked() {
+                reset = true;
+            }
+        });
+    if reset {
+        state.commit_grade(Grade::default());
+    } else if finished {
+        state.commit_grade(grade);
+    } else if changed {
+        state.grade_draft = Some(grade.sanitized());
+    }
+    state.show_grade = open;
+    if !open {
+        // Closing in the middle of a drag keeps what was shown
+        if let Some(draft) = state.grade_draft {
+            state.commit_grade(draft);
+        }
     }
 }
 
@@ -4217,8 +4422,16 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     }
 
     if state.show_bars {
+        let grade = state.effective_grade();
+        if state.bars_grade != Some(grade) {
+            state.bars_texture = None;
+            state.bars_scopes = None;
+            state.bars_scopes_rev += 1;
+            state.bars_grade = Some(grade);
+        }
         let texture = state.bars_texture.get_or_insert_with(|| {
-            let bars = neoveg_video::generators::smpte_color_bars(640, 360);
+            let mut bars = neoveg_video::generators::smpte_color_bars(640, 360);
+            neoveg_video::grading::apply_grade(&mut bars, &grade);
             let image = egui::ColorImage::from_rgba_unmultiplied([640, 360], &bars.rgba);
             ui.ctx()
                 .load_texture("smpte_bars", image, egui::TextureOptions::LINEAR)
@@ -4371,11 +4584,22 @@ fn fmt_db(linear: f32) -> String {
 /// The Video Scopes tab: the color bars when they are on, else the frame at the cursor.
 fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
     if state.show_bars {
+        let grade = state.effective_grade();
+        if state.bars_grade != Some(grade) {
+            state.bars_scopes = None;
+            state.bars_scopes_rev += 1;
+        }
         let bars = state.bars_scopes.get_or_insert_with(|| {
-            Scopes::from_frame(&neoveg_video::generators::smpte_color_bars(640, 360))
+            let mut frame = neoveg_video::generators::smpte_color_bars(640, 360);
+            neoveg_video::grading::apply_grade(&mut frame, &grade);
+            Scopes::from_frame(&frame)
         });
-        // The bars never change: any constant version keeps the texture
-        scopes_ui(ui, &mut state.scopes_panel, Some(bars), u64::MAX);
+        scopes_ui(
+            ui,
+            &mut state.scopes_panel,
+            Some(bars),
+            u64::MAX - state.bars_scopes_rev,
+        );
         return;
     }
     let showing_video = state.video_texture.is_some();
@@ -4672,6 +4896,96 @@ fn curve_menu(
     });
 }
 
+fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &EnvelopeHit) {
+    let target = FxTarget::Track(hit.track_id);
+    let Some(env) = state
+        .timeline
+        .track(hit.track_id)
+        .and_then(|t| t.envelopes.iter().find(|e| e.target == hit.target))
+        .cloned()
+    else {
+        ui.label("Envelope não encontrado");
+        return;
+    };
+    let title = state
+        .timeline
+        .track(hit.track_id)
+        .map(|t| envelope_canvas::target_title(&t.effects, &hit.target))
+        .unwrap_or_else(|| hit.target.label());
+    ui.strong(title);
+    ui.separator();
+
+    let mut cmd_to_run = None;
+    if let Some(idx) = hit.point_index {
+        let current_shape = env
+            .points
+            .get(idx)
+            .map_or(EnvelopeShape::Linear, |p| p.shape);
+        ui.menu_button("Curva de interpolação", |ui| {
+            for shape in EnvelopeShape::ALL {
+                if ui
+                    .selectable_label(shape == current_shape, shape.label())
+                    .clicked()
+                {
+                    cmd_to_run = envelope::set_keyframe_shape(
+                        &state.timeline,
+                        target,
+                        &hit.target,
+                        idx,
+                        shape,
+                    );
+                    ui.close_menu();
+                }
+            }
+        });
+        if ui.button("Restaurar valor padrão").clicked() {
+            cmd_to_run = envelope::move_keyframe(
+                &state.timeline,
+                target,
+                &hit.target,
+                idx,
+                (hit.time, hit.default),
+                hit.bounds,
+            );
+            ui.close_menu();
+        }
+        if ui
+            .add_enabled(env.points.len() > 1, egui::Button::new("Remover ponto"))
+            .clicked()
+        {
+            cmd_to_run = envelope::remove_keyframe(&state.timeline, target, &hit.target, idx);
+            ui.close_menu();
+        }
+    } else if ui.button("Adicionar ponto aqui").clicked() {
+        let pt = envelope_canvas::new_point_on_curve(&env, hit.time, hit.value);
+        cmd_to_run =
+            envelope::upsert_keyframe(&state.timeline, target, &hit.target, pt, hit.bounds, 1e-4);
+        ui.close_menu();
+    }
+
+    ui.separator();
+    let mut enabled = env.enabled;
+    if ui.checkbox(&mut enabled, "Automação ativa").changed() {
+        cmd_to_run = envelope::set_envelope_enabled(&state.timeline, target, &hit.target, enabled);
+        ui.close_menu();
+    }
+    if ui.button("Ocultar envelope").clicked() {
+        cmd_to_run =
+            envelope::toggle_envelope(&state.timeline, target, hit.target.clone(), hit.default);
+        ui.close_menu();
+    }
+    if ui.button("Remover envelope").clicked() {
+        cmd_to_run = envelope::remove_envelope(&state.timeline, target, &hit.target);
+        ui.close_menu();
+    }
+
+    if let Some(cmd) = cmd_to_run {
+        if state.history.execute(&mut state.timeline, cmd) {
+            state.restart_audio_if_playing();
+        }
+    }
+}
+
 fn event_context_menu(
     state: &mut AppState,
     ui: &mut egui::Ui,
@@ -4949,6 +5263,53 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             });
         if let Some((id, _)) = hit {
             state.begin_name_edit(NameTarget::Existing(id));
+        } else if let Some(env_hit) = response
+            .interact_pointer_pos()
+            .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
+            .and_then(|p| {
+                envelope_canvas::hit_test(
+                    &state.timeline.tracks,
+                    lanes.left(),
+                    ruler_bottom,
+                    TRACK_HEIGHT,
+                    state.scroll_seconds,
+                    state.pixels_per_second,
+                    p,
+                )
+            })
+        {
+            let target = FxTarget::Track(env_hit.track_id);
+            let cmd = match env_hit.point_index {
+                Some(idx) => envelope::move_keyframe(
+                    &state.timeline,
+                    target,
+                    &env_hit.target,
+                    idx,
+                    (env_hit.time, env_hit.default),
+                    env_hit.bounds,
+                ),
+                None => state
+                    .timeline
+                    .track(env_hit.track_id)
+                    .and_then(|t| t.envelopes.iter().find(|e| e.target == env_hit.target))
+                    .and_then(|env| {
+                        let pt =
+                            envelope_canvas::new_point_on_curve(env, env_hit.time, env_hit.value);
+                        envelope::upsert_keyframe(
+                            &state.timeline,
+                            target,
+                            &env_hit.target,
+                            pt,
+                            env_hit.bounds,
+                            1e-4,
+                        )
+                    }),
+            };
+            if let Some(cmd) = cmd {
+                if state.history.execute(&mut state.timeline, cmd) {
+                    state.restart_audio_if_playing();
+                }
+            }
         }
     }
 
@@ -5018,7 +5379,27 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let press = ui.input(|i| i.pointer.press_origin());
         if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= lane_top) {
             let t = x_to_time(state, lanes.left(), p.x);
-            if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
+            let env_node = envelope_canvas::hit_test(
+                &state.timeline.tracks,
+                lanes.left(),
+                lane_top,
+                TRACK_HEIGHT,
+                state.scroll_seconds,
+                state.pixels_per_second,
+                p,
+            )
+            .filter(|h| h.point_index.is_some());
+            if let Some(h) = env_node {
+                state.selected_track = Some(h.track_id);
+                state.env_drag = Some(EnvelopeDrag {
+                    track_id: h.track_id,
+                    target: h.target,
+                    index: h.point_index.unwrap_or(0),
+                    time: h.time,
+                    value: h.value,
+                    bounds: h.bounds,
+                });
+            } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
                 if ui.input(|i| i.modifiers.command) {
                     hit.2 = match hit.2 {
                         DragMode::TrimLeft => DragMode::StretchLeft,
@@ -5099,23 +5480,72 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.time_selection = (!range.is_empty()).then_some(range);
         ui.ctx().request_repaint();
     }
+    if state.env_drag.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.env_drag = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let t = x_to_time(state, lanes.left(), p.x).max(0.0);
+            if let Some(d) = &mut state.env_drag {
+                if let Some(row) = state
+                    .timeline
+                    .tracks
+                    .iter()
+                    .position(|tr| tr.id == d.track_id)
+                {
+                    let y0 = lane_top + row as f32 * TRACK_HEIGHT;
+                    let sensitivity = if ui.input(|i| i.modifiers.command) {
+                        0.2
+                    } else {
+                        1.0
+                    };
+                    let raw_v =
+                        envelope_canvas::y_to_value(y0, TRACK_HEIGHT, p.y, d.bounds.0, d.bounds.1);
+                    d.time = t;
+                    d.value = if sensitivity < 1.0 {
+                        (d.value + (raw_v - d.value) * sensitivity).clamp(d.bounds.0, d.bounds.1)
+                    } else {
+                        raw_v
+                    };
+                }
+            }
+            ui.ctx().request_repaint();
+        }
+    }
     if response.drag_stopped() {
+        state.finish_envelope_drag();
         state.finish_mark_drag();
         state.finish_marquee();
         state.finish_drag();
         state.range_anchor = None;
     }
 
-    // Right-click on an event: fade curves
+    // Right-click on an envelope, an event or a ruler mark
     if response.secondary_clicked() {
         let pressed = response
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y >= lane_top);
-        state.context_event = pressed
-            .and_then(|p| hit_event(state, lanes.left(), lane_top, p))
-            .map(|h| (h.0, h.1));
+        state.context_envelope = pressed.and_then(|p| {
+            envelope_canvas::hit_test(
+                &state.timeline.tracks,
+                lanes.left(),
+                lane_top,
+                TRACK_HEIGHT,
+                state.scroll_seconds,
+                state.pixels_per_second,
+                p,
+            )
+        });
+        state.context_event = if state.context_envelope.is_some() {
+            None
+        } else {
+            pressed
+                .and_then(|p| hit_event(state, lanes.left(), lane_top, p))
+                .map(|h| (h.0, h.1))
+        };
         state.context_mark = None;
-        if let Some((track_id, event_id)) = state.context_event {
+        if let Some(env_hit) = &state.context_envelope {
+            state.selected_track = Some(env_hit.track_id);
+        } else if let Some((track_id, event_id)) = state.context_event {
             state.selected_track = Some(track_id);
             if !state.selection.contains((track_id, event_id)) {
                 state.click_select((track_id, event_id));
@@ -5131,43 +5561,51 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             state.mark_at(x_to_time(state, lanes.left(), p.x), tolerance)
         });
     }
-    response.context_menu(|ui| match (state.context_event, state.context_mark) {
-        (Some((track_id, event_id)), _) => event_context_menu(state, ui, track_id, event_id),
-        (None, Some(id)) => {
-            if ui.button("Renomear").clicked() {
-                state.begin_name_edit(NameTarget::Existing(id));
-                ui.close_menu();
-            }
-            if ui.button("Remover marcador ou região").clicked() {
-                state.remove_mark(id);
-                ui.close_menu();
-            }
-            if ui.button("Apagar todos os marcadores e regiões").clicked() {
-                state.time_selection = None;
-                state.clear_marks();
-                ui.close_menu();
-            }
+    response.context_menu(|ui| {
+        if let Some(env_hit) = state.context_envelope.clone() {
+            envelope_context_menu(state, ui, &env_hit);
+            return;
         }
-        (None, None) => {
-            for command in [Command::InsertMarker, Command::InsertRegion] {
-                command_item(state, ui, command);
+        match (state.context_event, state.context_mark) {
+            (Some((track_id, event_id)), _) => event_context_menu(state, ui, track_id, event_id),
+            (None, Some(id)) => {
+                if ui.button("Renomear").clicked() {
+                    state.begin_name_edit(NameTarget::Existing(id));
+                    ui.close_menu();
+                }
+                if ui.button("Remover marcador ou região").clicked() {
+                    state.remove_mark(id);
+                    ui.close_menu();
+                }
+                if ui.button("Apagar todos os marcadores e regiões").clicked() {
+                    state.time_selection = None;
+                    state.clear_marks();
+                    ui.close_menu();
+                }
             }
-            if ui
-                .add_enabled(
-                    !state.timeline.marks().is_empty(),
-                    egui::Button::new("Apagar marcadores e regiões"),
-                )
-                .on_hover_text("Na seleção de tempo; sem ela, todos")
-                .clicked()
-            {
-                state.clear_marks();
-                ui.close_menu();
+            (None, None) => {
+                for command in [Command::InsertMarker, Command::InsertRegion] {
+                    command_item(state, ui, command);
+                }
+                if ui
+                    .add_enabled(
+                        !state.timeline.marks().is_empty(),
+                        egui::Button::new("Apagar marcadores e regiões"),
+                    )
+                    .on_hover_text("Na seleção de tempo; sem ela, todos")
+                    .clicked()
+                {
+                    state.clear_marks();
+                    ui.close_menu();
+                }
             }
         }
     });
 
     // Cursor feedback
-    if let Some(drag) = &state.drag {
+    if state.env_drag.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    } else if let Some(drag) = &state.drag {
         ui.ctx().set_cursor_icon(match drag.mode {
             DragMode::Move => egui::CursorIcon::Grabbing,
             DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
@@ -5549,6 +5987,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 lane_painter.line_segment([area.left_bottom(), area.right_top()], stroke);
                 lane_painter.line_segment([area.left_top(), area.right_bottom()], stroke);
             }
+        }
+        if track.kind == TrackKind::Audio {
+            envelope_canvas::paint_track_envelopes(
+                &lane_painter,
+                lanes,
+                y,
+                TRACK_HEIGHT,
+                state.scroll_seconds,
+                state.pixels_per_second,
+                track,
+                state.env_drag.as_ref(),
+            );
         }
     }
 

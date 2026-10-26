@@ -1,10 +1,12 @@
 //! Timeline, tracks and events. Times are seconds (`f64`, sub-frame precision).
 
 use crate::captions::Caption;
+use crate::envelope::TrackEnvelope;
 use crate::markers::{Marker, Region};
 use std::collections::BTreeMap;
 
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
 use serde::{Deserialize, Serialize};
 
@@ -265,6 +267,9 @@ pub struct TrackDucking {
     /// Length of the down and up ramps, seconds.
     #[serde(default = "default_fade_s")]
     pub fade_s: f32,
+    /// Live sidechain follower driven post-FX and post-fader instead of pre-playback lookahead.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub realtime: bool,
 }
 
 impl Default for TrackDucking {
@@ -274,6 +279,7 @@ impl Default for TrackDucking {
             sensitivity: default_sensitivity(),
             reduce_db: default_reduce_db(),
             fade_s: default_fade_s(),
+            realtime: false,
         }
     }
 }
@@ -302,6 +308,13 @@ pub struct Track {
     /// Auto-ducking against other tracks (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ducking: Option<TrackDucking>,
+    /// Keyframed automation envelopes (volume, pan, effect parameters; older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub envelopes: Vec<TrackEnvelope>,
+}
+
+fn is_neutral_grade(grade: &Grade) -> bool {
+    grade.is_neutral()
 }
 
 fn is_zero(v: &f32) -> bool {
@@ -350,12 +363,18 @@ pub struct Timeline {
     /// Effect chain of the master bus, applied after every track is summed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub master_effects: Vec<TrackEffect>,
+    /// Automation envelopes for master bus effect parameters (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub master_envelopes: Vec<TrackEnvelope>,
     /// How the pan controls of the tracks turn into left / right gains.
     #[serde(default, skip_serializing_if = "is_default_law")]
     pub pan_law: PanLaw,
     /// Path of the `.cube` color table applied to the video (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub video_lut: Option<String>,
+    /// Primary color correction of the video (older projects have none).
+    #[serde(default, skip_serializing_if = "is_neutral_grade")]
+    pub video_grade: Grade,
     next_id: u64,
 }
 
@@ -407,6 +426,7 @@ impl Timeline {
             events: Vec::new(),
             effects: Vec::new(),
             ducking: None,
+            envelopes: Vec::new(),
         }
     }
 

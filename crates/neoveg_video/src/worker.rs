@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
+use neoveg_common::grade::Grade;
+
 use crate::frame::FrameBuffer;
 use crate::info::VideoInfo;
 use crate::lut::Lut;
@@ -17,6 +19,8 @@ pub struct FrameRequest {
     pub max_width: u32,
     /// Color table applied to the decoded picture (done on the worker thread).
     pub lut: Option<Arc<Lut>>,
+    /// Primary color correction, applied before the LUT.
+    pub grade: Grade,
 }
 
 pub struct FrameReply {
@@ -99,9 +103,7 @@ fn run(requests: Receiver<FrameRequest>, replies: Sender<FrameReply>, on_reply: 
                 .get_mut(&request.path)
                 .ok_or("decoder unavailable")?;
             let mut frame = decoder.frame_at(request.seconds, request.max_width)?;
-            if let Some(lut) = &request.lut {
-                lut.apply_to_frame(&mut frame, 1.0);
-            }
+            crate::grading::apply_look(&mut frame, &request.grade, request.lut.as_deref());
             Ok::<_, String>(frame)
         })();
         if let Err(e) = &result {
@@ -163,6 +165,7 @@ mod ffmpeg_tests {
             seconds: 0.4,
             max_width: 160,
             lut: None,
+            grade: Grade::default(),
         });
         let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
         assert_eq!(reply.media_id, 7);
@@ -175,6 +178,7 @@ mod ffmpeg_tests {
             seconds: 0.0,
             max_width: 0,
             lut: None,
+            grade: Grade::default(),
         });
         assert!(worker
             .rx

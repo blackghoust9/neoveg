@@ -7,6 +7,7 @@ pub mod crossfade;
 pub mod edit;
 pub mod edl;
 pub mod effects;
+pub mod envelope;
 pub mod fcp7;
 pub mod fcpxml;
 pub mod groups;
@@ -21,6 +22,7 @@ pub mod timeline;
 
 pub use captions::{Caption, CaptionId};
 pub use command::{EditCommand, FxTarget, History, TrackChange};
+pub use envelope::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEnvelope};
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{

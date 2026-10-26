@@ -1,9 +1,12 @@
-//! Vector toolbar icons drawn with egui shapes.
+//! Vector toolbar icons: drawn with egui shapes, plus a library of SVG files for the essential tools.
 //!
 //! Flat, monochrome pictograms in the spirit of classic NLE toolbars: original artwork, no bitmap
 //! assets, so they stay crisp at any scale and monitor DPI and follow the colours of the theme.
 //! Every icon is described on a unit square and turned into shapes by [`shapes`], which is pure
 //! and testable without a window.
+
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
 use eframe::egui::{self, vec2, Color32, Pos2, Rect, Response, Rounding, Sense, Shape, Stroke};
 
@@ -379,7 +382,157 @@ pub fn icon_button_sized(
                 tint
             }
         };
-        painter.extend(shapes(icon, rect.shrink(side * 0.18), color));
+        let inner = rect.shrink(side * 0.18);
+        // Icons that have an SVG in the library are drawn from it; the rest (or an SVG that cannot
+        // be rendered) use the shape drawing
+        let drawn = svg_for(icon).is_some_and(|svg| paint_svg(ui, svg, inner, color));
+        if !drawn {
+            ui.painter().extend(shapes(icon, inner, color));
+        }
+    }
+    response.on_hover_text(tooltip)
+}
+
+// ---- the SVG library ------------------------------------------------------------------------------
+
+/// The SVG files in `assets/icons`: 24x24 viewBox, `currentColor`, flat and square-cornered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SvgIcon {
+    PanCrop,
+    EventFx,
+    Snapping,
+    AutoRipple,
+    Split,
+    TransportPlay,
+    TransportPause,
+    TransportStop,
+}
+
+impl SvgIcon {
+    pub const ALL: [SvgIcon; 8] = [
+        SvgIcon::PanCrop,
+        SvgIcon::EventFx,
+        SvgIcon::Snapping,
+        SvgIcon::AutoRipple,
+        SvgIcon::Split,
+        SvgIcon::TransportPlay,
+        SvgIcon::TransportPause,
+        SvgIcon::TransportStop,
+    ];
+
+    /// File name without the extension.
+    pub fn name(self) -> &'static str {
+        match self {
+            SvgIcon::PanCrop => "pan_crop",
+            SvgIcon::EventFx => "event_fx",
+            SvgIcon::Snapping => "snapping",
+            SvgIcon::AutoRipple => "auto_ripple",
+            SvgIcon::Split => "split",
+            SvgIcon::TransportPlay => "transport_play",
+            SvgIcon::TransportPause => "transport_pause",
+            SvgIcon::TransportStop => "transport_stop",
+        }
+    }
+
+    /// The file as written (with `currentColor`).
+    pub fn source(self) -> &'static str {
+        match self {
+            SvgIcon::PanCrop => include_str!("../assets/icons/pan_crop.svg"),
+            SvgIcon::EventFx => include_str!("../assets/icons/event_fx.svg"),
+            SvgIcon::Snapping => include_str!("../assets/icons/snapping.svg"),
+            SvgIcon::AutoRipple => include_str!("../assets/icons/auto_ripple.svg"),
+            SvgIcon::Split => include_str!("../assets/icons/split.svg"),
+            SvgIcon::TransportPlay => include_str!("../assets/icons/transport_play.svg"),
+            SvgIcon::TransportPause => include_str!("../assets/icons/transport_pause.svg"),
+            SvgIcon::TransportStop => include_str!("../assets/icons/transport_stop.svg"),
+        }
+    }
+
+    /// Identifier the image loader caches the rasterized icon under.
+    pub fn uri(self) -> String {
+        format!("bytes://neoveg/icons/{}.svg", self.name())
+    }
+}
+
+/// The SVG for a shape icon, when the library has one.
+pub fn svg_for(icon: Icon) -> Option<SvgIcon> {
+    match icon {
+        Icon::Play => Some(SvgIcon::TransportPlay),
+        Icon::Pause => Some(SvgIcon::TransportPause),
+        Icon::Stop => Some(SvgIcon::TransportStop),
+        Icon::Split => Some(SvgIcon::Split),
+        Icon::Snap => Some(SvgIcon::Snapping),
+        _ => None,
+    }
+}
+
+/// The SVG with every `currentColor` made white, so the image can be tinted with any theme color
+/// (a white image multiplied by a tint is that tint).
+fn tintable_bytes(icon: SvgIcon) -> Arc<[u8]> {
+    static CACHE: OnceLock<HashMap<&'static str, Arc<[u8]>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| {
+        SvgIcon::ALL
+            .iter()
+            .map(|i| {
+                let text = i.source().replace("currentColor", "#ffffff");
+                (i.name(), Arc::from(text.into_bytes()))
+            })
+            .collect()
+    });
+    Arc::clone(&cache[icon.name()])
+}
+
+/// Installs the image loaders the SVG icons need; call once when the window is created.
+pub fn install(ctx: &egui::Context) {
+    egui_extras::install_image_loaders(ctx);
+}
+
+/// Draws `icon` into `rect` tinted with `color`. `false` when it could not be rendered (the
+/// caller then falls back to another drawing); a pending load asks for a repaint and counts as drawn.
+pub fn paint_svg(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bool {
+    let image = egui::Image::from_bytes(icon.uri(), tintable_bytes(icon)).tint(color);
+    match image.load_for_size(ui.ctx(), rect.size()) {
+        Ok(egui::load::TexturePoll::Ready { .. }) => {
+            image.paint_at(ui, rect);
+            true
+        }
+        Ok(egui::load::TexturePoll::Pending { .. }) => {
+            ui.ctx().request_repaint();
+            true
+        }
+        Err(e) => {
+            tracing::warn!("[WARN] cannot render the icon {}: {e}", icon.name());
+            false
+        }
+    }
+}
+
+/// A flat, square-cornered button showing an SVG icon (the same look as [`icon_button`]).
+pub fn svg_button(ui: &mut egui::Ui, icon: SvgIcon, tooltip: &str, selected: bool) -> Response {
+    let side = BUTTON_SIZE;
+    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+    if ui.is_rect_visible(rect) {
+        let fill = if selected {
+            ui.visuals().selection.bg_fill
+        } else if response.hovered() {
+            ui.visuals().widgets.hovered.bg_fill
+        } else {
+            Color32::TRANSPARENT
+        };
+        ui.painter().rect_filled(rect, Rounding::ZERO, fill);
+        if selected {
+            ui.painter().rect_stroke(
+                rect,
+                Rounding::ZERO,
+                Stroke::new(1.0_f32, ui.visuals().selection.stroke.color),
+            );
+        }
+        let color = if ui.is_enabled() {
+            ui.visuals().text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        };
+        paint_svg(ui, icon, rect.shrink(side * 0.18), color);
     }
     response.on_hover_text(tooltip)
 }
@@ -387,6 +540,58 @@ pub fn icon_button_sized(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_svg_follows_the_house_style() {
+        for icon in SvgIcon::ALL {
+            let text = icon.source();
+            let name = icon.name();
+            assert!(text.contains("viewBox=\"0 0 24 24\""), "{name}: viewBox");
+            assert!(text.contains("currentColor"), "{name}: currentColor");
+            // Colors only through currentColor, so the theme decides them
+            for banned in ["#", "rgb(", "url(", "<image", "<text"] {
+                assert!(!text.contains(banned), "{name}: {banned}");
+            }
+            // Flat and square: no rounded joins or caps, no rounded rectangles
+            assert!(!text.contains("round"), "{name}: round");
+            assert!(!text.contains("rx="), "{name}: rx");
+            assert!(text.trim_end().ends_with("</svg>"), "{name}");
+            assert_eq!(text.matches("<svg").count(), 1, "{name}");
+        }
+    }
+
+    #[test]
+    fn svg_names_are_unique_and_match_their_files() {
+        let mut names: Vec<_> = SvgIcon::ALL.iter().map(|i| i.name()).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), SvgIcon::ALL.len());
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons");
+        for icon in SvgIcon::ALL {
+            let on_disk = std::fs::read_to_string(format!("{dir}/{}.svg", icon.name())).unwrap();
+            assert_eq!(on_disk, icon.source());
+        }
+    }
+
+    #[test]
+    fn the_tinted_bytes_drop_current_color_and_keep_the_drawing() {
+        for icon in SvgIcon::ALL {
+            let text = String::from_utf8(tintable_bytes(icon).to_vec()).unwrap();
+            assert!(!text.contains("currentColor"), "{}", icon.name());
+            assert!(text.contains("#ffffff"), "{}", icon.name());
+            assert!(text.contains("<svg") && text.contains("</svg>"));
+        }
+    }
+
+    #[test]
+    fn the_transport_and_edit_icons_use_their_svgs() {
+        assert_eq!(svg_for(Icon::Play), Some(SvgIcon::TransportPlay));
+        assert_eq!(svg_for(Icon::Pause), Some(SvgIcon::TransportPause));
+        assert_eq!(svg_for(Icon::Stop), Some(SvgIcon::TransportStop));
+        assert_eq!(svg_for(Icon::Split), Some(SvgIcon::Split));
+        assert_eq!(svg_for(Icon::Snap), Some(SvgIcon::Snapping));
+        assert_eq!(svg_for(Icon::Undo), None);
+    }
     use eframe::egui::pos2;
 
     fn frame() -> Rect {

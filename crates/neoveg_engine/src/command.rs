@@ -1,12 +1,14 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
 use crate::captions::Caption;
+use crate::envelope::TrackEnvelope;
 use crate::markers::Marks;
 use crate::timeline::{
     EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
     TrackMix, TIME_EPSILON,
 };
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
 
 /// Where an effect chain lives.
@@ -93,6 +95,11 @@ pub enum EditCommand {
         before: TrackMix,
         after: TrackMix,
     },
+    /// The primary color correction of the video.
+    SetVideoGrade {
+        before: Grade,
+        after: Grade,
+    },
     /// The color table of the video (a `.cube` path), or none.
     SetVideoLut {
         before: Option<String>,
@@ -108,6 +115,12 @@ pub enum EditCommand {
         track_id: TrackId,
         before: Option<TrackDucking>,
         after: Option<TrackDucking>,
+    },
+    /// Any change to automation envelopes on a track or on the master bus: one undo step.
+    SetEnvelopes {
+        target: FxTarget,
+        before: Vec<TrackEnvelope>,
+        after: Vec<TrackEnvelope>,
     },
 }
 
@@ -212,6 +225,10 @@ impl EditCommand {
                 tl.pan_law = *after;
                 true
             }
+            Self::SetVideoGrade { after, .. } => {
+                tl.video_grade = after.sanitized();
+                true
+            }
             Self::SetVideoLut { after, .. } => {
                 tl.video_lut = after.clone();
                 true
@@ -220,6 +237,7 @@ impl EditCommand {
             Self::SetDucking {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
+            Self::SetEnvelopes { target, after, .. } => set_envelopes(tl, *target, after),
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -312,6 +330,7 @@ impl EditCommand {
                 set_track_mix(tl, *track_id, *before);
             }
             Self::SetPanLaw { before, .. } => tl.pan_law = *before,
+            Self::SetVideoGrade { before, .. } => tl.video_grade = before.sanitized(),
             Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
@@ -320,6 +339,9 @@ impl EditCommand {
                 track_id, before, ..
             } => {
                 set_ducking(tl, *track_id, before);
+            }
+            Self::SetEnvelopes { target, before, .. } => {
+                set_envelopes(tl, *target, before);
             }
             Self::SplitEvent {
                 track_id,
@@ -358,6 +380,22 @@ fn set_ducking(tl: &mut Timeline, track_id: TrackId, ducking: &Option<TrackDucki
             true
         }
         None => false,
+    }
+}
+
+fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope]) -> bool {
+    match target {
+        FxTarget::Master => {
+            tl.master_envelopes = envelopes.to_vec();
+            true
+        }
+        FxTarget::Track(id) => match tl.track_mut(id) {
+            Some(t) => {
+                t.envelopes = envelopes.to_vec();
+                true
+            }
+            None => false,
+        },
     }
 }
 

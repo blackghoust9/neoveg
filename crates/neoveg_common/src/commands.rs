@@ -180,9 +180,9 @@ commands! {
     TrackMuteExclusive => ("track.mute_exclusive", "Mudo só nesta faixa", Track, true),
     TrackSolo => ("track.solo", "Solo na faixa", Track, true),
     TrackSoloExclusive => ("track.solo_exclusive", "Solo só nesta faixa", Track, true),
-    TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, false),
-    TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, false),
-    TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, false),
+    TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, true),
+    TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, true),
+    TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, true),
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
