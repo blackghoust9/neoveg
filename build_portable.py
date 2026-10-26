@@ -76,6 +76,9 @@ PAYLOAD_FILES = {
     "third_party/README.md": "third_party/README.md",
     "third_party/filmcraft/LICENSE-MIT": "third_party/filmcraft/LICENSE-MIT",
     "third_party/filmcraft/README.md": "third_party/filmcraft/README.md",
+    "third_party/nnnoiseless/COPYING": "third_party/nnnoiseless/COPYING",
+    "third_party/nnnoiseless/AUTHORS": "third_party/nnnoiseless/AUTHORS",
+    "third_party/nnnoiseless/README.md": "third_party/nnnoiseless/README.md",
 }
 
 PILLAR_LABELS = {

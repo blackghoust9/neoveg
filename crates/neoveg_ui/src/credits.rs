@@ -28,8 +28,9 @@ pub const CREDITS: &[Credit] = &[
         used_for: "Medidor de loudness ITU-R BS.1770-4 / EBU R128 (loudness momentâneo, de curto \
                    prazo e integrado, faixa de loudness e pico verdadeiro) e efeitos de áudio das \
                    faixas e do master (equalizadores, filtros, compressor, gate, limitador, delay, reverb, \
-                   DeHum e DeNoise) e análise do auto-ducking; código adaptado em \
-                   neoveg_audio::dsp",
+                   DeHum, DeNoise, chorus, phaser, pitch, multibanda, DeEsser e outros) e análise do \
+                   auto-ducking, em neoveg_audio::dsp; e a leitura e a escrita de legendas SRT e \
+                   WebVTT, em neoveg_engine::captions",
         authors: "ArtCraft Team and the FilmCraft contributors",
         license: "MIT OR Apache-2.0 (usado sob a MIT)",
         url: "https://github.com/storytold/filmcraft",
@@ -38,6 +39,20 @@ pub const CREDITS: &[Credit] = &[
         name: "Tela de carregamento e ícones do Neoveg",
         used_for: "Formas 3D, carretel de filme animado, animação do nome e ícones vetoriais: \
                    arte original desenhada em código",
+        authors: "Neoveg Contributors",
+        license: "MIT",
+        url: "https://github.com/blackghoust9/neoveg",
+    },
+    Credit {
+        name: "nnnoiseless (RNNoise)",
+        used_for: "Redução de ruído por rede neural (efeito RNNoise); o RNNoise original é de \n                   Jean-Marc Valin, Mozilla e Xiph.Org",
+        authors: "Joe Neeman; RNNoise: Jean-Marc Valin, Mozilla Corporation, Xiph.Org Foundation",
+        license: "BSD-3-Clause",
+        url: "https://github.com/jneem/nnnoiseless",
+    },
+    Credit {
+        name: "Listas de edição CMX 3600",
+        used_for: "Importar e exportar EDL (código próprio do Neoveg, sobre o formato público)",
         authors: "Neoveg Contributors",
         license: "MIT",
         url: "https://github.com/blackghoust9/neoveg",
@@ -166,6 +181,32 @@ mod tests {
     }
 
     #[test]
+    fn the_rnnoise_dependency_is_credited_and_its_licence_ships() {
+        let rnnoise = CREDITS
+            .iter()
+            .find(|c| c.name.contains("RNNoise"))
+            .expect("RNNoise credit");
+        assert_eq!(rnnoise.license, "BSD-3-Clause");
+        assert!(rnnoise.authors.contains("Xiph.Org"));
+        let licence = repo_file("third_party/nnnoiseless/COPYING");
+        assert!(licence.contains("Jean-Marc Valin"));
+        assert!(licence.contains("Redistribution and use in source and binary forms"));
+        assert!(repo_file("crates/neoveg_audio/Cargo.toml").contains("nnnoiseless"));
+        for doc in ["AUTHORS.md", "third_party/README.md"] {
+            assert!(repo_file(doc).contains("nnnoiseless"), "{doc}");
+        }
+        assert!(repo_file("build_portable.py").contains("third_party/nnnoiseless/COPYING"));
+    }
+
+    #[test]
+    fn the_adapted_subtitle_code_carries_its_attribution() {
+        let text = repo_file("crates/neoveg_engine/src/captions.rs");
+        assert!(text.contains("adapted from `filmcraft-captions`"));
+        assert!(text.contains("ArtCraft Team and the FilmCraft contributors"));
+        assert!(repo_file("AUTHORS.md").contains("captions.rs"));
+    }
+
+    #[test]
     fn every_adapted_source_file_carries_the_attribution_header() {
         for file in [
             "biquad.rs",
@@ -177,6 +218,13 @@ mod tests {
             "effects/eq.rs",
             "effects/dynamics.rs",
             "effects/time.rs",
+            "effects/modulation.rs",
+            "effects/pitch.rs",
+            "effects/declick.rs",
+            "effects/essential.rs",
+            "effects/multiband.rs",
+            "effects/channel.rs",
+            "effects/util.rs",
             "effects/filters.rs",
             "effects/restoration.rs",
             "effects/stft.rs",

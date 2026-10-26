@@ -1,5 +1,6 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
+use crate::captions::Caption;
 use crate::markers::Marks;
 use crate::timeline::{
     EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
@@ -75,6 +76,15 @@ pub enum EditCommand {
         target: FxTarget,
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
+    },
+    /// Several commands that are one undo step (an import that adds tracks and events): applied in
+    /// order, reverted in reverse order; if one does not apply, the ones before it are reverted.
+    Batch(Vec<EditCommand>),
+    /// Any change to the subtitles (import, add, edit, remove): the whole list before and after, so
+    /// it is one exactly reversible undo step.
+    ReplaceCaptions {
+        before: Vec<Caption>,
+        after: Vec<Caption>,
     },
     /// Any change to a track's auto-ducking (on / off, controllers, amounts): one undo step.
     SetDucking {
@@ -163,6 +173,21 @@ impl EditCommand {
                 tl.set_marks(after);
                 true
             }
+            Self::Batch(commands) => {
+                for (i, command) in commands.iter().enumerate() {
+                    if !command.apply(tl) {
+                        for done in commands[..i].iter().rev() {
+                            done.revert(tl);
+                        }
+                        return false;
+                    }
+                }
+                true
+            }
+            Self::ReplaceCaptions { after, .. } => {
+                tl.captions = after.clone();
+                true
+            }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SetDucking {
                 track_id, after, ..
@@ -245,6 +270,12 @@ impl EditCommand {
                 }
             }
             Self::ReplaceMarks { before, .. } => tl.set_marks(before),
+            Self::Batch(commands) => {
+                for command in commands.iter().rev() {
+                    command.revert(tl);
+                }
+            }
+            Self::ReplaceCaptions { before, .. } => tl.captions = before.clone(),
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
             }

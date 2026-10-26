@@ -26,6 +26,14 @@
 | `crates/neoveg_audio/src/dsp/design.rs` | `audio-dsp/src/design.rs` | Projeto de filtros clássicos em seções biquad |
 | `crates/neoveg_audio/src/dsp/fft.rs` | `audio-dsp/src/fft.rs` | FFT |
 | `crates/neoveg_audio/src/dsp/ducking.rs` | `audio-dsp/src/ducking.rs` | Análise do auto-ducking: regiões de atividade e curva de ganho (os keyframes de descida e subida) |
+| `crates/neoveg_audio/src/dsp/effects/modulation.rs` | `audio-dsp/src/effects/modulation.rs` | Chorus/flanger, flanger, phaser, delay analógico e delay de várias batidas |
+| `crates/neoveg_audio/src/dsp/effects/pitch.rs` | `audio-dsp/src/effects/pitch.rs` | Mudança de tom (pitch shifter por STFT) |
+| `crates/neoveg_audio/src/dsp/effects/declick.rs` | `audio-dsp/src/effects/declick.rs` | Removedor automático de cliques |
+| `crates/neoveg_audio/src/dsp/effects/essential.rs` | `audio-dsp/src/effects/essential.rs` | DeEsser, DeReverb, realce de fala e largura estéreo |
+| `crates/neoveg_audio/src/dsp/effects/multiband.rs` | `audio-dsp/src/effects/multiband.rs` | Compressor multibanda, rack de dinâmica e compressor valvulado |
+| `crates/neoveg_audio/src/dsp/effects/channel.rs` | `audio-dsp/src/effects/channel.rs` | Amplificar, volume por canal, balanço e inverter fase |
+| `crates/neoveg_audio/src/dsp/effects/util.rs` | `audio-dsp/src/effects/util.rs` | Linhas de atraso, filtros de um polo, LFOs e envelopes usados pelos efeitos |
+| `crates/neoveg_engine/src/captions.rs` | `captions/src/srt.rs`, `captions/src/vtt.rs` e funções de relógio e de decodificação de `captions/src/lib.rs` | Leitura e escrita de legendas SubRip (`.srt`) e WebVTT (`.vtt`) tolerantes a arquivos reais |
 | `crates/neoveg_audio/src/dsp/effects/mod.rs` | trecho de `audio-dsp/src/effects/mod.rs` | Registro dos efeitos (só os 7 que o Neoveg oferece) e seus testes de consistência |
 
 Cada arquivo mantém, no topo, o aviso de origem e de copyright.
@@ -36,7 +44,8 @@ Cada arquivo mantém, no topo, o aviso de origem e de copyright.
 - Formatação com `rustfmt`; o código segue com o estilo original.
 - Em `dsp/mod.rs`, as funções auxiliares (`flush` e utilitários de teste) foram reproduzidas a partir
   de `audio-dsp/src/lib.rs`, e alguns lints do clippy foram silenciados só nesse módulo.
-- Em `effects/mod.rs` só foram registrados os 16 efeitos usados; os nomes dos efeitos ficaram em pt-BR e foram acrescentados `has_latency` e `Category::label`.
+- Em `effects/mod.rs` só foram registrados os 28 efeitos usados (os de `audio-dsp` que dependem de convolução, ambisonics, guitarra e do modelo de projeto ficaram de fora); os nomes dos efeitos ficaram em pt-BR e foram acrescentados `has_latency` e `Category::label`.
+- Em `captions.rs` o tempo passou de ticks para segundos (`f64`), as cadeias `let` da edição 2024 foram reescritas para a 2021, e o modelo de projeto do FilmCraft (faixas de legenda, ticks) foi trocado pelo `Caption` e pelos comandos do Neoveg, que são código próprio.
 - Os testes unitários de todos os arquivos copiados foram mantidos. Os testes de oráculo contra o `ffmpeg`
   (`audio-dsp/tests/loudness_oracle.rs`) **não** foram trazidos.
 

@@ -26,8 +26,10 @@ use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
+use neoveg_engine::captions;
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
+use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
@@ -43,6 +45,7 @@ use neoveg_engine::{
 use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
+use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
@@ -203,6 +206,8 @@ struct AppState {
     /// Index into `loudness_panel::TARGETS`.
     loudness_target: usize,
     show_credits: bool,
+    /// Subtitles tab (text and times being edited).
+    captions_panel: CaptionsPanelState,
     /// Audio effects panel (target and the slider being dragged).
     fx: FxPanelState,
     master_volume: f32,
@@ -255,6 +260,42 @@ struct AppState {
     loader_rx: Receiver<LoadMsg>,
 }
 
+/// The media of the project an EDL event refers to: by the source file name, else by the clip
+/// name (with or without extension), else by the reel name.
+fn match_edl_media(event: &EdlEvent, pool: &[MediaRef]) -> Option<MediaMatch> {
+    let file_name = |path: &str| {
+        path.rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(path)
+            .to_ascii_lowercase()
+    };
+    let stem = |name: &str| {
+        let name = name.to_ascii_lowercase();
+        match name.rsplit_once('.') {
+            Some((stem, ext)) if ext.len() <= 4 => stem.to_owned(),
+            _ => name,
+        }
+    };
+    let found = pool.iter().find(|m| {
+        let media_file = file_name(&m.path);
+        let media_stem = stem(&media_file);
+        event
+            .source_file
+            .as_deref()
+            .is_some_and(|f| file_name(f) == media_file)
+            || event
+                .clip_name
+                .as_deref()
+                .is_some_and(|n| stem(n) == media_stem || n.eq_ignore_ascii_case(&media_file))
+            || (event.clip_name.is_none()
+                && edl::reel_name(&media_stem).eq_ignore_ascii_case(&event.reel))
+    })?;
+    Some(MediaMatch {
+        media_id: found.id,
+        duration: found.duration_seconds,
+    })
+}
+
 /// What the startup screen says it is loading, in the order the steps run.
 const STARTUP_STEPS: [&str; 6] = [
     "Preferências e atalhos de teclado",
@@ -266,6 +307,230 @@ const STARTUP_STEPS: [&str; 6] = [
 ];
 
 impl AppState {
+    // ---- edit decision lists -----------------------------------------------------------------
+
+    /// File > Export EDL: the cuts of the selected track as a CMX 3600 list.
+    fn export_edl(&mut self) {
+        let Some(track_id) = self.selected_track else {
+            self.status = "Selecione uma faixa para exportar a EDL dela".into();
+            return;
+        };
+        let pool = self.project.media_pool.clone();
+        let names: HashMap<u64, String> = self
+            .media
+            .iter()
+            .map(|(id, m)| (*id, m.name.clone()))
+            .collect();
+        let clip_info = |media: Option<u64>| {
+            let id = media?;
+            let item = pool.iter().find(|m| m.id == id)?;
+            let name = names.get(&id).cloned().unwrap_or_else(|| {
+                item.path
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or(&item.path)
+                    .to_owned()
+            });
+            Some(edl::ClipInfo {
+                name,
+                path: Some(item.path.clone()),
+            })
+        };
+        let Some(text) = edl::export_track(
+            &self.timeline,
+            track_id,
+            &self.project.name,
+            self.project.settings.fps,
+            1,
+            clip_info,
+        ) else {
+            self.status = "A faixa selecionada não tem eventos para exportar".into();
+            return;
+        };
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Lista de edição CMX 3600", &["edl"])
+            .set_file_name(format!("{}.edl", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        match std::fs::write(&path, text) {
+            Ok(()) => self.status = format!("EDL exportada: {}", path.display()),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar a EDL: {e}");
+            }
+        }
+    }
+
+    /// File > Import EDL: places the events whose media is in the project, as one undo step.
+    fn import_edl(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Lista de edição CMX 3600", &["edl"])
+            .pick_file()
+        else {
+            return;
+        };
+        let text = match std::fs::read(&path) {
+            Ok(bytes) => captions::decode_text(&bytes),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler a EDL: {e}");
+                return;
+            }
+        };
+        let doc = match edl::parse(&text, self.project.settings.fps) {
+            Ok(doc) => doc,
+            Err(e) => {
+                self.status = format!("Não foi possível abrir a EDL: {e}");
+                return;
+            }
+        };
+        for warning in &doc.warnings {
+            tracing::warn!("[WARN] {}: {warning}", path.display());
+        }
+        let pool = self.project.media_pool.clone();
+        let imported =
+            edl::import_into_timeline(&mut self.timeline, &doc, |e| match_edl_media(e, &pool));
+        self.status = match imported {
+            Some((command, report)) => {
+                self.history.execute(&mut self.timeline, command);
+                format!(
+                    "EDL importada: {} evento(s); {} sem mídia no projeto{}",
+                    report.added,
+                    report.skipped.len(),
+                    if doc.warnings.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; {} aviso(s) no log", doc.warnings.len())
+                    }
+                )
+            }
+            None => "Nenhum evento da EDL tem mídia no projeto: importe as mídias antes".into(),
+        };
+    }
+
+    // ---- subtitles ----------------------------------------------------------------------------
+
+    /// File > Import subtitles: adds the cues of an SRT or WebVTT file as one undo step.
+    fn import_captions(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Legendas (SRT, WebVTT)", &["srt", "vtt"])
+            .pick_file()
+        else {
+            return;
+        };
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler as legendas: {e}");
+                return;
+            }
+        };
+        let extension = path.extension().and_then(|e| e.to_str());
+        match captions::parse_bytes(&bytes, None, extension) {
+            Ok((format, doc)) => {
+                for warning in &doc.warnings {
+                    tracing::warn!("[WARN] {}: {warning}", path.display());
+                }
+                let count = doc.cues.len();
+                match captions::import_document(&mut self.timeline, &doc, 0.0, false) {
+                    Some(command) => {
+                        self.history.execute(&mut self.timeline, command);
+                        self.status = format!(
+                            "{count} legendas importadas ({}){}",
+                            format.name(),
+                            if doc.warnings.is_empty() {
+                                String::new()
+                            } else {
+                                format!("; {} aviso(s) no log", doc.warnings.len())
+                            }
+                        );
+                    }
+                    None => self.status = "O arquivo não tem nenhuma legenda utilizável".into(),
+                }
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] {}: {e}", path.display());
+                self.status = format!("Não foi possível abrir as legendas: {e}");
+            }
+        }
+    }
+
+    /// File > Export subtitles: writes the captions as SRT or WebVTT, by the file's extension.
+    fn export_captions(&mut self) {
+        if self.timeline.captions.is_empty() {
+            self.status = "Não há legendas para exportar".into();
+            return;
+        }
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("SubRip (SRT)", &["srt"])
+            .add_filter("WebVTT", &["vtt"])
+            .set_file_name(format!("{}.srt", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        let format = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .and_then(captions::Format::from_extension)
+            .unwrap_or(captions::Format::Srt);
+        let text = captions::write(&captions::export_document(&self.timeline), format);
+        match std::fs::write(&path, text) {
+            Ok(()) => {
+                self.status = format!(
+                    "{} legendas exportadas ({})",
+                    self.timeline.captions.len(),
+                    format.name()
+                )
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar as legendas: {e}");
+            }
+        }
+    }
+
+    /// Runs what the user did in the subtitles tab; each action is one undo step.
+    fn apply_caption_actions(&mut self, actions: Vec<CaptionAction>, now: f64) {
+        for action in actions {
+            let command = match action {
+                CaptionAction::Add => captions::add_caption(
+                    &mut self.timeline,
+                    self.playhead,
+                    captions_panel::NEW_CAPTION_SECONDS,
+                    "",
+                ),
+                CaptionAction::Remove(id) => captions::remove_caption(&self.timeline, id),
+                CaptionAction::SetText(id, text) => {
+                    captions::set_caption_text(&self.timeline, id, &text)
+                }
+                CaptionAction::SetTimes(id, start, end) => {
+                    captions::set_caption_times(&self.timeline, id, start, end)
+                }
+                CaptionAction::Seek(time) => {
+                    self.playhead = time;
+                    self.blink_origin = now;
+                    None
+                }
+                CaptionAction::Import => {
+                    self.import_captions();
+                    None
+                }
+                CaptionAction::Export => {
+                    self.export_captions();
+                    None
+                }
+                CaptionAction::Clear => captions::clear_captions(&self.timeline),
+            };
+            if let Some(command) = command {
+                self.history.execute(&mut self.timeline, command);
+            }
+        }
+    }
+
     /// Startup step 1: the user's preferences and keyboard map.
     fn load_preferences(&mut self) -> String {
         let prefs = Preferences::default_path()
@@ -363,6 +628,7 @@ impl AppState {
             loudness: Arc::new(LoudnessReadout::new()),
             loudness_target: 0,
             show_credits: false,
+            captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
             master_volume: 1.0,
             active_player: None,
@@ -2244,6 +2510,34 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.import_media(&ctx);
                 ui.close_menu();
             }
+            if ui.button("Importar EDL (CMX 3600)…").clicked() {
+                state.import_edl();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    state.selected_track.is_some(),
+                    egui::Button::new("Exportar EDL da faixa selecionada…"),
+                )
+                .clicked()
+            {
+                state.export_edl();
+                ui.close_menu();
+            }
+            if ui.button("Importar legendas (SRT, WebVTT)…").clicked() {
+                state.import_captions();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    !state.timeline.captions.is_empty(),
+                    egui::Button::new("Exportar legendas (SRT, WebVTT)…"),
+                )
+                .clicked()
+            {
+                state.export_captions();
+                ui.close_menu();
+            }
             ui.separator();
             if ui.button("Sair").clicked() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -2848,6 +3142,12 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
         );
     }
 
+    // Subtitles showing at the cursor
+    let showing = captions::active_at(&state.timeline, state.playhead);
+    if !showing.is_empty() {
+        captions_panel::paint_overlay(&painter.with_clip_rect(frame_rect), frame_rect, &showing);
+    }
+
     let factor = match QUALITIES[state.quality].1 {
         f if f > 0.0 => f,
         _ => scale.min(1.0),
@@ -2901,14 +3201,23 @@ fn media_ui(state: &mut AppState, ui: &mut egui::Ui) {
     footer_tabs(
         ui,
         "media_footer",
-        &["Mídia do Projeto", "Trimmer"],
+        &["Mídia do Projeto", "Trimmer", "Legendas"],
         &mut tab,
     );
     state.media_tab = tab;
-    if tab == 0 {
-        project_media_ui(state, ui);
-    } else {
-        trimmer_ui(state, ui);
+    match tab {
+        0 => project_media_ui(state, ui),
+        1 => trimmer_ui(state, ui),
+        _ => {
+            let now = ui.input(|i| i.time);
+            let actions = captions_panel::captions_ui(
+                ui,
+                &mut state.captions_panel,
+                &state.timeline.captions,
+                state.playhead,
+            );
+            state.apply_caption_actions(actions, now);
+        }
     }
 }
 
@@ -5014,6 +5323,108 @@ mod tests {
             vec![FxAction::Duck(DuckAction::Enable(true))],
         );
         assert_eq!(s.history.revision(), revision);
+    }
+
+    #[test]
+    fn subtitle_actions_are_one_undo_step_each() {
+        let mut s = AppState::new();
+        s.playhead = 3.0;
+        let revision = s.history.revision();
+        s.apply_caption_actions(vec![CaptionAction::Add], 0.0);
+        assert_eq!(s.timeline.captions.len(), 1);
+        let id = s.timeline.captions[0].id;
+        assert_eq!(s.timeline.captions[0].start, 3.0);
+
+        s.apply_caption_actions(
+            vec![
+                CaptionAction::SetText(id, "Olá".into()),
+                CaptionAction::SetTimes(id, 4.0, 6.5),
+            ],
+            0.0,
+        );
+        assert_eq!(s.history.revision(), revision + 3);
+        let c = &s.timeline.captions[0];
+        assert_eq!((c.text.as_str(), c.start, c.end), ("Olá", 4.0, 6.5));
+        assert_eq!(captions::active_at(&s.timeline, 5.0).len(), 1);
+
+        s.apply_caption_actions(vec![CaptionAction::Seek(9.0)], 1.0);
+        assert_eq!(s.playhead, 9.0);
+        assert_eq!(
+            s.history.revision(),
+            revision + 3,
+            "moving the cursor is not an edit"
+        );
+
+        run(&mut s, Command::EditUndo);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.captions[0].text, "");
+        s.apply_caption_actions(vec![CaptionAction::Remove(id)], 0.0);
+        assert!(s.timeline.captions.is_empty());
+        s.apply_caption_actions(vec![CaptionAction::Clear], 0.0);
+        assert_eq!(
+            s.history.revision(),
+            revision + 6,
+            "clearing nothing changes nothing"
+        );
+    }
+
+    fn edl_event(reel: &str, clip: Option<&str>, file: Option<&str>) -> EdlEvent {
+        EdlEvent {
+            number: 1,
+            reel: reel.into(),
+            track: edl::EdlTrack::Video,
+            transition: edl::Transition::Cut,
+            source_in: 0.0,
+            source_out: 1.0,
+            record_in: 0.0,
+            record_out: 1.0,
+            clip_name: clip.map(str::to_owned),
+            source_file: file.map(str::to_owned),
+        }
+    }
+
+    fn pool() -> Vec<MediaRef> {
+        vec![
+            MediaRef {
+                id: 1,
+                path: r"C:\media\Entrevista 01.mp4".into(),
+                duration_seconds: 60.0,
+            },
+            MediaRef {
+                id: 2,
+                path: "/home/u/cobertura.mov".into(),
+                duration_seconds: 12.0,
+            },
+        ]
+    }
+
+    #[test]
+    fn edl_events_find_their_media_by_file_name_clip_name_or_reel() {
+        let pool = pool();
+        let id = |e: &EdlEvent| match_edl_media(e, &pool).map(|m| m.media_id);
+        // By the source file, in either path style and any letter case
+        assert_eq!(
+            id(&edl_event("X", None, Some(r"D:\outro\ENTREVISTA 01.MP4"))),
+            Some(1)
+        );
+        assert_eq!(
+            id(&edl_event("X", None, Some("/mnt/cobertura.mov"))),
+            Some(2)
+        );
+        // By the clip name, with or without the extension
+        assert_eq!(id(&edl_event("X", Some("Entrevista 01"), None)), Some(1));
+        assert_eq!(id(&edl_event("X", Some("cobertura.mov"), None)), Some(2));
+        // By the reel when nothing else says what it is
+        assert_eq!(id(&edl_event("COBERTUR", None, None)), Some(2));
+        // The reel alone is not enough once a clip name says it is something else
+        assert_eq!(id(&edl_event("COBERTUR", Some("outro plano"), None)), None);
+        assert_eq!(id(&edl_event("ZZZ", Some("nada"), Some("x.mp4"))), None);
+        assert_eq!(
+            match_edl_media(&edl_event("X", Some("Entrevista 01"), None), &pool)
+                .unwrap()
+                .duration,
+            60.0
+        );
     }
 
     #[test]

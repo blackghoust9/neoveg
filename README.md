@@ -149,7 +149,8 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Geradores de mídia (títulos, cor sólida, padrão de teste) e janela de títulos
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
 - [ ] Renderização/exportação (Make Movie) com FFmpeg
-- [ ] Importação/exportação FCP7 XML, FCPXML e CMX3600 EDL
+- [x] Importação e exportação de listas de edição CMX 3600 (`.edl`): exporta os cortes da faixa selecionada com os comentários de nome do clipe e arquivo, importa cortes (transições lidas como corte, com aviso) para as mídias que já estão no projeto, em um passo de desfazer
+- [ ] Importação/exportação FCP7 XML e FCPXML (o EDL já existe)
 - [ ] Transcrição de fala para legendas (Whisper) e chaveamento de croma (CorridorKey)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
@@ -182,7 +183,9 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Filtros (equalizadores gráficos de 10/20/30 bandas, paramétrico completo, notch, filtros clássicos Butterworth/Chebyshev/Bessel/Elíptico, filtro FFT), DeHum e DeNoise do `audio-dsp`, disponíveis em qualquer faixa e no master
 - [x] Compensação de latência: efeitos com latência (limitador, DeNoise, filtro FFT) não deslocam a faixa em relação às outras nem ao vídeo; o mixer atrasa as faixas mais rápidas e adianta a mixagem pelo atraso total
 - [x] Auto-ducking por faixa (a música desce quando as faixas de controle têm som): sensibilidade, redução em dB e transição; a análise roda ao iniciar a reprodução e a curva começa a descer antes do som entrar
-- [ ] Mais efeitos do `audio-dsp` (pitch, chorus/flanger, multibanda, DeEsser, DeReverb, click remover), nomes de parâmetros em pt-BR, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem VST3
+- [x] Mais 19 efeitos do `audio-dsp`: mudança de tom (pitch), chorus/flanger, flanger, phaser, delay analógico e de várias batidas, compressor multibanda, rack de dinâmica, compressor valvulado, DeEsser, DeReverb, realce de fala, removedor de cliques, largura estéreo e ganho, volume por canal, balanço e inverter fase (28 efeitos no registro, com o RNNoise)
+- [x] Redução de ruído por IA: efeito **RNNoise** (crate `nnnoiseless`, BSD-3-Clause), com mix e ganho de saída, compensação de latência e conversão de taxa para dispositivos de 44,1, 96 e 32 kHz
+- [ ] Nomes de parâmetros em pt-BR, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
 - [ ] Gravação de áudio, entradas de dispositivo e metrônomo
 
 **Vídeo e composição**
@@ -190,7 +193,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Track Motion, Pan/Crop de evento com gizmo `'F'` e keyframes
 - [ ] Transições (categorias, presets, parâmetros) e efeitos de vídeo na GPU; OFX
 - [ ] Correção/gradação de cor, LUTs (OCIO) e scopes de vídeo (histograma, parada RGB, vectorscope)
-- [ ] Geradores e Titler/Texto com animação; legendas
+- [x] Legendas SRT e WebVTT: aba **Legendas** no painel de mídia (editar texto e tempos, adicionar no cursor, apagar, ir para a legenda), texto sobre a prévia do vídeo, importar e exportar pelo menu Arquivo; leitura tolerante (BOM, UTF-16, Windows-1252, índices errados), adaptada do FilmCraft
+- [ ] Geradores e Titler/Texto com animação, estilo das legendas e queima das legendas na exportação
 - [ ] Rastreamento de movimento, máscaras e *Smart Mask*
 
 **Projeto, mídia e saída**

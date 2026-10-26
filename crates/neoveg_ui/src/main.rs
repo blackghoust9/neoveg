@@ -1,6 +1,7 @@
 //! Neoveg entry point: opens the main workspace window with an empty project.
 
 mod app;
+mod captions_panel;
 mod credits;
 mod frame_grid;
 mod fx_panel;

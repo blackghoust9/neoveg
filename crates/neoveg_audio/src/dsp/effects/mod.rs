@@ -5,17 +5,32 @@
 
 //! Audio effects and their registry.
 
+pub mod channel;
+pub mod declick;
 pub mod dynamics;
 pub mod eq;
+pub mod essential;
 pub mod filters;
+pub mod modulation;
+pub mod multiband;
+pub mod pitch;
 pub mod restoration;
+pub mod rnnoise;
 mod stft;
 pub mod time;
+pub(crate) mod util;
 
+pub use channel::{Amplify, Balance, ChannelVolume, Invert};
+pub use declick::ClickRemover;
 pub use dynamics::{Compressor, Gate, Limiter};
 pub use eq::{ParametricEq, SimpleEq};
+pub use essential::{DeEsser, DeReverb, SpeechEnhance, StereoWidth};
 pub use filters::{FftFilter, FullParametricEq, GraphicEq, NotchFilter, ScientificFilter};
+pub use modulation::{AnalogDelay, ChorusFlanger, Flanger, MultitapDelay, Phaser};
+pub use multiband::{DynamicsRack, MultibandCompressor, TubeCompressor};
+pub use pitch::PitchShifter;
 pub use restoration::{DeHum, DeNoise};
+pub use rnnoise::RnNoise;
 pub use time::{Delay, Reverb};
 
 use crate::dsp::{AudioEffect, ParamSpec};
@@ -27,6 +42,9 @@ pub enum Category {
     Dynamics,
     Time,
     Restoration,
+    Modulation,
+    Pitch,
+    Channel,
 }
 
 impl Category {
@@ -37,6 +55,9 @@ impl Category {
             Category::Dynamics => "Dinâmica",
             Category::Time => "Tempo e espaço",
             Category::Restoration => "Restauração",
+            Category::Modulation => "Modulação",
+            Category::Pitch => "Altura (pitch)",
+            Category::Channel => "Canais e voz",
         }
     }
 }
@@ -48,9 +69,6 @@ pub struct EffectInfo {
     pub name: &'static str,
     pub category: Category,
     pub params: &'static [ParamSpec],
-    /// `true` when the effect delays the signal (look-ahead, FFT window). The mixer compensates the
-    /// delay so tracks stay aligned.
-    pub has_latency: bool,
     /// Construct an instance for `(sample_rate, channels)`.
     pub create: fn(f32, usize) -> Box<dyn AudioEffect>,
 }
@@ -67,13 +85,12 @@ impl std::fmt::Debug for EffectInfo {
 }
 
 macro_rules! entry {
-    ($id:literal, $name:literal, $cat:ident, $latency:literal, $ty:ty) => {
+    ($id:literal, $name:literal, $cat:ident, $ty:ty) => {
         EffectInfo {
             id: $id,
             name: $name,
             category: Category::$cat,
             params: <$ty>::PARAMS,
-            has_latency: $latency,
             create: |sr, ch| Box::new(<$ty>::new(sr, ch)),
         }
     };
@@ -84,79 +101,131 @@ static REGISTRY: &[EffectInfo] = &[
         "parametric_eq",
         "Equalizador paramétrico",
         Filter,
-        false,
         ParametricEq
     ),
-    entry!(
-        "simple_eq",
-        "Equalizador de 3 bandas",
-        Filter,
-        false,
-        SimpleEq
-    ),
-    entry!("compressor", "Compressor", Dynamics, false, Compressor),
-    entry!("gate", "Expansor / Gate", Dynamics, false, Gate),
-    entry!("limiter", "Limitador", Dynamics, true, Limiter),
-    entry!("delay", "Delay", Time, false, Delay),
-    entry!("reverb", "Reverb", Time, false, Reverb),
+    entry!("simple_eq", "Equalizador de 3 bandas", Filter, SimpleEq),
+    entry!("compressor", "Compressor", Dynamics, Compressor),
+    entry!("gate", "Expansor / Gate", Dynamics, Gate),
+    entry!("limiter", "Limitador", Dynamics, Limiter),
+    entry!("delay", "Delay", Time, Delay),
+    entry!("reverb", "Reverb", Time, Reverb),
     entry!(
         "graphic_eq_10",
         "Equalizador gráfico (10 bandas)",
         Filter,
-        false,
         GraphicEq<10>
     ),
     entry!(
         "graphic_eq_20",
         "Equalizador gráfico (20 bandas)",
         Filter,
-        false,
         GraphicEq<20>
     ),
     entry!(
         "graphic_eq_30",
         "Equalizador gráfico (30 bandas)",
         Filter,
-        false,
         GraphicEq<30>
     ),
     entry!(
         "parametric_eq_full",
         "Equalizador paramétrico (completo)",
         Filter,
-        false,
         FullParametricEq
     ),
-    entry!("notch_filter", "Filtro notch", Filter, false, NotchFilter),
+    entry!("notch_filter", "Filtro notch", Filter, NotchFilter),
     entry!(
         "scientific_filter",
         "Filtro clássico (passa-baixas, passa-altas, passa-faixa)",
         Filter,
-        false,
         ScientificFilter
     ),
     entry!(
         "fft_filter",
         "Filtro FFT (curva desenhada)",
         Filter,
-        true,
         FftFilter
     ),
-    entry!(
-        "dehum",
-        "DeHum (zumbido de rede)",
-        Restoration,
-        false,
-        DeHum
-    ),
+    entry!("dehum", "DeHum (zumbido de rede)", Restoration, DeHum),
     entry!(
         "denoise",
         "DeNoise (redução de ruído)",
         Restoration,
-        true,
         DeNoise
     ),
+    entry!(
+        "rnnoise",
+        "Redução de ruído por IA (RNNoise)",
+        Restoration,
+        RnNoise
+    ),
+    entry!(
+        "click_remover",
+        "Removedor automático de cliques",
+        Restoration,
+        ClickRemover
+    ),
+    entry!("deesser", "DeEsser (sibilantes)", Restoration, DeEsser),
+    entry!(
+        "dereverb",
+        "DeReverb (reduz reverberação)",
+        Restoration,
+        DeReverb
+    ),
+    entry!("speech_enhance", "Realce de fala", Filter, SpeechEnhance),
+    entry!(
+        "chorus_flanger",
+        "Chorus / Flanger",
+        Modulation,
+        ChorusFlanger
+    ),
+    entry!("flanger", "Flanger", Modulation, Flanger),
+    entry!("phaser", "Phaser", Modulation, Phaser),
+    entry!("analog_delay", "Delay analógico", Time, AnalogDelay),
+    entry!(
+        "multitap_delay",
+        "Delay de várias batidas",
+        Time,
+        MultitapDelay
+    ),
+    entry!(
+        "pitch_shifter",
+        "Mudança de tom (pitch)",
+        Pitch,
+        PitchShifter
+    ),
+    entry!(
+        "dynamics_rack",
+        "Dinâmica (rack completo)",
+        Dynamics,
+        DynamicsRack
+    ),
+    entry!(
+        "multiband_compressor",
+        "Compressor multibanda",
+        Dynamics,
+        MultibandCompressor
+    ),
+    entry!(
+        "tube_compressor",
+        "Compressor valvulado",
+        Dynamics,
+        TubeCompressor
+    ),
+    entry!("amplify", "Amplificar (ganho)", Channel, Amplify),
+    entry!("channel_volume", "Volume por canal", Channel, ChannelVolume),
+    entry!("balance", "Balanço / pan", Channel, Balance),
+    entry!("invert", "Inverter fase", Channel, Invert),
+    entry!("stereo_width", "Largura estéreo", Channel, StereoWidth),
 ];
+
+impl EffectInfo {
+    /// `true` when the effect delays the signal (look-ahead, FFT window). The mixer compensates
+    /// the delay so tracks stay aligned.
+    pub fn has_latency(&self) -> bool {
+        (self.create)(48_000.0, 2).latency() > 0
+    }
+}
 
 /// All registered effects.
 pub fn effects() -> &'static [EffectInfo] {
@@ -239,11 +308,26 @@ mod tests {
     }
 
     #[test]
-    fn the_latency_flag_matches_what_each_effect_reports() {
+    fn only_the_effects_that_look_ahead_report_latency() {
         for e in effects() {
             let fx = (e.create)(SR, 2);
-            assert_eq!(fx.latency() > 0, e.has_latency, "{}", e.id);
+            assert_eq!(fx.latency() > 0, e.has_latency(), "{}", e.id);
         }
+        let with_latency: Vec<&str> = effects()
+            .iter()
+            .filter(|e| e.has_latency())
+            .map(|e| e.id)
+            .collect();
+        for id in [
+            "limiter",
+            "denoise",
+            "rnnoise",
+            "pitch_shifter",
+            "fft_filter",
+        ] {
+            assert!(with_latency.contains(&id), "{id} should report latency");
+        }
+        assert!(!with_latency.contains(&"compressor"));
     }
 
     /// Output is independent of how the stream is cut into blocks.

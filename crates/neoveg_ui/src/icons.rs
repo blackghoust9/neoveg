@@ -43,6 +43,9 @@ icons! {
     Remove,
     MoveUp,
     MoveDown,
+    Add,
+    Import,
+    Export,
 }
 
 impl Icon {
@@ -261,6 +264,19 @@ fn draw(c: &mut Canvas, icon: Icon) {
         }
         Icon::MoveUp => c.path(&[(0.22, 0.64), (0.5, 0.34), (0.78, 0.64)]),
         Icon::MoveDown => c.path(&[(0.22, 0.36), (0.5, 0.66), (0.78, 0.36)]),
+        Icon::Add => c.plus((0.5, 0.5), 0.3),
+        Icon::Import => {
+            // An arrow going down into a tray
+            c.line((0.5, 0.12), (0.5, 0.56), 1.0);
+            c.arrowhead((0.5, 0.7), (0.0, 1.0), 0.24);
+            c.path(&[(0.16, 0.6), (0.16, 0.86), (0.84, 0.86), (0.84, 0.6)]);
+        }
+        Icon::Export => {
+            // An arrow coming up out of a tray
+            c.line((0.5, 0.88), (0.5, 0.44), 1.0);
+            c.arrowhead((0.5, 0.18), (0.0, -1.0), 0.24);
+            c.path(&[(0.16, 0.6), (0.16, 0.86), (0.84, 0.86), (0.84, 0.6)]);
+        }
     }
 }
 

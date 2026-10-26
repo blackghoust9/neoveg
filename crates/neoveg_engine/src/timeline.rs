@@ -1,5 +1,6 @@
 //! Timeline, tracks and events. Times are seconds (`f64`, sub-frame precision).
 
+use crate::captions::Caption;
 use crate::markers::{Marker, Region};
 use std::collections::BTreeMap;
 
@@ -173,6 +174,9 @@ pub struct Timeline {
     /// Named spans on the ruler (older projects have none).
     #[serde(default)]
     pub regions: Vec<Region>,
+    /// Subtitles (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub captions: Vec<Caption>,
     /// Effect chain of the master bus, applied after every track is summed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub master_effects: Vec<TrackEffect>,

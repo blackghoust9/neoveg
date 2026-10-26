@@ -10,3 +10,4 @@ neoveg_common.workspace = true
 tracing.workspace = true
 symphonia = { version = "0.5", features = ["all"] }
 cpal = "0.15"
+nnnoiseless = { version = "0.5", default-features = false }
