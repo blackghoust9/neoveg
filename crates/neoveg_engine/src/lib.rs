@@ -7,6 +7,7 @@ pub mod crossfade;
 pub mod edit;
 pub mod edl;
 pub mod effects;
+pub mod fcp7;
 pub mod groups;
 pub mod markers;
 pub mod mix;

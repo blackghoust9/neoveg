@@ -33,6 +33,7 @@ use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
 use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
+use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::mix;
@@ -312,6 +313,40 @@ fn match_edl_media(event: &EdlEvent, pool: &[MediaRef]) -> Option<MediaMatch> {
     })
 }
 
+/// The project media a clip of an FCP7 XML refers to: by full path, else by file name, else by the
+/// clip name without its extension.
+fn match_xml_media(clip: &XmlClip, pool: &[MediaRef]) -> Option<MediaMatch> {
+    let file_name = |path: &str| {
+        path.rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(path)
+            .to_ascii_lowercase()
+    };
+    let stem = |name: &str| {
+        let name = name.to_ascii_lowercase();
+        match name.rsplit_once('.') {
+            Some((stem, ext)) if ext.len() <= 4 => stem.to_owned(),
+            _ => name,
+        }
+    };
+    let found = pool.iter().find(|m| {
+        let media_file = file_name(&m.path);
+        clip.path.as_deref().is_some_and(|p| {
+            p.replace('\\', "/")
+                .eq_ignore_ascii_case(&m.path.replace('\\', "/"))
+        }) || clip
+            .path
+            .as_deref()
+            .or(clip.file_name.as_deref())
+            .is_some_and(|f| file_name(f) == media_file)
+            || stem(&clip.name) == stem(&media_file)
+    })?;
+    Some(MediaMatch {
+        media_id: found.id,
+        duration: found.duration_seconds,
+    })
+}
+
 /// What the startup screen says it is loading, in the order the steps run.
 const STARTUP_STEPS: [&str; 6] = [
     "Preferências e atalhos de teclado",
@@ -323,6 +358,99 @@ const STARTUP_STEPS: [&str; 6] = [
 ];
 
 impl AppState {
+    // ---- FCP7 XML --------------------------------------------------------------------------------
+
+    /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
+    fn export_fcp7(&mut self) {
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            self.status = "A linha do tempo está vazia: nada para exportar".into();
+            return;
+        }
+        let media: Vec<XmlMedia> = self
+            .project
+            .media_pool
+            .iter()
+            .map(|m| XmlMedia {
+                id: m.id,
+                name: self.media.get(&m.id).map_or_else(
+                    || {
+                        m.path
+                            .rsplit(['/', '\\'])
+                            .next()
+                            .unwrap_or(&m.path)
+                            .to_owned()
+                    },
+                    |l| l.name.clone(),
+                ),
+                path: m.path.clone(),
+                duration: m.duration_seconds,
+            })
+            .collect();
+        let text = fcp7::export(
+            &self.timeline,
+            &media,
+            &self.project.name,
+            self.project.settings.fps,
+        );
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .set_file_name(format!("{}.xml", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        match std::fs::write(&path, text) {
+            Ok(()) => self.status = format!("XML exportado: {}", path.display()),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar o XML: {e}");
+            }
+        }
+    }
+
+    /// File > Import FCP7 XML: places the clips whose media is in the project, as one undo step.
+    fn import_fcp7(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .pick_file()
+        else {
+            return;
+        };
+        let text = match std::fs::read(&path) {
+            Ok(bytes) => captions::decode_text(&bytes),
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler o XML: {e}");
+                return;
+            }
+        };
+        let doc = match fcp7::parse(&text) {
+            Ok(doc) => doc,
+            Err(e) => {
+                tracing::warn!("[WARN] {}: {e}", path.display());
+                self.status = format!("Não foi possível abrir o XML: {e}");
+                return;
+            }
+        };
+        for warning in &doc.warnings {
+            tracing::warn!("[WARN] {}: {warning}", path.display());
+        }
+        let pool = self.project.media_pool.clone();
+        let imported =
+            fcp7::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        self.status = match imported {
+            Some((command, report)) => {
+                self.history.execute(&mut self.timeline, command);
+                format!(
+                    "XML importado: {} clipe(s); {} sem mídia no projeto",
+                    report.added,
+                    report.skipped.len()
+                )
+            }
+            None => "Nenhum clipe do XML tem mídia no projeto: importe as mídias antes".into(),
+        };
+    }
+
     // ---- edit decision lists -----------------------------------------------------------------
 
     /// File > Export EDL: the cuts of the selected track as a CMX 3600 list.
@@ -2687,6 +2815,20 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .clicked()
             {
                 state.export_edl();
+                ui.close_menu();
+            }
+            if ui.button("Importar XML (Final Cut Pro 7)…").clicked() {
+                state.import_fcp7();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
+                    egui::Button::new("Exportar XML (Final Cut Pro 7)…"),
+                )
+                .clicked()
+            {
+                state.export_fcp7();
                 ui.close_menu();
             }
             if ui.button("Importar legendas (SRT, WebVTT)…").clicked() {

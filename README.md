@@ -150,7 +150,8 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
 - [ ] Renderização/exportação (Make Movie) com FFmpeg
 - [x] Importação e exportação de listas de edição CMX 3600 (`.edl`): exporta os cortes da faixa selecionada com os comentários de nome do clipe e arquivo, importa cortes (transições lidas como corte, com aviso) para as mídias que já estão no projeto, em um passo de desfazer
-- [ ] Importação/exportação FCP7 XML e FCPXML (o EDL já existe)
+- [x] Importação e exportação de XML do Final Cut Pro 7 (`xmeml` v5): todas as faixas e clipes (posição, entrada e saída da fonte, nomes e caminhos), importando para as mídias do projeto em um passo de desfazer
+- [ ] FCPXML (Final Cut Pro X) e OTIO
 - [ ] Transcrição de fala para legendas (Whisper) e chaveamento de croma (CorridorKey)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
