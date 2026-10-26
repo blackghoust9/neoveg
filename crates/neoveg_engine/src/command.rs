@@ -1,8 +1,17 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
 use crate::markers::Marks;
-use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
+use crate::timeline::{
+    EventGeometry, EventId, Timeline, Track, TrackEffect, TrackEvent, TrackId, TIME_EPSILON,
+};
 use neoveg_common::fade::FadeCurve;
+
+/// Where an effect chain lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FxTarget {
+    Track(TrackId),
+    Master,
+}
 
 /// The whole event list of one track before and after an edit.
 #[derive(Debug, Clone, PartialEq)]
@@ -58,6 +67,13 @@ pub enum EditCommand {
     ReplaceMarks {
         before: Marks,
         after: Marks,
+    },
+    /// Any change to an effect chain (add, remove, reorder, bypass, parameter): the whole chain
+    /// before and after, so it is one exactly reversible undo step.
+    SetEffects {
+        target: FxTarget,
+        before: Vec<TrackEffect>,
+        after: Vec<TrackEffect>,
     },
 }
 
@@ -140,6 +156,7 @@ impl EditCommand {
                 tl.set_marks(after);
                 true
             }
+            Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -218,6 +235,9 @@ impl EditCommand {
                 }
             }
             Self::ReplaceMarks { before, .. } => tl.set_marks(before),
+            Self::SetEffects { target, before, .. } => {
+                set_effects(tl, *target, before);
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -235,6 +255,22 @@ impl EditCommand {
                 }
             }
         }
+    }
+}
+
+fn set_effects(tl: &mut Timeline, target: FxTarget, chain: &[TrackEffect]) -> bool {
+    match target {
+        FxTarget::Master => {
+            tl.master_effects = chain.to_vec();
+            true
+        }
+        FxTarget::Track(id) => match tl.track_mut(id) {
+            Some(t) => {
+                t.effects = chain.to_vec();
+                true
+            }
+            None => false,
+        },
     }
 }
 

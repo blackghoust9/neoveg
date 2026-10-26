@@ -3,6 +3,7 @@
 mod app;
 mod credits;
 mod frame_grid;
+mod fx_panel;
 mod icons;
 mod loudness_panel;
 mod precision_slider;

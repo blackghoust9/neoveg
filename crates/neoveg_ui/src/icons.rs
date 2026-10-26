@@ -39,6 +39,10 @@ icons! {
     ZoomOut,
     ZoomIn,
     Reset,
+    Bypass,
+    Remove,
+    MoveUp,
+    MoveDown,
 }
 
 impl Icon {
@@ -246,6 +250,17 @@ fn draw(c: &mut Canvas, icon: Icon) {
             }
         }
         Icon::Reset => arc_arrow(c, (0.5, 0.5), 0.3, -50.0, -330.0),
+        Icon::Bypass => {
+            // Power symbol: a ring open at the top and a stroke through the gap
+            c.path(&arc((0.5, 0.56), 0.3, -60.0, 240.0, 20));
+            c.line((0.5, 0.12), (0.5, 0.52), 1.2);
+        }
+        Icon::Remove => {
+            c.line((0.24, 0.24), (0.76, 0.76), 1.1);
+            c.line((0.24, 0.76), (0.76, 0.24), 1.1);
+        }
+        Icon::MoveUp => c.path(&[(0.22, 0.64), (0.5, 0.34), (0.78, 0.64)]),
+        Icon::MoveDown => c.path(&[(0.22, 0.36), (0.5, 0.66), (0.78, 0.36)]),
     }
 }
 

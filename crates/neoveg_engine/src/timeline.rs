@@ -1,6 +1,8 @@
 //! Timeline, tracks and events. Times are seconds (`f64`, sub-frame precision).
 
 use crate::markers::{Marker, Region};
+use std::collections::BTreeMap;
+
 use neoveg_common::fade::FadeCurve;
 use serde::{Deserialize, Serialize};
 
@@ -86,6 +88,28 @@ impl TrackEvent {
     }
 }
 
+/// An audio effect on a track or on the master bus. The engine only stores what the user chose:
+/// the registry id of the effect (`neoveg_audio::dsp::effects`), whether it is bypassed and the
+/// parameters that differ from their defaults. What the id means is up to the audio layer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackEffect {
+    pub kind: String,
+    #[serde(default)]
+    pub bypass: bool,
+    #[serde(default)]
+    pub params: BTreeMap<String, f32>,
+}
+
+impl TrackEffect {
+    pub fn new(kind: &str) -> Self {
+        Self {
+            kind: kind.to_owned(),
+            bypass: false,
+            params: BTreeMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub id: TrackId,
@@ -93,6 +117,9 @@ pub struct Track {
     pub name: String,
     pub muted: bool,
     pub events: Vec<TrackEvent>,
+    /// Effect chain, applied in order to the sum of the track's events (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<TrackEffect>,
 }
 
 /// A project timeline. A new timeline has no tracks.
@@ -105,6 +132,9 @@ pub struct Timeline {
     /// Named spans on the ruler (older projects have none).
     #[serde(default)]
     pub regions: Vec<Region>,
+    /// Effect chain of the master bus, applied after every track is summed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub master_effects: Vec<TrackEffect>,
     next_id: u64,
 }
 
@@ -150,6 +180,7 @@ impl Timeline {
             name: format!("{label} {number}"),
             muted: false,
             events: Vec::new(),
+            effects: Vec::new(),
         }
     }
 

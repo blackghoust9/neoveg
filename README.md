@@ -177,7 +177,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 
 **Áudio**
 - [ ] Volume, pan, mute e solo por faixa; Mixing Console com barramentos, sends e inserts
-- [ ] Efeitos de áudio nativos (EQ, compressor, reverb, delay) e hospedagem VST3
+- [x] Efeitos de áudio nativos por faixa e no master (adaptados do FilmCraft): equalizador paramétrico e de 3 bandas, compressor, expansor/gate, limitador (só no master, por ter latência), delay e reverb; cadeia de até 8 efeitos com bypass, ordem e parâmetros, salva no projeto, um passo de desfazer por ação; painel **Efeitos de Áudio**; ao mudar a cadeia durante a reprodução o áudio recomeça no cursor
+- [ ] Mais efeitos do `audio-dsp` (filtros, DeNoise, DeHum, pitch, chorus/flanger, multibanda, auto-ducking), nomes de parâmetros em pt-BR, compensação de latência por faixa, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros e hospedagem VST3
 - [ ] Gravação de áudio, entradas de dispositivo e metrônomo
 
 **Vídeo e composição**

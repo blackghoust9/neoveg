@@ -3,6 +3,7 @@
 
 pub mod decode;
 pub mod dsp;
+pub mod fxmixer;
 pub mod meter;
 pub mod mixer;
 pub mod playback;

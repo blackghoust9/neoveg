@@ -7,13 +7,13 @@ use std::sync::Arc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
+use crate::fxmixer::{BlockMixer, FxPlan, MAX_BLOCK};
 use crate::meter::PeakMeter;
-use crate::mixer::{mix_frame, plan_end, MixClip};
+use crate::mixer::MixClip;
 use crate::readout::{LoudnessFeeder, LoudnessReadout};
 
 /// Shared state between the UI thread and the audio callback.
 struct PlaybackState {
-    clips: Vec<MixClip>,
     end: f64,
     /// Timeline position in seconds (`f64` bits).
     position: AtomicU64,
@@ -48,6 +48,7 @@ pub struct AudioPlayer {
 impl AudioPlayer {
     pub fn new(
         clips: Vec<MixClip>,
+        plan: &FxPlan,
         meter: Arc<PeakMeter>,
         loudness: Arc<LoudnessReadout>,
     ) -> Result<Self, String> {
@@ -68,9 +69,10 @@ impl AudioPlayer {
         let step = 1.0 / config.sample_rate.0 as f64;
         let out_channels = config.channels as usize;
 
+        // Built here, outside the callback: the mixer allocates its buses and creates the effects
+        let mut mixer = BlockMixer::new(clips, plan, config.sample_rate.0 as f32);
         let state = Arc::new(PlaybackState {
-            end: plan_end(&clips),
-            clips,
+            end: mixer.end(),
             position: AtomicU64::new(0f64.to_bits()),
             playing: AtomicBool::new(false),
             volume: AtomicU64::new(1.0f64.to_bits()),
@@ -100,26 +102,36 @@ impl AudioPlayer {
                     let loop_end = f64::from_bits(cb_state.loop_end.load(Ordering::Relaxed));
                     let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
 
-                    for frame in data.chunks_mut(out_channels) {
-                        pos = wrap_loop(pos, loop_start, loop_end);
-                        let (l, r) = if pos < cb_state.end {
-                            let (l, r) = mix_frame(&cb_state.clips, pos);
-                            ((l * volume).clamp(-1.0, 1.0), (r * volume).clamp(-1.0, 1.0))
-                        } else {
-                            cb_state.playing.store(false, Ordering::Relaxed);
-                            (0.0, 0.0)
-                        };
-                        for (c, out) in frame.iter_mut().enumerate() {
-                            *out = match c {
-                                0 => l,
-                                1 => r,
-                                _ => 0.0,
-                            };
+                    // The buffer is cut into blocks: every block is mixed per frame (positions,
+                    // loop and end of the programme), then the effect chains run on the blocks
+                    for block in data.chunks_mut(out_channels * MAX_BLOCK) {
+                        let frames = block.len() / out_channels;
+                        mixer.begin(frames);
+                        for i in 0..frames {
+                            pos = wrap_loop(pos, loop_start, loop_end);
+                            if pos < cb_state.end {
+                                mixer.add_frame(i, pos);
+                            } else {
+                                cb_state.playing.store(false, Ordering::Relaxed);
+                            }
+                            pos += step;
                         }
-                        feeder.push(l, r);
-                        peak_l = peak_l.max(l.abs());
-                        peak_r = peak_r.max(r.abs());
-                        pos += step;
+                        mixer.finish(frames);
+                        let (mix_l, mix_r) = mixer.out();
+                        for (i, frame) in block.chunks_mut(out_channels).enumerate() {
+                            let l = (mix_l[i] * volume).clamp(-1.0, 1.0);
+                            let r = (mix_r[i] * volume).clamp(-1.0, 1.0);
+                            for (c, out) in frame.iter_mut().enumerate() {
+                                *out = match c {
+                                    0 => l,
+                                    1 => r,
+                                    _ => 0.0,
+                                };
+                            }
+                            feeder.push(l, r);
+                            peak_l = peak_l.max(l.abs());
+                            peak_r = peak_r.max(r.abs());
+                        }
                     }
 
                     cb_state.position.store(pos.to_bits(), Ordering::Relaxed);

@@ -16,7 +16,7 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 | Origem | Autores / Organização | Licença (SPDX) | Onde está no Neoveg | Utilização |
 | :--- | :--- | :--- | :--- | :--- |
-| **FilmCraft — `filmcraft-audio-dsp`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8fda2f2`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_audio/src/dsp/` (`loudness.rs`, `biquad.rs`, `oversample.rs`) | Medidor de loudness ITU-R BS.1770-4 / EBU R128 do painel **Loudness** (momentâneo, curto prazo, integrado, LRA e pico verdadeiro) |
+| **FilmCraft — `filmcraft-audio-dsp`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8fda2f2`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_audio/src/dsp/` (`loudness.rs`, `biquad.rs`, `oversample.rs`, `smooth.rs`, `effect.rs`, `effects/`) | Medidor de loudness ITU-R BS.1770-4 / EBU R128 do painel **Loudness** e os efeitos de áudio das faixas e do master (equalizadores, compressor, gate, limitador, delay e reverb) |
 
 - Copyright (c) 2026 ArtCraft Team and the FilmCraft contributors. O texto da licença MIT está em [`third_party/filmcraft/LICENSE-MIT`](third_party/filmcraft/LICENSE-MIT) e vai em todos os pacotes; a origem, a lista de arquivos e as alterações feitas estão em [`third_party/filmcraft/README.md`](third_party/filmcraft/README.md).
 - A marca, o nome e os logotipos da ArtCraft **não** fazem parte da licença do FilmCraft e não são usados no Neoveg.

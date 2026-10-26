@@ -25,10 +25,10 @@ pub const CREDITS: &[Credit] = &[
     },
     Credit {
         name: "FilmCraft (filmcraft-audio-dsp)",
-        used_for: "Medidor de loudness ITU-R BS.1770-4 / EBU R128 (filtro K, loudness momentâneo, \
-                   de curto prazo e integrado, faixa de loudness e pico verdadeiro), com os \
-                   filtros biquad e o sobreamostrador de que ele depende; código adaptado em \
-                   neoveg_audio::dsp",
+        used_for: "Medidor de loudness ITU-R BS.1770-4 / EBU R128 (loudness momentâneo, de curto \
+                   prazo e integrado, faixa de loudness e pico verdadeiro) e efeitos de áudio das \
+                   faixas e do master (equalizadores, compressor, gate, limitador, delay e reverb); \
+                   código adaptado em neoveg_audio::dsp",
         authors: "ArtCraft Team and the FilmCraft contributors",
         license: "MIT OR Apache-2.0 (usado sob a MIT)",
         url: "https://github.com/storytold/filmcraft",
@@ -158,7 +158,17 @@ mod tests {
 
     #[test]
     fn every_adapted_source_file_carries_the_attribution_header() {
-        for file in ["biquad.rs", "loudness.rs", "oversample.rs"] {
+        for file in [
+            "biquad.rs",
+            "loudness.rs",
+            "oversample.rs",
+            "smooth.rs",
+            "effect.rs",
+            "effects/mod.rs",
+            "effects/eq.rs",
+            "effects/dynamics.rs",
+            "effects/time.rs",
+        ] {
             let text = repo_file(&format!("crates/neoveg_audio/src/dsp/{file}"));
             assert!(
                 text.contains("Adapted from `filmcraft-audio-dsp`")

@@ -28,6 +28,7 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
+use neoveg_engine::effects as fx;
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
@@ -36,13 +37,14 @@ use neoveg_engine::relink::relink_missing;
 use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
-    EditCommand, EventId, EventRef, History, Selection, TimeRange, Timeline, TrackEvent, TrackId,
-    TrackKind,
+    EditCommand, EventId, EventRef, FxTarget, History, Selection, TimeRange, Timeline, TrackEvent,
+    TrackId, TrackKind,
 };
 use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
+use crate::fx_panel::{self, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::precision_slider::PrecisionSlider;
 use crate::shortcuts::{from_egui, to_egui};
@@ -85,6 +87,7 @@ enum Tab {
     Media,
     MasterBus,
     Loudness,
+    AudioFx,
 }
 
 impl Tab {
@@ -95,6 +98,7 @@ impl Tab {
             Tab::Media => "Mídia",
             Tab::MasterBus => "Barramento Master",
             Tab::Loudness => "Loudness",
+            Tab::AudioFx => "Efeitos de Áudio",
         }
     }
 }
@@ -198,6 +202,8 @@ struct AppState {
     /// Index into `loudness_panel::TARGETS`.
     loudness_target: usize,
     show_credits: bool,
+    /// Audio effects panel (target and the slider being dragged).
+    fx: FxPanelState,
     master_volume: f32,
     active_player: Option<ActivePlayer>,
 
@@ -280,6 +286,7 @@ impl AppState {
             loudness: Arc::new(LoudnessReadout::new()),
             loudness_target: 0,
             show_credits: false,
+            fx: FxPanelState::default(),
             master_volume: 1.0,
             active_player: None,
             show_bars: false,
@@ -1668,11 +1675,12 @@ impl AppState {
     /// track crossfade when automatic crossfades are on.
     fn build_clips(&self) -> Vec<MixClip> {
         let mut clips = Vec::new();
-        for track in self
+        for (track_index, track) in self
             .timeline
             .tracks
             .iter()
-            .filter(|t| t.kind == TrackKind::Audio && !t.muted)
+            .enumerate()
+            .filter(|(_, t)| t.kind == TrackKind::Audio && !t.muted)
         {
             let crossfades = if self.project.settings.auto_crossfade {
                 find_crossfades(&track.events)
@@ -1713,10 +1721,51 @@ impl AppState {
                     cross_in_curve: e.fade_in_curve,
                     cross_out: longest(&|c| c.earlier == e.id),
                     cross_out_curve: out_curve,
+                    track: track_index,
                 });
             }
         }
         clips
+    }
+
+    /// The chain the effects panel edits: the master bus, or the selected audio track.
+    fn fx_target(&self) -> Option<(FxTarget, String)> {
+        if self.fx.master {
+            return Some((FxTarget::Master, "barramento master".into()));
+        }
+        let track = self.timeline.track(self.selected_track?)?;
+        (track.kind == TrackKind::Audio).then(|| (FxTarget::Track(track.id), track.name.clone()))
+    }
+
+    /// Runs what the user did in the effects panel; each action is one undo step. While playing,
+    /// the audio restarts at the cursor so the new chain is heard at once.
+    fn apply_fx_actions(&mut self, target: FxTarget, actions: Vec<FxAction>) {
+        let mut changed = false;
+        for action in actions {
+            let command = match action {
+                FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
+                FxAction::Remove(i) => fx::remove_effect(&self.timeline, target, i),
+                FxAction::Move { from, to } => fx::move_effect(&self.timeline, target, from, to),
+                FxAction::Bypass(i, bypass) => fx::set_bypass(&self.timeline, target, i, bypass),
+                FxAction::SetParam {
+                    index,
+                    param,
+                    value,
+                } => fx::set_param(&self.timeline, target, index, &param, value),
+                FxAction::ResetParam { index, param } => {
+                    fx::reset_param(&self.timeline, target, index, &param)
+                }
+            };
+            if let Some(command) = command {
+                changed |= self.history.execute(&mut self.timeline, command);
+            }
+        }
+        if changed && self.playing && self.active_player.is_some() {
+            if let Some(active) = self.active_player.take() {
+                active.player.stop();
+            }
+            self.active_player = self.start_audio();
+        }
     }
 
     fn start_audio(&mut self) -> Option<ActivePlayer> {
@@ -1724,7 +1773,12 @@ impl AppState {
         if clips.is_empty() {
             return None;
         }
-        match AudioPlayer::new(clips, Arc::clone(&self.meter), Arc::clone(&self.loudness)) {
+        match AudioPlayer::new(
+            clips,
+            &fx_panel::fx_plan(&self.timeline),
+            Arc::clone(&self.meter),
+            Arc::clone(&self.loudness),
+        ) {
             Ok(player) => {
                 player.set_volume(self.master_volume);
                 player.set_loop(self.loop_args());
@@ -1935,7 +1989,9 @@ impl NeovegApp {
         let mut dock = DockState::new(vec![Tab::Preview]);
         let surface = dock.main_surface_mut();
         let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
-        let [preview, _media] = surface.split_left(top, 0.28, vec![Tab::Media]);
+        let [preview, media] = surface.split_left(top, 0.28, vec![Tab::Media]);
+        // The effects of the selected track sit under the project media
+        surface.split_below(media, 0.55, vec![Tab::AudioFx]);
         let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
         // The loudness readouts live in their own panel under the master bus
         surface.split_below(master, 0.55, vec![Tab::Loudness]);
@@ -2613,6 +2669,7 @@ impl TabViewer for Viewer<'_> {
             Tab::Timeline => timeline_ui(self.state, ui),
             Tab::Media => media_ui(self.state, ui),
             Tab::MasterBus => master_bus_ui(self.state, ui),
+            Tab::AudioFx => audio_fx_ui(self.state, ui),
             Tab::Loudness => {
                 let snapshot = self.state.loudness.snapshot();
                 let restart = crate::loudness_panel::loudness_ui(
@@ -2801,6 +2858,27 @@ fn fmt_db(linear: f32) -> String {
     } else {
         "-∞".into()
     }
+}
+
+/// The audio effects panel: the chain of the selected audio track or of the master bus.
+fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    let (target, title) = match state.fx_target() {
+        Some(found) => found,
+        None => {
+            // Keep the Track / Master switch reachable even with nothing selected
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut state.fx.master, false, "Faixa");
+                ui.selectable_value(&mut state.fx.master, true, "Master");
+            });
+            ui.weak("Selecione uma faixa de áudio para ver os efeitos dela.");
+            return;
+        }
+    };
+    let chain = fx::chain(&state.timeline, target)
+        .map(<[_]>::to_vec)
+        .unwrap_or_default();
+    let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain);
+    state.apply_fx_actions(target, actions);
 }
 
 fn master_bus_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -4675,6 +4753,103 @@ mod tests {
         want.sort();
         assert_eq!(got, want);
         assert!(!got.contains(&b));
+    }
+
+    #[test]
+    fn the_effects_panel_edits_the_selected_audio_track_or_the_master_bus() {
+        let mut s = AppState::new();
+        assert!(s.fx_target().is_none(), "no track selected");
+        s.add_track(TrackKind::Video);
+        assert!(
+            s.fx_target().is_none(),
+            "video tracks have no audio effects"
+        );
+        s.add_track(TrackKind::Audio);
+        let audio = s.selected_track.unwrap();
+        assert_eq!(s.fx_target().map(|t| t.0), Some(FxTarget::Track(audio)));
+
+        s.fx.master = true;
+        assert_eq!(s.fx_target().map(|t| t.0), Some(FxTarget::Master));
+    }
+
+    #[test]
+    fn effect_actions_become_one_undo_step_each_and_reach_the_audio_plan() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let (target, _) = s.fx_target().unwrap();
+        let revision = s.history.revision();
+
+        s.apply_fx_actions(
+            target,
+            vec![
+                FxAction::Add("compressor"),
+                FxAction::Add("simple_eq"),
+                FxAction::SetParam {
+                    index: 0,
+                    param: "ratio".into(),
+                    value: 8.0,
+                },
+            ],
+        );
+        assert_eq!(s.history.revision(), revision + 3);
+        let plan = fx_panel::fx_plan(&s.timeline);
+        assert_eq!(plan.tracks[0].len(), 2);
+        assert_eq!(plan.tracks[0][0].params, vec![("ratio".to_string(), 8.0)]);
+
+        s.apply_fx_actions(target, vec![FxAction::Bypass(0, true)]);
+        assert_eq!(
+            fx_panel::fx_plan(&s.timeline).tracks[0].len(),
+            1,
+            "bypassed effects are not played"
+        );
+
+        s.apply_fx_actions(
+            target,
+            vec![FxAction::Move { from: 0, to: 1 }, FxAction::Remove(0)],
+        );
+        run(&mut s, Command::EditUndo);
+        run(&mut s, Command::EditUndo);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(fx::chain(&s.timeline, target).unwrap().len(), 2);
+        assert!(!fx::chain(&s.timeline, target).unwrap()[0].bypass);
+    }
+
+    #[test]
+    fn actions_that_change_nothing_leave_the_history_alone() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let (target, _) = s.fx_target().unwrap();
+        let revision = s.history.revision();
+        s.apply_fx_actions(
+            target,
+            vec![
+                FxAction::Remove(3),
+                FxAction::Bypass(0, true),
+                FxAction::ResetParam {
+                    index: 0,
+                    param: "ratio".into(),
+                },
+            ],
+        );
+        assert_eq!(s.history.revision(), revision);
+    }
+
+    #[test]
+    fn a_clip_carries_the_index_of_its_track_even_when_an_earlier_track_is_muted() {
+        let (mut s, first, _) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let second = s.timeline.tracks[1].id;
+        add_event(&mut s, second, 0.0, 2.0);
+        s.media.insert(1, test_media());
+        s.timeline.track_mut(first).unwrap().muted = true;
+
+        let clips = s.build_clips();
+        assert_eq!(clips.len(), 1, "only the unmuted track plays");
+        assert_eq!(
+            clips[0].track, 1,
+            "the effect chain of track 2 is found by this index"
+        );
+        assert_eq!(fx_panel::fx_plan(&s.timeline).tracks.len(), 2);
     }
 
     #[test]
