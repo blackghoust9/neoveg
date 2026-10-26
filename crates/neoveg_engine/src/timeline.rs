@@ -5,6 +5,7 @@ use crate::envelope::TrackEnvelope;
 use crate::markers::{Marker, Region};
 use std::collections::BTreeMap;
 
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
@@ -375,6 +376,9 @@ pub struct Timeline {
     /// Primary color correction of the video (older projects have none).
     #[serde(default, skip_serializing_if = "is_neutral_grade")]
     pub video_grade: Grade,
+    /// Chroma key (green/blue screen) settings of the video (older projects have none).
+    #[serde(default, skip_serializing_if = "ChromaKey::is_disabled")]
+    pub chroma_key: ChromaKey,
     next_id: u64,
 }
 

@@ -23,6 +23,7 @@ use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::readout::LoudnessReadout;
 use neoveg_audio::record::Recorder;
 use neoveg_audio::waveform::WaveformSource;
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
@@ -297,8 +298,12 @@ struct AppState {
     /// Color correction window: open flag and the value being dragged (applied live, committed on release).
     show_grade: bool,
     grade_draft: Option<Grade>,
+    /// Chroma key window: open flag and live draft.
+    last_chroma: ChromaKey,
+    show_chroma: bool,
+    chroma_draft: Option<ChromaKey>,
     /// The correction the SMPTE bars texture and scopes were built with.
-    bars_grade: Option<Grade>,
+    bars_grade: Option<(Grade, ChromaKey)>,
     bars_scopes_rev: u64,
     preview_pane_width: f32,
     session_id: String,
@@ -1085,6 +1090,9 @@ impl AppState {
             last_grade: Grade::default(),
             show_grade: false,
             grade_draft: None,
+            last_chroma: ChromaKey::default(),
+            show_chroma: false,
+            chroma_draft: None,
             bars_grade: None,
             bars_scopes_rev: 0,
             preview_pane_width: 640.0,
@@ -2403,6 +2411,18 @@ impl AppState {
         self.last_frame_key = None;
     }
 
+    fn effective_chroma(&self) -> ChromaKey {
+        self.chroma_draft.unwrap_or(self.timeline.chroma_key)
+    }
+
+    fn commit_chroma(&mut self, key: ChromaKey) {
+        self.chroma_draft = None;
+        if let Some(command) = mix::set_chroma_key(&self.timeline, key) {
+            self.history.execute(&mut self.timeline, command);
+        }
+        self.last_frame_key = None;
+    }
+
     /// The color table of the project, loaded once per path (a broken file is reported once).
     fn current_lut(&mut self) -> Option<Arc<Lut>> {
         let path = self.timeline.video_lut.clone()?;
@@ -2475,9 +2495,11 @@ impl AppState {
         // An undo of the LUT changes the picture without changing the frame key
         if self.last_lut_path != self.timeline.video_lut
             || self.last_grade != self.effective_grade()
+            || self.last_chroma != self.effective_chroma()
         {
             self.last_lut_path = self.timeline.video_lut.clone();
             self.last_grade = self.effective_grade();
+            self.last_chroma = self.effective_chroma();
             self.last_frame_key = None;
         }
         if self.last_frame_key != Some(key) {
@@ -2490,6 +2512,7 @@ impl AppState {
                 max_width,
                 lut,
                 grade: self.effective_grade(),
+                chroma_key: self.effective_chroma(),
             });
         }
     }
@@ -3502,6 +3525,7 @@ impl eframe::App for NeovegApp {
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
+        chroma_key_window(ctx, &mut self.state);
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
@@ -3742,6 +3766,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_grade = true;
                 ui.close_menu();
             }
+            if ui.button("Chaveamento de croma (Chroma Key)…").clicked() {
+                state.show_chroma = true;
+                ui.close_menu();
+            }
             if ui.button("Metrônomo…").clicked() {
                 state.show_metronome = true;
                 ui.close_menu();
@@ -3955,6 +3983,110 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
         // Closing in the middle of a drag keeps what was shown
         if let Some(draft) = state.grade_draft {
             state.commit_grade(draft);
+        }
+    }
+}
+
+/// Ferramentas → Chaveamento de croma (Chroma Key): green/blue screen matte + spill suppression.
+fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_chroma {
+        return;
+    }
+    let mut open = true;
+    let mut key = state.effective_chroma();
+    let mut finished = false;
+    let mut changed = false;
+    let mut reset = false;
+    egui::Window::new("Chaveamento de croma (Chroma Key)")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            if ui
+                .checkbox(&mut key.enabled, "Ativar chaveamento de croma")
+                .changed()
+            {
+                changed = true;
+                finished = true;
+            }
+            ui.horizontal(|ui| {
+                ui.label("Cor da tela:");
+                if ui.color_edit_button_rgb(&mut key.key_color).changed() {
+                    changed = true;
+                    finished = true;
+                }
+                if ui.button("Tela verde").clicked() {
+                    key.key_color = ChromaKey::GREEN_SCREEN;
+                    key.enabled = true;
+                    changed = true;
+                    finished = true;
+                }
+                if ui.button("Tela azul").clicked() {
+                    key.key_color = ChromaKey::BLUE_SCREEN;
+                    key.enabled = true;
+                    changed = true;
+                    finished = true;
+                }
+            });
+            ui.separator();
+            let def = ChromaKey::default();
+            let rows: [GradeRow; 3] = [
+                (
+                    "Similaridade",
+                    &mut key.similarity,
+                    0.01..=0.75,
+                    def.similarity,
+                    |v| format!("{:.0} %", v * 100.0),
+                ),
+                (
+                    "Suavidade",
+                    &mut key.smoothness,
+                    0.0..=0.50,
+                    def.smoothness,
+                    |v| format!("{:.0} %", v * 100.0),
+                ),
+                (
+                    "Supressão de spill",
+                    &mut key.spill,
+                    0.0..=1.0,
+                    def.spill,
+                    |v| format!("{:.0} %", v * 100.0),
+                ),
+            ];
+            for (label, value, range, default, format) in rows {
+                ui.horizontal(|ui| {
+                    ui.allocate_ui(egui::vec2(118.0, 18.0), |ui| ui.label(label));
+                    let response = ui.add(PrecisionSlider::new(value, range, default).width(150.0));
+                    changed |= response.changed();
+                    finished |= response.drag_stopped()
+                        || response.lost_focus()
+                        || (response.changed() && !response.dragged() && !response.has_focus());
+                    ui.monospace(format(*value));
+                });
+            }
+            if ui
+                .checkbox(&mut key.show_matte, "Visualizar máscara (matte P&B)")
+                .changed()
+            {
+                changed = true;
+                finished = true;
+            }
+            ui.separator();
+            if ui.button("Restaurar padrão").clicked() {
+                reset = true;
+            }
+        });
+    if reset {
+        state.commit_chroma(ChromaKey::default());
+    } else if finished {
+        state.commit_chroma(key);
+    } else if changed {
+        state.chroma_draft = Some(key.sanitized());
+    }
+    state.show_chroma = open;
+    if !open {
+        if let Some(draft) = state.chroma_draft {
+            state.commit_chroma(draft);
         }
     }
 }
@@ -4673,14 +4805,16 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
 
     if state.show_bars {
         let grade = state.effective_grade();
-        if state.bars_grade != Some(grade) {
+        let chroma = state.effective_chroma();
+        if state.bars_grade != Some((grade, chroma)) {
             state.bars_texture = None;
             state.bars_scopes = None;
             state.bars_scopes_rev += 1;
-            state.bars_grade = Some(grade);
+            state.bars_grade = Some((grade, chroma));
         }
         let texture = state.bars_texture.get_or_insert_with(|| {
             let mut bars = neoveg_video::generators::smpte_color_bars(640, 360);
+            neoveg_video::chroma::apply_chroma_key(&mut bars, &chroma);
             neoveg_video::grading::apply_grade(&mut bars, &grade);
             let image = egui::ColorImage::from_rgba_unmultiplied([640, 360], &bars.rgba);
             ui.ctx()
@@ -4835,12 +4969,14 @@ fn fmt_db(linear: f32) -> String {
 fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
     if state.show_bars {
         let grade = state.effective_grade();
-        if state.bars_grade != Some(grade) {
+        let chroma = state.effective_chroma();
+        if state.bars_grade != Some((grade, chroma)) {
             state.bars_scopes = None;
             state.bars_scopes_rev += 1;
         }
         let bars = state.bars_scopes.get_or_insert_with(|| {
             let mut frame = neoveg_video::generators::smpte_color_bars(640, 360);
+            neoveg_video::chroma::apply_chroma_key(&mut frame, &chroma);
             neoveg_video::grading::apply_grade(&mut frame, &grade);
             Scopes::from_frame(&frame)
         });

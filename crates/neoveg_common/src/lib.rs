@@ -1,5 +1,6 @@
 //! Shared types for every Neoveg crate.
 
+pub mod chroma;
 pub mod commands;
 pub mod fade;
 pub mod grade;

@@ -5,6 +5,7 @@
 
 use crate::command::EditCommand;
 use crate::timeline::{Timeline, TrackId, TrackKind, TrackMix};
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
 
@@ -121,6 +122,15 @@ pub fn set_video_grade(timeline: &Timeline, grade: Grade) -> Option<EditCommand>
     let after = grade.sanitized();
     (timeline.video_grade != after).then_some(EditCommand::SetVideoGrade {
         before: timeline.video_grade,
+        after,
+    })
+}
+
+/// Sets the chroma key (green/blue screen) settings of the video.
+pub fn set_chroma_key(timeline: &Timeline, key: ChromaKey) -> Option<EditCommand> {
+    let after = key.sanitized();
+    (timeline.chroma_key != after).then_some(EditCommand::SetChromaKey {
+        before: timeline.chroma_key,
         after,
     })
 }
@@ -285,6 +295,31 @@ mod tests {
         assert!(tl.video_grade.is_neutral());
         assert!(history.redo(&mut tl));
         assert_eq!(tl.video_grade.saturation, -0.5);
+    }
+
+    #[test]
+    fn the_chroma_key_is_one_undo_step_clamped_and_saved_only_when_enabled() {
+        let (mut tl, _, _) = project();
+        let mut history = History::new();
+        assert!(set_chroma_key(&tl, ChromaKey::default()).is_none());
+        let json = serde_json::to_string(&tl).unwrap();
+        assert!(!json.contains("chroma_key"));
+
+        let key = ChromaKey {
+            enabled: true,
+            similarity: 5.0,
+            spill: 0.7,
+            ..ChromaKey::default()
+        };
+        go(set_chroma_key(&tl, key).unwrap(), &mut history, &mut tl);
+        assert!(tl.chroma_key.enabled);
+        assert!((tl.chroma_key.similarity - 0.75).abs() < 1e-6);
+        let back: Timeline = serde_json::from_str(&serde_json::to_string(&tl).unwrap()).unwrap();
+        assert_eq!(back.chroma_key, tl.chroma_key);
+        assert!(history.undo(&mut tl));
+        assert!(tl.chroma_key.is_disabled());
+        assert!(history.redo(&mut tl));
+        assert!((tl.chroma_key.spill - 0.7).abs() < 1e-6);
     }
 
     #[test]

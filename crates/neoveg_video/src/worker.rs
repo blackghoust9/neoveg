@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::grade::Grade;
 
 use crate::frame::FrameBuffer;
@@ -21,6 +22,8 @@ pub struct FrameRequest {
     pub lut: Option<Arc<Lut>>,
     /// Primary color correction, applied before the LUT.
     pub grade: Grade,
+    /// Chroma key (green/blue screen), applied before primary grading and LUT.
+    pub chroma_key: ChromaKey,
 }
 
 pub struct FrameReply {
@@ -103,6 +106,7 @@ fn run(requests: Receiver<FrameRequest>, replies: Sender<FrameReply>, on_reply: 
                 .get_mut(&request.path)
                 .ok_or("decoder unavailable")?;
             let mut frame = decoder.frame_at(request.seconds, request.max_width)?;
+            crate::chroma::apply_chroma_key(&mut frame, &request.chroma_key);
             crate::grading::apply_look(&mut frame, &request.grade, request.lut.as_deref());
             Ok::<_, String>(frame)
         })();
@@ -166,6 +170,7 @@ mod ffmpeg_tests {
             max_width: 160,
             lut: None,
             grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
         });
         let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
         assert_eq!(reply.media_id, 7);
@@ -179,6 +184,7 @@ mod ffmpeg_tests {
             max_width: 0,
             lut: None,
             grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
         });
         assert!(worker
             .rx

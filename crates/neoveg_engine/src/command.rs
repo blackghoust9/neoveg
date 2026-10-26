@@ -7,6 +7,7 @@ use crate::timeline::{
     EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
     TrackMix, TIME_EPSILON,
 };
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
@@ -99,6 +100,11 @@ pub enum EditCommand {
     SetVideoGrade {
         before: Grade,
         after: Grade,
+    },
+    /// Chroma key (green/blue screen) of the video.
+    SetChromaKey {
+        before: ChromaKey,
+        after: ChromaKey,
     },
     /// The color table of the video (a `.cube` path), or none.
     SetVideoLut {
@@ -229,6 +235,10 @@ impl EditCommand {
                 tl.video_grade = after.sanitized();
                 true
             }
+            Self::SetChromaKey { after, .. } => {
+                tl.chroma_key = after.sanitized();
+                true
+            }
             Self::SetVideoLut { after, .. } => {
                 tl.video_lut = after.clone();
                 true
@@ -331,6 +341,7 @@ impl EditCommand {
             }
             Self::SetPanLaw { before, .. } => tl.pan_law = *before,
             Self::SetVideoGrade { before, .. } => tl.video_grade = before.sanitized(),
+            Self::SetChromaKey { before, .. } => tl.chroma_key = before.sanitized(),
             Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);

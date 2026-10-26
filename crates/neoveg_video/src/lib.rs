@@ -1,5 +1,6 @@
 //! Video pipeline: RGBA frame buffers, procedural generators, GPU upload (wgpu) and FFmpeg decoding.
 
+pub mod chroma;
 pub mod frame;
 pub mod generators;
 pub mod gpu;
