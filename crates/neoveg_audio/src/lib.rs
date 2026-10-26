@@ -10,5 +10,6 @@ pub mod metronome;
 pub mod mixer;
 pub mod playback;
 pub mod readout;
+pub mod record;
 pub mod stretch;
 pub mod waveform;

@@ -49,6 +49,7 @@ icons! {
     Mute,
     Solo,
     Phase,
+    Record,
 }
 
 impl Icon {
@@ -57,6 +58,7 @@ impl Icon {
         match self {
             Icon::Play => Color32::from_rgb(0x6D, 0xD4, 0x7E),
             Icon::Stop => Color32::from_rgb(0xD8, 0x7A, 0x7A),
+            Icon::Record => Color32::from_rgb(0xE0, 0x4B, 0x4B),
             Icon::AddAudioTrack => Color32::from_rgb(0x6C, 0xB4, 0xE4),
             Icon::AddVideoTrack => Color32::from_rgb(0xB4, 0x9A, 0xE6),
             _ => Color32::from_gray(205),
@@ -273,6 +275,11 @@ fn draw(c: &mut Canvas, icon: Icon) {
             // Power symbol: a ring open at the top and a stroke through the gap
             c.path(&arc((0.5, 0.56), 0.3, -60.0, 240.0, 20));
             c.line((0.5, 0.12), (0.5, 0.52), 1.2);
+        }
+        Icon::Record => {
+            // A filled disc
+            let points = arc((0.5, 0.5), 0.3, 0.0, 360.0, 24);
+            c.fill(&points);
         }
         Icon::Mute => {
             // A speaker with a cross over its sound

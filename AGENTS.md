@@ -154,6 +154,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | Shortcut | Action | State |
 | :--- | :--- | :--- |
 | `Ctrl+Q` / `Ctrl+Shift+Q` | Insert audio / video track | implemented |
+| `Ctrl+R` | Record from the default input device at the cursor; pressed again, stops and puts the take on the timeline | implemented |
 | `S` | Split at the cursor: the selected events, or the events under the cursor on every track when nothing is selected; with a time selection, at both of its edges | implemented |
 | `Space` | Play / pause | implemented |
 | `←` / `→` | Move the cursor one frame | implemented |

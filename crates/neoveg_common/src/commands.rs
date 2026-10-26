@@ -161,7 +161,7 @@ commands! {
     TransportStop => ("transport.stop", "Parar", Transport, false),
     TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, false),
     TransportLoop => ("transport.loop", "Reprodução em laço", Transport, true),
-    TransportRecord => ("transport.record", "Gravar", Transport, false),
+    TransportRecord => ("transport.record", "Gravar", Transport, true),
 
     // ---- Opções
     OptionsSnapping => ("options.snapping", "Alinhamento (snap)", Options, true),

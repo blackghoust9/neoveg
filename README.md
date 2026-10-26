@@ -193,7 +193,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
 - [x] Metrônomo: clique por tempo com acento no primeiro tempo do compasso (andamento e compasso fazem parte do projeto), em Ferramentas → Metrônomo
 - [x] Navegação do cursor: `Ctrl+Home` / `Ctrl+End`, `Home` / `End`, `Ctrl+Alt+←/→` (bordas de eventos e de fades), `\` (centralizar) e `Ctrl+G` (ir para o tempo, em timecode, minutos:segundos, segundos ou quadros)
-- [ ] Gravação de áudio e entradas de dispositivo
+- [x] Gravação de áudio do dispositivo de entrada padrão (`Ctrl+R` ou o botão vermelho da barra): callback sem alocação nem bloqueio, escrita em WAV float por thread própria, nível de entrada real na barra de status, e a tomada entra na linha do tempo no ponto onde a gravação começou
+- [ ] Escolha do dispositivo de entrada, armar faixas e gravação com monitoramento
 
 **Vídeo e composição**
 - [ ] Composição multicamada na prévia e modos de composição (mistura)

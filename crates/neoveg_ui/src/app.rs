@@ -19,6 +19,7 @@ use neoveg_audio::metronome::{click_clips, Metronome};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::readout::LoudnessReadout;
+use neoveg_audio::record::Recorder;
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
@@ -273,6 +274,9 @@ struct AppState {
     show_inspector: bool,
     /// The metronome clicks during playback.
     metronome_on: bool,
+    /// The audio recording in progress and the timeline time it started at.
+    recorder: Option<Recorder>,
+    record_start: f64,
     metronome_volume: f32,
     show_metronome: bool,
     video_info: HashMap<u64, VideoInfo>,
@@ -917,6 +921,8 @@ impl AppState {
             keymap_message: String::new(),
             show_inspector: false,
             metronome_on: false,
+            recorder: None,
+            record_start: 0.0,
             metronome_volume: 0.5,
             show_metronome: false,
             video_info: HashMap::new(),
@@ -2633,6 +2639,57 @@ impl AppState {
         }
     }
 
+    /// Ctrl+R: starts recording the default input at the cursor, or stops and puts the take on the
+    /// timeline as a new event.
+    fn toggle_recording(&mut self, ctx: &egui::Context) {
+        if let Some(recorder) = self.recorder.take() {
+            match recorder.stop() {
+                Ok(recording) if recording.frames > 0 => {
+                    tracing::info!(
+                        "[INFO] recorded {:.2} s to {} ({} overruns)",
+                        recording.seconds(),
+                        recording.path.display(),
+                        recording.overruns
+                    );
+                    self.playhead = self.record_start;
+                    self.status = format!(
+                        "Gravação de {:.1} s salva em {}{}",
+                        recording.seconds(),
+                        recording.path.display(),
+                        if recording.overruns > 0 {
+                            format!(" ({} trechos perdidos)", recording.overruns)
+                        } else {
+                            String::new()
+                        }
+                    );
+                    self.spawn_media(recording.path, None, ctx);
+                }
+                Ok(_) => self.status = "Gravação vazia descartada".into(),
+                Err(e) => {
+                    tracing::error!("[ERROR] recording failed: {e}");
+                    self.status = format!("Falha na gravação: {e}");
+                }
+            }
+            return;
+        }
+        let Some(dir) = neoveg_common::paths::app_data_dir().map(|d| d.join("recordings")) else {
+            self.status = "Não há pasta de dados para a gravação".into();
+            return;
+        };
+        let path = dir.join(format!("Gravacao_{}.wav", autosave::unix_now()));
+        match Recorder::start(&path) {
+            Ok(recorder) => {
+                self.status = format!("Gravando de {} (Ctrl+R para parar)", recorder.info().device);
+                self.record_start = self.playhead;
+                self.recorder = Some(recorder);
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] cannot record: {e}");
+                self.status = format!("Não foi possível gravar: {e}");
+            }
+        }
+    }
+
     /// The clicks of the metronome from the cursor on (none when it is off).
     fn metronome_clips(&self) -> Vec<MixClip> {
         if !self.metronome_on {
@@ -2763,6 +2820,7 @@ impl AppState {
             Command::ViewAudioEffects => {
                 self.window_request = Some(WindowAction::Toggle(Tab::AudioFx))
             }
+            Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -3039,6 +3097,15 @@ impl eframe::App for NeovegApp {
         }
         if let Some(action) = self.state.window_request.take() {
             self.apply_window_action(action);
+        }
+        if let Some(recorder) = &self.state.recorder {
+            let peak = recorder.take_peak();
+            self.state.status = format!(
+                "Gravando {:.1} s · nível {} dBFS (Ctrl+R para parar)",
+                recorder.seconds(),
+                fmt_db(peak)
+            );
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.state.maybe_autosave(now);
         self.state.update_title(ctx);
@@ -4736,6 +4803,17 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         }
         if icon(ui, Icon::Stop, "Parar") {
             state.stop();
+        }
+        if icons::icon_button(
+            ui,
+            Icon::Record,
+            "Gravar do dispositivo de entrada (Ctrl+R)",
+            state.recorder.is_some(),
+        )
+        .clicked()
+        {
+            let ctx = ui.ctx().clone();
+            state.toggle_recording(&ctx);
         }
         ui.separator();
         if icon(ui, Icon::Split, "Dividir no cursor (S)") {
