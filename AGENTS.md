@@ -33,7 +33,7 @@ Neoveg Workspace
 ├── Cargo.lock
 ├── crates/
 │   ├── neoveg_common/         # project types, SMPTE timecode, FadeCurve, logging, preferences, per-user paths
-│   ├── neoveg_audio/          # symphonia decoding, multi-track mixer, cpal output, peak meters, waveform source
+│   ├── neoveg_audio/          # symphonia decoding, multi-track mixer, cpal output, peak and EBU R128 loudness meters (dsp/ adapted from FilmCraft), waveform source
 │   ├── neoveg_video/          # RGBA frames, generators, wgpu upload, FFmpeg decoding + frame worker (feature `ffmpeg`)
 │   ├── neoveg_engine/         # timeline, undoable commands, edit rules, crossfades, .neoveg files, autosave, relink
 │   └── neoveg_ui/             # egui/eframe application (binary `neoveg`)
@@ -143,6 +143,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
   - The panel renders exclusively the stereo Left (`L`) and Right (`R`) dBFS peak meters, the dBFS scale (`0`, `-6`, `-12`, `-24`, `-48`, `-∞`), real-time `L` / `R` dBFS readouts and the Master Volume fader (`MASTER BUS: +0.0 dB`). It must **never** contain a video RGB parade or scope in its top area.
   - **Meters respond strictly to the real audio pipeline** (`neoveg_audio::meter::PeakMeter`, fed from the samples sent to the device) — no timers, random numbers, oscillators or mock data in production builds.
   - When playback is stopped, or no unmuted audio is active at the playhead, every meter is completely zeroed and static (`0.0` linear / −∞ dB).
+- **Loudness panel** (`neoveg_ui/src/loudness_panel.rs`, dock tab **Loudness** under the Master Bus): momentary (400 ms), short-term (3 s) and integrated loudness in LUFS, loudness range (LRA) and true peak (dBTP) to ITU-R BS.1770-4 / EBU R128, against a selectable target (EBU R128 −23 LUFS / −1 dBTP, ATSC A/85 −24 LKFS / −2 dBTP, streaming −14, podcast −16). The meter (`neoveg_audio::dsp::loudness`, adapted from FilmCraft, see section 8) runs inside the audio callback on the samples sent to the device and publishes through atomics (`neoveg_audio::readout`); it allocates nothing during playback. Every start of playback is a new measurement; M and S read `-∞` when stopped while I, LRA and TP keep the last programme values. No simulated values. It stays out of the Master Bus panel, which only holds the L / R peak meters.
 - **Mixer** (`neoveg_audio::mixer`): sums every unmuted audio event active at the playback position, honoring `trim_in`, gain, fades and crossfades, with linear interpolation of the source.
 - **Fades:** five curves — `Linear`, `Fast`, `Slow`, `Smooth`, `Sharp` (`neoveg_common::fade::FadeCurve`, `gain(x)`: `x`, `1-(1-x)²`, `x²`, smoothstep, inverse smoothstep). A fade-in uses the curve directly; a fade-out evaluates it at the remaining fraction. Each event stores its own fade-in and fade-out length and curve.
 - **Automatic crossfades** (`neoveg_engine::crossfade`, project setting `auto_crossfade`, on by default): events on the same track that overlap *partially* (the later one starts inside the earlier one and ends after it) crossfade over the overlap, using the later event's fade-in curve for the fade-in and its mirror for the earlier event's fade-out, multiplied with each event's own fades. An event lying entirely inside another is not crossfaded.
@@ -238,6 +239,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 ## 8. Attribution & Licensing
 
 - All third-party dependencies and integrated code (FFmpeg, `egui`/`eframe`, `wgpu`, `cpal`, `symphonia`, VST3 SDK, OpenFX, Whisper.cpp, Voukoder, CorridorKey) must have authors and licenses documented in `AUTHORS.md` and `third_party/README.md`.
+- **Adapted third-party source** (code copied into the workspace, not a Cargo dependency) additionally needs: the licence text under `third_party/<project>/` (shipped by `build_portable.py`), an origin and copyright header at the top of every copied file, a `third_party/<project>/README.md` with the repository, commit, files copied and changes made, an entry in the in-app credits (`neoveg_ui/src/credits.rs`, a test checks it), and no use of the project's trademarks. Today: FilmCraft `audio-dsp` (loudness meter), `MIT OR Apache-2.0`, used under MIT.
 - Development builds use the **LGPL** shared FFmpeg variant. Releases must keep FFmpeg dynamically linked and ship its license text.
 - Packaging copies `AUTHORS.md` and `LICENSE` into every generated package in `dist/`.
 

@@ -74,6 +74,8 @@ PAYLOAD_FILES = {
     "RELEASE_NOTES.md": "RELEASE_NOTES.md",
     "README.md": "README.md",
     "third_party/README.md": "third_party/README.md",
+    "third_party/filmcraft/LICENSE-MIT": "third_party/filmcraft/LICENSE-MIT",
+    "third_party/filmcraft/README.md": "third_party/filmcraft/README.md",
 }
 
 PILLAR_LABELS = {

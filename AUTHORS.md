@@ -12,6 +12,18 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 ---
 
+## 1-A. Código de terceiros adaptado no workspace Rust (`crates/`)
+
+| Origem | Autores / Organização | Licença (SPDX) | Onde está no Neoveg | Utilização |
+| :--- | :--- | :--- | :--- | :--- |
+| **FilmCraft — `filmcraft-audio-dsp`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8fda2f2`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_audio/src/dsp/` (`loudness.rs`, `biquad.rs`, `oversample.rs`) | Medidor de loudness ITU-R BS.1770-4 / EBU R128 do painel **Loudness** (momentâneo, curto prazo, integrado, LRA e pico verdadeiro) |
+
+- Copyright (c) 2026 ArtCraft Team and the FilmCraft contributors. O texto da licença MIT está em [`third_party/filmcraft/LICENSE-MIT`](third_party/filmcraft/LICENSE-MIT) e vai em todos os pacotes; a origem, a lista de arquivos e as alterações feitas estão em [`third_party/filmcraft/README.md`](third_party/filmcraft/README.md).
+- A marca, o nome e os logotipos da ArtCraft **não** fazem parte da licença do FilmCraft e não são usados no Neoveg.
+- Os créditos também aparecem na interface, em **Ajuda → Créditos e licenças…**.
+
+---
+
 ## 2. Camada Desktop & Interface Gráfica (`desktop-host/Neoveg.csproj` — C# / .NET)
 
 | Pacote / Biblioteca | Versão | Autores / Organização | Licença (SPDX) | Utilização no Neoveg |

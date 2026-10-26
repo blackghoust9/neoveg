@@ -17,12 +17,13 @@ Este diretório centraliza os cabeçalhos C/C++, submódulos, conectores de rend
 | **LADSPA Audio DSP** | [`ladspa/ladspa`](https://www.ladspa.org/) | `LGPL-2.1-or-later` | `third_party/ladspa/` | `python-backend/ladspa_audio_dsp.py` + `Audio Event FX` |
 | **Audacity Waveform & DSP** | [`audacity/audacity`](https://github.com/audacity/audacity) | `GPL-3.0-or-later` (`GPLv3 / Audacity Contributors`) | `rust-core/src/audio_peaks.rs` & `desktop-host/AudioEngine/` | Amostragem multi-zoom de picos (`min`, `max`, `rms`), cache assíncrono `.sfk`, `AudioWaveformRenderer.cs` e `Neoveg.AudioEngine` (EQ Paramétrico 8 Bandas + VST3/LV2) |
 | **OpenTimelineIO** | [`AcademySoftwareFoundation/OpenTimelineIO`](https://github.com/AcademySoftwareFoundation/OpenTimelineIO) | `Apache-2.0` | `third_party/opentimelineio/` | Exportação/Importação `.otio` nativo e em `python-backend/` |
+| **FilmCraft (`filmcraft-audio-dsp`)** | [`storytold/filmcraft`](https://github.com/storytold/filmcraft) | `MIT OR Apache-2.0` (usado sob a `MIT`) | `third_party/filmcraft/` (origem e licença) e `crates/neoveg_audio/src/dsp/` (código adaptado) | `neoveg_audio` (medidor de loudness BS.1770-4 / EBU R128 no callback de áudio) e painel **Loudness** em `neoveg_ui` |
 
 ---
 
 ## 2. Detalhamento das Licenças e Conformidade
 
-1. **MIT License (`whisper.cpp`, `CorridorKey`)**:
+1. **MIT License (`whisper.cpp`, `CorridorKey`, `FilmCraft`)**:
    - Permite uso irrestrito, modificação, linkagem estática ou dinâmica e redistribuição no pacote portátil `dist/Neoveg-Portable-*`, mantendo os avisos de copyright originais.
 2. **BSD-3-Clause & Apache-2.0 (`OpenFX`, `OpenTimelineIO`)**:
    - Os cabeçalhos da especificação `ofxCore.h` e `ofxImageEffect.h` da Academy Software Foundation (ASWF) permitem implementação livre de hosts OpenFX (`OfxHost` / `OfxImageEffectSuiteV1`) em C++17 com exportação `extern "C"`.

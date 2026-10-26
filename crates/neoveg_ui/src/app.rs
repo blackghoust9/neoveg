@@ -16,6 +16,7 @@ use neoveg_audio::decode::decode_file;
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::mixer::MixClip;
 use neoveg_audio::playback::{wrap_loop, AudioPlayer};
+use neoveg_audio::readout::LoudnessReadout;
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
@@ -83,6 +84,7 @@ enum Tab {
     Timeline,
     Media,
     MasterBus,
+    Loudness,
 }
 
 impl Tab {
@@ -92,6 +94,7 @@ impl Tab {
             Tab::Timeline => "Linha do Tempo",
             Tab::Media => "Mídia",
             Tab::MasterBus => "Barramento Master",
+            Tab::Loudness => "Loudness",
         }
     }
 }
@@ -190,6 +193,11 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
 
     meter: Arc<PeakMeter>,
+    /// EBU R128 readings published by the audio callback.
+    loudness: Arc<LoudnessReadout>,
+    /// Index into `loudness_panel::TARGETS`.
+    loudness_target: usize,
+    show_credits: bool,
     master_volume: f32,
     active_player: Option<ActivePlayer>,
 
@@ -269,6 +277,9 @@ impl AppState {
             clipboard: None,
             repeat_dialog: None,
             meter: Arc::new(PeakMeter::new()),
+            loudness: Arc::new(LoudnessReadout::new()),
+            loudness_target: 0,
+            show_credits: false,
             master_volume: 1.0,
             active_player: None,
             show_bars: false,
@@ -1713,7 +1724,7 @@ impl AppState {
         if clips.is_empty() {
             return None;
         }
-        match AudioPlayer::new(clips, Arc::clone(&self.meter)) {
+        match AudioPlayer::new(clips, Arc::clone(&self.meter), Arc::clone(&self.loudness)) {
             Ok(player) => {
                 player.set_volume(self.master_volume);
                 player.set_loop(self.loop_args());
@@ -1925,7 +1936,9 @@ impl NeovegApp {
         let surface = dock.main_surface_mut();
         let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
         let [preview, _media] = surface.split_left(top, 0.28, vec![Tab::Media]);
-        surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
+        let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
+        // The loudness readouts live in their own panel under the master bus
+        surface.split_below(master, 0.55, vec![Tab::Loudness]);
 
         let mut state = AppState::new();
         let repaint = cc.egui_ctx.clone();
@@ -2010,6 +2023,7 @@ impl eframe::App for NeovegApp {
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
+        credits_window(ctx, &mut self.state);
     }
 }
 
@@ -2148,7 +2162,23 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         ui.menu_button("Exibir", |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
         });
+        ui.menu_button("Ajuda", |ui| {
+            if ui.button("Créditos e licenças…").clicked() {
+                state.show_credits = true;
+                ui.close_menu();
+            }
+        });
     });
+}
+
+/// Help → Credits: authors and licences of the code Neoveg is built on.
+fn credits_window(ctx: &egui::Context, state: &mut AppState) {
+    let mut open = state.show_credits;
+    egui::Window::new("Créditos e licenças")
+        .open(&mut open)
+        .default_size([480.0, 420.0])
+        .show(ctx, crate::credits::credits_ui);
+    state.show_credits = open;
 }
 
 /// A menu entry that runs `command`, with its shortcut and enabled state.
@@ -2583,6 +2613,18 @@ impl TabViewer for Viewer<'_> {
             Tab::Timeline => timeline_ui(self.state, ui),
             Tab::Media => media_ui(self.state, ui),
             Tab::MasterBus => master_bus_ui(self.state, ui),
+            Tab::Loudness => {
+                let snapshot = self.state.loudness.snapshot();
+                let restart = crate::loudness_panel::loudness_ui(
+                    ui,
+                    snapshot,
+                    self.state.playing,
+                    &mut self.state.loudness_target,
+                );
+                if restart {
+                    self.state.loudness.request_reset();
+                }
+            }
         }
     }
 

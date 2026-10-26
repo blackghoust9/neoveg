@@ -1,8 +1,10 @@
 //! Neoveg entry point: opens the main workspace window with an empty project.
 
 mod app;
+mod credits;
 mod frame_grid;
 mod icons;
+mod loudness_panel;
 mod precision_slider;
 mod shortcuts;
 mod waveform_paint;

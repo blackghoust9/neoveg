@@ -273,7 +273,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
 - [ ] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa"
 - [ ] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
-- [ ] Medidores de loudness (M, S, I, LRA, pico verdadeiro; EBU R128 e ATSC A/85) em painel próprio e registro `_loud.txt`
+- [x] Medidores de loudness (M, S, I, LRA, pico verdadeiro) em painel próprio **Loudness**, com alvos EBU R128, ATSC A/85, streaming e podcast: medidor BS.1770-4 adaptado do FilmCraft (`neoveg_audio::dsp`), alimentado no callback de áudio com as amostras que vão para a placa; créditos em **Ajuda → Créditos e licenças…**
+- [ ] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir)
 
 **Fase 8 — Automação e keyframes (entrada 14)**
 - [ ] Edição de envelopes: pontos, `Ctrl` fino, `Alt` só tempo, pincel livre, afinar pontos, inverter, tipo de curva por segmento

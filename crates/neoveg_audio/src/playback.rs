@@ -1,4 +1,5 @@
-//! Hardware audio output with cpal. The meter is fed from the samples actually sent to the device.
+//! Hardware audio output with cpal. The peak and loudness meters are fed from the samples actually
+//! sent to the device.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use cpal::SampleFormat;
 
 use crate::meter::PeakMeter;
 use crate::mixer::{mix_frame, plan_end, MixClip};
+use crate::readout::{LoudnessFeeder, LoudnessReadout};
 
 /// Shared state between the UI thread and the audio callback.
 struct PlaybackState {
@@ -40,10 +42,15 @@ pub struct AudioPlayer {
     _stream: cpal::Stream,
     state: Arc<PlaybackState>,
     meter: Arc<PeakMeter>,
+    loudness: Arc<LoudnessReadout>,
 }
 
 impl AudioPlayer {
-    pub fn new(clips: Vec<MixClip>, meter: Arc<PeakMeter>) -> Result<Self, String> {
+    pub fn new(
+        clips: Vec<MixClip>,
+        meter: Arc<PeakMeter>,
+        loudness: Arc<LoudnessReadout>,
+    ) -> Result<Self, String> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -73,6 +80,9 @@ impl AudioPlayer {
 
         let cb_state = Arc::clone(&state);
         let cb_meter = Arc::clone(&meter);
+        // Built here, outside the callback: the meter allocates its gating histograms once
+        let mut feeder =
+            LoudnessFeeder::new(f64::from(config.sample_rate.0), Arc::clone(&loudness));
 
         let stream = device
             .build_output_stream(
@@ -83,6 +93,7 @@ impl AudioPlayer {
                         cb_meter.reset();
                         return;
                     }
+                    feeder.begin_buffer();
                     let volume = f64::from_bits(cb_state.volume.load(Ordering::Relaxed)) as f32;
                     let mut pos = f64::from_bits(cb_state.position.load(Ordering::Relaxed));
                     let loop_start = f64::from_bits(cb_state.loop_start.load(Ordering::Relaxed));
@@ -105,6 +116,7 @@ impl AudioPlayer {
                                 _ => 0.0,
                             };
                         }
+                        feeder.push(l, r);
                         peak_l = peak_l.max(l.abs());
                         peak_r = peak_r.max(r.abs());
                         pos += step;
@@ -112,6 +124,7 @@ impl AudioPlayer {
 
                     cb_state.position.store(pos.to_bits(), Ordering::Relaxed);
                     cb_meter.set(peak_l, peak_r);
+                    feeder.end_buffer(data.len() / out_channels.max(1));
                 },
                 |e| tracing::error!("audio stream error: {e}"),
                 None,
@@ -125,11 +138,14 @@ impl AudioPlayer {
             _stream: stream,
             state,
             meter,
+            loudness,
         })
     }
 
     /// Starts playback at timeline time `seconds`.
     pub fn play_from(&self, seconds: f64) {
+        // Every start is a new measurement of the programme
+        self.loudness.request_reset();
         self.state
             .position
             .store(seconds.max(0.0).to_bits(), Ordering::Relaxed);
