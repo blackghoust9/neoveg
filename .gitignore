@@ -113,3 +113,8 @@ manuais/
 
 # macOS SDK for the cross-compilation image (Apple license: never commit)
 docker/sdk/*.tar.*
+
+# Local tooling state and generated QA reports (rewritten by every QA run)
+.claude/settings.json
+coverage/qa/qa_report.json
+docs/qa_report.js

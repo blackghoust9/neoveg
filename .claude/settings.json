@@ -1,7 +1,0 @@
-{
-  "enabledPlugins": {
-    "claude-memory@anthropic-plugin-directory": true,
-    "headroom-large-file-and-log-reader@anthropic-plugin-directory": true,
-    "claude-code-setup@anthropic-plugin-directory": true
-  }
-}
