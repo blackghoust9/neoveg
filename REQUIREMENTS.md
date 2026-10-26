@@ -67,4 +67,4 @@ Logs are written to `logs/neoveg.log` and `logs/crash.log` next to the executabl
 
 ## 4. Legacy Directories
 
-`desktop-host/` (C#), `rust-core/` (FFI crate, excluded from the workspace), `cpp-extensions/` and `python-backend/` belong to the previous architecture. They are kept only as a porting reference and are not built by the workspace. Do not add features to them.
+The previous C# / C++ / Python architecture (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) was removed from the tree; it stays in Git history before commit `36b1d19`.

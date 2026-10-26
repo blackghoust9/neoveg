@@ -5,7 +5,7 @@ This document defines the architectural standards, naming conventions, coding gu
 **How this document is organized**
 
 - **Part I (sections 1–11) is the current standard.** Neoveg is a pure Rust Cargo workspace; these rules apply to everything under `crates/`.
-- **Part II (appendices A–C) keeps the legacy protocols** of the C# / C++ / Python era. They apply only to the legacy directories (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) while those still exist as a porting reference. When Part II contradicts Part I, **Part I wins**.
+- **Part II only records that the legacy C# / C++ / Python code was removed** (it stays in Git history).
 
 Feature status (what is done and what is missing) lives in the roadmap of `README.md`, not here. This file states how things must be built, not how far along they are.
 
@@ -19,7 +19,6 @@ Feature status (what is done and what is missing) lives in the roadmap of `READM
 - **Prohibited suffixes:** do **not** use `Studio` or `Pro` in any name. The project is solely and strictly **Neoveg**.
 - **Crates:** `neoveg_common`, `neoveg_audio`, `neoveg_video`, `neoveg_engine`, `neoveg_ui`, in `crates/<crate_name>/`. The application binary is `neoveg` (`crates/neoveg_ui`, `[[bin]] name = "neoveg"`).
 - **Native format and extension:** `.neoveg`.
-- The names used by the legacy C#, C++ and Python code are listed in Appendix A.
 
 ---
 
@@ -39,9 +38,7 @@ Neoveg Workspace
 │   └── neoveg_ui/             # egui/eframe application (binary `neoveg`)
 ├── docs/                      # research knowledge base (docs/research/nle_features_research.txt) and the legacy QA dashboard
 ├── Assets/i18n/               # runtime localization resources (pt-BR default)
-├── extensions/, third_party/, plugins/, scripts/, runtimes/   # supporting material
-└── desktop-host/ desktop-host.Tests/ rust-core/ cpp-extensions/ python-backend/ Neoveg.sln
-                               # LEGACY: porting reference only (Part II)
+└── extensions/, third_party/, plugins/, scripts/, runtimes/   # supporting material
 ```
 
 Dependency direction: `neoveg_common` is the base; `neoveg_audio`, `neoveg_video` and `neoveg_engine` depend only on it; `neoveg_ui` depends on all of them. `neoveg_engine` must not depend on audio, video or UI code, so the editing model stays testable without a window or a sound card.
@@ -49,7 +46,7 @@ Dependency direction: `neoveg_common` is the base; `neoveg_audio`, `neoveg_video
 ### 2.2. Pure Rust standard
 
 - Neoveg is a pure Rust Cargo Workspace (`crates/neoveg_ui`, `crates/neoveg_engine`, `crates/neoveg_audio`, `crates/neoveg_video`, `crates/neoveg_common`).
-- **Zero Legacy Code:** C#, C++, Python and external FFI wrappers are completely deprecated. Do not introduce them for core editing features. All editing, timeline logic, rendering and audio processing run natively in Rust. The legacy directories still in the repository are removed once their features are ported (see the `README.md` roadmap).
+- **Zero Legacy Code:** C#, C++, Python and external FFI wrappers are completely deprecated. Do not introduce them for core editing features. All editing, timeline logic, rendering and audio processing run natively in Rust. The legacy directories were removed from the repository (Git history keeps them).
 - **UI & graphics:** `egui` / `eframe` with `egui_dock` for Classic NLE-style dockable panels; video and timeline rendering on the GPU through `wgpu` (WebGPU).
 - **Audio:** `symphonia` for decoding, `cpal` for hardware output.
 - **Video:** FFmpeg through `ffmpeg-next`, behind the optional `ffmpeg` feature (`neoveg_video/ffmpeg`, forwarded as `neoveg_ui/ffmpeg`) so a plain `cargo build --workspace` needs no system FFmpeg. Without the feature the application still starts and reports in the status bar that video decoding is disabled.
@@ -79,7 +76,7 @@ Dependency direction: `neoveg_common` is the base; `neoveg_audio`, `neoveg_video
   - Package and QA report: `python build_portable.py` (QA gates, release build, portable folders, archives and the standalone exe for this OS), `python build_portable.py qa` (gates and report only), `python build_portable.py check` (toolchain)
 - **FFmpeg feature toolchain:** FFmpeg **7.1.x shared** build with headers and import libraries (`FFMPEG_DIR`), LLVM / `libclang` **19.x** (`LIBCLANG_PATH`; LLVM 22 or newer breaks `ffmpeg-sys-next` 7.1.3), and the FFmpeg DLLs on `PATH` at run time. Test it with `cargo test --workspace --features neoveg_ui/ffmpeg`. The decoding tests build a clip with the `ffmpeg` command-line tool and skip silently when it is missing.
 - **Tests are mandatory for new behavior:** unit tests for pure rules, round-trip tests for file formats (including older-version files), and state-level tests for UI logic. Do not weaken or delete a test to make a change pass.
-- **Benchmarks and profiling:** waveform and mixer benchmarks belong in Criterion (`benches/`), and Tracy is the profiler for representative timeline and rendering workloads. The legacy `rust-core` already has an `audio_peaks` benchmark to port.
+- **Benchmarks and profiling:** waveform and mixer benchmarks belong in Criterion (`benches/`), and Tracy is the profiler for representative timeline and rendering workloads. (none exists yet).
 - **Memory and thread safety:** sanitizers apply to any future `unsafe`/native code; today the compiler plus Miri-compatible safe code is the guarantee.
 - **Release gate:** do not merge to `main` or build a release package until the commands above pass on a clean checkout.
 
@@ -295,7 +292,7 @@ Neoveg aligns its development and QA practice with ISO/IEC 25010 (quality model)
 
 ## 12. Pure Rust Cross-Platform Testing & Docker Protocol
 
-The isolated environment lives in `docker/` and builds only the Rust workspace in `crates/`: no .NET, C++ or Python toolchains are installed in the images (Python 3 is present only to run `build_portable.py`). The root `Dockerfile` and `docker-compose.yml` are the legacy multi-language environment of Part II and are not used by this protocol.
+The isolated environment lives in `docker/` and builds only the Rust workspace in `crates/`: no .NET, C++ or Python toolchains are installed in the images (Python 3 is present only to run `build_portable.py`).
 
 - **Layout:** `docker/Dockerfile.rust-linux`, `docker/Dockerfile.rust-macos`, `docker/docker-compose.yml`, `docker/entrypoints/*.sh` (run inside the containers) and `docker/sdk/` (macOS SDK package, never committed).
 - **Linux image:** official `rust` image (`RUST_IMAGE`, default `rust:latest`; pin it for reproducible builds) plus `build-essential`, `pkg-config`, `clang`, `libasound2-dev` (cpal), `libgl1-mesa-dev`, `libx11-dev`, `libwayland-dev`, `libvulkan-dev` and a software Vulkan driver (wgpu/egui), `libavcodec-dev`, `libavformat-dev`, `libavutil-dev` and the other FFmpeg libraries (`ffmpeg-next`), and `xvfb`. The FFmpeg development packages must be 7.1.x to use the `ffmpeg` feature; the default build and the tests do not need them.
@@ -308,229 +305,6 @@ The isolated environment lives in `docker/` and builds only the Rust workspace i
 
 ---
 
-# Part II — Legacy Protocols (C# / C++ / Python era)
+# Part II — Legacy history
 
-> These protocols belong to the previous architecture and apply **only** to the legacy directories while they remain as a porting reference. They are not requirements for new Rust code. Where they overlap with Part I, Part I wins. The original per-file notes for the C# UI (file names such as `MainWindow.cs`) are in Git history before commit `7afb8dc`; their behavioral rules are restated in section 4.
-
-> **Removed scripts:** the helper scripts these appendices cite (`scripts/run_qa_suite.*`, `scripts/neoveg.sh` / `.bat`, `scripts/install_prerequisites.*`, `scripts/install_vcredist.bat`, `scripts/check_env.*`, `scripts/build*`, `scripts/update_third_party.py`, `scripts/audit_trademarks.py`, `scripts/test_neoveg_engine.py` and the C# / Python example scripts) were deleted when the project moved to pure Rust; they remain in Git history. `scripts/sync_gdrive.ps1` (cloud mirror) and the root `build_portable.py` (packaging and QA) are the only scripts kept.
-
-## Appendix A. Legacy Naming, Layout & Subsystems
-
-### A.1. Legacy naming
-
-- **C# / .NET:** all namespaces, solutions and assemblies use `Neoveg` (`Neoveg.sln`, `desktop-host/Neoveg.csproj`, `namespace Neoveg.Core`, `Neoveg.Controls`, `Neoveg.Views`, `Neoveg.ProjectInterchange`, `Neoveg.Scripting`).
-- **Rust FFI backend:** crate `neoveg_core` (`rust-core/Cargo.toml`), FFI symbols prefixed with `neoveg_`.
-- **C++ extensions:** CMake project and shared library target `neoveg_cpp_engine` (`cpp-extensions/CMakeLists.txt`, `cpp-extensions/src/neoveg_cpp_engine.cpp`).
-- **Python:** modules and packages use `neoveg` (`python-backend/neoveg/__init__.py`, `python-backend/neoveg_integration.py`).
-
-### A.2. Legacy multi-language layout
-
-```
-Neoveg Workspace
-├── Neoveg.sln            # Root Visual Studio / .NET Solution
-├── desktop-host/         # C# (.NET / Avalonia UI) — Frontend UI and MVVM (Neoveg.csproj)
-├── desktop-host.Tests/   # C# (Avalonia.Headless.XUnit) — Automated Headless UI & Unit Tests (Neoveg.Tests.csproj)
-├── rust-core/            # Rust (neoveg_core) — High-performance video/audio processing, FFI decoding, and .sfk cache
-├── cpp-extensions/       # C/C++ (CMake: neoveg_cpp_engine) — VST3 hosting, OpenFX, Voukoder, Whisper.cpp, and Shared Memory IPC
-├── python-backend/       # Python (neoveg) — Automation, AI (Whisper.cpp, CorridorKey), XML interchange, and user scripting
-├── scripts/              # Dynamic C# (.cs) and Python (.py) scripts, QA runners, launchers + build_portable.py
-├── extensions/           # Third-party dockable window extensions
-├── third_party/          # External dependencies, SDKs, and open-source libraries
-├── docs/                 # Project QA compliance dashboard (index.html) and Classic NLE research knowledge base
-└── Assets/i18n/          # Runtime localization resources (pt-BR default)
-```
-
-### A.3. Legacy subsystem standards
-
-#### A.3.1. Rust Core (`rust-core/`)
-- Crate name: `neoveg_core`.
-- Responsible for memory management, high-speed decoding, frame synchronization, SMPTE timecode math, 5-curve fades, auto-crossfades, and audio peak rendering (`.sfk`).
-- All FFI functions exposed to C# must be annotated with `#[no_mangle] pub extern "C"` and prefixed with `neoveg_`, with explicit null pointer checking and catch-unwind safety boundaries.
-
-#### A.3.2. C/C++ Extensions (`cpp-extensions/`)
-- Managed via cross-platform `CMakeLists.txt` (Windows, Linux, macOS) targeting `neoveg_cpp_engine`.
-- Used for interfacing with C++ SDKs involving multiple inheritance or virtual classes (VST3 SDK, OpenFX Core, Voukoder, Whisper.cpp).
-- **Out-of-Process Isolation:** Unstable third-party plugins must be isolated via Shared Memory Mapped Files (`NVSH` protocol).
-
-#### A.3.3. Python & Scripting (`Neoveg.Scripting` & `neoveg`)
-- Enables users to run dynamic C# (`.cs` via Roslyn `Microsoft.CodeAnalysis.CSharp.Scripting`) and Python (`.py`) scripts directly from **Tools -> Scripting**.
-- Classes under `Neoveg.Scripting` must mirror core editor objects (`NeovegHost`, `Project`, `Track`, `TrackEvent`, `Take`, `Effect`).
-
-### A.4. Legacy missing-media modal
-
-Upon opening a project with disconnected media:
-1. Trigger the `MissingMediaWindow.axaml` (`desktop-host/Views/MissingMediaWindow.cs`) modal.
-2. Execute the 3-step search algorithm via Rust/Python (`Neoveg.Core.MediaRelinker` in `desktop-host/Services/MediaRelinker.cs` / `python-backend/media_relinker.py`):
-   - *Step 1:* Exact filename match + Same-Directory Sibling Auto-Relink.
-   - *Step 2:* Fuzzy filename match.
-   - *Step 3:* Metadata validation (`FFprobe`) checking framerate, channels, and original duration + Rust FFI `.sfk` regeneration.
-
-## Appendix B. Legacy Runtime, Build & Release Protocols
-
-### B.1. Windows prerequisites (Visual C++ / DirectX)
-
-- **Visual C++ Redistributable All-in-One:** The official source for the Windows Visual C++ Redistributable All-in-One prerequisite package is [https://www.techpowerup.com/download/visual-c-redistributable-runtime-package-all-in-one/](https://www.techpowerup.com/download/visual-c-redistributable-runtime-package-all-in-one/). Extract its contents to `addon/vcredist_all_in_one/` (so `install_all.bat` is available there) or `addon/vcredist2022-2015_14.36.32532/`.
-- **DirectX End-User Runtimes (June 2010):** The official source for the DirectX End-User Runtimes prerequisite package is [https://www.techpowerup.com/download/directx-redistributable-runtime/](https://www.techpowerup.com/download/directx-redistributable-runtime/). Place `directx_Jun2010_redist.exe` in `addon/directx_redist/` (or `addon/`).
-- **Unified Silent Prerequisite Setup (`scripts/install_prerequisites.bat`):** Executes silent installation of both the Visual C++ Redistributable (`/q /norestart`) and the DirectX End-User Runtimes (`directx_Jun2010_redist.exe /q /t:%TEMP%\dxredist && %TEMP%\dxredist\DXSETUP.exe /silent`).
-- **Startup Runtime & Hardware Acceleration Verification:** On Windows, the Neoveg bootstrap (`desktop-host/Program.cs` and `cpp-extensions/src/neoveg_cpp_engine.cpp`) checks for the Visual C++ runtime DLLs (`vcruntime140.dll`, `msvcp140.dll`) and DirectX visual/audio acceleration libraries (`d3d11.dll`, `XAudio2_7.dll`) before startup and records their status in `logs/neoveg.log`. If required DLLs are missing, `scripts/install_vcredist.bat` or `scripts/install_prerequisites.bat` requests administrator approval and runs the package installers silently. Do not bypass the Windows UAC prompt.
-- **Cross-Platform Prerequisite Boundary:** Visual C++ All-in-One and DirectX installers are Windows-only. Their checks and installer invocations must be guarded with `OperatingSystem.IsWindows()`; Linux and macOS builds/startup must never invoke Windows installers. Keep native FFI loading platform-specific (`.dll` on Windows, `.so` on Linux, `.dylib` on macOS), and keep CMake platform dependencies inside `WIN32`, `APPLE`, or `UNIX` branches. Do not link Windows-only DirectX import libraries into the shared engine target.
-
-### B.2. Legacy logging per subsystem
-
-To ensure full observability during runtime and diagnose crashes or silent failures across all subsystems:
-
-- **Centralized Log Directory:** All logs must be written to `logs/neoveg.log` (active session) and `logs/crash.log` (unhandled crashes) inside the application root directory.
-- **Log Rotation & Retention:** Retain up to 5 historical log files (`logs/neoveg.YYYY-MM-DD.log`) with a 10MB file size limit per log file.
-- **Subsystem Integration:**
-  - **C# / .NET (Frontend):** Use structured rotating file + console logging (`Program.LogEvent` / `WriteCrashLog`, compatible with `Serilog` or `Microsoft.Extensions.Logging` sinks). Intercept global unhandled exceptions via `AppDomain.CurrentDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`, and Avalonia's `RxApp.DefaultExceptionHandler`.
-  - **Rust Backend (`rust-core`):** Use the `tracing` / `tracing-subscriber` crate, capturing Rust panics via `std::panic::set_hook` and piping logs to the central file.
-  - **C++ Extensions (`cpp-extensions`):** Log VST3/OpenFX plugin initialization, FFI calls, and native exceptions to `logs/neoveg.log`.
-  - **Python Backend (`python-backend`):** Configure Python's standard `logging` module with a file handler pointing to `logs/neoveg.log`.
-- **Log Levels:** Enforce strict log leveling (`[DEBUG]`, `[INFO]`, `[WARN]`, `[ERROR]`, `[FATAL]`). FFI boundaries and media decoding routines must log contextual details (file paths, frame indices, HRESULTs, error codes) before raising UI alerts.
-- **Log Viewer Clipboard Support (`LogViewerWindow.axaml` / `LogViewerViewModel.cs`):** The diagnostic log viewer window must mandatorily provide a quick **Copy Logs to Clipboard** (`Copiar Logs` / `CopyToClipboardCommand`) feature using Avalonia's `TopLevel.GetTopLevel(window)?.Clipboard?.SetTextAsync(...)` API, supporting both partial user text selection (`TextBox` / `SelectableTextBlock`) and full-log copying with visual confirmation feedback (`Copiado!` for 2 seconds).
-
-### B.3. Local app cache & cloud drive execution
-
-To avoid performance bottlenecks, file-locking issues, and DLL loading failures when running from cloud-synced or virtual drives (e.g., Google Drive `G:\`, OneDrive, network shares):
-
-- **Cloud Drive Detection:** On startup (`Program.cs`), check if `AppDomain.CurrentDomain.BaseDirectory` resides on a virtual drive, network share (`\\`), or known cloud sync paths (e.g., `G:\`, `G:\Meu Drive`).
-- **Local Cache Target:**
-  - **Windows:** `%LOCALAPPDATA%\Neoveg\AppCache\`
-  - **Linux:** `~/.cache/neoveg/app_cache/`
-  - **macOS:** `~/Library/Caches/neoveg/app_cache/`
-- **Cache Synchronization Logic:**
-  1. Compare modification timestamps or file hashes of `neoveg.exe`, DLLs, and `Assets/` between the source path and the local cache directory.
-  2. If the local cache is missing or outdated, mirror/copy the updated application files to the local cache folder.
-- **Process Relocation & Execution:**
-  - Launch the cached binary (`%LOCALAPPDATA%\Neoveg\AppCache\neoveg.exe`) in a new process, preserving the original command-line arguments and working directory context.
-  - Exit the initial drive-hosted process immediately (`Environment.Exit(0)`).
-- **Log Indication:** Record the execution path and caching status in `logs/neoveg.log`.
-
-### B.4. Legacy QA, benchmarking & Docker
-
-To guarantee code stability, zero-lag timeline performance, memory safety, and reproducible builds across all architectures:
-
-- **Approved QA & Profiling Toolchain:** Use `Avalonia.Headless.XUnit` for UI tests without a display server, Criterion.rs for Rust benchmarks, GoogleTest for C++ unit tests, AddressSanitizer/UndefinedBehaviorSanitizer for native FFI memory and undefined-behavior checks, and Tracy Profiler for performance investigation. Run `scripts/run_qa_suite.ps1` on Windows or `scripts/run_qa_suite.sh` on Linux/macOS before every release; all static analysis, tests, sanitizer checks, and coverage reporting must pass.
-- **Unified QA Suite:** The scripts run `dotnet format --verify-no-changes`, `cargo clippy`, and `clang-tidy`, then .NET, Rust, Criterion waveform benchmark, CTest, and Python test suites (`scripts/test_neoveg_engine.py`), and finally collect/verify code-coverage reports. QA prerequisites include .NET 8 SDK, Rust/Cargo, GCC or GNU-compatible Clang with ASan/UBSan, CMake, Ninja, `clang-tidy`, `cargo-llvm-cov`, `gcovr`, Python with `pytest-cov`, and CTest. Missing or unsupported tools must fail the suite explicitly rather than silently skipping a check.
-- **QA Reporting & Standards Traceability:** Every QA step is tagged with an ISO/IEC 25010 pillar (Performance Efficiency, Reliability, Usability, Portability, Maintainability) and the ABNT NBR / ISO/IEC requirement it evidences. Each step logs `START` / `PASS` / `FAIL` lines with that requirement to `logs/neoveg.log` (`[QA/<Pillar>]` source), and the suite always writes `coverage/qa/qa_report.json` plus `docs/qa_report.js` (also on failure), which `docs/index.html` renders in its ISO/ABNT compliance panel.
-- **Performance & Bottleneck Elimination Benchmarks:**
-  - **UI Thread (Avalonia):** The main UI thread must never freeze during timeline zooming, scrubbing, or event dragging. Heavy operations (waveform generation, project parsing, FFmpeg indexing) must be executed asynchronously on background threads or via Rust FFI, with pre-allocated static pens/brushes (`StaticCenterAxisPen`, `BrushCache`) to avoid per-frame GC pressure.
-  - **Profiling & Benchmarks:** Maintain waveform engine benchmarks with Criterion.rs and use Tracy Profiler to capture representative timeline/rendering workloads before release.
-  - **Sanitizers & Native Tests:** Run C++ tests registered with CTest/GoogleTest under AddressSanitizer and UndefinedBehaviorSanitizer in QA builds. Sanitizer/coverage configurations require GCC or GNU-compatible Clang.
-  - **Memory & FFI Management:** Zero buffer leaks when transferring frame buffers or audio samples between C# and Rust/C++. All FFI pointer allocations must have explicit deallocation wrappers (`neoveg_free_buffer`, `neoveg_cpp_free_buffer`, `FreeNativeBuffer`, `IDisposable`).
-  - **Drive I/O Optimization:** Ensure execution from `%LOCALAPPDATA%\Neoveg\AppCache\` with fast fingerprint verification (`appcache_sync.stamp` / `ComputeFastCacheFingerprint`) to prevent Google Drive lockouts and latency spikes.
-- **Docker Integration & Containerization (`Dockerfile` / `docker-compose.yml`):**
-  - Maintain a multi-stage Docker build pipeline (`rust-builder`, `cpp-builder`, `dotnet-builder`, `runtime`) for headless automated testing (`neoveg-qa`), C++ cross-compilation (GCC/Clang), and Linux/macOS artifact generation.
-- **GitHub-Style Project Dashboard (`docs/index.html`):**
-  - Host a local/web dashboard mirroring GitHub’s interface to track project milestones, module completion status (C#, Rust, C++, Python), QA test results, and real Docker container status.
-
-### B.5. Legacy QA audit & release deployment
-
-To ensure software stability, zero runtime regressions, and a production-ready distribution package:
-
-- **Automated QA & Test Suite Execution:**
-  - Execute full unit and integration test suites across all core modules:
-    - **C# / Avalonia (`desktop-host`):** `dotnet test`
-    - **Rust Core (`rust-core`):** `cargo test --release`
-    - **C++ Extensions (`cpp-extensions`):** `ctest` / CMake test targets
-    - **Python Backend (`python-backend` / `scripts`):** `pytest` and `python scripts/test_neoveg_engine.py`
-  - Audit FFI bridges for pointer safety, memory leaks, and exception propagation.
-  - Verify that unhandled exceptions, UI freezes, and FFI memory leaks are absent; confirm that `logs/neoveg.log` and in-app error capture operate correctly.
-- **Production Executable Generation (`.exe`):**
-  - Build standalone, optimized Release binaries with `dotnet publish desktop-host/Neoveg.csproj -c Release -r win-x64 --self-contained true`.
-  - Bundle all required native dependencies (`neoveg_core.dll`, `neoveg_cpp_engine.dll`), `Assets/`, the Bootstrapper/Local AppCache scripts, and prerequisite installers.
-- **Release Packaging & Cloud Mirroring:**
-  - Package the final distribution as `dist/Neoveg-Portable-win-x64/` and `dist/Neoveg_v1.0.0_win-x64.zip`, including `RELEASE_NOTES.md` and `AUTHORS.md`.
-  - Mirror the project and release package to `G:\Meu Drive\vp-rev-eng\teste\teste2` via `scripts/sync_gdrive.ps1`.
-
-### B.6. Legacy developer environment enforcement
-
-To ensure smooth onboarding and prevent missing dependency errors across dev environments:
-
-- **Dependency Specifications:** Maintain explicit toolchain versions in `REQUIREMENTS.md` and `python-backend/requirements.txt`.
-- **Pre-Flight Environment Check (`desktop-host/Program.cs`):**
-  - Verify presence of required runtimes (.NET 8 runtime/self-contained, C++ VC++ Redistributable on Windows, system shared libraries on Linux/macOS) prior to application launch.
-  - Log diagnostic reports of missing SDKs/toolchains to `logs/neoveg.log` with actionable resolution steps.
-
-### B.7. Legacy cross-platform & portable release
-
-To ensure seamless distribution across all major operating systems without requiring system installation privileges:
-
-- **Target Platforms & Runtime Identifiers (RIDs):**
-  - **Windows (x64):** `win-x64`
-  - **Linux (x64):** `linux-x64`
-  - **macOS (Intel x64):** `osx-x64`
-  - **macOS (Apple Silicon M-Series):** `osx-arm64`
-- **Portable Build Standard:**
-  - Build all binaries as **Self-Contained** with embedded .NET runtime (`--self-contained true`).
-  - Bundle platform-native shared libraries alongside the main executable:
-    - Windows: `neoveg_core.dll`, `neoveg_cpp_engine.dll`
-    - Linux: `libneoveg_core.so`, `libneoveg_cpp_engine.so`
-    - macOS: `libneoveg_core.dylib`, `libneoveg_cpp_engine.dylib`
-- **Archive Formats:**
-  - **Windows:** `dist/Neoveg_v1.0.0_win-x64_Portable.zip`
-  - **Linux:** `dist/Neoveg_v1.0.0_linux-x64_Portable.tar.gz` (plus executable launcher script `neoveg.sh`)
-  - **macOS:** `dist/Neoveg_v1.0.0_osx-universal_Portable.tar.gz` (`dist/Neoveg_v1.0.0_osx-x64_Portable.tar.gz` and `dist/Neoveg_v1.0.0_osx-arm64_Portable.tar.gz`, or `.app` bundle)
-
-### B.8. Native DLL bundling & assembly resolution
-
-To guarantee that `Neoveg.exe` loads native shared libraries seamlessly in portable mode:
-
-- **Automatic DLL Copying (`desktop-host/Neoveg.csproj`):**
-  - Configure compiled Windows Rust and C++ libraries (`neoveg_core.dll` and `neoveg_cpp_engine.dll`) as content copied beside the executable on build and publish.
-  - Copy the Windows Avalonia rendering runtime libraries (`libSkiaSharp.dll`, `libHarfBuzzSharp.dll`, and `av_libglesv2.dll`) beside the executable as well; direct launches must not depend on an inherited `PATH`.
-- **Dynamic FFI Resolution (`desktop-host/Program.cs`):**
-  - Register `NativeLibrary.SetDllImportResolver` for the application assembly before startup. Search the executable directory first, then `%LOCALAPPDATA%\Neoveg\AppCache\`, followed by the packaged `runtimes/<RID>/native/` directory; leave unrelated platform/system imports to the runtime.
-- **Validation on Startup:**
-  - Verify the required Rust and C++ libraries are available beside `Neoveg.exe`, in AppCache, or in the packaged runtime directory, and log their resolved paths to `logs/neoveg.log`.
-
-### B.9. OS detection & launcher scripts
-
-To guarantee seamless execution across Windows, Linux, and macOS and preserve research notes:
-
-- **Runtime OS Detection (`desktop-host/Program.cs`):**
-  - Use `OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, and `OperatingSystem.IsMacOS()` during application bootstrap.
-- **Platform-Agnostic Local Cache & Log Directories:**
-  - **Windows (`OperatingSystem.IsWindows()`):** `%LOCALAPPDATA%\Neoveg\` (`%LOCALAPPDATA%\Neoveg\AppCache\` and `%LOCALAPPDATA%\Neoveg\logs\`, alongside workspace `logs/`).
-  - **Linux (`OperatingSystem.IsLinux()`):** `~/.cache/neoveg/` (`~/.cache/neoveg/app_cache/` and `~/.cache/neoveg/logs/`).
-  - **macOS (`OperatingSystem.IsMacOS()`):** `~/Library/Caches/neoveg/` (`~/Library/Caches/neoveg/app_cache/` and `~/Library/Caches/neoveg/logs/`).
-- **Dynamic FFI Shared Library Resolution (`RustCoreInterop.cs` / `CppCoreInterop.cs` / `Program.cs`):**
-  - **Windows:** `.dll` (`neoveg_core.dll`, `neoveg_cpp_engine.dll`)
-  - **Linux:** `.so` (`libneoveg_core.so`, `libneoveg_cpp_engine.so`)
-  - **macOS:** `.dylib` (`libneoveg_core.dylib`, `libneoveg_cpp_engine.dylib`)
-- **Cross-Platform Launcher Scripts (`scripts/`):**
-  - **`scripts/neoveg.sh` (Linux & macOS):** Must carry executable permissions (`chmod +x`), auto-detect the kernel (`Linux` vs `Darwin`), configure `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) pointing to `runtimes/<rid>/native/` and `runtimes/<rid>/ffmpeg/lib/`, initialize the platform cache directory, and launch `Neoveg`.
-  - **`scripts/neoveg.bat` (Windows):** Configures `PATH` for `runtimes\win-x64\native\` and `runtimes\win-x64\ffmpeg\bin\`, prepares `%LOCALAPPDATA%\Neoveg\AppCache`, and launches `Neoveg.exe`.
-
-## Appendix C. Legacy Standards Text
-
-### C.1. ISO/IEC software quality (FFI-era wording)
-
-To ensure industrial-grade software reliability, maintainability, and cross-platform performance, Neoveg strictly aligns its development, QA, and architectural practices with recognized ISO/IEC standards:
-
-- **ISO/IEC 25010 (Software Quality Model):**
-  - **Performance Efficiency:** Timeline scrubbing and audio waveform generation must maintain low-latency async execution (Rust Core) without blocking the UI thread.
-  - **Reliability:** Fault-tolerant execution across C#, Rust, C++, and Python subsystems with structured logging (`logs/neoveg.log` / `logs/crash.log`), `std::panic::catch_unwind` FFI boundaries, and graceful fallback modes.
-  - **Usability:** Classic NLE UI fidelity, multi-language runtime localization (`pt-BR` default across 8 locales), accessible keyboard shortcuts, and visual diagnostic feedback.
-  - **Portability:** Codebase must build natively on Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`) using abstraction layers (`OperatingSystem.IsWindows()`, `OperatingSystem.IsLinux()`, `OperatingSystem.IsMacOS()`, `Path.Combine`) without hardcoded Windows-only paths.
-  - **Maintainability:** Code structure must maintain clean modular isolation between C# Avalonia, Rust FFI, C++ Extensions, and Python backend.
-- **ISO/IEC 29119 (Software Testing Standard):**
-  - All features must pass automated unit, integration, and headless UI tests (`Avalonia.Headless`) before being merged or packaged for release, with QA reports (`scripts/run_qa_suite.ps1`, `scripts/run_qa_suite.sh`, `coverage/qa/qa_report.json`, and `docs/index.html`) categorized by ISO/IEC 25010 quality pillars. See Section 17 for the ABNT NBR harmonization.
-- **ISO/IEC 27001 / Memory Safety Assurance (Security & Memory Integrity):**
-  - Dynamic memory allocations across FFI boundaries must use explicit ownership and cleanup models (AddressSanitizer and LeakSanitizer validated, explicit `neoveg_free_buffer` / `neoveg_cpp_free_buffer` / `IDisposable` deallocators, and 64-bit integer overflow guards).
-
-### C.2. ABNT NBR & ISO/IEC (FFI-era wording)
-
-Neoveg strictly aligns its software architecture, quality assurance protocols, and life-cycle management with official Brazilian technical standards (ABNT NBR) in direct harmonization with international ISO/IEC specifications:
-
-- **ABNT NBR ISO/IEC 25010 (Quality Model for Software Products):**
-  - **Performance Efficiency:** Sub-millisecond audio peak calculations (Rust Core, Criterion `audio_peaks` benchmark) and smooth timeline rendering (Avalonia UI) without thread contention.
-  - **Functional Suitability:** Full parity with Classic NLE editing workflows, keyboard shortcuts, and signal routing topology (Section 10).
-  - **Portability:** Native build capability across Windows (`win-x64`), Linux (`linux-x64`), and macOS (`osx-x64`/`osx-arm64`); Windows-only paths (e.g., the Google Drive mirror) must be guarded by `OperatingSystem.IsWindows()` / `os.name == "nt"` or be overridable through environment variables.
-- **ABNT NBR ISO/IEC 29119 (Software Testing Framework):**
-  - Continuous execution of multi-tier test suites (Unit, Integration, FFI Safety, and Headless UI rendering via `Avalonia.Headless`) through `scripts/run_qa_suite.ps1` / `scripts/run_qa_suite.sh`, with coverage evidence in `coverage/qa/`.
-- **ABNT NBR ISO/IEC 12207 & 14764 (Life Cycle Processes & Maintenance):**
-  - Strict modular separation across C# frontend, Rust core, C++ extensions, and Python backend to support long-term maintainability, enforced by `dotnet format`, `cargo clippy`, and `clang-tidy`.
-- **ABNT NBR ISO/IEC 27001 (Information & Memory Security):**
-  - Memory-safe FFI boundaries (caller-owned buffers with explicit lengths, `catch_unwind`, `neoveg_free_buffer` / `neoveg_cpp_free_buffer`), zero buffer overruns validated under ASan/UBSan, and isolated local caching (`%LOCALAPPDATA%\Neoveg\AppCache\`).
-- **Traceability in Logs & Reports:** Every automated check must reference its corresponding ABNT NBR / ISO/IEC requirement in `logs/neoveg.log` and in `coverage/qa/qa_report.json`; `docs/index.html` displays the ABNT NBR ISO/IEC badges and the per-pillar QA results.
+The C# / C++ / Python implementation (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`, the root `Dockerfile` and `docker-compose.yml`) was removed from the tree. Its protocols (Avalonia UI, FFI naming, C++ extensions, Python scripting, AppCache bootstrap, Docker multi-language pipeline) no longer apply; they remain in Git history before commit `36b1d19` as a porting reference only. Nothing in Part I depends on them.

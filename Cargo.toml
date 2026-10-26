@@ -7,8 +7,6 @@ members = [
     "crates/neoveg_engine",
     "crates/neoveg_ui",
 ]
-# Legacy FFI core, kept only until every feature is ported to the crates above
-exclude = ["rust-core"]
 
 [workspace.package]
 version = "2.1.0"
