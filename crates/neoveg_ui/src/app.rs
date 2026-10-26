@@ -50,6 +50,7 @@ use neoveg_engine::{
 };
 use neoveg_video::info::{is_video_path, VideoInfo};
 use neoveg_video::lut::Lut;
+use neoveg_video::scopes::Scopes;
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
@@ -58,6 +59,7 @@ use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::mixer_panel::{self, MixAction, MixerPanelState};
 use crate::precision_slider::PrecisionSlider;
+use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
 use crate::waveform_paint::paint_waveform;
@@ -100,6 +102,7 @@ enum Tab {
     MasterBus,
     Loudness,
     AudioFx,
+    Scopes,
 }
 
 impl Tab {
@@ -111,6 +114,7 @@ impl Tab {
             Tab::MasterBus => "Barramento Master",
             Tab::Loudness => "Loudness",
             Tab::AudioFx => "Efeitos de Áudio",
+            Tab::Scopes => "Scopes de Vídeo",
         }
     }
 }
@@ -234,6 +238,12 @@ struct AppState {
     active_player: Option<ActivePlayer>,
 
     show_bars: bool,
+    /// Scopes of the frame at the cursor, and a counter that changes with every new frame.
+    frame_scopes: Option<Scopes>,
+    frame_scopes_version: u64,
+    /// Scopes of the SMPTE bars, computed when first needed.
+    bars_scopes: Option<Scopes>,
+    scopes_panel: ScopesPanelState,
     bars_texture: Option<TextureHandle>,
     quality: usize,
     show_preferences: bool,
@@ -797,6 +807,10 @@ impl AppState {
             master_volume: 1.0,
             active_player: None,
             show_bars: false,
+            frame_scopes: None,
+            frame_scopes_version: 0,
+            bars_scopes: None,
+            scopes_panel: ScopesPanelState::default(),
             bars_texture: None,
             quality: 4,
             show_preferences: false,
@@ -2204,6 +2218,8 @@ impl AppState {
         };
         match reply.result {
             Ok(frame) => {
+                self.frame_scopes = Some(Scopes::from_frame(&frame));
+                self.frame_scopes_version += 1;
                 let image = egui::ColorImage::from_rgba_unmultiplied(
                     [frame.width as usize, frame.height as usize],
                     &frame.rgba,
@@ -2784,7 +2800,8 @@ impl NeovegApp {
         surface.split_below(media, 0.55, vec![Tab::AudioFx]);
         let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
         // The loudness readouts live in their own panel under the master bus
-        surface.split_below(master, 0.55, vec![Tab::Loudness]);
+        // and the video scopes are a tab beside them
+        surface.split_below(master, 0.55, vec![Tab::Loudness, Tab::Scopes]);
 
         let gpu = cc.wgpu_render_state.as_ref().map_or_else(
             || "Renderizador padrão".to_owned(),
@@ -3829,6 +3846,12 @@ impl TabViewer for Viewer<'_> {
             Tab::Media => media_ui(self.state, ui),
             Tab::MasterBus => master_bus_ui(self.state, ui),
             Tab::AudioFx => audio_fx_ui(self.state, ui),
+            Tab::Scopes => {
+                egui::ScrollArea::both()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| scopes_tab_ui(self.state, ui))
+                    .inner
+            }
             Tab::Loudness => {
                 let snapshot = self.state.loudness.snapshot();
                 let restart = crate::loudness_panel::loudness_ui(
@@ -4036,6 +4059,26 @@ fn fmt_db(linear: f32) -> String {
 
 /// The audio effects and per-track mixer panel: the strip + chain of the selected audio track,
 /// mute for a selected video track, or the master bus chain.
+/// The Video Scopes tab: the color bars when they are on, else the frame at the cursor.
+fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    if state.show_bars {
+        let bars = state.bars_scopes.get_or_insert_with(|| {
+            Scopes::from_frame(&neoveg_video::generators::smpte_color_bars(640, 360))
+        });
+        // The bars never change: any constant version keeps the texture
+        scopes_ui(ui, &mut state.scopes_panel, Some(bars), u64::MAX);
+        return;
+    }
+    let showing_video = state.video_texture.is_some();
+    let scopes = state.frame_scopes.as_ref().filter(|_| showing_video);
+    scopes_ui(
+        ui,
+        &mut state.scopes_panel,
+        scopes,
+        state.frame_scopes_version,
+    );
+}
+
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let (target, title) = match state.fx_target() {
         Some(found) => found,

@@ -5,6 +5,7 @@ pub mod generators;
 pub mod gpu;
 pub mod info;
 pub mod lut;
+pub mod scopes;
 pub mod worker;
 
 #[cfg(feature = "ffmpeg")]

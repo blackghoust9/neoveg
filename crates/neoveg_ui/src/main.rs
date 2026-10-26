@@ -9,6 +9,7 @@ mod icons;
 mod loudness_panel;
 mod mixer_panel;
 mod precision_slider;
+mod scopes_panel;
 mod shortcuts;
 mod splash;
 mod theme;

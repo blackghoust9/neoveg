@@ -198,7 +198,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Track Motion, Pan/Crop de evento com gizmo `'F'` e keyframes
 - [ ] Transições (categorias, presets, parâmetros) e efeitos de vídeo na GPU; OFX
 - [x] LUT de cor do projeto (`.cube` 1D e 3D, interpolação trilinear) aplicada ao quadro decodificado na thread de vídeo; Ferramentas → LUT de cor do vídeo (incluídas em `assets/luts` ou arquivo próprio), um passo de desfazer
-- [ ] Correção/gradação de cor, OCIO e scopes de vídeo (histograma, parada RGB, vectorscope)
+- [x] Scopes de vídeo (aba **Scopes de Vídeo** ao lado do Loudness): forma de onda de luma, parada RGB, histograma (com aviso de estouro) e vectorscópio com os alvos das barras 75 % (Rec. 709), calculados do quadro no cursor ou das barras SMPTE
+- [ ] Correção/gradação de cor e OCIO
 - [x] Legendas SRT e WebVTT: aba **Legendas** no painel de mídia (editar texto e tempos, adicionar no cursor, apagar, ir para a legenda), texto sobre a prévia do vídeo, importar e exportar pelo menu Arquivo; leitura tolerante (BOM, UTF-16, Windows-1252, índices errados), adaptada do FilmCraft
 - [ ] Geradores e Titler/Texto com animação, estilo das legendas e queima das legendas na exportação
 - [ ] Rastreamento de movimento, máscaras e *Smart Mask*
