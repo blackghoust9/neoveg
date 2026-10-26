@@ -27,10 +27,11 @@ use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
-use neoveg_engine::markers::{self, MarkId};
+use neoveg_engine::markers::{self, MarkId, MarkPart};
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
+use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
     EditCommand, EventId, EventRef, History, Selection, TimeRange, Timeline, TrackEvent, TrackId,
@@ -50,6 +51,8 @@ const RULER_HEIGHT: f32 = 24.0;
 const MARK_STRIP_HEIGHT: f32 = 10.0;
 /// How close (in pixels) a right-click must be to a marker to pick it.
 const MARK_HIT_PX: f32 = 6.0;
+/// Width of the inline name box on the ruler.
+const NAME_BOX_WIDTH: f32 = 150.0;
 const TRACK_HEIGHT: f32 = 64.0;
 const EVENT_HEADER_HEIGHT: f32 = 14.0;
 const MIN_PIXELS_PER_SECOND: f64 = 15.0;
@@ -204,6 +207,8 @@ struct AppState {
     context_event: Option<(TrackId, EventId)>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
     context_mark: Option<MarkId>,
+    name_edit: Option<NameEdit>,
+    mark_drag: Option<MarkDrag>,
     snapping: bool,
     /// `Q`: playback repeats over [`AppState::loop_args`].
     looping: bool,
@@ -275,6 +280,8 @@ impl AppState {
             drag: None,
             context_event: None,
             context_mark: None,
+            name_edit: None,
+            mark_drag: None,
             snapping: true,
             looping: false,
             loop_region: None,
@@ -507,14 +514,17 @@ impl AppState {
 
     /// `M`: marker at the cursor.
     fn insert_marker(&mut self) {
-        let command = markers::add_marker(&mut self.timeline, self.playhead, None);
-        self.status = match command {
-            Some(command) => {
-                self.history.execute(&mut self.timeline, command);
-                "Marcador inserido".into()
-            }
-            None => "Já existe um marcador neste ponto".into(),
-        };
+        let time = self.playhead;
+        if self
+            .timeline
+            .markers
+            .iter()
+            .any(|m| (m.time - time).abs() <= TIME_EPSILON)
+        {
+            self.status = "Já existe um marcador neste ponto".into();
+            return;
+        }
+        self.begin_name_edit(NameTarget::NewMarker(time));
     }
 
     /// `R`: region over the time selection.
@@ -523,9 +533,111 @@ impl AppState {
             self.status = "Marque um intervalo (I / O) para criar uma região".into();
             return;
         };
-        if let Some(command) = markers::add_region(&mut self.timeline, range, None) {
+        if !range.is_empty() {
+            self.begin_name_edit(NameTarget::NewRegion(range));
+        }
+    }
+
+    /// Opens the inline name box. A new mark is only created when the name is confirmed.
+    fn begin_name_edit(&mut self, target: NameTarget) {
+        let text = match &target {
+            NameTarget::Existing(id) => self
+                .timeline
+                .markers
+                .iter()
+                .find(|m| m.id == *id)
+                .map(|m| m.name.clone())
+                .or_else(|| {
+                    self.timeline
+                        .regions
+                        .iter()
+                        .find(|r| r.id == *id)
+                        .map(|r| r.name.clone())
+                })
+                .unwrap_or_default(),
+            _ => String::new(),
+        };
+        self.name_edit = Some(NameEdit {
+            target,
+            text,
+            focused: false,
+        });
+    }
+
+    /// Enter / focus lost: creates the mark (a blank name keeps the default one) or renames it.
+    fn commit_name_edit(&mut self) {
+        let Some(edit) = self.name_edit.take() else {
+            return;
+        };
+        let name = edit.text.trim();
+        let name = (!name.is_empty()).then_some(name);
+        let (command, done) = match edit.target {
+            NameTarget::NewMarker(time) => (
+                markers::add_marker(&mut self.timeline, time, name),
+                "Marcador inserido",
+            ),
+            NameTarget::NewRegion(range) => (
+                markers::add_region(&mut self.timeline, range, name),
+                "Região inserida",
+            ),
+            NameTarget::Existing(id) => (
+                name.and_then(|name| markers::rename_mark(&self.timeline, id, name)),
+                "Nome alterado",
+            ),
+        };
+        if let Some(command) = command {
             self.history.execute(&mut self.timeline, command);
-            self.status = "Região inserida".into();
+            self.status = done.into();
+        }
+    }
+
+    /// Esc: nothing is created or renamed.
+    fn cancel_name_edit(&mut self) {
+        self.name_edit = None;
+    }
+
+    /// Grabs the marker or region under `time` (within `tolerance` seconds). `false` when none.
+    fn begin_mark_drag(&mut self, time: f64, tolerance: f64) -> bool {
+        let Some((id, part)) = markers::hit_test(&self.timeline, time, tolerance) else {
+            return false;
+        };
+        let Some(original) = markers::span_of(&self.timeline, id) else {
+            return false;
+        };
+        self.mark_drag = Some(MarkDrag {
+            id,
+            part,
+            original,
+            grab_offset: time - markers::part_anchor(part, original),
+            current: original,
+        });
+        true
+    }
+
+    fn update_mark_drag(&mut self, pointer: f64) {
+        let fps = self.project.settings.fps;
+        if let Some(d) = &mut self.mark_drag {
+            d.current = markers::drag_span(d.part, d.original, d.grab_offset, pointer, fps);
+        }
+    }
+
+    /// Release: one undo step for the whole drag.
+    fn finish_mark_drag(&mut self) {
+        let Some(d) = self.mark_drag.take() else {
+            return;
+        };
+        if let Some(command) =
+            markers::set_mark_span(&self.timeline, d.id, d.current.0, d.current.1)
+        {
+            self.history.execute(&mut self.timeline, command);
+        }
+    }
+
+    /// Where a mark is drawn: its dragged position while it is being dragged.
+    fn shown_span(&self, id: MarkId, stored: (f64, f64)) -> (f64, f64) {
+        match &self.mark_drag {
+            Some(d) if d.id == id => d.current,
+            _ => stored,
         }
     }
 
@@ -1578,6 +1690,32 @@ impl AppState {
 // ============================================================================================
 // Application
 // ============================================================================================
+
+/// What the inline name box on the ruler is naming.
+#[derive(Debug, Clone, PartialEq)]
+enum NameTarget {
+    NewMarker(f64),
+    NewRegion(TimeRange),
+    Existing(MarkId),
+}
+
+/// The inline name box: it appears on the ruler at the mark and commits on Enter or when it loses
+/// focus; Esc cancels.
+struct NameEdit {
+    target: NameTarget,
+    text: String,
+    focused: bool,
+}
+
+/// A marker or region being dragged along the ruler; the timeline changes only on release.
+struct MarkDrag {
+    id: MarkId,
+    part: MarkPart,
+    original: (f64, f64),
+    /// Seconds between the pointer and the grabbed anchor when the drag began.
+    grab_offset: f64,
+    current: (f64, f64),
+}
 
 pub struct NeovegApp {
     dock: DockState<Tab>,
@@ -2724,6 +2862,35 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         }
     }
 
+    // ---- markers and regions: grab in the strip at the bottom of the ruler ----------------------
+    let ruler_bottom = rect.top() + RULER_HEIGHT;
+    let in_mark_strip = |p: Pos2| {
+        p.x >= lanes.left() && p.y >= ruler_bottom - MARK_STRIP_HEIGHT && p.y < ruler_bottom
+    };
+    let mark_tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
+    if response.drag_started() {
+        let press = ui.input(|i| i.pointer.press_origin());
+        if let Some(p) = press.filter(|p| in_mark_strip(*p)) {
+            let t = x_to_time(state, lanes.left(), p.x);
+            state.begin_mark_drag(t, mark_tolerance);
+        }
+    }
+    if response.double_clicked() {
+        let hit = response
+            .interact_pointer_pos()
+            .filter(|p| in_mark_strip(*p))
+            .and_then(|p| {
+                markers::hit_test(
+                    &state.timeline,
+                    x_to_time(state, lanes.left(), p.x),
+                    mark_tolerance,
+                )
+            });
+        if let Some((id, _)) = hit {
+            state.begin_name_edit(NameTarget::Existing(id));
+        }
+    }
+
     // ---- clicks: ruler scrubs the playhead, lanes and headers select tracks/events -------------
     if response.clicked() || response.dragged() {
         if let Some(p) = response.interact_pointer_pos() {
@@ -2735,7 +2902,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if p.x >= lanes.left() {
                 let t = x_to_time(state, lanes.left(), p.x).max(0.0);
                 let snapped = (t * fps).floor() / fps;
-                if in_ruler || response.clicked() {
+                if (in_ruler && state.mark_drag.is_none()) || response.clicked() {
                     state.playhead = snapped;
                     state.blink_origin = now;
                 }
@@ -2808,6 +2975,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ui.ctx().request_repaint();
         }
     }
+    if state.mark_drag.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.mark_drag = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let t = x_to_time(state, lanes.left(), p.x);
+            state.update_mark_drag(t);
+            ui.ctx().request_repaint();
+        }
+    }
     if let (Some(anchor), Some(p)) = (state.range_anchor, response.interact_pointer_pos()) {
         let t = edit::quantize(x_to_time(state, lanes.left(), p.x).max(0.0), fps);
         let range = TimeRange::new(anchor, t);
@@ -2815,6 +2991,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         ui.ctx().request_repaint();
     }
     if response.drag_stopped() {
+        state.finish_mark_drag();
         state.finish_drag();
         state.range_anchor = None;
     }
@@ -2847,6 +3024,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     response.context_menu(|ui| match (state.context_event, state.context_mark) {
         (Some((track_id, event_id)), _) => event_context_menu(state, ui, track_id, event_id),
         (None, Some(id)) => {
+            if ui.button("Renomear").clicked() {
+                state.begin_name_edit(NameTarget::Existing(id));
+                ui.close_menu();
+            }
             if ui.button("Remover marcador ou região").clicked() {
                 state.remove_mark(id);
                 ui.close_menu();
@@ -2881,6 +3062,22 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             DragMode::Move => egui::CursorIcon::Grabbing,
             DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
             _ => egui::CursorIcon::ResizeHorizontal,
+        });
+    } else if let Some((_, part)) =
+        response
+            .hover_pos()
+            .filter(|p| in_mark_strip(*p))
+            .and_then(|p| {
+                markers::hit_test(
+                    &state.timeline,
+                    x_to_time(state, lanes.left(), p.x),
+                    mark_tolerance,
+                )
+            })
+    {
+        ui.ctx().set_cursor_icon(match part {
+            MarkPart::RegionStart | MarkPart::RegionEnd => egui::CursorIcon::ResizeHorizontal,
+            MarkPart::Marker | MarkPart::RegionBody => egui::CursorIcon::Grab,
         });
     } else if let Some(p) = response.hover_pos().filter(|p| p.x >= lanes.left()) {
         match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
@@ -2966,7 +3163,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // Regions (band along the bottom of the ruler) and markers (flag plus a guide line)
     let strip_top = rect.top() + RULER_HEIGHT - MARK_STRIP_HEIGHT;
     for region in &state.timeline.regions {
-        let (x0, x1) = (to_x(region.start), to_x(region.end));
+        let (start, end) = state.shown_span(region.id, (region.start, region.end));
+        let (x0, x1) = (to_x(start), to_x(end));
         if x1 < lanes.left() || x0 > lanes.right() {
             continue;
         }
@@ -2992,7 +3190,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         );
     }
     for marker in &state.timeline.markers {
-        let x = to_x(marker.time);
+        let x = to_x(state.shown_span(marker.id, (marker.time, marker.time)).0);
         if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
             continue;
         }
@@ -3020,6 +3218,39 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::proportional(9.0),
             color,
         );
+    }
+
+    // Inline name box (the mark itself is created or renamed when it is confirmed, below)
+    let mut name_outcome = None;
+    if let Some(mut edit) = state.name_edit.take() {
+        let at = match &edit.target {
+            NameTarget::NewMarker(time) => *time,
+            NameTarget::NewRegion(range) => range.start,
+            NameTarget::Existing(id) => markers::span_of(&state.timeline, *id).map_or(0.0, |s| s.0),
+        };
+        let x = to_x(at).clamp(
+            lanes.left(),
+            (lanes.right() - NAME_BOX_WIDTH).max(lanes.left()),
+        );
+        let box_rect =
+            Rect::from_min_size(pos2(x + 2.0, rect.top() + 2.0), vec2(NAME_BOX_WIDTH, 18.0));
+        let name_response = ui.put(
+            box_rect,
+            egui::TextEdit::singleline(&mut edit.text)
+                .font(FontId::proportional(11.0))
+                .hint_text("Nome")
+                .desired_width(NAME_BOX_WIDTH),
+        );
+        if !edit.focused {
+            name_response.request_focus();
+            edit.focused = true;
+        }
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            name_outcome = Some(false);
+        } else if name_response.lost_focus() {
+            name_outcome = Some(true);
+        }
+        state.name_edit = Some(edit);
     }
 
     // Events (culled and clamped so far zoom levels keep float precision)
@@ -3319,6 +3550,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // Repaint for the blink: the selected track dot and the paused caret both toggle every 500 ms
     if state.selected_track.is_some() || !state.playing {
         ui.ctx().request_repaint_after(Duration::from_millis(500));
+    }
+
+    // `to_x` borrows the state while drawing, so the name box's result is applied last
+    match name_outcome {
+        Some(true) => state.commit_name_edit(),
+        Some(false) => state.cancel_name_edit(),
+        None => {}
     }
 }
 
@@ -3732,19 +3970,23 @@ mod tests {
         let revision = s.history.revision();
         s.playhead = 2.0;
         run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
         assert_eq!(s.timeline.markers.len(), 1);
         assert!(s.history.revision() > revision);
 
         run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
         assert_eq!(s.timeline.markers.len(), 1, "same point twice adds nothing");
 
         run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
         assert!(
             s.timeline.regions.is_empty(),
             "no time selection, no region"
         );
         s.time_selection = Some(TimeRange::new(1.0, 3.0));
         run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
         assert_eq!(s.timeline.regions.len(), 1);
 
         run(&mut s, Command::EditUndo);
@@ -3759,6 +4001,7 @@ mod tests {
         for t in [1.0, 4.0] {
             s.playhead = t;
             run(&mut s, Command::InsertMarker);
+            s.commit_name_edit();
         }
         s.playhead = 0.0;
         run(&mut s, Command::CursorNextMarker);
@@ -3776,8 +4019,10 @@ mod tests {
         let (mut s, _, _) = state_with_clip();
         s.playhead = 5.0;
         run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
         s.time_selection = Some(TimeRange::new(8.0, 10.0));
         run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
         let marker = s.timeline.markers[0].id;
         let region = s.timeline.regions[0].id;
         assert_eq!(s.mark_at(5.04, 0.05), Some(marker));
@@ -3827,10 +4072,105 @@ mod tests {
         let (mut s, _, _) = state_with_clip();
         s.time_selection = Some(TimeRange::new(6.0, 9.0));
         run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
         s.time_selection = None;
         s.playhead = 7.0;
         run(&mut s, Command::SelectionLoopRegion);
         assert_eq!(s.loop_region, Some(TimeRange::new(6.0, 9.0)));
+    }
+
+    #[test]
+    fn the_name_box_creates_the_mark_only_when_confirmed() {
+        let (mut s, _, _) = state_with_clip();
+        s.playhead = 2.0;
+        run(&mut s, Command::InsertMarker);
+        assert!(s.name_edit.is_some() && s.timeline.markers.is_empty());
+        s.name_edit.as_mut().unwrap().text = "  Abertura ".into();
+        s.commit_name_edit();
+        assert_eq!(s.timeline.markers[0].name, "Abertura");
+
+        s.playhead = 4.0;
+        run(&mut s, Command::InsertMarker);
+        s.cancel_name_edit();
+        assert_eq!(s.timeline.markers.len(), 1, "Esc creates nothing");
+
+        s.playhead = 6.0;
+        run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
+        assert_eq!(
+            s.timeline.markers[1].name, "Marcador 2",
+            "blank keeps the default"
+        );
+    }
+
+    #[test]
+    fn double_click_renames_in_one_undo_step() {
+        let (mut s, _, _) = state_with_clip();
+        s.playhead = 2.0;
+        run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
+        let id = s.timeline.markers[0].id;
+
+        s.begin_name_edit(NameTarget::Existing(id));
+        assert_eq!(s.name_edit.as_ref().unwrap().text, "Marcador 1");
+        s.name_edit.as_mut().unwrap().text = "Cena 1".into();
+        s.commit_name_edit();
+        assert_eq!(s.timeline.markers[0].name, "Cena 1");
+
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.markers[0].name, "Marcador 1");
+    }
+
+    #[test]
+    fn dragging_a_marker_previews_and_moves_it_in_one_undo_step() {
+        let (mut s, _, _) = state_with_clip();
+        s.playhead = 5.0;
+        run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
+        let id = s.timeline.markers[0].id;
+        let revision = s.history.revision();
+
+        assert!(s.begin_mark_drag(5.02, 0.05));
+        s.update_mark_drag(8.0);
+        assert_eq!(s.timeline.markers[0].time, 5.0, "only the preview moves");
+        assert!((s.shown_span(id, (5.0, 5.0)).0 - 8.0).abs() < 0.04);
+        s.finish_mark_drag();
+        assert!((s.timeline.markers[0].time - 8.0).abs() < 0.04);
+        assert_eq!(s.history.revision(), revision + 1);
+
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.markers[0].time, 5.0);
+    }
+
+    #[test]
+    fn dragging_a_region_edge_resizes_it_and_missing_the_mark_grabs_nothing() {
+        let (mut s, _, _) = state_with_clip();
+        s.time_selection = Some(TimeRange::new(2.0, 4.0));
+        run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
+        assert!(!s.begin_mark_drag(9.0, 0.05));
+
+        assert!(s.begin_mark_drag(4.01, 0.05));
+        s.update_mark_drag(6.0);
+        s.finish_mark_drag();
+        let r = &s.timeline.regions[0];
+        assert_eq!(r.start, 2.0);
+        assert!((r.end - 6.0).abs() < 0.04);
+    }
+
+    #[test]
+    fn a_cancelled_mark_drag_changes_nothing() {
+        let (mut s, _, _) = state_with_clip();
+        s.playhead = 5.0;
+        run(&mut s, Command::InsertMarker);
+        s.commit_name_edit();
+        let revision = s.history.revision();
+        assert!(s.begin_mark_drag(5.0, 0.05));
+        s.update_mark_drag(9.0);
+        s.mark_drag = None;
+        s.finish_mark_drag();
+        assert_eq!(s.timeline.markers[0].time, 5.0);
+        assert_eq!(s.history.revision(), revision);
     }
 
     #[test]
