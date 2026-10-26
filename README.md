@@ -185,7 +185,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Auto-ducking por faixa (a música desce quando as faixas de controle têm som): sensibilidade, redução em dB e transição; a análise roda ao iniciar a reprodução e a curva começa a descer antes do som entrar
 - [x] Mais 19 efeitos do `audio-dsp`: mudança de tom (pitch), chorus/flanger, flanger, phaser, delay analógico e de várias batidas, compressor multibanda, rack de dinâmica, compressor valvulado, DeEsser, DeReverb, realce de fala, removedor de cliques, largura estéreo e ganho, volume por canal, balanço e inverter fase (28 efeitos no registro, com o RNNoise)
 - [x] Redução de ruído por IA: efeito **RNNoise** (crate `nnnoiseless`, BSD-3-Clause), com mix e ganho de saída, compensação de latência e conversão de taxa para dispositivos de 44,1, 96 e 32 kHz
-- [ ] Nomes de parâmetros em pt-BR, desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
+- [x] Nomes e rótulos dos parâmetros dos efeitos em pt-BR
+- [ ] Desfazer/refazer com efeito aplicado ao vivo, automação de parâmetros, ducking em tempo real (sidechain) e como keyframes editáveis, e hospedagem de plug-ins (CLAP via `clack`, VST3)
 - [ ] Gravação de áudio, entradas de dispositivo e metrônomo
 
 **Vídeo e composição**

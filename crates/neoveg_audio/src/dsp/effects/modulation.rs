@@ -33,12 +33,12 @@ pub struct ChorusFlanger {
 
 impl ChorusFlanger {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::choice("mode", "Mode", &["Chorus", "Flanger"], 0),
-        ParamSpec::log("speed", "Speed", 0.05, 10.0, 0.8, Unit::Hertz),
-        ParamSpec::new("width", "Width", 0.0, 100.0, 50.0, Unit::Percent),
-        ParamSpec::new("intensity", "Intensity", 0.0, 100.0, 30.0, Unit::Percent),
-        ParamSpec::new("transience", "Transience", 0.0, 100.0, 0.0, Unit::Percent),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::choice("mode", "Modo", &["Chorus", "Flanger"], 0),
+        ParamSpec::log("speed", "Velocidade", 0.05, 10.0, 0.8, Unit::Hertz),
+        ParamSpec::new("width", "Largura", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::new("intensity", "Intensidade", 0.0, 100.0, 30.0, Unit::Percent),
+        ParamSpec::new("transience", "Transiente", 0.0, 100.0, 0.0, Unit::Percent),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 50.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -164,7 +164,7 @@ impl Flanger {
     pub const PARAMS: &'static [ParamSpec] = &[
         ParamSpec::log(
             "initial_delay",
-            "Initial Delay",
+            "Atraso inicial",
             0.1,
             20.0,
             1.0,
@@ -172,7 +172,7 @@ impl Flanger {
         ),
         ParamSpec::log(
             "final_delay",
-            "Final Delay",
+            "Atraso final",
             0.1,
             20.0,
             5.0,
@@ -180,18 +180,25 @@ impl Flanger {
         ),
         ParamSpec::new(
             "stereo_phasing",
-            "Stereo Phasing",
+            "Defasagem estéreo",
             0.0,
             180.0,
             90.0,
             Unit::None,
         ),
-        ParamSpec::new("feedback", "Feedback", -100.0, 100.0, 50.0, Unit::Percent),
-        ParamSpec::log("rate", "Modulation Rate", 0.01, 10.0, 0.5, Unit::Hertz),
-        ParamSpec::toggle("inverted", "Inverted", false),
-        ParamSpec::toggle("special", "Special Effects", false),
-        ParamSpec::toggle("sinusoidal", "Sinusoidal", true),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::new(
+            "feedback",
+            "Realimentação",
+            -100.0,
+            100.0,
+            50.0,
+            Unit::Percent,
+        ),
+        ParamSpec::log("rate", "Taxa de modulação", 0.01, 10.0, 0.5, Unit::Hertz),
+        ParamSpec::toggle("inverted", "Invertido", false),
+        ParamSpec::toggle("special", "Efeito especial", false),
+        ParamSpec::toggle("sinusoidal", "Senoidal", true),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 50.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -290,13 +297,20 @@ pub struct Phaser {
 
 impl Phaser {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("stages", "Stages", 2.0, MAX_STAGES as f32, 4.0, Unit::None),
-        ParamSpec::new("intensity", "Intensity", 0.0, 100.0, 100.0, Unit::Percent),
-        ParamSpec::new("depth", "Depth", 0.0, 100.0, 70.0, Unit::Percent),
-        ParamSpec::log("rate", "Modulation Rate", 0.01, 10.0, 0.5, Unit::Hertz),
+        ParamSpec::new(
+            "stages",
+            "Estágios",
+            2.0,
+            MAX_STAGES as f32,
+            4.0,
+            Unit::None,
+        ),
+        ParamSpec::new("intensity", "Intensidade", 0.0, 100.0, 100.0, Unit::Percent),
+        ParamSpec::new("depth", "Profundidade", 0.0, 100.0, 70.0, Unit::Percent),
+        ParamSpec::log("rate", "Taxa de modulação", 0.01, 10.0, 0.5, Unit::Hertz),
         ParamSpec::new(
             "phase_diff",
-            "Phase Difference",
+            "Diferença de fase",
             0.0,
             180.0,
             90.0,
@@ -304,15 +318,22 @@ impl Phaser {
         ),
         ParamSpec::log(
             "upper_freq",
-            "Upper Frequency",
+            "Frequência superior",
             100.0,
             20000.0,
             2500.0,
             Unit::Hertz,
         ),
-        ParamSpec::new("feedback", "Feedback", -100.0, 100.0, 0.0, Unit::Percent),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 50.0, Unit::Percent),
-        ParamSpec::new("output", "Output Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new(
+            "feedback",
+            "Realimentação",
+            -100.0,
+            100.0,
+            0.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::new("output", "Ganho de saída", -24.0, 24.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -413,7 +434,7 @@ impl AudioEffect for Phaser {
 
 // -------------------------------------------------------------------------------- analog delay
 
-pub const ANALOG_MODES: &[&str] = &["Tape", "Tape/Tube", "Analog"];
+pub const ANALOG_MODES: &[&str] = &["Fita", "Fita / válvula", "Analógico"];
 
 /// Delay with a coloured, saturating feedback path (tape / tape+tube / bucket-brigade style
 /// low-pass and soft clipping) and stereo spread.
@@ -433,13 +454,13 @@ pub struct AnalogDelay {
 impl AnalogDelay {
     pub const MAX_MS: f32 = 8000.0;
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::choice("mode", "Mode", ANALOG_MODES, 0),
-        ParamSpec::new("dry", "Dry Out", 0.0, 100.0, 100.0, Unit::Percent),
-        ParamSpec::new("wet", "Wet Out", 0.0, 100.0, 40.0, Unit::Percent),
-        ParamSpec::log("delay", "Delay", 5.0, 8000.0, 250.0, Unit::Milliseconds),
-        ParamSpec::new("feedback", "Feedback", 0.0, 200.0, 40.0, Unit::Percent),
-        ParamSpec::new("trash", "Trash", 0.0, 200.0, 0.0, Unit::Percent),
-        ParamSpec::new("spread", "Spread", 0.0, 200.0, 0.0, Unit::Percent),
+        ParamSpec::choice("mode", "Modo", ANALOG_MODES, 0),
+        ParamSpec::new("dry", "Saída seca", 0.0, 100.0, 100.0, Unit::Percent),
+        ParamSpec::new("wet", "Saída com efeito", 0.0, 100.0, 40.0, Unit::Percent),
+        ParamSpec::log("delay", "Atraso", 5.0, 8000.0, 250.0, Unit::Milliseconds),
+        ParamSpec::new("feedback", "Realimentação", 0.0, 200.0, 40.0, Unit::Percent),
+        ParamSpec::new("trash", "Saturação", 0.0, 200.0, 0.0, Unit::Percent),
+        ParamSpec::new("spread", "Espalhamento", 0.0, 200.0, 0.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -563,19 +584,54 @@ pub struct MultitapDelay {
 impl MultitapDelay {
     pub const MAX_MS: f32 = 4000.0;
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::log("delay1", "Delay 1", 1.0, 4000.0, 250.0, Unit::Milliseconds),
-        ParamSpec::new("feedback1", "Feedback 1", 0.0, 95.0, 0.0, Unit::Percent),
-        ParamSpec::new("level1", "Level 1", -96.0, 0.0, -6.0, Unit::Decibels),
-        ParamSpec::log("delay2", "Delay 2", 1.0, 4000.0, 500.0, Unit::Milliseconds),
-        ParamSpec::new("feedback2", "Feedback 2", 0.0, 95.0, 0.0, Unit::Percent),
-        ParamSpec::new("level2", "Level 2", -96.0, 0.0, -9.0, Unit::Decibels),
-        ParamSpec::log("delay3", "Delay 3", 1.0, 4000.0, 750.0, Unit::Milliseconds),
-        ParamSpec::new("feedback3", "Feedback 3", 0.0, 95.0, 0.0, Unit::Percent),
-        ParamSpec::new("level3", "Level 3", -96.0, 0.0, -12.0, Unit::Decibels),
-        ParamSpec::log("delay4", "Delay 4", 1.0, 4000.0, 1000.0, Unit::Milliseconds),
-        ParamSpec::new("feedback4", "Feedback 4", 0.0, 95.0, 0.0, Unit::Percent),
-        ParamSpec::new("level4", "Level 4", -96.0, 0.0, -15.0, Unit::Decibels),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::log("delay1", "Atraso 1", 1.0, 4000.0, 250.0, Unit::Milliseconds),
+        ParamSpec::new(
+            "feedback1",
+            "Realimentação 1",
+            0.0,
+            95.0,
+            0.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("level1", "Nível 1", -96.0, 0.0, -6.0, Unit::Decibels),
+        ParamSpec::log("delay2", "Atraso 2", 1.0, 4000.0, 500.0, Unit::Milliseconds),
+        ParamSpec::new(
+            "feedback2",
+            "Realimentação 2",
+            0.0,
+            95.0,
+            0.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("level2", "Nível 2", -96.0, 0.0, -9.0, Unit::Decibels),
+        ParamSpec::log("delay3", "Atraso 3", 1.0, 4000.0, 750.0, Unit::Milliseconds),
+        ParamSpec::new(
+            "feedback3",
+            "Realimentação 3",
+            0.0,
+            95.0,
+            0.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("level3", "Nível 3", -96.0, 0.0, -12.0, Unit::Decibels),
+        ParamSpec::log(
+            "delay4",
+            "Atraso 4",
+            1.0,
+            4000.0,
+            1000.0,
+            Unit::Milliseconds,
+        ),
+        ParamSpec::new(
+            "feedback4",
+            "Realimentação 4",
+            0.0,
+            95.0,
+            0.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("level4", "Nível 4", -96.0, 0.0, -15.0, Unit::Decibels),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 50.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {

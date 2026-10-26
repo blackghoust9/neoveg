@@ -6,6 +6,9 @@
 //! real-time callback. Tracks without effects share one dry bus, so a project without effects
 //! costs what the plain per-frame mix cost.
 
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
+
 use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
 use crate::duck::{analyze, DuckCurve};
@@ -145,6 +148,71 @@ impl FrameDelay {
     }
 }
 
+struct LiveBusSlot {
+    track: usize,
+    bus: usize,
+    gain_l: AtomicU32,
+    gain_r: AtomicU32,
+    dirty: AtomicBool,
+}
+
+struct LiveParamSlot {
+    /// `Some(track)` for a track chain, `None` for the master chain.
+    track: Option<usize>,
+    /// Bus index (`None` for the master chain).
+    bus: Option<usize>,
+    /// Index among the instantiated effects in that chain.
+    fx_index: usize,
+    id: &'static str,
+    bits: AtomicU32,
+    dirty: AtomicBool,
+}
+
+/// Lock-free atomic table allowing the UI thread to glide fader, pan, phase and effect parameters
+/// during live playback without allocating or reopening the audio stream.
+pub struct LiveControls {
+    any_dirty: AtomicBool,
+    pan_law: PanLaw,
+    buses: Vec<LiveBusSlot>,
+    params: Vec<LiveParamSlot>,
+}
+
+impl LiveControls {
+    /// Updates `track`'s fader, pan and phase multipliers for the next audio block.
+    pub fn set_track_mix(&self, track: usize, spec: TrackMixSpec) -> bool {
+        let Some(slot) = self.buses.iter().find(|s| s.track == track) else {
+            return false;
+        };
+        let (gl, gr) = spec.gains(self.pan_law);
+        slot.gain_l.store(gl.to_bits(), Ordering::Relaxed);
+        slot.gain_r.store(gr.to_bits(), Ordering::Relaxed);
+        slot.dirty.store(true, Ordering::Relaxed);
+        self.any_dirty.store(true, Ordering::Relaxed);
+        true
+    }
+
+    /// Updates parameter `param_id` of the `fx_index`-th active effect on `track` (`None` = master).
+    pub fn set_param(
+        &self,
+        track: Option<usize>,
+        fx_index: usize,
+        param_id: &str,
+        value: f32,
+    ) -> bool {
+        let Some(slot) = self
+            .params
+            .iter()
+            .find(|s| s.track == track && s.fx_index == fx_index && s.id == param_id)
+        else {
+            return false;
+        };
+        slot.bits.store(value.to_bits(), Ordering::Relaxed);
+        slot.dirty.store(true, Ordering::Relaxed);
+        self.any_dirty.store(true, Ordering::Relaxed);
+        true
+    }
+}
+
 pub struct BlockMixer {
     clips: Vec<MixClip>,
     /// Bus of every clip (0 is the dry bus).
@@ -168,16 +236,48 @@ pub struct BlockMixer {
     out_l: Vec<f32>,
     out_r: Vec<f32>,
     end: f64,
+    live: Option<Arc<LiveControls>>,
 }
 
 impl BlockMixer {
     pub fn new(clips: Vec<MixClip>, plan: &FxPlan, sample_rate: f32) -> Self {
+        Self::build(clips, plan, sample_rate, false).0
+    }
+
+    /// Builds a mixer paired with [`LiveControls`] so every audible track gets its own bus and its
+    /// fader, pan, phase and effect parameters can be adjusted live from the UI thread.
+    pub fn with_live_controls(
+        clips: Vec<MixClip>,
+        plan: &FxPlan,
+        sample_rate: f32,
+    ) -> (Self, Arc<LiveControls>) {
+        let (mixer, live) = Self::build(clips, plan, sample_rate, true);
+        (
+            mixer,
+            live.expect("live controls requested when live_mode is true"),
+        )
+    }
+
+    fn build(
+        clips: Vec<MixClip>,
+        plan: &FxPlan,
+        sample_rate: f32,
+        live_mode: bool,
+    ) -> (Self, Option<Arc<LiveControls>>) {
         let end = plan_end(&clips);
         let mut chains: Vec<Vec<Box<dyn AudioEffect>>> = vec![Vec::new()];
         let mut ducks: Vec<Option<DuckCurve>> = vec![None];
         let mut bus_mix: Vec<(f32, f32)> = vec![(1.0, 1.0)];
-        let track_count = plan.tracks.len().max(plan.duck.len()).max(plan.mix.len());
+        let max_clip_track = clips.iter().map(|c| c.track + 1).max().unwrap_or(0);
+        let track_count = plan
+            .tracks
+            .len()
+            .max(plan.duck.len())
+            .max(plan.mix.len())
+            .max(max_clip_track);
         let mut bus_of_track = Vec::with_capacity(track_count);
+        let mut live_buses = Vec::new();
+        let mut live_params = Vec::new();
         for t in 0..track_count {
             let chain = plan
                 .tracks
@@ -198,14 +298,40 @@ impl BlockMixer {
                 })
                 .filter(|c| !c.is_flat());
             let mix = plan.mix.get(t).copied().unwrap_or_default();
-            if chain.is_empty() && curve.is_none() && mix.is_neutral() {
+            let has_clips = clips.iter().any(|c| c.track == t);
+            if !live_mode && chain.is_empty() && curve.is_none() && mix.is_neutral() {
+                bus_of_track.push(0);
+            } else if live_mode && !has_clips && chain.is_empty() && curve.is_none() {
                 bus_of_track.push(0);
             } else {
-                // A ducked or mixed track needs its own bus even without effects
-                bus_of_track.push(chains.len());
+                let bus = chains.len();
+                let (gl, gr) = mix.gains(plan.pan_law);
+                if live_mode {
+                    live_buses.push(LiveBusSlot {
+                        track: t,
+                        bus,
+                        gain_l: AtomicU32::new(gl.to_bits()),
+                        gain_r: AtomicU32::new(gr.to_bits()),
+                        dirty: AtomicBool::new(false),
+                    });
+                    for (fx_index, fx) in chain.iter().enumerate() {
+                        for spec in fx.params() {
+                            let val = fx.param(spec.id).unwrap_or(spec.default);
+                            live_params.push(LiveParamSlot {
+                                track: Some(t),
+                                bus: Some(bus),
+                                fx_index,
+                                id: spec.id,
+                                bits: AtomicU32::new(val.to_bits()),
+                                dirty: AtomicBool::new(false),
+                            });
+                        }
+                    }
+                }
+                bus_of_track.push(bus);
                 chains.push(chain);
                 ducks.push(curve);
-                bus_mix.push(mix.gains(plan.pan_law));
+                bus_mix.push((gl, gr));
             }
         }
         let clip_bus = clips
@@ -221,25 +347,52 @@ impl BlockMixer {
             .map(|l| FrameDelay::new(slowest - l))
             .collect();
         let master = build_chain(&plan.master, sample_rate);
+        if live_mode {
+            for (fx_index, fx) in master.iter().enumerate() {
+                for spec in fx.params() {
+                    let val = fx.param(spec.id).unwrap_or(spec.default);
+                    live_params.push(LiveParamSlot {
+                        track: None,
+                        bus: None,
+                        fx_index,
+                        id: spec.id,
+                        bits: AtomicU32::new(val.to_bits()),
+                        dirty: AtomicBool::new(false),
+                    });
+                }
+            }
+        }
         let lead = slowest + latency(&master);
         let buses = chains.len();
-        Self {
-            end,
-            clips,
-            clip_bus,
-            ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
-            gains: vec![1.0; buses],
-            bus_mix,
-            ducks,
-            chains,
-            master,
-            delays,
-            lead,
-            bus_l: vec![vec![0.0; MAX_BLOCK]; buses],
-            bus_r: vec![vec![0.0; MAX_BLOCK]; buses],
-            out_l: vec![0.0; MAX_BLOCK],
-            out_r: vec![0.0; MAX_BLOCK],
-        }
+        let live = live_mode.then(|| {
+            Arc::new(LiveControls {
+                any_dirty: AtomicBool::new(false),
+                pan_law: plan.pan_law,
+                buses: live_buses,
+                params: live_params,
+            })
+        });
+        (
+            Self {
+                end,
+                clips,
+                clip_bus,
+                ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
+                gains: vec![1.0; buses],
+                bus_mix,
+                ducks,
+                chains,
+                master,
+                delays,
+                lead,
+                bus_l: vec![vec![0.0; MAX_BLOCK]; buses],
+                bus_r: vec![vec![0.0; MAX_BLOCK]; buses],
+                out_l: vec![0.0; MAX_BLOCK],
+                out_r: vec![0.0; MAX_BLOCK],
+                live: live.clone(),
+            },
+            live,
+        )
     }
 
     /// End of the last clip, seconds.
@@ -269,11 +422,42 @@ impl BlockMixer {
         }
     }
 
-    /// Starts a block of `frames` frames (at most [`MAX_BLOCK`]): clears the buses.
+    /// Starts a block of `frames` frames (at most [`MAX_BLOCK`]): clears the buses and pulls any
+    /// lock-free live parameter or fader updates queued by the UI thread.
     pub fn begin(&mut self, frames: usize) {
         let n = frames.min(MAX_BLOCK);
         for bus in self.bus_l.iter_mut().chain(self.bus_r.iter_mut()) {
             bus[..n].fill(0.0);
+        }
+        let Some(live) = &self.live else {
+            return;
+        };
+        if !live.any_dirty.swap(false, Ordering::Relaxed) {
+            return;
+        }
+        for slot in &live.buses {
+            if slot.dirty.swap(false, Ordering::Relaxed) {
+                let gl = f32::from_bits(slot.gain_l.load(Ordering::Relaxed));
+                let gr = f32::from_bits(slot.gain_r.load(Ordering::Relaxed));
+                if let Some(entry) = self.bus_mix.get_mut(slot.bus) {
+                    *entry = (gl, gr);
+                }
+            }
+        }
+        for slot in &live.params {
+            if slot.dirty.swap(false, Ordering::Relaxed) {
+                let value = f32::from_bits(slot.bits.load(Ordering::Relaxed));
+                let fx = match slot.bus {
+                    Some(bus) => self
+                        .chains
+                        .get_mut(bus)
+                        .and_then(|c| c.get_mut(slot.fx_index)),
+                    None => self.master.get_mut(slot.fx_index),
+                };
+                if let Some(fx) = fx {
+                    fx.set_param(slot.id, value);
+                }
+            }
         }
     }
 
@@ -748,5 +932,47 @@ mod tests {
             ..Default::default()
         }
         .is_empty());
+    }
+
+    #[test]
+    fn live_controls_update_track_mix_and_effect_parameters_between_blocks() {
+        let plan = FxPlan {
+            tracks: vec![vec![spec("amplify", &[("gain", 0.0)])]],
+            master: vec![spec("amplify", &[("gain", 0.0)])],
+            ..Default::default()
+        };
+        let (mut mixer, live) =
+            BlockMixer::with_live_controls(vec![constant(0, 0.5, 4.0)], &plan, RATE as f32);
+        let (l0, r0) = render(&mut mixer, 256, 256);
+        assert!((l0[200] - 0.5).abs() < 1e-4 && (r0[200] - 0.5).abs() < 1e-4);
+
+        // Hard-pan right and invert phase live without rebuilding the mixer
+        assert!(live.set_track_mix(
+            0,
+            TrackMixSpec {
+                gain: 1.0,
+                pan: 1.0,
+                invert: true,
+            },
+        ));
+        // Boost master amplify by +6.0206 dB (~2x); let the 20 ms smoother settle
+        assert!(live.set_param(None, 0, "gain", 6.0206));
+        mixer.begin(512);
+        for i in 0..512 {
+            mixer.add_frame(i, 0.5 + i as f64 / f64::from(RATE));
+        }
+        mixer.finish(512);
+        mixer.begin(512);
+        for i in 0..512 {
+            mixer.add_frame(i, 1.0 + i as f64 / f64::from(RATE));
+        }
+        mixer.finish(512);
+        let (l1, r1) = mixer.out();
+        assert!(l1[500].abs() < 1e-4, "left hard-panned silent: {}", l1[500]);
+        assert!(
+            (r1[500] - (-1.0)).abs() < 0.02,
+            "right inverted and +6 dB boosted: {}",
+            r1[500]
+        );
     }
 }

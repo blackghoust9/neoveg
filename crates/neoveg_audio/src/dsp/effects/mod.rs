@@ -48,6 +48,16 @@ pub enum Category {
 }
 
 impl Category {
+    pub const ALL: [Category; 7] = [
+        Category::Filter,
+        Category::Dynamics,
+        Category::Time,
+        Category::Restoration,
+        Category::Modulation,
+        Category::Pitch,
+        Category::Channel,
+    ];
+
     /// Label in the default language (pt-BR).
     pub fn label(self) -> &'static str {
         match self {

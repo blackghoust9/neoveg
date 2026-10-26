@@ -77,7 +77,7 @@ const GEQ10_PARAMS: &[ParamSpec] = &[
     ParamSpec::new("b8", "4 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b9", "8 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b10", "16 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
-    ParamSpec::new("gain", "Master Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+    ParamSpec::new("gain", "Ganho geral", -24.0, 24.0, 0.0, Unit::Decibels),
 ];
 /// Centre frequencies of the 20-band graphic equaliser.
 pub const GEQ20_FREQS: [f32; 20] = [
@@ -105,7 +105,7 @@ const GEQ20_PARAMS: &[ParamSpec] = &[
     ParamSpec::new("b18", "11.2 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b19", "16 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b20", "22.4 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
-    ParamSpec::new("gain", "Master Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+    ParamSpec::new("gain", "Ganho geral", -24.0, 24.0, 0.0, Unit::Decibels),
 ];
 /// Centre frequencies of the 30-band graphic equaliser.
 pub const GEQ30_FREQS: [f32; 30] = [
@@ -144,7 +144,7 @@ const GEQ30_PARAMS: &[ParamSpec] = &[
     ParamSpec::new("b28", "12.5 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b29", "16 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
     ParamSpec::new("b30", "20 kHz", -24.0, 24.0, 0.0, Unit::Decibels),
-    ParamSpec::new("gain", "Master Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+    ParamSpec::new("gain", "Ganho geral", -24.0, 24.0, 0.0, Unit::Decibels),
 ];
 
 /// Constant-Q graphic equaliser with 10 (octave), 20 (half-octave) or 30 (third-octave) bands.
@@ -227,15 +227,15 @@ impl<const N: usize> AudioEffect for GraphicEq<N> {
 // ----------------------------------------------------------------------- parametric EQ
 
 /// Pass-filter slopes.
-pub const SLOPES: &[&str] = &["12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct"];
+pub const SLOPES: &[&str] = &["12 dB/oit", "24 dB/oit", "36 dB/oit", "48 dB/oit"];
 
 macro_rules! peq_band {
     ($p:literal, $name:literal, $f:expr, $q:expr) => {
         [
-            ParamSpec::toggle(concat!($p, "_on"), concat!($name, " On"), true),
+            ParamSpec::toggle(concat!($p, "_on"), concat!($name, " ativa"), true),
             ParamSpec::log(
                 concat!($p, "_freq"),
-                concat!($name, " Frequency"),
+                concat!($name, " frequência"),
                 20.0,
                 20000.0,
                 $f,
@@ -243,7 +243,7 @@ macro_rules! peq_band {
             ),
             ParamSpec::new(
                 concat!($p, "_gain"),
-                concat!($name, " Gain"),
+                concat!($name, " ganho"),
                 -30.0,
                 30.0,
                 0.0,
@@ -286,43 +286,43 @@ const PEQ_BAND_IDS: [[&str; 4]; 7] = [
 const PEQ_HEAD: [ParamSpec; 4] = [
     ParamSpec::new(
         "master_gain",
-        "Master Gain",
+        "Ganho geral",
         -30.0,
         30.0,
         0.0,
         Unit::Decibels,
     ),
-    ParamSpec::toggle("hp_on", "High Pass On", false),
+    ParamSpec::toggle("hp_on", "Passa-altas ativo", false),
     ParamSpec::log(
         "hp_freq",
-        "High Pass Frequency",
+        "Passa-altas frequência",
         10.0,
         20000.0,
         30.0,
         Unit::Hertz,
     ),
-    ParamSpec::choice("hp_slope", "High Pass Slope", SLOPES, 0),
+    ParamSpec::choice("hp_slope", "Passa-altas inclinação", SLOPES, 0),
 ];
 const PEQ_TAIL: [ParamSpec; 3] = [
-    ParamSpec::toggle("lp_on", "Low Pass On", false),
+    ParamSpec::toggle("lp_on", "Passa-baixas ativo", false),
     ParamSpec::log(
         "lp_freq",
-        "Low Pass Frequency",
+        "Passa-baixas frequência",
         20.0,
         22000.0,
         18000.0,
         Unit::Hertz,
     ),
-    ParamSpec::choice("lp_slope", "Low Pass Slope", SLOPES, 0),
+    ParamSpec::choice("lp_slope", "Passa-baixas inclinação", SLOPES, 0),
 ];
 const PEQ_MID: [ParamSpec; 28] = flatten([
-    peq_band!("low", "Low Shelf", 100.0, 0.707),
-    peq_band!("b1", "Band 1", 200.0, 1.0),
-    peq_band!("b2", "Band 2", 500.0, 1.0),
-    peq_band!("mid", "Band 3", 1000.0, 1.0),
-    peq_band!("b4", "Band 4", 2000.0, 1.0),
-    peq_band!("b5", "Band 5", 5000.0, 1.0),
-    peq_band!("high", "High Shelf", 8000.0, 0.707),
+    peq_band!("low", "Prateleira grave", 100.0, 0.707),
+    peq_band!("b1", "Banda 1", 200.0, 1.0),
+    peq_band!("b2", "Banda 2", 500.0, 1.0),
+    peq_band!("mid", "Banda 3", 1000.0, 1.0),
+    peq_band!("b4", "Banda 4", 2000.0, 1.0),
+    peq_band!("b5", "Banda 5", 5000.0, 1.0),
+    peq_band!("high", "Prateleira aguda", 8000.0, 0.707),
 ]);
 const PEQ_HEAD_MID: [ParamSpec; 32] = join(PEQ_HEAD, PEQ_MID);
 const PEQ_PARAMS: [ParamSpec; 35] = join(PEQ_HEAD_MID, PEQ_TAIL);
@@ -414,16 +414,20 @@ impl AudioEffect for FullParametricEq {
 // ---------------------------------------------------------------------------- notch filter
 
 /// Notch widths.
-pub const NOTCH_WIDTHS: &[&str] = &["Narrow", "Very Narrow", "Super Narrow"];
+pub const NOTCH_WIDTHS: &[&str] = &["Estreita", "Muito estreita", "Superestreita"];
 const NOTCH_Q: [f32; 3] = [8.0, 20.0, 50.0];
 
 macro_rules! notch {
     ($n:literal, $f:expr) => {
         [
-            ParamSpec::toggle(concat!("n", $n, "_on"), concat!("Notch ", $n, " On"), false),
+            ParamSpec::toggle(
+                concat!("n", $n, "_on"),
+                concat!("Notch ", $n, " ativo"),
+                false,
+            ),
             ParamSpec::log(
                 concat!("n", $n, "_freq"),
-                concat!("Notch ", $n, " Frequency"),
+                concat!("Notch ", $n, " frequência"),
                 20.0,
                 20000.0,
                 $f,
@@ -431,7 +435,7 @@ macro_rules! notch {
             ),
             ParamSpec::new(
                 concat!("n", $n, "_gain"),
-                concat!("Notch ", $n, " Gain"),
+                concat!("Notch ", $n, " ganho"),
                 -90.0,
                 0.0,
                 -30.0,
@@ -451,7 +455,12 @@ const NOTCH_BANDS: [ParamSpec; 18] = flatten([
 ]);
 const NOTCH_PARAMS: [ParamSpec; 19] = join(
     NOTCH_BANDS,
-    [ParamSpec::choice("width", "Notch Width", NOTCH_WIDTHS, 0)],
+    [ParamSpec::choice(
+        "width",
+        "Largura do notch",
+        NOTCH_WIDTHS,
+        0,
+    )],
 );
 
 const NOTCH_IDS: [[&str; 3]; 6] = [
@@ -517,8 +526,13 @@ impl AudioEffect for NotchFilter {
 
 // ----------------------------------------------------------------------- scientific filter
 
-pub const SCI_TYPES: &[&str] = &["Bessel", "Butterworth", "Chebyshev", "Elliptical"];
-pub const SCI_MODES: &[&str] = &["Low Pass", "High Pass", "Band Pass", "Band Stop"];
+pub const SCI_TYPES: &[&str] = &["Bessel", "Butterworth", "Chebyshev", "Elíptico"];
+pub const SCI_MODES: &[&str] = &[
+    "Passa-baixas",
+    "Passa-altas",
+    "Passa-faixa",
+    "Rejeita-faixa",
+];
 
 /// Classical IIR designs (see [`crate::dsp::design`]) as a cascade of biquads. Cutoff changes glide
 /// (redesigned every 32 samples while moving); type/order/ripple changes switch immediately.
@@ -540,35 +554,42 @@ pub struct ScientificFilter {
 
 impl ScientificFilter {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::choice("type", "Type", SCI_TYPES, 1),
-        ParamSpec::choice("mode", "Mode", SCI_MODES, 0),
+        ParamSpec::choice("type", "Tipo", SCI_TYPES, 1),
+        ParamSpec::choice("mode", "Modo", SCI_MODES, 0),
         ParamSpec::new(
             "order",
-            "Order",
+            "Ordem",
             1.0,
             design::MAX_ORDER as f32,
             6.0,
             Unit::None,
         ),
-        ParamSpec::log("cutoff", "Cutoff", 20.0, 20000.0, 1000.0, Unit::Hertz),
+        ParamSpec::log("cutoff", "Corte", 20.0, 20000.0, 1000.0, Unit::Hertz),
         ParamSpec::log(
             "high_cutoff",
-            "High Cutoff",
+            "Corte superior",
             20.0,
             20000.0,
             4000.0,
             Unit::Hertz,
         ),
-        ParamSpec::new("ripple", "Passband Ripple", 0.01, 6.0, 1.0, Unit::Decibels),
+        ParamSpec::new(
+            "ripple",
+            "Ondulação na banda",
+            0.01,
+            6.0,
+            1.0,
+            Unit::Decibels,
+        ),
         ParamSpec::new(
             "stop_atten",
-            "Stopband Attenuation",
+            "Atenuação de rejeição",
             20.0,
             120.0,
             60.0,
             Unit::Decibels,
         ),
-        ParamSpec::new("gain", "Master Gain", -30.0, 30.0, 0.0, Unit::Decibels),
+        ParamSpec::new("gain", "Ganho geral", -30.0, 30.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -711,7 +732,7 @@ macro_rules! fft_point {
         [
             ParamSpec::log(
                 concat!("p", $n, "_freq"),
-                concat!("Point ", $n, " Frequency"),
+                concat!("Ponto ", $n, " frequência"),
                 20.0,
                 20000.0,
                 $f,
@@ -719,7 +740,7 @@ macro_rules! fft_point {
             ),
             ParamSpec::new(
                 concat!("p", $n, "_gain"),
-                concat!("Point ", $n, " Gain"),
+                concat!("Ponto ", $n, " ganho"),
                 -60.0,
                 20.0,
                 0.0,
@@ -743,8 +764,8 @@ const FFT_PARAMS: [ParamSpec; 17] = join(
     FFT_POINT_PARAMS,
     [ParamSpec::choice(
         "interp",
-        "Interpolation",
-        &["Linear", "Smooth"],
+        "Interpolação",
+        &["Linear", "Suave"],
         1,
     )],
 );

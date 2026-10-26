@@ -146,8 +146,8 @@ impl Chan {
 
 impl RnNoise {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 100.0, Unit::Percent),
-        ParamSpec::new("output", "Output Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 100.0, Unit::Percent),
+        ParamSpec::new("output", "Ganho de saída", -24.0, 24.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {

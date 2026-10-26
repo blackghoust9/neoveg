@@ -10,13 +10,13 @@ use crate::dsp::{block_len, param_plumbing, AudioEffect, ParamSpec, ParamValues,
 
 /// Names of [`FilterType::ALL`] for the `type` choice parameters.
 pub const FILTER_TYPE_NAMES: &[&str] = &[
-    "Peaking",
-    "Low Shelf",
-    "High Shelf",
-    "Low Pass",
-    "High Pass",
-    "Notch",
-    "Band Pass",
+    "Pico (peaking)",
+    "Prateleira grave",
+    "Prateleira aguda",
+    "Passa-baixas",
+    "Passa-altas",
+    "Notch (rejeita-faixa)",
+    "Passa-faixa",
 ];
 
 /// Coefficients are recomputed at most every this many samples while parameters glide.
@@ -247,13 +247,13 @@ macro_rules! eq_params {
     ($(($n:literal, $on:expr, $ty:expr, $f:expr, $q:expr)),* $(,)?) => {
         &[
             $(
-                ParamSpec::toggle(concat!("b", $n, ".on"), concat!("Band ", $n, " On"), $on),
-                ParamSpec::choice(concat!("b", $n, ".type"), concat!("Band ", $n, " Type"), FILTER_TYPE_NAMES, $ty),
-                ParamSpec::log(concat!("b", $n, ".freq"), concat!("Band ", $n, " Frequency"), 20.0, 20000.0, $f, Unit::Hertz),
-                ParamSpec::new(concat!("b", $n, ".gain"), concat!("Band ", $n, " Gain"), -30.0, 30.0, 0.0, Unit::Decibels),
-                ParamSpec::log(concat!("b", $n, ".q"), concat!("Band ", $n, " Q"), 0.1, 30.0, $q, Unit::Q),
+                ParamSpec::toggle(concat!("b", $n, ".on"), concat!("Banda ", $n, " ativa"), $on),
+                ParamSpec::choice(concat!("b", $n, ".type"), concat!("Banda ", $n, " tipo"), FILTER_TYPE_NAMES, $ty),
+                ParamSpec::log(concat!("b", $n, ".freq"), concat!("Banda ", $n, " frequência"), 20.0, 20000.0, $f, Unit::Hertz),
+                ParamSpec::new(concat!("b", $n, ".gain"), concat!("Banda ", $n, " ganho"), -30.0, 30.0, 0.0, Unit::Decibels),
+                ParamSpec::log(concat!("b", $n, ".q"), concat!("Banda ", $n, " Q"), 0.1, 30.0, $q, Unit::Q),
             )*
-            ParamSpec::new("output", "Output Gain", -30.0, 30.0, 0.0, Unit::Decibels),
+            ParamSpec::new("output", "Ganho de saída", -30.0, 30.0, 0.0, Unit::Decibels),
         ]
     };
 }
@@ -348,35 +348,35 @@ pub struct SimpleEq {
 
 impl SimpleEq {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("low", "Low", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("low", "Graves", -24.0, 24.0, 0.0, Unit::Decibels),
         ParamSpec::log(
             "low_freq",
-            "Low Frequency",
+            "Frequência dos graves",
             20.0,
             1000.0,
             200.0,
             Unit::Hertz,
         ),
-        ParamSpec::new("mid", "Mid", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("mid", "Médios", -24.0, 24.0, 0.0, Unit::Decibels),
         ParamSpec::log(
             "mid_freq",
-            "Mid Frequency",
+            "Frequência dos médios",
             100.0,
             10000.0,
             1000.0,
             Unit::Hertz,
         ),
-        ParamSpec::log("mid_q", "Mid Q", 0.1, 10.0, 0.7, Unit::Q),
-        ParamSpec::new("high", "High", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::log("mid_q", "Q dos médios", 0.1, 10.0, 0.7, Unit::Q),
+        ParamSpec::new("high", "Agudos", -24.0, 24.0, 0.0, Unit::Decibels),
         ParamSpec::log(
             "high_freq",
-            "High Frequency",
+            "Frequência dos agudos",
             1000.0,
             20000.0,
             5000.0,
             Unit::Hertz,
         ),
-        ParamSpec::new("output", "Output Gain", -24.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("output", "Ganho de saída", -24.0, 24.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {

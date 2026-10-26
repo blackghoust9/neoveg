@@ -72,13 +72,27 @@ pub struct Compressor {
 
 impl Compressor {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("threshold", "Threshold", -60.0, 0.0, -20.0, Unit::Decibels),
-        ParamSpec::new("ratio", "Ratio", 1.0, 30.0, 4.0, Unit::Ratio),
-        ParamSpec::new("knee", "Knee", 0.0, 24.0, 6.0, Unit::Decibels),
-        ParamSpec::log("attack", "Attack", 0.01, 300.0, 10.0, Unit::Milliseconds),
-        ParamSpec::log("release", "Release", 1.0, 3000.0, 100.0, Unit::Milliseconds),
-        ParamSpec::new("makeup", "Make-up Gain", -40.0, 40.0, 0.0, Unit::Decibels),
-        ParamSpec::choice("detector", "Detector", &["Peak", "RMS"], 0),
+        ParamSpec::new("threshold", "Limiar", -60.0, 0.0, -20.0, Unit::Decibels),
+        ParamSpec::new("ratio", "Razão", 1.0, 30.0, 4.0, Unit::Ratio),
+        ParamSpec::new("knee", "Joelho (knee)", 0.0, 24.0, 6.0, Unit::Decibels),
+        ParamSpec::log("attack", "Ataque", 0.01, 300.0, 10.0, Unit::Milliseconds),
+        ParamSpec::log(
+            "release",
+            "Liberação",
+            1.0,
+            3000.0,
+            100.0,
+            Unit::Milliseconds,
+        ),
+        ParamSpec::new(
+            "makeup",
+            "Ganho de compensação",
+            -40.0,
+            40.0,
+            0.0,
+            Unit::Decibels,
+        ),
+        ParamSpec::choice("detector", "Detector", &["Pico", "RMS"], 0),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {
@@ -192,12 +206,19 @@ pub struct Gate {
 
 impl Gate {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("threshold", "Threshold", -90.0, 0.0, -40.0, Unit::Decibels),
-        ParamSpec::log("ratio", "Ratio", 1.0, 100.0, 10.0, Unit::Ratio),
-        ParamSpec::new("range", "Range", 0.0, 90.0, 60.0, Unit::Decibels),
-        ParamSpec::log("attack", "Attack", 0.01, 100.0, 1.0, Unit::Milliseconds),
-        ParamSpec::new("hold", "Hold", 0.0, 2000.0, 50.0, Unit::Milliseconds),
-        ParamSpec::log("release", "Release", 1.0, 3000.0, 150.0, Unit::Milliseconds),
+        ParamSpec::new("threshold", "Limiar", -90.0, 0.0, -40.0, Unit::Decibels),
+        ParamSpec::log("ratio", "Razão", 1.0, 100.0, 10.0, Unit::Ratio),
+        ParamSpec::new("range", "Alcance", 0.0, 90.0, 60.0, Unit::Decibels),
+        ParamSpec::log("attack", "Ataque", 0.01, 100.0, 1.0, Unit::Milliseconds),
+        ParamSpec::new("hold", "Sustentação", 0.0, 2000.0, 50.0, Unit::Milliseconds),
+        ParamSpec::log(
+            "release",
+            "Liberação",
+            1.0,
+            3000.0,
+            150.0,
+            Unit::Milliseconds,
+        ),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {
@@ -301,10 +322,24 @@ pub struct Limiter {
 
 impl Limiter {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("input_gain", "Input Boost", 0.0, 24.0, 0.0, Unit::Decibels),
-        ParamSpec::new("ceiling", "Ceiling", -24.0, 0.0, -1.0, Unit::Decibels),
-        ParamSpec::log("release", "Release", 1.0, 1000.0, 60.0, Unit::Milliseconds),
-        ParamSpec::toggle("true_peak", "True Peak", true),
+        ParamSpec::new(
+            "input_gain",
+            "Ganho de entrada",
+            0.0,
+            24.0,
+            0.0,
+            Unit::Decibels,
+        ),
+        ParamSpec::new("ceiling", "Teto", -24.0, 0.0, -1.0, Unit::Decibels),
+        ParamSpec::log(
+            "release",
+            "Liberação",
+            1.0,
+            1000.0,
+            60.0,
+            Unit::Milliseconds,
+        ),
+        ParamSpec::toggle("true_peak", "Pico verdadeiro", true),
     ];
     /// Fixed look-ahead time.
     pub const LOOKAHEAD_MS: f32 = 5.0;

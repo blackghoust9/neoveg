@@ -70,14 +70,21 @@ impl DeEsser {
     pub const PARAMS: &'static [ParamSpec] = &[
         ParamSpec::log(
             "frequency",
-            "Frequency",
+            "Frequência",
             2000.0,
             12000.0,
             6000.0,
             Unit::Hertz,
         ),
-        ParamSpec::new("threshold", "Threshold", -40.0, 0.0, -12.0, Unit::Decibels),
-        ParamSpec::new("reduction", "Max Reduction", 0.0, 24.0, 8.0, Unit::Decibels),
+        ParamSpec::new("threshold", "Limiar", -40.0, 0.0, -12.0, Unit::Decibels),
+        ParamSpec::new(
+            "reduction",
+            "Redução máxima",
+            0.0,
+            24.0,
+            8.0,
+            Unit::Decibels,
+        ),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -260,8 +267,8 @@ pub struct DeReverb {
 
 impl DeReverb {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("amount", "Amount", 0.0, 100.0, 50.0, Unit::Percent),
-        ParamSpec::log("rt60", "Decay (RT60)", 0.1, 5.0, 0.8, Unit::Seconds),
+        ParamSpec::new("amount", "Intensidade", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::log("rt60", "Decaimento (RT60)", 0.1, 5.0, 0.8, Unit::Seconds),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -400,8 +407,8 @@ pub struct SpeechEnhance {
 
 impl SpeechEnhance {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 100.0, Unit::Percent),
-        ParamSpec::choice("tone", "Tone", &["Low Tone", "High Tone"], 0),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 100.0, Unit::Percent),
+        ParamSpec::choice("tone", "Timbre", &["Voz grave", "Voz aguda"], 0),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -547,7 +554,7 @@ pub struct StereoWidth {
 impl StereoWidth {
     pub const PARAMS: &'static [ParamSpec] = &[ParamSpec::new(
         "width",
-        "Width",
+        "Largura",
         0.0,
         200.0,
         100.0,

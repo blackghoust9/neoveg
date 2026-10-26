@@ -26,17 +26,17 @@ pub struct DeHum {
 
 impl DeHum {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::choice("frequency", "Frequency", &["50 Hz", "60 Hz"], 0),
+        ParamSpec::choice("frequency", "Frequência da rede", &["50 Hz", "60 Hz"], 0),
         ParamSpec::new(
             "harmonics",
-            "Harmonics",
+            "Harmônicos",
             1.0,
             MAX_HARMONICS as f32,
             5.0,
             Unit::None,
         ),
-        ParamSpec::log("q", "Notch Q", 1.0, 100.0, 30.0, Unit::Q),
-        ParamSpec::new("amount", "Amount", 0.0, 100.0, 100.0, Unit::Percent),
+        ParamSpec::log("q", "Q do notch", 1.0, 100.0, 30.0, Unit::Q),
+        ParamSpec::new("amount", "Intensidade", 0.0, 100.0, 100.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -176,9 +176,9 @@ pub struct DeNoise {
 
 impl DeNoise {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("reduction", "Reduction", 0.0, 40.0, 12.0, Unit::Decibels),
-        ParamSpec::new("threshold", "Threshold", 0.0, 20.0, 6.0, Unit::Decibels),
-        ParamSpec::new("smoothing", "Smoothing", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::new("reduction", "Redução", 0.0, 40.0, 12.0, Unit::Decibels),
+        ParamSpec::new("threshold", "Limiar", 0.0, 20.0, 6.0, Unit::Decibels),
+        ParamSpec::new("smoothing", "Suavização", 0.0, 100.0, 50.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {

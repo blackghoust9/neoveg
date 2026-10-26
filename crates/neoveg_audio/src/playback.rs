@@ -7,7 +7,7 @@ use std::sync::Arc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
-use crate::fxmixer::{BlockMixer, FxPlan, MAX_BLOCK};
+use crate::fxmixer::{BlockMixer, FxPlan, LiveControls, TrackMixSpec, MAX_BLOCK};
 use crate::meter::PeakMeter;
 use crate::mixer::MixClip;
 use crate::readout::{LoudnessFeeder, LoudnessReadout};
@@ -69,6 +69,7 @@ pub struct AudioPlayer {
     // Kept alive for the duration of playback; dropping it closes the device.
     _stream: cpal::Stream,
     state: Arc<PlaybackState>,
+    live: Arc<LiveControls>,
     meter: Arc<PeakMeter>,
     loudness: Arc<LoudnessReadout>,
 }
@@ -98,7 +99,8 @@ impl AudioPlayer {
         let out_channels = config.channels as usize;
 
         // Built here, outside the callback: the mixer allocates its buses and creates the effects
-        let mut mixer = BlockMixer::new(clips, plan, config.sample_rate.0 as f32);
+        let (mut mixer, live) =
+            BlockMixer::with_live_controls(clips, plan, config.sample_rate.0 as f32);
         let state = Arc::new(PlaybackState {
             end: mixer.end(),
             position: AtomicU64::new(0f64.to_bits()),
@@ -209,6 +211,7 @@ impl AudioPlayer {
         Ok(Self {
             _stream: stream,
             state,
+            live,
             meter,
             loudness,
         })
@@ -253,6 +256,22 @@ impl AudioPlayer {
         self.state
             .volume
             .store((linear.max(0.0) as f64).to_bits(), Ordering::Relaxed);
+    }
+
+    /// Updates a track's fader, pan and phase live without reopening the output stream.
+    pub fn set_track_mix(&self, track: usize, spec: TrackMixSpec) -> bool {
+        self.live.set_track_mix(track, spec)
+    }
+
+    /// Updates a parameter of an active effect (`track = None` for master) live during playback.
+    pub fn set_effect_param(
+        &self,
+        track: Option<usize>,
+        active_fx_index: usize,
+        param_id: &str,
+        value: f32,
+    ) -> bool {
+        self.live.set_param(track, active_fx_index, param_id, value)
     }
 }
 

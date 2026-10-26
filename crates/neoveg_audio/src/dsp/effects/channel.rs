@@ -21,7 +21,7 @@ pub struct Amplify {
 impl Amplify {
     pub const PARAMS: &'static [ParamSpec] = &[ParamSpec::new(
         "gain",
-        "Gain",
+        "Ganho",
         -96.0,
         24.0,
         0.0,
@@ -79,13 +79,13 @@ const CHANNEL_IDS: [&str; 6] = [
 
 impl ChannelVolume {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("left", "Left", -96.0, 24.0, 0.0, Unit::Decibels),
-        ParamSpec::new("right", "Right", -96.0, 24.0, 0.0, Unit::Decibels),
-        ParamSpec::new("center", "Center", -96.0, 24.0, 0.0, Unit::Decibels),
-        ParamSpec::new("lfe", "LFE", -96.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("left", "Esquerdo", -96.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("right", "Direito", -96.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("center", "Central", -96.0, 24.0, 0.0, Unit::Decibels),
+        ParamSpec::new("lfe", "Subgrave (LFE)", -96.0, 24.0, 0.0, Unit::Decibels),
         ParamSpec::new(
             "left_surround",
-            "Left Surround",
+            "Surround esquerdo",
             -96.0,
             24.0,
             0.0,
@@ -93,7 +93,7 @@ impl ChannelVolume {
         ),
         ParamSpec::new(
             "right_surround",
-            "Right Surround",
+            "Surround direito",
             -96.0,
             24.0,
             0.0,
@@ -167,8 +167,8 @@ pub struct Balance {
 
 impl Balance {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("balance", "Balance", -100.0, 100.0, 0.0, Unit::Pan),
-        ParamSpec::choice("mode", "Mode", &["Balance", "Pan (constant power)"], 0),
+        ParamSpec::new("balance", "Balanço", -100.0, 100.0, 0.0, Unit::Pan),
+        ParamSpec::choice("mode", "Modo", &["Balanço", "Pan (potência constante)"], 0),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {
@@ -237,8 +237,8 @@ pub struct Invert {
 impl Invert {
     pub const PARAMS: &'static [ParamSpec] = &[ParamSpec::choice(
         "channels",
-        "Channels",
-        &["All", "Left", "Right"],
+        "Canais",
+        &["Todos", "Esquerdo", "Direito"],
         0,
     )];
     pub fn new(_sample_rate: f32, _channels: usize) -> Self {

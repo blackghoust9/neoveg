@@ -50,10 +50,10 @@ const DIVISIONS: &[&str] = &[
     "1/4",
     "1/8",
     "1/16",
-    "1/4 dotted",
-    "1/8 dotted",
-    "1/4 triplet",
-    "1/8 triplet",
+    "1/4 pontuada",
+    "1/8 pontuada",
+    "1/4 tercina",
+    "1/8 tercina",
 ];
 const DIVISION_QUARTERS: [f32; 9] = [4.0, 2.0, 1.0, 0.5, 0.25, 1.5, 0.75, 2.0 / 3.0, 1.0 / 3.0];
 
@@ -77,12 +77,19 @@ pub struct Delay {
 impl Delay {
     pub const MAX_MS: f32 = 4000.0;
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::choice("mode", "Mode", &["Time", "Tempo"], 0),
-        ParamSpec::log("time", "Delay Time", 1.0, 2000.0, 250.0, Unit::Milliseconds),
-        ParamSpec::new("bpm", "Tempo", 20.0, 300.0, 120.0, Unit::Bpm),
-        ParamSpec::choice("division", "Division", DIVISIONS, 3),
-        ParamSpec::new("feedback", "Feedback", 0.0, 95.0, 30.0, Unit::Percent),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 30.0, Unit::Percent),
+        ParamSpec::choice("mode", "Modo", &["Tempo (ms)", "Andamento (BPM)"], 0),
+        ParamSpec::log(
+            "time",
+            "Tempo de atraso",
+            1.0,
+            2000.0,
+            250.0,
+            Unit::Milliseconds,
+        ),
+        ParamSpec::new("bpm", "Andamento", 20.0, 300.0, 120.0, Unit::Bpm),
+        ParamSpec::choice("division", "Divisão", DIVISIONS, 3),
+        ParamSpec::new("feedback", "Realimentação", 0.0, 95.0, 30.0, Unit::Percent),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 30.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, channels: usize) -> Self {
@@ -191,16 +198,23 @@ impl Reverb {
     pub const PARAMS: &'static [ParamSpec] = &[
         ParamSpec::new(
             "predelay",
-            "Pre-delay",
+            "Pré-atraso",
             0.0,
             200.0,
             20.0,
             Unit::Milliseconds,
         ),
-        ParamSpec::log("decay", "Decay (RT60)", 0.1, 20.0, 2.0, Unit::Seconds),
-        ParamSpec::new("damping", "HF Damping", 0.0, 100.0, 40.0, Unit::Percent),
-        ParamSpec::new("size", "Room Size", 0.0, 100.0, 50.0, Unit::Percent),
-        ParamSpec::new("mix", "Mix", 0.0, 100.0, 25.0, Unit::Percent),
+        ParamSpec::log("decay", "Decaimento (RT60)", 0.1, 20.0, 2.0, Unit::Seconds),
+        ParamSpec::new(
+            "damping",
+            "Amortecimento de agudos",
+            0.0,
+            100.0,
+            40.0,
+            Unit::Percent,
+        ),
+        ParamSpec::new("size", "Tamanho da sala", 0.0, 100.0, 50.0, Unit::Percent),
+        ParamSpec::new("mix", "Mistura", 0.0, 100.0, 25.0, Unit::Percent),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {

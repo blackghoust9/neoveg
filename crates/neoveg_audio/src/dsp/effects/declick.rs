@@ -98,8 +98,8 @@ pub struct ClickRemover {
 
 impl ClickRemover {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("threshold", "Threshold", 1.0, 100.0, 30.0, Unit::None),
-        ParamSpec::new("complexity", "Complexity", 1.0, 100.0, 16.0, Unit::None),
+        ParamSpec::new("threshold", "Limiar", 1.0, 100.0, 30.0, Unit::None),
+        ParamSpec::new("complexity", "Complexidade", 1.0, 100.0, 16.0, Unit::None),
     ];
 
     pub fn new(_sample_rate: f32, channels: usize) -> Self {

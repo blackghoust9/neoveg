@@ -64,10 +64,10 @@ pub struct DynamicsRack {
 
 impl DynamicsRack {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::toggle("gate_on", "Auto Gate", false),
+        ParamSpec::toggle("gate_on", "Gate automático", false),
         ParamSpec::new(
             "gate_threshold",
-            "Gate Threshold",
+            "Limiar do gate",
             -80.0,
             0.0,
             -50.0,
@@ -75,7 +75,7 @@ impl DynamicsRack {
         ),
         ParamSpec::log(
             "gate_attack",
-            "Gate Attack",
+            "Ataque do gate",
             0.1,
             100.0,
             2.0,
@@ -83,7 +83,7 @@ impl DynamicsRack {
         ),
         ParamSpec::log(
             "gate_release",
-            "Gate Release",
+            "Liberação do gate",
             1.0,
             3000.0,
             100.0,
@@ -91,7 +91,7 @@ impl DynamicsRack {
         ),
         ParamSpec::new(
             "gate_hold",
-            "Gate Hold",
+            "Sustentação do gate",
             0.0,
             1000.0,
             50.0,
@@ -100,7 +100,7 @@ impl DynamicsRack {
         ParamSpec::toggle("comp_on", "Compressor", true),
         ParamSpec::new(
             "comp_threshold",
-            "Compressor Threshold",
+            "Limiar do compressor",
             -60.0,
             0.0,
             -20.0,
@@ -108,7 +108,7 @@ impl DynamicsRack {
         ),
         ParamSpec::new(
             "comp_ratio",
-            "Compressor Ratio",
+            "Razão do compressor",
             1.0,
             30.0,
             2.0,
@@ -116,7 +116,7 @@ impl DynamicsRack {
         ),
         ParamSpec::log(
             "comp_attack",
-            "Compressor Attack",
+            "Ataque do compressor",
             0.1,
             300.0,
             10.0,
@@ -124,35 +124,42 @@ impl DynamicsRack {
         ),
         ParamSpec::log(
             "comp_release",
-            "Compressor Release",
+            "Liberação do compressor",
             1.0,
             3000.0,
             100.0,
             Unit::Milliseconds,
         ),
-        ParamSpec::toggle("comp_auto", "Auto Makeup", false),
+        ParamSpec::toggle("comp_auto", "Compensação automática", false),
         ParamSpec::new(
             "comp_makeup",
-            "Compressor Makeup",
+            "Ganho do compressor",
             0.0,
             30.0,
             0.0,
             Unit::Decibels,
         ),
-        ParamSpec::toggle("exp_on", "Expander", false),
+        ParamSpec::toggle("exp_on", "Expansor", false),
         ParamSpec::new(
             "exp_threshold",
-            "Expander Threshold",
+            "Limiar do expansor",
             -80.0,
             0.0,
             -60.0,
             Unit::Decibels,
         ),
-        ParamSpec::new("exp_ratio", "Expander Ratio", 1.0, 30.0, 2.0, Unit::Ratio),
-        ParamSpec::toggle("lim_on", "Limiter", false),
+        ParamSpec::new(
+            "exp_ratio",
+            "Razão do expansor",
+            1.0,
+            30.0,
+            2.0,
+            Unit::Ratio,
+        ),
+        ParamSpec::toggle("lim_on", "Limitador", false),
         ParamSpec::new(
             "lim_threshold",
-            "Limiter Threshold",
+            "Limiar do limitador",
             -30.0,
             0.0,
             -1.0,
@@ -160,14 +167,14 @@ impl DynamicsRack {
         ),
         ParamSpec::log(
             "lim_release",
-            "Limiter Release",
+            "Liberação do limitador",
             1.0,
             1000.0,
             50.0,
             Unit::Milliseconds,
         ),
-        ParamSpec::toggle("soft_clip", "Soft Clip", false),
-        ParamSpec::new("output", "Output Gain", -30.0, 30.0, 0.0, Unit::Decibels),
+        ParamSpec::toggle("soft_clip", "Saturação suave", false),
+        ParamSpec::new("output", "Ganho de saída", -30.0, 30.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {
@@ -330,7 +337,7 @@ macro_rules! mb_band {
         [
             ParamSpec::new(
                 concat!("b", $n, "_threshold"),
-                concat!("Band ", $n, " Threshold"),
+                concat!("Banda ", $n, " limiar"),
                 -60.0,
                 0.0,
                 -18.0,
@@ -338,7 +345,7 @@ macro_rules! mb_band {
             ),
             ParamSpec::new(
                 concat!("b", $n, "_ratio"),
-                concat!("Band ", $n, " Ratio"),
+                concat!("Banda ", $n, " razão"),
                 1.0,
                 30.0,
                 3.0,
@@ -346,7 +353,7 @@ macro_rules! mb_band {
             ),
             ParamSpec::log(
                 concat!("b", $n, "_attack"),
-                concat!("Band ", $n, " Attack"),
+                concat!("Banda ", $n, " ataque"),
                 0.1,
                 500.0,
                 10.0,
@@ -354,7 +361,7 @@ macro_rules! mb_band {
             ),
             ParamSpec::log(
                 concat!("b", $n, "_release"),
-                concat!("Band ", $n, " Release"),
+                concat!("Banda ", $n, " liberação"),
                 1.0,
                 5000.0,
                 100.0,
@@ -362,7 +369,7 @@ macro_rules! mb_band {
             ),
             ParamSpec::new(
                 concat!("b", $n, "_gain"),
-                concat!("Band ", $n, " Gain"),
+                concat!("Banda ", $n, " ganho"),
                 -18.0,
                 18.0,
                 0.0,
@@ -370,12 +377,12 @@ macro_rules! mb_band {
             ),
             ParamSpec::toggle(
                 concat!("b", $n, "_solo"),
-                concat!("Band ", $n, " Solo"),
+                concat!("Banda ", $n, " solo"),
                 false,
             ),
             ParamSpec::toggle(
                 concat!("b", $n, "_bypass"),
-                concat!("Band ", $n, " Bypass"),
+                concat!("Banda ", $n, " bypass"),
                 false,
             ),
         ]
@@ -384,11 +391,11 @@ macro_rules! mb_band {
 
 const fn mb_params() -> [ParamSpec; 3 + 4 * 7 + 5] {
     let head = [
-        ParamSpec::log("xo1", "Low Crossover", 20.0, 1000.0, 120.0, Unit::Hertz),
-        ParamSpec::log("xo2", "Mid Crossover", 100.0, 8000.0, 2000.0, Unit::Hertz),
+        ParamSpec::log("xo1", "Divisor grave", 20.0, 1000.0, 120.0, Unit::Hertz),
+        ParamSpec::log("xo2", "Divisor médio", 100.0, 8000.0, 2000.0, Unit::Hertz),
         ParamSpec::log(
             "xo3",
-            "High Crossover",
+            "Divisor agudo",
             1000.0,
             20000.0,
             10000.0,
@@ -397,11 +404,11 @@ const fn mb_params() -> [ParamSpec; 3 + 4 * 7 + 5] {
     ];
     let bands = [mb_band!("1"), mb_band!("2"), mb_band!("3"), mb_band!("4")];
     let tail = [
-        ParamSpec::new("output", "Output Gain", -18.0, 18.0, 0.0, Unit::Decibels),
-        ParamSpec::toggle("lim_on", "Limiter", false),
+        ParamSpec::new("output", "Ganho de saída", -18.0, 18.0, 0.0, Unit::Decibels),
+        ParamSpec::toggle("lim_on", "Limitador", false),
         ParamSpec::new(
             "lim_threshold",
-            "Limiter Threshold",
+            "Limiar do limitador",
             -30.0,
             0.0,
             -0.1,
@@ -409,13 +416,13 @@ const fn mb_params() -> [ParamSpec; 3 + 4 * 7 + 5] {
         ),
         ParamSpec::log(
             "lim_release",
-            "Limiter Release",
+            "Liberação do limitador",
             1.0,
             1000.0,
             50.0,
             Unit::Milliseconds,
         ),
-        ParamSpec::toggle("link", "Link Channels", true),
+        ParamSpec::toggle("link", "Vincular canais", true),
     ];
     let mut out = [ParamSpec::new("", "", 0.0, 0.0, 0.0, Unit::None); 3 + 4 * 7 + 5];
     let mut i = 0;
@@ -751,11 +758,18 @@ const TUBE_KNEE: f32 = 10.0;
 
 impl TubeCompressor {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("threshold", "Threshold", -60.0, 0.0, -20.0, Unit::Decibels),
-        ParamSpec::new("ratio", "Ratio", 1.0, 30.0, 4.0, Unit::Ratio),
-        ParamSpec::log("attack", "Attack", 0.1, 500.0, 10.0, Unit::Milliseconds),
-        ParamSpec::log("release", "Release", 1.0, 5000.0, 100.0, Unit::Milliseconds),
-        ParamSpec::new("output", "Output Gain", -30.0, 30.0, 0.0, Unit::Decibels),
+        ParamSpec::new("threshold", "Limiar", -60.0, 0.0, -20.0, Unit::Decibels),
+        ParamSpec::new("ratio", "Razão", 1.0, 30.0, 4.0, Unit::Ratio),
+        ParamSpec::log("attack", "Ataque", 0.1, 500.0, 10.0, Unit::Milliseconds),
+        ParamSpec::log(
+            "release",
+            "Liberação",
+            1.0,
+            5000.0,
+            100.0,
+            Unit::Milliseconds,
+        ),
+        ParamSpec::new("output", "Ganho de saída", -30.0, 30.0, 0.0, Unit::Decibels),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {

@@ -60,7 +60,7 @@ fn wrap(p: f32) -> f32 {
 impl PitchShifter {
     pub const PARAMS: &'static [ParamSpec] = &[ParamSpec::new(
         "semitones",
-        "Pitch",
+        "Tom (semitons)",
         -12.0,
         12.0,
         0.0,
