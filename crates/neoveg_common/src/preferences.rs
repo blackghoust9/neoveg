@@ -42,6 +42,16 @@ pub struct Preferences {
     pub keymap: BTreeMap<String, Vec<String>>,
     /// Panels that were in their own window (possibly on another monitor) when the program closed.
     pub detached_windows: Vec<SavedWindow>,
+    /// Snap to the lines of the frame grid (`Ctrl+F8`).
+    pub snap_to_grid: bool,
+    /// Snap to markers and the edges of regions (`Shift+F8`).
+    pub snap_to_markers: bool,
+    /// Snap to the edges of events on other tracks (`Ctrl+Shift+F8`).
+    pub snap_to_all_events: bool,
+    /// Quantize to Frames (`Alt+F8`): drags land on frame boundaries.
+    pub quantize_to_frames: bool,
+    /// Quantize edits that only touch audio too; off leaves them between frames.
+    pub quantize_audio_edits: bool,
 }
 
 impl Default for Preferences {
@@ -60,6 +70,11 @@ impl Default for Preferences {
             theme_file: String::new(),
             keymap: BTreeMap::new(),
             detached_windows: Vec::new(),
+            snap_to_grid: false,
+            snap_to_markers: true,
+            snap_to_all_events: true,
+            quantize_to_frames: true,
+            quantize_audio_edits: true,
         }
     }
 }
@@ -159,6 +174,9 @@ mod tests {
         assert!(p.recent_projects.is_empty() && p.new_project_settings.is_none());
         // Files written before the keymap existed keep the default shortcuts
         assert!(p.keymap.is_empty());
+        // Files written before the snap switches existed keep today's behaviour
+        assert!(!p.snap_to_grid && p.snap_to_markers && p.snap_to_all_events);
+        assert!(p.quantize_to_frames && p.quantize_audio_edits);
     }
 
     #[test]
