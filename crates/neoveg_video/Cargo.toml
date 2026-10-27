@@ -22,3 +22,11 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 wgpu = "22"
 # Shared dynamic linking only (`static`, `build`, `build-license-gpl`, `build-license-nonfree` disabled)
 ffmpeg-next = { version = "7", default-features = false, features = ["codec", "format", "software-scaling", "software-resampling"], optional = true }
+
+[dev-dependencies]
+# Benchmarks (`cargo bench -p neoveg_video --bench playback_bench`); no HTML reports, to keep the tree small
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "playback_bench"
+harness = false

@@ -50,18 +50,27 @@ A biblioteca de pictogramas SVG autorais (24x24, planos, `currentColor`), desenh
 
 ## Desempenho por resolução
 
-O custo de cada quadro cresce com o número de pixels. A tabela mostra o que é **calculado** a partir das regras do programa (um quadro RGBA ocupa 4 bytes por pixel; a qualidade da visualização define a largura decodificada: Draft = 1/4, Preview = 1/2, Good e Best = cheia). Os **tempos medidos não existem ainda**: o repositório não tem benchmarks (`benches/`, Criterion e Tracy estão no roteiro de qualidade do `AGENTS.md`), e por isso as colunas de tempo ficam como "não medido" em vez de números inventados.
+Custo, **por quadro**, do caminho de vídeo em CPU, de 480p a 8K UHD, medido com o benchmark `playback_bench` (Criterion, uma thread): `cargo bench -p neoveg_video --bench playback_bench`, depois `python scripts/bench_table.py --readme` para reescrever a tabela. Cada coluna é a **mediana** de 10 amostras:
 
-| Resolução | Tamanho | Megapixels | Quadro RGBA | Largura Draft | Largura Preview | Largura Good / Best | Tempo por quadro (decodificação + visualização) |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| 480p | 854x480 | 0.41 | 1.6 MiB | 213 px | 427 px | 854 px | não medido |
-| 720p | 1280x720 | 0.92 | 3.5 MiB | 320 px | 640 px | 1280 px | não medido |
-| 1080p | 1920x1080 | 2.07 | 7.9 MiB | 480 px | 960 px | 1920 px | não medido |
-| 1440p | 2560x1440 | 3.69 | 14.1 MiB | 640 px | 1280 px | 2560 px | não medido |
-| 4K UHD | 3840x2160 | 8.29 | 31.6 MiB | 960 px | 1920 px | 3840 px | não medido |
-| 8K UHD | 7680x4320 | 33.18 | 126.6 MiB | 1920 px | 3840 px | 7680 px | não medido |
+* **Gerar quadro**: construir um quadro RGBA8 (as barras SMPTE do gerador, no lugar de um quadro decodificado);
+* **Correção de cor**: a correção primária da prévia (exposição, contraste e saturação);
+* **Scopes**: histograma, forma de onda e vetorscópio do quadro;
+* **Crossfade (CPU)**: composição de duas camadas de quadro inteiro sobre um fundo preto. É o caminho de **CPU**; a prévia e a exportação usam a GPU quando há adaptador (o trabalho ainda não é medido).
 
-Quando o benchmark `playback_bench` existir, o script [`scripts/run_background_agent.ps1`](scripts/run_background_agent.ps1) já o executa em segundo plano.
+<!-- bench:begin -->
+| Resolução | Tamanho | Gerar quadro | Correção de cor | Scopes | Crossfade (CPU) | Quadro normal: cor + scopes (quadros/s) | Quadro em transição: + crossfade (quadros/s) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 480p | 854x480 | 2.37 ms | 1.24 ms | 7.76 ms | 40.28 ms | 9.00 ms (111) | 49.27 ms (20.3) |
+| 720p | 1280x720 | 5.26 ms | 2.47 ms | 7.40 ms | 90.11 ms | 9.87 ms (101) | 99.98 ms (10.0) |
+| 1080p | 1920x1080 | 11.60 ms | 5.07 ms | 9.35 ms | 203 ms | 14.42 ms (69) | 218 ms (4.6) |
+| 1440p | 2560x1440 | 21.46 ms | 7.88 ms | 10.66 ms | 363 ms | 18.55 ms (54) | 382 ms (2.6) |
+| 4K | 3840x2160 | 48.46 ms | 17.03 ms | 8.62 ms | 827 ms | 25.64 ms (39) | 853 ms (1.2) |
+| 8K | 7680x4320 | 196 ms | 66.03 ms | 9.57 ms | 3205 ms | 75.60 ms (13) | 3280 ms (0.3) |
+
+Medido em: Intel(R) Core(TM) i5-7500T CPU @ 2.70GHz (4 threads), Windows 10, Rust 1.99.1.
+<!-- bench:end -->
+
+**O que isto não mede:** a decodificação (precisa do FFmpeg e de um arquivo de mídia), a GPU, o envio de texturas, a janela e o áudio. Os números são um **teto** de quadros por segundo para o trabalho de CPU, não uma taxa de reprodução. A qualidade da visualização reduz o custo: Draft decodifica 1/4 da largura, Preview 1/2, Good e Best a largura cheia (por exemplo, em 4K: 960, 1920 e 3840 px).
 
 ## Pré-requisitos para contribuidores
 

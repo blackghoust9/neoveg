@@ -7,7 +7,7 @@
 
       1. cargo test --test headless_screenshot   renders docs/screenshots/*.png offscreen
                                                   (NEOVEG_SCREENSHOTS=1; needs a graphics adapter)
-      2. cargo bench --bench playback_bench      only when such a benchmark exists in the workspace
+      2. cargo bench --bench playback_bench      per-frame video cost, 480p to 8K (skipped if it is missing)
       3. python scripts/generate_icon_formats.py converts the SVG icons to PNG / BMP / JPG
                                                   (needs Pillow plus cairosvg or resvg)
 
