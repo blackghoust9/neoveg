@@ -467,6 +467,27 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [ ] Modelos de projeto (cerca de 30 predefinições de saída), "iniciar novos projetos com estas configurações", predefinições de renderização por finalidade
 - [ ] Efeitos padrão ao importar áudio (Noise Gate, EQ e Compressor na faixa), Chroma Key, Pitch Shift e Reverb nativos
 
+**Fase 15 — Lacunas encontradas no índice dos manuais v18 a v21 (o que o Neoveg ainda não tem)**
+
+- [ ] Notas do projeto (título, autor, direitos e comentários) e janela de notas
+- [ ] Detalhes de edição (*Edit Details*): lista de todos os eventos com início, duração e fim
+- [ ] Apresentação de slides (*Insert Slideshow*): várias imagens em sequência com duração e transição
+- [ ] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois
+- [ ] Arquivar projetos (copiar projeto e mídia para uma pasta) e referências do projeto nos arquivos renderizados
+- [ ] Estabilização de clipes de vídeo, congelar quadro no cursor e reverter evento
+- [ ] Corrigir deslocamentos de sincronismo A/V (adicionar fluxos ausentes, mover ou deslizar)
+- [ ] Exibição do comprimento do evento ao aparar e propriedades de áudio e de vídeo da mídia (arquivo único e vários)
+- [ ] Arquivos PSD em camadas, Broadcast Wave, Blackmagic RAW, P2 e AVCHD; importar mídia de outro projeto
+- [ ] Captura de tela e câmeras (dispositivos, DVD, HDV) e Hub de mídia
+- [ ] Pastas de mídia (*bins*) e *smart bins* com busca automática dos arquivos gravados ou capturados
+- [ ] Efeitos de terceiros em eventos (cadeia de efeitos com plug-ins externos) e eventos de ajuste
+- [ ] Edição multicâmera: alternar a visão, sincronizar por áudio e criar evento multicâmera
+- [ ] Projetos aninhados com visão da linha do tempo pai e `Esc` para voltar (hoje o sub-projeto abre em outra aba)
+- [ ] Máscaras de Bézier com animação por ponto, *Smart Mask*, rastreamento de movimento e Z-Depth
+- [ ] Curvas de cor (matiz x saturação, saturação x saturação), correspondência de cor e fluxos S-Log/ACES
+- [ ] Opções de interface dos manuais: janela de explorador unificado, botão de alternar o comportamento da barra de espaço, ocultar arquivos de picos
+- [ ] Modos de visualização reais da prévia (desentrelaçamento, rotação, HDR) e das propriedades que hoje só ficam gravadas no projeto: formato de pixel, gama de composição, qualidade da renderização, desfoque de movimento
+
 ## Créditos e licenciamento
 
 O código do projeto é distribuído sob a licença [MIT](./LICENSE). Consulte [AUTHORS.md](./AUTHORS.md) e [third_party/README.md](./third_party/README.md) para atribuições e licenças das dependências. O FFmpeg usado nos builds de desenvolvimento é a variante **LGPL** compartilhada; preserve esses arquivos ao redistribuir pacotes.
