@@ -124,3 +124,13 @@ docs/qa_report.js
 # Obsidian vault (docs_obsidian/): tracked, except the per-machine workspace state
 docs_obsidian/.obsidian/workspace.json
 docs_obsidian/.obsidian/workspace-mobile.json
+
+# Proprietary research & raw extracted dumps
+results_assets/
+icons 22/
+*.ico
+*.bmp
+*.dll
+*.exe
+G:/*
+

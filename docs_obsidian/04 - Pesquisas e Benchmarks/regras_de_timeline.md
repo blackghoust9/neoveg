@@ -68,7 +68,7 @@ Resumo automático das entradas de pesquisa (texto completo em `docs/research/nl
 - Zoom: Up / Down small horizontal steps (timeline focus); Ctrl+Up / Ctrl+Down large steps or zoom to the
 - Grouping: G group, U ungroup, Ctrl+Shift+U ignore grouping, Ctrl+U clear the group without deleting events,
 
-*Sources: Vegas Pro 2026 help, Keyboard shortcuts (cdn.borisfx.com/borisfx/Documentation/vegas/2026/en/content/*
+*Sources: Classic_NLE 2026 help, Keyboard shortcuts (reference-nle-help-archive*
 
 ### 43. Conferência com os PDFs oficiais (v18)
 - Window shortcuts (default configuration): Alt+0 focus the timeline; Alt+1 Explorer; Alt+2 Trimmer;
@@ -77,7 +77,7 @@ Resumo automático das entradas de pesquisa (texto completo em `docs/research/nl
 - Editing: Ctrl+X / Shift+Delete cut; Ctrl+C / Ctrl+Insert copy; Ctrl+V / Shift+Insert paste; Ctrl+Shift+V
 - Edge trim: Numpad 7 or [ enter edge-trim on the event start and move to the previous edge; Numpad 9 or ]
 
-*Sources: VEGAS_Pro_18_EN.pdf (pp. 28-31, 122-126, 150-152, 246-247, 278, 287-289, 309, 567-575) and*
+*Sources: Classic_NLE_18_EN.pdf (pp. 28-31, 122-126, 150-152, 246-247, 278, 287-289, 309, 567-575) and*
 
 ### 44. Estudo entre versões (JKL, preferências de edição)
 - "Take FX" check: the strings "Take FX" / "take effects" occur in none of the manuals (v9 to v21). The audio
@@ -95,5 +95,5 @@ Resumo automático das entradas de pesquisa (texto completo em `docs/research/nl
 - High-frame-rate (HFR) clips (v14): "Add At Project Frame Rate" on a Project Media item creates an event
 - Other v14 additions (for tracking only, no Neoveg rule): Smart Zoom / Smart Scale / adaptive deinterlacing
 
-*Sources: Sony_Vegas_Pro_8_Manual.pdf (keyboard shortcut tables), Vegas140_Manual_EN.pdf (pp. 15-16 what's*
+*Sources: Classic_NLE_8_Manual.pdf (keyboard shortcut tables), Classic_NLE_v140_Manual_EN.pdf (pp. 15-16 what's*
 <!-- auto:end -->

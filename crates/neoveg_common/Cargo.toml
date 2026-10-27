@@ -3,6 +3,7 @@ name = "neoveg_common"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license = "MIT OR Apache-2.0"
 description = "Neoveg shared types: project settings, SMPTE timecode, logging and preferences"
 
 [dependencies]

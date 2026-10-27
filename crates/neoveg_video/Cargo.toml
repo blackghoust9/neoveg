@@ -3,15 +3,17 @@ name = "neoveg_video"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license = "MIT OR Apache-2.0"
 description = "Neoveg video: frame buffers, procedural generators, wgpu upload and optional FFmpeg decoding"
 
 [features]
 default = []
-# Native FFmpeg decoding (needs FFmpeg development libraries; see REQUIREMENTS.md)
+# Native FFmpeg decoding via shared dynamic linking ONLY (LGPL v2.1+; never enable `static` or `gpl`)
 ffmpeg = ["dep:ffmpeg-next"]
 
 [dependencies]
 neoveg_common.workspace = true
 tracing.workspace = true
 wgpu = "22"
-ffmpeg-next = { version = "7", optional = true }
+# Shared dynamic linking only (`static`, `build`, `build-license-gpl`, `build-license-nonfree` disabled)
+ffmpeg-next = { version = "7", default-features = false, features = ["codec", "format", "software-scaling", "software-resampling"], optional = true }

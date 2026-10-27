@@ -3,6 +3,7 @@ name = "neoveg_audio"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license = "MIT OR Apache-2.0"
 description = "Neoveg audio: symphonia decoding, cpal output, real peak meters and sample-accurate waveforms"
 
 [dependencies]

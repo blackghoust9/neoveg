@@ -332,12 +332,53 @@ Several projects can be open at once, one tab each, and a project can play anoth
 
 The vault `docs_obsidian/` holds the visual window planning, the module documentation and the user manual. It is part of the repository; the maintainer's working copy is mirrored to `D:\ambiente_neoveg\docs_obsidian` (see section 12 for the environment drive).
 
-- **Layout:** `00 - Mapa Geral/` (hub `Index.md`), `01 - Arquitetura Rust/` (one note per crate, named after it), `02 - UI e Planejamento de Janelas/` (`layout_janelas.canvas`, `especificacao_janelas.md`), `03 - Manual do Usuario/` (`guia_de_inicio.md`, `atalhos_teclado.md`, `subprojetos_e_abas.md`), `04 - Pesquisas e Benchmarks/` (`regras_de_timeline.md`, `desempenho_resolucoes.md`).
+- **Layout:** `00 - Mapa Geral/` (hub `Index.md`), `01 - Arquitetura Rust/` (one note per crate, named after it), `02 - UI e Planejamento de Janelas/` (`layout_janelas.canvas`, `especificacao_janelas.md`, `inventario_icones.md`), `03 - Manual do Usuario/` (`guia_de_inicio.md`, `atalhos_teclado.md`, `subprojetos_e_abas.md`), `04 - Pesquisas e Benchmarks/` (`regras_de_timeline.md`, `desempenho_resolucoes.md`).
 - **Links:** notes connect with `[[wikilinks]]`; every note links back to `[[Index]]`. A new crate or window needs its note and a link from the hub in the same change.
 - **Canvas:** `layout_janelas.canvas` mirrors `default_dock()` in `neoveg_ui/src/app.rs`. Changing the default dock, a window title or a proportion updates the canvas and `especificacao_janelas.md` in the same commit.
 - **Generated blocks:** the pages of `03` and `04` hold blocks between `<!-- auto:begin -->` and `<!-- auto:end -->` written by `python scripts/update_obsidian_docs.py` (Python standard library; `pypdf` is optional, for page counts). They come from `commands.rs` and `keymap.rs` (shortcut table), `AGENTS.md` section 24, `docs/research/nle_features_research.txt` (timeline rules), the reference-manual folder (`--pdfs` or `NEOVEG_PDF_DIR`) and the results folder (`--results`). Text outside the markers is hand-written and never touched; do not edit inside them. `--mirror [DIR]` copies the vault to the environment drive and is skipped, with a warning, when that drive is absent. Run the script after changing a command, a default shortcut or a research entry.
 - **Clean-room:** the vault carries descriptions, measures and page references only; no text, screenshots or icons copied from the reference manuals or from the reference product. Rendered manual pages stay outside the repository.
 - **Git:** `docs_obsidian/` is tracked; `docs_obsidian/.obsidian/workspace.json` and `workspace-mobile.json` are ignored (per-machine state). The rest of `.obsidian/` (`app.json`, `graph.json`) is shared.
+
+---
+
+## 28. Copyright, IP & License Compliance Protocol (Clean Room Standard)
+
+Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolation, and open-source license governance across source code, UI assets, documentation, and binary distributions:
+
+1. **Isolation & Purge of Proprietary Binary Assets:**
+   - **Never commit** `.ico`, `.bmp`, `.dll`, `.exe`, `.veg`, PE/BAML resource dumps, or bitmap images extracted from commercial software (`results_assets/`, `icons 22/`, `G:/*`).
+   - `.gitignore` blocks `results_assets/`, `icons 22/`, `*.ico`, `*.bmp`, `*.dll`, `*.exe`, and `G:/*`.
+   - If proprietary dumps ever entered historical Git commits, rewrite history on a coordinated maintenance window using `git-filter-repo` (preferred) or `bfg`:
+     ```bash
+     # Option A — git-filter-repo (recommended)
+     git filter-repo --invert-paths \
+       --path results_assets/ \
+       --path-glob '*.ico' \
+       --path-glob '*.bmp' \
+       --path-glob '*.dll' \
+       --path-glob '*.exe' \
+       --path-glob '*.veg'
+
+     # Option B — BFG Repo-Cleaner
+     bfg --delete-folders results_assets --delete-files '*.{ico,bmp,dll,exe,veg}'
+     git reflog expire --expire=now --all && git gc --prune=now --aggressive
+     ```
+
+2. **100% Original Clean-Room Vector Artwork (`crates/neoveg_ui/assets/icons/`):**
+   - Every UI icon in `crates/neoveg_ui/assets/icons/*.svg` must be authored from scratch in pure geometric SVG primitives (`<path>`, `<rect>`, `<circle>`), `viewBox="0 0 24 24"`, `currentColor`, with flat `butt`/`miter` strokes.
+   - Pixel tracing, embedded bitmaps (`<image>`), `<text>`, and hardcoded hex/RGB colors are banned and rejected automatically by unit tests in `crates/neoveg_ui/src/icons.rs`.
+   - File names use universal NLE functional terminology (`split.svg`, `snapping.svg`, `pan_crop.svg`, `event_fx.svg`, `mute.svg`, `solo.svg`, etc.). Secondary raster exports (`svg/`, `png/`, 32-bit alpha `bmp/`, `#1e1e1e` `jpg/`) live outside Git in `D:\ambiente_neoveg\assets\icons\` via `scripts/generate_icon_formats.py`.
+
+3. **Trademark Neutrality:**
+   - Rust crates (`crates/`), UI strings (`Assets/i18n/`), and the Obsidian vault (`docs_obsidian/`) must never use third-party registered NLE brand names or trademarks; the software is exclusively named **Neoveg** (`.neoveg`).
+
+4. **Dual Licensing & `cargo-deny` Governance:**
+   - All Neoveg workspace crates are dual-licensed under `MIT OR Apache-2.0`, backed by root `LICENSE-MIT` and `LICENSE-APACHE` (plus `LICENSE`, `AUTHORS.md`, and `third_party/README.md`).
+   - `deny.toml` (`cargo deny check licenses bans advisories sources`) enforces the approved SPDX allowlist and forbids viral/network-copyleft licenses (`AGPL-3.0*`, `GPL-2.0*`, `GPL-3.0*`).
+
+5. **FFmpeg LGPL v2.1+ Shared Dynamic Linking (`crates/neoveg_video`):**
+   - `ffmpeg-next` is optional (`--features ffmpeg`) with `default-features = false` and only `codec`, `format`, `software-scaling`, and `software-resampling` enabled — `static`, `build`, `build-license-gpl`, and `build-license-nonfree` are disabled, and `crates/neoveg_video/build.rs` rejects `FFMPEG_STATIC=1` at compile time.
+   - Portable distributions with video enabled link dynamically against **LGPL v2.1+** shared libraries (`.dll` / `.so` / `.dylib`) placed beside the executable together with FFmpeg's LGPL license notice, preserving user relinking rights and codec compliance.
 
 ---
 

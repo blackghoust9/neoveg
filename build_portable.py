@@ -70,6 +70,8 @@ TARGETS: Dict[str, Dict[str, str]] = {
 # Files copied into every package (source -> name inside the package)
 PAYLOAD_FILES = {
     "LICENSE": "LICENSE",
+    "LICENSE-MIT": "LICENSE-MIT",
+    "LICENSE-APACHE": "LICENSE-APACHE",
     "AUTHORS.md": "AUTHORS.md",
     "RELEASE_NOTES.md": "RELEASE_NOTES.md",
     "README.md": "README.md",

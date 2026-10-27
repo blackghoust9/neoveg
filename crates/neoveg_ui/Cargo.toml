@@ -3,11 +3,12 @@ name = "neoveg_ui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license = "MIT OR Apache-2.0"
 description = "Neoveg application: egui/eframe (wgpu) workspace with dockable panels"
 
 [features]
 default = []
-# Native video decoding for the preview (needs FFmpeg 7.1 dev libraries, see README)
+# Native video decoding for the preview (needs FFmpeg 7.1 shared libraries, see README)
 ffmpeg = ["neoveg_video/ffmpeg"]
 
 [[bin]]

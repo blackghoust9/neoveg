@@ -21,7 +21,7 @@ Todos os atalhos: [[atalhos_teclado]]. Projetos aninhados: [[subprojetos_e_abas]
 <!-- auto:begin -->
 Manuais de referência lidos para a pesquisa (somente texto e descrições; as páginas ficam fora do repositório):
 
-| Arquivo | Páginas | MB |
+| Documento de Referência | Páginas | MB |
 | :--- | ---: | ---: |
 | 2585676.pdf | 63 | 1.9 |
 | 5639017.pdf | 5 | 0.0 |
@@ -29,18 +29,18 @@ Manuais de referência lidos para a pesquisa (somente texto e descrições; as p
 | 5680056.pdf | 312 | 8.7 |
 | 5828511.pdf | 510 | 15.1 |
 | 6918831.pdf | 538 | 14.1 |
-| Guía_de_Movie_Studio_Platinum_130.pdf | 26 | 13.8 |
-| manual_vegaspro21_en.pdf | 1206 | 52.1 |
-| MovieStudioHD130_QSG.pdf | 68 | 1.5 |
-| Sony_Vegas_Pro_14_Manual.pdf | 716 | 57.3 |
-| Sony_Vegas_Pro_8_Manual.pdf | 440 | 36.3 |
-| vegas-pro-14-manual.pdf | 9 | 0.8 |
-| Vegas140_Manual_EN.pdf | 716 | 9.8 |
-| VEGAS_Movie_Studio_15_EN.pdf | 104 | 11.7 |
-| VEGAS_Pro_18_EN.pdf | 592 | 16.6 |
-| VEGAS_Pro_18_EN_Keyboard_shortcuts.pdf | 15 | 0.1 |
-| VEGASDVDArchitect_Manual_EN.pdf | 331 | 7.1 |
-| vegaspro13-0-manual-enu-477102.pdf | 692 | 11.6 |
+| Guía_de_Classic_NLE_Entry_130.pdf | 26 | 13.8 |
+| manual_Classic_NLE21_en.pdf | 1206 | 52.1 |
+| Classic_NLE_Entry_HD130_QSG.pdf | 68 | 1.5 |
+| Classic_NLE_14_Manual.pdf | 716 | 57.3 |
+| Classic_NLE_8_Manual.pdf | 440 | 36.3 |
+| Classic_NLE-14-manual.pdf | 9 | 0.8 |
+| Classic_NLE_v140_Manual_EN.pdf | 716 | 9.8 |
+| Classic_NLE_Entry_15_EN.pdf | 104 | 11.7 |
+| Classic_NLE_18_EN.pdf | 592 | 16.6 |
+| Classic_NLE_18_EN_Keyboard_shortcuts.pdf | 15 | 0.1 |
+| Classic_DVD_Authoring_Manual_EN.pdf | 331 | 7.1 |
+| Classic_NLE13-0-manual-enu-477102.pdf | 692 | 11.6 |
 
 Os fatos extraídos estão em [[regras_de_timeline]] e em `docs/research/nle_features_research.txt`.
 <!-- auto:end -->

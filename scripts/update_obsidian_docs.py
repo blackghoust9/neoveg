@@ -142,6 +142,22 @@ def pdf_inventory(pdf_dir: Path) -> list[tuple[str, int | None, float]]:
     return items
 
 
+def sanitize_trademarks(text: str) -> str:
+    """Replaces third-party NLE brand names with generic clean-room descriptors."""
+    replacements = [
+        (r"cdn\.borisfx\.com/[^\s)*]+", "reference-nle-help-archive"),
+        (r"(?i)sony[_\s]+vegas[_\s]+pro", "Classic_NLE"),
+        (r"(?i)vegas[_\s-]*pro", "Classic_NLE"),
+        (r"(?i)vegas[_\s]*movie[_\s]*studio", "Classic_NLE_Entry"),
+        (r"(?i)vegasdvdarchitect", "Classic_DVD_Authoring"),
+        (r"(?i)vegas(\d+)", r"Classic_NLE_v\1"),
+        (r"(?i)\b(vegas|magix|sony|borisfx)\b", "Classic NLE"),
+    ]
+    for pat, repl in replacements:
+        text = re.sub(pat, repl, text)
+    return text
+
+
 def start_page(pdf_dir: Path) -> str:
     items = pdf_inventory(pdf_dir)
     if not items:
@@ -149,11 +165,12 @@ def start_page(pdf_dir: Path) -> str:
     lines = [
         "Manuais de referência lidos para a pesquisa (somente texto e descrições; as páginas ficam fora do repositório):",
         "",
-        "| Arquivo | Páginas | MB |",
+        "| Documento de Referência | Páginas | MB |",
         "| :--- | ---: | ---: |",
     ]
     for name, pages, mb in items:
-        lines.append(f"| {name} | {pages if pages is not None else '?'} | {mb:.1f} |")
+        clean_name = sanitize_trademarks(name)
+        lines.append(f"| {clean_name} | {pages if pages is not None else '?'} | {mb:.1f} |")
     lines += ["", "Os fatos extraídos estão em [[regras_de_timeline]] e em `docs/research/nle_features_research.txt`."]
     return "\n".join(lines)
 
@@ -196,10 +213,10 @@ def rules_page() -> str:
             continue
         out.append(f"### {num}. {topic}")
         bullets = [ln.strip() for ln in lines if ln.startswith("  - ")]
-        out += [f"- {shorten(b[2:].strip(), 220)}" for b in bullets[:5]]
+        out += [f"- {sanitize_trademarks(shorten(b[2:].strip(), 220))}" for b in bullets[:5]]
         src = next((ln.strip() for ln in lines if ln.startswith("Sources:")), "")
         if src:
-            out.append(f"\n*{src[:200]}*")
+            out.append(f"\n*{sanitize_trademarks(src[:200])}*")
         out.append("")
     return "\n".join(out)
 

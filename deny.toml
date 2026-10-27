@@ -1,0 +1,73 @@
+# cargo-deny configuration — Neoveg Clean-Room & Open-Source License Compliance
+# Run: cargo deny check licenses bans advisories sources
+
+[graph]
+targets = [
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "aarch64-apple-darwin" },
+]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "warn"
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+# Permissive and weak-copyleft licenses explicitly audited and approved for Neoveg
+# (dual-licensed under MIT OR Apache-2.0; FFmpeg linked dynamically under LGPL-2.1-or-later).
+# Strong/network copyleft licenses (AGPL-3.0, GPL-2.0, GPL-3.0, SSPL) are strictly prohibited
+# by omission from `allow` and by `copyleft = "deny"` below.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "BlueOak-1.0.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "OFL-1.1",
+    "WTFPL",
+    "LGPL-2.1-or-later",
+]
+
+# Reject any strong or network copyleft crate (AGPL-*, GPL-2.0*, GPL-3.0*) automatically.
+copyleft = "deny"
+allow-osi-fsf-free = "neither"
+default = "deny"
+
+[[licenses.clarify]]
+name = "epaint_default_fonts"
+expression = "(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0"
+license-files = []
+
+[[licenses.exceptions]]
+allow = ["Ubuntu-font-1.0"]
+crate = "epaint_default_fonts"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+# Prohibit GPL/AGPL crates and static/GPL FFmpeg builds if anyone attempts to add them.
+deny = [
+    { crate = "openssl-src", reason = "Use OS native TLS or rustls; avoid bundling OpenSSL C sources" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

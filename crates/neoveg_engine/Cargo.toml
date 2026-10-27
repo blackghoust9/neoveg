@@ -3,6 +3,7 @@ name = "neoveg_engine"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license = "MIT OR Apache-2.0"
 description = "Neoveg editing engine: timeline, tracks, events, split/move edits and undo/redo"
 
 [dependencies]
