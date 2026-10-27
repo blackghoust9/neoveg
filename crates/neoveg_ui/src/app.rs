@@ -9555,6 +9555,91 @@ mod tests {
         );
     }
 
+    /// A real clip made by the `ffmpeg` tool goes through the whole path the user takes: import on
+    /// the loader thread, the event on the video track, the frame request, the decoder thread and the
+    /// texture of the preview. Skipped without the `ffmpeg` feature or the command-line tool.
+    /// `NEOVEG_TEST_VIDEO=<file>` imports that file (read only) instead of the generated clip.
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn an_imported_video_reaches_the_preview_texture() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+        let dir = std::env::temp_dir().join(format!("neoveg_preview_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let own = std::env::var_os("NEOVEG_TEST_VIDEO").map(PathBuf::from);
+        let clip = own.clone().unwrap_or_else(|| dir.join("clip.mp4"));
+        let made = own.is_some()
+            || Command::new("ffmpeg")
+                .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+                .arg("testsrc=duration=2:size=320x240:rate=25")
+                .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=2"])
+                .args(["-c:v", "mpeg4", "-c:a", "aac", "-shortest"])
+                .arg(&clip)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+        if !made {
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+
+        let ctx = egui::Context::default();
+        let mut s = AppState::new();
+        s.start_frame_worker(&ctx);
+        assert!(s.frame_worker.is_some(), "the decoder thread is running");
+
+        // Import on the loader thread, as the Import media command does
+        s.spawn_media(clip.clone(), None, &ctx);
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while s.project.media_pool.is_empty() && Instant::now() < deadline {
+            s.poll_loader();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !s.project.media_pool.is_empty(),
+            "the clip was imported; status: {}",
+            s.status
+        );
+        let video_events: usize = s
+            .timeline
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Video)
+            .map(|t| t.events.len())
+            .sum();
+        assert_eq!(video_events, 1, "one event on a video track");
+
+        // Park the cursor inside the clip, ask for the picture and wait for the decoder thread
+        s.playhead = 0.5;
+        s.request_preview_frame(1.0);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while s.video_texture.is_none() && Instant::now() < deadline {
+            s.poll_frames(&ctx);
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let texture = s
+            .video_texture
+            .as_ref()
+            .unwrap_or_else(|| panic!("no frame reached the preview; status: {}", s.status));
+        let [w, h] = texture.size();
+        assert!(w > 0 && h > 0, "the texture has a size");
+        let info = s.video_info.values().next().expect("the clip was probed");
+        let drift = (w * info.height as usize).abs_diff(h * info.width as usize);
+        assert!(
+            drift <= w.max(h),
+            "the frame keeps the clip's aspect ratio ({w}x{h} for {}x{})",
+            info.width,
+            info.height
+        );
+        println!(
+            "preview texture: {w}x{h} from a {}x{} clip",
+            info.width, info.height
+        );
+        assert!(s.frame_scopes.is_some(), "the scopes read the same picture");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn the_ripple_keys_ripple_the_last_edit_only_while_it_is_the_latest_change() {
         let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8
