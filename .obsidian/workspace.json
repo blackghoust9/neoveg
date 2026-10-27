@@ -11,10 +11,14 @@
             "id": "fa75fcd388e043ea",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "docs_obsidian/03 - Manual do Usuario/guia_de_inicio.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "Nova aba"
+              "title": "guia_de_inicio"
             }
           }
         ]
@@ -184,29 +188,43 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "fa75fcd388e043ea",
+  "active": "9d3d018ff6dec082",
   "lastOpenFiles": [
-    "AGENTS.md",
-    "file:C:/Users/Paulo César/Documents/results.md",
-    "target/release/deps/neoveg.pdb",
-    "target/release/deps/neoveg.exe",
-    "target/release/deps/rustcvOdUOF/libarboard-d6a58529bfed2c68.rlib",
-    "target/release/deps/rustcvOdUOF/libpercent_encoding-d86fd4949899cc85.rlib",
-    "target/release/deps/rustcvOdUOF/libzerotrie-72e52e91b2088bec.rlib",
-    "target/release/deps/rustcvOdUOF/libzerovec-8944b7e0d4cbb13e.rlib",
-    "target/release/deps/rustcvOdUOF/libwriteable-4e5bdc9f0c20d610.rlib",
-    "target/release/deps/rustcvOdUOF/libpotential_utf-15b4bf1df41fbda7.rlib",
-    "target/release/deps/rustcvOdUOF/libutf8_iter-6b89ef623716a741.rlib",
-    "target/release/deps/rustcvOdUOF/libicu_collections-c145e1ec87112955.rlib",
-    "RELATORIO_REA_NEOVEG.md",
-    "dist/Neoveg-Portable-win-x64/addon/vcredist2022-2015_14.36.32532/README.md",
-    "addon/directx_redist/README.md",
-    "addon/vcredist2022-2015_14.36.32532/README.md",
-    "AUTHORS.md",
-    "DOCUMENTACAO_SCRIPTS.md",
-    "GUIA_NOVAS_FUNCIONALIDADES.md",
-    "KEEPS.md",
-    "README.md",
-    "RELATORIO_MAPEAMENTO_UI_NEOVEG.md"
+    "target/debug/deps/neoveg.8jsgt1onka830e7kh0xo99caj.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.3s9tjrr16tw0wf97ytupk14sh.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.8dbn36a3ejha20bj17qfdjrse.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.8hwr555ksibowvole7q56a0yw.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.abtowlaxnvcsgcqo4wil5bhlc.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.6jb1b9owhnsn63rzqazcf1cmz.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.3y8st3wpntybar51spyguq0n5.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.cy4i5t7ia5mqd3flrky8127w6.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.785zyetbhn06q18y28ic0s42i.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.boyf21dk57kbogw39wx4yof7y.10x9atw.rcgu.o",
+    "target/debug/deps/neoveg.cm4n83glbggkojeqebv2vbq7z.10x9atw.rcgu.o",
+    "VegasScan/README.md",
+    "VegasScan/27_StringTable_V22.md",
+    "VegasScan/26_StringTable_V14.md",
+    "VegasScan/25_Differences_V14_vs_V22.md",
+    "VegasScan/24_Bugs.md",
+    "VegasScan/23_Technologies.md",
+    "VegasScan/22_Functions.md",
+    "VegasScan/21_Shortcuts.md",
+    "VegasScan/20_MasterBus.md",
+    "VegasScan/19_MixingConsole.md",
+    "VegasScan/18_PanCrop.md",
+    "VegasScan/17_TrackMotion.md",
+    "VegasScan/16_MediaGenerators.md",
+    "VegasScan/15_Transitions.md",
+    "VegasScan/14_AudioFX.md",
+    "VegasScan/13_VideoFX.md",
+    "VegasScan/12_VideoPreview.md",
+    "VegasScan/11_Trimmer.md",
+    "VegasScan/10_Explorer.md",
+    "VegasScan/09_ProjectMedia.md",
+    "VegasScan/08_Events.md",
+    "VegasScan/07_Tracks.md",
+    "VegasScan/06_Timeline.md",
+    "VegasScan/05_Controls.md",
+    "VegasScan/04_Windows.md"
   ]
 }
