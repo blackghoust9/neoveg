@@ -4271,7 +4271,7 @@ impl NeovegApp {
             dock: default_dock(),
             layouts: Default::default(),
             state: AppState::new(),
-            splash: Some(Splash::new(&STARTUP_STEPS)),
+            splash: Some(Splash::new(&STARTUP_STEPS, &gpu)),
             gpu,
         }
     }

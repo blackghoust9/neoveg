@@ -28,3 +28,7 @@ rfd = "0.15"
 # Offscreen screenshots (`neoveg --screenshots`): block on wgpu futures and write PNG files
 pollster = "0.3"
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(windows)'.build-dependencies]
+# Embeds the Nv icon in the executable (see build.rs)
+winres = "0.1"

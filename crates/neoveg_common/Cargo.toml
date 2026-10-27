@@ -11,3 +11,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# Startup screen: what the machine is (system part only, no disks, networks or sensors)
+sysinfo = { version = "0.33", default-features = false, features = ["system"] }
+whoami = "1"

@@ -13,5 +13,6 @@ pub mod paths;
 pub mod preferences;
 pub mod presets;
 pub mod project;
+pub mod sys_info;
 pub mod theme;
 pub mod timecode;

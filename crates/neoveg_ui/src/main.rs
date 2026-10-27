@@ -41,6 +41,13 @@ fn screenshots_dir() -> Option<std::path::PathBuf> {
     None
 }
 
+/// The "Nv" mark as the icon of the window (and so of the task bar and the alt-tab list). The same
+/// artwork is embedded in the executable by `build.rs`; this one is for the running window.
+fn app_icon() -> egui::IconData {
+    eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/app_icon/app_icon.png"))
+        .unwrap_or_default()
+}
+
 fn main() -> eframe::Result<()> {
     if let Some(dir) = screenshots_dir() {
         // No window, no log files, none of the user's data: see `app::headless`
@@ -63,6 +70,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Neoveg")
+            .with_icon(app_icon())
             .with_inner_size([1280.0, 720.0])
             .with_maximized(true)
             .with_min_inner_size([800.0, 500.0]),
