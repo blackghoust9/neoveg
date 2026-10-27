@@ -144,6 +144,31 @@ pub fn trim_right(
     })
 }
 
+/// *Rolling* (adjacent) trim: moves the cut between two events that touch. `left` ends where `right`
+/// starts, so the edge moves for both and the total length stays the same. The edge goes as far
+/// toward `new_edge` as both events allow (source limits and `min_len`); `left_source_len` limits how
+/// far the left event can grow. Returns the new geometry of the left and the right event.
+pub fn roll(
+    left: EventGeometry,
+    right: EventGeometry,
+    new_edge: f64,
+    min_len: f64,
+    left_source_len: Option<f64>,
+) -> (EventGeometry, EventGeometry) {
+    let l = trim_right(left, new_edge, min_len, left_source_len);
+    let r = trim_left(right, new_edge, min_len);
+    // Each side clamps on its own; the shared edge is the more restrictive of the two
+    let edge = if new_edge >= left.end() {
+        l.end().min(r.start)
+    } else {
+        l.end().max(r.start)
+    };
+    (
+        trim_right(left, edge, min_len, left_source_len),
+        trim_left(right, edge, min_len),
+    )
+}
+
 /// `Ctrl` + drag on the right edge: stretches or compresses the event (`0.25x..=4.0x`) while
 /// keeping `start`, `trim_in` and the underlying source media span unchanged.
 pub fn stretch_right(g: EventGeometry, new_end: f64, min_len: f64) -> EventGeometry {
@@ -419,5 +444,29 @@ mod tests {
         let slid = slide(g, 99.0, Some(30.0));
         assert_eq!(slid.trim_in, 26.0);
         assert_eq!(slid.start, 23.0);
+    }
+
+    #[test]
+    fn roll_moves_the_shared_edge_and_keeps_the_total_length() {
+        let left = geo(0.0, 4.0, 0.0);
+        let right = geo(4.0, 4.0, 2.0);
+        let (l, r) = roll(left, right, 5.0, 0.04, Some(10.0));
+        assert_eq!((l.start, l.duration), (0.0, 5.0));
+        assert_eq!((r.start, r.duration, r.trim_in), (5.0, 3.0, 3.0));
+        assert!((l.end() - r.start).abs() < 1e-9);
+        assert!((l.duration + r.duration - 8.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn roll_stops_at_the_tightest_limit_of_either_event() {
+        let left = geo(0.0, 4.0, 0.0);
+        let right = geo(4.0, 4.0, 2.0);
+        // Left source only has 4.5 s, so the edge cannot pass 4.5 even though the right could
+        let (l, r) = roll(left, right, 7.0, 0.04, Some(4.5));
+        assert!((l.end() - 4.5).abs() < 1e-9 && (r.start - 4.5).abs() < 1e-9);
+        // Right event has 2 s of media before its in point: the edge cannot go below 2.0
+        let (l, r) = roll(left, right, 0.5, 0.04, Some(10.0));
+        assert!((l.end() - r.start).abs() < 1e-9);
+        assert!(r.trim_in >= 0.0 && l.duration >= 0.04);
     }
 }

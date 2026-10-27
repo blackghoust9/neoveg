@@ -43,6 +43,79 @@ fn members_of(timeline: &Timeline, group: GroupId) -> Vec<EventRef> {
         .collect()
 }
 
+/// Trims one edge of `event` to `new_time` and trims the same edge of every group member whose edge
+/// sits at the same time, so a linked picture and sound stay in step. The shared edge stops where the
+/// most restrictive member does (source limits, `min_len`). Members with a different edge time, or
+/// locked ones, are left alone; an event without a group is a plain trim. One undo step; `None` when
+/// nothing changes. `source_len` gives the length of an event's media when it is known.
+pub fn trim_group_edge(
+    timeline: &Timeline,
+    event: EventRef,
+    left_edge: bool,
+    new_time: f64,
+    min_len: f64,
+    source_len: &dyn Fn(crate::timeline::TrackId, crate::timeline::EventId) -> Option<f64>,
+) -> Option<Outcome> {
+    let edge_of = |e: EventRef| {
+        let ev = timeline.track(e.0)?.events.iter().find(|x| x.id == e.1)?;
+        Some((ev.clone(), if left_edge { ev.start } else { ev.end() }))
+    };
+    let (this, this_edge) = edge_of(event)?;
+    if this.locked {
+        return None;
+    }
+    let members: Vec<(EventRef, crate::timeline::EventGeometry, bool)> =
+        group_members(timeline, event)
+            .into_iter()
+            .filter_map(|m| {
+                let (ev, edge) = edge_of(m)?;
+                (m == event || (!ev.locked && (edge - this_edge).abs() < TIME_EPSILON))
+                    .then(|| (m, ev.geometry(), ev.looping))
+            })
+            .collect();
+    let trimmed =
+        |geometry: crate::timeline::EventGeometry, looping: bool, m: EventRef, to: f64| {
+            if left_edge {
+                crate::edit::trim_left(geometry, to, min_len)
+            } else {
+                let len = if looping { None } else { source_len(m.0, m.1) };
+                crate::edit::trim_right(geometry, to, min_len, len)
+            }
+        };
+    // Each member clamps on its own; the shared edge is the most restrictive of them
+    let reached: Vec<f64> = members
+        .iter()
+        .map(|&(m, g, looping)| {
+            let t = trimmed(g, looping, m, new_time);
+            if left_edge {
+                t.start
+            } else {
+                t.end()
+            }
+        })
+        .collect();
+    // All reached edges lie on the same side of the original one; the tightest moved the least
+    let edge = reached
+        .iter()
+        .copied()
+        .min_by(|a, b| (a - this_edge).abs().total_cmp(&(b - this_edge).abs()))?;
+    let mut draft = Draft::new(timeline);
+    let mut touched = Vec::new();
+    for &(m, g, looping) in &members {
+        let new = trimmed(g, looping, m, edge);
+        if new == g {
+            continue;
+        }
+        if let Some(list) = draft.list(m.0) {
+            if let Some(target) = list.iter_mut().find(|e| e.id == m.1) {
+                target.set_geometry(new);
+                touched.push(m);
+            }
+        }
+    }
+    draft.finish().map(|command| Outcome { command, touched })
+}
+
 /// `event` plus every other event of its group (just `event` when it has none).
 pub fn group_members(timeline: &Timeline, event: EventRef) -> Vec<EventRef> {
     match group_of(timeline, event) {
@@ -416,6 +489,80 @@ mod tests {
             members_of(&tl, original).len(),
             2,
             "the original group is untouched"
+        );
+    }
+
+    #[test]
+    fn a_grouped_pair_trims_together_and_a_lone_edge_trims_alone() {
+        let mut tl = sample(); // both tracks: events at 0-2, 3-5, 6-8
+        let mut h = History::new();
+        let (a, b, c) = (r(&tl, 0, 0), r(&tl, 1, 0), r(&tl, 1, 1));
+        let out = group_events(&mut tl, &[a, b, c]);
+        run(&mut tl, &mut h, out);
+        let no_limit = |_, _| None;
+
+        let before = tl.clone();
+        let out = trim_group_edge(&tl, a, false, 1.5, 0.04, &no_limit);
+        run(&mut tl, &mut h, out);
+        assert_eq!(tl.tracks[0].events[0].duration, 1.5);
+        assert_eq!(
+            tl.tracks[1].events[0].duration, 1.5,
+            "same edge time: trimmed too"
+        );
+        assert_eq!(
+            tl.tracks[1].events[1].duration, 2.0,
+            "different edge: left alone"
+        );
+        assert!(h.undo(&mut tl));
+        assert_eq!(tl.tracks, before.tracks, "one undo step");
+
+        // Left edge: both move and keep their source aligned
+        let out = trim_group_edge(&tl, b, true, 0.5, 0.04, &no_limit);
+        run(&mut tl, &mut h, out);
+        for track in 0..2 {
+            let e = &tl.tracks[track].events[0];
+            assert_eq!((e.start, e.duration, e.trim_in), (0.5, 1.5, 0.5));
+        }
+    }
+
+    #[test]
+    fn the_shared_edge_stops_at_the_shortest_source() {
+        let mut tl = sample();
+        let mut h = History::new();
+        let (a, b) = (r(&tl, 0, 0), r(&tl, 1, 0));
+        let out = group_events(&mut tl, &[a, b]);
+        run(&mut tl, &mut h, out);
+        // Track 0's media is only 3 s long, track 1's is unknown: both stop at 3.0
+        let limit = |track, _| (track == tl.tracks[0].id).then_some(3.0);
+        let out = trim_group_edge(&tl, b, false, 6.0, 0.04, &limit);
+        run(&mut tl, &mut h, out);
+        assert_eq!(tl.tracks[0].events[0].end(), 3.0);
+        assert_eq!(tl.tracks[1].events[0].end(), 3.0);
+    }
+
+    #[test]
+    fn locked_events_and_unchanged_edges_are_not_trimmed() {
+        let mut tl = sample();
+        let (a, b) = (r(&tl, 0, 0), r(&tl, 1, 0));
+        let mut h = History::new();
+        let out = group_events(&mut tl, &[a, b]);
+        run(&mut tl, &mut h, out);
+        let no_limit = |_, _| None;
+        assert!(
+            trim_group_edge(&tl, a, false, 2.0, 0.04, &no_limit).is_none(),
+            "same edge"
+        );
+        tl.tracks[1].events[0].locked = true;
+        let out = trim_group_edge(&tl, a, false, 1.0, 0.04, &no_limit);
+        run(&mut tl, &mut h, out);
+        assert_eq!(tl.tracks[0].events[0].duration, 1.0);
+        assert_eq!(
+            tl.tracks[1].events[0].duration, 2.0,
+            "the locked member stays"
+        );
+        assert!(
+            trim_group_edge(&tl, b, false, 1.0, 0.04, &no_limit).is_none(),
+            "locked itself"
         );
     }
 }
