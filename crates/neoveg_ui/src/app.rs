@@ -54,6 +54,7 @@ use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::otio;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
+use neoveg_engine::ripple::RippleScope;
 use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::EventGeometry;
@@ -192,16 +193,24 @@ enum EditTool {
     Slip,
     /// Moves the event while its media keeps its place on the timeline.
     Slide,
+    /// Dropping an event among the others reorders the sequence.
+    Shuffle,
 }
 
 impl EditTool {
-    const ALL: [EditTool; 3] = [EditTool::Normal, EditTool::Slip, EditTool::Slide];
+    const ALL: [EditTool; 4] = [
+        EditTool::Normal,
+        EditTool::Slip,
+        EditTool::Slide,
+        EditTool::Shuffle,
+    ];
 
     fn label(self) -> &'static str {
         match self {
             EditTool::Normal => "Normal: seleciona, move e apara",
             EditTool::Slip => "Slip: desliza a mídia dentro do evento",
             EditTool::Slide => "Slide: move o evento sem mover a mídia",
+            EditTool::Shuffle => "Embaralhar: reordena os eventos da faixa ao soltar",
         }
     }
 
@@ -210,6 +219,7 @@ impl EditTool {
             EditTool::Normal => icons::SvgIcon::ToolNormal,
             EditTool::Slip => icons::SvgIcon::ToolSlip,
             EditTool::Slide => icons::SvgIcon::ToolSlide,
+            EditTool::Shuffle => icons::SvgIcon::ToolShuffle,
         }
     }
 
@@ -233,12 +243,34 @@ enum DragMode {
     Slip,
     /// Slide tool: the event moves, its media stays on the timeline.
     Slide,
+    /// Shuffle tool: the event is dropped among the others of its track.
+    Shuffle,
     TrimLeft,
     TrimRight,
+    /// `Ctrl+Alt` on a left edge that touches the previous event: the cut between them moves.
+    RollLeft,
+    /// `Ctrl+Alt` on a right edge that touches the next event: the cut between them moves.
+    RollRight,
     StretchLeft,
     StretchRight,
     FadeIn,
     FadeOut,
+}
+
+/// What the dragged edge or block is aligned to right now (drawn as a vertical line).
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum SnapMark {
+    /// Snapped to a target (marker, event edge, cursor, grid line): solid line.
+    Target(f64),
+    /// Not snapped, but quantizing moved it onto a frame: dashed line.
+    Rounded(f64),
+}
+
+/// The neighbour that a rolling trim drags along (its edge is the same cut).
+struct RollPartner {
+    event_id: EventId,
+    origin: EventGeometry,
+    current: EventGeometry,
 }
 
 /// A drag in progress. The timeline is only touched (as one undo step) when the mouse is released.
@@ -253,6 +285,10 @@ struct EventDrag {
     grab_offset: f64,
     /// Every event that moves with this one (the whole selection), empty for a single event.
     moving: Vec<EventRef>,
+    /// The event on the other side of the cut during a rolling trim.
+    partner: Option<RollPartner>,
+    /// The alignment shown while dragging.
+    snap_mark: Option<SnapMark>,
 }
 
 /// A rectangle being dragged over the lanes with Shift: it selects the events it touches.
@@ -419,8 +455,14 @@ struct AppState {
     mark_drag: Option<MarkDrag>,
     /// Ctrl+Shift+U: clicking one event of a group selects only that event.
     ignore_grouping: bool,
+    /// `Shift` was held when the current edge drag started: only the dragged event is trimmed.
+    drag_ignores_group: bool,
     marquee: Option<Marquee>,
     snapping: bool,
+    /// Which optional sources snapping uses (grid, markers, events of other tracks).
+    snap_sources: neoveg_engine::snapping::SnapSources,
+    /// Quantize to Frames: moves, trims and the cursor land on frame boundaries.
+    quantize_frames: bool,
     /// `Q`: playback repeats over [`AppState::loop_args`].
     looping: bool,
     /// `Shift+Q`: the span that loops; without one the time selection (or the whole project) does.
@@ -436,6 +478,13 @@ struct AppState {
     window_request: Option<WindowAction>,
     /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
     auto_ripple: bool,
+    /// Edge selected by the keyboard trim mode (`[` / `]`); `←` / `→` then nudge it a frame.
+    trim_edge: Option<neoveg_engine::keytrim::Edge>,
+    /// What a ripple carries along (`F`, `Ctrl+F`, `Ctrl+Shift+F`); used by Auto Ripple and ripple delete.
+    ripple_scope: neoveg_engine::ripple::RippleScope,
+    /// The last edit that left a gap or an overlap, and the history revision it left behind:
+    /// `F` / `Ctrl+F` / `Ctrl+Shift+F` ripple it while it is still the latest change.
+    post_ripple: Option<(neoveg_engine::ripple::RippleHint, u64)>,
     /// Speed of the J / K / L keys: `1.0` normal, negative backwards.
     shuttle_speed: f64,
     /// Open projects (one tab each) and the sub-projects of the active one.
@@ -1070,6 +1119,12 @@ impl AppState {
         );
         self.prefs = prefs;
         self.keymap = keymap;
+        self.snap_sources = neoveg_engine::snapping::SnapSources {
+            grid: self.prefs.snap_to_grid,
+            markers: self.prefs.snap_to_markers,
+            all_events: self.prefs.snap_to_all_events,
+        };
+        self.quantize_frames = self.prefs.quantize_to_frames;
         self.persist_prefs = true;
         // New projects start with the settings the user chose to keep
         let defaults = self.prefs.new_project_settings.clone().unwrap_or_default();
@@ -1236,8 +1291,11 @@ impl AppState {
             name_edit: None,
             mark_drag: None,
             ignore_grouping: false,
+            drag_ignores_group: false,
             marquee: None,
             snapping: true,
+            snap_sources: Default::default(),
+            quantize_frames: true,
             looping: false,
             loop_region: None,
             media_tab: 0,
@@ -1246,6 +1304,9 @@ impl AppState {
             trimmer_drag_from: None,
             window_request: None,
             auto_ripple: false,
+            trim_edge: None,
+            ripple_scope: Default::default(),
+            post_ripple: None,
             shuttle_speed: 1.0,
             tabs: Tabs::default(),
             project_path: None,
@@ -1324,9 +1385,41 @@ impl AppState {
             self.status = "Selecione os eventos a excluir".into();
             return;
         }
-        let outcome = neoveg_engine::ripple::ripple_delete_events(&self.timeline, &refs);
+        let outcome =
+            neoveg_engine::ripple::ripple_delete_scoped(&self.timeline, &refs, self.ripple_scope);
         self.apply_outcome(outcome);
         self.selection.clear();
+    }
+
+    fn toggle_text(name: &str, on: bool) -> String {
+        format!("{name}: {}", if on { "ligado" } else { "desligado" })
+    }
+
+    /// Chooses what ripple moves along with the edited tracks.
+    fn set_ripple_scope(&mut self, scope: RippleScope) {
+        self.ripple_scope = scope;
+        self.status = format!("Escopo do ripple: {}", scope.label());
+    }
+
+    /// Remembers the gap or overlap the edit that just ran left, for a manual ripple.
+    fn remember_post_ripple(&mut self, hint: Option<neoveg_engine::ripple::RippleHint>) {
+        self.post_ripple = hint.map(|h| (h, self.history.revision()));
+    }
+
+    /// `F` / `Ctrl+F` / `Ctrl+Shift+F`: picks the scope and, when the last edit is still the latest
+    /// change and left a gap or an overlap, ripples it now.
+    fn ripple_key(&mut self, scope: RippleScope) {
+        self.set_ripple_scope(scope);
+        let Some((hint, revision)) = self.post_ripple.take() else {
+            return;
+        };
+        if revision != self.history.revision() {
+            return;
+        }
+        let outcome = hint.outcome(&self.timeline, scope);
+        if self.apply_outcome(outcome).is_some() {
+            self.status = format!("Ripple aplicado à última edição ({})", scope.label());
+        }
     }
 
     fn delete_selection(&mut self) {
@@ -1345,7 +1438,12 @@ impl AppState {
             (None, false) => ops::delete_events(&self.timeline, &refs),
             (None, true) => None,
         };
-        self.apply_outcome(outcome);
+        let hint = (self.time_selection.is_none())
+            .then(|| neoveg_engine::ripple::removal_hint(&self.timeline, &refs))
+            .flatten();
+        if self.apply_outcome(outcome).is_some() {
+            self.remember_post_ripple(hint);
+        }
     }
 
     /// Copies the time selection (or the selected events when there is none) to the clipboard.
@@ -1446,6 +1544,68 @@ impl AppState {
         }
         let outcome = ops::trim_to_range(&self.timeline, &targets, range);
         self.apply_outcome(outcome);
+    }
+
+    /// `[` / `]`: selects the previous / next edit edge (from the cursor when none is selected) and
+    /// puts the cursor on it.
+    fn select_trim_edge(&mut self, forward: bool) {
+        let edge = neoveg_engine::keytrim::step_edge(
+            &self.timeline,
+            &[],
+            self.trim_edge,
+            forward,
+            self.playhead,
+        );
+        let Some(edge) = edge else {
+            self.status = "Não há bordas de eventos para aparar".into();
+            return;
+        };
+        if let Some(time) = neoveg_engine::keytrim::edge_time(&self.timeline, edge) {
+            self.playhead = time;
+        }
+        self.trim_edge = Some(edge);
+        self.selected_track = Some(edge.track);
+        self.selection.select_only((edge.track, edge.event));
+        self.status = format!(
+            "Aparo por teclado: {} do evento — ← / → movem um quadro (Esc sai)",
+            match edge.side {
+                neoveg_engine::keytrim::EdgeSide::Start => "início",
+                neoveg_engine::keytrim::EdgeSide::End => "fim",
+            }
+        );
+    }
+
+    /// Moves the selected edge `frames` frames (negative = earlier). Without an explicit `mode` the
+    /// edit tool picks it: Slip and Slide nudge the media or the event, any other tool trims the edge.
+    fn nudge_trim_edge(&mut self, frames: f64, mode: Option<neoveg_engine::keytrim::TrimMode>) {
+        use neoveg_engine::keytrim::{nudge, TrimMode};
+        let Some(edge) = self.trim_edge else {
+            self.status = "Escolha uma borda com [ ou ] para aparar pelo teclado".into();
+            return;
+        };
+        let fps = self.project.settings.fps.max(1.0);
+        let mode = mode.unwrap_or(match self.edit_tool {
+            EditTool::Slip => TrimMode::Slip,
+            EditTool::Slide => TrimMode::Slide,
+            EditTool::Normal | EditTool::Shuffle => TrimMode::Normal,
+        });
+        let outcome = nudge(
+            &self.timeline,
+            edge,
+            frames / fps,
+            mode,
+            1.0 / fps,
+            &|track, event| self.source_len(track, event),
+        );
+        if outcome.is_none() {
+            self.status =
+                "A borda não pode ir mais longe (mídia, evento bloqueado, 1 quadro ou sem vizinho colado)".into();
+            return;
+        }
+        self.apply_outcome(outcome);
+        if let Some(time) = neoveg_engine::keytrim::edge_time(&self.timeline, edge) {
+            self.playhead = time;
+        }
     }
 
     fn trim_edge_to_playhead(&mut self, start: bool) {
@@ -2158,16 +2318,24 @@ impl AppState {
 
     /// Times events can snap to: the origin, the playhead and the edges of every other event.
     fn snap_candidates(&self, exclude: &[EventRef]) -> Vec<f64> {
-        let mut times = vec![0.0, self.playhead];
-        for track in &self.timeline.tracks {
-            for ev in &track.events {
-                if !exclude.contains(&(track.id, ev.id)) {
-                    times.push(ev.start);
-                    times.push(ev.end());
-                }
-            }
-        }
-        times
+        neoveg_engine::snapping::candidates(
+            &self.timeline,
+            self.snap_sources,
+            exclude,
+            self.playhead,
+            self.time_selection.map(|r| (r.start, r.end)),
+        )
+    }
+
+    /// Seconds between two lines of the frame grid at the current zoom.
+    fn grid_step_seconds(&self) -> f64 {
+        let fps = self.project.settings.fps.max(1.0);
+        crate::frame_grid::choose_step(
+            fps,
+            self.pixels_per_second,
+            crate::frame_grid::MIN_MINOR_SPACING_PX,
+        )
+        .seconds(fps)
     }
 
     /// Length of the source media behind an event (`None` for generated media).
@@ -2206,8 +2374,26 @@ impl AppState {
         let mode = match (mode, self.edit_tool) {
             (DragMode::Move, EditTool::Slip) => DragMode::Slip,
             (DragMode::Move, EditTool::Slide) => DragMode::Slide,
+            (DragMode::Move, EditTool::Shuffle) => DragMode::Shuffle,
             (mode, _) => mode,
         };
+        // A rolling trim needs a neighbour that touches the edge; without one it is a plain trim
+        let (mode, partner) = match mode {
+            DragMode::RollLeft | DragMode::RollRight => {
+                match self.roll_partner(track_id, event_id, mode) {
+                    Some(partner) => (mode, Some(partner)),
+                    None if mode == DragMode::RollLeft => (DragMode::TrimLeft, None),
+                    None => (DragMode::TrimRight, None),
+                }
+            }
+            other => (other, None),
+        };
+        if let Some(p) = &partner {
+            if switches::is_locked(&self.timeline, (track_id, p.event_id)) {
+                self.status = "Evento bloqueado: desbloqueie para editá-lo".into();
+                return;
+            }
+        }
         self.selected_track = Some(track_id);
         if !self.selection.contains((track_id, event_id)) {
             self.click_select((track_id, event_id));
@@ -2240,7 +2426,33 @@ impl AppState {
             current: origin,
             grab_offset: pointer_time - origin.start,
             moving,
+            partner,
+            snap_mark: None,
         });
+    }
+
+    /// The event that shares the cut at the edge being dragged (same track, touching).
+    fn roll_partner(
+        &self,
+        track_id: TrackId,
+        event_id: EventId,
+        mode: DragMode,
+    ) -> Option<RollPartner> {
+        let track = self.timeline.track(track_id)?;
+        let this = track.events.iter().find(|e| e.id == event_id)?;
+        let touching = |other: &TrackEvent| match mode {
+            DragMode::RollRight => (other.start - this.end()).abs() < 1e-6,
+            _ => (other.end() - this.start).abs() < 1e-6,
+        };
+        track
+            .events
+            .iter()
+            .find(|e| e.id != event_id && touching(e))
+            .map(|e| RollPartner {
+                event_id: e.id,
+                origin: e.geometry(),
+                current: e.geometry(),
+            })
     }
 
     /// Recomputes the dragged geometry for the pointer at `pointer_time` over `row_track`.
@@ -2256,7 +2468,7 @@ impl AppState {
         };
         let fps = self.project.settings.fps;
         let min_len = 1.0 / fps.max(1.0);
-        let candidates = if snap_enabled {
+        let mut candidates = if snap_enabled {
             if drag.moving.len() > 1 {
                 self.snap_candidates(&drag.moving)
             } else {
@@ -2265,15 +2477,50 @@ impl AppState {
         } else {
             Vec::new()
         };
-        let snap = |t: f64| {
-            edit::snap_time(t, &candidates, threshold).unwrap_or_else(|| edit::quantize(t, fps))
+        if snap_enabled && self.snap_sources.grid {
+            // Grid lines around the dragged block's start and end and around the pointer
+            let step = self.grid_step_seconds();
+            let start = pointer_time - drag.grab_offset;
+            for t in [start, start + drag.origin.duration, pointer_time] {
+                candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+            }
+        }
+        // Audio-only edits are left between frames when the preference says so
+        let audio_exempt = !self.prefs.quantize_audio_edits
+            && self
+                .timeline
+                .track(drag.track_id)
+                .is_some_and(|t| t.kind == TrackKind::Audio);
+        let quantize_frames = self.quantize_frames && !audio_exempt;
+        let quant = |t: f64| {
+            if quantize_frames {
+                edit::quantize(t, fps)
+            } else {
+                t
+            }
+        };
+        // The aligned time and what it was aligned to
+        let snap = |t: f64| match edit::snap_time(t, &candidates, threshold) {
+            Some(target) => (target, Some(SnapMark::Target(target))),
+            None => {
+                let q = quant(t);
+                (q, ((q - t).abs() > 1e-6).then_some(SnapMark::Rounded(q)))
+            }
         };
 
         match drag.mode {
             DragMode::Move => {
                 let raw = pointer_time - drag.grab_offset;
-                let start = edit::snap_block(raw, drag.origin.duration, &candidates, threshold)
-                    .unwrap_or_else(|| edit::quantize(raw, fps));
+                let snapped = edit::snap_block(raw, drag.origin.duration, &candidates, threshold);
+                let start = snapped.unwrap_or_else(|| quant(raw));
+                drag.snap_mark = match snapped {
+                    // The line goes on whichever edge of the block met the target
+                    Some(_) if candidates.iter().any(|c| (c - start).abs() < 1e-9) => {
+                        Some(SnapMark::Target(start))
+                    }
+                    Some(_) => Some(SnapMark::Target(start + drag.origin.duration)),
+                    None => ((start - raw).abs() > 1e-6).then_some(SnapMark::Rounded(start)),
+                };
                 drag.current = edit::move_to(drag.origin, start);
                 if drag.moving.len() > 1 {
                     // A block moves in time only, and none of it may start before zero
@@ -2290,6 +2537,11 @@ impl AppState {
                         drag.target_track = track.id;
                     }
                 }
+            }
+            DragMode::Shuffle => {
+                // The event follows the pointer; the order changes when it is dropped
+                let start = (pointer_time - drag.grab_offset).max(0.0);
+                drag.current = edit::move_to(drag.origin, start);
             }
             DragMode::Slip | DragMode::Slide => {
                 // How far the pointer has moved since the press, in whole frames
@@ -2313,7 +2565,9 @@ impl AppState {
                 };
             }
             DragMode::TrimLeft => {
-                drag.current = edit::trim_left(drag.origin, snap(pointer_time), min_len);
+                let (edge, mark) = snap(pointer_time);
+                drag.snap_mark = mark;
+                drag.current = edit::trim_left(drag.origin, edge, min_len);
             }
             DragMode::TrimRight => {
                 // A looping event may be dragged past the end of its source
@@ -2327,20 +2581,45 @@ impl AppState {
                 } else {
                     self.source_len(drag.track_id, drag.event_id)
                 };
-                drag.current = edit::trim_right(drag.origin, snap(pointer_time), min_len, len);
+                let (edge, mark) = snap(pointer_time);
+                drag.snap_mark = mark;
+                drag.current = edit::trim_right(drag.origin, edge, min_len, len);
+            }
+            DragMode::RollLeft | DragMode::RollRight => {
+                let (edge, mark) = snap(pointer_time);
+                drag.snap_mark = mark;
+                if let Some(partner) = drag.partner.as_mut() {
+                    if drag.mode == DragMode::RollRight {
+                        let len = self.source_len(drag.track_id, drag.event_id);
+                        let (left, right) =
+                            edit::roll(drag.origin, partner.origin, edge, min_len, len);
+                        drag.current = left;
+                        partner.current = right;
+                    } else {
+                        let len = self.source_len(drag.track_id, partner.event_id);
+                        let (left, right) =
+                            edit::roll(partner.origin, drag.origin, edge, min_len, len);
+                        partner.current = left;
+                        drag.current = right;
+                    }
+                }
             }
             DragMode::StretchLeft => {
-                drag.current = edit::stretch_left(drag.origin, snap(pointer_time), min_len);
+                let (edge, mark) = snap(pointer_time);
+                drag.snap_mark = mark;
+                drag.current = edit::stretch_left(drag.origin, edge, min_len);
             }
             DragMode::StretchRight => {
-                drag.current = edit::stretch_right(drag.origin, snap(pointer_time), min_len);
+                let (edge, mark) = snap(pointer_time);
+                drag.snap_mark = mark;
+                drag.current = edit::stretch_right(drag.origin, edge, min_len);
             }
             DragMode::FadeIn => {
-                let length = edit::quantize(pointer_time - drag.origin.start, fps);
+                let length = quant(pointer_time - drag.origin.start);
                 drag.current = edit::set_fade_in(drag.origin, length);
             }
             DragMode::FadeOut => {
-                let length = edit::quantize(drag.origin.end() - pointer_time, fps);
+                let length = quant(drag.origin.end() - pointer_time);
                 drag.current = edit::set_fade_out(drag.origin, length);
             }
         }
@@ -2392,6 +2671,103 @@ impl AppState {
             }
             return;
         }
+        if let Some(p) = &d.partner {
+            let edit_of = |event_id, old, new| EditCommand::EditEvent {
+                from_track: d.track_id,
+                to_track: d.track_id,
+                event_id,
+                old,
+                new,
+            };
+            let mut commands = Vec::new();
+            if d.current != d.origin {
+                commands.push(edit_of(d.event_id, d.origin, d.current));
+            }
+            if p.current != p.origin {
+                commands.push(edit_of(p.event_id, p.origin, p.current));
+            }
+            if !commands.is_empty() {
+                self.history
+                    .execute(&mut self.timeline, EditCommand::Batch(commands));
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+            }
+            return;
+        }
+        // Trimming an edge of a grouped event trims the members that share that edge (`Shift` or
+        // Ignore Grouping trims only this one: J and L cuts)
+        if !self.auto_ripple
+            && matches!(d.mode, DragMode::TrimLeft | DragMode::TrimRight)
+            && d.target_track == d.track_id
+            && !self.ignore_grouping
+            && !self.drag_ignores_group
+            && groups::group_members(&self.timeline, (d.track_id, d.event_id)).len() > 1
+        {
+            let left = d.mode == DragMode::TrimLeft;
+            let edge = if left {
+                d.current.start
+            } else {
+                d.current.end()
+            };
+            let fps = self.project.settings.fps.max(1.0);
+            let outcome = groups::trim_group_edge(
+                &self.timeline,
+                (d.track_id, d.event_id),
+                left,
+                edge,
+                1.0 / fps,
+                &|track, event| self.source_len(track, event),
+            );
+            if self.apply_outcome(outcome).is_some() {
+                return;
+            }
+        }
+        // Auto Ripple: trimming or stretching an edge moves what follows by the change in length
+        if self.auto_ripple
+            && matches!(
+                d.mode,
+                DragMode::TrimLeft
+                    | DragMode::TrimRight
+                    | DragMode::StretchLeft
+                    | DragMode::StretchRight
+            )
+            && d.target_track == d.track_id
+        {
+            if let Some(outcome) = neoveg_engine::ripple::ripple_resize(
+                &self.timeline,
+                d.track_id,
+                d.event_id,
+                d.current,
+                self.ripple_scope,
+            ) {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                return;
+            }
+        }
+        if d.mode == DragMode::Shuffle {
+            let drop_time = d.current.start + d.current.duration / 2.0;
+            let outcome = neoveg_engine::ripple::shuffle_events(
+                &self.timeline,
+                d.track_id,
+                d.event_id,
+                drop_time,
+            );
+            match outcome {
+                Some(outcome) => {
+                    self.history.execute(&mut self.timeline, outcome.command);
+                    self.restart_audio_if_playing();
+                    self.last_frame_key = None;
+                }
+                None => {
+                    self.status =
+                        "Embaralhar precisa de eventos em sequência, sem sobreposição nem bloqueio"
+                            .into()
+                }
+            }
+            return;
+        }
         if d.current == d.origin && d.target_track == d.track_id {
             return;
         }
@@ -2405,6 +2781,18 @@ impl AppState {
                 new: d.current,
             },
         );
+        if matches!(
+            d.mode,
+            DragMode::TrimLeft
+                | DragMode::TrimRight
+                | DragMode::StretchLeft
+                | DragMode::StretchRight
+        ) && d.target_track == d.track_id
+        {
+            self.remember_post_ripple(neoveg_engine::ripple::resize_hint(
+                d.track_id, d.origin, d.current,
+            ));
+        }
         self.selected_track = Some(d.target_track);
         if d.target_track != d.track_id || !self.selection.contains((d.target_track, d.event_id)) {
             self.selection.select_only((d.target_track, d.event_id));
@@ -3916,6 +4304,14 @@ impl AppState {
             return;
         }
         let now = ctx.input(|i| i.time);
+        // Esc leaves the keyboard trim mode before it can mean anything else
+        if self.trim_edge.is_some()
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            self.trim_edge = None;
+            self.status = "Aparo por teclado encerrado".into();
+            return;
+        }
         // Bindings with more modifiers are consumed first so Ctrl+Shift+Q is not read as Ctrl+Q
         let pressed: Vec<Command> = ctx.input_mut(|i| {
             self.keymap
@@ -3949,11 +4345,17 @@ impl AppState {
             Command::OptionsAutoRipple => {
                 self.auto_ripple = !self.auto_ripple;
                 self.status = if self.auto_ripple {
-                    "Ripple automático ligado: excluir fecha o espaço".into()
+                    format!(
+                        "Ripple automático ligado ({}): excluir fecha o espaço",
+                        self.ripple_scope.label()
+                    )
                 } else {
                     "Ripple automático desligado".into()
                 };
             }
+            Command::RippleAffectedTracks => self.ripple_key(RippleScope::AffectedTracks),
+            Command::RippleWithMarkers => self.ripple_key(RippleScope::AffectedTracksAndMarks),
+            Command::RippleAll => self.ripple_key(RippleScope::AllTracksAndMarks),
             Command::ViewFocusTimeline => {
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
             }
@@ -3982,8 +4384,28 @@ impl AppState {
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
+            Command::CursorLeftByFrame if self.trim_edge.is_some() => {
+                self.nudge_trim_edge(-1.0, None)
+            }
+            Command::CursorRightByFrame if self.trim_edge.is_some() => {
+                self.nudge_trim_edge(1.0, None)
+            }
+            Command::EditTrimEdgeStretchLeft => {
+                self.nudge_trim_edge(-1.0, Some(neoveg_engine::keytrim::TrimMode::Stretch))
+            }
+            Command::EditTrimEdgeStretchRight => {
+                self.nudge_trim_edge(1.0, Some(neoveg_engine::keytrim::TrimMode::Stretch))
+            }
+            Command::EditTrimEdgeRollLeft => {
+                self.nudge_trim_edge(-1.0, Some(neoveg_engine::keytrim::TrimMode::Roll))
+            }
+            Command::EditTrimEdgeRollRight => {
+                self.nudge_trim_edge(1.0, Some(neoveg_engine::keytrim::TrimMode::Roll))
+            }
             Command::CursorLeftByFrame => self.step_frames(-1.0, now),
             Command::CursorRightByFrame => self.step_frames(1.0, now),
+            Command::EditTrimEdgePrevious => self.select_trim_edge(false),
+            Command::EditTrimEdgeNext => self.select_trim_edge(true),
             Command::TransportPlayToggle => self.toggle_play(now),
             Command::OptionsSnapping => {
                 self.snapping = !self.snapping;
@@ -3992,6 +4414,33 @@ impl AppState {
                 } else {
                     "Alinhamento desligado".into()
                 };
+            }
+            Command::OptionsSnapToGrid => {
+                self.snap_sources.grid = !self.snap_sources.grid;
+                self.prefs.snap_to_grid = self.snap_sources.grid;
+                self.persist_preferences();
+                self.status = Self::toggle_text("Alinhar à grade", self.snap_sources.grid);
+            }
+            Command::OptionsSnapToMarkers => {
+                self.snap_sources.markers = !self.snap_sources.markers;
+                self.prefs.snap_to_markers = self.snap_sources.markers;
+                self.persist_preferences();
+                self.status = Self::toggle_text("Alinhar a marcadores", self.snap_sources.markers);
+            }
+            Command::OptionsSnapToAllEvents => {
+                self.snap_sources.all_events = !self.snap_sources.all_events;
+                self.prefs.snap_to_all_events = self.snap_sources.all_events;
+                self.persist_preferences();
+                self.status = Self::toggle_text(
+                    "Alinhar a eventos de outras faixas",
+                    self.snap_sources.all_events,
+                );
+            }
+            Command::OptionsQuantizeToFrames => {
+                self.quantize_frames = !self.quantize_frames;
+                self.prefs.quantize_to_frames = self.quantize_frames;
+                self.persist_preferences();
+                self.status = Self::toggle_text("Quantizar para quadros", self.quantize_frames);
             }
             Command::OptionsAutoCrossfade => {
                 self.project.settings.auto_crossfade = !self.project.settings.auto_crossfade;
@@ -4760,6 +5209,12 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditTrimToSelection,
                 Command::EditTrimStart,
                 Command::EditTrimEnd,
+                Command::EditTrimEdgePrevious,
+                Command::EditTrimEdgeNext,
+                Command::EditTrimEdgeStretchLeft,
+                Command::EditTrimEdgeStretchRight,
+                Command::EditTrimEdgeRollLeft,
+                Command::EditTrimEdgeRollRight,
             ] {
                 command_item(state, ui, command);
             }
@@ -4771,6 +5226,25 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui.checkbox(&mut auto, "Crossfade automático").changed() {
                 state.project.settings.auto_crossfade = auto;
                 state.forced_dirty = true;
+            }
+            ui.separator();
+            // Snap sources and frame quantization: a check mark per switch, each toggled by its command
+            for (command, on) in [
+                (Command::OptionsSnapToGrid, state.snap_sources.grid),
+                (Command::OptionsSnapToMarkers, state.snap_sources.markers),
+                (
+                    Command::OptionsSnapToAllEvents,
+                    state.snap_sources.all_events,
+                ),
+                (Command::OptionsQuantizeToFrames, state.quantize_frames),
+            ] {
+                let mut checked = on;
+                let label = state.with_hint(command.label(), command);
+                if ui.checkbox(&mut checked, label).changed() {
+                    let ctx = ui.ctx().clone();
+                    let now = ctx.input(|i| i.time);
+                    state.run_command(command, &ctx, now);
+                }
             }
             ui.separator();
             if ui.button("Preferências…").clicked() {
@@ -5122,6 +5596,19 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 /// A menu entry that runs `command`, with its shortcut and enabled state.
+/// Whether a drag snaps: `Alt` always ignores snapping; `Shift` inverts it while moving events (on
+/// edges `Shift` means "ignore the group" instead).
+fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool, alt: bool) -> bool {
+    if alt {
+        return false;
+    }
+    if shift && matches!(mode, Some(DragMode::Move)) {
+        !snapping
+    } else {
+        snapping
+    }
+}
+
 fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
     let enabled = state.command_enabled(command);
     let label = state.with_hint(command.label(), command);
@@ -5740,6 +6227,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                     ui.checkbox(
                         &mut prefs.auto_fade_on_import,
                         "Fade-in/out automático ao importar mídia",
+                    );
+                    ui.checkbox(
+                        &mut prefs.quantize_audio_edits,
+                        "Quantizar para quadros também as edições só de áudio",
                     );
                     ui.checkbox(
                         &mut prefs.show_welcome_on_startup,
@@ -7265,12 +7756,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 });
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
                 if ui.input(|i| i.modifiers.command) {
-                    hit.2 = match hit.2 {
-                        DragMode::TrimLeft => DragMode::StretchLeft,
-                        DragMode::TrimRight => DragMode::StretchRight,
-                        other => other,
+                    let adjacent = ui.input(|i| i.modifiers.alt);
+                    hit.2 = match (hit.2, adjacent) {
+                        (DragMode::TrimLeft, true) => DragMode::RollLeft,
+                        (DragMode::TrimRight, true) => DragMode::RollRight,
+                        (DragMode::TrimLeft, false) => DragMode::StretchLeft,
+                        (DragMode::TrimRight, false) => DragMode::StretchRight,
+                        (other, _) => other,
                     };
                 }
+                state.drag_ignores_group = ui.input(|i| i.modifiers.shift);
                 state.begin_drag(hit, t);
             } else if ui.input(|i| i.modifiers.shift) {
                 // Shift + drag over empty lane: rectangular selection
@@ -7296,7 +7791,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let row_track = (row >= 0.0)
                 .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
                 .flatten();
-            let snap_enabled = state.snapping && !ui.input(|i| i.modifiers.alt);
+            let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+            let snap_enabled = effective_snap(
+                state.snapping,
+                state.drag.as_ref().map(|d| d.mode),
+                shift,
+                alt,
+            );
             let threshold = f64::from(SNAP_THRESHOLD_PX) / state.pixels_per_second;
             state.update_drag(t, row_track, threshold, snap_enabled);
 
@@ -7512,7 +8013,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 };
                 ui.ctx().set_cursor_icon(icon);
             }
-            Some(DragMode::Slip | DragMode::Slide) | None => {}
+            Some(
+                DragMode::Slip
+                | DragMode::Slide
+                | DragMode::Shuffle
+                | DragMode::RollLeft
+                | DragMode::RollRight,
+            )
+            | None => {}
         }
     }
 
@@ -7722,9 +8230,17 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         && d.moving.contains(&(track.id, ev.id))
                 })
                 .map(|d| d.current.start - d.origin.start);
-            let g = match (dragging, shifted) {
-                (Some(d), _) => d.current,
-                (None, Some(delta)) => EventGeometry {
+            let partner_geometry = state
+                .drag
+                .as_ref()
+                .filter(|d| d.track_id == track.id)
+                .and_then(|d| d.partner.as_ref())
+                .filter(|p| p.event_id == ev.id)
+                .map(|p| p.current);
+            let g = match (partner_geometry, dragging, shifted) {
+                (Some(partner), _, _) => partner,
+                (None, Some(d), _) => d.current,
+                (None, None, Some(delta)) => EventGeometry {
                     start: ev.start + delta,
                     ..ev.geometry()
                 },
@@ -7788,6 +8304,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 FontId::proportional(10.0),
                 Color32::from_gray(225),
             );
+            if let Some(edge) = state
+                .trim_edge
+                .filter(|e| e.event == ev.id && e.track == track.id)
+            {
+                // Keyboard trim mode: a red bar marks the selected edge
+                let x = match edge.side {
+                    neoveg_engine::keytrim::EdgeSide::Start => ev_rect.left(),
+                    neoveg_engine::keytrim::EdgeSide::End => ev_rect.right(),
+                };
+                lane_painter.line_segment(
+                    [pos2(x, ev_rect.top()), pos2(x, ev_rect.bottom())],
+                    Stroke::new(3.0_f32, Color32::from_rgb(0xE7, 0x4C, 0x3C)),
+                );
+            }
             if ev.group.is_some() {
                 // Orange corner: the event belongs to a group
                 lane_painter.add(Shape::convex_polygon(
@@ -8121,6 +8651,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::proportional(11.0),
             ui.visuals().weak_text_color(),
         );
+    }
+
+    // Snap indicator: a line through the lanes where the drag is aligned (dashed when it only rounds)
+    if let Some(mark) = state.drag.as_ref().and_then(|d| d.snap_mark) {
+        let (time, dashed) = match mark {
+            SnapMark::Target(t) => (t, false),
+            SnapMark::Rounded(t) => (t, true),
+        };
+        let x = to_x(time);
+        if x >= lanes.left() && x <= lanes.right() {
+            let points = [pos2(x, lanes.top()), pos2(x, lanes.bottom())];
+            let stroke = Stroke::new(1.0_f32, Color32::from_rgb(0xF1, 0xC4, 0x0F));
+            if dashed {
+                lane_painter.extend(Shape::dashed_line(&points, stroke, 4.0, 3.0));
+            } else {
+                lane_painter.line_segment(points, stroke);
+            }
+        }
     }
 
     // Playhead: blue pentagonal head, 1 physical-pixel guide line, caret blink while paused
@@ -8744,12 +9292,392 @@ mod tests {
         run(&mut s, Command::EditToolNext);
         assert_eq!(s.edit_tool, EditTool::Slide);
         run(&mut s, Command::EditToolNext);
+        assert_eq!(s.edit_tool, EditTool::Shuffle);
+        run(&mut s, Command::EditToolNext);
         assert_eq!(s.edit_tool, EditTool::Normal, "the cycle wraps around");
         run(&mut s, Command::EditToolPrevious);
-        assert_eq!(s.edit_tool, EditTool::Slide);
+        assert_eq!(s.edit_tool, EditTool::Shuffle);
         run(&mut s, Command::EditToolNormal);
         assert_eq!(s.edit_tool, EditTool::Normal);
         assert!(s.status.contains("Ferramenta de edição"));
+    }
+
+    #[test]
+    fn dropping_an_event_with_the_shuffle_tool_reorders_the_track_in_one_undo_step() {
+        let mut s = AppState::new();
+        let mut track = s.timeline.new_track(TrackKind::Audio);
+        let mut ids = Vec::new();
+        for start in [0.0, 2.0, 4.0] {
+            let event = TrackEvent {
+                id: s.timeline.alloc_id(),
+                start,
+                duration: 2.0,
+                media_id: Some(1),
+                ..TrackEvent::default()
+            };
+            ids.push(event.id);
+            track.events.push(event);
+        }
+        let track_id = track.id;
+        s.timeline.tracks.push(track);
+        s.edit_tool = EditTool::Shuffle;
+        let origin = s.event_geometry(track_id, ids[0]).unwrap();
+        s.begin_drag((track_id, ids[0], DragMode::Move, origin), 1.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::Shuffle);
+        s.update_drag(5.5, Some(track_id), 0.0, false);
+        s.finish_drag();
+        let order: Vec<_> = s.timeline.tracks[0].events.iter().map(|e| e.id).collect();
+        assert_eq!(order, vec![ids[1], ids[2], ids[0]]);
+        s.undo();
+        let order: Vec<_> = s.timeline.tracks[0].events.iter().map(|e| e.id).collect();
+        assert_eq!(order, ids);
+    }
+
+    fn two_touching_events() -> (AppState, TrackId, Vec<EventId>) {
+        let mut s = AppState::new();
+        let mut track = s.timeline.new_track(TrackKind::Audio);
+        let mut ids = Vec::new();
+        for (start, trim_in) in [(0.0, 0.0), (4.0, 2.0)] {
+            let event = TrackEvent {
+                id: s.timeline.alloc_id(),
+                start,
+                duration: 4.0,
+                trim_in,
+                media_id: Some(1),
+                ..TrackEvent::default()
+            };
+            ids.push(event.id);
+            track.events.push(event);
+        }
+        let id = track.id;
+        s.timeline.tracks.push(track);
+        (s, id, ids)
+    }
+
+    #[test]
+    fn a_rolling_trim_moves_the_cut_between_two_events_in_one_undo_step() {
+        let (mut s, track, ids) = two_touching_events();
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::RollRight, origin), 4.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::RollRight);
+        s.update_drag(5.0, Some(track), 0.0, false);
+        s.finish_drag();
+        let events = &s.timeline.tracks[0].events;
+        // The cut lands on the project's frame grid, within one frame of the pointer
+        let cut = events[0].duration;
+        assert!((cut - 5.0).abs() < 0.04, "cut at {cut}");
+        assert_eq!(events[0].start, 0.0);
+        assert!(
+            (events[1].start - cut).abs() < 1e-9,
+            "the events still touch"
+        );
+        assert!(
+            (events[1].duration - (8.0 - cut)).abs() < 1e-9,
+            "total length kept"
+        );
+        assert!(
+            (events[1].trim_in - (2.0 + cut - 4.0)).abs() < 1e-9,
+            "source stays aligned"
+        );
+        s.undo();
+        let events = &s.timeline.tracks[0].events;
+        assert_eq!((events[0].duration, events[1].start), (4.0, 4.0));
+    }
+
+    #[test]
+    fn auto_ripple_moves_the_following_events_when_an_edge_is_trimmed() {
+        let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(2.0, Some(track), 0.0, false);
+        s.finish_drag();
+        let b = s.timeline.tracks[0].events[1].start;
+        assert!((b - 4.0).abs() < 1e-9, "without auto ripple the gap stays");
+        s.undo();
+
+        s.auto_ripple = true;
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(2.0, Some(track), 0.0, false);
+        s.finish_drag();
+        let (a, b) = (
+            s.timeline.tracks[0].events[0].clone(),
+            s.timeline.tracks[0].events[1].clone(),
+        );
+        assert!(
+            (a.end() - b.start).abs() < 1e-9,
+            "the gap closed behind the trim"
+        );
+        assert!(a.duration < 4.0 && (b.duration - 4.0).abs() < 1e-9);
+        s.undo();
+        let events = &s.timeline.tracks[0].events;
+        assert_eq!(
+            (events[0].duration, events[1].start),
+            (4.0, 4.0),
+            "one undo step"
+        );
+    }
+
+    #[test]
+    fn snap_source_commands_toggle_and_decide_what_a_drag_snaps_to() {
+        let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8
+        s.timeline.markers.push(neoveg_engine::Marker {
+            id: 1,
+            time: 10.0,
+            name: "m".into(),
+        });
+        let ctx = egui::Context::default();
+        assert!(s.snap_sources.markers && !s.snap_sources.grid);
+        // Dragging the second event: its start lands on the marker at 10 s when markers snap
+        let origin = s.event_geometry(track, ids[1]).unwrap();
+        s.begin_drag((track, ids[1], DragMode::Move, origin), 5.0);
+        s.update_drag(11.02, Some(track), 0.1, true);
+        assert!(
+            (s.drag.as_ref().unwrap().current.start - 10.0).abs() < 1e-9,
+            "snapped to the marker"
+        );
+        s.drag = None;
+
+        s.run_command(Command::OptionsSnapToMarkers, &ctx, 0.0);
+        assert!(!s.snap_sources.markers && s.status.contains("desligado"));
+        s.begin_drag((track, ids[1], DragMode::Move, origin), 5.0);
+        s.update_drag(11.02, Some(track), 0.1, true);
+        let start = s.drag.as_ref().unwrap().current.start;
+        assert!(
+            (start - 10.0).abs() > 1e-6,
+            "no marker snap now, got {start}"
+        );
+        s.drag = None;
+
+        s.run_command(Command::OptionsSnapToGrid, &ctx, 0.0);
+        s.run_command(Command::OptionsSnapToAllEvents, &ctx, 0.0);
+        assert!(s.snap_sources.grid && !s.snap_sources.all_events);
+        s.run_command(Command::OptionsQuantizeToFrames, &ctx, 0.0);
+        assert!(!s.quantize_frames);
+    }
+
+    #[test]
+    fn shift_inverts_snapping_only_while_moving_and_alt_always_ignores_it() {
+        use DragMode::*;
+        assert!(effective_snap(true, Some(Move), false, false));
+        assert!(
+            !effective_snap(true, Some(Move), true, false),
+            "Shift turns it off while moving"
+        );
+        assert!(
+            effective_snap(false, Some(Move), true, false),
+            "and on when it is off"
+        );
+        assert!(
+            effective_snap(true, Some(TrimRight), true, false),
+            "on an edge Shift is for groups"
+        );
+        assert!(!effective_snap(true, Some(Move), false, true));
+        assert!(
+            !effective_snap(false, Some(Move), true, true),
+            "Alt wins over Shift"
+        );
+        assert!(effective_snap(true, None, true, false));
+    }
+
+    #[test]
+    fn the_drag_reports_what_it_snapped_to_or_that_it_only_rounded() {
+        let (mut s, track, ids) = two_touching_events();
+        s.timeline.markers.push(neoveg_engine::Marker {
+            id: 1,
+            time: 10.0,
+            name: "m".into(),
+        });
+        let origin = s.event_geometry(track, ids[1]).unwrap();
+        s.begin_drag((track, ids[1], DragMode::Move, origin), 5.0);
+        s.update_drag(11.02, Some(track), 0.1, true);
+        assert_eq!(
+            s.drag.as_ref().unwrap().snap_mark,
+            Some(SnapMark::Target(10.0))
+        );
+        // Far from every target the position is only rounded onto a frame: a dashed mark
+        s.update_drag(5.0 + 2.0123, Some(track), 0.001, true);
+        let mark = s.drag.as_ref().unwrap().snap_mark;
+        assert!(matches!(mark, Some(SnapMark::Rounded(_))), "got {mark:?}");
+        // With no snapping and no rounding left there is nothing to show
+        s.quantize_frames = false;
+        s.update_drag(5.0 + 2.0123, Some(track), 0.0, false);
+        assert_eq!(s.drag.as_ref().unwrap().snap_mark, None);
+    }
+
+    #[test]
+    fn audio_only_edits_can_skip_the_frame_quantization() {
+        let (mut s, track, ids) = two_touching_events(); // audio track
+        let fps = s.project.settings.fps;
+        let off_grid = |s: &mut AppState| {
+            let origin = s.event_geometry(track, ids[1]).unwrap();
+            s.begin_drag((track, ids[1], DragMode::Move, origin), 5.0);
+            s.update_drag(5.0123 + 3.0, Some(track), 0.0, false);
+            let start = s.drag.as_ref().unwrap().current.start;
+            s.drag = None;
+            ((start * fps).round() - start * fps).abs() > 1e-6
+        };
+        assert!(!off_grid(&mut s), "quantized by default");
+        s.prefs.quantize_audio_edits = false;
+        assert!(off_grid(&mut s), "left between frames for audio-only edits");
+    }
+
+    #[test]
+    fn the_snap_switches_are_remembered_in_the_preferences() {
+        let mut s = AppState::new();
+        let ctx = egui::Context::default();
+        s.run_command(Command::OptionsSnapToGrid, &ctx, 0.0);
+        s.run_command(Command::OptionsSnapToMarkers, &ctx, 0.0);
+        s.run_command(Command::OptionsQuantizeToFrames, &ctx, 0.0);
+        assert!(s.prefs.snap_to_grid && !s.prefs.snap_to_markers && !s.prefs.quantize_to_frames);
+        assert!(
+            s.prefs.snap_to_all_events,
+            "untouched switch keeps its value"
+        );
+    }
+
+    #[test]
+    fn switching_quantize_off_leaves_a_drag_between_frames() {
+        let (mut s, track, ids) = two_touching_events();
+        s.quantize_frames = false;
+        let origin = s.event_geometry(track, ids[1]).unwrap();
+        s.begin_drag((track, ids[1], DragMode::Move, origin), 5.0);
+        s.update_drag(5.0123 + 3.0, Some(track), 0.0, false);
+        let start = s.drag.as_ref().unwrap().current.start;
+        assert!((start - 7.0123).abs() < 1e-9, "free time, got {start}");
+        s.quantize_frames = true;
+        s.update_drag(5.0123 + 3.0, Some(track), 0.0, false);
+        let start = s.drag.as_ref().unwrap().current.start;
+        let fps = s.project.settings.fps;
+        assert!(
+            ((start * fps).round() - start * fps).abs() < 1e-6,
+            "on the frame grid"
+        );
+    }
+
+    #[test]
+    fn the_ripple_keys_ripple_the_last_edit_only_while_it_is_the_latest_change() {
+        let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8
+                                                         // Plain trim leaves a gap behind the first event
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(2.0, Some(track), 0.0, false);
+        s.finish_drag();
+        let gap_start = s.timeline.tracks[0].events[1].start;
+        assert!((gap_start - 4.0).abs() < 1e-9);
+        s.run_command(
+            Command::RippleAffectedTracks,
+            &egui::Context::default(),
+            0.0,
+        );
+        let (a, b) = (
+            &s.timeline.tracks[0].events[0],
+            &s.timeline.tracks[0].events[1],
+        );
+        assert!((a.end() - b.start).abs() < 1e-9, "F closed the gap");
+        assert!(s.status.contains("Ripple aplicado"));
+        s.undo();
+        assert!(
+            (s.timeline.tracks[0].events[1].start - 4.0).abs() < 1e-9,
+            "one undo step"
+        );
+
+        // After another change the old edit is not rippled any more; the scope is still chosen
+        s.redo();
+        s.undo();
+        s.undo();
+        s.run_command(Command::RippleAll, &egui::Context::default(), 0.0);
+        assert_eq!(s.ripple_scope, RippleScope::AllTracksAndMarks);
+        assert!(!s.status.contains("Ripple aplicado"));
+    }
+
+    #[test]
+    fn a_ripple_key_ignores_an_edit_that_is_no_longer_the_latest_change() {
+        let (mut s, track, ids) = two_touching_events();
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(2.0, Some(track), 0.0, false);
+        s.finish_drag();
+        s.add_track(TrackKind::Video); // another undo step on top of the trim
+        s.run_command(
+            Command::RippleAffectedTracks,
+            &egui::Context::default(),
+            0.0,
+        );
+        assert!(!s.status.contains("Ripple aplicado"));
+        assert!(
+            (s.timeline.tracks[0].events[1].start - 4.0).abs() < 1e-9,
+            "the gap stays"
+        );
+    }
+
+    #[test]
+    fn a_plain_delete_can_be_rippled_afterwards_with_the_key() {
+        let (mut s, track, ids) = two_touching_events();
+        s.selection.select_only((track, ids[0]));
+        s.delete_selection();
+        assert_eq!(
+            s.timeline.tracks[0].events[0].start, 4.0,
+            "the gap is still there"
+        );
+        s.run_command(Command::RippleWithMarkers, &egui::Context::default(), 0.0);
+        assert_eq!(s.timeline.tracks[0].events[0].start, 0.0);
+    }
+
+    #[test]
+    fn trimming_a_grouped_event_edge_trims_the_members_that_share_it() {
+        let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8 on one track
+                                                         // Add a second track with an event that ends at the same time as the first (0-4)
+        s.add_track(TrackKind::Audio);
+        let other = s.selected_track.unwrap();
+        let linked = add_event(&mut s, other, 0.0, 4.0);
+        s.selection
+            .select_many(vec![(track, ids[0]), (other, linked)], (track, ids[0]));
+        s.group_selection();
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(3.0, Some(track), 0.0, false);
+        s.finish_drag();
+        let a = s.event_geometry(track, ids[0]).unwrap();
+        let b = s.event_geometry(other, linked).unwrap();
+        assert!(
+            a.duration < 4.0 && (a.duration - b.duration).abs() < 1e-9,
+            "both trimmed"
+        );
+        s.undo();
+        assert_eq!(
+            s.event_geometry(other, linked).unwrap().duration,
+            4.0,
+            "one undo step"
+        );
+
+        // Shift (ignore the group): only the dragged event
+        s.drag_ignores_group = true;
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::TrimRight, origin), 4.0);
+        s.update_drag(3.0, Some(track), 0.0, false);
+        s.finish_drag();
+        assert!(s.event_geometry(track, ids[0]).unwrap().duration < 4.0);
+        assert_eq!(s.event_geometry(other, linked).unwrap().duration, 4.0);
+    }
+
+    #[test]
+    fn a_rolling_trim_without_a_touching_neighbour_is_a_plain_trim() {
+        let (mut s, track, ids) = two_touching_events();
+        s.timeline.tracks[0].events[1].start = 6.0;
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::RollRight, origin), 4.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::TrimRight);
+    }
+
+    #[test]
+    fn a_locked_neighbour_blocks_the_rolling_trim() {
+        let (mut s, track, ids) = two_touching_events();
+        s.timeline.tracks[0].events[1].locked = true;
+        let origin = s.event_geometry(track, ids[0]).unwrap();
+        s.begin_drag((track, ids[0], DragMode::RollRight, origin), 4.0);
+        assert!(s.drag.is_none());
+        assert!(s.status.contains("bloqueado"));
     }
 
     #[test]
@@ -9140,6 +10068,89 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn bracket_keys_pick_an_edge_and_the_frame_keys_nudge_it_in_undoable_steps() {
+        let (mut s, track, ev) = state_with_clip(); // event 2.0 - 6.0
+        let fps = s.project.settings.fps;
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        let edge = s.trim_edge.expect("an edge is selected");
+        assert_eq!(
+            (edge.event, edge.side),
+            (ev, neoveg_engine::keytrim::EdgeSide::Start)
+        );
+        assert_eq!(s.playhead, 2.0, "the cursor goes to the edge");
+        run(&mut s, Command::EditTrimEdgeNext);
+        assert_eq!(s.playhead, 6.0, "next edge is the end");
+
+        // With an edge selected the frame keys trim it instead of moving the cursor
+        run(&mut s, Command::CursorRightByFrame);
+        let g = geometry(&s, track, ev);
+        assert!(
+            (g.duration - (4.0 + 1.0 / fps)).abs() < 1e-9,
+            "grew one frame"
+        );
+        assert!(
+            (s.playhead - g.end()).abs() < 1e-9,
+            "the cursor follows the edge"
+        );
+        run(&mut s, Command::CursorLeftByFrame);
+        assert!((geometry(&s, track, ev).duration - 4.0).abs() < 1e-9);
+        s.undo();
+        s.undo();
+        assert_eq!(geometry(&s, track, ev).duration, 4.0);
+
+        // Without an edge the same keys only move the cursor
+        s.trim_edge = None;
+        let before = geometry(&s, track, ev);
+        run(&mut s, Command::CursorRightByFrame);
+        assert_eq!(geometry(&s, track, ev), before);
+    }
+
+    #[test]
+    fn the_modifier_commands_stretch_the_edge_or_roll_the_cut() {
+        let (mut s, track, ids) = two_touching_events(); // 0-4 and 4-8, source for the second starts at 2
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext); // from the cursor at 0: end of the first event
+        assert_eq!(s.playhead, 4.0, "the cut between the two events");
+        let fps = s.project.settings.fps;
+        run(&mut s, Command::EditTrimEdgeStretchRight);
+        let a = geometry(&s, track, ids[0]);
+        assert!(
+            (a.duration - (4.0 + 1.0 / fps)).abs() < 1e-9 && a.playback_rate < 1.0,
+            "stretched"
+        );
+        s.undo();
+        run(&mut s, Command::EditTrimEdgeRollRight);
+        let (a, b) = (geometry(&s, track, ids[0]), geometry(&s, track, ids[1]));
+        assert!(
+            (a.end() - b.start).abs() < 1e-9 && a.duration > 4.0,
+            "the cut moved for both"
+        );
+        assert!((a.duration + b.duration - 8.0).abs() < 1e-9);
+        s.undo();
+        assert_eq!(geometry(&s, track, ids[1]).start, 4.0, "one undo step");
+
+        // Without a selected edge the modifier commands only explain what to do
+        s.trim_edge = None;
+        run(&mut s, Command::EditTrimEdgeStretchLeft);
+        assert!(s.status.contains("[ ou ]"));
+    }
+
+    #[test]
+    fn the_edit_tool_decides_what_the_frame_keys_do_to_the_edge() {
+        let (mut s, track, ev) = state_with_clip();
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        s.edit_tool = EditTool::Slide;
+        run(&mut s, Command::CursorRightByFrame);
+        let g = geometry(&s, track, ev);
+        assert!(
+            g.start > 2.0 && (g.duration - 4.0).abs() < 1e-9,
+            "slide moved the whole event"
+        );
     }
 
     #[test]
@@ -10153,5 +11164,31 @@ mod ripple_tests {
         s.selection.select_only((track, ids[0]));
         s.delete_selection();
         assert_eq!(starts(&s), vec![0.0, 4.0], "auto ripple closes it");
+    }
+
+    #[test]
+    fn ripple_scope_commands_choose_what_a_ripple_delete_carries() {
+        let (mut s, track, ids) = state_with_three_events();
+        s.timeline.markers.push(neoveg_engine::Marker {
+            id: 1,
+            time: 6.0,
+            name: "m".into(),
+        });
+        assert_eq!(s.ripple_scope, RippleScope::AffectedTracks);
+        s.selection.select_only((track, ids[1]));
+        s.ripple_delete_selection();
+        assert_eq!(
+            s.timeline.markers[0].time, 6.0,
+            "default scope leaves marks"
+        );
+        s.undo();
+
+        s.set_ripple_scope(RippleScope::AffectedTracksAndMarks);
+        assert!(s.status.contains("marcadores"));
+        s.selection.select_only((track, ids[1]));
+        s.ripple_delete_selection();
+        assert_eq!(s.timeline.markers[0].time, 3.0, "marker followed the gap");
+        s.undo();
+        assert_eq!(s.timeline.markers[0].time, 6.0, "one undo step restores it");
     }
 }
