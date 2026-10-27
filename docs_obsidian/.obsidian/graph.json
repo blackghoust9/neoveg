@@ -1,0 +1,10 @@
+{
+  "showTags": false,
+  "showOrphans": true,
+  "colorGroups": [
+    {"query": "path:\"01 - Arquitetura Rust\"", "color": {"a": 1, "rgb": 2980665}},
+    {"query": "path:\"02 - UI e Planejamento de Janelas\"", "color": {"a": 1, "rgb": 15158332}},
+    {"query": "path:\"03 - Manual do Usuario\"", "color": {"a": 1, "rgb": 3066993}},
+    {"query": "path:\"04 - Pesquisas e Benchmarks\"", "color": {"a": 1, "rgb": 15844367}}
+  ]
+}

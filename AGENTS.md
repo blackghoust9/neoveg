@@ -326,6 +326,19 @@ Several projects can be open at once, one tab each, and a project can play anoth
 
 ---
 
+## 26. Obsidian Architecture Mapping & Documentation Protocol
+
+The vault `docs_obsidian/` holds the visual window planning, the module documentation and the user manual. It is part of the repository; the maintainer's working copy is mirrored to `D:\ambiente_neoveg\docs_obsidian` (see section 12 for the environment drive).
+
+- **Layout:** `00 - Mapa Geral/` (hub `Index.md`), `01 - Arquitetura Rust/` (one note per crate, named after it), `02 - UI e Planejamento de Janelas/` (`layout_janelas.canvas`, `especificacao_janelas.md`), `03 - Manual do Usuario/` (`guia_de_inicio.md`, `atalhos_teclado.md`, `subprojetos_e_abas.md`), `04 - Pesquisas e Benchmarks/` (`regras_de_timeline.md`, `desempenho_resolucoes.md`).
+- **Links:** notes connect with `[[wikilinks]]`; every note links back to `[[Index]]`. A new crate or window needs its note and a link from the hub in the same change.
+- **Canvas:** `layout_janelas.canvas` mirrors `default_dock()` in `neoveg_ui/src/app.rs`. Changing the default dock, a window title or a proportion updates the canvas and `especificacao_janelas.md` in the same commit.
+- **Generated blocks:** the pages of `03` and `04` hold blocks between `<!-- auto:begin -->` and `<!-- auto:end -->` written by `python scripts/update_obsidian_docs.py` (Python standard library; `pypdf` is optional, for page counts). They come from `commands.rs` and `keymap.rs` (shortcut table), `AGENTS.md` section 24, `docs/research/nle_features_research.txt` (timeline rules), the reference-manual folder (`--pdfs` or `NEOVEG_PDF_DIR`) and the results folder (`--results`). Text outside the markers is hand-written and never touched; do not edit inside them. `--mirror [DIR]` copies the vault to the environment drive and is skipped, with a warning, when that drive is absent. Run the script after changing a command, a default shortcut or a research entry.
+- **Clean-room:** the vault carries descriptions, measures and page references only; no text, screenshots or icons copied from the reference manuals or from the reference product. Rendered manual pages stay outside the repository.
+- **Git:** `docs_obsidian/` is tracked; `docs_obsidian/.obsidian/workspace.json` and `workspace-mobile.json` are ignored (per-machine state). The rest of `.obsidian/` (`app.json`, `graph.json`) is shared.
+
+---
+
 # Part II — Legacy history
 
 The C# / C++ / Python implementation (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`, the root `Dockerfile` and `docker-compose.yml`) was removed from the tree. Its protocols (Avalonia UI, FFI naming, C++ extensions, Python scripting, AppCache bootstrap, Docker multi-language pipeline) no longer apply; they remain in Git history before commit `36b1d19` as a porting reference only. Nothing in Part I depends on them.
