@@ -129,7 +129,7 @@ impl ProjectDialogState {
         }
         let mut open = self.open;
         let mut close = false;
-        egui::Window::new("Propriedades do projeto")
+        crate::dialogs::dialog(ctx, "Propriedades do projeto")
             .open(&mut open)
             .collapsible(false)
             .default_width(520.0)

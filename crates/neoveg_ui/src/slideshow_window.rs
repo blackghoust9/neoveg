@@ -104,7 +104,7 @@ impl SlideshowState {
         }
         let mut open = self.open;
         let mut request = None;
-        egui::Window::new("Apresentação de slides")
+        crate::dialogs::dialog(ctx, "Apresentação de slides")
             .open(&mut open)
             .collapsible(false)
             .default_width(560.0)

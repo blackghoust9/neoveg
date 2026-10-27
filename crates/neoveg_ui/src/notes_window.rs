@@ -157,7 +157,7 @@ impl NotesState {
             return actions;
         }
         let mut open = self.open;
-        egui::Window::new("Notas do projeto")
+        crate::dialogs::tool_window(ctx, "Notas do projeto", 5)
             .open(&mut open)
             .default_width(520.0)
             .default_height(420.0)

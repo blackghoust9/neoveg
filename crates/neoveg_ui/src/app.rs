@@ -5040,7 +5040,16 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     egui::menu::bar(ui, |ui| {
         ui.menu_button("Arquivo", |ui| {
+            // New and open
             command_item(state, ui, Command::FileNew);
+            if ui
+                .button(state.with_hint("Abrir…", Command::FileOpen))
+                .clicked()
+            {
+                let ctx = ui.ctx().clone();
+                state.open_project(&ctx);
+                ui.close_menu();
+            }
             if ui.button("Abrir em nova aba…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Projeto Neoveg", &[project_file::EXTENSION])
@@ -5050,15 +5059,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 }
                 ui.close_menu();
             }
+            recent_projects_menu(state, ui);
             command_item(state, ui, Command::FileCreateSubproject);
-            if ui
-                .button(state.with_hint("Abrir…", Command::FileOpen))
-                .clicked()
-            {
-                let ctx = ui.ctx().clone();
-                state.open_project(&ctx);
-                ui.close_menu();
-            }
+            ui.separator();
+
+            // Save
             if ui
                 .button(state.with_hint("Salvar", Command::FileSave))
                 .clicked()
@@ -5074,88 +5079,91 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             command_item(state, ui, Command::FileSaveIncremental);
-            command_item(state, ui, Command::FileProperties);
-            recent_projects_menu(state, ui);
             ui.separator();
-            if ui.button("Importar mídia…").clicked() {
-                let ctx = ui.ctx().clone();
-                state.import_media(&ctx);
-                ui.close_menu();
-            }
-            if ui.button("Renderizar como… (Make Movie)").clicked() {
-                state.render_dialog.open = true;
-                ui.close_menu();
-            }
-            if ui.button("Importar EDL (CMX 3600)…").clicked() {
-                state.import_edl();
-                ui.close_menu();
-            }
-            if ui
-                .add_enabled(
-                    state.selected_track.is_some(),
-                    egui::Button::new("Exportar EDL da faixa selecionada…"),
-                )
-                .clicked()
-            {
-                state.export_edl();
-                ui.close_menu();
-            }
-            if ui.button("Importar XML (Final Cut Pro 7)…").clicked() {
-                state.import_fcp7();
-                ui.close_menu();
-            }
-            if ui
-                .add_enabled(
-                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
-                    egui::Button::new("Exportar XML (Final Cut Pro 7)…"),
-                )
-                .clicked()
-            {
-                state.export_fcp7();
-                ui.close_menu();
-            }
-            if ui.button("Importar FCPXML (Final Cut Pro)…").clicked() {
-                state.import_fcpxml();
-                ui.close_menu();
-            }
-            if ui
-                .add_enabled(
-                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
-                    egui::Button::new("Exportar FCPXML (Final Cut Pro)…"),
-                )
-                .clicked()
-            {
-                state.export_fcpxml();
-                ui.close_menu();
-            }
-            if ui.button("Importar OpenTimelineIO (.otio)…").clicked() {
-                state.import_otio();
-                ui.close_menu();
-            }
-            if ui
-                .add_enabled(
-                    state.timeline.tracks.iter().any(|t| !t.events.is_empty()),
-                    egui::Button::new("Exportar OpenTimelineIO (.otio)…"),
-                )
-                .clicked()
-            {
-                state.export_otio();
-                ui.close_menu();
-            }
-            if ui.button("Importar legendas (SRT, WebVTT)…").clicked() {
-                state.import_captions();
-                ui.close_menu();
-            }
-            if ui
-                .add_enabled(
-                    !state.timeline.captions.is_empty(),
-                    egui::Button::new("Exportar legendas (SRT, WebVTT)…"),
-                )
-                .clicked()
-            {
-                state.export_captions();
-                ui.close_menu();
-            }
+
+            // Import and export, one submenu each
+            let has_events = state.timeline.tracks.iter().any(|t| !t.events.is_empty());
+            ui.menu_button("Importar", |ui| {
+                if ui.button("Mídia…").clicked() {
+                    let ctx = ui.ctx().clone();
+                    state.import_media(&ctx);
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Lista de edição EDL (CMX 3600)…").clicked() {
+                    state.import_edl();
+                    ui.close_menu();
+                }
+                if ui.button("XML (Final Cut Pro 7)…").clicked() {
+                    state.import_fcp7();
+                    ui.close_menu();
+                }
+                if ui.button("FCPXML (Final Cut Pro)…").clicked() {
+                    state.import_fcpxml();
+                    ui.close_menu();
+                }
+                if ui.button("OpenTimelineIO (.otio)…").clicked() {
+                    state.import_otio();
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Legendas (SRT, WebVTT)…").clicked() {
+                    state.import_captions();
+                    ui.close_menu();
+                }
+            });
+            ui.menu_button("Exportar", |ui| {
+                if ui.button("Renderizar como… (Make Movie)").clicked() {
+                    state.render_dialog.open = true;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        state.selected_track.is_some(),
+                        egui::Button::new("Lista de edição EDL da faixa selecionada…"),
+                    )
+                    .clicked()
+                {
+                    state.export_edl();
+                    ui.close_menu();
+                }
+                if ui
+                    .add_enabled(has_events, egui::Button::new("XML (Final Cut Pro 7)…"))
+                    .clicked()
+                {
+                    state.export_fcp7();
+                    ui.close_menu();
+                }
+                if ui
+                    .add_enabled(has_events, egui::Button::new("FCPXML (Final Cut Pro)…"))
+                    .clicked()
+                {
+                    state.export_fcpxml();
+                    ui.close_menu();
+                }
+                if ui
+                    .add_enabled(has_events, egui::Button::new("OpenTimelineIO (.otio)…"))
+                    .clicked()
+                {
+                    state.export_otio();
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        !state.timeline.captions.is_empty(),
+                        egui::Button::new("Legendas (SRT, WebVTT)…"),
+                    )
+                    .clicked()
+                {
+                    state.export_captions();
+                    ui.close_menu();
+                }
+            });
+            ui.separator();
+
+            command_item(state, ui, Command::FileProperties);
             ui.separator();
             if ui.button("Sair").clicked() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -5304,16 +5312,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_inspector = true;
                 ui.close_menu();
             }
+            ui.separator();
+            // Video tools
             if ui.button("Correção de cor…").clicked() {
                 state.show_grade = true;
                 ui.close_menu();
             }
             if ui.button("Chaveamento de croma (Chroma Key)…").clicked() {
                 state.show_chroma = true;
-                ui.close_menu();
-            }
-            if ui.button("Metrônomo…").clicked() {
-                state.show_metronome = true;
                 ui.close_menu();
             }
             ui.menu_button("LUT de cor do vídeo", |ui| {
@@ -5340,6 +5346,12 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
             });
+            ui.separator();
+            // Audio tools
+            if ui.button("Metrônomo…").clicked() {
+                state.show_metronome = true;
+                ui.close_menu();
+            }
         });
         ui.menu_button("Exibir", |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
@@ -5443,7 +5455,7 @@ fn bundled_luts() -> Vec<(String, String)> {
 /// Help → Credits: authors and licences of the code Neoveg is built on.
 fn credits_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_credits;
-    egui::Window::new("Créditos e licenças")
+    crate::dialogs::dialog(ctx, "Créditos e licenças")
         .open(&mut open)
         .default_size([480.0, 420.0])
         .show(ctx, crate::credits::credits_ui);
@@ -5653,7 +5665,7 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    egui::Window::new("Correção de cor")
+    crate::dialogs::tool_window(ctx, "Correção de cor", 0)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -5727,7 +5739,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    egui::Window::new("Chaveamento de croma (Chroma Key)")
+    crate::dialogs::tool_window(ctx, "Chaveamento de croma (Chroma Key)", 1)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -5834,7 +5846,7 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
         state.project.settings.bpm,
         state.project.settings.beats_per_bar,
     );
-    egui::Window::new("Metrônomo")
+    crate::dialogs::tool_window(ctx, "Metrônomo", 2)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -5998,7 +6010,7 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let mut keep_open = true;
     let mut confirmed = false;
-    egui::Window::new("Repetir colar")
+    crate::dialogs::dialog(ctx, "Repetir colar")
         .collapsible(false)
         .resizable(false)
         .open(&mut keep_open)
@@ -6080,7 +6092,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
     }
 
     let mut open = true;
-    egui::Window::new("Personalizar teclado")
+    crate::dialogs::dialog(ctx, "Personalizar teclado")
         .open(&mut open)
         .default_width(520.0)
         .default_height(480.0)
@@ -6214,7 +6226,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
     let mut tab = state.prefs_tab;
     let mut reload = false;
     let mut note = std::mem::take(&mut state.theme_note);
-    egui::Window::new("Preferências")
+    crate::dialogs::dialog(ctx, "Preferências")
         .open(&mut open)
         .collapsible(false)
         .default_width(420.0)
@@ -6428,7 +6440,7 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_inspector;
     let mut change = None;
-    egui::Window::new("Inspetor")
+    crate::dialogs::tool_window(ctx, "Inspetor", 3)
         .open(&mut open)
         .show(ctx, |ui| {
             let selected = state.selection.primary().and_then(|(track_id, event_id)| {

@@ -4,6 +4,7 @@ mod app;
 mod captions_panel;
 mod credits;
 mod details_window;
+mod dialogs;
 mod dock;
 mod envelope_canvas;
 mod frame_grid;

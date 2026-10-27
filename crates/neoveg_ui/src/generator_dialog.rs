@@ -174,7 +174,7 @@ impl GeneratorDialogState {
         let mut confirmed = false;
         let mut cancelled = false;
 
-        egui::Window::new("Geradores de Mídia")
+        crate::dialogs::dialog(ctx, "Geradores de Mídia")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

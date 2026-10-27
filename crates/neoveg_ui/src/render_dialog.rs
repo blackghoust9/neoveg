@@ -96,7 +96,7 @@ impl RenderDialogState {
         let mut close_requested = false;
         let mut launch: Option<RenderLaunchRequest> = None;
 
-        egui::Window::new("Renderizar como… (Make Movie)")
+        crate::dialogs::dialog(ctx, "Renderizar como… (Make Movie)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
