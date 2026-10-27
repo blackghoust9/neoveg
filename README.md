@@ -124,7 +124,7 @@ Resumo do que o projeto usa hoje, para reproduzir o ambiente em outra máquina W
 - [x] FFmpeg 7.1.x compartilhado LGPL (`BtbN.FFmpeg.LGPL.Shared.7.1`) com `FFMPEG_DIR` apontando para a pasta extraída
 - [x] LLVM / `libclang` 19.x com `LIBCLANG_PATH=C:\Program Files\LLVM\bin` (o LLVM 22+ quebra a `ffmpeg-sys-next`)
 - [x] Git e GitHub Desktop (fluxo de branches descrito no AGENTS.md, seção 11)
-- [ ] Nenhum dos itens legados (.NET SDK, CMake, Python) é necessário para o workspace Rust
+- [x] Nenhum dos itens legados (.NET SDK, CMake, Python) é necessário para o workspace Rust (o Python só roda o empacotamento opcional, `build_portable.py`, e os scripts de `scripts/`)
 
 **Linux (Debian / Ubuntu):**
 
