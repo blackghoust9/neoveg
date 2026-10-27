@@ -356,12 +356,11 @@ fn decode_sample_frame(video: &Path, seconds: f64) -> Option<neoveg_video::frame
         .output()
         .ok()?;
     let expected = (width * height * 4) as usize;
-    (output.status.success() && output.stdout.len() == expected).then(|| {
-        neoveg_video::frame::FrameBuffer {
-            width,
-            height,
-            rgba: output.stdout,
-        }
+    let complete = output.status.success() && output.stdout.len() == expected;
+    complete.then_some(neoveg_video::frame::FrameBuffer {
+        width,
+        height,
+        rgba: output.stdout,
     })
 }
 
