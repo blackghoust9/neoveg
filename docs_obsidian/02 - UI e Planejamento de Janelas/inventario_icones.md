@@ -121,3 +121,19 @@ O utilitário `scripts/generate_icon_formats.py` converte todos os 62 SVGs acima
 - `png\<nome>_32x32.png`, `png\<nome>_64x64.png`, `png\<nome>_128x128.png` (186 arquivos `.png` RGBA transparentes)
 - `bmp\<nome>.bmp` (62 arquivos `.bmp` 32-bit BGRA `BITMAPV4HEADER` com transparência alpha)
 - `jpg\<nome>.jpg` (62 arquivos `.jpg` 4:4:4 sobre fundo `#1e1e1e`)
+
+---
+
+## 3. Ícones acrescentados a partir dos comandos dos manuais (35)
+
+Desenhados do zero no mesmo estilo (24x24, `currentColor`, traços retos), a partir da lista de botões e ferramentas que os manuais descrevem (barra principal, ferramentas de edição, marcadores e transporte). Nenhum pixel foi copiado de material de terceiros.
+
+| Grupo | Arquivos |
+| :--- | :--- |
+| Arquivo e projeto | `new_project`, `open_project`, `save_project`, `project_properties`, `cut`, `copy`, `paste`, `delete`, `help` |
+| Ferramentas de edição | `tool_normal`, `tool_shuffle`, `tool_slip`, `tool_slide`, `tool_stretch`, `tool_split_trim`, `tool_envelope`, `tool_selection`, `tool_zoom` |
+| Linha do tempo e transporte | `quantize`, `metronome`, `marker`, `region`, `scrub`, `step_forward`, `step_back`, `insert_time`, `reverse`, `velocity`, `fade_in`, `fade_out` |
+| Áudio e projeto | `channels`, `subproject` |
+| Aplicativo | `preferences`, `welcome`, `recent_projects` |
+
+A barra principal sob o menu usa 13 deles; os de ferramentas de edição, marcadores e transporte ficam prontos para os recursos que ainda faltam (slip, slide, embaralhar, velocidade, reverter).

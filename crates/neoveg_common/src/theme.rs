@@ -123,11 +123,14 @@ const fn c(r: u8, g: u8, b: u8) -> Rgb {
 pub const CUSTOM_THEME_ID: &str = "custom";
 
 /// Built-in theme ids, in menu order.
-pub const BUILTIN_IDS: [&str; 4] = [
+pub const BUILTIN_IDS: [&str; 7] = [
     "classic-foundry",
     "classic-silver",
+    "classic-gray",
+    "charcoal-lilac",
     "modern-carbon-dark",
     "contemporary-electric-dark",
+    "high-contrast",
 ];
 
 impl Theme {
@@ -235,13 +238,98 @@ impl Theme {
         }
     }
 
+    /// Medium grey windows with a steel-blue selection, in the manner of the early editor versions.
+    pub fn classic_gray() -> Self {
+        Self {
+            format_version: THEME_FORMAT_VERSION,
+            name: "Classic Gray".into(),
+            dark: false,
+            colors: ThemeColors {
+                panel: c(0x88, 0x88, 0x88),
+                recessed: c(0xA8, 0xA8, 0xA8),
+                widget: c(0x9A, 0x9A, 0x9A),
+                widget_hover: c(0xA8, 0xA8, 0xA8),
+                widget_active: c(0x7C, 0x7C, 0x7C),
+                text: c(0x0C, 0x0C, 0x0C),
+                accent: c(0x40, 0x68, 0x9C),
+                timeline_bg: c(0x7A, 0x7A, 0x7A),
+                lane: c(0x8E, 0x8E, 0x8E),
+                lane_alt: c(0x88, 0x88, 0x88),
+                grid_minor: c(0x78, 0x78, 0x78),
+                grid_major: c(0x60, 0x60, 0x60),
+                header: c(0x90, 0x90, 0x90),
+                header_selected: c(0x80, 0x98, 0xB8),
+                audio_clip: c(0x6A, 0x86, 0xAC),
+                video_clip: c(0x8C, 0x7C, 0xB0),
+            },
+        }
+    }
+
+    /// Charcoal panels over near-black lanes, with lilac audio and a wine-coloured selection, in the
+    /// manner of the recent editor versions.
+    pub fn charcoal_lilac() -> Self {
+        Self {
+            format_version: THEME_FORMAT_VERSION,
+            name: "Charcoal Lilac".into(),
+            dark: true,
+            colors: ThemeColors {
+                panel: c(0x40, 0x40, 0x40),
+                recessed: c(0x20, 0x20, 0x20),
+                widget: c(0x4C, 0x4C, 0x4C),
+                widget_hover: c(0x5A, 0x5A, 0x5A),
+                widget_active: c(0x6A, 0x6A, 0x6A),
+                text: c(0xE0, 0xE0, 0xE0),
+                accent: c(0x4A, 0x7F, 0xC8),
+                timeline_bg: c(0x20, 0x20, 0x20),
+                lane: c(0x28, 0x28, 0x28),
+                lane_alt: c(0x24, 0x24, 0x24),
+                grid_minor: c(0x30, 0x30, 0x30),
+                grid_major: c(0x50, 0x50, 0x50),
+                header: c(0x38, 0x38, 0x38),
+                header_selected: c(0x78, 0x30, 0x40),
+                audio_clip: c(0x58, 0x40, 0x80),
+                video_clip: c(0x70, 0x74, 0x7C),
+            },
+        }
+    }
+
+    /// Black and white with a yellow accent: the highest contrast, for low vision and bright rooms.
+    pub fn high_contrast() -> Self {
+        Self {
+            format_version: THEME_FORMAT_VERSION,
+            name: "High Contrast".into(),
+            dark: true,
+            colors: ThemeColors {
+                panel: c(0x00, 0x00, 0x00),
+                recessed: c(0x00, 0x00, 0x00),
+                widget: c(0x1A, 0x1A, 0x1A),
+                widget_hover: c(0x33, 0x33, 0x33),
+                widget_active: c(0x4D, 0x4D, 0x4D),
+                text: c(0xFF, 0xFF, 0xFF),
+                accent: c(0xFF, 0xD4, 0x00),
+                timeline_bg: c(0x00, 0x00, 0x00),
+                lane: c(0x0A, 0x0A, 0x0A),
+                lane_alt: c(0x05, 0x05, 0x05),
+                grid_minor: c(0x3A, 0x3A, 0x3A),
+                grid_major: c(0x8A, 0x8A, 0x8A),
+                header: c(0x10, 0x10, 0x10),
+                header_selected: c(0x1F, 0x3F, 0x7F),
+                audio_clip: c(0x00, 0x7A, 0x99),
+                video_clip: c(0x8A, 0x3C, 0xD8),
+            },
+        }
+    }
+
     /// The built-in theme with this id.
     pub fn builtin(id: &str) -> Option<Self> {
         match id {
             "classic-foundry" => Some(Self::classic_foundry()),
             "classic-silver" => Some(Self::classic_silver()),
+            "classic-gray" => Some(Self::classic_gray()),
+            "charcoal-lilac" => Some(Self::charcoal_lilac()),
             "modern-carbon-dark" => Some(Self::modern_carbon_dark()),
             "contemporary-electric-dark" => Some(Self::contemporary_electric_dark()),
+            "high-contrast" => Some(Self::high_contrast()),
             _ => None,
         }
     }
@@ -281,8 +369,11 @@ pub fn builtin_name(id: &str) -> &'static str {
     match id {
         "classic-foundry" => "Classic Foundry",
         "classic-silver" => "Classic Silver",
+        "classic-gray" => "Classic Gray",
+        "charcoal-lilac" => "Charcoal Lilac",
         "modern-carbon-dark" => "Modern Carbon Dark",
         "contemporary-electric-dark" => "Contemporary Electric Dark",
+        "high-contrast" => "High Contrast",
         _ => "Personalizado",
     }
 }
@@ -325,6 +416,43 @@ mod tests {
         }
         assert!(!Theme::classic_silver().dark);
         assert!(Theme::modern_carbon_dark().dark);
+    }
+
+    /// WCAG relative luminance of a colour.
+    fn luminance(Rgb([r, g, b]): Rgb) -> f64 {
+        let lin = |v: u8| {
+            let v = f64::from(v) / 255.0;
+            if v <= 0.03928 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    }
+
+    fn contrast(a: Rgb, b: Rgb) -> f64 {
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    #[test]
+    fn every_theme_keeps_its_text_readable_and_high_contrast_reaches_aaa() {
+        for id in BUILTIN_IDS {
+            let theme = Theme::builtin(id).unwrap();
+            let ratio = contrast(theme.colors.text, theme.colors.panel);
+            // 4.5:1 is the WCAG AA minimum for normal text
+            assert!(ratio >= 4.5, "{id}: text on the panel is only {ratio:.1}:1");
+            let on_lane = contrast(theme.colors.text, theme.colors.lane);
+            assert!(
+                on_lane >= 3.0,
+                "{id}: text on a lane is only {on_lane:.1}:1"
+            );
+        }
+        let high = Theme::high_contrast();
+        assert!(contrast(high.colors.text, high.colors.panel) >= 7.0);
+        assert!(contrast(high.colors.accent, high.colors.panel) >= 7.0);
+        assert!(!Theme::classic_gray().dark && Theme::charcoal_lilac().dark);
     }
 
     #[test]

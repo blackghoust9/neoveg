@@ -63,7 +63,7 @@ pub fn run(dir: &Path) -> Result<(), String> {
 
         // 4. The icon library
         let ctx = new_context();
-        let image = gpu.capture(&ctx, [1280, 460], icon_grid)?;
+        let image = gpu.capture(&ctx, [1280, 640], icon_grid)?;
         save(&image, &dir.join(OUTPUTS[3]))?;
 
         // 5. The welcome screen over the workspace, with a few recent projects

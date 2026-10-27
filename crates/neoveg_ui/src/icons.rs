@@ -1,4 +1,4 @@
-//! Vector toolbar and workspace icons: 62 original pure-SVG pictograms + egui shape fallbacks.
+//! Vector toolbar and workspace icons: 99 original pure-SVG pictograms + egui shape fallbacks.
 //!
 //! Flat, monochrome `24x24` pictograms in the spirit of classic NLE toolbars: original artwork, no
 //! proprietary bitmap pixels, so they scale crisply on 4K/HiDPI monitors and adapt dynamically to
@@ -583,6 +583,42 @@ svg_icons! {
     (Remove, remove, "remove", "Remover"),
     (MoveUp, move_up, "move_up", "Mover para cima"),
     (MoveDown, move_down, "move_down", "Mover para baixo"),
+    // 6. Ferramentas, arquivo, marcadores e aplicativo (35), desenhadas a partir da lista de comandos dos manuais
+    (NewProject, new_project, "new_project", "Novo projeto (Ctrl+N)"),
+    (OpenProject, open_project, "open_project", "Abrir projeto (Ctrl+O)"),
+    (SaveProject, save_project, "save_project", "Salvar projeto (Ctrl+S)"),
+    (ProjectProperties, project_properties, "project_properties", "Propriedades do projeto (Alt+Enter)"),
+    (Cut, cut, "cut", "Recortar (Ctrl+X)"),
+    (Copy, copy, "copy", "Copiar (Ctrl+C)"),
+    (Paste, paste, "paste", "Colar (Ctrl+V)"),
+    (Delete, delete, "delete", "Excluir (Delete)"),
+    (Help, help, "help", "Ajuda"),
+    (ToolNormal, tool_normal, "tool_normal", "Ferramenta normal de edição"),
+    (ToolShuffle, tool_shuffle, "tool_shuffle", "Ferramenta de embaralhar eventos"),
+    (ToolSlip, tool_slip, "tool_slip", "Ferramenta de slip: desliza a mídia dentro do evento"),
+    (ToolSlide, tool_slide, "tool_slide", "Ferramenta de slide: move o evento sem mover a mídia"),
+    (ToolStretch, tool_stretch, "tool_stretch", "Ferramenta de esticar ou comprimir no tempo"),
+    (ToolSplitTrim, tool_split_trim, "tool_split_trim", "Ferramenta de dividir e aparar"),
+    (ToolEnvelope, tool_envelope, "tool_envelope", "Ferramenta de envelope"),
+    (ToolSelection, tool_selection, "tool_selection", "Ferramenta de seleção em retângulo"),
+    (ToolZoom, tool_zoom, "tool_zoom", "Ferramenta de zoom por retângulo"),
+    (Quantize, quantize, "quantize", "Quantizar a quadros (Alt+F8)"),
+    (Metronome, metronome, "metronome", "Metrônomo"),
+    (Marker, marker, "marker", "Inserir marcador (M)"),
+    (Region, region, "region", "Inserir região (R)"),
+    (Scrub, scrub, "scrub", "Navegar pela mídia (J / K / L)"),
+    (StepForward, step_forward, "step_forward", "Avançar um quadro"),
+    (StepBack, step_back, "step_back", "Voltar um quadro"),
+    (InsertTime, insert_time, "insert_time", "Inserir tempo (Ctrl+Alt+T)"),
+    (Reverse, reverse, "reverse", "Reverter evento"),
+    (Velocity, velocity, "velocity", "Envelope de velocidade"),
+    (FadeIn, fade_in, "fade_in", "Fade-in"),
+    (FadeOut, fade_out, "fade_out", "Fade-out"),
+    (Channels, channels, "channels", "Canais de áudio do evento"),
+    (Subproject, subproject, "subproject", "Sub-projeto aninhado (Ctrl+Shift+N)"),
+    (Preferences, preferences, "preferences", "Preferências"),
+    (Welcome, welcome, "welcome", "Tela de boas-vindas"),
+    (RecentProjects, recent_projects, "recent_projects", "Projetos recentes"),
 }
 
 /// Configurable flat SVG button and [`Image`] builder created by [`Icons`] methods
@@ -803,7 +839,7 @@ mod tests {
 
     #[test]
     fn every_svg_follows_the_house_style() {
-        assert_eq!(SvgIcon::ALL.len(), 64);
+        assert_eq!(SvgIcon::ALL.len(), 99);
         for &icon in SvgIcon::ALL {
             let text = icon.source();
             let name = icon.name();
@@ -865,7 +901,7 @@ mod tests {
     }
 
     #[test]
-    fn icons_utility_methods_cover_all_64_tools_and_panels() {
+    fn icons_utility_methods_cover_all_99_tools_and_panels() {
         let all_buttons = [
             Icons::split(),
             Icons::trim_start(),
@@ -931,6 +967,41 @@ mod tests {
             Icons::remove(),
             Icons::move_up(),
             Icons::move_down(),
+            Icons::new_project(),
+            Icons::open_project(),
+            Icons::save_project(),
+            Icons::project_properties(),
+            Icons::cut(),
+            Icons::copy(),
+            Icons::paste(),
+            Icons::delete(),
+            Icons::help(),
+            Icons::tool_normal(),
+            Icons::tool_shuffle(),
+            Icons::tool_slip(),
+            Icons::tool_slide(),
+            Icons::tool_stretch(),
+            Icons::tool_split_trim(),
+            Icons::tool_envelope(),
+            Icons::tool_selection(),
+            Icons::tool_zoom(),
+            Icons::quantize(),
+            Icons::metronome(),
+            Icons::marker(),
+            Icons::region(),
+            Icons::scrub(),
+            Icons::step_forward(),
+            Icons::step_back(),
+            Icons::insert_time(),
+            Icons::reverse(),
+            Icons::velocity(),
+            Icons::fade_in(),
+            Icons::fade_out(),
+            Icons::channels(),
+            Icons::subproject(),
+            Icons::preferences(),
+            Icons::welcome(),
+            Icons::recent_projects(),
         ];
         assert_eq!(all_buttons.len(), SvgIcon::ALL.len());
         for (btn, &expected) in all_buttons.iter().zip(SvgIcon::ALL.iter()) {

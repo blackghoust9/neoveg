@@ -15,7 +15,7 @@ A direção das dependências é `neoveg_common` → (`neoveg_audio`, `neoveg_vi
 
 ## 02 - UI e Planejamento de Janelas
 - [[especificacao_janelas]] — comportamento e redimensionamento de cada painel.
-- [[inventario_icones]] — inventário clean-room e catálogo dos 64 ícones SVG autorais.
+- [[inventario_icones]] — inventário clean-room e catálogo dos 99 ícones SVG autorais.
 - `layout_janelas.canvas` — mapa visual do layout padrão do dock.
 
 ## 03 - Manual do Usuario

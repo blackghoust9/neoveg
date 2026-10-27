@@ -4126,6 +4126,7 @@ impl NeovegApp {
         }
 
         egui::TopBottomPanel::top("menu").show(ctx, |ui| menu_bar(ui, &mut self.state));
+        egui::TopBottomPanel::top("main_toolbar").show(ctx, |ui| main_toolbar(ui, &mut self.state));
         if self.state.tabs.ctx.is_none() {
             self.state.tabs.ctx = Some(ctx.clone());
         }
@@ -4618,6 +4619,66 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
         state.run_command(command, &ctx, now);
         ui.close_menu();
     }
+}
+
+/// The main toolbar under the menu: file, clipboard and history commands, as an icon each (names and
+/// shortcuts are in the tooltips).
+fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
+    use icons::SvgIcon;
+    let groups: [&[(SvgIcon, Command)]; 3] = [
+        &[
+            (SvgIcon::NewProject, Command::FileNew),
+            (SvgIcon::OpenProject, Command::FileOpen),
+            (SvgIcon::SaveProject, Command::FileSave),
+            (SvgIcon::ProjectProperties, Command::FileProperties),
+        ],
+        &[
+            (SvgIcon::Cut, Command::EditCut),
+            (SvgIcon::Copy, Command::EditCopy),
+            (SvgIcon::Paste, Command::EditPaste),
+            (SvgIcon::Delete, Command::EditDelete),
+        ],
+        &[
+            (SvgIcon::Undo, Command::EditUndo),
+            (SvgIcon::Redo, Command::EditRedo),
+        ],
+    ];
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        for (i, group) in groups.iter().enumerate() {
+            if i > 0 {
+                ui.separator();
+            }
+            for &(icon, command) in *group {
+                let enabled = state.command_enabled(command);
+                let tooltip = state.with_hint(command.label(), command);
+                let clicked = ui
+                    .add_enabled_ui(enabled, |ui| icons::svg_button(ui, icon, &tooltip, false))
+                    .inner
+                    .clicked();
+                if clicked {
+                    let ctx = ui.ctx().clone();
+                    let now = ctx.input(|i| i.time);
+                    state.run_command(command, &ctx, now);
+                }
+            }
+            // Render sits with the file commands, as in the manuals' toolbar
+            if i == 0 {
+                let tooltip = "Renderizar como… (Make Movie)";
+                if icons::svg_button(ui, SvgIcon::ExportRender, tooltip, false).clicked() {
+                    state.render_dialog.open = true;
+                }
+            }
+        }
+        ui.separator();
+        if icons::svg_button(ui, SvgIcon::Welcome, "Tela de boas-vindas", false).clicked() {
+            let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
+            state.welcome.open_with(&defaults);
+        }
+        if icons::svg_button(ui, SvgIcon::Preferences, "Preferências", false).clicked() {
+            state.show_preferences = true;
+        }
+    });
 }
 
 /// Arquivo > Projetos recentes: the last projects opened or saved, newest first.
