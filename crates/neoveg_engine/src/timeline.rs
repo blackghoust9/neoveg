@@ -5,6 +5,7 @@ use crate::envelope::TrackEnvelope;
 use crate::markers::{Marker, Region};
 use std::collections::BTreeMap;
 
+use neoveg_common::channels::ChannelMode;
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
@@ -100,6 +101,9 @@ pub struct TrackEvent {
     /// Normalize is turned on or recalculated, `1.0` otherwise.
     #[serde(default = "default_gain", skip_serializing_if = "is_unity_gain")]
     pub normalize_gain: f32,
+    /// Edit > Channels (audio only): how the two channels of the media reach the mix.
+    #[serde(default, skip_serializing_if = "ChannelMode::is_default")]
+    pub channels: ChannelMode,
 }
 
 impl Default for TrackEvent {
@@ -124,6 +128,7 @@ impl Default for TrackEvent {
             looping: false,
             normalize: false,
             normalize_gain: 1.0,
+            channels: ChannelMode::Both,
         }
     }
 }

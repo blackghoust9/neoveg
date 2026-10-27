@@ -283,6 +283,7 @@ impl EditCommand {
                     looping: left.looping,
                     normalize: left.normalize,
                     normalize_gain: left.normalize_gain,
+                    channels: left.channels,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;

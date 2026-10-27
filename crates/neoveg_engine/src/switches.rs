@@ -7,6 +7,8 @@
 //! events skips the locked ones and still applies to the others; the switches other than Lock
 //! also skip locked events, so a locked event is frozen completely until it is unlocked.
 
+use neoveg_common::channels::ChannelMode;
+
 use crate::command::{EditCommand, TrackChange};
 use crate::selection::EventRef;
 use crate::timeline::{Timeline, TrackEvent, TrackKind};
@@ -155,6 +157,38 @@ pub fn set(
         for event in &mut after {
             if target.contains(&(track.id, event.id)) && switch.is_on(event) != on {
                 switch.set(event, on);
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(TrackChange {
+                track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
+/// Sets how the audio events among `events` use the channels of their media (Edit > Channels).
+/// Video events and locked events are skipped. One undo step; `None` when nothing changes.
+pub fn set_channels(
+    timeline: &Timeline,
+    events: &[EventRef],
+    mode: ChannelMode,
+) -> Option<EditCommand> {
+    let mut changes = Vec::new();
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Audio)
+    {
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            if events.contains(&(track.id, event.id)) && !event.locked && event.channels != mode {
+                event.channels = mode;
                 changed = true;
             }
         }
@@ -397,6 +431,34 @@ mod tests {
         let command = set(&tl, &[a], Switch::Lock, true).unwrap();
         run(&mut tl, command);
         assert!(set_normalize(&tl, &[(a, 2.0)]).is_none());
+    }
+
+    #[test]
+    fn channel_modes_apply_to_unlocked_audio_events_only_and_undo_in_one_step() {
+        let (mut tl, a, b, video) = timeline();
+        let command = set(&tl, &[b], Switch::Lock, true).unwrap();
+        run(&mut tl, command);
+        let mut history = History::default();
+        let command = set_channels(&tl, &[a, b, video], ChannelMode::Swap).unwrap();
+        history.execute(&mut tl, command);
+        let mode = |tl: &Timeline, r: EventRef| {
+            tl.track(r.0)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == r.1)
+                .unwrap()
+                .channels
+        };
+        assert_eq!(mode(&tl, a), ChannelMode::Swap);
+        assert_eq!(mode(&tl, b), ChannelMode::Both, "locked");
+        assert_eq!(mode(&tl, video), ChannelMode::Both, "video has no channels");
+        assert!(
+            set_channels(&tl, &[a], ChannelMode::Swap).is_none(),
+            "already set"
+        );
+        history.undo(&mut tl);
+        assert_eq!(mode(&tl, a), ChannelMode::Both);
     }
 
     #[test]

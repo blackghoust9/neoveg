@@ -1,5 +1,6 @@
 //! Shared types for every Neoveg crate.
 
+pub mod channels;
 pub mod chroma;
 pub mod commands;
 pub mod composite;

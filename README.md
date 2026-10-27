@@ -359,7 +359,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Switch Loop (`Ctrl+Alt+O`): estender o evento além do fim da mídia repete a fonte, do ponto de entrada até o fim, com marcas a cada repetição; só em velocidade normal
 - [x] Switch Normalize (`Ctrl+Alt+N`) e Recalcular normalização (`Ctrl+Alt+Shift+N`): o ganho leva o pico da parte tocada ao nível `normalize_peak_db` do projeto (0 dBFS por padrão)
 - [ ] Switches por evento que faltam: manter proporção, reduzir cintilação, reamostragem Smart/Force/Disable; campo na interface para o nível de pico da normalização
-- [ ] Seleção não destrutiva de canal/stream de áudio (ambos, esquerdo, direito, combinar, trocar, canal x)
+- [x] Seleção não destrutiva de canais de áudio por evento (Editar > Canais de áudio): ambos, somente esquerdo, somente direito, combinar (mono, amplitude pela metade) e trocar
+- [ ] Seleção de canal x / canais x/y em mídia multicanal e de stream de áudio
 - [ ] Esticar no tempo e mudar o tom (teclas `=` e `-`), taxa de reprodução e subamostragem de vídeo
 - [ ] Takes por evento (adicionar como take, `T` / `Shift+T`, escolher/apagar ativo, "slip em todos os takes")
 - [x] Grupos (`G`, `U`, `Ctrl+Shift+U` ignora o agrupamento): `group` no evento (`#[serde(default)]`), clicar, `Ctrl`+clicar ou selecionar com retângulo pega o grupo inteiro, o grupo se move junto, dividir parte o grupo em dois e colar cria um grupo próprio; canto laranja no evento e botão 🔗 na barra

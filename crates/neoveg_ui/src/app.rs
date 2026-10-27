@@ -2451,6 +2451,20 @@ impl AppState {
         }
     }
 
+    /// Edit > Channels: converts the channels of the selected audio events, non-destructively.
+    fn set_event_channels(&mut self, mode: neoveg_common::channels::ChannelMode) {
+        let refs = self.selection.refs();
+        match switches::set_channels(&self.timeline, &refs, mode) {
+            Some(command) => {
+                self.history.execute(&mut self.timeline, command);
+                self.status = format!("Canais: {}", mode.label());
+            }
+            None => {
+                self.status = "Nenhum evento de áudio desbloqueado mudou de canais".into();
+            }
+        }
+    }
+
     /// The gain that brings each listed audio event to the project's normalize peak level,
     /// measured on the part of the source the event plays (a looping event: from its in point to
     /// the end of the media). With `only_normalized` only events that already have the switch are
@@ -3112,6 +3126,7 @@ impl AppState {
                     cross_out: longest(&|c| c.earlier == e.id),
                     cross_out_curve: out_curve,
                     track: track_index,
+                    channels: e.channels,
                     // Only an event at normal speed loops (its source is read directly)
                     loop_len: if e.looping && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
                     {
@@ -4127,6 +4142,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 command_item(state, ui, command);
             }
             ui.menu_button("Interruptores", |ui| switch_items(state, ui));
+            ui.menu_button("Canais de áudio", |ui| channel_items(state, ui));
             ui.separator();
             for command in [
                 Command::EditSplit,
@@ -4355,6 +4371,31 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
         let now = ctx.input(|i| i.time);
         state.run_command(command, &ctx, now);
         ui.close_menu();
+    }
+}
+
+/// Editar > Canais de áudio: how the selected audio events use the channels of their media.
+fn channel_items(state: &mut AppState, ui: &mut egui::Ui) {
+    let refs = state.selection.refs();
+    let enabled = !refs.is_empty();
+    for mode in neoveg_common::channels::ChannelMode::ALL {
+        // A mode is ticked when every selected audio event has it
+        let on = enabled
+            && refs.iter().all(|&(t, id)| {
+                state
+                    .timeline
+                    .track(t)
+                    .and_then(|track| track.events.iter().find(|e| e.id == id))
+                    .is_none_or(|e| e.channels == mode)
+            });
+        let mut ticked = on;
+        if ui
+            .add_enabled(enabled, egui::Checkbox::new(&mut ticked, mode.label()))
+            .clicked()
+        {
+            state.set_event_channels(mode);
+            ui.close_menu();
+        }
     }
 }
 
@@ -5954,6 +5995,7 @@ fn event_context_menu(
         command_item(state, ui, command);
     }
     ui.menu_button("Interruptores", |ui| switch_items(state, ui));
+    ui.menu_button("Canais de áudio", |ui| channel_items(state, ui));
     if ui.button("Selecionar eventos até o fim").clicked() {
         state
             .selection
@@ -6855,6 +6897,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if ev.looping {
                 title.push_str(" [laço]");
             }
+            if let Some(tag) = ev.channels.tag() {
+                title.push_str(&format!(" [{tag}]"));
+            }
             if ev.normalize {
                 title.push_str(&format!(
                     " [norm {:+.1} dB]",
@@ -7606,6 +7651,40 @@ mod tests {
         );
         assert_eq!(s.source_len(track, events[1]), None, "neither has a still");
         assert_eq!(s.source_len(track, events[2]), Some(4.0), "a video does");
+    }
+
+    #[test]
+    fn channel_modes_reach_the_mixer_and_undo() {
+        use neoveg_common::channels::ChannelMode;
+        let (mut s, track, ev) = state_with_clip();
+        // A stereo source whose left channel is loud and whose right channel is silent
+        let samples: Vec<f32> = (0..1000).flat_map(|_| [0.5_f32, 0.0]).collect();
+        let mut media = LoadedMedia {
+            path: PathBuf::from("x.wav"),
+            name: "x.wav".into(),
+            waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
+            stereo: Arc::new(samples),
+            sample_rate: 100,
+            duration: 10.0,
+        };
+        media.duration = 10.0;
+        s.media.insert(1, media);
+        s.selection.set([(track, ev)]);
+
+        let first = |s: &AppState| s.build_clips().into_iter().next().unwrap();
+        assert_eq!(first(&s).sample_at(3.0), (0.5, 0.0));
+        s.set_event_channels(ChannelMode::Right);
+        assert_eq!(
+            first(&s).sample_at(3.0),
+            (0.0, 0.0),
+            "the right channel is silent"
+        );
+        s.set_event_channels(ChannelMode::Swap);
+        assert_eq!(first(&s).sample_at(3.0), (0.0, 0.5));
+        s.set_event_channels(ChannelMode::Combine);
+        assert_eq!(first(&s).sample_at(3.0), (0.25, 0.25));
+        run(&mut s, Command::EditUndo);
+        assert_eq!(first(&s).sample_at(3.0), (0.0, 0.5), "back to Swap");
     }
 
     #[test]

@@ -1009,6 +1009,7 @@ mod tests {
             cross_out_curve: FadeCurve::Linear,
             track: 0,
             loop_len: 0.0,
+            channels: Default::default(),
         };
         let mono = mix_to_mono_16k(&[clip], 0.0, 1.0);
         assert_eq!(mono.len(), 16_000);

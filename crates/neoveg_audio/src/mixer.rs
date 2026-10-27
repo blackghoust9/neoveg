@@ -31,6 +31,8 @@ pub struct MixClip {
     /// Seconds of the source, counted from `trim_in`, that repeat when the clip runs past them
     /// (the Loop switch); `0` plays the source once.
     pub loop_len: f64,
+    /// Non-destructive channel conversion of the clip (Both = untouched).
+    pub channels: neoveg_common::channels::ChannelMode,
 }
 
 /// Highest absolute sample of the interleaved stereo `samples` between `from` and `from +
@@ -110,6 +112,7 @@ impl MixClip {
         } else {
             (l0, r0)
         };
+        let (l, r) = self.channels.apply(l, r);
         let g = self.envelope(local);
         (l * g, r * g)
     }
@@ -224,6 +227,31 @@ mod tests {
         assert!((to_minus_6 * 0.5 - 0.5).abs() < 1e-3);
         assert_eq!(normalize_gain(0.0, 0.0), 1.0);
         assert_eq!(normalize_gain(f32::NAN, 0.0), 1.0);
+    }
+
+    #[test]
+    fn channel_modes_change_how_the_two_channels_reach_the_mix() {
+        use neoveg_common::channels::ChannelMode;
+        // 1 s at 100 Hz: left 0.8, right 0.2
+        let samples: Vec<f32> = (0..100).flat_map(|_| [0.8_f32, 0.2]).collect();
+        let mut clip = MixClip {
+            samples: Arc::new(samples),
+            source_rate: 100,
+            duration: 1.0,
+            gain: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(clip.sample_at(0.5), (0.8, 0.2));
+        clip.channels = ChannelMode::Left;
+        assert_eq!(clip.sample_at(0.5), (0.8, 0.8));
+        clip.channels = ChannelMode::Swap;
+        assert_eq!(clip.sample_at(0.5), (0.2, 0.8));
+        clip.channels = ChannelMode::Combine;
+        let (l, r) = clip.sample_at(0.5);
+        assert!((l - 0.5).abs() < 1e-6 && l == r);
+        // The gain and fades still apply after the conversion
+        clip.gain = -1.0;
+        assert!((clip.sample_at(0.5).0 + 0.5).abs() < 1e-6);
     }
 
     #[test]
