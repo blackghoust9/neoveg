@@ -216,9 +216,9 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 
 ### A fazer (em ordem de prioridade)
 
-- [ ] Importar imagens estáticas e sequências de imagens
-- [ ] Cache de quadros decodificados e pré-busca durante a reprodução (hoje cada quadro é decodificado sob demanda)
-- [ ] Composição de várias faixas de vídeo na prévia (hoje aparece só a faixa de vídeo mais alta sob o cursor)
+- [x] Importar imagens estáticas, sequências numeradas (`.neovegseq`) e geradores (`.neoveggen`) como mídia de vídeo (Arquivo > Importar mídia)
+- [x] Cache LRU de quadros decodificados e pré-busca de 1 a 2 quadros durante a reprodução, no worker de vídeo
+- [x] Composição de várias faixas de vídeo na prévia: a primeira faixa fica por cima, e a sobreposição de dois eventos da mesma faixa faz crossfade (o evento seguinte entra com fade); o mesmo pedido de quadro alimenta a exportação
 - [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
 - [ ] Slip, slide e stretch de eventos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
@@ -227,9 +227,9 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Volume, pan, mute e solo por faixa
 - [ ] Barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
 - [ ] Efeitos de vídeo e transições na GPU (`wgpu`), composição e Pan/Crop do evento
-- [ ] Geradores de mídia (títulos, cor sólida, padrão de teste) e janela de títulos
+- [x] Geradores de mídia (cor sólida, padrões de teste, gradientes e títulos com contorno, sombra e animação) pela janela Faixas > Inserir mídia gerada
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
-- [ ] Renderização/exportação (Make Movie) com FFmpeg
+- [x] Renderização/exportação (Make Movie) com FFmpeg em segundo plano (Arquivo > Renderizar como…): MP4 H.264 / HEVC, MOV ProRes, WebM VP9 ou só áudio WAV; mixagem offline com os efeitos das faixas e do master, relatório de loudness BS.1770-4 ao lado do arquivo, progresso e cancelamento
 - [x] Importação e exportação de listas de edição CMX 3600 (`.edl`): exporta os cortes da faixa selecionada com os comentários de nome do clipe e arquivo, importa cortes (transições lidas como corte, com aviso) para as mídias que já estão no projeto, em um passo de desfazer
 - [x] Importação e exportação de XML do Final Cut Pro 7 (`xmeml` v5): todas as faixas e clipes (posição, entrada e saída da fonte, nomes e caminhos), importando para as mídias do projeto em um passo de desfazer
 - [x] Importação e exportação de FCPXML do Final Cut Pro (`<fcpxml version="1.10">`): tempos racionais exatos por quadro (`1001/30000s`, `1/25s`), faixas conectadas de vídeo e áudio, marcadores e regiões, em um passo de desfazer
@@ -245,7 +245,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Tela de carregamento nova (`neoveg_ui/src/splash.rs`): formas 3D flutuando (projeção e sombreamento por software, com paralaxe do mouse), o nome NEOVEG animado em 3D, arte original animada de um carretel de filme desenrolando quadros sob o playhead (licença MIT) e barra de progresso que acompanha as etapas reais de inicialização (preferências, placa de vídeo, saída de áudio, efeitos, decodificador de vídeo e recuperação de projetos); qualquer tecla ou clique pula a espera
 - [x] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark) e temas personalizados em `.json` (`Editar → Preferências → Temas`)
 - [ ] Abas no rodapé em todos os painéis (hoje só o painel de Mídia; o `egui_dock` não posiciona a barra embaixo)
-- [ ] Medidores de pico e cópia de logs no visualizador de logs da interface
+- [x] Visualizador de logs na interface (Ajuda > Visualizador de logs): filtro por nível, busca e cópia com confirmação `Copiado!`
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov`
 - [x] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`), o `Dockerfile` e o `docker-compose.yml` da raiz (o ambiente Docker atual está em `docker/`)
 
@@ -371,7 +371,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)
 - [ ] Marcadores de comando (comando, parâmetro, comentário, modelos) e marcadores de mídia mostrados nos eventos (snap opcional)
 - [x] Região de laço (`Shift+Q`: seleção de tempo ou região sob o cursor; sem nenhuma, limpa) e reprodução em laço (`Q`, botão 🔁) sem emenda no callback de áudio; o laço usa a região de laço, senão a seleção, senão o projeto inteiro
-- [ ] "Renderizar só a região de laço" (depende da exportação)
+- [x] "Renderizar só a região de laço" (opção do diálogo de renderização)
 
 **Fase 6 — Trimmer (entrada 12)**
 - [ ] `TrimmerState` (mídia, entrada, saída, cursor) com histórico; `I` e `O` marcam entrada e saída

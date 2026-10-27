@@ -242,9 +242,14 @@ mod tests {
         let track = s.selected_track.unwrap();
         // 2 s of a steady tone, so the mixdown is not silent
         let samples: Vec<f32> = (0..200).flat_map(|_| [0.25_f32; 2]).collect();
-        let mut media = test_media();
-        media.duration = 2.0;
-        media.stereo = Arc::new(samples);
+        let media = LoadedMedia {
+            path: PathBuf::from("x.wav"),
+            name: "x.wav".into(),
+            waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
+            stereo: Arc::new(samples),
+            sample_rate: 100,
+            duration: 2.0,
+        };
         s.media.insert(1, media);
         s.project.media_pool.push(MediaRef {
             subproject: false,
@@ -300,6 +305,84 @@ mod tests {
         );
         let log = std::fs::read_to_string(dir.join("saida_loud.txt")).unwrap();
         assert!(log.contains("BS.1770-4"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn ffmpeg_available() -> bool {
+        std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
+    /// The whole Make Movie path for video: a generated clip is composited, encoded by `ffmpeg`
+    /// together with the audio mixdown, and the result is a playable file. Skips without `ffmpeg`.
+    #[test]
+    fn a_video_render_encodes_the_composited_frames_when_ffmpeg_is_installed() {
+        if !ffmpeg_available() {
+            eprintln!("skipped: ffmpeg is not installed");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("neoveg_render_video_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = AppState::new();
+        s.project_path = Some(dir.join("projeto.neoveg"));
+        let ctx = egui::Context::default();
+        s.insert_generated(
+            neoveg_video::generators::GeneratorSpec {
+                name: "cor".into(),
+                width: 160,
+                height: 90,
+                fps: 25.0,
+                duration: 1.0,
+                kind: neoveg_video::generators::GeneratorKind::SolidColor {
+                    rgba: [200, 40, 40, 255],
+                },
+            },
+            &ctx,
+        );
+        for _ in 0..300 {
+            s.poll_loader();
+            if s.timeline.tracks.iter().any(|t| !t.events.is_empty()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(s.timeline.tracks.iter().any(|t| !t.events.is_empty()));
+
+        let output = dir.join("filme.mp4");
+        s.start_render(
+            RenderLaunchRequest {
+                output_path: output.clone(),
+                format: neoveg_video::render::RenderFormat::Mp4H264,
+                width: 160,
+                height: 90,
+                fps: 25.0,
+                crf: 30,
+                loop_region_only: false,
+                save_loudness_log: false,
+            },
+            &ctx,
+        );
+        let job = s.render_dialog.active_job.as_ref().expect("a job started");
+        for _ in 0..3000 {
+            if job.status.lock().unwrap().finished {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let status = job.status.lock().unwrap().clone();
+        assert!(status.finished, "the render did not finish: {status:?}");
+        assert_eq!(status.error, None);
+        assert_eq!(status.total_frames, 25);
+        assert_eq!(status.current_frame, 25);
+        let size = std::fs::metadata(&output).expect("the movie exists").len();
+        assert!(size > 500, "the movie is {size} bytes");
+        // The temporary mixdown is removed
+        assert!(!dir.join("filme.mixagem.wav").exists());
         let _ = std::fs::remove_dir_all(dir);
     }
 
