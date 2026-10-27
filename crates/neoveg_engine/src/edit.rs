@@ -1,6 +1,21 @@
-//! Pure geometry rules for mouse editing: moving, trimming, snapping and frame quantization.
+//! Pure geometry rules for mouse editing: moving, trimming, time-stretching, snapping and frame quantization.
 
 use crate::timeline::EventGeometry;
+
+/// Slowest supported event playback rate (`0.25x` = 400% duration).
+pub const MIN_PLAYBACK_RATE: f64 = 0.25;
+/// Fastest supported event playback rate (`4.0x` = 25% duration).
+pub const MAX_PLAYBACK_RATE: f64 = 4.0;
+
+/// Clamps `rate` into [`MIN_PLAYBACK_RATE`]..=[`MAX_PLAYBACK_RATE`], treating non-finite or
+/// non-positive values as `1.0`.
+pub fn clamp_playback_rate(rate: f64) -> f64 {
+    if !rate.is_finite() || rate <= 0.0 {
+        1.0
+    } else {
+        rate.clamp(MIN_PLAYBACK_RATE, MAX_PLAYBACK_RATE)
+    }
+}
 
 /// Rounds `seconds` to the nearest frame boundary.
 pub fn quantize(seconds: f64, fps: f64) -> f64 {
@@ -46,14 +61,15 @@ pub fn move_to(g: EventGeometry, new_start: f64) -> EventGeometry {
 /// right edge stays put, the edge cannot reveal media before the source start, and the event keeps at
 /// least `min_len` seconds.
 pub fn trim_left(g: EventGeometry, new_start: f64, min_len: f64) -> EventGeometry {
+    let rate = clamp_playback_rate(g.playback_rate);
     let end = g.end();
-    let lowest = (g.start - g.trim_in).max(0.0);
+    let lowest = (g.start - g.trim_in / rate).max(0.0);
     let highest = (end - min_len).max(g.start);
     let start = new_start.clamp(lowest, highest.max(lowest));
     clamp_fades(EventGeometry {
         start,
         duration: end - start,
-        trim_in: g.trim_in + (start - g.start),
+        trim_in: g.trim_in + (start - g.start) * rate,
         ..g
     })
 }
@@ -66,13 +82,62 @@ pub fn trim_right(
     min_len: f64,
     source_len: Option<f64>,
 ) -> EventGeometry {
+    let rate = clamp_playback_rate(g.playback_rate);
     let lowest = g.start + min_len.min(g.duration);
     let highest = source_len
-        .map_or(f64::INFINITY, |len| g.start + (len - g.trim_in))
+        .map_or(f64::INFINITY, |len| g.start + (len - g.trim_in) / rate)
         .max(lowest);
     let end = new_end.clamp(lowest, highest);
     clamp_fades(EventGeometry {
         duration: end - g.start,
+        ..g
+    })
+}
+
+/// `Ctrl` + drag on the right edge: stretches or compresses the event (`0.25x..=4.0x`) while
+/// keeping `start`, `trim_in` and the underlying source media span unchanged.
+pub fn stretch_right(g: EventGeometry, new_end: f64, min_len: f64) -> EventGeometry {
+    let old_rate = clamp_playback_rate(g.playback_rate);
+    let source_span = (g.duration * old_rate).max(1e-6);
+    let raw_dur = (new_end - g.start).max(min_len.max(1e-6));
+    let new_rate = clamp_playback_rate(source_span / raw_dur);
+    let duration = (source_span / new_rate).max(min_len);
+    clamp_fades(EventGeometry {
+        duration,
+        playback_rate: new_rate,
+        ..g
+    })
+}
+
+/// `Ctrl` + drag on the left edge: stretches or compresses the event (`0.25x..=4.0x`) while
+/// keeping the right edge (`end`), `trim_in` and the underlying source media span unchanged.
+pub fn stretch_left(g: EventGeometry, new_start: f64, min_len: f64) -> EventGeometry {
+    let old_rate = clamp_playback_rate(g.playback_rate);
+    let end = g.end();
+    let source_span = (g.duration * old_rate).max(1e-6);
+    let clamped_start = new_start.clamp(0.0, (end - min_len).max(0.0));
+    let raw_dur = (end - clamped_start).max(min_len.max(1e-6));
+    let new_rate = clamp_playback_rate(source_span / raw_dur);
+    let duration = (source_span / new_rate).min(end).max(min_len.min(end));
+    let actual_rate = clamp_playback_rate(source_span / duration.max(1e-6));
+    clamp_fades(EventGeometry {
+        start: (end - duration).max(0.0),
+        duration,
+        playback_rate: actual_rate,
+        ..g
+    })
+}
+
+/// Changes `playback_rate` explicitly (e.g. from the Inspector or context menu), scaling
+/// `duration` inversely so the event continues to play the exact same source media segment.
+pub fn set_playback_rate(g: EventGeometry, rate: f64, min_len: f64) -> EventGeometry {
+    let old_rate = clamp_playback_rate(g.playback_rate);
+    let new_rate = clamp_playback_rate(rate);
+    let source_span = (g.duration * old_rate).max(1e-6);
+    let duration = (source_span / new_rate).max(min_len);
+    clamp_fades(EventGeometry {
+        duration,
+        playback_rate: new_rate,
         ..g
     })
 }
@@ -108,11 +173,35 @@ mod tests {
             start,
             duration,
             trim_in,
-            fade_in: 0.0,
-            fade_out: 0.0,
-            fade_in_curve: Default::default(),
-            fade_out_curve: Default::default(),
+            ..Default::default()
         }
+    }
+
+    #[test]
+    fn stretch_right_and_left_scale_rate_inversely_and_clamp_bounds() {
+        let g = geo(4.0, 4.0, 1.0);
+        // Dragging right edge from 8.0 to 12.0 doubles duration (8 s) -> 0.5x playback rate
+        let sr = stretch_right(g, 12.0, 0.04);
+        assert_eq!(sr.start, 4.0);
+        assert!((sr.duration - 8.0).abs() < 1e-9);
+        assert!((sr.playback_rate - 0.5).abs() < 1e-9);
+        assert_eq!(sr.trim_in, 1.0);
+
+        // Dragging right edge way out clamps at MIN_PLAYBACK_RATE (0.25x -> 16 s)
+        let max_slow = stretch_right(g, 999.0, 0.04);
+        assert!((max_slow.playback_rate - MIN_PLAYBACK_RATE).abs() < 1e-9);
+        assert!((max_slow.duration - 16.0).abs() < 1e-9);
+
+        // Dragging left edge from 4.0 to 6.0 halves duration (2 s), keeps end at 8.0 -> 2.0x
+        let sl = stretch_left(g, 6.0, 0.04);
+        assert!((sl.end() - 8.0).abs() < 1e-9);
+        assert!((sl.duration - 2.0).abs() < 1e-9);
+        assert!((sl.playback_rate - 2.0).abs() < 1e-9);
+
+        // Explicit rate update scales duration inversely
+        let explicit = set_playback_rate(g, 2.0, 0.04);
+        assert!((explicit.duration - 2.0).abs() < 1e-9);
+        assert!((explicit.playback_rate - 2.0).abs() < 1e-9);
     }
 
     #[test]

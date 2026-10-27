@@ -1,6 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <BaseIntermediateOutputPath>$(TEMP)\NeovegObj\</BaseIntermediateOutputPath>
-    <BaseOutputPath>$(TEMP)\NeovegBin\</BaseOutputPath>
-  </PropertyGroup>
-</Project>

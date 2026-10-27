@@ -1,9 +1,19 @@
 //! Neoveg entry point: opens the main workspace window with an empty project.
 
 mod app;
+mod captions_panel;
+mod credits;
+mod envelope_canvas;
 mod frame_grid;
+mod fx_panel;
+mod icons;
+mod loudness_panel;
+mod mixer_panel;
 mod precision_slider;
+mod scopes_panel;
 mod shortcuts;
+mod splash;
+mod theme;
 mod waveform_paint;
 
 use eframe::egui;
@@ -19,7 +29,8 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Neoveg")
-            .with_inner_size([1440.0, 860.0])
+            .with_inner_size([1280.0, 720.0])
+            .with_maximized(true)
             .with_min_inner_size([800.0, 500.0]),
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()

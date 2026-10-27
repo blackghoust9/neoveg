@@ -1,7 +1,23 @@
 //! Undoable edit commands. Each command carries everything needed to apply and revert it.
 
-use crate::timeline::{EventGeometry, EventId, Timeline, Track, TrackEvent, TrackId, TIME_EPSILON};
+use crate::captions::Caption;
+use crate::envelope::TrackEnvelope;
+use crate::markers::Marks;
+use crate::timeline::{
+    EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
+    TrackMix, TIME_EPSILON,
+};
+use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::grade::Grade;
+use neoveg_common::pan::PanLaw;
+
+/// Where an effect chain lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FxTarget {
+    Track(TrackId),
+    Master,
+}
 
 /// The whole event list of one track before and after an edit.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +67,66 @@ pub enum EditCommand {
     /// event lists, so any combination of changes is one exactly reversible undo step.
     ReplaceEvents {
         changes: Vec<TrackChange>,
+    },
+    /// Any change to the markers and regions (add, move, rename, delete): the whole set before
+    /// and after, so it is one exactly reversible undo step.
+    ReplaceMarks {
+        before: Marks,
+        after: Marks,
+    },
+    /// Any change to an effect chain (add, remove, reorder, bypass, parameter): the whole chain
+    /// before and after, so it is one exactly reversible undo step.
+    SetEffects {
+        target: FxTarget,
+        before: Vec<TrackEffect>,
+        after: Vec<TrackEffect>,
+    },
+    /// Several commands that are one undo step (an import that adds tracks and events): applied in
+    /// order, reverted in reverse order; if one does not apply, the ones before it are reverted.
+    Batch(Vec<EditCommand>),
+    /// Any change to the subtitles (import, add, edit, remove): the whole list before and after, so
+    /// it is one exactly reversible undo step.
+    ReplaceCaptions {
+        before: Vec<Caption>,
+        after: Vec<Caption>,
+    },
+    /// Any change to a track's mixer controls (mute, solo, fader, pan, phase): one undo step.
+    SetTrackMix {
+        track_id: TrackId,
+        before: TrackMix,
+        after: TrackMix,
+    },
+    /// The primary color correction of the video.
+    SetVideoGrade {
+        before: Grade,
+        after: Grade,
+    },
+    /// Chroma key (green/blue screen) of the video.
+    SetChromaKey {
+        before: ChromaKey,
+        after: ChromaKey,
+    },
+    /// The color table of the video (a `.cube` path), or none.
+    SetVideoLut {
+        before: Option<String>,
+        after: Option<String>,
+    },
+    /// The pan law of the project.
+    SetPanLaw {
+        before: PanLaw,
+        after: PanLaw,
+    },
+    /// Any change to a track's auto-ducking (on / off, controllers, amounts): one undo step.
+    SetDucking {
+        track_id: TrackId,
+        before: Option<TrackDucking>,
+        after: Option<TrackDucking>,
+    },
+    /// Any change to automation envelopes on a track or on the master bus: one undo step.
+    SetEnvelopes {
+        target: FxTarget,
+        before: Vec<TrackEnvelope>,
+        after: Vec<TrackEnvelope>,
     },
 }
 
@@ -129,6 +205,49 @@ impl EditCommand {
                 }
                 true
             }
+            Self::ReplaceMarks { after, .. } => {
+                tl.set_marks(after);
+                true
+            }
+            Self::Batch(commands) => {
+                for (i, command) in commands.iter().enumerate() {
+                    if !command.apply(tl) {
+                        for done in commands[..i].iter().rev() {
+                            done.revert(tl);
+                        }
+                        return false;
+                    }
+                }
+                true
+            }
+            Self::ReplaceCaptions { after, .. } => {
+                tl.captions = after.clone();
+                true
+            }
+            Self::SetTrackMix {
+                track_id, after, ..
+            } => set_track_mix(tl, *track_id, *after),
+            Self::SetPanLaw { after, .. } => {
+                tl.pan_law = *after;
+                true
+            }
+            Self::SetVideoGrade { after, .. } => {
+                tl.video_grade = after.sanitized();
+                true
+            }
+            Self::SetChromaKey { after, .. } => {
+                tl.chroma_key = after.sanitized();
+                true
+            }
+            Self::SetVideoLut { after, .. } => {
+                tl.video_lut = after.clone();
+                true
+            }
+            Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
+            Self::SetDucking {
+                track_id, after, ..
+            } => set_ducking(tl, *track_id, after),
+            Self::SetEnvelopes { target, after, .. } => set_envelopes(tl, *target, after),
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -145,16 +264,19 @@ impl EditCommand {
                 let left = &mut t.events[i];
                 let left_duration = at - left.start;
                 let right = TrackEvent {
+                    group: None,
                     id: *new_event_id,
                     name: left.name.clone(),
                     media_id: left.media_id,
                     start: *at,
                     duration: left.duration - left_duration,
-                    trim_in: left.trim_in + left_duration,
+                    trim_in: left.trim_in + left_duration * left.playback_rate,
                     fade_in: 0.0,
                     fade_out: left.fade_out,
                     fade_in_curve: FadeCurve::default(),
                     fade_out_curve: left.fade_out_curve,
+                    playback_rate: left.playback_rate,
+                    preserve_pitch: left.preserve_pitch,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -205,6 +327,33 @@ impl EditCommand {
                     }
                 }
             }
+            Self::ReplaceMarks { before, .. } => tl.set_marks(before),
+            Self::Batch(commands) => {
+                for command in commands.iter().rev() {
+                    command.revert(tl);
+                }
+            }
+            Self::ReplaceCaptions { before, .. } => tl.captions = before.clone(),
+            Self::SetTrackMix {
+                track_id, before, ..
+            } => {
+                set_track_mix(tl, *track_id, *before);
+            }
+            Self::SetPanLaw { before, .. } => tl.pan_law = *before,
+            Self::SetVideoGrade { before, .. } => tl.video_grade = before.sanitized(),
+            Self::SetChromaKey { before, .. } => tl.chroma_key = before.sanitized(),
+            Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
+            Self::SetEffects { target, before, .. } => {
+                set_effects(tl, *target, before);
+            }
+            Self::SetDucking {
+                track_id, before, ..
+            } => {
+                set_ducking(tl, *track_id, before);
+            }
+            Self::SetEnvelopes { target, before, .. } => {
+                set_envelopes(tl, *target, before);
+            }
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -222,6 +371,58 @@ impl EditCommand {
                 }
             }
         }
+    }
+}
+
+fn set_track_mix(tl: &mut Timeline, track_id: TrackId, mix: TrackMix) -> bool {
+    match tl.track_mut(track_id) {
+        Some(t) => {
+            t.set_mix(mix);
+            true
+        }
+        None => false,
+    }
+}
+
+fn set_ducking(tl: &mut Timeline, track_id: TrackId, ducking: &Option<TrackDucking>) -> bool {
+    match tl.track_mut(track_id) {
+        Some(t) => {
+            t.ducking = ducking.clone();
+            true
+        }
+        None => false,
+    }
+}
+
+fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope]) -> bool {
+    match target {
+        FxTarget::Master => {
+            tl.master_envelopes = envelopes.to_vec();
+            true
+        }
+        FxTarget::Track(id) => match tl.track_mut(id) {
+            Some(t) => {
+                t.envelopes = envelopes.to_vec();
+                true
+            }
+            None => false,
+        },
+    }
+}
+
+fn set_effects(tl: &mut Timeline, target: FxTarget, chain: &[TrackEffect]) -> bool {
+    match target {
+        FxTarget::Master => {
+            tl.master_effects = chain.to_vec();
+            true
+        }
+        FxTarget::Track(id) => match tl.track_mut(id) {
+            Some(t) => {
+                t.effects = chain.to_vec();
+                true
+            }
+            None => false,
+        },
     }
 }
 
@@ -338,6 +539,7 @@ mod tests {
         assert!(history.execute(&mut tl, EditCommand::AddTrack { track }));
         let event_id = tl.alloc_id();
         let event = TrackEvent {
+            group: None,
             id: event_id,
             name: "clip".into(),
             media_id: Some(1),
@@ -346,8 +548,7 @@ mod tests {
             trim_in: 1.0,
             fade_in: 0.0,
             fade_out: 0.5,
-            fade_in_curve: Default::default(),
-            fade_out_curve: Default::default(),
+            ..Default::default()
         };
         assert!(history.execute(&mut tl, EditCommand::AddEvent { track_id, event }));
         (tl, history, track_id, event_id)
@@ -468,8 +669,7 @@ mod tests {
             trim_in: 3.0,
             fade_in: 0.0,
             fade_out: 0.5,
-            fade_in_curve: Default::default(),
-            fade_out_curve: Default::default(),
+            ..Default::default()
         };
 
         assert!(history.execute(

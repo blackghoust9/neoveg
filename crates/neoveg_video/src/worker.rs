@@ -2,9 +2,14 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
+
+use neoveg_common::chroma::ChromaKey;
+use neoveg_common::grade::Grade;
 
 use crate::frame::FrameBuffer;
 use crate::info::VideoInfo;
+use crate::lut::Lut;
 
 pub struct FrameRequest {
     pub media_id: u64,
@@ -13,6 +18,12 @@ pub struct FrameRequest {
     pub seconds: f64,
     /// Maximum decoded width (0 = source size).
     pub max_width: u32,
+    /// Color table applied to the decoded picture (done on the worker thread).
+    pub lut: Option<Arc<Lut>>,
+    /// Primary color correction, applied before the LUT.
+    pub grade: Grade,
+    /// Chroma key (green/blue screen), applied before primary grading and LUT.
+    pub chroma_key: ChromaKey,
 }
 
 pub struct FrameReply {
@@ -94,7 +105,10 @@ fn run(requests: Receiver<FrameRequest>, replies: Sender<FrameReply>, on_reply: 
             let decoder = decoders
                 .get_mut(&request.path)
                 .ok_or("decoder unavailable")?;
-            decoder.frame_at(request.seconds, request.max_width)
+            let mut frame = decoder.frame_at(request.seconds, request.max_width)?;
+            crate::chroma::apply_chroma_key(&mut frame, &request.chroma_key);
+            crate::grading::apply_look(&mut frame, &request.grade, request.lut.as_deref());
+            Ok::<_, String>(frame)
         })();
         if let Err(e) = &result {
             tracing::warn!(
@@ -154,6 +168,9 @@ mod ffmpeg_tests {
             path: path.clone(),
             seconds: 0.4,
             max_width: 160,
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
         });
         let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
         assert_eq!(reply.media_id, 7);
@@ -165,6 +182,9 @@ mod ffmpeg_tests {
             path: PathBuf::from("missing.mp4"),
             seconds: 0.0,
             max_width: 0,
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
         });
         assert!(worker
             .rx

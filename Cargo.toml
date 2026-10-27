@@ -7,8 +7,6 @@ members = [
     "crates/neoveg_engine",
     "crates/neoveg_ui",
 ]
-# Legacy FFI core, kept only until every feature is ported to the crates above
-exclude = ["rust-core"]
 
 [workspace.package]
 version = "2.1.0"
@@ -29,3 +27,8 @@ serde_json = "1"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# Numeric audio code (loudness meter, mixer) is tested on seconds of signal: keep it optimised even
+# in debug builds so `cargo test` stays fast
+[profile.dev.package.neoveg_audio]
+opt-level = 3

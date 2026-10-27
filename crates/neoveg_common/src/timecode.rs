@@ -67,6 +67,36 @@ pub fn timecode_seconds_to_frame(timecode_seconds: i64, fps: f64) -> i64 {
     frames
 }
 
+/// Frame index of `HH:MM:SS:FF` (or `HH:MM:SS;FF`) at `fps`; `drop_frame` skips the dropped frame
+/// numbers like [`frame_to_timecode`]. The inverse of that function for every valid timecode.
+pub fn timecode_to_frame(h: i64, m: i64, s: i64, f: i64, fps: f64, drop_frame: bool) -> i64 {
+    let nominal = nominal_fps(fps);
+    let drop = drop_per_minute(fps, drop_frame);
+    let total_minutes = h * 60 + m;
+    (total_minutes * 60 + s) * nominal + f - drop * (total_minutes - total_minutes / 10)
+}
+
+/// Parses `HH:MM:SS:FF`, `HH:MM:SS;FF` or `HH:MM:SS.FF` into `(frame, drop_frame)`. A `;` (or a
+/// `.` in the last place, as some EDL writers use) means drop-frame. `None` for anything else.
+pub fn parse_timecode(text: &str, fps: f64) -> Option<(i64, bool)> {
+    let text = text.trim();
+    let parts: Vec<&str> = text.split([':', ';', '.', ',']).collect();
+    if parts.len() != 4
+        || parts
+            .iter()
+            .any(|p| p.is_empty() || p.len() > 4 || !p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return None;
+    }
+    let n: Vec<i64> = parts.iter().map(|p| p.parse().unwrap_or(0)).collect();
+    if n[1] >= 60 || n[2] >= 60 {
+        return None;
+    }
+    let drop = text.contains(';') || text.rsplit_once('.').is_some_and(|(_, f)| f.len() <= 3);
+    let drop = drop && is_drop_frame_rate(fps);
+    Some((timecode_to_frame(n[0], n[1], n[2], n[3], fps, drop), drop))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,5 +125,40 @@ mod tests {
         }
         assert_eq!(timecode_seconds_to_frame(60, 29.97), 1800);
         assert_eq!(timecode_seconds_to_frame(60, 25.0), 1500);
+    }
+
+    #[test]
+    fn timecodes_parse_back_to_the_same_frame() {
+        for fps in [24.0, 25.0, 29.97, 30.0, 59.94] {
+            let drop = is_drop_frame_rate(fps);
+            for frame in [
+                0_i64, 1, 29, 1799, 1800, 1801, 17_981, 17_982, 107_892, 215_784, 500_001,
+            ] {
+                let text = frame_to_timecode(frame, fps, drop);
+                assert_eq!(
+                    parse_timecode(&text, fps),
+                    Some((frame, drop)),
+                    "{fps} fps frame {frame} = {text}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bad_timecodes_are_rejected() {
+        for bad in [
+            "",
+            "1:2:3",
+            "00:61:00:00",
+            "00:00:61:00",
+            "aa:bb:cc:dd",
+            "00:00:00:00:00",
+            "00:00:00:",
+        ] {
+            assert_eq!(parse_timecode(bad, 25.0), None, "{bad}");
+        }
+        // A semicolon only means drop-frame at a rate that has it
+        assert_eq!(parse_timecode("00:01:00;00", 25.0), Some((1500, false)));
+        assert_eq!(parse_timecode("00:01:00:00", 29.97), Some((1800, false)));
     }
 }

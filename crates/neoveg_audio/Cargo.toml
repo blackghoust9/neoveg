@@ -7,6 +7,19 @@ description = "Neoveg audio: symphonia decoding, cpal output, real peak meters a
 
 [dependencies]
 neoveg_common.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tracing.workspace = true
 symphonia = { version = "0.5", features = ["all"] }
 cpal = "0.15"
+nnnoiseless = { version = "0.5", default-features = false }
+clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "latency", "audio-ports", "log"] }
+candle-core = { version = "0.11", default-features = false }
+candle-nn = { version = "0.11", default-features = false }
+candle-transformers = { version = "0.11", default-features = false }
+
+[dev-dependencies]
+clack-plugin = "0.2"
+clack-host = { version = "0.2", features = ["clack-plugin"] }
+clack-extensions = { version = "0.2", features = ["clack-host", "clack-plugin", "params", "latency", "audio-ports", "log"] }

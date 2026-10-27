@@ -89,6 +89,43 @@ impl Selection {
         self.anchor = self.primary;
     }
 
+    /// Plain click on a grouped event: all of `events` are selected and `primary` is the one
+    /// that was clicked.
+    pub fn select_many(&mut self, events: impl IntoIterator<Item = EventRef>, primary: EventRef) {
+        self.events = events.into_iter().collect();
+        self.events.insert(primary);
+        self.primary = Some(primary);
+        self.anchor = Some(primary);
+    }
+
+    /// Ctrl-click on a grouped event: all of `events` leave the selection when `primary` was
+    /// selected, otherwise they all join it.
+    pub fn toggle_many(&mut self, events: &[EventRef], primary: EventRef) {
+        if self.events.contains(&primary) {
+            for e in events {
+                self.events.remove(e);
+            }
+            self.events.remove(&primary);
+            if self.primary == Some(primary) {
+                self.primary = self.events.iter().next_back().copied();
+            }
+        } else {
+            self.events.extend(events.iter().copied());
+            self.events.insert(primary);
+            self.primary = Some(primary);
+        }
+        self.anchor = Some(primary);
+    }
+
+    /// Adds events without changing the primary event or the Shift-click anchor.
+    pub fn add_all(&mut self, events: impl IntoIterator<Item = EventRef>) {
+        self.events.extend(events);
+        if self.primary.is_none() {
+            self.primary = self.events.iter().next_back().copied();
+            self.anchor = self.primary;
+        }
+    }
+
     /// Plain click: only this event is selected.
     pub fn select_only(&mut self, event: EventRef) {
         self.events.clear();
@@ -251,11 +288,7 @@ pub(crate) mod tests {
                     media_id: Some(1),
                     start: f64::from(k) * 3.0,
                     duration: 2.0,
-                    trim_in: 0.0,
-                    fade_in: 0.0,
-                    fade_out: 0.0,
-                    fade_in_curve: Default::default(),
-                    fade_out_curve: Default::default(),
+                    ..Default::default()
                 });
             }
             tl.tracks.push(track);
@@ -274,6 +307,25 @@ pub(crate) mod tests {
         assert!(TimeRange::new(1.0, 1.0).is_empty());
         assert!(range.overlaps(4.0, 9.0));
         assert!(!range.overlaps(5.0, 9.0), "touching is not overlapping");
+    }
+
+    #[test]
+    fn group_clicks_select_and_toggle_every_member() {
+        let tl = sample();
+        let (a, b, c) = (r(&tl, 0, 0), r(&tl, 1, 0), r(&tl, 0, 1));
+        let mut sel = Selection::new();
+        sel.select_many([a, b], a);
+        assert_eq!((sel.len(), sel.primary()), (2, Some(a)));
+        sel.toggle_many(&[c], c);
+        assert_eq!(sel.len(), 3);
+        sel.toggle_many(&[a, b], a);
+        assert_eq!((sel.refs(), sel.primary()), (vec![c], Some(c)));
+        sel.add_all([a, b]);
+        assert_eq!(
+            (sel.len(), sel.primary()),
+            (3, Some(c)),
+            "primary is unchanged"
+        );
     }
 
     #[test]

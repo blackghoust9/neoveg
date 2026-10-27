@@ -2,7 +2,7 @@
 
 Editor não linear de vídeo e áudio multiplataforma, escrito em **Rust puro** (Cargo workspace com `egui`/`eframe`, `wgpu`, `cpal`, `symphonia`).
 
-> **Em migração.** A branch `refactor/100-percent-rust` substitui a arquitetura anterior (C# / Avalonia, Rust FFI, C++ e Python) por um único workspace Rust. Os diretórios legados (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) continuam no repositório apenas como referência até cada recurso ser portado e, em seguida, serão removidos.
+> **Em migração.** A branch `refactor/100-percent-rust` substitui a arquitetura anterior (C# / Avalonia, Rust FFI, C++ e Python) por um único workspace Rust. Os diretórios legados (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) foram removidos; continuam no histórico do Git (commit `36b1d19` e anteriores).
 
 Consulte [AGENTS.md](./AGENTS.md) para os padrões de arquitetura e codificação (Parte I) e [REQUIREMENTS.md](./REQUIREMENTS.md) para o detalhe de versões.
 
@@ -141,56 +141,87 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Composição de várias faixas de vídeo na prévia (hoje aparece só a faixa de vídeo mais alta sob o cursor)
 - [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
-- [ ] Slip, slide e stretch de eventos; ripple; agrupar (`G`) e desagrupar (`U`); seleção múltipla
+- [ ] Slip, slide e stretch de eventos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
 - [ ] Aparar com o mouse em eventos de mídia gerada (hoje o limite de fonte só vale para mídia importada)
-- [ ] Marcadores (`M`), regiões e loop
-- [ ] Volume, pan, mute e solo por faixa; barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
+- [x] Marcadores (`M`), regiões e loop
+- [x] Volume, pan, mute e solo por faixa
+- [ ] Barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
 - [ ] Efeitos de vídeo e transições na GPU (`wgpu`), composição e Pan/Crop do evento
 - [ ] Geradores de mídia (títulos, cor sólida, padrão de teste) e janela de títulos
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
 - [ ] Renderização/exportação (Make Movie) com FFmpeg
-- [ ] Importação/exportação FCP7 XML, FCPXML e CMX3600 EDL
-- [ ] Transcrição de fala para legendas (Whisper) e chaveamento de croma (CorridorKey)
+- [x] Importação e exportação de listas de edição CMX 3600 (`.edl`): exporta os cortes da faixa selecionada com os comentários de nome do clipe e arquivo, importa cortes (transições lidas como corte, com aviso) para as mídias que já estão no projeto, em um passo de desfazer
+- [x] Importação e exportação de XML do Final Cut Pro 7 (`xmeml` v5): todas as faixas e clipes (posição, entrada e saída da fonte, nomes e caminhos), importando para as mídias do projeto em um passo de desfazer
+- [x] Importação e exportação de FCPXML do Final Cut Pro (`<fcpxml version="1.10">`): tempos racionais exatos por quadro (`1001/30000s`, `1/25s`), faixas conectadas de vídeo e áudio, marcadores e regiões, em um passo de desfazer
+- [x] Importação e exportação de OpenTimelineIO (`.otio` JSON em Rust puro: `Timeline.1`, `Stack.1`, `Track.1`, `Clip.1`/`Clip.2`, `Gap.1`, `Transition.1` para crossfades, `LinearTimeWarp.1` para time-stretch e `Marker.2` para marcadores e regiões, em um passo de desfazer)
+- [x] Transcrição automática de fala para legendas com Whisper em Rust puro (`neoveg_audio::whisper` sobre `candle-transformers`, pesos `.safetensors` e `.gguf`, 9 idiomas + detecção automática, em thread própria e como um passo de desfazer na aba **Legendas**)
+- [x] Chaveamento de croma (Chroma Key em Rust puro: `neoveg_common::chroma` + `neoveg_video::chroma`, recorte YCbCr Rec. 709 para tela verde/azul, suavidade de borda, supressão de *spill* preservando luminância e visualização da máscara P&B em **Ferramentas → Chaveamento de croma…**, em um passo de desfazer)
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python)
+- [x] Vários projetos em abas e sub-projetos aninhados: `ProjectManager` (abrir, fechar, trocar), `MediaSource::SubProject`, validação de dependência circular, `Ctrl+Shift+N` cria um sub-projeto a partir da seleção, duplo clique no evento abre a aba, reprodução de áudio e vídeo expandindo o sub-projeto
+- [x] Scrub com `J` / `K` / `L`: reprodução para frente e para trás em 1x, 2x, 4x, 8x e 16x (cada toque acelera, a outra tecla inverte, `K` pausa), com a velocidade aplicada no callback de áudio
+- [x] Janelas: `Alt+0/2/3/4/5`, `Ctrl+Alt+2/7/9` mostram, trazem para a frente ou fecham cada janela acoplável; Exibir → Layouts salva e restaura até 9 layouts e o layout padrão
 - [ ] Preferências: aplicar o idioma (`pt-BR` padrão + 7 idiomas) em toda a interface
-- [ ] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark)
+- [x] Ícones vetoriais próprios na barra da timeline (`neoveg_ui/src/icons.rs`, 16 pictogramas planos, no lugar dos emojis); falta levá-los aos demais painéis e ao menu
+- [x] Tela de carregamento nova (`neoveg_ui/src/splash.rs`): formas 3D flutuando (projeção e sombreamento por software, com paralaxe do mouse), o nome NEOVEG animado em 3D, arte original animada de um carretel de filme desenrolando quadros sob o playhead (licença MIT) e barra de progresso que acompanha as etapas reais de inicialização (preferências, placa de vídeo, saída de áudio, efeitos, decodificador de vídeo e recuperação de projetos); qualquer tecla ou clique pula a espera
+- [x] Temas (Classic Foundry, Classic Silver, Modern Carbon Dark, Contemporary Electric Dark) e temas personalizados em `.json` (`Editar → Preferências → Temas`)
 - [ ] Abas no rodapé em todos os painéis (hoje só o painel de Mídia; o `egui_dock` não posiciona a barra embaixo)
 - [ ] Medidores de pico e cópia de logs no visualizador de logs da interface
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov`
-- [ ] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) e atualizar `Dockerfile`, `.gitignore` e scripts de QA para o workspace Rust
+- [x] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`), o `Dockerfile` e o `docker-compose.yml` da raiz (o ambiente Docker atual está em `docker/`)
 
 ### A fazer a partir da pesquisa dos manuais e do `results.md`
 
 Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os PDFs ficam em `manuais/` (ignorada pelo Git por causa do tamanho); a lista abaixo já incorpora a leitura deles.
 
 **Edição e timeline**
-- [ ] Modos de edição (Ripple off/eventos/faixa/tudo) e *Auto Ripple*
+- [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
+- [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar
 - [ ] Slip, slide, stretch e *velocity* (envelope de velocidade) de eventos
-- [ ] Seleção múltipla, agrupar (`G`) e desagrupar (`U`), travar faixa/evento
-- [ ] Marcadores (`M`), regiões, marcadores de comando e loop; réguas adicionais
+- [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
+- [ ] Travar faixa/evento
+- [x] Marcadores (`M`), regiões e loop
+- [ ] Marcadores de comando e réguas adicionais
 - [ ] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
-- [ ] Aninhar projetos (*nesting*) e faixas de composição/pai-filho
+- [x] Aninhar projetos (*nesting*) em abas, com validação de ciclos
+- [ ] Faixas de composição pai/filho
 - [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
 - [ ] Personalizar teclado, barras de ferramentas e layouts de janela (salvar/restaurar)
 
 **Áudio**
-- [ ] Volume, pan, mute e solo por faixa; Mixing Console com barramentos, sends e inserts
-- [ ] Efeitos de áudio nativos (EQ, compressor, reverb, delay) e hospedagem VST3
-- [ ] Gravação de áudio, entradas de dispositivo e metrônomo
+- [ ] Mixing Console com barramentos, sends e inserts (volume, pan, mute e solo por faixa já existem)
+- [x] Efeitos de áudio nativos por faixa e no master (adaptados do FilmCraft): equalizador paramétrico e de 3 bandas, compressor, expansor/gate, limitador (só no master, por ter latência), delay e reverb; cadeia de até 8 efeitos com bypass, ordem e parâmetros, salva no projeto, um passo de desfazer por ação; painel **Efeitos de Áudio**; ao mudar a cadeia durante a reprodução o áudio recomeça no cursor
+- [x] Filtros (equalizadores gráficos de 10/20/30 bandas, paramétrico completo, notch, filtros clássicos Butterworth/Chebyshev/Bessel/Elíptico, filtro FFT), DeHum e DeNoise do `audio-dsp`, disponíveis em qualquer faixa e no master
+- [x] Compensação de latência: efeitos com latência (limitador, DeNoise, filtro FFT) não deslocam a faixa em relação às outras nem ao vídeo; o mixer atrasa as faixas mais rápidas e adianta a mixagem pelo atraso total
+- [x] Auto-ducking por faixa (a música desce quando as faixas de controle têm som): sensibilidade, redução em dB e transição; a análise roda ao iniciar a reprodução e a curva começa a descer antes do som entrar
+- [x] Mais 19 efeitos do `audio-dsp`: mudança de tom (pitch), chorus/flanger, flanger, phaser, delay analógico e de várias batidas, compressor multibanda, rack de dinâmica, compressor valvulado, DeEsser, DeReverb, realce de fala, removedor de cliques, largura estéreo e ganho, volume por canal, balanço e inverter fase (28 efeitos no registro, com o RNNoise)
+- [x] Redução de ruído por IA: efeito **RNNoise** (crate `nnnoiseless`, BSD-3-Clause), com mix e ganho de saída, compensação de latência e conversão de taxa para dispositivos de 44,1, 96 e 32 kHz
+- [x] Nomes e rótulos dos parâmetros dos efeitos em pt-BR
+- [x] Desfazer e refazer com a reprodução em andamento (o áudio recomeça no cursor com a cadeia restaurada)
+- [x] Automação de parâmetros por envelopes editáveis na timeline (`V` volume, `P` pan, `Ctrl+Shift+E` mostrar/ocultar e parâmetros de efeitos), ducking em tempo real por sidechain pós-FX/pós-fader e hospedagem de plug-ins de áudio CLAP (`.clap`) via `clack-host` com compensação automática de latência (PDC)
+- [ ] Hospedagem de plug-ins VST3
+- [x] Metrônomo: clique por tempo com acento no primeiro tempo do compasso (andamento e compasso fazem parte do projeto), em Ferramentas → Metrônomo
+- [x] Navegação do cursor: `Ctrl+Home` / `Ctrl+End`, `Home` / `End`, `Ctrl+Alt+←/→` (bordas de eventos e de fades), `\` (centralizar) e `Ctrl+G` (ir para o tempo, em timecode, minutos:segundos, segundos ou quadros)
+- [x] Gravação de áudio do dispositivo de entrada padrão (`Ctrl+R` ou o botão vermelho da barra): callback sem alocação nem bloqueio, escrita em WAV float por thread própria, nível de entrada real na barra de status, e a tomada entra na linha do tempo no ponto onde a gravação começou
+- [ ] Escolha do dispositivo de entrada, armar faixas e gravação com monitoramento
 
 **Vídeo e composição**
 - [ ] Composição multicamada na prévia e modos de composição (mistura)
 - [ ] Track Motion, Pan/Crop de evento com gizmo `'F'` e keyframes
 - [ ] Transições (categorias, presets, parâmetros) e efeitos de vídeo na GPU; OFX
-- [ ] Correção/gradação de cor, LUTs (OCIO) e scopes de vídeo (histograma, parada RGB, vectorscope)
-- [ ] Geradores e Titler/Texto com animação; legendas
+- [x] LUT de cor do projeto (`.cube` 1D e 3D, interpolação trilinear) aplicada ao quadro decodificado na thread de vídeo; Ferramentas → LUT de cor do vídeo (incluídas em `assets/luts` ou arquivo próprio), um passo de desfazer
+- [x] Scopes de vídeo (aba **Scopes de Vídeo** ao lado do Loudness): forma de onda de luma, parada RGB, histograma (com aviso de estouro) e vectorscópio com os alvos das barras 75 % (Rec. 709), calculados do quadro no cursor ou das barras SMPTE
+- [x] Correção de cor primária (Ferramentas → Correção de cor…): exposição, temperatura, matiz, pretos (lift), contraste, gama e saturação, aplicada na thread de vídeo antes da LUT e nas barras SMPTE, ao vivo durante o arraste e como um passo de desfazer
+- [x] Biblioteca de ícones SVG (`crates/neoveg_ui/assets/icons`): pan/crop, FX do evento, ímã de alinhamento, auto ripple, dividir e reproduzir / pausar / parar, com `currentColor` e estilo plano e quadrado
+- [ ] Gradação de cor por evento, rodas de cor e OCIO
+- [x] Legendas SRT e WebVTT: aba **Legendas** no painel de mídia (editar texto e tempos, adicionar no cursor, apagar, ir para a legenda), texto sobre a prévia do vídeo, importar e exportar pelo menu Arquivo; leitura tolerante (BOM, UTF-16, Windows-1252, índices errados), adaptada do FilmCraft
+- [ ] Geradores e Titler/Texto com animação, estilo das legendas e queima das legendas na exportação
 - [ ] Rastreamento de movimento, máscaras e *Smart Mask*
 
 **Projeto, mídia e saída**
 - [ ] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
 - [ ] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
 - [ ] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
-- [ ] Intercâmbio FCP7 XML, FCPXML e EDL
+- [x] Intercâmbio FCP7 XML, FCPXML, OpenTimelineIO (`.otio`) e EDL
 - [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
 - [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 
@@ -213,7 +244,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 1 — Seleção e comandos de edição básicos (entrada 7)**
 - [x] `Selection` no engine (`neoveg_engine::selection`: conjunto de eventos, evento primário, intervalo de tempo): clique, `Ctrl`+clique alterna, `Shift`+clique seleciona o retângulo entre dois eventos, `Ctrl+A`, "Selecionar eventos até o fim" (menu de contexto); seleção de tempo arrastando no espaço vazio das faixas ou com `I` / `O`
-- [ ] Seleção retangular (já existe `Selection::select_in_rect` no engine; falta a ferramenta de seleção na UI) e mover vários eventos selecionados juntos
+- [x] Seleção retangular (`Shift` + arrastar no espaço vazio das faixas; `Ctrl` mantém a seleção atual) e mover vários eventos selecionados juntos (só no tempo, sem passar de zero, um passo de desfazer)
 - [ ] Caixas de início/fim/duração da seleção que aceitam valor absoluto ou relativo (`+10`, `-5` na unidade da régua)
 - [x] Cortar, copiar, colar e excluir com seleção de tempo (divide eventos nas bordas, todas as faixas) e com eventos selecionados (só os selecionados); cada ação é um único Desfazer (`EditCommand::ReplaceEvents`); itens sem faixa do mesmo tipo são ignorados com aviso
 - [x] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes nas faixas afetadas) e colar repetido (`Ctrl+B`: janela com número de cópias, uma após a outra ou a cada X segundos)
@@ -246,14 +277,18 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Seleção não destrutiva de canal/stream de áudio (ambos, esquerdo, direito, combinar, trocar, canal x)
 - [ ] Esticar no tempo e mudar o tom (teclas `=` e `-`), taxa de reprodução e subamostragem de vídeo
 - [ ] Takes por evento (adicionar como take, `T` / `Shift+T`, escolher/apagar ativo, "slip em todos os takes")
-- [ ] Grupos (`G`, `U`, `Ctrl+Shift+U`, selecionar grupo) e vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)
+- [x] Grupos (`G`, `U`, `Ctrl+Shift+U` ignora o agrupamento): `group` no evento (`#[serde(default)]`), clicar, `Ctrl`+clicar ou selecionar com retângulo pega o grupo inteiro, o grupo se move junto, dividir parte o grupo em dois e colar cria um grupo próprio; canto laranja no evento e botão 🔗 na barra
+- [ ] Vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)
 - [ ] Reverter evento (cria subclipe revertido)
 
 **Fase 5 — Marcadores, regiões e laço (entrada 11)**
-- [ ] `markers: Vec<Marker>` no projeto (`#[serde(default)]`), barra de marcadores acima da régua, `M` com nome inline, teclas `0`–`9` saltam para marcadores
-- [ ] Regiões (`R`), mover/redimensionar etiquetas, apagar tudo / apagar na seleção, ferramenta de marcador com seleção múltipla
+- [x] `markers` e `regions` na timeline (`#[serde(default)]`, um passo de desfazer cada), marcadores e regiões desenhados na régua, `M` insere, `R` cria região da seleção de tempo, `Ctrl+←` / `Ctrl+→` saltam entre marcadores e bordas de região, menu de contexto da régua (remover, apagar)
+- [x] Nome inline: `M` e `R` abrem uma caixa de nome na régua (Enter ou perder o foco confirma, Esc cancela, nome em branco mantém o padrão); duplo clique ou "Renomear" no menu da régua renomeia; arrastar marcadores, regiões e bordas de região na faixa inferior da régua (quadro a quadro, uma ação de desfazer por arrasto, Esc cancela)
+- [x] Teclas `1`–`9` e `0` (o décimo) levam o cursor ao n-ésimo marcador por tempo (comandos `cursor.marker_one` … `cursor.marker_ten`, regraváveis)
+- [ ] Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)
 - [ ] Marcadores de comando (comando, parâmetro, comentário, modelos) e marcadores de mídia mostrados nos eventos (snap opcional)
-- [ ] Região de laço (`Shift+Q`), reprodução em laço (`Q`) e "renderizar só a região de laço"
+- [x] Região de laço (`Shift+Q`: seleção de tempo ou região sob o cursor; sem nenhuma, limpa) e reprodução em laço (`Q`, botão 🔁) sem emenda no callback de áudio; o laço usa a região de laço, senão a seleção, senão o projeto inteiro
+- [ ] "Renderizar só a região de laço" (depende da exportação)
 
 **Fase 6 — Trimmer (entrada 12)**
 - [ ] `TrimmerState` (mídia, entrada, saída, cursor) com histórico; `I` e `O` marcam entrada e saída
@@ -262,12 +297,13 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Modo sobrescrever linha do tempo e importar estéreo como mono duplo
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
-- [ ] Volume, pan (leis Add Channels / Balance 0, -3, -6 dB / Constant Power), mudo, solo (exclusivo com `Ctrl`) e inverter fase por faixa; operar em todas as faixas selecionadas
+- [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução
 - [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), duplicar faixa, cor e altura de faixa, minimizar/maximizar
 - [ ] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
 - [ ] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa"
 - [ ] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
-- [ ] Medidores de loudness (M, S, I, LRA, pico verdadeiro; EBU R128 e ATSC A/85) em painel próprio e registro `_loud.txt`
+- [x] Medidores de loudness (M, S, I, LRA, pico verdadeiro) em painel próprio **Loudness**, com alvos EBU R128, ATSC A/85, streaming e podcast: medidor BS.1770-4 adaptado do FilmCraft (`neoveg_audio::dsp`), alimentado no callback de áudio com as amostras que vão para a placa; créditos em **Ajuda → Créditos e licenças…**
+- [ ] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir)
 
 **Fase 8 — Automação e keyframes (entrada 14)**
 - [ ] Edição de envelopes: pontos, `Ctrl` fino, `Alt` só tempo, pincel livre, afinar pontos, inverter, tipo de curva por segmento
@@ -293,7 +329,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
 - [ ] Detectar cenas e dividir (filtro de cena do FFmpeg), Congelar quadro no cursor (envelope de velocidade), detecção de batidas e de andamento
 - [ ] Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade
-- [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking (controlador/ouvinte), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
+- [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking por keyframes de volume (o por faixa já existe), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
 
 **Fase 12 — Propriedades, régua e espaço de trabalho (entradas 30 a 35)**
 - [ ] Propriedades do projeto: formato de pixel, ordem de campos, taxa de amostragem e profundidade de bits, início da régua, BPM e compasso, pastas de gravação e pré-renderização, espaço de cor (ACES/OCIO) — tudo com valor padrão para abrir projetos antigos

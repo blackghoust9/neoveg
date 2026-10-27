@@ -177,11 +177,12 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::FileSave, &["Ctrl+S"]),
     (Command::FileSaveAs, &["Ctrl+Shift+S"]),
     (Command::FileNew, &["Ctrl+N"]),
-    (Command::FileNewQuick, &["Ctrl+Shift+N"]),
+    (Command::FileCreateSubproject, &["Ctrl+Shift+N"]),
     (Command::FileClose, &["Ctrl+F4"]),
     (Command::FileProperties, &["Alt+Enter"]),
     (Command::EditUndo, &["Ctrl+Z", "Alt+Backspace"]),
     (Command::EditRedo, &["Ctrl+Y", "Ctrl+Shift+Z"]),
+    (Command::EditRippleDelete, &["Ctrl+Delete"]),
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
     (Command::EditCut, &["Ctrl+X", "Shift+Delete"]),
@@ -218,6 +219,16 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::CursorSelectionEnd, &["End"]),
     (Command::CursorPreviousMarker, &["Ctrl+Left"]),
     (Command::CursorNextMarker, &["Ctrl+Right"]),
+    (Command::CursorMarker1, &["1"]),
+    (Command::CursorMarker2, &["2"]),
+    (Command::CursorMarker3, &["3"]),
+    (Command::CursorMarker4, &["4"]),
+    (Command::CursorMarker5, &["5"]),
+    (Command::CursorMarker6, &["6"]),
+    (Command::CursorMarker7, &["7"]),
+    (Command::CursorMarker8, &["8"]),
+    (Command::CursorMarker9, &["9"]),
+    (Command::CursorMarker10, &["0"]),
     (Command::CursorPreviousEdit, &["Ctrl+Alt+Left"]),
     (Command::CursorNextEdit, &["Ctrl+Alt+Right"]),
     (Command::CursorGoTo, &["Ctrl+G"]),
@@ -228,6 +239,9 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     // Enter also plays/pauses in the reference map; it is left unbound here because Enter
     // activates a focused button in egui.
     (Command::TransportPlayToggle, &["Space"]),
+    (Command::TransportShuttleReverse, &["J"]),
+    (Command::TransportShuttlePause, &["K"]),
+    (Command::TransportShuttleForward, &["L"]),
     (Command::TransportStop, &["Escape"]),
     (Command::TransportPlayFromStart, &["Shift+Space"]),
     (Command::TransportLoop, &["Q"]),
@@ -254,7 +268,9 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewMasterBus, &["Alt+3"]),
     (Command::ViewPreview, &["Alt+4"]),
     (Command::ViewProjectMedia, &["Alt+5"]),
-    (Command::ViewLoudnessMeters, &["Ctrl+Alt+8"]),
+    (Command::ViewLoudnessMeters, &["Ctrl+Alt+7"]),
+    (Command::ViewVideoScopes, &["Ctrl+Alt+2"]),
+    (Command::ViewAudioEffects, &["Ctrl+Alt+9"]),
 ];
 
 /// The shortcuts of `command` in the default map.
@@ -508,7 +524,7 @@ mod tests {
     fn reset_restores_defaults() {
         let mut map = KeyMap::defaults();
         map.clear_command(Command::EditSplit);
-        map.bind(Command::EditSplit, sc("K"));
+        map.bind(Command::EditSplit, sc("F10"));
         map.reset_command(Command::EditSplit);
         assert_eq!(map.shortcuts_for(Command::EditSplit), vec![sc("S")]);
         assert_eq!(map.to_overrides(), BTreeMap::new());
@@ -518,12 +534,12 @@ mod tests {
     fn overrides_round_trip_and_only_store_differences() {
         let mut map = KeyMap::defaults();
         map.clear_command(Command::EditSplit);
-        map.bind(Command::EditSplit, sc("K"));
+        map.bind(Command::EditSplit, sc("F10"));
         map.bind(Command::EditSplit, sc("Ctrl+K"));
         map.unbind(&sc("Alt+Backspace"));
         let overrides = map.to_overrides();
         assert_eq!(overrides.len(), 2);
-        assert_eq!(overrides["edit.split"], vec!["Ctrl+K", "K"]);
+        assert_eq!(overrides["edit.split"], vec!["Ctrl+K", "F10"]);
         assert_eq!(overrides["edit.undo"], vec!["Ctrl+Z"]);
 
         let (rebuilt, warnings) = KeyMap::from_overrides(&overrides);
@@ -546,14 +562,14 @@ mod tests {
             ("no.such.command".to_string(), vec!["Ctrl+Q".to_string()]),
             (
                 "edit.split".to_string(),
-                vec!["Banana".to_string(), "K".to_string()],
+                vec!["Banana".to_string(), "F10".to_string()],
             ),
             // Takes Ctrl+Q from "insert audio track"
             ("edit.undo".to_string(), vec!["Ctrl+Q".to_string()]),
         ]);
         let (map, warnings) = KeyMap::from_overrides(&overrides);
         assert_eq!(warnings.len(), 3, "{warnings:?}");
-        assert_eq!(map.command_for(&sc("K")), Some(Command::EditSplit));
+        assert_eq!(map.command_for(&sc("F10")), Some(Command::EditSplit));
         assert_eq!(map.command_for(&sc("Ctrl+Q")), Some(Command::EditUndo));
         assert!(map.shortcuts_for(Command::InsertAudioTrack).is_empty());
     }

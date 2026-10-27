@@ -87,6 +87,7 @@ mod tests {
 
     fn media(path: &str) -> MediaRef {
         MediaRef {
+            subproject: false,
             id: 1,
             path: path.into(),
             duration_seconds: 1.0,
@@ -126,11 +127,13 @@ mod tests {
         std::fs::write(d.join("a.wav"), b"x").unwrap();
         let mut pool = vec![
             MediaRef {
+                subproject: false,
                 id: 1,
                 path: "/old/a.wav".into(),
                 duration_seconds: 1.0,
             },
             MediaRef {
+                subproject: false,
                 id: 2,
                 path: "/old/b.wav".into(),
                 duration_seconds: 1.0,

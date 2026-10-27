@@ -74,6 +74,11 @@ PAYLOAD_FILES = {
     "RELEASE_NOTES.md": "RELEASE_NOTES.md",
     "README.md": "README.md",
     "third_party/README.md": "third_party/README.md",
+    "third_party/filmcraft/LICENSE-MIT": "third_party/filmcraft/LICENSE-MIT",
+    "third_party/filmcraft/README.md": "third_party/filmcraft/README.md",
+    "third_party/nnnoiseless/COPYING": "third_party/nnnoiseless/COPYING",
+    "third_party/nnnoiseless/AUTHORS": "third_party/nnnoiseless/AUTHORS",
+    "third_party/nnnoiseless/README.md": "third_party/nnnoiseless/README.md",
 }
 
 PILLAR_LABELS = {
@@ -155,8 +160,24 @@ def host_triple() -> Optional[str]:
 
 
 def installed_targets() -> List[str]:
+    """Rust targets with a standard library installed (works with or without rustup)."""
     text = capture(["rustup", "target", "list", "--installed"])
-    return text.split() if text else []
+    if text:
+        return text.split()
+    # Toolchains installed by an MSI / distro package have no rustup: read the sysroot instead
+    sysroot = capture(["rustc", "--print", "sysroot"])
+    if not sysroot:
+        return []
+    rustlib = Path(sysroot) / "lib" / "rustlib"
+    if not rustlib.is_dir():
+        return []
+    return sorted(d.name for d in rustlib.iterdir() if (d / "lib").is_dir())
+
+
+def target_hint(triple: str) -> str:
+    if capture(["rustup", "--version"]):
+        return f"rustup target add {triple}"
+    return f"install the standard library for {triple} (this toolchain has no rustup)"
 
 
 def resolve_targets(spec: str) -> List[str]:
@@ -198,15 +219,17 @@ def ffmpeg_environment() -> List[str]:
 
 def cmd_check(args: argparse.Namespace) -> int:
     ok = True
-    for tool in ("cargo", "rustc", "rustup"):
+    for tool in ("cargo", "rustc"):
         version = capture([tool, "--version"])
         print(f"{'OK  ' if version else 'FAIL'} {tool}: {version or 'not found'}")
         ok = ok and bool(version)
-    components = capture(["rustup", "component", "list", "--installed"]) or ""
-    for component in ("clippy", "rustfmt"):
-        present = component in components
-        print(f"{'OK  ' if present else 'FAIL'} component {component}")
-        ok = ok and present
+    # rustup is optional (MSI and distro toolchains have none); the components are probed directly
+    rustup = capture(["rustup", "--version"])
+    print(f"INFO rustup: {rustup or 'not installed (optional)'}")
+    for component, cmd in (("clippy", ["cargo", "clippy", "--version"]), ("rustfmt", ["cargo", "fmt", "--version"])):
+        version = capture(cmd)
+        print(f"{'OK  ' if version else 'FAIL'} component {component}: {version or 'not found'}")
+        ok = ok and bool(version)
     print(f"INFO host target: {host_triple()} ({host_rid()})")
     if args.ffmpeg:
         problems = ffmpeg_environment()
@@ -218,6 +241,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 # ----------------------------------------------------------------------------- QA
+
+
+def release_env(triple: str) -> Dict[str, str]:
+    """Environment of the release build; QA and packaging share it so the second build is cached."""
+    if "windows-msvc" not in triple:
+        return {}
+    # Static C runtime: the portable exe does not need the Visual C++ redistributable
+    flags = os.environ.get("RUSTFLAGS", "")
+    return {"RUSTFLAGS": (flags + " -C target-feature=+crt-static").strip()}
 
 
 def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
@@ -235,8 +267,12 @@ def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
     if getattr(args, "ffmpeg", False):
         steps.append({"name": "Testes com FFmpeg", "pillar": "Reliability", "standard": testing,
                       "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"]})
-    steps.append({"name": "Build release do workspace", "pillar": "Portability", "standard": portable,
-                  "cmd": ["cargo", "build", "--workspace", "--release"]})
+    # Same command and RUSTFLAGS as the package build, so packaging reuses this compilation
+    release_cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
+    if getattr(args, "ffmpeg", False):
+        release_cmd += ["--features", "ffmpeg"]
+    steps.append({"name": "Build release (neoveg_ui)", "pillar": "Portability", "standard": portable,
+                  "cmd": release_cmd, "env": release_env(host_triple() or "")})
     return steps
 
 
@@ -258,7 +294,7 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
         "outcome": outcome,
         "standards": STANDARDS,
         "pillars": pillars,
-        "steps": [{k: v for k, v in s.items() if k != "cmd"} for s in steps],
+        "steps": [{k: v for k, v in s.items() if k not in ("cmd", "env")} for s in steps],
         "environment": {"rustc": capture(["rustc", "--version"]), "cargo": capture(["cargo", "--version"])},
     }
     QA_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -275,7 +311,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
         source = f"QA/{step['pillar']}"
         log("INFO", f"START {step['name']} - {step['standard']}", source)
         started = time.monotonic()
-        code = run(list(step["cmd"]), check=False)  # type: ignore[arg-type]
+        code = run(list(step["cmd"]), step.get("env"), check=False)  # type: ignore[arg-type]
         step["duration_ms"] = int((time.monotonic() - started) * 1000)
         step["status"] = "pass" if code == 0 else "fail"
         log("INFO" if code == 0 else "ERROR", f"{'PASS' if code == 0 else 'FAIL'} {step['name']}", source)
@@ -296,17 +332,13 @@ def cargo_build(rid: str, ffmpeg: bool) -> Path:
     triple = info["triple"]
     is_host = triple == host_triple()
     if not is_host and triple not in installed_targets():
-        raise RuntimeError(f"Rust target {triple} is not installed: rustup target add {triple}")
+        raise RuntimeError(f"Rust target {triple} is not installed: {target_hint(triple)}")
     cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
-    env: Dict[str, str] = {}
+    env = release_env(triple)
     if ffmpeg:
         cmd += ["--features", "ffmpeg"]
     if not is_host:
         cmd += ["--target", triple]
-    if "windows-msvc" in triple:
-        # Static C runtime: the portable exe does not need the Visual C++ redistributable
-        flags = os.environ.get("RUSTFLAGS", "")
-        env["RUSTFLAGS"] = (flags + " -C target-feature=+crt-static").strip()
     log("INFO", f"building {rid} ({triple}){' with FFmpeg' if ffmpeg else ''}")
     run(cmd, env)
     base = TARGET_DIR / ("release" if is_host else f"{triple}/release")
@@ -323,8 +355,9 @@ def copy_payload(root: Path) -> None:
             dst = root / name
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-    i18n = ROOT / "assets" / "i18n"
-    if i18n.is_dir():
+    # The folder is `assets/` in Git but `Assets/` in AGENTS.md: accept both (Linux is case-sensitive)
+    i18n = next((d for d in (ROOT / "assets" / "i18n", ROOT / "Assets" / "i18n") if d.is_dir()), None)
+    if i18n is not None:
         # Only the runtime resources (JSON); the .axaml files belong to the legacy C# UI
         target = root / "Assets" / "i18n"
         target.mkdir(parents=True, exist_ok=True)
@@ -433,6 +466,18 @@ def make_archive(stage: Path, rid: str, version: str) -> Path:
     return archive
 
 
+# Folders of the C# / C++ / Python era that old packaging runs left inside dist/Neoveg-Portable-*
+LEGACY_PACKAGE_MARKERS = ("desktop-host", "cpp-extensions", "runtimes", "Neoveg.AppDir")
+
+
+def prune_legacy_dist() -> None:
+    """Removes portable folders of the previous architecture; a Rust package has none of these."""
+    for folder in sorted(DIST.glob("Neoveg-Portable-*")):
+        if folder.is_dir() and any((folder / m).exists() for m in LEGACY_PACKAGE_MARKERS):
+            shutil.rmtree(folder, ignore_errors=True)
+            log("INFO", f"removed legacy package folder {folder.name}")
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     global DIST
     if args.dist:
@@ -451,6 +496,7 @@ def cmd_build(args: argparse.Namespace) -> int:
             log("ERROR", "quality gates failed; no package was produced")
             return 1
     DIST.mkdir(parents=True, exist_ok=True)
+    prune_legacy_dist()
     manifest: Dict[str, object] = {
         "version": version,
         "generated_at": dt.datetime.now().astimezone().isoformat(),
@@ -461,6 +507,9 @@ def cmd_build(args: argparse.Namespace) -> int:
     for rid in rids:
         try:
             binary = cargo_build(rid, args.ffmpeg)
+            if args.ffmpeg:
+                log("WARN", f"{rid}: the standalone executable needs the FFmpeg shared libraries "
+                            "on PATH; the portable package already bundles them")
             exe_name = f"neoveg_v{version}_{rid}" + (".exe" if rid == "win-x64" else "")
             standalone = DIST / exe_name
             shutil.copy2(binary, standalone)

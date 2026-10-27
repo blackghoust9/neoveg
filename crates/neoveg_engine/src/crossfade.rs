@@ -48,7 +48,6 @@ pub fn find_crossfades(events: &[TrackEvent]) -> Vec<Crossfade> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neoveg_common::fade::FadeCurve;
 
     fn ev(id: u64, start: f64, duration: f64) -> TrackEvent {
         TrackEvent {
@@ -57,11 +56,7 @@ mod tests {
             media_id: Some(1),
             start,
             duration,
-            trim_in: 0.0,
-            fade_in: 0.0,
-            fade_out: 0.0,
-            fade_in_curve: FadeCurve::default(),
-            fade_out_curve: FadeCurve::default(),
+            ..Default::default()
         }
     }
 

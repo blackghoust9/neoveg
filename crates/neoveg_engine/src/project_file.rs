@@ -169,11 +169,13 @@ mod tests {
         history.execute(&mut tl, EditCommand::AddTrack { track });
         let media_id = tl.alloc_id();
         info.media_pool.push(MediaRef {
+            subproject: false,
             id: media_id,
             path: "C:/nada/a.wav".into(),
             duration_seconds: 4.0,
         });
         let event = TrackEvent {
+            group: None,
             id: tl.alloc_id(),
             name: "a.wav".into(),
             media_id: Some(media_id),
@@ -184,6 +186,7 @@ mod tests {
             fade_out: 0.2,
             fade_in_curve: neoveg_common::fade::FadeCurve::Smooth,
             fade_out_curve: neoveg_common::fade::FadeCurve::Fast,
+            ..Default::default()
         };
         history.execute(&mut tl, EditCommand::AddEvent { track_id, event });
         (info, tl)
@@ -249,5 +252,55 @@ mod tests {
             serde_json::from_str(r#"{"width":1280,"height":720,"fps":25.0,"sample_rate":44100}"#)
                 .unwrap();
         assert!(settings.auto_crossfade);
+    }
+
+    #[test]
+    fn projects_saved_before_markers_still_load() {
+        let tl: Timeline = serde_json::from_str(r#"{"tracks":[],"next_id":3}"#).unwrap();
+        assert!(tl.markers.is_empty() && tl.regions.is_empty());
+    }
+
+    #[test]
+    fn markers_and_regions_survive_a_save() {
+        let dir = std::env::temp_dir().join(format!("neoveg_marks_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (info, mut tl) = sample_project();
+        let mut history = crate::command::History::new();
+        let c = crate::markers::add_marker(&mut tl, 1.5, Some("A")).unwrap();
+        history.execute(&mut tl, c);
+        let c =
+            crate::markers::add_region(&mut tl, crate::selection::TimeRange::new(2.0, 3.0), None)
+                .unwrap();
+        history.execute(&mut tl, c);
+
+        let path = dir.join("m.neoveg");
+        save(&path, &info, &tl).unwrap();
+        let (_, loaded) = load(&path).unwrap();
+        assert_eq!(loaded.markers, tl.markers);
+        assert_eq!(loaded.regions, tl.regions);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn projects_saved_before_groups_still_load_and_ungrouped_events_stay_compact() {
+        let event: crate::timeline::TrackEvent = serde_json::from_str(
+            r#"{"id":1,"name":"a","media_id":null,"start":0.0,"duration":2.0,
+                "trim_in":0.0,"fade_in":0.0,"fade_out":0.0}"#,
+        )
+        .unwrap();
+        assert_eq!(event.group, None);
+        assert!(!serde_json::to_string(&event).unwrap().contains("group"));
+
+        let grouped = crate::timeline::TrackEvent {
+            group: Some(7),
+            playback_rate: 1.5,
+            preserve_pitch: false,
+            ..event
+        };
+        let back: crate::timeline::TrackEvent =
+            serde_json::from_str(&serde_json::to_string(&grouped).unwrap()).unwrap();
+        assert_eq!(back.group, Some(7));
+        assert!((back.playback_rate - 1.5).abs() < 1e-9);
+        assert!(!back.preserve_pitch);
     }
 }

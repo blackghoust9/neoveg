@@ -12,6 +12,30 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 ---
 
+## 1-A. Código de terceiros adaptado no workspace Rust (`crates/`)
+
+| Origem | Autores / Organização | Licença (SPDX) | Onde está no Neoveg | Utilização |
+| :--- | :--- | :--- | :--- | :--- |
+| **FilmCraft — `filmcraft-audio-dsp`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8fda2f2`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_audio/src/dsp/` (`loudness.rs`, `biquad.rs`, `oversample.rs`, `smooth.rs`, `effect.rs`, `design.rs`, `fft.rs`, `ducking.rs`, `effects/`) e `crates/neoveg_engine/src/captions.rs` (legendas) | Medidor de loudness ITU-R BS.1770-4 / EBU R128 do painel **Loudness**, os efeitos de áudio das faixas e do master (equalizadores, filtros, compressor, gate, limitador, delay, reverb, DeHum e DeNoise) e a análise do auto-ducking |
+
+| **nnnoiseless** ([`jneem/nnnoiseless`](https://github.com/jneem/nnnoiseless) 0.5.2), porte do **RNNoise** | Joe Neeman; RNNoise: Jean-Marc Valin, Mozilla Corporation, Xiph.Org Foundation | `BSD-3-Clause` | Dependência do Cargo de `neoveg_audio` (não copiada); texto em [`third_party/nnnoiseless/COPYING`](third_party/nnnoiseless/COPYING) | Efeito **Redução de ruído por IA (RNNoise)** |
+| **clack (`clack-host` / `clack-extensions`)** ([`prokopyl/clack`](https://github.com/prokopyl/clack) 0.2) | Prokopyl and the Clack contributors | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_audio` (não copiada) | Host de plug-ins de áudio **CLAP** (`.clap`) em `crates/neoveg_audio/src/clap_host.rs`, com compensação de latência (PDC) e automação |
+| **Candle (`candle-core` / `candle-nn` / `candle-transformers`)** ([`huggingface/candle`](https://github.com/huggingface/candle) 0.11) | Laurent Mazare, Hugging Face and the Candle contributors | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_audio` (não copiada) | Transcrição automática de fala para legendas com **Whisper** em Rust puro (`crates/neoveg_audio/src/whisper.rs`, pesos `.safetensors` e `.gguf`) |
+| **roxmltree** ([`RazrFalcon/roxmltree`](https://github.com/RazrFalcon/roxmltree)) | Yevhenii Reizner | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_engine` (não copiada) | Leitura do XML do Final Cut Pro 7 e FCPXML |
+| **Formato CMX 3600** (listas de edição `.edl`) | Especificação pública do formato (CMX Systems) | — (formato, não código) | `crates/neoveg_engine/src/edl.rs` (código próprio do Neoveg) | Importar e exportar listas de edição; o tratamento dos comentários `* FROM CLIP NAME:` e `* SOURCE FILE:` foi conferido contra a documentação do módulo `edl` do FilmCraft, sem copiar código |
+
+- Copyright (c) 2026 ArtCraft Team and the FilmCraft contributors. O texto da licença MIT está em [`third_party/filmcraft/LICENSE-MIT`](third_party/filmcraft/LICENSE-MIT) e vai em todos os pacotes; a origem, a lista de arquivos e as alterações feitas estão em [`third_party/filmcraft/README.md`](third_party/filmcraft/README.md).
+- A marca, o nome e os logotipos da ArtCraft **não** fazem parte da licença do FilmCraft e não são usados no Neoveg.
+- Os créditos também aparecem na interface, em **Ajuda → Créditos e licenças…**.
+
+---
+
+## 1-B. Arte própria
+
+- **Tela de carregamento** (`crates/neoveg_ui/src/splash.rs`): as formas 3D, o carretel de filme com a fita de quadros, o playhead e a animação do nome NEOVEG são trabalho original do Neoveg, desenhados em código com formas do egui, sem imagens nem fontes de terceiros, e liberados com o projeto sob a licença **MIT**. Nenhuma arte, ícone ou imagem de outro editor foi usada como base.
+
+---
+
 ## 2. Camada Desktop & Interface Gráfica (`desktop-host/Neoveg.csproj` — C# / .NET)
 
 | Pacote / Biblioteca | Versão | Autores / Organização | Licença (SPDX) | Utilização no Neoveg |

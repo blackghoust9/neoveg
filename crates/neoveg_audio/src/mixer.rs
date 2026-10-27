@@ -26,6 +26,8 @@ pub struct MixClip {
     /// Length of the automatic crossfade at the end (0 = none); uses `cross_out_curve`.
     pub cross_out: f64,
     pub cross_out_curve: FadeCurve,
+    /// Index of the track the clip belongs to (its effect chain is found by this index).
+    pub track: usize,
 }
 
 /// Gain of a ramp `length` seconds long when `position` seconds are left until its full-gain end

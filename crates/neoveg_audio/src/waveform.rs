@@ -8,9 +8,6 @@
 //! - `query_columns` returns the **exact** min/max/RMS of every pixel column (no interpolation,
 //!   no resampled peaks), and `read_samples` returns the raw samples for sample-level zoom.
 
-use std::fs;
-use std::path::Path;
-
 /// Frames per summary block (Audacity uses 256-sample summaries for its first level).
 pub const SUMMARY_BLOCK_FRAMES: usize = 256;
 
@@ -91,12 +88,6 @@ impl WaveformSource {
     fn sample(&self, channel: usize, frame: usize) -> f32 {
         let offset = frame * self.frame_size + if channel == 0 { 0 } else { self.right_offset };
         decode_sample(&self.data[offset..], self.bytes_per_sample, self.is_float)
-    }
-
-    /// Opens and fully decodes a RIFF WAVE file.
-    pub fn open_wav(path: &Path) -> Result<Self, String> {
-        let bytes = fs::read(path).map_err(|e| format!("cannot read WAV: {e}"))?;
-        Self::from_wav_bytes(bytes)
     }
 
     pub fn from_wav_bytes(mut bytes: Vec<u8>) -> Result<Self, String> {

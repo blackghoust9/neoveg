@@ -16,13 +16,20 @@ Este diretório centraliza os cabeçalhos C/C++, submódulos, conectores de rend
 | **Frei0r Video FX** | [`dyne/frei0r`](https://github.com/dyne/frei0r) | `GPL-2.0-or-later` | `third_party/frei0r/` | `python-backend/frei0r_openfx_bridge.py` + `Video FX Chain` |
 | **LADSPA Audio DSP** | [`ladspa/ladspa`](https://www.ladspa.org/) | `LGPL-2.1-or-later` | `third_party/ladspa/` | `python-backend/ladspa_audio_dsp.py` + `Audio Event FX` |
 | **Audacity Waveform & DSP** | [`audacity/audacity`](https://github.com/audacity/audacity) | `GPL-3.0-or-later` (`GPLv3 / Audacity Contributors`) | `rust-core/src/audio_peaks.rs` & `desktop-host/AudioEngine/` | Amostragem multi-zoom de picos (`min`, `max`, `rms`), cache assíncrono `.sfk`, `AudioWaveformRenderer.cs` e `Neoveg.AudioEngine` (EQ Paramétrico 8 Bandas + VST3/LV2) |
+| **nnnoiseless (RNNoise)** | [`jneem/nnnoiseless`](https://github.com/jneem/nnnoiseless) | `BSD-3-Clause` | `third_party/nnnoiseless/` (licença) | Dependência do Cargo de `neoveg_audio`: efeito **Redução de ruído por IA (RNNoise)** |
+| **clack (`clack-host` / `clack-extensions`)** | [`prokopyl/clack`](https://github.com/prokopyl/clack) | `MIT OR Apache-2.0` | (dependência do Cargo, sem cópia) | `neoveg_audio::clap_host`: host de plug-ins de áudio CLAP (`.clap`) com automação e compensação de latência |
+| **Candle (`candle-transformers`)** | [`huggingface/candle`](https://github.com/huggingface/candle) | `MIT OR Apache-2.0` | (dependência do Cargo, sem cópia) | `neoveg_audio::whisper`: transcrição automática de fala para legendas com Whisper em Rust puro (`.safetensors` / `.gguf`) |
+| **roxmltree** | [`RazrFalcon/roxmltree`](https://github.com/RazrFalcon/roxmltree) | `MIT OR Apache-2.0` | (dependência do Cargo, sem cópia) | `neoveg_engine`: importar XML do Final Cut Pro 7 e FCPXML |
 | **OpenTimelineIO** | [`AcademySoftwareFoundation/OpenTimelineIO`](https://github.com/AcademySoftwareFoundation/OpenTimelineIO) | `Apache-2.0` | `third_party/opentimelineio/` | Exportação/Importação `.otio` nativo e em `python-backend/` |
+| **FilmCraft (`filmcraft-audio-dsp`)** | [`storytold/filmcraft`](https://github.com/storytold/filmcraft) | `MIT OR Apache-2.0` (usado sob a `MIT`) | `third_party/filmcraft/` (origem e licença) e `crates/neoveg_audio/src/dsp/` (código adaptado) | `neoveg_audio` (medidor de loudness BS.1770-4 / EBU R128 e efeitos de áudio por faixa e no master e análise de auto-ducking, dentro do callback de áudio) e painéis **Loudness** e **Efeitos de Áudio** em `neoveg_ui` |
 
 ---
 
 ## 2. Detalhamento das Licenças e Conformidade
 
-1. **MIT License (`whisper.cpp`, `CorridorKey`)**:
+0. **BSD-3-Clause (`nnnoiseless` / RNNoise)**:
+   - Exige reproduzir o aviso de copyright e a isenção de garantia nas distribuições binárias (`third_party/nnnoiseless/COPYING` vai em todos os pacotes) e proíbe usar o nome da Xiph.Org Foundation para promover o produto.
+1. **MIT License (`whisper.cpp`, `CorridorKey`, `FilmCraft`)**:
    - Permite uso irrestrito, modificação, linkagem estática ou dinâmica e redistribuição no pacote portátil `dist/Neoveg-Portable-*`, mantendo os avisos de copyright originais.
 2. **BSD-3-Clause & Apache-2.0 (`OpenFX`, `OpenTimelineIO`)**:
    - Os cabeçalhos da especificação `ofxCore.h` e `ofxImageEffect.h` da Academy Software Foundation (ASWF) permitem implementação livre de hosts OpenFX (`OfxHost` / `OfxImageEffectSuiteV1`) em C++17 com exportação `extern "C"`.

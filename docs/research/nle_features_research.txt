@@ -1457,3 +1457,245 @@ Implementation Guidelines for Neoveg:
     (gate + EQ + compressor) is a candidate for the first built-in audio effects.
 Sources: Classic NLE v11 tutorial booklet (pt-BR), pp. 8-78.
 Research Date: 2026-10-24
+
+----------------------------------------------------------------------
+42. Feature Name: Cross-check against the current official help (2026): Shortcuts, Crossfades, Envelopes, FX Order
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  - Playback: Space start; Enter or Ctrl+F12 play/pause; Space or Esc stop; Shift+Space or Shift+F12 play from
+    start; Ctrl+Space or F12 play from any window; J, K or L scrub/shuttle; F3 / F9 jog left / right (not in
+    edge-trim mode or during playback); Alt+Left / Alt+Right previous / next frame; Ctrl+Home / Ctrl+End go
+    to project start / end; Numpad 0 preview cursor position; Ctrl+Shift+F12 dims the master bus output.
+  - Split: S splits the events at the cursor; Alt+S "Smart Split" of the selected event.
+  - Markers and regions: M marker, C command marker, R region, N CD track region, Shift+N CD track index;
+    Ctrl+Left / Ctrl+Right previous / next marker; 0-9 (not the keypad) move to the matching marker or select
+    the matching region; Q or Ctrl+Shift+L loop playback; Shift+Q select the loop region.
+  - Zoom: Up / Down small horizontal steps (timeline focus); Ctrl+Up / Ctrl+Down large steps or zoom to the
+    selection; Alt+Up zooms until each video thumbnail is one frame; mouse wheel zooms; Shift+Up / Down zoom the
+    waveforms vertically; Ctrl+Shift+Up / Down change the height of all tracks; ` minimizes / restores track
+    height; Ctrl+` default heights; Ctrl+F11 maximizes the timeline. No numeric zoom limit is documented
+    (Neoveg keeps its own limit: 15 to 480,000 px/s, AGENTS.md section 4.3).
+  - Grouping: G group, U ungroup, Ctrl+Shift+U ignore grouping, Ctrl+U clear the group without deleting events,
+    Shift+G select every event of the group.
+  - Snapping: F8 on / off; Ctrl+F8 grid; Shift+F8 markers; Ctrl+Shift+F8 all events; Alt+F8 quantize to frames;
+    Shift+drag overrides snapping (or enables it when it is off). (Neoveg uses Alt for the override, see
+    AGENTS.md section 4.5.)
+  - Ripple: F affected tracks; Ctrl+F affected tracks, bus tracks, markers and regions; Ctrl+Shift+F everything;
+    Ctrl+L auto ripple.
+  - Trim: Ctrl+T trim / crop to the selection; Alt+[ / Alt+] trim start / end to the cursor; Numpad 7 or [ and
+    Numpad 9 or ] enter edge-trim mode; Numpad 1 / 3 one frame; 4 / 6 one pixel; Shift = L/J trim, Alt = slip,
+    Ctrl = stretch, Ctrl+Alt = slide a transition or crossfade; Ctrl+drag an edge stretches the media; Numpad 5
+    toggles expanded edit mode.
+  - Mute / solo: Z mute selected tracks, Shift+Z mute only this track (removes the others from the mute group);
+    X solo, Shift+X solo only this track; Ctrl+Alt+Z / X act on the track group, with Shift for "only this
+    group".
+  - Undo / redo: Ctrl+Z or Alt+Backspace; Ctrl+Shift+Z or Ctrl+Y.
+  - Automatic crossfades (Options menu toggle): a crossfade is created when an event is dragged so that it
+    overlaps another event on the same track (audio and video); no minimum overlap is stated. The curve is any
+    combination of fast, slow, linear, smooth and sharp (right-click the overlap > Fade Type). Fades of
+    overlapping events cannot be adjusted by hand while automatic crossfades are on. A video crossfade can be
+    converted into a transition (right-click > Transition, or drop one from the Transitions window).
+  - Fades and envelopes: the fade handles are the upper-left / upper-right corners of an event; dragging the end
+    of the fade back to the edge removes it; with several events selected their fades move together; Ctrl or the
+    right mouse button while dragging gives fine steps; right-click a fade or envelope segment for the Fade
+    Types menu; View > Event Fade Lengths shows the lengths on selected events. An event envelope belongs to the
+    track it is on and is calculated after the track fader. Transitions progress linearly 0-100 % unless a
+    transition progress envelope is added.
+  - FX order: audio runs event FX > track FX > bus FX > master bus FX (entry 20); video runs media FX > event FX >
+    track FX > parent-track FX > video output FX (community-documented order, matching the five levels of entry
+    20). "Take FX" is not described in the official pages checked; the request's chain Media FX > Take FX > Event
+    FX > Track FX > Master FX is therefore Neoveg's own design: Take FX is a chain that belongs to one take
+    (applied first, so switching take switches its processing), then Event FX, Track FX and the master chain.
+Implementation Guidelines for Neoveg:
+  - Keep the key map of AGENTS.md section 4.5 aligned with this list; the commands still marked planned (edge
+    trim, ripple, snap variants, track groups, zoom variants, jog) can be taken from here without further
+    research.
+  - Implement Take FX only together with a take model (several takes per event); until then the audio chain
+    levels are Event-less: Track FX and Master FX (28 effects, AGENTS.md section 4.4).
+Sources: Vegas Pro 2026 help, Keyboard shortcuts (cdn.borisfx.com/borisfx/Documentation/vegas/2026/en/content/
+  topics/13-appendix/shortcutkeys.htm), Event envelopes (.../7-edit/event_envelopes.htm), Automatic crossfades
+  (.../7-edit/autocrossfades.htm); Vegas Pro community forum threads on FX order (video).
+Research Date: 2026-10-26
+
+----------------------------------------------------------------------
+43. Feature Name: Official PDF Cross-check (reference manual v18 + keyboard-shortcut PDF): Shortcuts, Crossfades, Snapping, Fades, FX Levels, Docking, Window Names
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Facts below were read from the local PDFs VEGAS_Pro_18_EN.pdf, 592 pages, and
+   VEGAS_Pro_18_EN_Keyboard_shortcuts.pdf, 15 pages; page numbers refer to the 592-page manual.)
+  - Window shortcuts (default configuration): Alt+0 focus the timeline; Alt+1 Explorer; Alt+2 Trimmer;
+    Alt+3 Master Bus; Alt+4 Video Preview; Alt+5 Project Media; Alt+6 Project Notes; Alt+7 Transitions;
+    Alt+8 Video FX; Alt+9 Media Generators; Ctrl+Alt+1 Plug-In Manager; Ctrl+Alt+2 Video Scopes; Ctrl+Alt+3
+    Surround Panner; Ctrl+Alt+4 Edit Details; Ctrl+Alt+5 Mixing Console; Ctrl+Alt+6 Device Explorer;
+    Ctrl+Alt+7 Loudness Meters; Ctrl+Alt+8 Dashboard; F6 / Ctrl+Tab next window, Shift+F6 / Ctrl+Shift+Tab
+    previous. Layouts: Alt+D then 0-9 recall, Ctrl+Alt+D then 0-9 save, Alt+D then D default layout, V the
+    v14 layout, A audio-mixing layout, C colour-correction layout. B shows / hides audio bus tracks;
+    Ctrl+Shift+B video bus tracks; Ctrl+Shift+E envelopes; Ctrl+Shift+W waveforms on events; Ctrl+Shift+C
+    event buttons; Ctrl+Alt+M event headers; Ctrl+Shift+T event fade lengths; Ctrl+Shift+I active take
+    information (pitch shift and stretch percentage are drawn on the event).
+  - View and zoom: Tab toggles focus between track list and timeline; Alt+Shift+Up/Down previous / next
+    track; Up/Down small horizontal zoom (timeline focused); Ctrl+Up/Down large zoom or zoom to the
+    selection; Alt+Up zoom until a video thumbnail is one frame; Shift+Up/Down zoom waveforms vertically
+    (audio); Ctrl+Shift+Up/Down height of all tracks; the grave accent key minimizes / restores the track
+    height; Ctrl+grave default heights; F11 / Alt+grave minimize the docking area; Ctrl+F11 maximize the
+    timeline; Shift+F11 hide the track list; backslash centres the view on the cursor; mouse wheel zooms,
+    Ctrl+wheel scrolls vertically, Shift+wheel horizontally, Ctrl+Shift+wheel moves the cursor in small
+    steps, Ctrl+Alt+Shift+wheel by frames; middle-click drag auto-scrolls.
+  - Cursor and selection: Ctrl+G go to; Ctrl+Shift+G set the end of the time selection; Home / End go to
+    the start / end of the selection or visible area; Ctrl+Home or W / Ctrl+End project start / end;
+    Shift+Q select the loop region; Backspace restores the previous five time selections; PageUp /
+    PageDown move by grid marks; Left/Right one pixel (Quantize to Frames off); Alt+Left/Right one frame;
+    Ctrl+Left/Right previous / next marker; Ctrl+Alt+Left/Right event edit points (including fade edges);
+    F3 / F9 jog; Alt+Down moves the edit cursor to the playback cursor; 0-9 (not the keypad) jump to the
+    marker or select the region; Comma / Period previous / next CD index or region; I / O in and out
+    points; Ctrl+Shift+drag over an event creates a time selection.
+  - Editing: Ctrl+X / Shift+Delete cut; Ctrl+C / Ctrl+Insert copy; Ctrl+V / Shift+Insert paste; Ctrl+Shift+V
+    paste insert; Ctrl+B paste repeat; Delete; Ctrl+T trim to selection; Ctrl+M render to new track; Alt+C
+    nested timeline (Alt+N open it, Alt+P open the parent); Shift+F5 rebuild audio peaks; Ctrl+D normal tool,
+    D next tool, Shift+D previous tool; S split; Alt+S smart split; F2 rename; Ctrl+[ / Ctrl+] move the cursor
+    to the edge of the previous / next selected event; Alt+[ / Alt+] trim start / end to the cursor;
+    Ctrl+Shift+[ / ] time-select the previous / next selected event; T / Shift+T next / previous take;
+    = / - raise / lower pitch one semitone (Ctrl one cent, Shift one octave); Ctrl+E open in audio editor.
+  - Edge trim: Numpad 7 or [ enter edge-trim on the event start and move to the previous edge; Numpad 9 or ]
+    on the end / next edge; F3 / F9 trim left / right; Numpad 5 or double-click an edge toggles expanded edit
+    mode; in these modes Numpad 1 / 3 act by one frame and 4 / 6 by one pixel: plain = trim, Ctrl = time
+    compress / stretch, Alt = slip trim, Shift = L/J trim (ignores grouping), Ctrl+Alt = slide a transition
+    or crossfade (trim adjacent), Ctrl+Alt+Shift = L/J cut; Numpad 8 / 2 move the selection up / down one
+    track. Mouse: Alt+drag inside = slip; Alt+drag edge = slip trim; Shift+drag edge = L/J trim;
+    Ctrl+Alt+drag edge = trim adjacent; Ctrl+drag edge = stretch while trimming; Ctrl+Alt+drag the middle =
+    slide; Ctrl+Alt+drag over a crossfade = slide the crossfade; Ctrl+Alt+Shift+click = split or split/trim.
+    Numpad / * - convert a cut to a transition; Ctrl+Numpad / back to a cut.
+  - Transport: Space start; Enter / Ctrl+F12 play-pause; Space or Esc stop; Shift+Space / Shift+F12 from
+    start; Ctrl+Space / F12 from any window; Q / Ctrl+Shift+L loop; Ctrl+R record; Ctrl+Alt+R arm;
+    Ctrl+Alt+Shift+R arm and set path; J, K or L scrub (the manual gives no speed table); Shift+M selectively
+    prerender; Shift+B build the dynamic RAM preview; Alt+Shift+4 external monitor; Numpad 0 previews the
+    cursor position for the "cursor preview duration" of the Editing preferences; Ctrl+Shift+F12 dims the master.
+  - Tracks: Ctrl+Q / Ctrl+Shift+Q insert audio / video track; Ctrl+Left/Right (track list focused) volume or
+    compositing level; Ctrl+Shift+Left/Right pan or fade-to-colour; Z / Shift+Z mute / exclusive mute;
+    X / Shift+X solo / exclusive solo; Ctrl+Alt+Z and X for track groups; F8 snapping; Ctrl+F8 grid;
+    Shift+F8 markers; Ctrl+Shift+F8 all events; Alt+F8 quantize to frames; Shift+drag overrides snapping (or
+    enables it when it is off); F / Ctrl+F / Ctrl+Shift+F post-edit ripple; Ctrl+L auto ripple;
+    Ctrl+Shift+X automatic crossfades; G group; U ungroup; Ctrl+Shift+U ignore grouping; Ctrl+U clear the
+    group without deleting events; Shift+G select the group; V / Shift+V insert-show-hide / remove the
+    volume envelope; P / Shift+P pan envelope; E / Shift+E cycle effect automation envelopes; M marker;
+    C command marker; R region; N CD track region; Shift+N CD track index.
+  - Mixing Console strip keys: F2 rename; D / N / W default / narrow / wide strips; Shift+H hide the strip;
+    Shift+C channel list; Q all strips; U bus strips; A track strips; E assignable-FX strips; T master;
+    P preview; Shift+T fader ticks; F / I / H / M / S show / hide the Faders / Insert FX / I/O / Meters / Sends
+    regions; Up/Down adjusts the fader, Shift = left channel, Ctrl = right channel.
+  - Automatic crossfades (Options menu, Ctrl+Shift+X; manual p. 123): dragging an event so that it overlaps
+    another event on the same track creates a crossfade; no minimum overlap. Fade curves are combinations of
+    fast, slow, linear, smooth and sharp (right-click the overlap > Fade Type). Fades between overlapping
+    events cannot be edited by hand while it is on. A video crossfade converts to a transition. The tool
+    must be on to use the "slide crossfade" gesture.
+  - Snapping (p. 124-126): Enable Snapping (Options) applies to the main timeline and to the Trimmer. Snap
+    points: other events' edges, the cursor, time-selection edges, and - when dragging a group - the first and
+    last event edges; optional extras: grid lines (Snap to Grid), markers of every type (markers, regions,
+    CD track regions, CD index markers, command markers; plus media markers when View > Event Media Markers
+    is on) and the edges of events on other tracks (Snap to All Events). The snap indicator is drawn in the
+    event's track when snapping to an event and across the whole timeline height for the cursor, markers,
+    time selection or grid. With Quantize to Frames on, a snap point that is not on a frame boundary is
+    shown as a dashed line (it is quantized to the nearest frame); media with another frame rate cannot snap
+    to media markers while quantize is on. Each event has a snap-offset flag (white triangle at the lower
+    left) that moves the point of the event that snaps; a group uses the offset of its leftmost event.
+  - Fade handles and envelope types (p. 150-152, 246-247): the fade grips are the upper-left / upper-right
+    corners; a multi-selection fades together; Ctrl or the right mouse button gives fine adjustment; each
+    envelope segment has its own curve: Linear, Fast, Slow, Smooth, Sharp and a sixth, Hold (a step).
+    Audio event envelopes: fade in, fade out, overall level; video event envelopes: fade in, fade out,
+    opacity, velocity (-100 % reverse through 0 % freeze up to 300 %; the event length does not change, the
+    rest is a freeze of the last frame or extra source media). Event envelopes are calculated after the
+    track fader. Transitions progress linearly 0-100 % unless a transition progress envelope is added.
+  - FX levels (p. 278, 287-289): audio has event FX (Audio Event FX window), track FX, bus FX (applied to
+    every track routed to the bus; "if a track contains track effects and bus effects, track effects are
+    processed before the bus effects"; the Pre/Post Fader Insert FX switch of the bus chooses whether the
+    bus level comes before or after its chain), assignable (send) FX and the Master bus; FX sends are
+    post-volume by default (Pre/Post Volume Send button). Video has Media FX (every occurrence of the media;
+    Project Media window or the event's hamburger menu; "Media FX are used for video files only"), Event FX,
+    Track FX, and Video Output FX (project-wide, in the Video Preview window). Chains can be reordered by
+    dragging, each effect can be bypassed, and the Pan/Crop plug-in position decides whether an effect runs
+    before or after pan/crop. There is NO "Take FX" level in the manual: takes are selected with T / Shift+T
+    and their pitch / stretch appear on the event. The reference chain is therefore Media FX (video only) >
+    Event FX > Track FX > Bus FX > Master bus (audio: Event FX > Track FX > Bus/Assignable FX > Master);
+    the signal-flow diagram on manual p. 309 is an image.
+  - Docking and layout (p. 28-31, Preferences > Display): the window docking area sits at the bottom of the
+    main window by default (option "Display timeline at bottom of main window" moves it to the top) and the
+    tabs of docked windows are at the bottom by default (option "Position tabs at top of docked windows");
+    windows are layered and a click on a tab brings one to the top; Ctrl+drag a window by its title bar to
+    dock it (drop near the top of a window to make tabs or a new area, at an edge to dock at that edge);
+    drag a tab out to undock; several floating docks are allowed; "Allow floating windows to dock" reverses
+    the Ctrl rule; each docked window has Maximize and Close buttons; the docking area, track list and
+    timeline are resized by dragging the splitters (F11 / Shift+F11 / Ctrl+F11 collapse them).
+  - Official window names: Explorer, Trimmer, Master Bus, Video Preview, Project Media, Project Notes,
+    Transitions, Video FX, Media Generators, Plug-In Manager, Video Scopes (Vectorscope, Video Waveform
+    Monitor, Histogram, RGB Parade monitors; RGB parade has Separate and overlaid modes), Surround Panner,
+    Edit Details, Mixing Console (strips: track, bus, assignable FX, master, preview), Device Explorer,
+    Loudness Meters, Dashboard.
+Implementation Guidelines for Neoveg:
+  - Everything in this entry is taken from the manual and may be implemented without more research. Priority
+    rows for the key map (AGENTS.md 4.5): Ctrl+Home / Ctrl+End, Ctrl+G, edge trim and Numpad nudges,
+    ripple, V / P envelopes, Alt+0-9 window toggles, layouts Alt+D (Z / X mute and solo are done).
+  - Add `Hold` as a sixth fade-curve value only for envelope segments (events keep the five curves of
+    `FadeCurve`); add `snap_offset: f64` to `TrackEvent` (serde default) with the white-triangle flag.
+  - Neoveg audio levels stay: clip fades -> Track FX (28 effects) + mixer strip (fader / pan / phase) ->
+    Master FX; Bus and Assignable FX are the next levels. The Take FX of the request does not exist in the
+    reference; do not add it before a take model exists.
+Sources: VEGAS_Pro_18_EN.pdf (pp. 28-31, 122-126, 150-152, 246-247, 278, 287-289, 309, 567-575) and
+  VEGAS_Pro_18_EN_Keyboard_shortcuts.pdf, local copies in G:\Meu Drive\vp-rev-eng\teste\teste2\pdfs.
+Research Date: 2026-10-26
+
+----------------------------------------------------------------------
+44. Feature Name: Cross-version PDF Study (v9, v10, v11, v13, v18, v21 manuals): Scrubbing, Preferences That Change Editing, Take FX Check
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from the local PDFs in G:\Meu Drive\vp-rev-eng\teste\teste2\pdfs: 5649010.pdf = v9 manual (486 p.),
+   6918831.pdf = v10 (538 p.), 5828511.pdf = v11 (510 p.), vegaspro13-0-manual-enu-477102.pdf = v13 (692 p.),
+   VEGAS_Pro_18_EN.pdf = v18 (592 p.), manual_vegaspro21_en.pdf = v21 (1206 p.), 5680056.pdf = an early
+   Sonic Foundry Vegas Pro manual (312 p.), 2585676.pdf = Vegas Pro Production Assistant (63 p.),
+   5639017.pdf = v13 Steam release notes (5 p.), VEGAS_Movie_Studio_15_EN.pdf and
+   VEGASDVDArchitect_Manual_EN.pdf (not used for the editing rules).)
+  - "Take FX" check: the strings "Take FX" / "take effects" occur in none of the manuals (v9 to v21). The audio
+    FX levels in every version are Audio Event FX, Track FX, bus FX, assignable FX and the master bus; the
+    video levels are Media FX, Event FX, Track FX and Video Output FX. Takes only switch which source take an
+    event plays (T / Shift+T) and carry their own pitch / stretch settings. The pipeline requested for Neoveg
+    (Media FX > Take FX > Event FX > Track FX > Master) is therefore a Neoveg design, not a reference rule.
+  - Scrubbing with J, K and L (v13 manual pp. 21-22, unchanged in v18 / v21): J = reverse scrub; pressing J
+    again accelerates the reverse rate; K = pause; L = forward scrub, pressing again accelerates; holding K while
+    pressing J or L emulates a shuttle knob (slow reverse / slow forward). The speed and range come from the
+    Preferences > Editing > "JKL / shuttle speed" list (a multimedia controller uses the same setting; the old
+    forum value "fast allows up to 20x" matches the highest entry). Other scrubbing: drag the playhead above the
+    timeline to shuttle from the cursor; Alt+click-drag on the ruler places the cursor and scrubs in the drag
+    direction; the mouse wheel with Ctrl+Shift / Ctrl+Alt+Shift changes the scrub rate during playback.
+  - Controllers: F3 / F9 are the jog / edit keys; Enter is play / pause; while paused the knob jogs by frame;
+    in edge-trim mode it trims the edge (Ctrl+Alt = trim adjacent); during playback it is a variable-speed
+    shuttle.
+  - Preferences > Editing that change timeline rules (v13 pp. 626-628, same in v18 / v21):
+      * Quick fade length for audio events + Options > Quickfade Audio Edits: a very short fade is put on the
+        edges of audio events so cuts and splits do not click; turning the option off leaves new events
+        unfaded and existing fades untouched (Neoveg: a 5-10 ms default fade on split / trim edges).
+      * Do not quantize to frames for audio-only edits: audio moves, trims and envelope times stay sub-frame
+        even when Quantize to Frames is on.
+      * Cut, copy and delete grouped events: with it on the operation affects the whole group.
+      * Collapse loop region when no time selection is present: the loop region resets (or keeps the last one).
+      * New still image length; default time between CD tracks; cursor preview duration (Numpad 0 creates a
+        temporary selection centred on the cursor and plays it, looping when loop playback is on).
+      * Automatically overlap multiple selected media when added: dragging several files overlaps them (needs
+        Automatic Crossfades), otherwise they go end to end.
+      * Cut-to-overlap conversion: converting a cut to a transition extends one or both events so they
+        overlap by an "Amount"; Alignment = Before cut (overlap ends at the cut), Centered on cut, or After cut
+        (overlap starts at the cut); the same amount is used by the auto-overlap above.
+  - Newer features worth tracking (v21 "What's new", pp. 21-25): Adjustment events (effects on an event apply to
+    every video event below it); AI Text-Based Editing (edit the transcript and the events follow, and the
+    reverse); AI Smart Mask 2.0 (up to eight masks with tracking); AI Z-Depth; AV1 decoding / rendering; a
+    button toggling the spacebar behaviour during playback; preferences to hide .sfk peak files or not create
+    them; Media Share; HEIC/HEIF import; scripting access to adjustment events.
+Implementation Guidelines for Neoveg:
+  - J / K / L: implement as transport commands with a speed ladder (1x, 2x, 4x, 8x, 16x, 20x) per extra press and
+    K+J / K+L slow shuttle; expose the top speed as a preference ("JKL / shuttle speed"). They are still
+    marked planned in the key map and are not bound by default for that reason.
+  - Add the Preferences above as `Preferences` fields with `#[serde(default)]`: quickfade length + toggle,
+    no-quantize-for-audio, group-aware cut / copy / delete, collapse loop region, cursor preview duration,
+    still image length, auto-overlap and cut-to-overlap amount / alignment.
+  - Do not model Take FX; the chain stays Event (when added) > Track > Master for audio and
+    Media > Event > Track > Output for video.
+Sources: the PDFs listed above (v13 pp. 21-22, 581-583, 626-628; v18 pp. 122-126; v21 pp. 21-25).
+Research Date: 2026-10-26

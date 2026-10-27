@@ -92,7 +92,8 @@ commands! {
     FileOpen => ("file.open", "Abrir projeto…", File, true),
     FileSave => ("file.save", "Salvar", File, true),
     FileSaveAs => ("file.save_as", "Salvar como…", File, true),
-    FileNew => ("file.new", "Novo projeto", File, false),
+    FileNew => ("file.new", "Novo projeto (em uma nova aba)", File, true),
+    FileCreateSubproject => ("file.create_subproject", "Criar sub-projeto a partir da seleção", File, true),
     FileNewQuick => ("file.new_quick", "Novo projeto vazio (sem diálogo)", File, false),
     FileClose => ("file.close", "Fechar projeto", File, false),
     FileProperties => ("file.properties", "Propriedades do projeto…", File, false),
@@ -101,6 +102,7 @@ commands! {
     EditUndo => ("edit.undo", "Desfazer", Edit, true),
     EditRedo => ("edit.redo", "Refazer", Edit, true),
     EditDelete => ("edit.delete", "Excluir seleção", Edit, true),
+    EditRippleDelete => ("edit.ripple_delete", "Excluir e fechar o espaço (ripple)", Edit, true),
     EditSplit => ("edit.split", "Dividir no cursor", Edit, true),
     EditCut => ("edit.cut", "Recortar", Edit, true),
     EditCopy => ("edit.copy", "Copiar", Edit, true),
@@ -112,9 +114,9 @@ commands! {
     EditTrimEnd => ("edit.trim_end", "Aparar o fim ao cursor", Edit, true),
     EditSelectAll => ("edit.select_all", "Selecionar tudo", Edit, true),
     EditSelectNone => ("edit.select_none", "Desfazer seleção", Edit, true),
-    EditGroup => ("edit.group", "Agrupar eventos", Edit, false),
-    EditUngroup => ("edit.ungroup", "Desagrupar eventos", Edit, false),
-    EditIgnoreGrouping => ("edit.ignore_grouping", "Ignorar agrupamento", Edit, false),
+    EditGroup => ("edit.group", "Agrupar eventos", Edit, true),
+    EditUngroup => ("edit.ungroup", "Desagrupar eventos", Edit, true),
+    EditIgnoreGrouping => ("edit.ignore_grouping", "Ignorar agrupamento", Edit, true),
     EditToolNormal => ("edit.tool.normal", "Ferramenta normal", Edit, false),
     EditToolNext => ("edit.tool.next", "Próxima ferramenta de edição", Edit, false),
     EditToolPrevious => ("edit.tool.previous", "Ferramenta de edição anterior", Edit, false),
@@ -124,34 +126,47 @@ commands! {
     // ---- Inserir
     InsertAudioTrack => ("insert.audio_track", "Inserir faixa de áudio", Insert, true),
     InsertVideoTrack => ("insert.video_track", "Inserir faixa de vídeo", Insert, true),
-    InsertMarker => ("insert.marker", "Inserir marcador", Insert, false),
-    InsertRegion => ("insert.region", "Inserir região", Insert, false),
+    InsertMarker => ("insert.marker", "Inserir marcador", Insert, true),
+    InsertRegion => ("insert.region", "Inserir região", Insert, true),
     InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, false),
     RenderToNewTrack => ("tools.render_to_new_track", "Renderizar para nova faixa", Insert, false),
 
     // ---- Cursor e seleção
     CursorLeftByFrame => ("cursor.left_by_frame", "Cursor um quadro à esquerda", Cursor, true),
     CursorRightByFrame => ("cursor.right_by_frame", "Cursor um quadro à direita", Cursor, true),
-    CursorProjectStart => ("cursor.project_start", "Ir para o início do projeto", Cursor, false),
-    CursorProjectEnd => ("cursor.project_end", "Ir para o fim do projeto", Cursor, false),
-    CursorSelectionStart => ("cursor.selection_start", "Ir para o início da seleção ou da vista", Cursor, false),
-    CursorSelectionEnd => ("cursor.selection_end", "Ir para o fim da seleção ou da vista", Cursor, false),
-    CursorPreviousMarker => ("cursor.previous_marker", "Marcador anterior", Cursor, false),
-    CursorNextMarker => ("cursor.next_marker", "Próximo marcador", Cursor, false),
-    CursorPreviousEdit => ("cursor.previous_edit", "Ponto de edição anterior", Cursor, false),
-    CursorNextEdit => ("cursor.next_edit", "Próximo ponto de edição", Cursor, false),
-    CursorGoTo => ("cursor.go_to", "Ir para o tempo…", Cursor, false),
-    CursorCenterView => ("cursor.center_view", "Centralizar a vista no cursor", Cursor, false),
+    CursorProjectStart => ("cursor.project_start", "Ir para o início do projeto", Cursor, true),
+    CursorProjectEnd => ("cursor.project_end", "Ir para o fim do projeto", Cursor, true),
+    CursorSelectionStart => ("cursor.selection_start", "Ir para o início da seleção ou da vista", Cursor, true),
+    CursorSelectionEnd => ("cursor.selection_end", "Ir para o fim da seleção ou da vista", Cursor, true),
+    CursorPreviousMarker => ("cursor.previous_marker", "Marcador anterior", Cursor, true),
+    CursorNextMarker => ("cursor.next_marker", "Próximo marcador", Cursor, true),
+    CursorMarker1 => ("cursor.marker_one", "Ir para o marcador 1", Cursor, true),
+    CursorMarker2 => ("cursor.marker_two", "Ir para o marcador 2", Cursor, true),
+    CursorMarker3 => ("cursor.marker_three", "Ir para o marcador 3", Cursor, true),
+    CursorMarker4 => ("cursor.marker_four", "Ir para o marcador 4", Cursor, true),
+    CursorMarker5 => ("cursor.marker_five", "Ir para o marcador 5", Cursor, true),
+    CursorMarker6 => ("cursor.marker_six", "Ir para o marcador 6", Cursor, true),
+    CursorMarker7 => ("cursor.marker_seven", "Ir para o marcador 7", Cursor, true),
+    CursorMarker8 => ("cursor.marker_eight", "Ir para o marcador 8", Cursor, true),
+    CursorMarker9 => ("cursor.marker_nine", "Ir para o marcador 9", Cursor, true),
+    CursorMarker10 => ("cursor.marker_ten", "Ir para o marcador 10", Cursor, true),
+    CursorPreviousEdit => ("cursor.previous_edit", "Ponto de edição anterior", Cursor, true),
+    CursorNextEdit => ("cursor.next_edit", "Próximo ponto de edição", Cursor, true),
+    CursorGoTo => ("cursor.go_to", "Ir para o tempo…", Cursor, true),
+    CursorCenterView => ("cursor.center_view", "Centralizar a vista no cursor", Cursor, true),
     SelectionSetIn => ("selection.set_in", "Definir ponto de entrada", Cursor, true),
     SelectionSetOut => ("selection.set_out", "Definir ponto de saída", Cursor, true),
-    SelectionLoopRegion => ("selection.loop_region", "Selecionar a região de laço", Cursor, false),
+    SelectionLoopRegion => ("selection.loop_region", "Selecionar a região de laço", Cursor, true),
 
     // ---- Reprodução
     TransportPlayToggle => ("transport.play_toggle", "Reproduzir / pausar", Transport, true),
     TransportStop => ("transport.stop", "Parar", Transport, false),
     TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, false),
-    TransportLoop => ("transport.loop", "Reprodução em laço", Transport, false),
-    TransportRecord => ("transport.record", "Gravar", Transport, false),
+    TransportLoop => ("transport.loop", "Reprodução em laço", Transport, true),
+    TransportShuttleReverse => ("transport.shuttle_reverse", "Voltar (J; de novo acelera)", Transport, true),
+    TransportShuttlePause => ("transport.shuttle_pause", "Pausar (K)", Transport, true),
+    TransportShuttleForward => ("transport.shuttle_forward", "Avançar (L; de novo acelera)", Transport, true),
+    TransportRecord => ("transport.record", "Gravar", Transport, true),
 
     // ---- Opções
     OptionsSnapping => ("options.snapping", "Alinhamento (snap)", Options, true),
@@ -160,33 +175,54 @@ commands! {
     OptionsSnapToMarkers => ("options.snap_markers", "Alinhar a marcadores", Options, false),
     OptionsSnapToAllEvents => ("options.snap_all_events", "Alinhar a todos os eventos", Options, false),
     OptionsQuantizeToFrames => ("options.quantize", "Quantizar para quadros", Options, false),
-    OptionsAutoRipple => ("options.auto_ripple", "Ripple automático", Options, false),
+    OptionsAutoRipple => ("options.auto_ripple", "Ripple automático", Options, true),
     RippleAffectedTracks => ("edit.ripple.affected", "Ripple nas faixas afetadas", Options, false),
     RippleWithMarkers => ("edit.ripple.markers", "Ripple nas faixas, marcadores e regiões", Options, false),
     RippleAll => ("edit.ripple.all", "Ripple em tudo", Options, false),
 
     // ---- Faixas
-    TrackMute => ("track.mute", "Mudo na faixa", Track, false),
-    TrackMuteExclusive => ("track.mute_exclusive", "Mudo só nesta faixa", Track, false),
-    TrackSolo => ("track.solo", "Solo na faixa", Track, false),
-    TrackSoloExclusive => ("track.solo_exclusive", "Solo só nesta faixa", Track, false),
-    TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, false),
-    TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, false),
-    TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, false),
+    TrackMute => ("track.mute", "Mudo na faixa", Track, true),
+    TrackMuteExclusive => ("track.mute_exclusive", "Mudo só nesta faixa", Track, true),
+    TrackSolo => ("track.solo", "Solo na faixa", Track, true),
+    TrackSoloExclusive => ("track.solo_exclusive", "Solo só nesta faixa", Track, true),
+    TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, true),
+    TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, true),
+    TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, true),
 
     // ---- Exibir
-    ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, false),
-    ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, false),
-    ViewTrimmer => ("view.trimmer", "Trimmer", View, false),
-    ViewMasterBus => ("view.master_bus", "Barramento master", View, false),
-    ViewPreview => ("view.preview", "Prévia de vídeo", View, false),
-    ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, false),
+    ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, true),
+    ViewTrimmer => ("view.trimmer", "Trimmer", View, true),
+    ViewMasterBus => ("view.master_bus", "Barramento master", View, true),
+    ViewPreview => ("view.preview", "Prévia de vídeo", View, true),
+    ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
+    ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
+    ViewAudioEffects => ("view.audio_effects", "Efeitos de áudio", View, true),
 }
 
 impl Command {
     /// Looks a command up by its stable identifier.
     pub fn from_id(id: &str) -> Option<Command> {
         Command::ALL.iter().copied().find(|c| c.id() == id)
+    }
+}
+
+impl Command {
+    /// `1`–`10` for the commands that jump to the n-th marker (the `0` key is the tenth).
+    pub fn marker_number(self) -> Option<usize> {
+        match self {
+            Command::CursorMarker1 => Some(1),
+            Command::CursorMarker2 => Some(2),
+            Command::CursorMarker3 => Some(3),
+            Command::CursorMarker4 => Some(4),
+            Command::CursorMarker5 => Some(5),
+            Command::CursorMarker6 => Some(6),
+            Command::CursorMarker7 => Some(7),
+            Command::CursorMarker8 => Some(8),
+            Command::CursorMarker9 => Some(9),
+            Command::CursorMarker10 => Some(10),
+            _ => None,
+        }
     }
 }
 
