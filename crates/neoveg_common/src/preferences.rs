@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::keymap::KeyMap;
 use crate::presets::ProjectTemplate;
 use crate::project::ProjectSettings;
+use crate::window_layout::SavedWindow;
 
 /// Most recent projects kept, whatever the user asks for.
 pub const MAX_RECENT_PROJECTS: u32 = 30;
@@ -39,6 +40,8 @@ pub struct Preferences {
     pub theme_file: String,
     /// Keyboard shortcuts that differ from the defaults: command id -> shortcuts (empty = unbound).
     pub keymap: BTreeMap<String, Vec<String>>,
+    /// Panels that were in their own window (possibly on another monitor) when the program closed.
+    pub detached_windows: Vec<SavedWindow>,
 }
 
 impl Default for Preferences {
@@ -56,6 +59,7 @@ impl Default for Preferences {
             theme: "modern-carbon-dark".into(),
             theme_file: String::new(),
             keymap: BTreeMap::new(),
+            detached_windows: Vec::new(),
         }
     }
 }

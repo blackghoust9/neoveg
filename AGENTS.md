@@ -412,6 +412,16 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 
 ---
 
+## 32. Multi-Monitor & Multi-Viewport Docking Protocol
+
+- **Panels in their own window (`neoveg_ui/src/app/detached.rs`).** A panel dragged out of the dock becomes a floating `egui_dock` window; on the next frame `promote_floating_windows` removes that surface and opens the panel as a native operating-system window (an egui viewport, `show_viewport_immediate`), which can be moved to any monitor. Closing the window (or a backend without native windows, `ViewportClass::Embedded`) docks the panel back (`redock`). The detached panels use the same `Viewer` as the dock, so they are the same code and the same state; the keyboard shortcuts also work in them (`handle_shortcuts` per viewport). `F11` toggles full screen on a detached window and `Esc` leaves it. Choosing a detached panel in the Exibir menu focuses its window; recalling a layout that contains it docks it again.
+- **Saved windows.** `Preferences::detached_windows` (`#[serde(default)]`, older files load) holds, per panel, a stable id (`Tab::id`) and a `WindowGeometry` (position, size, maximized, size of its monitor, pixel density) from `neoveg_common::window_layout`. It is written when a panel is detached or docked and when the program exits (`eframe::App::on_exit`), and restored on the first frame after the startup screen.
+- **Position safety (`WindowGeometry::sanitized`).** Non-finite values fall back to defaults, windows keep a minimum size and never exceed the monitor they were saved on, and a position farther than three monitor sizes from the main monitor is pulled back. A window on a monitor left of or above the main one (negative coordinates) is kept. egui 0.29 cannot enumerate monitors, so this is a heuristic; the operating system still places a window whose monitor is gone on a visible one.
+- **DPI.** The pixel density is per viewport (the windowing layer reports it for the monitor the window is on), and it is stored with the geometry for information; dragging a window between monitors of different density rescales it without help from Neoveg code.
+- **Known limits.** Not verified on a machine with several monitors (the development machine has one); the pure parts are unit-tested and the promotion / redock / restore logic has state-level tests. Layout slots (`SaveLayout` / `RecallLayout`) store the dock only, not the detached windows. Panels opened as dialogs (`egui::Window`) are not detached.
+
+---
+
 # Part II — Legacy history
 
 The C# / C++ / Python implementation (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`, the root `Dockerfile` and `docker-compose.yml`) was removed from the tree. Its protocols (Avalonia UI, FFI naming, C++ extensions, Python scripting, AppCache bootstrap, Docker multi-language pipeline) no longer apply; they remain in Git history before commit `36b1d19` as a porting reference only. Nothing in Part I depends on them.

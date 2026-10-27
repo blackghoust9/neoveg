@@ -122,6 +122,8 @@ fn headless_app(state: AppState, dock: DockState<Tab>) -> NeovegApp {
         state,
         splash: None,
         gpu: "renderização fora da tela".into(),
+        detached: Vec::new(),
+        detached_restored: true,
     }
 }
 

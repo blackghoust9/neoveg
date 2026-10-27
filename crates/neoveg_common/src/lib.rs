@@ -16,3 +16,4 @@ pub mod project;
 pub mod sys_info;
 pub mod theme;
 pub mod timecode;
+pub mod window_layout;

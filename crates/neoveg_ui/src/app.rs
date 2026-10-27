@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 mod composite;
+mod detached;
 pub(crate) mod headless;
 mod render_job;
 mod tabs;
@@ -4049,6 +4050,10 @@ pub struct NeovegApp {
     splash: Option<Splash>,
     /// Name of the graphics adapter (known when the window is created).
     gpu: String,
+    /// Panels that live in their own native window.
+    detached: Vec<detached::DetachedTab>,
+    /// The saved panel windows were put back (done on the first frame after the startup screen).
+    detached_restored: bool,
 }
 
 /// What [`toggle_window`] did.
@@ -4229,6 +4234,15 @@ impl NeovegApp {
     /// Carries out a window command: show / hide a window, or save / recall a layout.
     fn apply_window_action(&mut self, action: WindowAction) {
         match action {
+            WindowAction::Toggle(tab) if self.detached.iter().any(|d| d.tab == tab) => {
+                // A panel in its own window: bring that window to the front
+                if let Some(ctx) = self.state.tabs.ctx.clone() {
+                    ctx.send_viewport_cmd_to(
+                        detached::viewport_id(tab),
+                        egui::ViewportCommand::Focus,
+                    );
+                }
+            }
             WindowAction::Toggle(tab) => {
                 self.state.status = match toggle_window(&mut self.dock, tab) {
                     WindowChange::Closed => format!("{} fechada", tab.title()),
@@ -4244,6 +4258,7 @@ impl NeovegApp {
             }
             WindowAction::RecallLayout(slot) => match self.layouts.get(slot).cloned().flatten() {
                 Some(layout) => {
+                    self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
                     self.dock = layout;
                     self.state.status = format!("Layout {slot} restaurado");
                 }
@@ -4251,6 +4266,8 @@ impl NeovegApp {
             },
             WindowAction::DefaultLayout => {
                 self.dock = default_dock();
+                let dock = &self.dock;
+                self.detached.retain(|d| dock.find_tab(&d.tab).is_none());
                 self.state.status = "Layout padrão restaurado".into();
             }
         }
@@ -4273,11 +4290,17 @@ impl NeovegApp {
             state: AppState::new(),
             splash: Some(Splash::new(&STARTUP_STEPS, &gpu)),
             gpu,
+            detached: Vec::new(),
+            detached_restored: false,
         }
     }
 }
 
 impl eframe::App for NeovegApp {
+    fn on_exit(&mut self) {
+        self.sync_detached_prefs(true);
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = ctx.input(|i| i.time);
         if let Some(splash) = &mut self.splash {
@@ -4313,6 +4336,10 @@ impl NeovegApp {
     /// `update`; the offscreen screenshots draw it directly.
     fn show(&mut self, ctx: &egui::Context) {
         let now = ctx.input(|i| i.time);
+        if !self.detached_restored {
+            self.detached_restored = true;
+            self.restore_detached(ctx);
+        }
         if let Some(action) = self.state.window_request.take() {
             self.apply_window_action(action);
         }
@@ -4389,6 +4416,8 @@ impl NeovegApp {
                 );
             });
 
+        self.promote_floating_windows(ctx);
+        self.show_detached(ctx);
         sync_theme(ctx, &mut self.state);
         preferences_window(ctx, &mut self.state);
         keymap_window(ctx, &mut self.state);
