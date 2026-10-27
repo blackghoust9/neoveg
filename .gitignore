@@ -127,6 +127,7 @@ docs_obsidian/.obsidian/workspace-mobile.json
 
 # Proprietary research & raw extracted dumps
 results_assets/
+/VegasScan/
 icons 22/
 *.ico
 *.bmp
@@ -141,3 +142,4 @@ G:/*
 # Local research notes (reverse-engineering inventory): kept on disk, not part of the repository
 /results.md
 /results_assets/
+/VegasScan/
