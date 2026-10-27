@@ -1699,3 +1699,55 @@ Implementation Guidelines for Neoveg:
     Media > Event > Track > Output for video.
 Sources: the PDFs listed above (v13 pp. 21-22, 581-583, 626-628; v18 pp. 122-126; v21 pp. 21-25).
 Research Date: 2026-10-26
+
+45. Feature Name: Older and Intermediate PDF Study (v8, v14 manuals): Shortcut Stability, Hover Scrub, Velocity Range, HFR Clips
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from the local PDFs in G:\Meu Drive\vp-rev-eng\teste\teste2\pdfs added on 2026-10-26 after entry 44:
+   Sony_Vegas_Pro_8_Manual.pdf = v8 manual, Vegas140_Manual_EN.pdf = v14.0 Steam edition manual (text
+   extracts cleanly). Sony_Vegas_Pro_14_Manual.pdf has a broken font encoding (every character shifted, no
+   usable text without OCR) and vegas-pro-14-manual.pdf plus Guia_de_Movie_Studio_Platinum_130.pdf are
+   image-only scans; MovieStudioHD130_QSG.pdf is a quick-start guide of the consumer edition. None of these
+   four was used for rules.)
+  - Shortcut stability (v8 keyboard table): the track and editing shortcuts already in Neoveg's key map are
+    unchanged since v8 - Ctrl+Q / Ctrl+Shift+Q new audio / video track, F8 snapping, Ctrl+L auto ripple,
+    Ctrl+Shift+X auto crossfade, G / U group / ungroup, Ctrl+Shift+U ignore grouping, Z / X mute / solo with
+    Shift for exclusive, V / P track volume / pan envelope with Shift to remove, Ctrl+Shift+E show envelopes,
+    Ctrl+M render to new track. The v8 table is set in several interleaved columns, so the pairing of a few
+    rows (Quantize to frames, Snap to markers / grid) could not be confirmed from it; entry 42-43 (current
+    help and v18 PDFs) remain the authority for those. Additional v8 rows not yet in the key map:
+    Ctrl+U clears a group without deleting its events, Shift+G selects all events of the group, E / Shift+E
+    cycles the effect automation envelopes, Alt+Shift+Up / Down changes the focused track, and the numeric
+    keypad 8 / 2 / 4 / 6 nudge a held envelope point by one pixel.
+  - Hover scrub in the Trimmer (v14, new in that version): with "Enable Hover Scrub" on in the
+    Trimmer context menu, moving the mouse over the Trimmer video frame sets the playback position while
+    playback is stopped; with it off, scrubbing still works by dragging in the Trimmer timeline. With hover
+    scrub on, holding Shift while dragging sets the clip's in / out points.
+  - Velocity range (v14): the event Velocity envelope top end was raised to 1,000 % (earlier versions: 300 %,
+    see entry 43), which together with the event "Playback rate" property allows up to 40x
+    normal speed. Negative values play in reverse and 0 % freezes the frame; the event length does not change.
+  - High-frame-rate (HFR) clips (v14): "Add At Project Frame Rate" on a Project Media item creates an event
+    at the cursor whose Playback rate is set so that the clip plays at the project frame rate (slow motion
+    of, for example, 120 fps footage in a 24 / 30 fps project). Playback rate is also what AAF import maps
+    the "Video Speed Control" effect to.
+  - Other v14 additions (for tracking only, no Neoveg rule): Smart Zoom / Smart Scale / adaptive deinterlacing
+    (GPU upscale), Vignette video effect, project-level default Resample mode (Smart / Force / Disable per
+    event override), Dynamic RAM Preview caches above 200 MB, a "Group Video and Audio Events" script for
+    imported EDLs, HEVC / H.265 read and write, native ProRes 422 reading, F11 / Shift+F11 / Ctrl+F11 panel
+    maximizing (already in entry 42-43).
+  - Not found: the Drive folder also holds the legacy C# / Rust FFI / Python tree of 2026-10-23
+    (GUIA_NOVAS_FUNCIONALIDADES.md, funcoes_add.txt, DOCUMENTACAO_SCRIPTS.md and the old sources). It
+    describes the removed architecture (Avalonia, P/Invoke, Python bridge) and no feature absent from Neoveg;
+    funcoes_add.txt is already in the repository.
+Implementation Guidelines for Neoveg:
+  - Trimmer hover scrub: a Trimmer view option (session preference, off by default) where pointer motion over
+    the video frame sends a seek request to the frame worker; the worker already keeps only the newest
+    request. Shift+drag sets in / out only while the option is on.
+  - Velocity: when the envelope is added, store velocity as a percentage with range -100 % .. 1,000 % behind a
+    `#[serde(default)]` field and implement the time map as a pure function in `neoveg_engine` shared by the
+    mixer and the preview, as noted in entry 10.
+  - Add the missing v8 rows (Ctrl+U, Shift+G, E / Shift+E, Alt+Shift+Up / Down) to `commands!` and
+    `DEFAULT_BINDINGS` with `implemented() == false` until the features exist.
+Sources: Sony_Vegas_Pro_8_Manual.pdf (keyboard shortcut tables), Vegas140_Manual_EN.pdf (pp. 15-16 what's
+new, hover scrub and HFR sections).
+Research Date: 2026-10-27
