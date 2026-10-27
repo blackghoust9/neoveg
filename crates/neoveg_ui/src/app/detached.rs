@@ -275,3 +275,37 @@ mod tests {
         assert!(app.dock.find_tab(&Tab::Timeline).is_none());
     }
 }
+
+#[cfg(test)]
+mod trimmer_tests {
+    use super::*;
+
+    #[test]
+    fn the_trimmer_adds_its_selection_as_one_undo_step() {
+        let mut state = AppState::new();
+        state.project.media_pool.push(MediaRef {
+            subproject: false,
+            id: 5,
+            path: "C:/clips/take.wav".into(),
+            duration_seconds: 10.0,
+        });
+        state.open_in_trimmer(5);
+        let trimmer = state.trimmer.as_mut().unwrap();
+        trimmer.select(2.0, 6.0);
+        state.playhead = 3.0;
+        state.trimmer_add(TrimmerAdd::FromCursor);
+        let events: Vec<_> = state
+            .timeline
+            .tracks
+            .iter()
+            .flat_map(|t| &t.events)
+            .collect();
+        assert_eq!(events.len(), 1);
+        // The marks sit on frames of the project rate (29.97 fps by default)
+        assert_eq!(events[0].start, 3.0);
+        assert!((events[0].duration - 4.0).abs() < 0.04);
+        assert!((events[0].trim_in - 2.0).abs() < 0.04);
+        assert!(state.history.undo(&mut state.timeline));
+        assert!(state.timeline.tracks.iter().all(|t| t.events.is_empty()));
+    }
+}

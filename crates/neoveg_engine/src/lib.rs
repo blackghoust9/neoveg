@@ -25,6 +25,7 @@ pub mod selection;
 pub mod slideshow;
 pub mod switches;
 pub mod timeline;
+pub mod trimmer;
 
 pub use captions::{Caption, CaptionId};
 pub use command::{EditCommand, FxTarget, History, TrackChange};

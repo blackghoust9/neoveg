@@ -281,7 +281,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Travar faixa/evento
 - [x] Marcadores (`M`), regiões e loop
 - [ ] Marcadores de comando e réguas adicionais
-- [ ] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
+- [x] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
 - [x] Aninhar projetos (*nesting*) em abas, com validação de ciclos
 - [ ] Faixas de composição pai/filho
 - [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
@@ -397,10 +397,10 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] "Renderizar só a região de laço" (opção do diálogo de renderização)
 
 **Fase 6 — Trimmer (entrada 12)**
-- [ ] `TrimmerState` (mídia, entrada, saída, cursor) com histórico; `I` e `O` marcam entrada e saída
-- [ ] Edição em três pontos (adicionar a partir de / até o cursor, `A` / `Shift+A`) e em quatro pontos (ajustar para preencher)
+- [x] `TrimmerState` (mídia, entrada, saída, cursor) com histórico das marcações (`neoveg_engine::trimmer`); entrada/saída por botões do painel (os atalhos `I` / `O` ainda marcam a seleção de tempo da linha do tempo)
+- [x] Edição em três pontos (adicionar a partir de / até o cursor, por botões; atalhos `A` / `Shift+A` pendentes) e em quatro pontos (ajustar para preencher)
 - [ ] Subclipes (com opção de reverso), abrir mídia-mãe, copiar/salvar quadro atual
-- [ ] Modo sobrescrever linha do tempo e importar estéreo como mono duplo
+- [ ] Importar estéreo como mono duplo (o modo sobrescrever linha do tempo já existe)
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
 - [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução

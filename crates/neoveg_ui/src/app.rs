@@ -134,6 +134,17 @@ impl Tab {
     }
 }
 
+/// How the Trimmer puts its selection on the timeline.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum TrimmerAdd {
+    /// After the timeline cursor (or into the timeline selection).
+    FromCursor,
+    /// Ending at the timeline cursor.
+    UpToCursor,
+    /// Compressed or stretched to fill the timeline selection.
+    FitToFill,
+}
+
 /// What a window command asks of the dock.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum WindowAction {
@@ -415,6 +426,12 @@ struct AppState {
     /// `Shift+Q`: the span that loops; without one the time selection (or the whole project) does.
     loop_region: Option<TimeRange>,
     media_tab: usize,
+    /// The media file open in the Trimmer, if any.
+    trimmer: Option<neoveg_engine::trimmer::TrimmerState>,
+    /// Trimmer: new events replace what they cover instead of lying over it.
+    trimmer_overwrite: bool,
+    /// Where the drag on the Trimmer timeline began.
+    trimmer_drag_from: Option<f64>,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
     /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
@@ -1224,6 +1241,9 @@ impl AppState {
             looping: false,
             loop_region: None,
             media_tab: 0,
+            trimmer: None,
+            trimmer_overwrite: false,
+            trimmer_drag_from: None,
             window_request: None,
             auto_ripple: false,
             shuttle_speed: 1.0,
@@ -3256,6 +3276,83 @@ impl AppState {
                 }
             }
             Err(e) => self.status = format!("Falha ao decodificar vídeo: {e}"),
+        }
+    }
+
+    /// Opens a media pool file in the Trimmer and shows the Trimmer tab.
+    fn open_in_trimmer(&mut self, media_id: u64) {
+        let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+            return;
+        };
+        let name = std::path::Path::new(&item.path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let fps = self.project.settings.fps;
+        self.trimmer = Some(neoveg_engine::trimmer::TrimmerState::new(
+            media_id,
+            &name,
+            item.duration_seconds,
+            fps,
+        ));
+        self.media_tab = 1;
+        self.status = format!("{name} aberto no Trimmer");
+    }
+
+    /// What the Trimmer buttons ask for: put the selection on the timeline.
+    fn trimmer_add(&mut self, mode: TrimmerAdd) {
+        use neoveg_engine::trimmer::{add_command, Placement};
+        let Some(trimmer) = &self.trimmer else {
+            return;
+        };
+        let (media_id, name) = (trimmer.media_id, trimmer.name.clone());
+        let placement: Option<Placement> = match mode {
+            TrimmerAdd::FromCursor => match self.time_selection {
+                // Two timeline points and one Trimmer point
+                Some(range) if !range.is_empty() => trimmer.from_timeline_range(range),
+                _ => trimmer.add_from_cursor(self.playhead),
+            },
+            TrimmerAdd::UpToCursor => trimmer.add_up_to_cursor(self.playhead),
+            TrimmerAdd::FitToFill => match self.time_selection.filter(|r| !r.is_empty()) {
+                Some(range) => trimmer.fit_to_fill(range).map(|(p, exact)| {
+                    if !exact {
+                        self.status = "Ajustar ao preenchimento: velocidade limitada".into();
+                    }
+                    p
+                }),
+                None => {
+                    self.status = "Selecione um trecho da linha do tempo para preencher".into();
+                    return;
+                }
+            },
+        };
+        let Some(placement) = placement else {
+            self.status = "Nada para adicionar: marque a seleção e o cursor".into();
+            return;
+        };
+        let has_video = self.video_info.contains_key(&media_id);
+        let has_audio = self.media.contains_key(&media_id);
+        let mut kinds = Vec::new();
+        if has_video {
+            kinds.push(TrackKind::Video);
+        }
+        if has_audio || !has_video {
+            kinds.push(TrackKind::Audio);
+        }
+        let mut commands = Vec::new();
+        for kind in kinds {
+            let track_id = self.track_of_kind(kind);
+            let event = placement.into_event(self.timeline.alloc_id(), &name, media_id);
+            if let Some(command) =
+                add_command(&mut self.timeline, track_id, event, self.trimmer_overwrite)
+            {
+                commands.push(command);
+            }
+        }
+        if !commands.is_empty() {
+            self.history
+                .execute(&mut self.timeline, EditCommand::Batch(commands));
+            self.status = format!("{name} adicionado à linha do tempo");
         }
     }
 
@@ -6128,42 +6225,168 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
     if state.project.media_pool.is_empty() {
         ui.weak("Nenhuma mídia no projeto");
     }
+    let mut open = None;
     for item in &state.project.media_pool {
         if let Some(m) = state.media.get(&item.id) {
-            ui.label(format!(
-                "{}  ({:.2} s, {} Hz)",
-                m.name, m.duration, m.sample_rate
-            ));
+            let row = ui
+                .selectable_label(
+                    state
+                        .trimmer
+                        .as_ref()
+                        .is_some_and(|t| t.media_id == item.id),
+                    format!("{}  ({:.2} s, {} Hz)", m.name, m.duration, m.sample_rate),
+                )
+                .on_hover_text("Duplo clique: abrir no Trimmer");
+            if row.double_clicked() {
+                open = Some(item.id);
+            }
         }
+    }
+    if let Some(id) = open {
+        state.open_in_trimmer(id);
     }
 }
 
 fn trimmer_ui(state: &mut AppState, ui: &mut egui::Ui) {
-    let Some(media) = state
-        .project
-        .media_pool
-        .last()
-        .and_then(|m| state.media.get(&m.id))
-    else {
-        ui.weak("Selecione uma mídia para pré-visualizar");
+    if state.trimmer.is_none() {
+        // Without a choice, the last media of the project
+        if let Some(id) = state.project.media_pool.last().map(|m| m.id) {
+            state.open_in_trimmer(id);
+            state.media_tab = 1;
+        }
+    }
+    let Some(trimmer) = state.trimmer.as_mut() else {
+        ui.weak("Abra uma mídia no Trimmer (duplo clique em Mídia do Projeto)");
         return;
     };
-    ui.label(&media.name);
-    let (rect, _) = ui.allocate_exact_size(
+    let fps = state.project.settings.fps;
+    let mut add = None;
+    ui.horizontal(|ui| {
+        ui.label(&trimmer.name);
+        ui.weak(format!(
+            "{} → {}",
+            seconds_to_timecode(trimmer.selection().0, fps, false),
+            seconds_to_timecode(trimmer.selection().1, fps, false)
+        ));
+        if icons::svg_button(ui, icons::SvgIcon::StepBack, "Quadro anterior", false).clicked() {
+            trimmer.step_frames(-1);
+        }
+        if icons::svg_button(ui, icons::SvgIcon::StepForward, "Próximo quadro", false).clicked() {
+            trimmer.step_frames(1);
+        }
+        if icons::svg_button(ui, icons::SvgIcon::TrimStart, "Marcar entrada no cursor do Trimmer", false)
+            .clicked()
+        {
+            trimmer.mark_in();
+        }
+        if icons::svg_button(ui, icons::SvgIcon::TrimEnd, "Marcar saída no cursor do Trimmer", false)
+            .clicked()
+        {
+            trimmer.mark_out();
+        }
+        if icons::svg_button(ui, icons::SvgIcon::Undo, "Desfazer marcação", false).clicked() {
+            trimmer.undo_marks();
+        }
+        if icons::svg_button(ui, icons::SvgIcon::Redo, "Refazer marcação", false).clicked() {
+            trimmer.redo_marks();
+        }
+        ui.separator();
+        if icons::svg_button(
+            ui,
+            icons::SvgIcon::Add,
+            "Adicionar à linha do tempo a partir do cursor (três pontos; com seleção na linha do tempo, dentro dela)",
+            false,
+        )
+        .clicked()
+        {
+            add = Some(TrimmerAdd::FromCursor);
+        }
+        if icons::svg_button(
+            ui,
+            icons::SvgIcon::Cut,
+            "Adicionar à linha do tempo até o cursor",
+            false,
+        )
+        .clicked()
+        {
+            add = Some(TrimmerAdd::UpToCursor);
+        }
+        if icons::svg_button(
+            ui,
+            icons::SvgIcon::PitchStretch,
+            "Ajustar ao preenchimento: comprime ou estica a seleção sobre a seleção da linha do tempo (quatro pontos)",
+            false,
+        )
+        .clicked()
+        {
+            add = Some(TrimmerAdd::FitToFill);
+        }
+        let overwrite = state.trimmer_overwrite;
+        if icons::svg_button(
+            ui,
+            icons::SvgIcon::Remove,
+            "Sobrescrever a linha do tempo: o novo evento substitui o que ele cobre",
+            overwrite,
+        )
+        .clicked()
+        {
+            state.trimmer_overwrite = !overwrite;
+        }
+    });
+    let duration = trimmer.duration.max(1e-6);
+    let (rect, response) = ui.allocate_exact_size(
         vec2(ui.available_width(), ui.available_height().max(60.0)),
-        Sense::hover(),
+        Sense::click_and_drag(),
     );
+    let to_time = |x: f32| ((x - rect.left()) / rect.width().max(1.0)) as f64 * duration;
+    if response.double_clicked() {
+        trimmer.reset_marks();
+    } else if response.drag_started() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            state.trimmer_drag_from = Some(to_time(pos.x));
+        }
+    } else if response.dragged() {
+        if let (Some(from), Some(pos)) = (state.trimmer_drag_from, response.interact_pointer_pos())
+        {
+            trimmer.select(from, to_time(pos.x));
+        }
+    } else if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            trimmer.set_cursor(to_time(pos.x));
+        }
+    }
+    if response.drag_stopped() {
+        state.trimmer_drag_from = None;
+    }
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, Rounding::ZERO, Color32::from_gray(22));
-    let frames = media.waveform.frame_count() as f64;
-    paint_waveform(
-        &painter,
-        rect,
-        &media.waveform,
-        0.0,
-        frames / rect.width() as f64,
-        Color32::from_rgb(86, 204, 242),
+    if let Some(media) = state.media.get(&trimmer.media_id) {
+        let frames = media.waveform.frame_count() as f64;
+        paint_waveform(
+            &painter,
+            rect,
+            &media.waveform,
+            0.0,
+            frames / rect.width() as f64,
+            Color32::from_rgb(86, 204, 242),
+        );
+    }
+    let x_of = |t: f64| rect.left() + (t / duration) as f32 * rect.width();
+    let (a, b) = trimmer.selection();
+    let shade = egui::Rect::from_x_y_ranges(x_of(a)..=x_of(b), rect.y_range());
+    painter.rect_filled(
+        shade,
+        Rounding::ZERO,
+        Color32::from_rgba_unmultiplied(86, 204, 242, 40),
     );
+    let cursor_x = x_of(trimmer.cursor());
+    painter.line_segment(
+        [pos2(cursor_x, rect.top()), pos2(cursor_x, rect.bottom())],
+        egui::Stroke::new(1.0_f32, Color32::from_rgb(52, 152, 219)),
+    );
+    if let Some(mode) = add {
+        state.trimmer_add(mode);
+    }
 }
 
 fn fmt_db(linear: f32) -> String {
