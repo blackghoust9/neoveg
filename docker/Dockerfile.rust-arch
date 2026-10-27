@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Neoveg - Arch Linux test image (rolling release; Rust through rustup).
+ARG ARCH_IMAGE=archlinux:latest
+FROM ${ARCH_IMAGE}
+ENV NEOVEG_DISTRO=arch
+
+RUN pacman -Syu --noconfirm --needed         base-devel pkgconf clang python ca-certificates curl         alsa-lib systemd-libs         mesa libx11 libxcursor libxrandr libxi libxkbcommon libxkbcommon-x11 wayland         vulkan-icd-loader vulkan-headers vulkan-swrast         ffmpeg         xorg-server-xvfb xorg-xauth openssh sshpass     && pacman -Scc --noconfirm
+
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+
+RUN rustup component add clippy rustfmt
+
+ENV CARGO_TARGET_DIR=/target \
+    CARGO_TERM_COLOR=always \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    WGPU_BACKEND=vulkan
+
+COPY entrypoints/*.sh /usr/local/bin/
+RUN sed -i "s/\r$//" /usr/local/bin/*.sh && chmod +x /usr/local/bin/*.sh
+
+WORKDIR /workspace
+CMD ["/usr/local/bin/test-linux.sh"]

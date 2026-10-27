@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Neoveg - Ubuntu LTS test image (same native libraries as Dockerfile.rust-linux, Rust through rustup).
+ARG UBUNTU_IMAGE=ubuntu:24.04
+FROM ${UBUNTU_IMAGE}
+ENV DEBIAN_FRONTEND=noninteractive NEOVEG_DISTRO=ubuntu
+
+RUN apt-get update     && apt-get install -y --no-install-recommends         build-essential pkg-config clang libclang-dev python3 ca-certificates curl         libasound2-dev libudev-dev         libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev         libxkbcommon-x11-dev libwayland-dev libvulkan-dev libvulkan1 mesa-vulkan-drivers         libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev         libavfilter-dev libavdevice-dev         xvfb xauth openssh-client sshpass     && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+
+RUN rustup component add clippy rustfmt
+
+ENV CARGO_TARGET_DIR=/target \
+    CARGO_TERM_COLOR=always \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    WGPU_BACKEND=vulkan
+
+COPY entrypoints/*.sh /usr/local/bin/
+RUN sed -i "s/\r$//" /usr/local/bin/*.sh && chmod +x /usr/local/bin/*.sh
+
+WORKDIR /workspace
+CMD ["/usr/local/bin/test-linux.sh"]
