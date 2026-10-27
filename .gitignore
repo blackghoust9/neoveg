@@ -96,6 +96,7 @@ env/
 *.gslides
 *.gdoc
 *.gsheet
+*.tmp.driveupload/
 
 # OmniRoute (local AI router): independent Git repository checked out inside this workspace.
 # Never commit it here — its .env holds provider API keys and secrets, and node_modules is huge.
