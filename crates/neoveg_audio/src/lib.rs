@@ -6,6 +6,7 @@ pub mod decode;
 pub mod dsp;
 pub mod duck;
 pub mod fxmixer;
+pub mod loudness_report;
 pub mod meter;
 pub mod metronome;
 pub mod mixer;
