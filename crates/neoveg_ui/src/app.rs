@@ -58,7 +58,7 @@ use neoveg_engine::{
     EditCommand, EventId, EventRef, FxTarget, History, Selection, TimeRange, Timeline, TrackEvent,
     TrackId, TrackKind,
 };
-use neoveg_video::info::{is_video_path, VideoInfo};
+use neoveg_video::info::{is_video_path, is_visual_media_path, VideoInfo};
 use neoveg_video::lut::Lut;
 use neoveg_video::scopes::Scopes;
 use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
@@ -251,6 +251,10 @@ struct AppState {
     /// Index into `loudness_panel::TARGETS`.
     loudness_target: usize,
     show_credits: bool,
+    /// Exibir > Visualizador de Logs.
+    log_viewer: crate::log_viewer::LogViewerState,
+    /// Faixas > Inserir mídia gerada.
+    generator_dialog: crate::generator_dialog::GeneratorDialogState,
     /// Subtitles tab (text and times being edited).
     captions_panel: CaptionsPanelState,
     /// Audio effects panel (target and the slider being dragged).
@@ -1057,6 +1061,8 @@ impl AppState {
             loudness: Arc::new(LoudnessReadout::new()),
             loudness_target: 0,
             show_credits: false,
+            log_viewer: Default::default(),
+            generator_dialog: Default::default(),
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
             mixer: MixerPanelState::default(),
@@ -1708,6 +1714,10 @@ impl AppState {
     fn import_media(&mut self, ctx: &egui::Context) {
         let mut extensions = vec!["wav", "mp3", "flac", "ogg", "m4a", "aac"];
         extensions.extend(neoveg_video::info::VIDEO_EXTENSIONS);
+        // Still images, numbered image sequences and procedural generators land on video tracks
+        extensions.extend(neoveg_video::still::IMAGE_EXTENSIONS);
+        extensions.push(neoveg_video::still::SEQUENCE_EXTENSION);
+        extensions.push("neoveggen");
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Mídia", &extensions)
             .pick_file()
@@ -1718,15 +1728,59 @@ impl AppState {
         self.spawn_media(path, None, ctx);
     }
 
+    /// Saves a procedural generator as a `.neoveggen` manifest (beside the project, or in the data
+    /// folder of an unsaved one) and imports it like any other video media.
+    fn insert_generated(
+        &mut self,
+        spec: neoveg_video::generators::GeneratorSpec,
+        ctx: &egui::Context,
+    ) {
+        let dir = match self
+            .project_path
+            .as_deref()
+            .and_then(std::path::Path::parent)
+        {
+            Some(parent) => parent.join("geradores"),
+            None => match neoveg_common::paths::app_data_dir() {
+                Some(dir) => dir.join("geradores"),
+                None => {
+                    self.status = "Não há pasta para guardar o gerador".into();
+                    return;
+                }
+            },
+        };
+        let stem: String = spec
+            .name
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let path = dir.join(format!("{stem}_{}.neoveggen", autosave::unix_now()));
+        match spec.save_manifest(&path) {
+            Ok(()) => {
+                self.status = format!("Gerador {} criado", spec.name);
+                self.spawn_media(path, None, ctx);
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] cannot save the generator: {e}");
+                self.status = format!("Não foi possível criar o gerador: {e}");
+            }
+        }
+    }
+
     /// Loads audio or video media on a worker thread (never on the UI thread).
     fn spawn_media(&self, path: PathBuf, existing_id: Option<u64>, ctx: &egui::Context) {
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
         std::thread::spawn(move || {
-            let msg = if is_video_path(&path) {
+            let msg = if is_visual_media_path(&path) {
                 match probe(&path) {
                     Ok(info) => LoadMsg::VideoLoaded {
-                        // A video without a usable audio track is still a valid video clip
-                        audio: load_audio(&path).ok(),
+                        // A video without a usable audio track is still a valid video clip; images
+                        // and generators have no sound to look for
+                        audio: if is_video_path(&path) {
+                            load_audio(&path).ok()
+                        } else {
+                            None
+                        },
                         path,
                         info,
                         existing_id,
@@ -3688,6 +3742,13 @@ impl NeovegApp {
         exit_window(ctx, &mut self.state);
         inspector_window(ctx, &mut self.state);
         credits_window(ctx, &mut self.state);
+        let log_dir = crate::log_viewer::default_log_dir();
+        self.state.log_viewer.show(ctx, &log_dir);
+        let settings = &self.state.project.settings;
+        let (width, height, fps) = (settings.width, settings.height, settings.fps);
+        if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
+            self.state.insert_generated(spec, ctx);
+        }
     }
 }
 
@@ -3898,6 +3959,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         ui.menu_button("Faixas", |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
+            if ui.button("Inserir mídia gerada…").clicked() {
+                state.generator_dialog.open = true;
+                ui.close_menu();
+            }
             ui.separator();
             for command in [
                 Command::TrackMute,
@@ -3996,6 +4061,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
         ui.menu_button("Ajuda", |ui| {
+            if ui.button("Visualizador de logs…").clicked() {
+                state.log_viewer.open = true;
+                ui.close_menu();
+            }
             if ui.button("Créditos e licenças…").clicked() {
                 state.show_credits = true;
                 ui.close_menu();
@@ -4050,7 +4119,6 @@ fn credits_window(ctx: &egui::Context, state: &mut AppState) {
     state.show_credits = open;
 }
 
-/// A menu entry that runs `command`, with its shortcut and enabled state.
 /// A small padlock (body and shackle) with its top-left corner at `at`, for locked events.
 fn paint_lock_mark(painter: &egui::Painter, at: Pos2) {
     let ink = Color32::from_gray(235);
@@ -4105,6 +4173,7 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
     command_item(state, ui, Command::EditNormalizeRecalculate);
 }
 
+/// A menu entry that runs `command`, with its shortcut and enabled state.
 fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
     let enabled = state.command_enabled(command);
     let label = state.with_hint(command.label(), command);
@@ -7069,6 +7138,53 @@ mod tests {
         run(&mut s, Command::EditSwitchLoop);
         let clip = s.build_clips().into_iter().next().unwrap();
         assert_eq!(clip.loop_len, 0.0, "turned off, the source plays once");
+    }
+
+    #[test]
+    fn a_generated_media_is_saved_beside_the_project_and_lands_on_a_video_track() {
+        let dir = std::env::temp_dir().join(format!("neoveg_gen_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = AppState::new();
+        s.project_path = Some(dir.join("projeto.neoveg"));
+        let spec = neoveg_video::generators::GeneratorSpec {
+            name: "Título: abertura".into(),
+            width: 640,
+            height: 360,
+            fps: 25.0,
+            duration: 4.0,
+            kind: neoveg_video::generators::GeneratorKind::default_title(),
+        };
+        s.insert_generated(spec, &egui::Context::default());
+
+        // The manifest is written at once, with a name that is safe on every file system
+        let made: Vec<_> = std::fs::read_dir(dir.join("geradores"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(made.len(), 1);
+        assert!(made[0].starts_with("T_tulo__abertura_") && made[0].ends_with(".neoveggen"));
+
+        // The loader thread probes it and the clip is placed like any other video
+        for _ in 0..200 {
+            s.poll_loader();
+            if !s.timeline.tracks.is_empty()
+                && s.timeline.tracks.iter().any(|t| !t.events.is_empty())
+            {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| !t.events.is_empty())
+            .expect("the generated media was placed");
+        assert_eq!(track.kind, TrackKind::Video);
+        assert!((track.events[0].duration - 4.0).abs() < 1e-9);
+        assert_eq!(s.project.media_pool.len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
