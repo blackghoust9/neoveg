@@ -1996,6 +1996,19 @@ impl AppState {
     fn source_len(&self, track_id: TrackId, event_id: EventId) -> Option<f64> {
         let track = self.timeline.track(track_id)?;
         let media_id = track.events.iter().find(|e| e.id == event_id)?.media_id?;
+        // A still image or a generator has no end of its own: it can be dragged out as far as wanted
+        if track.kind == TrackKind::Video
+            && self
+                .project
+                .media_pool
+                .iter()
+                .find(|m| m.id == media_id)
+                .is_some_and(|m| {
+                    neoveg_video::info::is_unbounded_visual_path(std::path::Path::new(&m.path))
+                })
+        {
+            return None;
+        }
         let length = match track.kind {
             TrackKind::Audio => self.media.get(&media_id).map(|m| m.duration),
             TrackKind::Video => self.video_info.get(&media_id).map(|i| i.duration),
@@ -7549,6 +7562,50 @@ mod tests {
             PathBuf::from("a/cena_final_0001.neoveg"),
             "a trailing word is not a number"
         );
+    }
+
+    #[test]
+    fn a_still_or_generated_clip_can_be_dragged_out_past_its_first_length() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        let track = s.selected_track.unwrap();
+        for (id, path) in [(1, "cor.neoveggen"), (2, "foto.png"), (3, "filme.mp4")] {
+            s.project.media_pool.push(MediaRef {
+                subproject: false,
+                id,
+                path: path.into(),
+                duration_seconds: 4.0,
+            });
+            let event = TrackEvent {
+                id: s.timeline.alloc_id(),
+                media_id: Some(id),
+                start: id as f64 * 10.0,
+                duration: 4.0,
+                ..Default::default()
+            };
+            s.history.execute(
+                &mut s.timeline,
+                EditCommand::AddEvent {
+                    track_id: track,
+                    event,
+                },
+            );
+        }
+        let events: Vec<EventId> = s
+            .timeline
+            .track(track)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| e.id)
+            .collect();
+        assert_eq!(
+            s.source_len(track, events[0]),
+            None,
+            "a generator has no end"
+        );
+        assert_eq!(s.source_len(track, events[1]), None, "neither has a still");
+        assert_eq!(s.source_len(track, events[2]), Some(4.0), "a video does");
     }
 
     #[test]
