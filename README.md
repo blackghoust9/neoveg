@@ -1,10 +1,67 @@
-# Neoveg
+<h1 align="center">Neoveg</h1>
 
-Editor não linear de vídeo e áudio multiplataforma, escrito em **Rust puro** (Cargo workspace com `egui`/`eframe`, `wgpu`, `cpal`, `symphonia`).
+<p align="center">
+  Editor não linear de vídeo e áudio multiplataforma, escrito em <b>Rust puro</b><br>
+  (Cargo workspace com <code>egui</code>/<code>eframe</code>, <code>wgpu</code>, <code>cpal</code>, <code>symphonia</code>)
+</p>
+
+<p align="center">
+  <a href="https://github.com/blackghoust9/neoveg/actions/workflows/rust.yml"><img alt="Build Rust" src="https://github.com/blackghoust9/neoveg/actions/workflows/rust.yml/badge.svg?branch=refactor%2F100-percent-rust"></a>
+  <img alt="Arquitetura 100% Rust" src="https://img.shields.io/badge/arquitetura-100%25%20Rust-b7410e?logo=rust&logoColor=white">
+  <img alt="Rust 1.88+" src="https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust&logoColor=white">
+  <img alt="Plataformas" src="https://img.shields.io/badge/plataformas-Windows%20%7C%20Linux%20%7C%20macOS-2980b9">
+</p>
+
+<p align="center">
+  <img alt="Visão geral do Neoveg: Mídia, Visualização, Barramento Master e Linha do Tempo" src="docs/screenshots/ui_main_layout.png" width="920">
+</p>
 
 > **Em migração.** A branch `refactor/100-percent-rust` substitui a arquitetura anterior (C# / Avalonia, Rust FFI, C++ e Python) por um único workspace Rust. Os diretórios legados (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) foram removidos; continuam no histórico do Git (commit `36b1d19` e anteriores).
 
 Consulte [AGENTS.md](./AGENTS.md) para os padrões de arquitetura e codificação (Parte I) e [REQUIREMENTS.md](./REQUIREMENTS.md) para o detalhe de versões.
+
+## Galeria visual
+
+As imagens abaixo são geradas pelo próprio programa, **fora da tela** (sem abrir janela), com um projeto de demonstração montado em memória: `cargo test -p neoveg_ui --test headless_screenshot` com `NEOVEG_SCREENSHOTS=1` (veja [Capturas de tela](#capturas-de-tela-headless)). O áudio das mídias é sintético; o painel de visualização aparece preto porque a demonstração não decodifica vídeo.
+
+### Layout geral
+
+![Layout geral](docs/screenshots/ui_main_layout.png)
+
+O espaço de trabalho acoplável (`egui_dock`): **Mídia** (Mídia do Projeto, Trimmer e Legendas) e **Efeitos de Áudio** à esquerda, **Visualização** no centro, **Barramento Master** com as abas **Loudness** e **Scopes de Vídeo** à direita, e a **Linha do Tempo** embaixo, com a barra de ferramentas logo abaixo dela.
+
+### Linha do tempo
+
+![Linha do tempo](docs/screenshots/ui_timeline_events.png)
+
+Faixas de vídeo e áudio com forma de onda real, **crossfade automático** na sobreposição de dois eventos (o X sobre a faixa *Entrevista*), **envelope de volume** na faixa *Trilha*, marcadores, régua SMPTE e o cursor de reprodução. Os eventos mostram os interruptores: **Mute** (escurecido), **Lock** (cadeado), **Loop** (`[laço]` e uma marca a cada repetição), **Normalize** (`[norm +1.9 dB]`) e **Inverter fase**.
+
+### Vários projetos e sub-projetos
+
+![Abas de projetos](docs/screenshots/ui_multi_project_tabs.png)
+
+Cada projeto aberto tem sua aba (`*` marca alterações não salvas). Um conjunto de eventos pode virar um **sub-projeto** (`Ctrl+Shift+N`): ele aparece como um único evento na linha do tempo do projeto pai e abre em outra aba com um duplo clique.
+
+### Ícones
+
+![Biblioteca de ícones](docs/screenshots/ui_icon_set.png)
+
+A biblioteca de pictogramas SVG autorais (24x24, planos, `currentColor`), desenhados para seguir as cores do tema em qualquer escala e DPI.
+
+## Desempenho por resolução
+
+O custo de cada quadro cresce com o número de pixels. A tabela mostra o que é **calculado** a partir das regras do programa (um quadro RGBA ocupa 4 bytes por pixel; a qualidade da visualização define a largura decodificada: Draft = 1/4, Preview = 1/2, Good e Best = cheia). Os **tempos medidos não existem ainda**: o repositório não tem benchmarks (`benches/`, Criterion e Tracy estão no roteiro de qualidade do `AGENTS.md`), e por isso as colunas de tempo ficam como "não medido" em vez de números inventados.
+
+| Resolução | Tamanho | Megapixels | Quadro RGBA | Largura Draft | Largura Preview | Largura Good / Best | Tempo por quadro (decodificação + visualização) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 480p | 854x480 | 0.41 | 1.6 MiB | 213 px | 427 px | 854 px | não medido |
+| 720p | 1280x720 | 0.92 | 3.5 MiB | 320 px | 640 px | 1280 px | não medido |
+| 1080p | 1920x1080 | 2.07 | 7.9 MiB | 480 px | 960 px | 1920 px | não medido |
+| 1440p | 2560x1440 | 3.69 | 14.1 MiB | 640 px | 1280 px | 2560 px | não medido |
+| 4K UHD | 3840x2160 | 8.29 | 31.6 MiB | 960 px | 1920 px | 3840 px | não medido |
+| 8K UHD | 7680x4320 | 33.18 | 126.6 MiB | 1920 px | 3840 px | 7680 px | não medido |
+
+Quando o benchmark `playback_bench` existir, o script [`scripts/run_background_agent.ps1`](scripts/run_background_agent.ps1) já o executa em segundo plano.
 
 ## Pré-requisitos para contribuidores
 
@@ -71,6 +128,20 @@ python build_portable.py qa                         # só fmt + clippy + testes 
 ```
 
 Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
+
+### Capturas de tela (headless)
+
+```bash
+# gera docs/screenshots/*.png sem abrir janela (precisa de um adaptador wgpu: GPU ou renderizador por software)
+NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot -- --nocapture      # Linux / macOS
+$env:NEOVEG_SCREENSHOTS = "1"; cargo test -p neoveg_ui --test headless_screenshot -- --nocapture   # PowerShell
+cargo run -p neoveg_ui -- --screenshots docs/screenshots                                    # o mesmo, direto pelo programa
+
+# capturas, benchmark (quando existir) e conversão de ícones em segundo plano, sem travar o terminal
+powershell -File scripts\run_background_agent.ps1 -Wait
+```
+
+Sem `NEOVEG_SCREENSHOTS=1` o teste é ignorado (ele reescreve arquivos versionados e precisa de adaptador gráfico), então `cargo test --workspace` não depende de GPU.
 
 ### Testar e compilar em qualquer máquina (Docker)
 

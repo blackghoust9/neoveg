@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+pub(crate) mod headless;
 mod tabs;
 
 use crate::theme as ui_theme;
@@ -3591,6 +3592,15 @@ impl eframe::App for NeovegApp {
                 return;
             }
         }
+        self.show(ctx);
+    }
+}
+
+impl NeovegApp {
+    /// One frame of the workspace, everything after the startup screen. The window draws it through
+    /// `update`; the offscreen screenshots draw it directly.
+    fn show(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
         if let Some(action) = self.state.window_request.take() {
             self.apply_window_action(action);
         }

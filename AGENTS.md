@@ -341,6 +341,20 @@ The vault `docs_obsidian/` holds the visual window planning, the module document
 
 ---
 
+## 27. Background Task Execution & Headless UI Screenshot Generation Protocol
+
+The screenshots in `README.md` (`docs/screenshots/*.png`) are produced by the program itself, offscreen, and heavy tasks can run in a background job.
+
+- **Offscreen renderer (`neoveg_ui/src/app/headless.rs`):** `neoveg --screenshots <dir>` draws the workspace with egui into a `wgpu` texture (`Rgba8Unorm`, an adapter requested with no surface; a software adapter is the fallback) and reads it back to PNG. There is no window and no screen capture; if no adapter exists the run fails with a clear message and must never fall back to opening the real window. The frame is `NeovegApp::show(ctx)` (the part of `update` after the startup screen), so the images show the real interface. The run skips the startup screen, the preferences, the audio probe, the decoder worker and the recovery files, so nothing of the user's is read or written; the demonstration projects are built in memory, and the only file it writes besides the PNGs is a sub-project in a temporary folder that is removed afterwards.
+- **Determinism:** fixed screen size, `pixels_per_point = 1.0`, a fixed UI time (the blinking caret and selected-track dot are in their visible half), nine warm-up frames (fonts, SVG icons and the dock settle) and every frame's texture changes applied. The outputs are `ui_main_layout.png`, `ui_timeline_events.png`, `ui_multi_project_tabs.png` and `ui_icon_set.png` (one cell per `SvgIcon`, so it follows the library automatically).
+- **Test (`neoveg_ui/tests/headless_screenshot.rs`):** it starts the binary and checks that the four PNGs exist, have the expected size and are not blank. It runs only with `NEOVEG_SCREENSHOTS=1` (optionally `NEOVEG_SCREENSHOT_DIR`); otherwise it prints that it was skipped, because it needs a graphics adapter and rewrites tracked files, and the Docker services mount the repository read-only (section 12). With the variable set and no adapter it fails.
+- **Regenerate** the PNGs, and commit them with the change, whenever the default dock, a panel's look, the icon library or the demonstration content changes. The gallery text in `README.md` describes what the images show (crossfade, envelope, switches, tabs, sub-project); keep both in step.
+- **Content rules:** only synthetic or generated media, no personal project, path or name; nothing taken from the reference manuals or the reference product (section 28).
+- **Background job (`scripts/run_background_agent.ps1`, Windows PowerShell 5.1):** `Start-Job` named `NeovegBackgroundPipeline` runs, in the repository root, the screenshot test, `cargo bench --bench playback_bench` (skipped with a note while no such benchmark exists) and `scripts/generate_icon_formats.py`; each step reports ok, failed or skipped, one failing step does not stop the others, and `-Status`, `-Wait` and `-Stop` use `Get-Job`, `Receive-Job` and `Remove-Job`. `CARGO_TARGET_DIR` goes to `D:\ambiente_neoveg\target` only when that drive exists. A job lives as long as the PowerShell session that started it.
+- **Benchmarks:** performance figures in `README.md` must come from a benchmark that exists in the repository and ran on a stated machine; until `playback_bench` (Criterion, section 3) exists, the timing columns say "não medido" and only values computable from the rules (frame bytes, preview width per quality) are shown.
+
+---
+
 ## 28. Copyright, IP & License Compliance Protocol (Clean Room Standard)
 
 Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolation, and open-source license governance across source code, UI assets, documentation, and binary distributions:

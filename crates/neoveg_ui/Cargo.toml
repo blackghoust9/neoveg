@@ -25,3 +25,6 @@ eframe = { version = "0.29", default-features = false, features = ["wgpu", "defa
 egui_dock = "0.14"
 egui_extras = { version = "0.29", default-features = false, features = ["svg", "image"] }
 rfd = "0.15"
+# Offscreen screenshots (`neoveg --screenshots`): block on wgpu futures and write PNG files
+pollster = "0.3"
+image = { version = "0.25", default-features = false, features = ["png"] }

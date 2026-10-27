@@ -18,7 +18,33 @@ mod waveform_paint;
 
 use eframe::egui;
 
+/// `--screenshots <dir>`: renders the interface offscreen to PNG files and exits.
+fn screenshots_dir() -> Option<std::path::PathBuf> {
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "--screenshots" {
+            return Some(
+                args.next()
+                    .unwrap_or_else(|| "docs/screenshots".into())
+                    .into(),
+            );
+        }
+    }
+    None
+}
+
 fn main() -> eframe::Result<()> {
+    if let Some(dir) = screenshots_dir() {
+        // No window, no log files, none of the user's data: see `app::headless`
+        let code = match app::headless::run(&dir) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("erro: {e}");
+                1
+            }
+        };
+        std::process::exit(code);
+    }
     let log_dir = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|p| p.join("logs")))
