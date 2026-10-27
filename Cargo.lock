@@ -2799,7 +2799,6 @@ dependencies = [
  "cpal",
  "neoveg_common",
  "nnnoiseless",
- "serde",
  "serde_json",
  "symphonia",
  "tracing",

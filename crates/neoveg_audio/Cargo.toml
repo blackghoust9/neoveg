@@ -8,7 +8,6 @@ description = "Neoveg audio: symphonia decoding, cpal output, real peak meters a
 
 [dependencies]
 neoveg_common.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 symphonia = { version = "0.5", features = ["all"] }

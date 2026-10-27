@@ -441,6 +441,18 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 - **Dependencies.** Every crate uses the workspace `version` and `edition = "2021"`. Each dependency declared in a `Cargo.toml` must be used by that crate's code, and one crate is kept on one version across the workspace (for example `pollster` 0.4). A dependency change is checked with `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`, and `Cargo.lock` is committed with it.
 - **Cleanup routine.** Delete the junk files, `cargo clean`, `cargo fmt --all`, `cargo clippy --workspace --all-targets --fix --allow-dirty -- -W clippy::all` (review the diff before keeping it), audit the manifests as above, `git status`, `git gc --prune=now --aggressive`, then rebuild and run the quality gates of section 3 before the commit.
 
+### 29.1. Repository Sanitation & Maintenance Protocol
+
+The numbered steps of a full maintenance pass, in order. Each one states what it may touch and what it must leave alone.
+
+1. **Dead files.** Delete `*.log`, `*.tmp`, `*.bak`, `Thumbs.db` and `.DS_Store` found in the working tree (`logs/`, legacy build leftovers such as `cpp-extensions/build/**/Testing`). Never delete `target/` content other than with `cargo clean`, the local-only `manuais/` and `results_assets/`, the Google Drive sync folders (`.tmp.drivedownload/`, `.tmp.driveupload/`) or untracked folders you did not create (list them and ask).
+2. **Build output.** `cargo clean` empties `target/` (several GB on a full debug and release history). Prefer `CARGO_INCREMENTAL=0` for maintenance builds so the cache does not grow again, and check the free space of the drive before a full rebuild.
+3. **Assets.** SVG pictograms exist only in `crates/neoveg_ui/assets/icons/`; the only other tracked images are `assets/app_icon/` and `docs/screenshots/`. Icons whose files are identical but whose names are registered separately in `icons.rs` (`mute`/`mute_track`, `solo`/`solo_track`) are not duplicates to merge: merging them changes the icon registry and its tests.
+4. **Format and lints.** `cargo fmt --all`, then `cargo clippy --workspace --all-targets --fix --allow-dirty -- -W clippy::all`; read the resulting diff before keeping it. Clippy runs with `--all-targets` so test code is fixed too.
+5. **Dependencies.** Every crate keeps `version.workspace = true` and `edition.workspace = true` (Rust 2021). A dependency is removed only when no source file of that crate names it; confirm with a build of the crate. Versions pulled in by other crates (for example `pollster 0.3` through `eframe`) are reported, not forced. Outdated crates are listed with `cargo update --dry-run`; patch updates are applied only together with the quality gates, and `Cargo.lock` is committed with any manifest change.
+6. **Git.** `git status`, then `git gc --prune=now --aggressive`. Commit only files the pass changed; leave per-machine state such as `.obsidian/workspace.json` and untracked local folders out.
+7. **Gates and commit.** Run the commands of section 3 (`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`) and then commit on `refactor/100-percent-rust` with a `chore(repo): ...` subject in Portuguese without accents.
+
 ---
 
 # Part II — Legacy history
