@@ -431,6 +431,15 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 
 ---
 
+## 29. Workspace Hygiene & Dependency Audit Protocol
+
+- **Junk files.** `*.log`, `*.tmp`, `*.bak`, `Thumbs.db` and `.DS_Store` never belong in the repository (the root `.gitignore` covers them); a cleanup deletes the ones lying around in the working tree (`logs/`, `crash.log`, `dist/**/logs`), but never `target/` content other than through `cargo clean`, and never the local-only `manuais/` and `results_assets/`.
+- **Assets.** The SVG pictograms live only in `crates/neoveg_ui/assets/icons/` (section 4.1). `assets/app_icon/` (the "Nv" icon, section 30) and `docs/screenshots/` are single, generated copies and stay; no other image is tracked.
+- **Dependencies.** Every crate uses the workspace `version` and `edition = "2021"`. Each dependency declared in a `Cargo.toml` must be used by that crate's code, and one crate is kept on one version across the workspace (for example `pollster` 0.4). A dependency change is checked with `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`, and `Cargo.lock` is committed with it.
+- **Cleanup routine.** Delete the junk files, `cargo clean`, `cargo fmt --all`, `cargo clippy --workspace --all-targets --fix --allow-dirty -- -W clippy::all` (review the diff before keeping it), audit the manifests as above, `git status`, `git gc --prune=now --aggressive`, then rebuild and run the quality gates of section 3 before the commit.
+
+---
+
 # Part II — Legacy history
 
 The C# / C++ / Python implementation (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`, the root `Dockerfile` and `docker-compose.yml`) was removed from the tree. Its protocols (Avalonia UI, FFI naming, C++ extensions, Python scripting, AppCache bootstrap, Docker multi-language pipeline) no longer apply; they remain in Git history before commit `36b1d19` as a porting reference only. Nothing in Part I depends on them.
