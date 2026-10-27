@@ -1,5 +1,9 @@
 //! Project-level types shared by the engine and the UI.
 
+use crate::presets::{
+    CompositingGamma, Deinterlace, FieldOrder, HdrMode, MasterBusMode, MotionBlurType,
+    OutputRotation, PixelFormat, RenderQuality, ResampleMode,
+};
 use serde::{Deserialize, Serialize};
 
 /// Video and audio properties of a project.
@@ -21,6 +25,43 @@ pub struct ProjectSettings {
     /// Peak level (dBFS) an event reaches with the Normalize switch.
     #[serde(default)]
     pub normalize_peak_db: f64,
+    /// Width of a pixel over its height (`1.0` for computer screens; television formats differ).
+    #[serde(default = "default_pixel_aspect")]
+    pub pixel_aspect: f64,
+    #[serde(default)]
+    pub field_order: FieldOrder,
+    #[serde(default)]
+    pub pixel_format: PixelFormat,
+    /// Gamma of the blending (32-bit full range only).
+    #[serde(default)]
+    pub compositing_gamma: CompositingGamma,
+    #[serde(default)]
+    pub output_rotation: OutputRotation,
+    #[serde(default)]
+    pub hdr_mode: HdrMode,
+    /// Quality of the final render's scaling.
+    #[serde(default)]
+    pub render_quality: RenderQuality,
+    #[serde(default)]
+    pub motion_blur: MotionBlurType,
+    #[serde(default)]
+    pub deinterlace: Deinterlace,
+    /// Default resampling of media whose frame rate is below the project's.
+    #[serde(default)]
+    pub resample_mode: ResampleMode,
+    /// Bit depth of the project audio (`32` is floating point).
+    #[serde(default = "default_audio_bit_depth")]
+    pub audio_bit_depth: u32,
+    #[serde(default)]
+    pub master_bus: MasterBusMode,
+}
+
+fn default_pixel_aspect() -> f64 {
+    1.0
+}
+
+fn default_audio_bit_depth() -> u32 {
+    24
 }
 
 fn default_bpm() -> f32 {
@@ -46,6 +87,18 @@ impl Default for ProjectSettings {
             bpm: default_bpm(),
             beats_per_bar: default_beats_per_bar(),
             normalize_peak_db: 0.0,
+            pixel_aspect: 1.0,
+            field_order: FieldOrder::default(),
+            pixel_format: PixelFormat::default(),
+            compositing_gamma: CompositingGamma::default(),
+            output_rotation: OutputRotation::default(),
+            hdr_mode: HdrMode::default(),
+            render_quality: RenderQuality::default(),
+            motion_blur: MotionBlurType::default(),
+            deinterlace: Deinterlace::default(),
+            resample_mode: ResampleMode::default(),
+            audio_bit_depth: 24,
+            master_bus: MasterBusMode::default(),
         }
     }
 }

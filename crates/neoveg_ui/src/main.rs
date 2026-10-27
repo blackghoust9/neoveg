@@ -12,12 +12,14 @@ mod log_viewer;
 mod loudness_panel;
 mod mixer_panel;
 mod precision_slider;
+mod project_dialog;
 mod render_dialog;
 mod scopes_panel;
 mod shortcuts;
 mod splash;
 mod theme;
 mod waveform_paint;
+mod welcome;
 
 use eframe::egui;
 

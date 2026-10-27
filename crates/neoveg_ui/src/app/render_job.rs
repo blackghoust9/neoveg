@@ -25,9 +25,6 @@ use super::composite::{composite_request, FrameSettings, Source};
 use super::*;
 use crate::render_dialog::{ActiveRenderJob, RenderJobStatus, RenderLaunchRequest};
 
-/// Sample rate of the exported audio.
-const AUDIO_RATE: u32 = 48_000;
-
 /// Everything the job needs, copied out of the application so that the thread owns it and later
 /// edits do not change a render that is already running.
 pub(super) struct RenderPlan {
@@ -43,6 +40,8 @@ pub(super) struct RenderPlan {
     /// The part of the timeline to render, in seconds.
     pub range: (f64, f64),
     pub master_gain: f32,
+    /// Sample rate of the exported audio: the project's.
+    pub sample_rate: u32,
     pub title: String,
 }
 
@@ -101,9 +100,9 @@ fn run(
     } else {
         request.output_path.clone()
     };
-    let mut mixer = BlockMixer::new(plan.clips.clone(), &plan.fx, AUDIO_RATE as f32);
-    let report =
-        render_mixer_to_wav_pcm16(&mut mixer, &wav_path, AUDIO_RATE, t0, t1, plan.master_gain)?;
+    let rate = plan.sample_rate.clamp(8_000, 192_000);
+    let mut mixer = BlockMixer::new(plan.clips.clone(), &plan.fx, rate as f32);
+    let report = render_mixer_to_wav_pcm16(&mut mixer, &wav_path, rate, t0, t1, plan.master_gain)?;
     update(status, |s| s.loudness_summary = Some(report.summary));
     if request.save_loudness_log {
         let log = sidecar_loudness_path(&request.output_path);
@@ -195,6 +194,7 @@ impl AppState {
             chroma_key: self.effective_chroma(),
             auto_crossfade: self.project.settings.auto_crossfade,
             master_gain: self.master_volume,
+            sample_rate: self.project.settings.sample_rate,
             request,
             timeline,
             clips,
@@ -383,6 +383,68 @@ mod tests {
         assert!(size > 500, "the movie is {size} bytes");
         // The temporary mixdown is removed
         assert!(!dir.join("filme.mixagem.wav").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_export_uses_the_sample_rate_of_the_project() {
+        let dir = std::env::temp_dir().join(format!("neoveg_render_rate_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = AppState::new();
+        s.project.settings.sample_rate = 44_100;
+        s.add_track(TrackKind::Audio);
+        let track = s.selected_track.unwrap();
+        let samples: Vec<f32> = (0..100).flat_map(|_| [0.25_f32; 2]).collect();
+        s.media.insert(
+            1,
+            LoadedMedia {
+                path: PathBuf::from("x.wav"),
+                name: "x.wav".into(),
+                waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
+                stereo: Arc::new(samples),
+                sample_rate: 100,
+                duration: 1.0,
+            },
+        );
+        let event = TrackEvent {
+            id: s.timeline.alloc_id(),
+            media_id: Some(1),
+            start: 0.0,
+            duration: 1.0,
+            ..Default::default()
+        };
+        s.history.execute(
+            &mut s.timeline,
+            EditCommand::AddEvent {
+                track_id: track,
+                event,
+            },
+        );
+        let output = dir.join("saida.wav");
+        s.start_render(
+            RenderLaunchRequest {
+                output_path: output.clone(),
+                format: neoveg_video::render::RenderFormat::WavPcm16,
+                width: 640,
+                height: 360,
+                fps: 25.0,
+                crf: 18,
+                loop_region_only: false,
+                save_loudness_log: false,
+            },
+            &egui::Context::default(),
+        );
+        let job = s.render_dialog.active_job.as_ref().unwrap();
+        for _ in 0..500 {
+            if job.status.lock().unwrap().finished {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(job.status.lock().unwrap().error, None);
+        // 1 s of 16-bit stereo at 44.1 kHz plus the header
+        assert_eq!(std::fs::metadata(&output).unwrap().len(), 44_100 * 4 + 44);
         let _ = std::fs::remove_dir_all(dir);
     }
 

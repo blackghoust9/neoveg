@@ -46,6 +46,18 @@ Cada projeto aberto tem sua aba (`*` marca alterações não salvas). Um conjunt
 
 ![Biblioteca de ícones](docs/screenshots/ui_icon_set.png)
 
+### Tela de boas-vindas
+
+![Tela de boas-vindas](docs/screenshots/ui_welcome_screen.png)
+
+Ao iniciar, a tela de boas-vindas lista os **projetos recentes** (os arquivos que sumiram aparecem avisados), abre um arquivo e cria um **novo projeto** com modelo, resolução e taxa de quadros escolhidos nas listas, mais a escolha entre dois layouts de janela: edição de vídeo ou edição de áudio e mixagem. Ela se desliga em Editar > Preferências ou na própria caixa, e volta por Ajuda > Tela de boas-vindas. Arquivo > Projetos recentes tem a mesma lista.
+
+### Propriedades do projeto
+
+![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
+
+Arquivo > Propriedades do projeto: 28 modelos de formato (de SD NTSC/PAL a 8K), 27 resoluções (de 360p a 8K UHD, mais cinema, redes sociais e ultralargo), 17 taxas de quadros (de 15 a 240), proporção do pixel, ordem dos campos, formato do pixel, modo HDR, rotação da saída, qualidade da renderização, desfoque de movimento, desentrelaçamento e reamostragem; na aba de áudio, taxa de amostragem (8 a 192 kHz), profundidade de bits, barramento e nível de normalização. Dá para salvar os seus próprios modelos, copiar o formato de um arquivo de mídia e iniciar todos os novos projetos com as mesmas configurações. Resolução, taxa de quadros e taxa de amostragem já valem; as demais opções ficam gravadas no projeto.
+
 A biblioteca de pictogramas SVG autorais (24x24, planos, `currentColor`), desenhados para seguir as cores do tema em qualquer escala e DPI.
 
 ## Desempenho por resolução

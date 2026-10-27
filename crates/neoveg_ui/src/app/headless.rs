@@ -23,11 +23,13 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 4] = [
+pub const OUTPUTS: [&str; 6] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
     "ui_icon_set.png",
+    "ui_welcome_screen.png",
+    "ui_project_properties.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -36,7 +38,8 @@ pub fn run(dir: &Path) -> Result<(), String> {
     let mut gpu = Offscreen::new()?;
     println!("adaptador: {}", gpu.adapter_name);
 
-    let scratch = std::env::temp_dir().join(format!("neoveg_screenshots_{}", std::process::id()));
+    let scratch = std::env::temp_dir().join("neoveg_screenshots");
+    let _ = std::fs::remove_dir_all(&scratch);
     std::fs::create_dir_all(&scratch).map_err(|e| format!("cannot create a temp folder: {e}"))?;
 
     let result = (|| {
@@ -62,6 +65,22 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let ctx = new_context();
         let image = gpu.capture(&ctx, [1280, 460], icon_grid)?;
         save(&image, &dir.join(OUTPUTS[3]))?;
+
+        // 5. The welcome screen over the workspace, with a few recent projects
+        let ctx = new_context();
+        let mut app = headless_app(demo_welcome(&scratch), default_dock());
+        let image = gpu.capture(&ctx, [1280, 720], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[4]))?;
+
+        // 6. The project properties window
+        let ctx = new_context();
+        let mut state = demo_project();
+        state
+            .project_dialog
+            .open_with(&state.project.settings.clone(), false);
+        let mut app = headless_app(state, default_dock());
+        let image = gpu.capture(&ctx, [1280, 860], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[5]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -475,6 +494,24 @@ fn demo_tabs(ctx: &egui::Context, scratch: &Path) -> AppState {
     s.playhead = 9.0;
     s.pixels_per_second = 44.0;
     s.status = "Três projetos abertos: Documentário, Rascunho e um sub-projeto".into();
+    s
+}
+
+/// The welcome screen: a few projects that exist on disk (empty files in `scratch`) are listed as recent.
+fn demo_welcome(scratch: &Path) -> AppState {
+    let mut s = AppState::new();
+    s.project.name = "Sem título".into();
+    for name in [
+        "Documentario_0003",
+        "Casamento_Ana_e_Rui",
+        "Clipe_Banda_2026",
+        "Entrevista_Podcast_12",
+    ] {
+        let path = scratch.join(format!("{name}.neoveg"));
+        let _ = std::fs::write(&path, b"{}");
+        s.prefs.add_recent_project(&path);
+    }
+    s.welcome.open_with(&ProjectSettings::default());
     s
 }
 

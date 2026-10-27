@@ -97,7 +97,7 @@ commands! {
     FileCreateSubproject => ("file.create_subproject", "Criar sub-projeto a partir da seleção", File, true),
     FileNewQuick => ("file.new_quick", "Novo projeto vazio (sem diálogo)", File, false),
     FileClose => ("file.close", "Fechar projeto", File, false),
-    FileProperties => ("file.properties", "Propriedades do projeto…", File, false),
+    FileProperties => ("file.properties", "Propriedades do projeto…", File, true),
 
     // ---- Editar
     EditUndo => ("edit.undo", "Desfazer", Edit, true),

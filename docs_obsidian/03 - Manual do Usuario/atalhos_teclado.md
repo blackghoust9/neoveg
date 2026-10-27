@@ -21,7 +21,7 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Criar sub-projeto a partir da seleção | `Ctrl+Shift+N` | `file.create_subproject` | implementado |
 | Novo projeto vazio (sem diálogo) | — | `file.new_quick` | *planejado* |
 | Fechar projeto | `Ctrl+F4` | `file.close` | *planejado* |
-| Propriedades do projeto… | `Alt+Enter` | `file.properties` | *planejado* |
+| Propriedades do projeto… | `Alt+Enter` | `file.properties` | implementado |
 
 ### Editar
 

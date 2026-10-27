@@ -33,7 +33,7 @@ use neoveg_common::grade::Grade;
 use neoveg_common::keymap::{KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
-use neoveg_common::project::{MediaRef, ProjectInfo};
+use neoveg_common::project::{MediaRef, ProjectInfo, ProjectSettings};
 use neoveg_common::theme::{self, Theme};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
 use neoveg_engine::autosave::{self, RecoveryEntry};
@@ -244,6 +244,14 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
+    /// The welcome screen (recent projects, new project).
+    welcome: crate::welcome::WelcomeState,
+    /// File > Properties: the project's video and audio format.
+    project_dialog: crate::project_dialog::ProjectDialogState,
+    /// True once the user's real preferences are loaded: only then are changes written back.
+    persist_prefs: bool,
+    /// The picture format of a media file being read for "match media settings".
+    match_media_rx: Option<Receiver<MediaFormat>>,
     /// Insert > Time…: the text of the length being typed, while the window is open.
     insert_time_dialog: Option<String>,
     /// Width of the lane area in points, from the last drawn frame.
@@ -986,6 +994,15 @@ impl AppState {
         );
         self.prefs = prefs;
         self.keymap = keymap;
+        self.persist_prefs = true;
+        // New projects start with the settings the user chose to keep
+        let defaults = self.prefs.new_project_settings.clone().unwrap_or_default();
+        if self.is_blank_project() {
+            self.project.settings = defaults.clone();
+        }
+        if self.prefs.show_welcome_on_startup {
+            self.welcome.open_with(&defaults);
+        }
         detail
     }
 
@@ -1066,6 +1083,10 @@ impl AppState {
             repeat_dialog: None,
             goto_dialog: None,
             insert_time_dialog: None,
+            welcome: Default::default(),
+            project_dialog: Default::default(),
+            persist_prefs: false,
+            match_media_rx: None,
             lanes_width: 800.0,
             meter: Arc::new(PeakMeter::new()),
             loudness: Arc::new(LoudnessReadout::new()),
@@ -1873,6 +1894,7 @@ impl AppState {
             Ok(()) => {
                 tracing::info!("[INFO] project saved: {}", path.display());
                 self.status = format!("Projeto salvo: {}", path.display());
+                self.remember_recent(&path);
                 self.project_path = Some(path);
                 self.mark_clean();
             }
@@ -1960,6 +1982,9 @@ impl AppState {
                 still_missing.len()
             )
         };
+        if let Some(path) = &associate {
+            self.remember_recent(path);
+        }
         self.project_path = associate;
         self.mark_clean();
         true
@@ -2366,6 +2391,146 @@ impl AppState {
             }
             None => self.status = "Informe um tempo maior que zero".into(),
         }
+    }
+
+    /// Remembers `path` in the recent projects list (and on disk, once the real preferences are
+    /// loaded: tests and the offscreen screenshots never write the user's file).
+    fn remember_recent(&mut self, path: &std::path::Path) {
+        self.prefs.add_recent_project(path);
+        if self.persist_prefs {
+            save_prefs(&self.prefs);
+        }
+    }
+
+    /// Writes the preferences when they are the user's real ones.
+    fn persist_preferences(&self) {
+        if self.persist_prefs {
+            save_prefs(&self.prefs);
+        }
+    }
+
+    /// An untitled project with nothing in it and nothing to lose: a file opens right into it.
+    fn is_blank_project(&self) -> bool {
+        self.project_path.is_none()
+            && !self.is_dirty()
+            && self.timeline.tracks.iter().all(|t| t.events.is_empty())
+    }
+
+    /// Opens a recent project: into the blank project at startup, otherwise in a tab of its own so
+    /// that the work in progress is never replaced.
+    fn open_recent(&mut self, path: &std::path::Path, ctx: &egui::Context) {
+        if !path.is_file() {
+            self.status = format!("Arquivo não encontrado: {}", path.display());
+            self.prefs.remove_recent_project(&path.to_string_lossy());
+            self.persist_preferences();
+            return;
+        }
+        if self.is_blank_project() {
+            self.load_project_file(path, Some(path.to_path_buf()), ctx);
+        } else {
+            self.tabs.open_request = Some(path.to_path_buf());
+        }
+    }
+
+    /// File > Properties: opens the project's video and audio format.
+    fn open_project_properties(&mut self) {
+        let start_all_new = self.prefs.new_project_settings.is_some();
+        self.project_dialog
+            .open_with(&self.project.settings, start_all_new);
+    }
+
+    /// Puts new settings in the project (OK / Apply of the properties window).
+    fn apply_project_settings(&mut self, settings: ProjectSettings) {
+        if settings == self.project.settings {
+            return;
+        }
+        self.project.settings = settings;
+        // The settings are not an undoable edit, but the project has changed
+        self.forced_dirty = true;
+        self.last_frame_key = None;
+        self.last_composite_key = None;
+        self.status = format!(
+            "Projeto: {}x{} · {:.3} fps · {} Hz",
+            self.project.settings.width,
+            self.project.settings.height,
+            self.project.settings.fps,
+            self.project.settings.sample_rate
+        );
+    }
+
+    /// Carries out what the properties window asked for.
+    fn run_project_actions(&mut self, actions: Vec<crate::project_dialog::ProjectAction>) {
+        use crate::project_dialog::ProjectAction;
+        for action in actions {
+            match action {
+                ProjectAction::Apply {
+                    settings,
+                    start_all_new,
+                    close: _,
+                } => {
+                    self.apply_project_settings(*settings.clone());
+                    self.prefs.new_project_settings = start_all_new.then_some(*settings);
+                    self.persist_preferences();
+                }
+                ProjectAction::SaveTemplate(template) => {
+                    self.prefs
+                        .custom_templates
+                        .retain(|t| t.name != template.name);
+                    self.status = format!("Modelo salvo: {}", template.name);
+                    self.prefs.custom_templates.push(template);
+                    self.persist_preferences();
+                }
+                ProjectAction::MatchMedia => self.pick_media_to_match(),
+            }
+        }
+    }
+
+    /// Chooses a media file and reads its picture format on a worker thread.
+    fn pick_media_to_match(&mut self) {
+        let mut extensions: Vec<&str> = neoveg_video::info::VIDEO_EXTENSIONS.to_vec();
+        extensions.extend(neoveg_video::still::IMAGE_EXTENSIONS);
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Mídia com imagem", &extensions)
+            .pick_file()
+        else {
+            return;
+        };
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(probe(&path).map(|i| (i.width, i.height, i.fps)));
+        });
+        self.match_media_rx = Some(rx);
+        self.project_dialog.note = "Lendo o formato da mídia…".into();
+    }
+
+    /// Takes the result of [`Self::pick_media_to_match`] when the worker is done.
+    fn poll_match_media(&mut self) {
+        let Some(rx) = &self.match_media_rx else {
+            return;
+        };
+        let Ok(result) = rx.try_recv() else {
+            return;
+        };
+        self.match_media_rx = None;
+        match result {
+            Ok((width, height, fps)) => {
+                self.project_dialog.use_media(width, height, fps);
+                self.project_dialog.note.clear();
+            }
+            Err(e) => self.project_dialog.note = format!("Não foi possível ler a mídia: {e}"),
+        }
+    }
+
+    /// Starts a new project in a tab with the settings chosen on the welcome screen.
+    fn new_project_with(&mut self, settings: ProjectSettings) {
+        self.new_tab();
+        self.project.settings = settings;
+        self.last_frame_key = None;
+        self.last_composite_key = None;
+        self.status = format!(
+            "Novo projeto: {}x{} · {:.3} fps",
+            self.project.settings.width, self.project.settings.height, self.project.settings.fps
+        );
     }
 
     /// `Ctrl+Alt+S` (*Save Version*): saves the project under the next numbered name
@@ -3510,6 +3675,7 @@ impl AppState {
             Command::FileOpen => self.open_project(ctx),
             Command::FileSave => self.save_project(false),
             Command::FileSaveAs => self.save_project(true),
+            Command::FileProperties => self.open_project_properties(),
             Command::EditUndo => self.undo(),
             Command::EditRedo => self.redo(),
             Command::EditDelete => self.delete_selection(),
@@ -3764,7 +3930,76 @@ fn default_dock() -> DockState<Tab> {
     dock
 }
 
+/// The window arrangement for sound work: the mixer, the loudness meters and the effects get the
+/// room, the timeline is tall, and the preview shares a tab with the project media.
+fn audio_dock() -> DockState<Tab> {
+    let mut dock = DockState::new(vec![Tab::Media, Tab::Preview]);
+    let surface = dock.main_surface_mut();
+    let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.40, vec![Tab::Timeline]);
+    let [_, master] = surface.split_right(top, 0.30, vec![Tab::MasterBus]);
+    let [_, effects] = surface.split_right(master, 0.40, vec![Tab::AudioFx]);
+    surface.split_below(effects, 0.50, vec![Tab::Loudness, Tab::Scopes]);
+    dock
+}
+
 impl NeovegApp {
+    /// The welcome screen and the project properties window.
+    fn run_start_dialogs(&mut self, ctx: &egui::Context) {
+        use crate::welcome::WelcomeAction;
+        self.state.poll_match_media();
+        let actions = self
+            .state
+            .project_dialog
+            .show(ctx, &self.state.prefs.custom_templates);
+        self.state.run_project_actions(actions);
+
+        if !self.state.welcome.open {
+            return;
+        }
+        let recents =
+            crate::welcome::recent_entries(&self.state.prefs.recent_projects, &|p| p.exists());
+        let actions = self.state.welcome.show(
+            ctx,
+            &recents,
+            &self.state.prefs.custom_templates,
+            self.state.prefs.show_welcome_on_startup,
+        );
+        for action in actions {
+            match action {
+                WelcomeAction::OpenRecent(path) => {
+                    self.state.welcome.open = false;
+                    self.state.open_recent(std::path::Path::new(&path), ctx);
+                }
+                WelcomeAction::ForgetRecent(path) => {
+                    self.state.prefs.remove_recent_project(&path);
+                    self.state.persist_preferences();
+                }
+                WelcomeAction::OpenFile => {
+                    self.state.welcome.open = false;
+                    self.state.open_project(ctx);
+                }
+                WelcomeAction::NewProject { settings, layout } => {
+                    self.state.welcome.open = false;
+                    // The blank project the program started with is used as it is
+                    if self.state.is_blank_project() {
+                        self.state.project.settings = *settings;
+                    } else {
+                        self.state.new_project_with(*settings);
+                    }
+                    self.dock = match layout {
+                        crate::welcome::StartLayout::Video => default_dock(),
+                        crate::welcome::StartLayout::Audio => audio_dock(),
+                    };
+                }
+                WelcomeAction::ShowAtStartup(show) => {
+                    self.state.prefs.show_welcome_on_startup = show;
+                    self.state.persist_preferences();
+                }
+                WelcomeAction::Close => self.state.welcome.open = false,
+            }
+        }
+    }
+
     /// Carries out a window command: show / hide a window, or save / recall a layout.
     fn apply_window_action(&mut self, action: WindowAction) {
         match action {
@@ -3942,6 +4177,7 @@ impl NeovegApp {
         let log_dir = crate::log_viewer::default_log_dir();
         self.state.log_viewer.show(ctx, &log_dir);
         insert_time_window(ctx, &mut self.state);
+        self.run_start_dialogs(ctx);
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
@@ -3958,6 +4194,9 @@ impl NeovegApp {
         }
     }
 }
+
+/// Width, height and frame rate of a media file, or why they could not be read.
+type MediaFormat = Result<(u32, u32, f64), String>;
 
 /// Decodes an audio file and builds its waveform source.
 fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
@@ -4014,6 +4253,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             command_item(state, ui, Command::FileSaveIncremental);
+            command_item(state, ui, Command::FileProperties);
+            recent_projects_menu(state, ui);
             ui.separator();
             if ui.button("Importar mídia…").clicked() {
                 let ctx = ui.ctx().clone();
@@ -4277,6 +4518,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
         ui.menu_button("Ajuda", |ui| {
+            if ui.button("Tela de boas-vindas…").clicked() {
+                let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
+                state.welcome.open_with(&defaults);
+                ui.close_menu();
+            }
             if ui.button("Visualizador de logs…").clicked() {
                 state.log_viewer.open = true;
                 ui.close_menu();
@@ -4372,6 +4618,25 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
         state.run_command(command, &ctx, now);
         ui.close_menu();
     }
+}
+
+/// Arquivo > Projetos recentes: the last projects opened or saved, newest first.
+fn recent_projects_menu(state: &mut AppState, ui: &mut egui::Ui) {
+    let entries = state.prefs.recent_projects.clone();
+    ui.add_enabled_ui(!entries.is_empty(), |ui| {
+        ui.menu_button("Projetos recentes", |ui| {
+            for path in &entries {
+                let name = std::path::Path::new(path)
+                    .file_stem()
+                    .map_or_else(|| path.clone(), |s| s.to_string_lossy().into_owned());
+                if ui.button(name).on_hover_text(path).clicked() {
+                    let ctx = ui.ctx().clone();
+                    state.open_recent(std::path::Path::new(path), &ctx);
+                    ui.close_menu();
+                }
+            }
+        });
+    });
 }
 
 /// Editar > Canais de áudio: how the selected audio events use the channels of their media.
@@ -5034,6 +5299,15 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         &mut prefs.auto_fade_on_import,
                         "Fade-in/out automático ao importar mídia",
                     );
+                    ui.checkbox(
+                        &mut prefs.show_welcome_on_startup,
+                        "Mostrar a tela de boas-vindas ao iniciar o programa",
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label("Projetos recentes a lembrar (0 = desligado)");
+                        ui.add(egui::DragValue::new(&mut prefs.recent_projects_max).range(0..=30));
+                    });
+                    prefs.trim_recent_projects();
                 }
                 PrefsTab::Themes => {
                     for id in theme::BUILTIN_IDS {
@@ -7685,6 +7959,149 @@ mod tests {
         assert_eq!(first(&s).sample_at(3.0), (0.25, 0.25));
         run(&mut s, Command::EditUndo);
         assert_eq!(first(&s).sample_at(3.0), (0.0, 0.5), "back to Swap");
+    }
+
+    #[test]
+    fn both_window_layouts_hold_every_panel() {
+        for dock in [default_dock(), audio_dock()] {
+            for tab in [
+                Tab::Preview,
+                Tab::Timeline,
+                Tab::Media,
+                Tab::MasterBus,
+                Tab::Loudness,
+                Tab::AudioFx,
+                Tab::Scopes,
+            ] {
+                assert!(dock.find_tab(&tab).is_some(), "{tab:?} is missing");
+            }
+        }
+    }
+
+    #[test]
+    fn project_settings_from_the_properties_window_mark_the_project_changed() {
+        use crate::project_dialog::ProjectAction;
+        let mut s = AppState::new();
+        assert!(!s.is_dirty());
+        let mut settings = s.project.settings.clone();
+        settings.width = 3840;
+        settings.height = 2160;
+        settings.fps = 25.0;
+        s.run_project_actions(vec![ProjectAction::Apply {
+            settings: Box::new(settings.clone()),
+            start_all_new: false,
+            close: true,
+        }]);
+        assert_eq!(
+            (s.project.settings.width, s.project.settings.fps),
+            (3840, 25.0)
+        );
+        assert!(
+            s.is_dirty(),
+            "the settings changed, so the project must be saved"
+        );
+        assert!(s.prefs.new_project_settings.is_none());
+
+        // "Start all new projects with these settings" keeps them for the next project
+        s.run_project_actions(vec![ProjectAction::Apply {
+            settings: Box::new(settings.clone()),
+            start_all_new: true,
+            close: true,
+        }]);
+        assert_eq!(s.prefs.new_project_settings, Some(settings));
+        s.new_tab();
+        assert_eq!(
+            s.project.settings.width, 3840,
+            "a new project starts with them"
+        );
+        s.run_project_actions(vec![ProjectAction::Apply {
+            settings: Box::new(s.project.settings.clone()),
+            start_all_new: false,
+            close: true,
+        }]);
+        assert!(
+            s.prefs.new_project_settings.is_none(),
+            "unchecking forgets them"
+        );
+    }
+
+    #[test]
+    fn user_templates_are_saved_and_replaced_by_name() {
+        use crate::project_dialog::ProjectAction;
+        use neoveg_common::presets::ProjectTemplate;
+        let mut s = AppState::new();
+        let make = |width| ProjectTemplate {
+            name: "Meu formato".into(),
+            settings: ProjectSettings {
+                width,
+                ..ProjectSettings::default()
+            },
+        };
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1280))]);
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1920))]);
+        assert_eq!(s.prefs.custom_templates.len(), 1);
+        assert_eq!(s.prefs.custom_templates[0].settings.width, 1920);
+    }
+
+    #[test]
+    fn a_new_project_from_the_welcome_screen_gets_the_chosen_settings_in_its_own_tab() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let settings = ProjectSettings {
+            width: 1080,
+            height: 1920,
+            fps: 30.0,
+            ..ProjectSettings::default()
+        };
+        s.new_project_with(settings);
+        assert_eq!(
+            (s.project.settings.width, s.project.settings.height),
+            (1080, 1920)
+        );
+        assert!(s.timeline.tracks.is_empty(), "it is a project of its own");
+        assert_eq!(s.tab_ids().len(), 2);
+    }
+
+    #[test]
+    fn recent_projects_open_into_a_blank_project_and_missing_ones_are_forgotten() {
+        let dir = std::env::temp_dir().join(format!("neoveg_recent_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("antigo.neoveg");
+        let mut source = AppState::new();
+        source.project.settings.width = 1280;
+        source.project.settings.height = 720;
+        project_file::save(&file, &source.project, &source.timeline).unwrap();
+
+        let ctx = egui::Context::default();
+        let mut s = AppState::new();
+        assert!(s.is_blank_project());
+        s.open_recent(&file, &ctx);
+        assert_eq!(s.project_path.as_deref(), Some(file.as_path()));
+        assert_eq!(s.project.settings.width, 1280);
+        assert_eq!(
+            s.prefs.recent_projects.len(),
+            1,
+            "opening puts it on the list"
+        );
+        assert!(!s.is_blank_project());
+
+        // With a project in progress the file goes to a tab instead of replacing the work
+        let second = dir.join("outro.neoveg");
+        project_file::save(&second, &source.project, &source.timeline).unwrap();
+        s.open_recent(&second, &ctx);
+        assert_eq!(s.tabs.open_request.as_deref(), Some(second.as_path()));
+
+        // A file that is gone is dropped from the list
+        s.prefs.add_recent_project(&dir.join("sumiu.neoveg"));
+        s.open_recent(&dir.join("sumiu.neoveg"), &ctx);
+        assert!(s.status.contains("não encontrado"));
+        assert!(!s
+            .prefs
+            .recent_projects
+            .iter()
+            .any(|p| p.ends_with("sumiu.neoveg")));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

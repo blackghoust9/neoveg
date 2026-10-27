@@ -218,6 +218,9 @@ impl AppState {
         self.tabs.active = Some(id);
         self.tabs.manager.switch_active_project(id);
         self.project = ProjectInfo::create_empty();
+        if let Some(settings) = &self.prefs.new_project_settings {
+            self.project.settings = settings.clone();
+        }
         self.timeline = Timeline::new();
         self.history = History::new();
         self.project_path = None;

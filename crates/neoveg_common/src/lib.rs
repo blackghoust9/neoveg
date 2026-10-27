@@ -11,6 +11,7 @@ pub mod logging;
 pub mod pan;
 pub mod paths;
 pub mod preferences;
+pub mod presets;
 pub mod project;
 pub mod theme;
 pub mod timecode;
