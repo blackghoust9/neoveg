@@ -48,9 +48,13 @@ fn generate(c: &mut Criterion) {
     configure(&mut group);
     for (name, width, height) in RESOLUTIONS {
         group.throughput(Throughput::Elements(u64::from(width) * u64::from(height)));
-        group.bench_with_input(BenchmarkId::from_parameter(name), &(width, height), |b, &(w, h)| {
-            b.iter(|| smpte_color_bars(w, h));
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(name),
+            &(width, height),
+            |b, &(w, h)| {
+                b.iter(|| smpte_color_bars(w, h));
+            },
+        );
     }
     group.finish();
 }

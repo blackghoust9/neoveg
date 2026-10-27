@@ -7,7 +7,9 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+mod composite;
 pub(crate) mod headless;
+mod render_job;
 mod tabs;
 
 use crate::theme as ui_theme;
@@ -253,6 +255,8 @@ struct AppState {
     show_credits: bool,
     /// Exibir > Visualizador de Logs.
     log_viewer: crate::log_viewer::LogViewerState,
+    /// Arquivo > Renderizar como… (Make Movie).
+    render_dialog: crate::render_dialog::RenderDialogState,
     /// Faixas > Inserir mídia gerada.
     generator_dialog: crate::generator_dialog::GeneratorDialogState,
     /// Subtitles tab (text and times being edited).
@@ -297,6 +301,9 @@ struct AppState {
     frame_worker: Option<FrameWorker>,
     video_texture: Option<TextureHandle>,
     last_frame_key: Option<(u64, i64, u32)>,
+    /// The composite shown in the preview when several video clips overlap: frame, decoded
+    /// width and project revision. `Some` means the preview is in composite mode.
+    last_composite_key: Option<(i64, u32, u64)>,
     /// The color table loaded for `Timeline::video_lut` (`None` inside when the file is unusable).
     lut_cache: Option<(String, Option<Arc<Lut>>)>,
     last_lut_path: Option<String>,
@@ -1063,6 +1070,7 @@ impl AppState {
             show_credits: false,
             log_viewer: Default::default(),
             generator_dialog: Default::default(),
+            render_dialog: Default::default(),
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
             mixer: MixerPanelState::default(),
@@ -1093,6 +1101,7 @@ impl AppState {
             frame_worker: None,
             video_texture: None,
             last_frame_key: None,
+            last_composite_key: None,
             lut_cache: None,
             last_lut_path: None,
             last_grade: Grade::default(),
@@ -2638,6 +2647,13 @@ impl AppState {
         // A sub-project plays through the expansion of its events
         let flat = self.flattened();
         let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
+        // Overlapping video clips (several tracks, or a crossfade) are composited
+        if composite::visible_clips(timeline, self.playhead) > 1 {
+            self.request_composite_frame(max_width, flat.as_deref());
+            return;
+        }
+        self.last_composite_key = None;
+        let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
         let target = timeline
             .tracks
             .iter()
@@ -2700,19 +2716,77 @@ impl AppState {
         }
     }
 
+    /// Asks the decoder thread for the composite of every video clip visible at the playhead.
+    fn request_composite_frame(
+        &mut self,
+        max_width: u32,
+        flat: Option<&neoveg_engine::project_manager::Flattened>,
+    ) {
+        let lut = self.current_lut();
+        let (grade, chroma) = (self.effective_grade(), self.effective_chroma());
+        // A change of LUT, grade or key repaints the same frame
+        if self.last_lut_path != self.timeline.video_lut
+            || self.last_grade != grade
+            || self.last_chroma != chroma
+        {
+            self.last_lut_path = self.timeline.video_lut.clone();
+            self.last_grade = grade;
+            self.last_chroma = chroma;
+            self.last_composite_key = None;
+        }
+        let settings = &self.project.settings;
+        let fps = settings.fps;
+        let frame = (self.playhead * fps).round() as i64;
+        let key = (frame, max_width, self.history.revision());
+        if self.last_composite_key == Some(key) {
+            return;
+        }
+        self.last_composite_key = Some(key);
+        self.last_frame_key = None;
+        let frame_settings = composite::FrameSettings {
+            fps,
+            canvas: (settings.width, settings.height),
+            max_width,
+            playing: self.active_player.is_some(),
+            auto_crossfade: settings.auto_crossfade,
+            lut,
+            grade,
+            chroma_key: chroma,
+        };
+        let sources = self.render_sources(flat);
+        let timeline = flat.map_or(&self.timeline, |f| &f.timeline);
+        let request =
+            composite::composite_request(timeline, frame as f64 / fps, &frame_settings, &|id| {
+                sources.get(&id).cloned()
+            });
+        match (request, &self.frame_worker) {
+            (Some(request), Some(worker)) => worker.request_composite(request),
+            _ => self.video_texture = None,
+        }
+    }
+
     fn poll_frames(&mut self, ctx: &egui::Context) {
         let Some(worker) = &self.frame_worker else {
             return;
         };
-        // Only the newest reply matters
-        let mut latest = None;
+        // Only the newest reply matters, and only from the kind of request now in use
+        let mut single = None;
         while let Ok(reply) = worker.rx.try_recv() {
-            latest = Some(reply);
+            single = Some(reply.result);
         }
-        let Some(reply) = latest else {
+        let mut composite = None;
+        while let Ok(reply) = worker.composite_rx.try_recv() {
+            composite = Some(reply.result);
+        }
+        let latest = if self.last_composite_key.is_some() {
+            composite
+        } else {
+            single
+        };
+        let Some(result) = latest else {
             return;
         };
-        match reply.result {
+        match result {
             Ok(frame) => {
                 self.frame_scopes = Some(Scopes::from_frame(&frame));
                 self.frame_scopes_version += 1;
@@ -3749,6 +3823,15 @@ impl NeovegApp {
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
             self.state.insert_generated(spec, ctx);
         }
+        let has_loop_region = self.state.loop_region.is_some();
+        let duration = self.state.timeline.duration();
+        if let Some(request) =
+            self.state
+                .render_dialog
+                .show(ctx, width, height, fps, has_loop_region, duration)
+        {
+            self.state.start_render(request, ctx);
+        }
     }
 }
 
@@ -3810,6 +3893,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui.button("Importar mídia…").clicked() {
                 let ctx = ui.ctx().clone();
                 state.import_media(&ctx);
+                ui.close_menu();
+            }
+            if ui.button("Renderizar como… (Make Movie)").clicked() {
+                state.render_dialog.open = true;
                 ui.close_menu();
             }
             if ui.button("Importar EDL (CMX 3600)…").clicked() {

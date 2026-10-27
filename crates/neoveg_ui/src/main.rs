@@ -12,6 +12,7 @@ mod log_viewer;
 mod loudness_panel;
 mod mixer_panel;
 mod precision_slider;
+mod render_dialog;
 mod scopes_panel;
 mod shortcuts;
 mod splash;
