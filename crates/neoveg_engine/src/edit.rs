@@ -74,6 +74,21 @@ pub fn trim_left(g: EventGeometry, new_start: f64, min_len: f64) -> EventGeometr
     })
 }
 
+/// Position inside a looped source: `offset` seconds after the loop start, wrapped to a loop of
+/// `loop_len` seconds. A loop length of zero or less means the source does not loop.
+pub fn wrap_loop(offset: f64, loop_len: f64) -> f64 {
+    if loop_len > 1e-9 {
+        offset.rem_euclid(loop_len)
+    } else {
+        offset
+    }
+}
+
+/// Length of the part of the source a looping event repeats: from `trim_in` to the end of the media.
+pub fn loop_length(source_len: f64, trim_in: f64) -> f64 {
+    (source_len - trim_in).max(0.0)
+}
+
 /// Drags the right edge to `new_end`, limited by the remaining source (`source_len`, when known) and
 /// by `min_len`.
 pub fn trim_right(

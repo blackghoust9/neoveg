@@ -167,6 +167,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `M` | Marker (opens the inline name box) | implemented |
 | `G` / `U` | Group / ungroup the selected events (a group is selected, moved and split together) | implemented |
 | `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I` | Event switches Mute / Lock / Invert Phase on the selected events (Editar → Interruptores, event context menu; Lock also has a toolbar button). Neoveg's own bindings: the reference manuals list the switches but give them no shortcut | implemented |
+| `Ctrl+Alt+O` / `Ctrl+Alt+N` / `Ctrl+Alt+Shift+N` | Event switches Loop / Normalize, and Recalculate normalization (Neoveg's own bindings) | implemented |
 | `Ctrl+Shift+U` | Ignore event grouping (clicks select a single event) | implemented |
 | `R` | Region from the time selection | implemented |
 | `I` / `O` | Set the time selection in / out point at the cursor | implemented |

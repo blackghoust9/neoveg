@@ -44,6 +44,14 @@ fn is_false(v: &bool) -> bool {
     !*v
 }
 
+fn default_gain() -> f32 {
+    1.0
+}
+
+fn is_unity_gain(v: &f32) -> bool {
+    (*v - 1.0).abs() < 1e-9
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrackEvent {
     pub id: EventId,
@@ -81,6 +89,17 @@ pub struct TrackEvent {
     /// Event switch Invert Phase (audio only): the event's samples are negated.
     #[serde(default, skip_serializing_if = "is_false")]
     pub invert_phase: bool,
+    /// Event switch Loop: extending the event past the end of its source repeats the source
+    /// (from `trim_in` to the end of the media) instead of leaving silence.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub looping: bool,
+    /// Event switch Normalize (audio only): the event is amplified by `normalize_gain`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub normalize: bool,
+    /// Linear gain that brings the event's peak to the project's normalize level; computed when
+    /// Normalize is turned on or recalculated, `1.0` otherwise.
+    #[serde(default = "default_gain", skip_serializing_if = "is_unity_gain")]
+    pub normalize_gain: f32,
 }
 
 impl Default for TrackEvent {
@@ -102,6 +121,9 @@ impl Default for TrackEvent {
             muted: false,
             locked: false,
             invert_phase: false,
+            looping: false,
+            normalize: false,
+            normalize_gain: 1.0,
         }
     }
 }

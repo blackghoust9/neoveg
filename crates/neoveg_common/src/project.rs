@@ -18,6 +18,9 @@ pub struct ProjectSettings {
     /// Beats in a bar (the metronome accents the first one).
     #[serde(default = "default_beats_per_bar")]
     pub beats_per_bar: u32,
+    /// Peak level (dBFS) an event reaches with the Normalize switch.
+    #[serde(default)]
+    pub normalize_peak_db: f64,
 }
 
 fn default_bpm() -> f32 {
@@ -42,6 +45,7 @@ impl Default for ProjectSettings {
             auto_crossfade: true,
             bpm: default_bpm(),
             beats_per_bar: default_beats_per_bar(),
+            normalize_peak_db: 0.0,
         }
     }
 }

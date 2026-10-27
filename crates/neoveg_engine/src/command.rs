@@ -280,6 +280,9 @@ impl EditCommand {
                     muted: left.muted,
                     locked: left.locked,
                     invert_phase: left.invert_phase,
+                    looping: left.looping,
+                    normalize: left.normalize,
+                    normalize_gain: left.normalize_gain,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;

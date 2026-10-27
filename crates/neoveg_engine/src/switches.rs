@@ -18,10 +18,20 @@ pub enum Switch {
     Lock,
     /// Audio events only.
     InvertPhase,
+    /// Events played at normal speed only (a stretched event cannot loop).
+    Loop,
+    /// Audio events only; the gain itself comes from [`set_normalize`].
+    Normalize,
 }
 
 impl Switch {
-    pub const ALL: [Switch; 3] = [Switch::Mute, Switch::Lock, Switch::InvertPhase];
+    pub const ALL: [Switch; 5] = [
+        Switch::Mute,
+        Switch::Lock,
+        Switch::InvertPhase,
+        Switch::Loop,
+        Switch::Normalize,
+    ];
 
     /// Whether the switch is on for `event`.
     pub fn is_on(self, event: &TrackEvent) -> bool {
@@ -29,6 +39,8 @@ impl Switch {
             Switch::Mute => event.muted,
             Switch::Lock => event.locked,
             Switch::InvertPhase => event.invert_phase,
+            Switch::Loop => event.looping,
+            Switch::Normalize => event.normalize,
         }
     }
 
@@ -37,6 +49,13 @@ impl Switch {
             Switch::Mute => event.muted = on,
             Switch::Lock => event.locked = on,
             Switch::InvertPhase => event.invert_phase = on,
+            Switch::Loop => event.looping = on,
+            Switch::Normalize => {
+                event.normalize = on;
+                if !on {
+                    event.normalize_gain = 1.0;
+                }
+            }
         }
     }
 }
@@ -103,7 +122,10 @@ fn eligible(timeline: &Timeline, events: &[EventRef], switch: Switch) -> Vec<Eve
             match switch {
                 Switch::Lock => true,
                 Switch::Mute => !event.locked,
-                Switch::InvertPhase => !event.locked && track.kind == TrackKind::Audio,
+                Switch::InvertPhase | Switch::Normalize => {
+                    !event.locked && track.kind == TrackKind::Audio
+                }
+                Switch::Loop => !event.locked && (event.playback_rate - 1.0).abs() < 1e-6,
             }
         })
         .collect()
@@ -133,6 +155,35 @@ pub fn set(
         for event in &mut after {
             if target.contains(&(track.id, event.id)) && switch.is_on(event) != on {
                 switch.set(event, on);
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(TrackChange {
+                track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
+/// Turns Normalize on with the given gain for each listed audio event, or recalculates the gain of
+/// events that already have it. One undo step; `None` when nothing changes.
+pub fn set_normalize(timeline: &Timeline, gains: &[(EventRef, f32)]) -> Option<EditCommand> {
+    let mut changes = Vec::new();
+    for track in &timeline.tracks {
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            let Some(&(_, gain)) = gains.iter().find(|(r, _)| *r == (track.id, event.id)) else {
+                continue;
+            };
+            let allowed = !event.locked && track.kind == TrackKind::Audio;
+            if allowed && (!event.normalize || (event.normalize_gain - gain).abs() > 1e-9) {
+                event.normalize = true;
+                event.normalize_gain = gain;
                 changed = true;
             }
         }
@@ -300,11 +351,61 @@ mod tests {
     }
 
     #[test]
+    fn loop_needs_normal_speed_and_normalize_needs_audio() {
+        let (mut tl, a, _, video) = timeline();
+        assert!(toggle(&tl, &[a], Switch::Loop).is_some());
+        assert!(toggle(&tl, &[video], Switch::Normalize).is_none());
+        tl.tracks[0].events[0].playback_rate = 2.0;
+        assert!(
+            toggle(&tl, &[a], Switch::Loop).is_none(),
+            "a stretched event cannot loop"
+        );
+    }
+
+    #[test]
+    fn normalize_stores_and_recalculates_the_gain_and_off_resets_it() {
+        let (mut tl, a, b, _) = timeline();
+        let command = set_normalize(&tl, &[(a, 2.0), (b, 0.5)]).unwrap();
+        let mut history = run(&mut tl, command);
+        let gain = |tl: &Timeline, r: EventRef| {
+            tl.track(r.0)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == r.1)
+                .unwrap()
+                .normalize_gain
+        };
+        assert_eq!((gain(&tl, a), gain(&tl, b)), (2.0, 0.5));
+        assert!(
+            set_normalize(&tl, &[(a, 2.0)]).is_none(),
+            "same gain: nothing to do"
+        );
+        let command = set_normalize(&tl, &[(a, 3.0)]).unwrap();
+        history.execute(&mut tl, command);
+        assert_eq!(gain(&tl, a), 3.0);
+        let command = set(&tl, &[a], Switch::Normalize, false).unwrap();
+        history.execute(&mut tl, command);
+        assert_eq!(gain(&tl, a), 1.0);
+        history.undo(&mut tl);
+        assert_eq!(gain(&tl, a), 3.0);
+    }
+
+    #[test]
+    fn a_locked_event_keeps_its_normalize_gain() {
+        let (mut tl, a, _, _) = timeline();
+        let command = set(&tl, &[a], Switch::Lock, true).unwrap();
+        run(&mut tl, command);
+        assert!(set_normalize(&tl, &[(a, 2.0)]).is_none());
+    }
+
+    #[test]
     fn old_projects_without_the_flags_load() {
         let json = r#"{"id":1,"name":"x","media_id":null,"start":0.0,"duration":1.0,
             "trim_in":0.0,"fade_in":0.0,"fade_out":0.0}"#;
         let event: TrackEvent = serde_json::from_str(json).unwrap();
         assert!(!event.muted && !event.locked && !event.invert_phase);
+        assert!(!event.looping && !event.normalize && event.normalize_gain == 1.0);
         let saved = serde_json::to_string(&event).unwrap();
         assert!(!saved.contains("muted") && !saved.contains("locked"));
     }

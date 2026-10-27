@@ -1787,3 +1787,41 @@ Implementation Guidelines for Neoveg:
     UI state (one undo step, drag refusal).
 Sources: VEGAS_Pro_18_EN.pdf pp. 169-170.
 Research Date: 2026-10-27
+
+47. Feature Name: Event Switches Loop and Normalize: Rules and Neoveg Choices
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf: "Applying switches to events", pp. 169-170, and the audio Preferences table,
+   p. 542-543.)
+  - Loop: "enabling the Loop switch on an event will allow you to drag the right edge of the event out and have
+    it repeat the file over and over rather than inserting silence."
+  - Normalize (audio only): "maximizes an audio event's volume without clipping". The Event Properties dialog
+    has a Recalculate button that recomputes the normalization value; "if you trim or extend a normalized
+    event, you will want to recalculate the normalization to account for the different audio levels that may
+    have been exposed" - so the stored value is not updated by trimming.
+  - The target level is the Preferences > Audio "Normalize peak level (dB)" slider, "used when you use the
+    Normalize event switch".
+  - Not specified: which part of the source repeats, how Loop meets a playback-rate change, and whether
+    fades or crossfades count in the normalization peak.
+Implementation Guidelines for Neoveg:
+  - Implemented: `TrackEvent::{looping, normalize, normalize_gain}` (`#[serde(default)]`, omitted when off),
+    `neoveg_engine::switches` (Switch::Loop / Switch::Normalize, `set_normalize`), `edit::{wrap_loop,
+    loop_length}`, `neoveg_audio::mixer::{peak_in_window, normalize_gain, MixClip::loop_len}`, the commands
+    `edit.switch.loop`, `edit.switch.normalize` and `edit.normalize.recalculate`.
+  - Loop, Neoveg choices: the repeated part is the source from the event's in point (`trim_in`) to the end of
+    the media, restarting at the in point; only an event at normal speed can loop (turning Loop on is refused
+    otherwise, and the mixer ignores it if the speed changes later); a looping event may be dragged past the
+    end of its source, other events still stop there; the video preview wraps the source time the same way;
+    the timeline marks every repeat with a thin tick and the title shows [laço]. No crossfade is made at the
+    seam.
+  - Normalize, Neoveg choices: the peak is the highest absolute sample of the part of the source the event
+    plays (for a looping event, from the in point to the end of the media), measured when the switch is turned
+    on or recalculated, never automatically after a trim, as in the manual; the gain is linear
+    (target / peak) stored on the event and multiplied into the mixer clip gain before fades; silence keeps
+    unity; the target is `ProjectSettings::normalize_peak_db` (project file, default 0 dBFS) because there is
+    no interface field for it yet; turning Normalize off resets the stored gain; the title shows [norm +x.x dB].
+  - Tests: engine (eligibility, store / recalculate / reset, undo, locked events), mixer (looped playback,
+    restart at the in point, window peak, gain math) and UI state (drag past the source, loop refused when
+    stretched, measured gain, recalculate after extending, undo, no media loaded).
+Sources: VEGAS_Pro_18_EN.pdf pp. 169-170 and 542-543.
+Research Date: 2026-10-27

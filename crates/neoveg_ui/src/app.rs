@@ -1675,9 +1675,12 @@ impl AppState {
             }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
-            Command::EditSwitchMute | Command::EditSwitchLock | Command::EditSwitchInvertPhase => {
-                has_events
-            }
+            Command::EditSwitchMute
+            | Command::EditSwitchLock
+            | Command::EditSwitchInvertPhase
+            | Command::EditSwitchLoop
+            | Command::EditSwitchNormalize
+            | Command::EditNormalizeRecalculate => has_events,
             Command::EditUngroup => self
                 .selection
                 .refs()
@@ -2028,7 +2031,17 @@ impl AppState {
                 drag.current = edit::trim_left(drag.origin, snap(pointer_time), min_len);
             }
             DragMode::TrimRight => {
-                let len = self.source_len(drag.track_id, drag.event_id);
+                // A looping event may be dragged past the end of its source
+                let looping = self
+                    .timeline
+                    .track(drag.track_id)
+                    .and_then(|t| t.events.iter().find(|e| e.id == drag.event_id))
+                    .is_some_and(|e| e.looping);
+                let len = if looping {
+                    None
+                } else {
+                    self.source_len(drag.track_id, drag.event_id)
+                };
                 drag.current = edit::trim_right(drag.origin, snap(pointer_time), min_len, len);
             }
             DragMode::StretchLeft => {
@@ -2233,24 +2246,90 @@ impl AppState {
     fn toggle_event_switch(&mut self, switch: Switch) {
         let refs = self.selection.refs();
         let on = switches::state(&self.timeline, &refs, switch) != SwitchState::On;
-        match switches::toggle(&self.timeline, &refs, switch) {
+        let command = if switch == Switch::Normalize && on {
+            // Turning Normalize on measures the peak of what each event plays
+            let gains = self.normalize_gains(&refs, false);
+            if gains.is_empty() {
+                self.status =
+                    "Normalizar precisa de eventos de áudio desbloqueados com mídia carregada"
+                        .into();
+                return;
+            }
+            switches::set_normalize(&self.timeline, &gains)
+        } else {
+            switches::toggle(&self.timeline, &refs, switch)
+        };
+        match command {
             Some(command) => {
                 self.history.execute(&mut self.timeline, command);
                 let name = match switch {
                     Switch::Mute => "Mute",
                     Switch::Lock => "Bloqueio",
                     Switch::InvertPhase => "Inverter fase",
+                    Switch::Loop => "Repetir",
+                    Switch::Normalize => "Normalizar",
                 };
                 self.status = format!("{name} {}", if on { "ligado" } else { "desligado" });
             }
             None => {
                 self.status = match switch {
-                    Switch::InvertPhase => {
-                        "Inverter fase vale só para eventos de áudio desbloqueados".into()
+                    Switch::InvertPhase | Switch::Normalize => {
+                        "Vale só para eventos de áudio desbloqueados".into()
                     }
-                    _ => "Nenhum evento desbloqueado na seleção".into(),
+                    Switch::Loop => {
+                        "Repetir vale só para eventos desbloqueados em velocidade normal".into()
+                    }
+                    Switch::Mute | Switch::Lock => "Nenhum evento desbloqueado na seleção".into(),
                 };
             }
+        }
+    }
+
+    /// The gain that brings each listed audio event to the project's normalize peak level,
+    /// measured on the part of the source the event plays (a looping event: from its in point to
+    /// the end of the media). With `only_normalized` only events that already have the switch are
+    /// listed (Recalculate).
+    fn normalize_gains(&self, refs: &[EventRef], only_normalized: bool) -> Vec<(EventRef, f32)> {
+        let target = self.project.settings.normalize_peak_db;
+        refs.iter()
+            .filter_map(|&r| {
+                let track = self.timeline.track(r.0)?;
+                if track.kind != TrackKind::Audio {
+                    return None;
+                }
+                let e = track.events.iter().find(|e| e.id == r.1)?;
+                if e.locked || (only_normalized && !e.normalize) {
+                    return None;
+                }
+                let media = self.media.get(&e.media_id?)?;
+                let rate = edit::clamp_playback_rate(e.playback_rate);
+                let length = if e.looping {
+                    edit::loop_length(media.duration, e.trim_in)
+                } else {
+                    e.duration * rate
+                };
+                let peak = neoveg_audio::mixer::peak_in_window(
+                    &media.stereo,
+                    media.sample_rate,
+                    e.trim_in,
+                    length,
+                );
+                Some((r, neoveg_audio::mixer::normalize_gain(peak, target)))
+            })
+            .collect()
+    }
+
+    /// Edit > Recalculate normalization: measures again the events that are normalized, which is
+    /// needed after trimming or extending one (it may now play louder or quieter material).
+    fn recalculate_normalize(&mut self) {
+        let refs = self.selection.refs();
+        let gains = self.normalize_gains(&refs, true);
+        match switches::set_normalize(&self.timeline, &gains) {
+            Some(command) => {
+                self.history.execute(&mut self.timeline, command);
+                self.status = "Normalização recalculada".into();
+            }
+            None => self.status = "Nenhum evento normalizado mudou de ganho".into(),
         }
     }
 
@@ -2511,7 +2590,13 @@ impl AppState {
             .find_map(|t| timeline.playing_event_at(t.id, self.playhead))
             .and_then(|e| {
                 let rate = edit::clamp_playback_rate(e.playback_rate);
-                Some((e.media_id?, (self.playhead - e.start) * rate + e.trim_in))
+                let mut offset = (self.playhead - e.start) * rate;
+                if e.looping {
+                    let source = e.media_id.and_then(|id| self.video_info.get(&id));
+                    let len = source.map_or(0.0, |i| edit::loop_length(i.duration, e.trim_in));
+                    offset = edit::wrap_loop(offset, len);
+                }
+                Some((e.media_id?, offset + e.trim_in))
             });
         let Some((media_id, seconds)) = target else {
             self.video_texture = None;
@@ -2782,7 +2867,11 @@ impl AppState {
                     start: e.start,
                     duration: e.duration,
                     trim_in,
-                    gain: if e.invert_phase { -1.0 } else { 1.0 },
+                    gain: {
+                        let sign = if e.invert_phase { -1.0 } else { 1.0 };
+                        let level = if e.normalize { e.normalize_gain } else { 1.0 };
+                        sign * level
+                    },
                     fade_in: e.fade_in,
                     fade_out: e.fade_out,
                     fade_in_curve: e.fade_in_curve,
@@ -2792,6 +2881,13 @@ impl AppState {
                     cross_out: longest(&|c| c.earlier == e.id),
                     cross_out_curve: out_curve,
                     track: track_index,
+                    // Only an event at normal speed loops (its source is read directly)
+                    loop_len: if e.looping && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                    {
+                        edit::loop_length(media.duration, e.trim_in)
+                    } else {
+                        0.0
+                    },
                 });
             }
         }
@@ -3253,6 +3349,9 @@ impl AppState {
             Command::EditSwitchMute => self.toggle_event_switch(Switch::Mute),
             Command::EditSwitchLock => self.toggle_event_switch(Switch::Lock),
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
+            Command::EditSwitchLoop => self.toggle_event_switch(Switch::Loop),
+            Command::EditSwitchNormalize => self.toggle_event_switch(Switch::Normalize),
+            Command::EditNormalizeRecalculate => self.recalculate_normalize(),
             Command::TransportLoop => self.toggle_loop(),
             Command::TransportShuttleForward => self.shuttle(true, now),
             Command::TransportShuttleReverse => self.shuttle(false, now),
@@ -3991,6 +4090,9 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
         Switch::InvertPhase,
         Command::EditSwitchInvertPhase,
     );
+    switch_item(state, ui, Switch::Loop, Command::EditSwitchLoop);
+    switch_item(state, ui, Switch::Normalize, Command::EditSwitchNormalize);
+    command_item(state, ui, Command::EditNormalizeRecalculate);
 }
 
 fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
@@ -6395,11 +6497,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Color32::from_black_alpha(90),
             );
             let rate = edit::clamp_playback_rate(g.playback_rate);
-            let title = if (rate - 1.0).abs() > 1e-3 {
+            let mut title = if (rate - 1.0).abs() > 1e-3 {
                 format!("{} [{rate:.2}×]", ev.name)
             } else {
                 ev.name.clone()
             };
+            if ev.looping {
+                title.push_str(" [laço]");
+            }
+            if ev.normalize {
+                title.push_str(&format!(
+                    " [norm {:+.1} dB]",
+                    20.0 * ev.normalize_gain.log10()
+                ));
+            }
             lane_painter.text(
                 ev_rect.min + vec2(4.0, 1.0),
                 Align2::LEFT_TOP,
@@ -6439,6 +6550,32 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     frames_per_pixel,
                     Color32::from_rgb(150, 215, 245),
                 );
+            }
+            if ev.looping {
+                // A tick at every repeat of the source
+                let source = state.source_len(track.id, ev.id).unwrap_or(0.0);
+                let each = edit::loop_length(source, ev.trim_in);
+                let spacing = (each * state.pixels_per_second) as f32;
+                if spacing >= 6.0 {
+                    let mut at = ev.start + each;
+                    while at < ev.end() - TIME_EPSILON {
+                        let x = lanes.left()
+                            + ((at - state.scroll_seconds) * state.pixels_per_second) as f32;
+                        if x > lanes.right() {
+                            break;
+                        }
+                        if x >= lanes.left() {
+                            lane_painter.line_segment(
+                                [
+                                    pos2(x, ev_rect.top() + EVENT_HEADER_HEIGHT),
+                                    pos2(x, ev_rect.bottom()),
+                                ],
+                                Stroke::new(1.0_f32, Color32::from_white_alpha(150)),
+                            );
+                        }
+                        at += each;
+                    }
+                }
             }
             if ev.muted {
                 // A muted event is darkened: it is out of playback
@@ -6894,6 +7031,84 @@ mod tests {
         let g = geometry(&s, track, ev);
         // 10 s of source, none trimmed at the start
         assert_eq!((g.start, g.duration), (2.0, 10.0));
+    }
+
+    #[test]
+    fn a_looping_event_can_be_extended_past_the_source_and_plays_it_again() {
+        let (mut s, track, ev) = state_with_clip();
+        s.media.insert(1, test_media());
+        s.selection.set([(track, ev)]);
+        run(&mut s, Command::EditSwitchLoop);
+
+        s.begin_drag(hit(&s, track, ev, DragMode::TrimRight), 6.0);
+        s.update_drag(500.0, None, 0.1, false);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        assert!(
+            g.duration > 10.0,
+            "Loop lifts the end-of-source limit: {}",
+            g.duration
+        );
+
+        let clip = s.build_clips().into_iter().next().unwrap();
+        assert_eq!(
+            clip.loop_len, 10.0,
+            "the whole 10 s source repeats from the in point"
+        );
+
+        run(&mut s, Command::EditSwitchLoop);
+        let clip = s.build_clips().into_iter().next().unwrap();
+        assert_eq!(clip.loop_len, 0.0, "turned off, the source plays once");
+    }
+
+    #[test]
+    fn a_stretched_event_refuses_the_loop_switch() {
+        let (mut s, track, ev) = state_with_clip();
+        s.timeline.track_mut(track).unwrap().events[0].playback_rate = 2.0;
+        s.selection.set([(track, ev)]);
+        run(&mut s, Command::EditSwitchLoop);
+        assert!(!s.timeline.track(track).unwrap().events[0].looping);
+    }
+
+    #[test]
+    fn normalize_measures_the_played_part_and_recalculate_follows_a_trim() {
+        let (mut s, track, ev) = state_with_clip();
+        // 10 s at 100 Hz: quiet (0.25) except for one loud frame (0.5) at 7 s
+        let mut samples = vec![0.25_f32; 2_000];
+        samples[1_400] = 0.5;
+        let mut media = test_media();
+        media.stereo = Arc::new(samples);
+        s.media.insert(1, media);
+        s.selection.set([(track, ev)]);
+
+        // The event plays 0..4 s of the source: peak 0.25, so a gain of 4
+        run(&mut s, Command::EditSwitchNormalize);
+        let gain = |s: &AppState| s.timeline.track(track).unwrap().events[0].normalize_gain;
+        assert!((gain(&s) - 4.0).abs() < 1e-4, "{}", gain(&s));
+        let clip = s.build_clips().into_iter().next().unwrap();
+        assert!((clip.gain - 4.0).abs() < 1e-4);
+
+        // Extend the event over the loud frame: the stored gain is stale until recalculated
+        s.timeline.track_mut(track).unwrap().events[0].duration = 8.0;
+        assert!((gain(&s) - 4.0).abs() < 1e-4);
+        run(&mut s, Command::EditNormalizeRecalculate);
+        assert!((gain(&s) - 2.0).abs() < 1e-4, "{}", gain(&s));
+
+        run(&mut s, Command::EditUndo);
+        assert!((gain(&s) - 4.0).abs() < 1e-4);
+        run(&mut s, Command::EditSwitchNormalize);
+        assert!(!s.timeline.track(track).unwrap().events[0].normalize);
+        assert_eq!(gain(&s), 1.0);
+    }
+
+    #[test]
+    fn normalize_without_loaded_media_does_nothing() {
+        let (mut s, track, ev) = state_with_clip();
+        s.selection.set([(track, ev)]);
+        let revision = s.history.revision();
+        run(&mut s, Command::EditSwitchNormalize);
+        assert_eq!(s.history.revision(), revision);
+        assert!(!s.timeline.track(track).unwrap().events[0].normalize);
     }
 
     #[test]
@@ -7556,7 +7771,12 @@ mod tests {
 
         run(&mut s, Command::EditDelete);
         assert!(
-            s.timeline.track(a.0).unwrap().events.iter().any(|e| e.id == a.1),
+            s.timeline
+                .track(a.0)
+                .unwrap()
+                .events
+                .iter()
+                .any(|e| e.id == a.1),
             "Delete leaves the locked event"
         );
     }

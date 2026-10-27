@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (98 comandos, 96 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (101 comandos, 99 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -47,6 +47,9 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Interruptor: silenciar evento | `Ctrl+Alt+M` | `edit.switch.mute` | implementado |
 | Interruptor: bloquear evento | `Ctrl+Alt+L` | `edit.switch.lock` | implementado |
 | Interruptor: inverter fase | `Ctrl+Alt+I` | `edit.switch.invert_phase` | implementado |
+| Interruptor: repetir (laço do evento) | `Ctrl+Alt+O` | `edit.switch.loop` | implementado |
+| Interruptor: normalizar | `Ctrl+Alt+N` | `edit.switch.normalize` | implementado |
+| Recalcular a normalização | `Ctrl+Alt+Shift+N` | `edit.normalize.recalculate` | implementado |
 | Ferramenta normal | `Ctrl+D` | `edit.tool.normal` | *planejado* |
 | Próxima ferramenta de edição | `D` | `edit.tool.next` | *planejado* |
 | Ferramenta de edição anterior | `Shift+D` | `edit.tool.previous` | *planejado* |

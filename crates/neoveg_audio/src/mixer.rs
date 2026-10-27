@@ -28,6 +28,30 @@ pub struct MixClip {
     pub cross_out_curve: FadeCurve,
     /// Index of the track the clip belongs to (its effect chain is found by this index).
     pub track: usize,
+    /// Seconds of the source, counted from `trim_in`, that repeat when the clip runs past them
+    /// (the Loop switch); `0` plays the source once.
+    pub loop_len: f64,
+}
+
+/// Highest absolute sample of the interleaved stereo `samples` between `from` and `from +
+/// length` seconds. The window is clamped to the buffer; `0.0` for an empty window.
+pub fn peak_in_window(samples: &[f32], sample_rate: u32, from: f64, length: f64) -> f32 {
+    let frames = samples.len() / 2;
+    let rate = f64::from(sample_rate);
+    let start = ((from.max(0.0) * rate).floor() as usize).min(frames);
+    let end = (((from + length).max(0.0) * rate).ceil() as usize).clamp(start, frames);
+    samples[start * 2..end * 2]
+        .iter()
+        .fold(0.0_f32, |peak, s| peak.max(s.abs()))
+}
+
+/// Linear gain that brings a signal whose highest sample is `peak` to `target_db` dBFS. A silent
+/// or invalid peak gives unity, so normalizing silence changes nothing.
+pub fn normalize_gain(peak: f32, target_db: f64) -> f32 {
+    if !peak.is_finite() || peak <= 1e-9 {
+        return 1.0;
+    }
+    (10.0_f64.powf(target_db / 20.0) / f64::from(peak)) as f32
 }
 
 /// Gain of a ramp `length` seconds long when `position` seconds are left until its full-gain end
@@ -61,7 +85,12 @@ impl MixClip {
             return (0.0, 0.0);
         }
         let local = t - self.start;
-        let pos = (local + self.trim_in) * self.source_rate as f64;
+        let looped = if self.loop_len > 0.0 {
+            local.rem_euclid(self.loop_len)
+        } else {
+            local
+        };
+        let pos = (looped + self.trim_in) * self.source_rate as f64;
         if pos < 0.0 {
             return (0.0, 0.0);
         }
@@ -130,6 +159,71 @@ mod tests {
         assert_eq!(c.sample_at(0.99), (0.0, 0.0));
         assert_eq!(c.sample_at(1.5), (0.0, 0.0));
         assert_eq!(c.sample_at(1.2), (0.5, 0.5));
+    }
+
+    #[test]
+    fn a_looping_clip_repeats_its_source_instead_of_going_silent() {
+        // Source: a ramp of 100 stereo frames at 100 Hz (1 s); the clip lasts 2.5 s
+        let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
+        let mut c = MixClip {
+            samples: Arc::new(ramp),
+            source_rate: 100,
+            duration: 2.5,
+            gain: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            c.sample_at(1.5),
+            (0.0, 0.0),
+            "without Loop the tail is silent"
+        );
+        c.loop_len = 1.0;
+        assert_eq!(c.sample_at(1.5), c.sample_at(0.5));
+        assert_eq!(c.sample_at(2.25), c.sample_at(0.25));
+        assert_ne!(c.sample_at(1.5), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_loop_restarts_at_the_trimmed_in_point() {
+        let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
+        let c = MixClip {
+            samples: Arc::new(ramp),
+            source_rate: 100,
+            duration: 3.0,
+            trim_in: 0.5,
+            loop_len: 0.5,
+            gain: 1.0,
+            ..Default::default()
+        };
+        // 0.5 s of source remain after the in point, so the repeat starts at 0.5 again
+        assert_eq!(c.sample_at(0.0), c.sample_at(0.5));
+        assert_eq!(c.sample_at(0.25), c.sample_at(1.25));
+    }
+
+    #[test]
+    fn the_peak_of_a_window_ignores_what_lies_outside_it() {
+        // 1 s at 100 Hz: quiet, with a loud frame at 0.5 s and another at 0.9 s
+        let mut s = vec![0.1_f32; 200];
+        s[100] = -0.8;
+        s[180] = 0.95;
+        assert_eq!(peak_in_window(&s, 100, 0.0, 1.0), 0.95);
+        assert_eq!(peak_in_window(&s, 100, 0.0, 0.8), 0.8);
+        assert_eq!(peak_in_window(&s, 100, 0.0, 0.4), 0.1);
+        assert_eq!(
+            peak_in_window(&s, 100, 5.0, 1.0),
+            0.0,
+            "a window past the end is empty"
+        );
+    }
+
+    #[test]
+    fn normalizing_reaches_the_target_and_leaves_silence_alone() {
+        let gain = normalize_gain(0.5, 0.0);
+        assert!((gain - 2.0).abs() < 1e-6);
+        let to_minus_6 = normalize_gain(0.5, -6.0206);
+        assert!((to_minus_6 * 0.5 - 0.5).abs() < 1e-3);
+        assert_eq!(normalize_gain(0.0, 0.0), 1.0);
+        assert_eq!(normalize_gain(f32::NAN, 0.0), 1.0);
     }
 
     #[test]
