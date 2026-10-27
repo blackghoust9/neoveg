@@ -52,6 +52,12 @@ Cada projeto aberto tem sua aba (`*` marca alterações não salvas). Um conjunt
 
 Ao iniciar, a tela de boas-vindas lista os **projetos recentes** (os arquivos que sumiram aparecem avisados), abre um arquivo e cria um **novo projeto** com modelo, resolução e taxa de quadros escolhidos nas listas, mais a escolha entre dois layouts de janela: edição de vídeo ou edição de áudio e mixagem. Ela se desliga em Editar > Preferências ou na própria caixa, e volta por Ajuda > Tela de boas-vindas. Arquivo > Projetos recentes tem a mesma lista.
 
+### Notas e detalhes de edição
+
+![Notas do projeto e detalhes de edição](docs/screenshots/ui_edit_details.png)
+
+As **notas do projeto** ficam presas a um tempo da linha do tempo (quadrado colorido na régua), com cor, etiqueta e texto, e podem ser resolvidas ou ocultadas. Os **detalhes de edição** listam todos os eventos como uma lista de cortes.
+
 ### Propriedades do projeto
 
 ![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
@@ -471,7 +477,7 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 **Fase 15 — Lacunas encontradas no índice dos manuais v18 a v21 (o que o Neoveg ainda não tem)**
 
 - [x] Notas do projeto (Exibir > Notas do projeto): notas presas a um tempo da linha do tempo, com cor, etiqueta, texto, timecode editável, ir para a nota, usar o tempo do cursor, resolver e ocultar as resolvidas; quadrados coloridos na régua; salvas no `.neoveg`
-- [ ] Detalhes de edição (*Edit Details*): lista de todos os eventos com início, duração e fim
+- [x] Detalhes de edição (Exibir > Detalhes de edição): tabela de todos os eventos em ordem de tempo (faixa, nome, início, duração, fim, entrada na fonte e opções ligadas); um clique seleciona o evento e leva o cursor até ele; *Copiar tabela* como texto para planilha
 - [x] Apresentação de slides (Faixas > Inserir apresentação de slides): escolher imagens, mover -1/+1, remover, ordenar de A a Z, de Z a A, do novo ao antigo, do antigo ao novo ou embaralhar, começar no cursor ou em um tempo exato, duração por imagem ou total, sobreposição que vira crossfade; um passo de desfazer
 - [x] O primeiro arquivo importado só define o formato do projeto se o usuário ainda não escolheu um (propriedades, boas-vindas ou projeto aberto)
 - [ ] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois

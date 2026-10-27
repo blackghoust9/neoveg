@@ -4,6 +4,7 @@ pub mod autosave;
 pub mod captions;
 pub mod command;
 pub mod crossfade;
+pub mod details;
 pub mod edit;
 pub mod edl;
 pub mod effects;

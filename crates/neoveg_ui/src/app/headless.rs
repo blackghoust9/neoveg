@@ -23,13 +23,14 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 6] = [
+pub const OUTPUTS: [&str; 7] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
     "ui_icon_set.png",
     "ui_welcome_screen.png",
     "ui_project_properties.png",
+    "ui_edit_details.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -81,6 +82,15 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, default_dock());
         let image = gpu.capture(&ctx, [1280, 860], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[5]))?;
+
+        // 7. The edit details table and the project notes over the timeline
+        let ctx = new_context();
+        let mut state = demo_project();
+        state.show_details = true;
+        state.notes.open = true;
+        let mut app = headless_app(state, DockState::new(vec![Tab::Timeline]));
+        let image = gpu.capture(&ctx, [1400, 700], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[6]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);

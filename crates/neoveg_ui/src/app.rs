@@ -293,6 +293,8 @@ struct AppState {
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
     notes: crate::notes_window::NotesState,
+    /// Exibir > Detalhes de edição.
+    show_details: bool,
     /// The editing tool (`D` cycles through them).
     edit_tool: EditTool,
     /// The welcome screen (recent projects, new project).
@@ -1140,6 +1142,7 @@ impl AppState {
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
+            show_details: false,
             edit_tool: EditTool::default(),
             welcome: Default::default(),
             project_dialog: Default::default(),
@@ -4111,6 +4114,35 @@ fn audio_dock() -> DockState<Tab> {
 }
 
 impl NeovegApp {
+    /// The edit details table: a click on a row selects the event and moves the cursor to it.
+    fn run_details_window(&mut self, ctx: &egui::Context) {
+        if !self.state.show_details {
+            return;
+        }
+        let rows = neoveg_engine::details::rows(&self.state.timeline);
+        let selected = self.state.selection.refs();
+        let fps = self.state.project.settings.fps;
+        let drop_frame = self.state.drop_frame();
+        let mut open = true;
+        let actions =
+            crate::details_window::show(ctx, &mut open, &rows, &selected, fps, drop_frame);
+        self.state.show_details = open;
+        for action in actions {
+            match action {
+                crate::details_window::DetailsAction::Go(event, start) => {
+                    self.state.selected_track = Some(event.0);
+                    self.state.selection.set([event]);
+                    let now = ctx.input(|i| i.time);
+                    self.state.go_to_time(start, now);
+                }
+                crate::details_window::DetailsAction::Copy => {
+                    ctx.copy_text(neoveg_engine::details::to_tsv(&rows, fps, drop_frame));
+                    self.state.status = "Tabela de detalhes copiada".into();
+                }
+            }
+        }
+    }
+
     /// The project notes window: what the user did to the notes, and the cursor jump of "Ir".
     fn run_notes_window(&mut self, ctx: &egui::Context) {
         let fps = self.state.project.settings.fps;
@@ -4374,6 +4406,7 @@ impl NeovegApp {
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
+        self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
                 .insert_slideshow(&request.slides, request.settings);
@@ -4699,6 +4732,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
             if ui.button("Notas do projeto…").clicked() {
                 state.notes.open = true;
+                ui.close_menu();
+            }
+            if ui.button("Detalhes de edição…").clicked() {
+                state.show_details = true;
                 ui.close_menu();
             }
             ui.separator();
