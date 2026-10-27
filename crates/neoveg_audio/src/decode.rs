@@ -40,7 +40,33 @@ impl DecodedAudio {
     }
 }
 
-/// Decodes the default audio track of `path`.
+/// The first track that is audio and has a decoder. The file's default track is not good enough: in a
+/// video container (MP4, MOV, MKV) it is usually the picture, which symphonia cannot decode, and the
+/// sound would be reported as unsupported.
+fn pick_audio_track(
+    format: &dyn symphonia::core::formats::FormatReader,
+    path: &Path,
+) -> Result<(u32, Box<dyn symphonia::core::codecs::Decoder>), String> {
+    let mut last_error = None;
+    for track in format.tracks() {
+        let params = &track.codec_params;
+        let is_audio = params.codec != symphonia::core::codecs::CODEC_TYPE_NULL
+            && (params.sample_rate.is_some() || params.channels.is_some());
+        if !is_audio {
+            continue;
+        }
+        match symphonia::default::get_codecs().make(params, &DecoderOptions::default()) {
+            Ok(decoder) => return Ok((track.id, decoder)),
+            Err(e) => last_error = Some(e.to_string()),
+        }
+    }
+    match last_error {
+        Some(e) => Err(format!("no decoder for {}: {e}", path.display())),
+        None => Err(format!("no audio track found in {}", path.display())),
+    }
+}
+
+/// Decodes the first decodable audio track of `path` (the sound of a video file included).
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     let file = File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
@@ -60,11 +86,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
         .map_err(|e| format!("unsupported media {}: {e}", path.display()))?;
     let mut format = probed.format;
 
-    let track = format.default_track().ok_or("no audio track found")?;
-    let track_id = track.id;
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
-        .map_err(|e| format!("no decoder for {}: {e}", path.display()))?;
+    let (track_id, mut decoder) = pick_audio_track(&*format, path)?;
 
     let mut sample_rate = 0u32;
     let mut channels = 0u16;
