@@ -275,7 +275,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 
 **Edição e timeline**
 - [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
-- [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar
+- [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar (aparar e esticar bordas já seguem o escopo com o Auto Ripple ligado; falta mover e colar)
 - [ ] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
 - [ ] Travar faixa/evento
@@ -357,20 +357,20 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Inserir evento vazio
 
 **Fase 2 — Ripple, aparar e edição expandida (entrada 8)**
-- [ ] `RippleScope` (faixas afetadas / + marcadores e regiões / tudo) e `ripple_after(edição, escopo)`; teclas `F`, `Ctrl+F`, `Ctrl+Shift+F`; modo Auto Ripple (`Ctrl+L`) com lista de escopos
+- [ ] `RippleScope` (faixas afetadas / + marcadores e regiões / tudo) e `ripple_after(edição, escopo)` — **engine pronto** (`ripple_after`, `ripple_delete_scoped`) e escopo ligado a `F`, `Ctrl+F`, `Ctrl+Shift+F`, ao Auto Ripple e à exclusão com ripple; o Auto Ripple também vale ao aparar e esticar bordas (`ripple_resize`); `F` / `Ctrl+F` / `Ctrl+Shift+F` também fazem o ripple da última edição (exclusão simples ou aparo/esticar de uma borda) enquanto ela for a última mudança do histórico; falta o ripple ao mover/colar e o ripple manual de outras edições; teclas `F`, `Ctrl+F`, `Ctrl+Shift+F`; modo Auto Ripple (`Ctrl+L`) com lista de escopos
 - [ ] `TrimMode` {Normal, Slip, Slide, Stretch, Roll}; slip e slide por mouse e por teclado; resolver o conflito `Alt` (hoje ignora o snap) antes de adotar `Alt` = slip
-- [ ] Aparar por teclado: selecionar borda, 1 quadro / 1 pixel por passo, modificadores de compressão, slip e slide de crossfade; roda do mouse com `Ctrl+Shift`
-- [ ] Aparo adjacente (rolling) arrastando a borda entre dois eventos; cortes em J e L ignorando o agrupamento
-- [ ] Embaralhar eventos (shuffle) por menu e por ferramenta
+- [ ] Aparar por teclado: **feito** `[` / `]` escolhem a borda e `←` / `→` movem um quadro (a ferramenta de edição ativa escolhe aparar, slip ou slide; `Esc` sai; regras em `neoveg_engine::keytrim`); `Shift+←/→` estica e `Ctrl+Shift+←/→` faz o aparo adjacente; falta o passo de 1 pixel e a roda do mouse com `Ctrl+Shift`
+- [ ] Aparo adjacente (rolling) arrastando a borda entre dois eventos (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam já funciona, com regra `edit::roll` testada; falta o aparo por teclado e o corte em J/L); aparar a borda de um evento agrupado também apara os membros do grupo que têm a mesma borda e `Shift`+arrastar (ou Ignorar agrupamento) apara só aquele evento, os cortes em J e L (não vale com o Ripple automático ligado)
+- [ ] Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)
 - [ ] Modo de edição expandida: visão A/B, quadros não usados dos dois lados, pré-visualização dividida, saída por `Esc`
 - [ ] Evento em repetição (switch Loop) ao esticar além da mídia; quadros ilegíveis em vermelho
 
 **Fase 3 — Snap e quantização (entrada 9)**
-- [ ] `SnapSources` (grade, marcadores, todos os eventos, cursor, bordas da seleção) com atalhos `Ctrl+F8`, `Shift+F8`, `Ctrl+Shift+F8` além de `F8`
-- [ ] `Shift` inverte o snap temporariamente (decidir a convivência com o `Alt` atual)
-- [ ] Indicador de snap (linha na faixa ou na altura toda; tracejada quando a quantização arredonda)
+- [x] `SnapSources` (`neoveg_engine::snapping`): origem, cursor, bordas da seleção de tempo e eventos da própria faixa sempre valem; grade (`Ctrl+F8`), marcadores e regiões (`Shift+F8`) e eventos de outras faixas (`Ctrl+Shift+F8`) são chaves próprias, no menu Editar e por atalho, além de `F8`; **Quantizar para quadros** (`Alt+F8`) liga e desliga o arredondamento ao arrastar (as chaves ficam gravadas nas preferências)
+- [x] `Shift` inverte o snap temporariamente ao mover eventos (nas bordas `Shift` ignora o grupo; `Alt` continua ignorando o snap e vence o `Shift`)
+- [x] Indicador de snap: linha amarela na altura das faixas no ponto alinhado, tracejada quando só a quantização arredonda para um quadro (a linha na altura só da faixa, para eventos, ainda não distingue do resto)
 - [ ] Flag de deslocamento de snap por evento (triângulo no canto inferior esquerdo)
-- [ ] Preferência `quantize_audio_edits` (não quantizar edições só de áudio)
+- [x] Preferência `quantize_audio_edits` (Editar > Preferências > Geral): desligada, as edições só de áudio ficam entre quadros; as chaves de snap e a quantização também são gravadas nas preferências, com valores padrão para arquivos antigos
 
 **Fase 4 — Envelopes, chaves e propriedades do evento (entrada 10)**
 - [ ] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor

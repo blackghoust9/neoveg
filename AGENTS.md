@@ -124,9 +124,11 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 - **Mouse editing of events:**
   - Dragging the body moves the event, also between tracks of the **same kind**; dragging the first or last 7 px (a third of the width on narrow events) trims that edge; dragging a fade handle (top strip, 8 px inside each edge while the fade is zero) sets the fade length.
   - Trimming keeps the source aligned (`trim_in` follows the left edge), never reveals media before the source start or after its end, and keeps at least one frame. Fades are re-clamped to the event.
-  - **Snapping** (toggle `F8` or the toolbar magnet; hold `Alt` while dragging to ignore it) aligns to the origin, the playhead and the edges of other events within `8 px`; otherwise starts and trim edges are quantized to frames.
+  - **Snapping** (toggle `F8` or the toolbar magnet; hold `Alt` while dragging to ignore it) aligns to the origin, the playhead, the edges of the time selection and the edges of events on the dragged track within `8 px`; `Ctrl+F8` adds the frame grid, `Shift+F8` markers and regions, `Ctrl+Shift+F8` the events of other tracks (markers and other tracks are on by default). `Shift` while moving inverts snapping for that drag (on edges it ignores the group); `Alt` wins over `Shift`. A yellow line across the lanes marks the aligned point, dashed when it only rounds to a frame. Otherwise starts and trim edges are quantized to frames, unless Quantize to Frames (`Alt+F8`) is off.
   - A drag previews live and changes the timeline only on release, as **one** undo step. `Esc` cancels. The lane area scrolls automatically when the pointer rests within `28 px` of its ends. A read-out shows the start timecode and duration.
   - **Multiple selection:** `Ctrl`+click toggles, `Shift`+click selects the range, `Shift`+drag over empty lane draws a selection rectangle (`Ctrl` keeps the current selection). Dragging one selected event moves the whole selection in time as one undo step, never before zero.
+  - **Rolling trim:** `Ctrl`+`Alt` + drag on an edge that touches a neighbouring event moves the cut between them (both events change, the total length does not, each source stays aligned; one undo step; a locked neighbour blocks it; without a touching neighbour it is a plain trim). **Shuffle tool** (cycle `D`): dropping an event among the others of its track reorders a plain sequence (no overlaps, nothing locked), keeping the gap lengths in order.
+  - **Group trim:** trimming an edge of a grouped event trims every member whose same edge sits at the same time (the shared edge stops at the most restrictive member); `Shift` while dragging, or Ignore Grouping (`Ctrl+Shift+U`), trims only the dragged event (J and L cuts). Not applied while Auto Ripple is on.
   - Cursors: resize arrows on trim zones and handles, grab / grabbing on the body.
 
 ### 4.4. Audio
@@ -184,8 +186,9 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `[` / `]` or `Numpad 7` / `Numpad 9` | Select previous / next event edge (edge-trim mode) | planned |
 | `Numpad 1` / `3`, `4` / `6` | Trim or nudge by one frame / one pixel (modifiers: `Ctrl` stretch, `Alt` slip, `Ctrl+Alt` slide) | planned |
 | `Numpad 5` | Enter / exit expanded edit mode | planned |
-| `F` / `Ctrl+F` / `Ctrl+Shift+F` | Post-edit ripple: affected tracks / + markers / everything | planned |
-| `Ctrl+L` | Auto ripple: deleting events closes the gap they leave | implemented |
+| `F` / `Ctrl+F` / `Ctrl+Shift+F` | Ripple scope: affected tracks / + markers and regions / everything; used by Auto Ripple and ripple delete; they also ripple the last edit (plain delete, edge trim or stretch) while it is still the latest change in the history (move and paste are planned) | partial |
+| `[` / `]` | Keyboard trim: select the previous / next edit edge; `←` / `→` then move it one frame (the active edit tool picks trim, slip or slide), `Shift+←` / `Shift+→` stretch it, `Ctrl+Shift+←` / `Ctrl+Shift+→` move the cut shared with the neighbouring event (rolling), `Esc` leaves | implemented |
+| `Ctrl+L` | Auto ripple: deleting events closes the gap they leave, and trimming or stretching an edge moves what follows by the change in length (scope from `F` / `Ctrl+F` / `Ctrl+Shift+F`) | implemented |
 | `Ctrl+Delete` | Ripple delete: remove the selected events and move the later ones of each track earlier | implemented |
 | `Ctrl+Shift+X` | Automatic crossfades | implemented |
 | `Ctrl+F8` / `Shift+F8` / `Ctrl+Shift+F8` | Snap to grid / markers / all events | planned |
