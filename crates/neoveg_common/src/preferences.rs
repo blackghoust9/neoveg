@@ -13,6 +13,8 @@ pub struct Preferences {
     pub language: String,
     /// Fade in/out applied automatically on media import (disabled by default).
     pub auto_fade_on_import: bool,
+    /// Default timeline duration in seconds assigned to imported still images.
+    pub still_image_seconds: f64,
     pub show_welcome_on_startup: bool,
     /// Minutes between automatic recovery saves (0 disables autosave).
     pub autosave_minutes: u32,
@@ -29,6 +31,7 @@ impl Default for Preferences {
         Self {
             language: "pt-BR".into(),
             auto_fade_on_import: false,
+            still_image_seconds: 5.0,
             show_welcome_on_startup: false,
             autosave_minutes: 2,
             theme: "modern-carbon-dark".into(),
@@ -98,6 +101,7 @@ mod tests {
         let p = Preferences::default();
         assert_eq!(p.language, "pt-BR");
         assert!(!p.auto_fade_on_import);
+        assert_eq!(p.still_image_seconds, 5.0);
         assert_eq!(p.autosave_minutes, 2);
     }
 

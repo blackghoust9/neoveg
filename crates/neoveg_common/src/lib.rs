@@ -2,6 +2,7 @@
 
 pub mod chroma;
 pub mod commands;
+pub mod composite;
 pub mod fade;
 pub mod grade;
 pub mod keymap;

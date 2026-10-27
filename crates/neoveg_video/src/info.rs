@@ -13,6 +13,21 @@ pub fn is_video_path(path: &Path) -> bool {
         .is_some_and(|e| VIDEO_EXTENSIONS.contains(&e.as_str()))
 }
 
+/// True for any file that lands on a video track: container videos, still images, `.neovegseq`
+/// image-sequence manifests, or `.neoveggen` procedural media generators.
+pub fn is_visual_media_path(path: &Path) -> bool {
+    is_video_path(path)
+        || crate::still::is_image_path(path)
+        || crate::still::is_sequence_manifest_path(path)
+        || crate::generators::is_generator_manifest_path(path)
+}
+
+/// True for media whose source duration is unbounded when trimming the right edge on the timeline
+/// (static images and procedural media generators).
+pub fn is_unbounded_visual_path(path: &Path) -> bool {
+    crate::still::is_image_path(path) || crate::generators::is_generator_manifest_path(path)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct VideoInfo {
     pub width: u32,

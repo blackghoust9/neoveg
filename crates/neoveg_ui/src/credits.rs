@@ -73,10 +73,18 @@ pub const CREDITS: &[Credit] = &[
     },
     Credit {
         name: "wgpu",
-        used_for: "Vídeo e interface na GPU (WebGPU)",
+        used_for: "Vídeo, compositor multicamada de 17 modos e interface na GPU (WebGPU)",
         authors: "wgpu contributors",
         license: "MIT OR Apache-2.0",
         url: "https://github.com/gfx-rs/wgpu",
+    },
+    Credit {
+        name: "image (image-rs)",
+        used_for: "Importação e decodificação em Rust puro de imagens estáticas e sequências \
+                   numeradas de quadros (PNG, JPEG, BMP, GIF, WebP, TIFF, TGA, ICO, PNM)",
+        authors: "The image-rs Developers",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/image-rs/image",
     },
     Credit {
         name: "clack (clack-host / clack-extensions)",

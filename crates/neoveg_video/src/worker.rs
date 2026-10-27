@@ -1,15 +1,29 @@
-//! Background frame decoding. The UI sends requests and polls replies; it never decodes video itself.
+//! Background frame decoding, LRU frame caching, playback lookahead prefetch, and multi-track
+//! CPU/GPU compositing. The UI sends requests and polls replies; it never decodes video itself.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::composite::CompositeMode;
 use neoveg_common::grade::Grade;
 
+use crate::cache::LruFrameCache;
+use crate::composite::{composite_nodes_cpu, CompositeNode, DecodedLayer, GpuCompositor};
 use crate::frame::FrameBuffer;
-use crate::info::VideoInfo;
+use crate::generators::{
+    decode_generator_at, is_generator_manifest_path, is_time_varying_generator_path,
+    probe_generator_manifest,
+};
+use crate::info::{fit_size, VideoInfo};
 use crate::lut::Lut;
+use crate::still::{
+    decode_image, decode_sequence_at, is_image_path, is_sequence_manifest_path, probe_image,
+    probe_sequence_manifest,
+};
 
 pub struct FrameRequest {
     pub media_id: u64,
@@ -32,8 +46,115 @@ pub struct FrameReply {
     pub result: Result<FrameBuffer, String>,
 }
 
-/// Reads video metadata (needs the `ffmpeg` feature).
+/// One clip participating in a multi-track composite frame.
+#[derive(Debug, Clone)]
+pub struct VideoClipRequest {
+    pub media_id: u64,
+    pub path: PathBuf,
+    /// Source-local timestamp in seconds.
+    pub seconds: f64,
+    /// Source frame rate (`> 0.0`) used to quantize source cache keys.
+    pub source_fps: f64,
+    /// Clip playback speed multiplier (`1.0` normal) used by playback lookahead prefetch.
+    pub playback_rate: f64,
+    /// Combined event fade-in / fade-out / overlap crossfade opacity (`0.0..=1.0`).
+    pub event_opacity: f32,
+    /// Whether project chroma key applies to this clip (enabled for foreground clips).
+    pub apply_chroma: bool,
+}
+
+/// Recursive track compositing request node (single track or parent/child group).
+#[derive(Debug, Clone)]
+pub enum TrackCompositeNode {
+    Track {
+        /// Active clips on this track ordered from earliest `start` (bottom) to latest (top).
+        clips: Vec<VideoClipRequest>,
+        mode: CompositeMode,
+        level: f32,
+    },
+    Group {
+        children: Vec<TrackCompositeNode>,
+        parent_clips: Vec<VideoClipRequest>,
+        parent_mode: CompositeMode,
+        group_mode: CompositeMode,
+        group_level: f32,
+    },
+}
+
+/// Full timeline preview composite request evaluated off the UI thread.
+#[derive(Debug, Clone)]
+pub struct CompositeFrameRequest {
+    pub timeline_seconds: f64,
+    pub fps: f64,
+    pub playing: bool,
+    pub shuttle_speed: f64,
+    pub canvas_width: u32,
+    pub canvas_height: u32,
+    pub max_width: u32,
+    pub nodes: Vec<TrackCompositeNode>,
+    pub lut: Option<Arc<Lut>>,
+    pub grade: Grade,
+    pub chroma_key: ChromaKey,
+}
+
+pub struct CompositeFrameReply {
+    pub timeline_seconds: f64,
+    pub result: Result<FrameBuffer, String>,
+}
+
+enum WorkerJob {
+    Single(FrameRequest),
+    Composite(CompositeFrameRequest),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SourceCacheKey {
+    path: PathBuf,
+    frame_tick: i64,
+    max_width: u32,
+}
+
+impl SourceCacheKey {
+    fn for_source(path: &Path, seconds: f64, source_fps: f64, max_width: u32) -> Self {
+        let frame_tick = if is_image_path(path)
+            || (is_generator_manifest_path(path) && !is_time_varying_generator_path(path))
+        {
+            // Static images and time-invariant generators decode once and reuse across timestamps.
+            0
+        } else {
+            let fps = if source_fps.is_finite() && source_fps > 0.0 {
+                source_fps
+            } else {
+                29.97
+            };
+            (seconds.max(0.0) * fps).round() as i64
+        };
+        Self {
+            path: path.to_path_buf(),
+            frame_tick,
+            max_width,
+        }
+    }
+}
+
+/// Probes still images and `.neovegseq` manifests natively in pure Rust, and container videos via
+/// FFmpeg when compiled with `--features ffmpeg`.
 pub fn probe(path: &Path) -> Result<VideoInfo, String> {
+    probe_with_defaults(path, 29.97, 5.0)
+}
+
+/// Probes media using the caller's project `fps` and `still_seconds` default duration for static
+/// images.
+pub fn probe_with_defaults(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInfo, String> {
+    if is_image_path(path) {
+        return probe_image(path, fps, still_seconds);
+    }
+    if is_sequence_manifest_path(path) {
+        return probe_sequence_manifest(path);
+    }
+    if is_generator_manifest_path(path) {
+        return probe_generator_manifest(path);
+    }
     #[cfg(feature = "ffmpeg")]
     {
         crate::decode::probe(path)
@@ -49,94 +170,637 @@ pub fn probe(path: &Path) -> Result<VideoInfo, String> {
 const DISABLED: &str =
     "decodificação de vídeo desabilitada: compile com `--features ffmpeg` (veja o README)";
 
-/// Handle to the decoding thread.
+/// Handle to the background video decoding and compositing worker thread.
 pub struct FrameWorker {
-    tx: Sender<FrameRequest>,
+    tx: Sender<WorkerJob>,
     pub rx: Receiver<FrameReply>,
+    pub composite_rx: Receiver<CompositeFrameReply>,
 }
 
 impl FrameWorker {
-    /// Starts the thread. `on_reply` runs after every reply (use it to request a repaint).
+    /// Starts the worker thread. Always succeeds so still images and image sequences work even in
+    /// builds without `--features ffmpeg`.
     pub fn spawn(on_reply: impl Fn() + Send + 'static) -> Result<Self, String> {
-        #[cfg(not(feature = "ffmpeg"))]
-        {
-            let _ = on_reply;
-            Err(DISABLED.into())
-        }
-        #[cfg(feature = "ffmpeg")]
-        {
-            use std::sync::mpsc::channel;
-            let (tx, requests) = channel::<FrameRequest>();
-            let (replies, rx) = channel::<FrameReply>();
-            std::thread::Builder::new()
-                .name("neoveg-video-decode".into())
-                .spawn(move || run(requests, replies, on_reply))
-                .map_err(|e| format!("cannot start video thread: {e}"))?;
-            Ok(Self { tx, rx })
-        }
+        let (tx, jobs) = channel::<WorkerJob>();
+        let (single_tx, rx) = channel::<FrameReply>();
+        let (composite_tx, composite_rx) = channel::<CompositeFrameReply>();
+        std::thread::Builder::new()
+            .name("neoveg-video-decode".into())
+            .spawn(move || run(jobs, single_tx, composite_tx, on_reply))
+            .map_err(|e| format!("cannot start video thread: {e}"))?;
+        Ok(Self {
+            tx,
+            rx,
+            composite_rx,
+        })
     }
 
     pub fn request(&self, request: FrameRequest) {
-        let _ = self.tx.send(request);
+        let _ = self.tx.send(WorkerJob::Single(request));
+    }
+
+    pub fn request_composite(&self, request: CompositeFrameRequest) {
+        let _ = self.tx.send(WorkerJob::Composite(request));
     }
 }
 
-#[cfg(feature = "ffmpeg")]
-fn run(requests: Receiver<FrameRequest>, replies: Sender<FrameReply>, on_reply: impl Fn()) {
-    use crate::decode::VideoDecoder;
-    use std::collections::HashMap;
+/// Synchronous composite renderer intended for background *Make Movie* export threads. Reuses
+/// decoded-frame LRU caching, GPU/CPU compositing, chroma key, primary grading, and 3D LUTs.
+pub struct OfflineFrameRenderer {
+    state: WorkerState,
+}
 
-    const MAX_OPEN_DECODERS: usize = 4;
-    let mut decoders: HashMap<PathBuf, VideoDecoder> = HashMap::new();
+impl Default for OfflineFrameRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    while let Ok(mut request) = requests.recv() {
-        // Scrubbing floods the queue: only the newest request is worth decoding
-        while let Ok(newer) = requests.try_recv() {
-            request = newer;
+impl OfflineFrameRenderer {
+    pub fn new() -> Self {
+        Self {
+            state: WorkerState::new(),
+        }
+    }
+
+    pub fn render_frame(&mut self, request: &CompositeFrameRequest) -> Result<FrameBuffer, String> {
+        handle_composite(&mut self.state, request)
+    }
+}
+
+struct WorkerState {
+    /// Decoded raw frames per source file (`96 MiB` budget).
+    source_cache: LruFrameCache<SourceCacheKey>,
+    /// Final composited + graded output frames (`48 MiB` budget).
+    composite_cache: LruFrameCache<u64>,
+    gpu_compositor: Option<GpuCompositor>,
+    gpu_probed: bool,
+    #[cfg(feature = "ffmpeg")]
+    decoders: std::collections::HashMap<PathBuf, crate::decode::VideoDecoder>,
+}
+
+impl WorkerState {
+    fn new() -> Self {
+        Self {
+            source_cache: LruFrameCache::new(96 * 1024 * 1024),
+            composite_cache: LruFrameCache::new(48 * 1024 * 1024),
+            gpu_compositor: None,
+            gpu_probed: false,
+            #[cfg(feature = "ffmpeg")]
+            decoders: std::collections::HashMap::new(),
+        }
+    }
+
+    fn ensure_gpu(&mut self) -> Option<&GpuCompositor> {
+        if !self.gpu_probed {
+            self.gpu_probed = true;
+            self.gpu_compositor = GpuCompositor::try_headless();
+        }
+        self.gpu_compositor.as_ref()
+    }
+
+    fn decode_raw_cached(
+        &mut self,
+        path: &Path,
+        seconds: f64,
+        source_fps: f64,
+        max_width: u32,
+    ) -> Result<Arc<FrameBuffer>, String> {
+        let key = SourceCacheKey::for_source(path, seconds, source_fps, max_width);
+        if let Some(hit) = self.source_cache.get(&key) {
+            return Ok(hit);
         }
 
-        let result = (|| {
-            if !decoders.contains_key(&request.path) {
-                if decoders.len() >= MAX_OPEN_DECODERS {
-                    decoders.clear();
+        let decoded = if is_image_path(path) {
+            decode_image(path, max_width)
+        } else if is_sequence_manifest_path(path) {
+            decode_sequence_at(path, seconds, max_width)
+        } else if is_generator_manifest_path(path) {
+            decode_generator_at(path, seconds, max_width)
+        } else {
+            self.decode_video_container(path, seconds, max_width)
+        }?;
+
+        let arc = Arc::new(decoded);
+        self.source_cache.insert(key, Arc::clone(&arc));
+        Ok(arc)
+    }
+
+    fn decode_video_container(
+        &mut self,
+        path: &Path,
+        seconds: f64,
+        max_width: u32,
+    ) -> Result<FrameBuffer, String> {
+        #[cfg(feature = "ffmpeg")]
+        {
+            use crate::decode::VideoDecoder;
+            const MAX_OPEN_DECODERS: usize = 6;
+            if !self.decoders.contains_key(path) {
+                if self.decoders.len() >= MAX_OPEN_DECODERS {
+                    self.decoders.clear();
                 }
-                decoders.insert(request.path.clone(), VideoDecoder::open(&request.path)?);
+                self.decoders
+                    .insert(path.to_path_buf(), VideoDecoder::open(path)?);
             }
-            let decoder = decoders
-                .get_mut(&request.path)
-                .ok_or("decoder unavailable")?;
-            let mut frame = decoder.frame_at(request.seconds, request.max_width)?;
-            crate::chroma::apply_chroma_key(&mut frame, &request.chroma_key);
-            crate::grading::apply_look(&mut frame, &request.grade, request.lut.as_deref());
-            Ok::<_, String>(frame)
-        })();
-        if let Err(e) = &result {
-            tracing::warn!(
-                "[WARN] video decode failed for {}: {e}",
-                request.path.display()
-            );
-            decoders.remove(&request.path);
+            let res = self
+                .decoders
+                .get_mut(path)
+                .ok_or_else(|| "decoder unavailable".to_string())
+                .and_then(|d| d.frame_at(seconds, max_width));
+            if res.is_err() {
+                self.decoders.remove(path);
+            }
+            res
         }
-
-        let reply = FrameReply {
-            media_id: request.media_id,
-            seconds: request.seconds,
-            result,
-        };
-        if replies.send(reply).is_err() {
-            break;
+        #[cfg(not(feature = "ffmpeg"))]
+        {
+            let _ = (path, seconds, max_width);
+            Err(DISABLED.into())
         }
-        on_reply();
     }
 }
 
-#[cfg(all(test, not(feature = "ffmpeg")))]
+fn run(
+    jobs: Receiver<WorkerJob>,
+    single_tx: Sender<FrameReply>,
+    composite_tx: Sender<CompositeFrameReply>,
+    on_reply: impl Fn(),
+) {
+    let mut state = WorkerState::new();
+    let mut pending_next: Option<WorkerJob> = None;
+
+    loop {
+        let first = match pending_next.take() {
+            Some(job) => job,
+            None => match jobs.recv() {
+                Ok(job) => job,
+                Err(_) => break,
+            },
+        };
+
+        let mut latest_single: Option<FrameRequest> = None;
+        let mut latest_composite: Option<CompositeFrameRequest> = None;
+        match first {
+            WorkerJob::Single(r) => latest_single = Some(r),
+            WorkerJob::Composite(r) => latest_composite = Some(r),
+        }
+        // Scrubbing floods the queue: keep only the newest pending job of each kind.
+        while let Ok(newer) = jobs.try_recv() {
+            match newer {
+                WorkerJob::Single(r) => latest_single = Some(r),
+                WorkerJob::Composite(r) => latest_composite = Some(r),
+            }
+        }
+
+        if let Some(req) = latest_single {
+            let result = handle_single(&mut state, &req);
+            if let Err(e) = &result {
+                tracing::warn!("[WARN] video decode failed for {}: {e}", req.path.display());
+            }
+            let reply = FrameReply {
+                media_id: req.media_id,
+                seconds: req.seconds,
+                result,
+            };
+            if single_tx.send(reply).is_err() {
+                break;
+            }
+            on_reply();
+        }
+
+        if let Some(req) = latest_composite {
+            let result = handle_composite(&mut state, &req);
+            if let Err(e) = &result {
+                tracing::warn!("[WARN] composite video decode failed: {e}");
+            }
+            let reply = CompositeFrameReply {
+                timeline_seconds: req.timeline_seconds,
+                result,
+            };
+            if composite_tx.send(reply).is_err() {
+                break;
+            }
+            on_reply();
+
+            // Playback lookahead prefetch: while idle during active playback, decode the next 1..=2
+            // frames along the shuttle direction into `source_cache` without blocking new UI scrubs.
+            if req.playing && req.shuttle_speed.abs() > 1e-3 {
+                pending_next = prefetch_lookahead(&mut state, &req, &jobs);
+            }
+        }
+    }
+}
+
+fn handle_single(state: &mut WorkerState, req: &FrameRequest) -> Result<FrameBuffer, String> {
+    let raw = state.decode_raw_cached(&req.path, req.seconds, 29.97, req.max_width)?;
+    let mut frame = (*raw).clone();
+    crate::chroma::apply_chroma_key(&mut frame, &req.chroma_key);
+    crate::grading::apply_look(&mut frame, &req.grade, req.lut.as_deref());
+    Ok(frame)
+}
+
+fn hash_f32(h: &mut impl Hasher, v: f32) {
+    v.to_bits().hash(h);
+}
+
+fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
+    match node {
+        TrackCompositeNode::Track { clips, mode, level } => {
+            0u8.hash(h);
+            mode.code().hash(h);
+            hash_f32(h, *level);
+            clips.len().hash(h);
+            for clip in clips {
+                let sk = SourceCacheKey::for_source(
+                    &clip.path,
+                    clip.seconds,
+                    clip.source_fps,
+                    max_width,
+                );
+                sk.hash(h);
+                hash_f32(h, clip.event_opacity);
+                clip.apply_chroma.hash(h);
+            }
+        }
+        TrackCompositeNode::Group {
+            children,
+            parent_clips,
+            parent_mode,
+            group_mode,
+            group_level,
+        } => {
+            1u8.hash(h);
+            parent_mode.code().hash(h);
+            group_mode.code().hash(h);
+            hash_f32(h, *group_level);
+            children.len().hash(h);
+            for c in children {
+                hash_node(h, c, max_width);
+            }
+            parent_clips.len().hash(h);
+            for clip in parent_clips {
+                let sk = SourceCacheKey::for_source(
+                    &clip.path,
+                    clip.seconds,
+                    clip.source_fps,
+                    max_width,
+                );
+                sk.hash(h);
+                hash_f32(h, clip.event_opacity);
+                clip.apply_chroma.hash(h);
+            }
+        }
+    }
+}
+
+fn composite_request_signature(req: &CompositeFrameRequest, out_w: u32, out_h: u32) -> u64 {
+    let mut h = DefaultHasher::new();
+    out_w.hash(&mut h);
+    out_h.hash(&mut h);
+    req.max_width.hash(&mut h);
+    req.nodes.len().hash(&mut h);
+    for n in &req.nodes {
+        hash_node(&mut h, n, req.max_width);
+    }
+    hash_f32(&mut h, req.grade.exposure);
+    hash_f32(&mut h, req.grade.temperature);
+    hash_f32(&mut h, req.grade.tint);
+    hash_f32(&mut h, req.grade.lift);
+    hash_f32(&mut h, req.grade.contrast);
+    hash_f32(&mut h, req.grade.gamma);
+    hash_f32(&mut h, req.grade.saturation);
+    req.chroma_key.enabled.hash(&mut h);
+    if req.chroma_key.enabled {
+        for c in req.chroma_key.key_color {
+            hash_f32(&mut h, c);
+        }
+        hash_f32(&mut h, req.chroma_key.similarity);
+        hash_f32(&mut h, req.chroma_key.smoothness);
+        hash_f32(&mut h, req.chroma_key.spill);
+        req.chroma_key.show_matte.hash(&mut h);
+    }
+    if let Some(lut) = &req.lut {
+        (Arc::as_ptr(lut) as usize).hash(&mut h);
+    } else {
+        0usize.hash(&mut h);
+    }
+    h.finish()
+}
+
+fn decode_clip_stack(
+    state: &mut WorkerState,
+    clips: &[VideoClipRequest],
+    canvas_w: u32,
+    canvas_h: u32,
+    max_width: u32,
+    chroma: &ChromaKey,
+) -> Result<Option<Arc<FrameBuffer>>, String> {
+    if clips.is_empty() {
+        return Ok(None);
+    }
+    if clips.len() == 1 && (clips[0].event_opacity - 1.0).abs() < 1e-4 {
+        let clip = &clips[0];
+        let raw = state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?;
+        if clip.apply_chroma && !chroma.is_disabled() {
+            let mut keyed = (*raw).clone();
+            crate::chroma::apply_chroma_key(&mut keyed, chroma);
+            return Ok(Some(Arc::new(keyed)));
+        }
+        return Ok(Some(raw));
+    }
+
+    // Multiple overlapping clips on the same track (crossfade) or partial event fade-in/out:
+    // composite onto a transparent track buffer so lower tracks remain visible outside/under fades.
+    let mut layers = Vec::with_capacity(clips.len());
+    for clip in clips {
+        if clip.event_opacity <= 0.0 {
+            continue;
+        }
+        let raw = state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?;
+        let frame = if clip.apply_chroma && !chroma.is_disabled() {
+            let mut keyed = (*raw).clone();
+            crate::chroma::apply_chroma_key(&mut keyed, chroma);
+            Arc::new(keyed)
+        } else {
+            raw
+        };
+        layers.push(CompositeNode::Layer(DecodedLayer {
+            frame,
+            mode: CompositeMode::SourceAlpha,
+            opacity: clip.event_opacity.clamp(0.0, 1.0),
+        }));
+    }
+    if layers.is_empty() {
+        return Ok(None);
+    }
+    let merged = composite_nodes_cpu(canvas_w, canvas_h, [0, 0, 0, 0], &layers);
+    Ok(Some(Arc::new(merged)))
+}
+
+fn build_decoded_tree(
+    state: &mut WorkerState,
+    nodes: &[TrackCompositeNode],
+    canvas_w: u32,
+    canvas_h: u32,
+    max_width: u32,
+    chroma: &ChromaKey,
+) -> Result<Vec<CompositeNode>, String> {
+    let mut out = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        match node {
+            TrackCompositeNode::Track { clips, mode, level } => {
+                if *level <= 0.0 {
+                    continue;
+                }
+                if let Some(frame) =
+                    decode_clip_stack(state, clips, canvas_w, canvas_h, max_width, chroma)?
+                {
+                    out.push(CompositeNode::Layer(DecodedLayer {
+                        frame,
+                        mode: *mode,
+                        opacity: level.clamp(0.0, 1.0),
+                    }));
+                }
+            }
+            TrackCompositeNode::Group {
+                children,
+                parent_clips,
+                parent_mode,
+                group_mode,
+                group_level,
+            } => {
+                if *group_level <= 0.0 {
+                    continue;
+                }
+                let decoded_children =
+                    build_decoded_tree(state, children, canvas_w, canvas_h, max_width, chroma)?;
+                let parent_layer =
+                    decode_clip_stack(state, parent_clips, canvas_w, canvas_h, max_width, chroma)?
+                        .map(|frame| DecodedLayer {
+                            frame,
+                            mode: *parent_mode,
+                            opacity: 1.0,
+                        });
+                if decoded_children.is_empty() && parent_layer.is_none() {
+                    continue;
+                }
+                out.push(CompositeNode::Group {
+                    children: decoded_children,
+                    parent_layer,
+                    group_mode: *group_mode,
+                    group_opacity: group_level.clamp(0.0, 1.0),
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn uses_non_trivial_blend(nodes: &[CompositeNode]) -> bool {
+    nodes.len() > 1
+        || nodes.iter().any(|n| match n {
+            CompositeNode::Layer(l) => l.mode != CompositeMode::SourceAlpha || l.opacity < 0.999,
+            CompositeNode::Group { .. } => true,
+        })
+}
+
+fn handle_composite(
+    state: &mut WorkerState,
+    req: &CompositeFrameRequest,
+) -> Result<FrameBuffer, String> {
+    let (out_w, out_h) = fit_size(
+        req.canvas_width.max(2),
+        req.canvas_height.max(2),
+        req.max_width,
+    );
+    let sig = composite_request_signature(req, out_w, out_h);
+    if let Some(cached) = state.composite_cache.get(&sig) {
+        return Ok((*cached).clone());
+    }
+
+    let decoded_tree = build_decoded_tree(
+        state,
+        &req.nodes,
+        out_w,
+        out_h,
+        req.max_width,
+        &req.chroma_key,
+    )?;
+
+    let mut composited = if decoded_tree.is_empty() {
+        FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])
+    } else if uses_non_trivial_blend(&decoded_tree) && (out_w * out_h) >= 64 * 64 {
+        if let Some(gpu) = state.ensure_gpu() {
+            gpu.composite_nodes_gpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
+                .unwrap_or_else(|_| {
+                    composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
+                })
+        } else {
+            composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
+        }
+    } else {
+        composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
+    };
+
+    crate::grading::apply_look(&mut composited, &req.grade, req.lut.as_deref());
+    state
+        .composite_cache
+        .insert(sig, Arc::new(composited.clone()));
+    Ok(composited)
+}
+
+fn collect_prefetch_clips<'a>(node: &'a TrackCompositeNode, out: &mut Vec<&'a VideoClipRequest>) {
+    match node {
+        TrackCompositeNode::Track { clips, .. } => out.extend(clips.iter()),
+        TrackCompositeNode::Group {
+            children,
+            parent_clips,
+            ..
+        } => {
+            for c in children {
+                collect_prefetch_clips(c, out);
+            }
+            out.extend(parent_clips.iter());
+        }
+    }
+}
+
+fn prefetch_lookahead(
+    state: &mut WorkerState,
+    req: &CompositeFrameRequest,
+    jobs: &Receiver<WorkerJob>,
+) -> Option<WorkerJob> {
+    let fps = if req.fps.is_finite() && req.fps > 0.0 {
+        req.fps
+    } else {
+        29.97
+    };
+    let mut clips = Vec::new();
+    for node in &req.nodes {
+        collect_prefetch_clips(node, &mut clips);
+    }
+
+    for step in 1..=2 {
+        let dt_timeline = (step as f64 / fps) * req.shuttle_speed;
+        for clip in &clips {
+            if let Ok(arrived) = jobs.try_recv() {
+                return Some(arrived);
+            }
+            if is_image_path(&clip.path) {
+                continue;
+            }
+            let next_seconds = (clip.seconds + dt_timeline * clip.playback_rate).max(0.0);
+            let key = SourceCacheKey::for_source(
+                &clip.path,
+                next_seconds,
+                clip.source_fps,
+                req.max_width,
+            );
+            if !state.source_cache.contains(&key) {
+                let _ = state.decode_raw_cached(
+                    &clip.path,
+                    next_seconds,
+                    clip.source_fps,
+                    req.max_width,
+                );
+            }
+        }
+    }
+    None
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::still::detect_image_sequence;
+    use image::{ImageBuffer, Rgba};
+    use std::time::Duration;
+
+    fn write_png(path: &Path, w: u32, h: u32, color: [u8; 4]) {
+        ImageBuffer::from_pixel(w, h, Rgba(color))
+            .save(path)
+            .unwrap();
+    }
 
     #[test]
-    fn without_ffmpeg_the_worker_explains_itself() {
-        assert!(FrameWorker::spawn(|| {}).is_err());
+    fn worker_always_spawns_and_decodes_stills_sequences_and_prefetches_ahead() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_seq_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let colors = [
+            [250, 10, 10, 255],
+            [10, 250, 10, 255],
+            [10, 10, 250, 255],
+            [240, 240, 10, 255],
+        ];
+        for (i, c) in colors.iter().enumerate() {
+            write_png(&dir.join(format!("anim_{:04}.png", i + 1)), 48, 36, *c);
+        }
+        let seq = detect_image_sequence(&dir.join("anim_0001.png"), 25.0)
+            .unwrap()
+            .unwrap();
+        let manifest = dir.join("anim.neovegseq");
+        seq.save_manifest(&manifest).unwrap();
+
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        let make_req = |t: f64, playing: bool| CompositeFrameRequest {
+            timeline_seconds: t,
+            fps: 25.0,
+            playing,
+            shuttle_speed: 1.0,
+            canvas_width: 48,
+            canvas_height: 36,
+            max_width: 0,
+            nodes: vec![TrackCompositeNode::Track {
+                clips: vec![VideoClipRequest {
+                    media_id: 1,
+                    path: manifest.clone(),
+                    seconds: t,
+                    source_fps: 25.0,
+                    playback_rate: 1.0,
+                    event_opacity: 1.0,
+                    apply_chroma: false,
+                }],
+                mode: CompositeMode::SourceAlpha,
+                level: 1.0,
+            }],
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+        };
+
+        // Request frame 0 while playing = true -> triggers lookahead prefetch of frames 1 and 2.
+        worker.request_composite(make_req(0.0, true));
+        let r0 = worker
+            .composite_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(r0.result.unwrap().pixel(4, 4), colors[0]);
+
+        // Give the background thread a brief moment to complete its 2-frame lookahead prefetch,
+        // then remove frame 2 from disk to prove subsequent playback hits `source_cache`!
+        std::thread::sleep(Duration::from_millis(120));
+        std::fs::remove_file(dir.join("anim_0002.png")).unwrap();
+
+        worker.request_composite(make_req(0.04, false));
+        let r1 = worker
+            .composite_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(
+            r1.result.unwrap().pixel(4, 4),
+            colors[1],
+            "frame 1 must be served from the prefetched worker cache even after disk deletion"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(feature = "ffmpeg"))]
+    #[test]
+    fn video_container_without_ffmpeg_reports_clear_portuguese_message() {
         assert!(probe(Path::new("x.mp4")).unwrap_err().contains("ffmpeg"));
     }
 }

@@ -14,6 +14,11 @@ ffmpeg = ["dep:ffmpeg-next"]
 [dependencies]
 neoveg_common.workspace = true
 tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "webp", "tiff", "tga", "ico", "pnm"] }
 wgpu = "22"
 # Shared dynamic linking only (`static`, `build`, `build-license-gpl`, `build-license-nonfree` disabled)
 ffmpeg-next = { version = "7", default-features = false, features = ["codec", "format", "software-scaling", "software-resampling"], optional = true }
