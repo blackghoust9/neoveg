@@ -78,6 +78,7 @@ use crate::precision_slider::PrecisionSlider;
 use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
+use crate::timeline_scroll;
 use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
@@ -109,6 +110,16 @@ const QUALITIES: [(&str, f32); 5] = [
     ("Best", 1.0),
     ("Auto", 0.0),
 ];
+
+/// How the preview picture is sampled when it is stretched to the pane. A reduced quality (Draft,
+/// Preview) shows its lower resolution as visible pixels instead of smearing it into a blur; the full
+/// size and the fit-to-pane levels stay smooth.
+fn preview_texture_options(quality: usize) -> egui::TextureOptions {
+    match QUALITIES.get(quality) {
+        Some(&(_, factor)) if factor > 0.0 && factor < 1.0 => egui::TextureOptions::NEAREST,
+        _ => egui::TextureOptions::LINEAR,
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Tab {
@@ -330,6 +341,8 @@ struct AppState {
     blink_origin: f64,
     pixels_per_second: f64,
     scroll_seconds: f64,
+    /// Vertical scroll of the track rows, in points (0 = the first track touches the ruler).
+    scroll_y: f32,
     selected_track: Option<TrackId>,
     selection: Selection,
     /// Range chosen by dragging on empty lane space or with `I` / `O`.
@@ -1206,6 +1219,7 @@ impl AppState {
             blink_origin: 0.0,
             pixels_per_second: 100.0,
             scroll_seconds: 0.0,
+            scroll_y: 0.0,
             selected_track: None,
             selection: Selection::new(),
             time_selection: None,
@@ -2257,6 +2271,7 @@ impl AppState {
         self.time_selection = None;
         self.playhead = 0.0;
         self.scroll_seconds = 0.0;
+        self.scroll_y = 0.0;
 
         // Missing media: relink by exact then fuzzy name in the project folder and the old folders
         let missing = project_file::find_missing(&self.project);
@@ -3652,14 +3667,12 @@ impl AppState {
                     [frame.width as usize, frame.height as usize],
                     &frame.rgba,
                 );
+                let options = preview_texture_options(self.quality);
                 match &mut self.video_texture {
-                    Some(texture) => texture.set(image, egui::TextureOptions::LINEAR),
+                    Some(texture) => texture.set(image, options),
                     None => {
-                        self.video_texture = Some(ctx.load_texture(
-                            "preview_frame",
-                            image,
-                            egui::TextureOptions::LINEAR,
-                        ));
+                        self.video_texture =
+                            Some(ctx.load_texture("preview_frame", image, options));
                     }
                 }
             }
@@ -6578,7 +6591,7 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
                 }
             })
             .response
-            .on_hover_text("Qualidade da prévia (Draft 1/4, Preview 1/2, Good/Best total, Auto ajusta à janela)");
+            .on_hover_text("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela");
         ui.checkbox(&mut state.show_bars, "Barras SMPTE");
     });
 
@@ -7416,9 +7429,113 @@ fn event_context_menu(
 }
 
 fn timeline_ui(state: &mut AppState, ui: &mut egui::Ui) {
-    let canvas_h = (ui.available_height() - 30.0).max(100.0);
+    let canvas_h = (ui.available_height() - 30.0 - timeline_scroll::BAR).max(100.0);
     timeline_canvas(state, ui, canvas_h);
+    timeline_hscrollbar(state, ui);
     toolbar_ui(state, ui);
+}
+
+/// The horizontal scrollbar under the lanes: it spans the project (plus room to work) and drives the
+/// same time offset as the mouse wheel.
+fn timeline_hscrollbar(state: &mut AppState, ui: &mut egui::Ui) {
+    let (bar, _) = ui.allocate_exact_size(
+        vec2(ui.available_width(), timeline_scroll::BAR),
+        Sense::hover(),
+    );
+    ui.painter()
+        .rect_filled(bar, Rounding::ZERO, ui_theme::palette().header);
+    let track = Rect::from_min_max(
+        pos2(bar.left() + HEADER_WIDTH, bar.top()),
+        pos2(bar.right() - timeline_scroll::BAR, bar.bottom()),
+    );
+    let view = f64::from(state.lanes_width.max(1.0)) / state.pixels_per_second;
+    let content = timeline_scroll::content_seconds(
+        state.timeline.duration(),
+        state.playhead,
+        view,
+        state.scroll_seconds,
+    );
+    if let Some(offset) = scrollbar(
+        ui,
+        "timeline_hscroll",
+        track,
+        true,
+        content,
+        view,
+        state.scroll_seconds,
+    ) {
+        state.scroll_seconds = offset.max(0.0);
+    }
+}
+
+/// Draws a scrollbar in `rect` and returns the offset the user asks for by dragging the thumb or
+/// clicking the track (the thumb then centres on the click). `None` while it is left alone.
+fn scrollbar(
+    ui: &mut egui::Ui,
+    name: &str,
+    rect: Rect,
+    horizontal: bool,
+    content: f64,
+    view: f64,
+    offset: f64,
+) -> Option<f64> {
+    let id = ui.id().with(name);
+    let response = ui.interact(rect, id, Sense::click_and_drag());
+    let track_len = if horizontal {
+        rect.width()
+    } else {
+        rect.height()
+    };
+    let (start, len) = timeline_scroll::thumb(track_len, content, view, offset);
+    let mut asked = None;
+    if let Some(p) = response.interact_pointer_pos() {
+        let pos = if horizontal {
+            p.x - rect.left()
+        } else {
+            p.y - rect.top()
+        };
+        if response.drag_started() || response.clicked() {
+            // Grab the thumb where it was pressed, or centre it on a press in the empty track
+            let grab = if pos >= start && pos <= start + len {
+                pos - start
+            } else {
+                len / 2.0
+            };
+            ui.data_mut(|d| d.insert_temp(id, grab));
+        }
+        let grab = ui.data(|d| d.get_temp::<f32>(id)).unwrap_or(len / 2.0);
+        if response.dragged() || response.clicked() {
+            asked = Some(timeline_scroll::offset_for_thumb_start(
+                track_len,
+                content,
+                view,
+                len,
+                pos - grab,
+            ));
+        }
+    }
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, Rounding::ZERO, Color32::from_gray(24));
+    let thumb_rect = if horizontal {
+        Rect::from_min_max(
+            pos2(rect.left() + start + 1.0, rect.top() + 2.0),
+            pos2(rect.left() + start + len - 1.0, rect.bottom() - 2.0),
+        )
+    } else {
+        Rect::from_min_max(
+            pos2(rect.left() + 2.0, rect.top() + start + 1.0),
+            pos2(rect.right() - 2.0, rect.top() + start + len - 1.0),
+        )
+    };
+    let shade = if response.dragged() {
+        150
+    } else if response.hovered() {
+        120
+    } else {
+        90
+    };
+    painter.rect_filled(thumb_rect, Rounding::same(2.0), Color32::from_gray(shade));
+    asked
 }
 
 fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -7553,7 +7670,11 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
-    let size = vec2(ui.available_width(), canvas_h);
+    // The vertical scrollbar takes its own column at the right edge
+    let size = vec2(
+        (ui.available_width() - timeline_scroll::BAR).max(100.0),
+        canvas_h,
+    );
     let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
     let ppp = ui.ctx().pixels_per_point();
     let now = ui.input(|i| i.time);
@@ -7568,7 +7689,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let scroll = ui.input(|i| i.smooth_scroll_delta);
         if let Some(p) = response.hover_pos() {
             let anchor = x_to_time(state, lanes.left(), p.x);
-            if (zoom - 1.0).abs() > 1e-6 {
+            if p.x < lanes.left() {
+                // Over the track headers the wheel scrolls the rows
+                if scroll != egui::Vec2::ZERO {
+                    state.scroll_y = (state.scroll_y - scroll.y).max(0.0);
+                }
+            } else if (zoom - 1.0).abs() > 1e-6 {
                 state.pixels_per_second = (state.pixels_per_second * zoom)
                     .clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND);
                 state.scroll_seconds =
@@ -7583,6 +7709,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // ---- markers and regions: grab in the strip at the bottom of the ruler ----------------------
     let ruler_bottom = rect.top() + RULER_HEIGHT;
+    // The rows scroll under the ruler: every row position hangs from `lane_top`
+    let max_scroll_y = timeline_scroll::max_scroll_y(
+        state.timeline.tracks.len(),
+        TRACK_HEIGHT,
+        (rect.bottom() - ruler_bottom).max(1.0),
+    );
+    state.scroll_y = state.scroll_y.clamp(0.0, max_scroll_y);
+    let lane_top = ruler_bottom - state.scroll_y;
     let in_mark_strip = |p: Pos2| {
         p.x >= lanes.left() && p.y >= ruler_bottom - MARK_STRIP_HEIGHT && p.y < ruler_bottom
     };
@@ -7598,7 +7732,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let on_event = response
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
-            .and_then(|p| hit_event(state, lanes.left(), ruler_bottom, p));
+            .and_then(|p| hit_event(state, lanes.left(), lane_top, p));
         if let Some((track_id, event_id, _, _)) = on_event {
             if let Some(path) = state.subproject_path_of(track_id, event_id) {
                 state.tabs.open_request = Some(path);
@@ -7625,7 +7759,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 envelope_canvas::hit_test(
                     &state.timeline.tracks,
                     lanes.left(),
-                    ruler_bottom,
+                    lane_top,
                     TRACK_HEIGHT,
                     state.scroll_seconds,
                     state.pixels_per_second,
@@ -7672,8 +7806,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if response.clicked() || response.dragged() {
         if let Some(p) = response.interact_pointer_pos() {
             let in_ruler = p.y < rect.top() + RULER_HEIGHT;
-            let row = ((p.y - rect.top() - RULER_HEIGHT) / TRACK_HEIGHT).floor();
-            let track_id = (row >= 0.0)
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let track_id = (row >= 0.0 && !in_ruler)
                 .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
                 .flatten();
             if p.x >= lanes.left() {
@@ -7707,7 +7841,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 state.selected_track = track_id;
                 let row_idx = row as usize;
                 if let Some(track) = state.timeline.tracks.get(row_idx).cloned() {
-                    let y = rect.top() + RULER_HEIGHT + row_idx as f32 * TRACK_HEIGHT;
+                    let y = lane_top + row_idx as f32 * TRACK_HEIGHT;
                     let row_rect = Rect::from_min_max(
                         pos2(rect.left(), y),
                         pos2(lanes.left(), y + TRACK_HEIGHT),
@@ -7729,10 +7863,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     }
 
     // ---- dragging events: move, trim left/right, change track ------------------------------------
-    let lane_top = rect.top() + RULER_HEIGHT;
     if response.drag_started() {
         let press = ui.input(|i| i.pointer.press_origin());
-        if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= lane_top) {
+        if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom) {
             let t = x_to_time(state, lanes.left(), p.x);
             let env_node = envelope_canvas::hit_test(
                 &state.timeline.tracks,
@@ -7888,7 +8021,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if response.secondary_clicked() {
         let pressed = response
             .interact_pointer_pos()
-            .filter(|p| p.x >= lanes.left() && p.y >= lane_top);
+            .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom);
         state.context_envelope = pressed.and_then(|p| {
             envelope_canvas::hit_test(
                 &state.timeline.tracks,
@@ -7920,7 +8053,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if response.secondary_clicked() {
         let in_ruler = response
             .interact_pointer_pos()
-            .filter(|p| p.x >= lanes.left() && p.y < lane_top);
+            .filter(|p| p.x >= lanes.left() && p.y < ruler_bottom);
         state.context_mark = in_ruler.and_then(|p| {
             let tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
             state.mark_at(x_to_time(state, lanes.left(), p.x), tolerance)
@@ -7992,7 +8125,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             MarkPart::RegionStart | MarkPart::RegionEnd => egui::CursorIcon::ResizeHorizontal,
             MarkPart::Marker | MarkPart::RegionBody => egui::CursorIcon::Grab,
         });
-    } else if let Some(p) = response.hover_pos().filter(|p| p.x >= lanes.left()) {
+    } else if let Some(p) = response
+        .hover_pos()
+        .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
+    {
         match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
             Some(
                 DragMode::TrimLeft
@@ -8026,7 +8162,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // ---- drawing ---------------------------------------------------------------------------------
     let painter = ui.painter_at(rect);
-    let lane_painter = painter.with_clip_rect(lanes);
+    // The ruler keeps the full lane width; the rows are clipped below it so they scroll under it
+    let ruler_painter = painter.with_clip_rect(lanes);
+    let lane_painter = painter.with_clip_rect(Rect::from_min_max(
+        pos2(lanes.left(), ruler_bottom),
+        lanes.max,
+    ));
     let pal = ui_theme::palette();
     painter.rect_filled(rect, Rounding::ZERO, pal.timeline_bg);
 
@@ -8060,14 +8201,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     }
     for &t in &grid.major_times {
         let x = to_x(t);
-        lane_painter.line_segment(
+        ruler_painter.line_segment(
             [
                 pos2(x, rect.top() + RULER_HEIGHT - 6.0),
                 pos2(x, rect.bottom()),
             ],
             major,
         );
-        lane_painter.text(
+        ruler_painter.text(
             pos2(x + 3.0, rect.top() + 3.0),
             Align2::LEFT_TOP,
             seconds_to_timecode(t, fps, drop_frame),
@@ -8085,7 +8226,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         );
         if bar.width() > 0.0 {
             let alpha = if state.looping { 255 } else { 110 };
-            lane_painter.rect_filled(
+            ruler_painter.rect_filled(
                 bar,
                 Rounding::ZERO,
                 Color32::from_rgba_unmultiplied(0x3A, 0xC7, 0xE0, alpha),
@@ -8105,16 +8246,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             pos2(x0.max(lanes.left() - 1.0), strip_top),
             pos2(x1.min(lanes.right() + 1.0), rect.top() + RULER_HEIGHT),
         );
-        lane_painter.rect_filled(
+        ruler_painter.rect_filled(
             band,
             Rounding::ZERO,
             Color32::from_rgba_unmultiplied(0x2E, 0xCC, 0x71, 70),
         );
         let edge = Stroke::new(hairline, Color32::from_rgb(0x2E, 0xCC, 0x71));
         for x in [x0, x1] {
-            lane_painter.line_segment([pos2(x, strip_top), pos2(x, rect.bottom())], edge);
+            ruler_painter.line_segment([pos2(x, strip_top), pos2(x, rect.bottom())], edge);
         }
-        lane_painter.text(
+        ruler_painter.text(
             pos2(x0.max(lanes.left()) + 3.0, strip_top),
             Align2::LEFT_TOP,
             &region.name,
@@ -8135,9 +8276,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             vec2(6.0, 6.0),
         );
         if note.resolved {
-            lane_painter.rect_stroke(square, Rounding::ZERO, Stroke::new(1.0_f32, color));
+            ruler_painter.rect_stroke(square, Rounding::ZERO, Stroke::new(1.0_f32, color));
         } else {
-            lane_painter.rect_filled(square, Rounding::ZERO, color);
+            ruler_painter.rect_filled(square, Rounding::ZERO, color);
         }
     }
     for marker in &state.timeline.markers {
@@ -8146,11 +8287,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             continue;
         }
         let color = Color32::from_rgb(0xF1, 0xC4, 0x0F);
-        lane_painter.line_segment(
+        ruler_painter.line_segment(
             [pos2(x, strip_top), pos2(x, rect.bottom())],
             Stroke::new(hairline, color.gamma_multiply(0.6)),
         );
-        lane_painter.add(Shape::convex_polygon(
+        ruler_painter.add(Shape::convex_polygon(
             vec![
                 pos2(x, strip_top),
                 pos2(
@@ -8162,7 +8303,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             color,
             Stroke::NONE,
         ));
-        lane_painter.text(
+        ruler_painter.text(
             pos2(x + MARK_STRIP_HEIGHT * 0.9, strip_top),
             Align2::LEFT_TOP,
             &marker.name,
@@ -8532,7 +8673,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // Track headers
     let header_painter = painter.with_clip_rect(Rect::from_min_max(
-        rect.min,
+        pos2(rect.left(), ruler_bottom),
         pos2(lanes.left(), rect.bottom()),
     ));
     header_painter.rect_filled(
@@ -8629,7 +8770,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     }
     if let Some(p) = response
         .hover_pos()
-        .filter(|p| p.x < lanes.left() && p.y >= lane_top)
+        .filter(|p| p.x < lanes.left() && p.y >= ruler_bottom)
     {
         let row_idx = ((p.y - lane_top) / TRACK_HEIGHT).floor();
         if row_idx >= 0.0 {
@@ -8651,6 +8792,27 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::proportional(11.0),
             ui.visuals().weak_text_color(),
         );
+    }
+
+    // Vertical scrollbar: its own column beside the lanes, under the ruler
+    {
+        let bar = Rect::from_min_max(
+            pos2(rect.right(), ruler_bottom),
+            pos2(rect.right() + timeline_scroll::BAR, rect.bottom()),
+        );
+        let body = f64::from((rect.bottom() - ruler_bottom).max(1.0));
+        let content = (state.timeline.tracks.len() as f64 * f64::from(TRACK_HEIGHT)).max(body);
+        if let Some(offset) = scrollbar(
+            ui,
+            "timeline_vscroll",
+            bar,
+            false,
+            content,
+            body,
+            f64::from(state.scroll_y),
+        ) {
+            state.scroll_y = (offset as f32).clamp(0.0, max_scroll_y);
+        }
     }
 
     // Snap indicator: a line through the lanes where the drag is aligned (dashed when it only rounds)
@@ -9609,6 +9771,27 @@ mod tests {
             .map(|t| t.events.len())
             .sum();
         assert_eq!(video_events, 1, "one event on a video track");
+        // The clip has a sound track: it lands on its own audio track and its samples are loaded
+        let audio_events: usize = s
+            .timeline
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Audio)
+            .map(|t| t.events.len())
+            .sum();
+        println!(
+            "audio events: {audio_events}, loaded audio: {}, status: {}",
+            s.media.len(),
+            s.status
+        );
+        assert_eq!(
+            audio_events, 1,
+            "the sound of the video is on an audio track"
+        );
+        assert!(
+            s.media.values().all(|m| m.duration > 0.5),
+            "the audio of the clip was decoded"
+        );
 
         // Park the cursor inside the clip, ask for the picture and wait for the decoder thread
         s.playhead = 0.5;
@@ -9638,6 +9821,31 @@ mod tests {
         );
         assert!(s.frame_scopes.is_some(), "the scopes read the same picture");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reduced_preview_qualities_show_their_pixels_and_the_others_stay_smooth() {
+        let named = |name: &str| QUALITIES.iter().position(|(n, _)| *n == name).unwrap();
+        assert_eq!(
+            preview_texture_options(named("Draft")),
+            egui::TextureOptions::NEAREST
+        );
+        assert_eq!(
+            preview_texture_options(named("Preview")),
+            egui::TextureOptions::NEAREST
+        );
+        for smooth in ["Good", "Best", "Auto"] {
+            assert_eq!(
+                preview_texture_options(named(smooth)),
+                egui::TextureOptions::LINEAR,
+                "{smooth}"
+            );
+        }
+        assert_eq!(
+            preview_texture_options(99),
+            egui::TextureOptions::LINEAR,
+            "unknown level"
+        );
     }
 
     #[test]

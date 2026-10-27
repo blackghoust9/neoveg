@@ -22,6 +22,7 @@ mod shortcuts;
 mod slideshow_window;
 mod splash;
 mod theme;
+mod timeline_scroll;
 mod waveform_paint;
 mod welcome;
 
