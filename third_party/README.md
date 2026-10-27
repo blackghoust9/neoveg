@@ -8,12 +8,8 @@ Este diretório centraliza os cabeçalhos C/C++, submódulos, conectores de rend
 
 | Módulo / Projeto | Repositório Oficial (GitHub) | Licença (SPDX) | Caminho Local | Camada de Integração no Neoveg |
 | :--- | :--- | :--- | :--- | :--- |
-| **OpenFX Core (`ofxCore`)** | [`AcademySoftwareFoundation/openfx`](https://github.com/AcademySoftwareFoundation/openfx) | `BSD-3-Clause` / `Apache-2.0` | `third_party/openfx/include/` | `neoveg_cpp_engine` (`ofxCore.h`, `ofxImageEffect.h`) ↔ `CppCoreInterop.cs` & `neoveg_core` |
-| **VST3 SDK** | [`steinbergmedia/vst3sdk`](https://github.com/steinbergmedia/vst3sdk) | `GPL-3.0-or-later` | `third_party/vst3sdk/pluginterfaces/` | `neoveg_cpp_engine` (`ivstaudioprocessor.h`) ↔ DSP de Áudio 32-bit Float (`CppCoreInterop.cs`) |
 | **Whisper.cpp** | [`ggerganov/whisper.cpp`](https://github.com/ggerganov/whisper.cpp) | `MIT` | `third_party/whisper.cpp/` & `cpp-extensions/whisper.cpp/` | `neoveg_cpp_engine` + `SubtitleGeneratorService.cs` (Geração Automática de Eventos de Texto na Timeline) |
-| **Voukoder Connector** | [`Vouk/voukoder`](https://github.com/Vouk/voukoder) | `GPL-2.0-only` / `LGPL-2.1-or-later` | `third_party/voukoder/include/` | `neoveg_cpp_engine` (`voukoder_bridge.h`) + Perfis NVENC/AMF/QSV/ProRes/FFV1 |
 | **CorridorKey** | [`CorridorDigital/CorridorKey`](https://github.com/CorridorDigital/CorridorKey) | `MIT` / `Apache-2.0` | `third_party/corridorkey/` | `python-backend/corridor_key_green_screen.py` + `CorridorKey Lab` no Avalonia UI |
-| **Frei0r Video FX** | [`dyne/frei0r`](https://github.com/dyne/frei0r) | `GPL-2.0-or-later` | `third_party/frei0r/` | `python-backend/frei0r_openfx_bridge.py` + `Video FX Chain` |
 | **LADSPA Audio DSP** | [`ladspa/ladspa`](https://www.ladspa.org/) | `LGPL-2.1-or-later` | `third_party/ladspa/` | `python-backend/ladspa_audio_dsp.py` + `Audio Event FX` |
 | **Audacity Waveform & DSP** | [`audacity/audacity`](https://github.com/audacity/audacity) | `GPL-3.0-or-later` (`GPLv3 / Audacity Contributors`) | `rust-core/src/audio_peaks.rs` & `desktop-host/AudioEngine/` | Amostragem multi-zoom de picos (`min`, `max`, `rms`), cache assíncrono `.sfk`, `AudioWaveformRenderer.cs` e `Neoveg.AudioEngine` (EQ Paramétrico 8 Bandas + VST3/LV2) |
 | **nnnoiseless (RNNoise)** | [`jneem/nnnoiseless`](https://github.com/jneem/nnnoiseless) | `BSD-3-Clause` | `third_party/nnnoiseless/` (licença) | Dependência do Cargo de `neoveg_audio`: efeito **Redução de ruído por IA (RNNoise)** |
