@@ -1,14 +1,15 @@
-//! Vector toolbar icons: drawn with egui shapes, plus a library of SVG files for the essential tools.
+//! Vector toolbar and workspace icons: 62 original pure-SVG pictograms + egui shape fallbacks.
 //!
-//! Flat, monochrome pictograms in the spirit of classic NLE toolbars: original artwork, no bitmap
-//! assets, so they stay crisp at any scale and monitor DPI and follow the colours of the theme.
-//! Every icon is described on a unit square and turned into shapes by [`shapes`], which is pure
-//! and testable without a window.
+//! Flat, monochrome `24x24` pictograms in the spirit of classic NLE toolbars: original artwork, no
+//! proprietary bitmap pixels, so they scale crisply on 4K/HiDPI monitors and adapt dynamically to
+//! both dark and light themes via `currentColor`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use eframe::egui::{self, vec2, Color32, Pos2, Rect, Response, Rounding, Sense, Shape, Stroke};
+use eframe::egui::{
+    self, vec2, Color32, Image, Pos2, Rect, Response, Rounding, Sense, Shape, Stroke, Widget,
+};
 
 macro_rules! icons {
     ($($name:ident),+ $(,)?) => {
@@ -70,17 +71,20 @@ impl Icon {
     }
 }
 
-/// The icon's resting color on the current theme: neutral icons follow the text color and the
-/// colored ones are darkened on a light theme so they stay readable.
-fn themed_tint(icon: Icon, visuals: &egui::Visuals) -> Color32 {
-    let tint = icon.tint();
-    if tint == Color32::from_gray(205) {
+/// Resting color adapted to the active theme: neutral icons follow `visuals.text_color()`, while
+/// semantic accent icons darken on light themes so contrast remains crisp.
+fn resolve_themed_color(base: Color32, visuals: &egui::Visuals) -> Color32 {
+    if base == Color32::from_gray(205) {
         visuals.text_color()
     } else if visuals.dark_mode {
-        tint
+        base
     } else {
-        tint.gamma_multiply(0.55)
+        base.gamma_multiply(0.55)
     }
+}
+
+fn themed_tint(icon: Icon, visuals: &egui::Visuals) -> Color32 {
+    resolve_themed_color(icon.tint(), visuals)
 }
 
 /// Drawing surface over the unit square `0..1` mapped onto the largest centred square of a rect.
@@ -345,6 +349,15 @@ pub fn shapes(icon: Icon, rect: Rect, color: Color32) -> Vec<Shape> {
 
 /// Side of the square toolbar buttons, in points.
 pub const BUTTON_SIZE: f32 = 26.0;
+/// Side of track-header square buttons, in points.
+#[allow(dead_code)]
+pub const TRACK_BUTTON_SIZE: f32 = 20.0;
+/// Side of compact timeline event-header buttons, in points.
+#[allow(dead_code)]
+pub const EVENT_BUTTON_SIZE: f32 = 18.0;
+/// Side of `egui_dock` tab icons, in points.
+#[allow(dead_code)]
+pub const DOCK_TAB_ICON_SIZE: f32 = 14.0;
 
 /// A flat, square-cornered icon button; the name and shortcut go in `tooltip`. `selected` shows
 /// the pressed state of a toggle.
@@ -389,8 +402,8 @@ pub fn icon_button_sized(
             }
         };
         let inner = rect.shrink(side * 0.18);
-        // Icons that have an SVG in the library are drawn from it; the rest (or an SVG that cannot
-        // be rendered) use the shape drawing
+        // Every icon in the library renders from its crisp pure-SVG source, falling back to
+        // procedural shapes if the texture loader has not been registered.
         let drawn = svg_for(icon).is_some_and(|svg| paint_svg(ui, svg, inner, color));
         if !drawn {
             ui.painter().extend(shapes(icon, inner, color));
@@ -401,75 +414,336 @@ pub fn icon_button_sized(
 
 // ---- the SVG library ------------------------------------------------------------------------------
 
-/// The SVG files in `assets/icons`: 24x24 viewBox, `currentColor`, flat and square-cornered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SvgIcon {
-    PanCrop,
-    EventFx,
-    Snapping,
-    AutoRipple,
-    Split,
-    TransportPlay,
-    TransportPause,
-    TransportStop,
+macro_rules! svg_icons {
+    ($(($variant:ident, $method:ident, $file:literal, $tip:literal)),+ $(,)?) => {
+        /// Every pure-SVG icon in `crates/neoveg_ui/assets/icons/` (`viewBox="0 0 24 24"`,
+        /// `currentColor`, flat `butt`/`miter` geometry).
+        #[allow(dead_code)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum SvgIcon {
+            $($variant),+
+        }
+
+        impl SvgIcon {
+            pub const ALL: &'static [SvgIcon] = &[$(SvgIcon::$variant),+];
+
+            /// File stem inside `crates/neoveg_ui/assets/icons/` (without `.svg`).
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(SvgIcon::$variant => $file),+
+                }
+            }
+
+            /// Embedded UTF-8 SVG text (authored with `currentColor`).
+            pub const fn source(self) -> &'static str {
+                match self {
+                    $(SvgIcon::$variant => include_str!(concat!("../assets/icons/", $file, ".svg"))),+
+                }
+            }
+
+            /// Default Portuguese tooltip for toolbar, header, and dock buttons.
+            #[allow(dead_code)]
+            pub const fn default_tooltip(self) -> &'static str {
+                match self {
+                    $(SvgIcon::$variant => $tip),+
+                }
+            }
+
+            /// Cache URI used by `egui_extras` SVG loader.
+            pub fn uri(self) -> String {
+                format!("bytes://neoveg/icons/{}.svg", self.name())
+            }
+
+            /// Semantic resting tint; neutral icons return `Color32::from_gray(205)` so
+            /// [`resolve_themed_color`] maps them to `ui.visuals().text_color()`.
+            #[allow(dead_code)]
+            pub const fn tint(self) -> Color32 {
+                match self {
+                    SvgIcon::TransportPlay => Color32::from_rgb(0x6D, 0xD4, 0x7E),
+                    SvgIcon::TransportStop => Color32::from_rgb(0xD8, 0x7A, 0x7A),
+                    SvgIcon::TransportRecord | SvgIcon::ArmRecord => {
+                        Color32::from_rgb(0xE0, 0x4B, 0x4B)
+                    }
+                    SvgIcon::AddAudioTrack => Color32::from_rgb(0x6C, 0xB4, 0xE4),
+                    SvgIcon::AddVideoTrack => Color32::from_rgb(0xB4, 0x9A, 0xE6),
+                    _ => Color32::from_gray(205),
+                }
+            }
+
+            /// Ready-to-place [`egui::Image`] backed by [`egui_extras`] SVG bytes.
+            #[allow(dead_code)]
+            pub fn image(self) -> Image<'static> {
+                Image::from_bytes(self.uri(), tintable_bytes(self))
+            }
+
+            /// Ready-to-place [`egui::Image`] constrained to `side x side` logical points.
+            #[allow(dead_code)]
+            pub fn sized_image(self, side: f32) -> Image<'static> {
+                self.image().fit_to_exact_size(vec2(side, side))
+            }
+        }
+
+        /// High-level icon factory returning ready-to-use [`IconButton`] builders (which also expose
+        /// `.image()` and `.paint(...)`) for toolbars, track headers, event headers, and `egui_dock`.
+        #[allow(dead_code)]
+        pub struct Icons;
+
+        #[allow(dead_code)]
+        impl Icons {
+            $(
+                pub const fn $method() -> IconButton<'static> {
+                    IconButton::new(SvgIcon::$variant)
+                }
+            )+
+
+            /// Builds an [`egui::Image`] directly for `icon` at `side` logical points.
+            pub fn image(icon: SvgIcon, side: f32) -> Image<'static> {
+                icon.sized_image(side)
+            }
+
+            /// Paints `icon` directly inside `rect` with `color` (used on custom timeline canvases).
+            pub fn paint_in(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bool {
+                paint_svg(ui, icon, rect, color)
+            }
+        }
+    };
 }
 
-impl SvgIcon {
-    pub const ALL: [SvgIcon; 8] = [
-        SvgIcon::PanCrop,
-        SvgIcon::EventFx,
-        SvgIcon::Snapping,
-        SvgIcon::AutoRipple,
-        SvgIcon::Split,
-        SvgIcon::TransportPlay,
-        SvgIcon::TransportPause,
-        SvgIcon::TransportStop,
-    ];
+svg_icons! {
+    // 1. Timeline & Edição (17)
+    (Split, split, "split", "Dividir no cursor (S)"),
+    (TrimStart, trim_start, "trim_start", "Aparar início até o cursor (Alt+[)"),
+    (TrimEnd, trim_end, "trim_end", "Aparar fim até o cursor (Alt+])"),
+    (AutoRipple, auto_ripple, "auto_ripple", "Edição com Auto-Ripple (Ctrl+L)"),
+    (Snapping, snapping, "snapping", "Ativar Snapping magnético (F8)"),
+    (EnvelopeVolume, envelope_volume, "envelope_volume", "Inserir envelope de Volume (V)"),
+    (EnvelopePan, envelope_pan, "envelope_pan", "Inserir envelope de Pan (P)"),
+    (PitchStretch, pitch_stretch, "pitch_stretch", "Time-Stretch / Pitch"),
+    (Group, group, "group", "Agrupar eventos (G)"),
+    (Ungroup, ungroup, "ungroup", "Desagrupar eventos (U)"),
+    (Crossfade, crossfade, "crossfade", "Crossfade automático"),
+    (Undo, undo, "undo", "Desfazer (Ctrl+Z)"),
+    (Redo, redo, "redo", "Refazer (Ctrl+Y)"),
+    (ZoomIn, zoom_in, "zoom_in", "Ampliar zoom"),
+    (ZoomOut, zoom_out, "zoom_out", "Reduzir zoom"),
+    (KeyframeAdd, keyframe_add, "keyframe_add", "Adicionar keyframe"),
+    (KeyframeDelete, keyframe_delete, "keyframe_delete", "Remover keyframe"),
 
-    /// File name without the extension.
-    pub fn name(self) -> &'static str {
-        match self {
-            SvgIcon::PanCrop => "pan_crop",
-            SvgIcon::EventFx => "event_fx",
-            SvgIcon::Snapping => "snapping",
-            SvgIcon::AutoRipple => "auto_ripple",
-            SvgIcon::Split => "split",
-            SvgIcon::TransportPlay => "transport_play",
-            SvgIcon::TransportPause => "transport_pause",
-            SvgIcon::TransportStop => "transport_stop",
+    // 2. Eventos de Vídeo e Áudio (6)
+    (PanCrop, pan_crop, "pan_crop", "Pan/Crop do evento"),
+    (EventFx, event_fx, "event_fx", "Efeitos do evento (Event FX)"),
+    (MuteEvent, mute_event, "mute_event", "Silenciar evento (Mute Event)"),
+    (LockEvent, lock_event, "lock_event", "Travar evento (Lock Event)"),
+    (ActiveTake, active_take, "active_take", "Alternar Take ativo (T)"),
+    (NormalizeAudio, normalize_audio, "normalize_audio", "Normalizar áudio do evento"),
+
+    // 3. Cabeçalho de Faixas / Track Header (11)
+    (Mute, mute, "mute", "Silenciar (Mute)"),
+    (Solo, solo, "solo", "Isolar áudio em Solo"),
+    (MuteTrack, mute_track, "mute_track", "Silenciar faixa (Z)"),
+    (SoloTrack, solo_track, "solo_track", "Isolar faixa em Solo (X)"),
+    (TrackFx, track_fx, "track_fx", "Efeitos da faixa (Track FX)"),
+    (ArmRecord, arm_record, "arm_record", "Armar faixa para gravação"),
+    (TrackMotion, track_motion, "track_motion", "Movimento da faixa (Track Motion)"),
+    (PhaseInvert, phase_invert, "phase_invert", "Inverter fase / polaridade"),
+    (BypassFx, bypass_fx, "bypass_fx", "Ignorar efeitos (Bypass FX)"),
+    (AddAudioTrack, add_audio_track, "add_audio_track", "Inserir faixa de áudio (Ctrl+Q)"),
+    (AddVideoTrack, add_video_track, "add_video_track", "Inserir faixa de vídeo (Ctrl+Shift+Q)"),
+
+    // 4. Barra de Transporte (10)
+    (TransportPlay, transport_play, "transport_play", "Reproduzir (Espaço)"),
+    (TransportPause, transport_pause, "transport_pause", "Pausar (Enter)"),
+    (TransportStop, transport_stop, "transport_stop", "Parar (Espaço / Esc)"),
+    (TransportRecord, transport_record, "transport_record", "Gravar entrada (Ctrl+R)"),
+    (GotoStart, goto_start, "goto_start", "Ir para o início (Ctrl+Home)"),
+    (GotoEnd, goto_end, "goto_end", "Ir para o fim (Ctrl+End)"),
+    (LoopRegion, loop_region, "loop_region", "Reprodução em laço (Q)"),
+    (ShuttleReverse, shuttle_reverse, "shuttle_reverse", "Shuttle reverso (J)"),
+    (ShuttleHold, shuttle_hold, "shuttle_hold", "Shuttle pausa (K)"),
+    (ShuttleForward, shuttle_forward, "shuttle_forward", "Shuttle avanço (L)"),
+
+    // 5. Janelas, Ferramentas (egui_dock) & Ações de Painel (20)
+    (ProjectMedia, project_media, "project_media", "Mídia do Projeto (Alt+5)"),
+    (Trimmer, trimmer, "trimmer", "Trimmer (Alt+2)"),
+    (VideoScopes, video_scopes, "video_scopes", "Video Scopes (Ctrl+Alt+2)"),
+    (MixingConsole, mixing_console, "mixing_console", "Mixing Console / FX de Áudio (Alt+8)"),
+    (Explorer, explorer, "explorer", "Explorador de arquivos"),
+    (MasterBus, master_bus, "master_bus", "Master Bus (Alt+1)"),
+    (LoudnessMeter, loudness_meter, "loudness_meter", "Medidor de Loudness (Ctrl+Alt+6)"),
+    (VideoPreview, video_preview, "video_preview", "Prévia de Vídeo (Alt+4)"),
+    (TimelineView, timeline_view, "timeline_view", "Timeline (Alt+0)"),
+    (ColorGrading, color_grading, "color_grading", "Correção de Cor"),
+    (ChromaKey, chroma_key, "chroma_key", "Chaveamento de Croma (Chroma Key)"),
+    (Captions, captions, "captions", "Legendas e Transcrição"),
+    (MediaGenerators, media_generators, "media_generators", "Geradores de Mídia"),
+    (ImportMedia, import_media, "import_media", "Importar"),
+    (ExportRender, export_render, "export_render", "Exportar / Renderizar"),
+    (Reset, reset, "reset", "Restaurar padrão"),
+    (Add, add, "add", "Adicionar"),
+    (Remove, remove, "remove", "Remover"),
+    (MoveUp, move_up, "move_up", "Mover para cima"),
+    (MoveDown, move_down, "move_down", "Mover para baixo"),
+}
+
+/// Configurable flat SVG button and [`Image`] builder created by [`Icons`] methods
+/// (e.g. [`Icons::split`], [`Icons::pan_crop`], [`Icons::event_fx`], [`Icons::transport_play`]).
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+#[must_use = "adicione com `ui.add(...)`, chame `.show(ui)` ou extraia `.image()`"]
+pub struct IconButton<'a> {
+    icon: SvgIcon,
+    tooltip: &'a str,
+    selected: bool,
+    side: f32,
+    tint_override: Option<Color32>,
+}
+
+#[allow(dead_code)]
+impl<'a> IconButton<'a> {
+    pub const fn new(icon: SvgIcon) -> Self {
+        Self {
+            icon,
+            tooltip: icon.default_tooltip(),
+            selected: false,
+            side: BUTTON_SIZE,
+            tint_override: None,
         }
     }
 
-    /// The file as written (with `currentColor`).
-    pub fn source(self) -> &'static str {
-        match self {
-            SvgIcon::PanCrop => include_str!("../assets/icons/pan_crop.svg"),
-            SvgIcon::EventFx => include_str!("../assets/icons/event_fx.svg"),
-            SvgIcon::Snapping => include_str!("../assets/icons/snapping.svg"),
-            SvgIcon::AutoRipple => include_str!("../assets/icons/auto_ripple.svg"),
-            SvgIcon::Split => include_str!("../assets/icons/split.svg"),
-            SvgIcon::TransportPlay => include_str!("../assets/icons/transport_play.svg"),
-            SvgIcon::TransportPause => include_str!("../assets/icons/transport_pause.svg"),
-            SvgIcon::TransportStop => include_str!("../assets/icons/transport_stop.svg"),
+    pub const fn icon(&self) -> SvgIcon {
+        self.icon
+    }
+
+    pub const fn tooltip(mut self, tooltip: &'a str) -> Self {
+        self.tooltip = tooltip;
+        self
+    }
+
+    pub const fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    pub const fn size(mut self, side: f32) -> Self {
+        self.side = side;
+        self
+    }
+
+    /// Compact `18 pt` preset for timeline clip/event header strips.
+    pub const fn small(self) -> Self {
+        self.size(EVENT_BUTTON_SIZE)
+    }
+
+    /// `20 pt` preset for track header rows.
+    pub const fn track_header(self) -> Self {
+        self.size(TRACK_BUTTON_SIZE)
+    }
+
+    /// `14 pt` preset for `egui_dock` tab headers and menu items.
+    pub const fn dock_tab(self) -> Self {
+        self.size(DOCK_TAB_ICON_SIZE)
+    }
+
+    pub const fn tint(mut self, color: Color32) -> Self {
+        self.tint_override = Some(color);
+        self
+    }
+
+    /// Extracts an [`egui::Image`] sized to this builder's current side.
+    pub fn image(&self) -> Image<'static> {
+        let img = self.icon.sized_image(self.side);
+        if let Some(color) = self.tint_override {
+            img.tint(color)
+        } else {
+            img
         }
     }
 
-    /// Identifier the image loader caches the rasterized icon under.
-    pub fn uri(self) -> String {
-        format!("bytes://neoveg/icons/{}.svg", self.name())
+    /// Paints the underlying SVG directly into `rect` with `color`.
+    pub fn paint(&self, ui: &egui::Ui, rect: Rect, color: Color32) -> bool {
+        paint_svg(ui, self.icon, rect, color)
+    }
+
+    /// Renders the flat square icon button inside `ui`.
+    pub fn show(self, ui: &mut egui::Ui) -> Response {
+        ui.add(self)
     }
 }
 
-/// The SVG for a shape icon, when the library has one.
+impl Widget for IconButton<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> Response {
+        let (rect, response) = ui.allocate_exact_size(vec2(self.side, self.side), Sense::click());
+        if ui.is_rect_visible(rect) {
+            let hovered = response.hovered();
+            let fill = if self.selected {
+                ui.visuals().selection.bg_fill
+            } else if hovered {
+                ui.visuals().widgets.hovered.bg_fill
+            } else {
+                Color32::TRANSPARENT
+            };
+            ui.painter().rect_filled(rect, Rounding::ZERO, fill);
+            if self.selected {
+                ui.painter().rect_stroke(
+                    rect,
+                    Rounding::ZERO,
+                    Stroke::new(1.0_f32, ui.visuals().selection.stroke.color),
+                );
+            }
+            let color = if !ui.is_enabled() {
+                ui.visuals().weak_text_color()
+            } else {
+                let base = self
+                    .tint_override
+                    .unwrap_or_else(|| resolve_themed_color(self.icon.tint(), ui.visuals()));
+                if hovered || self.selected {
+                    base.gamma_multiply(1.15)
+                } else {
+                    base
+                }
+            };
+            paint_svg(ui, self.icon, rect.shrink(self.side * 0.18), color);
+        }
+        if self.tooltip.is_empty() {
+            response
+        } else {
+            response.on_hover_text(self.tooltip)
+        }
+    }
+}
+
+/// Maps every toolbar/panel [`Icon`] to its corresponding pure-SVG asset in `assets/icons/`.
 pub fn svg_for(icon: Icon) -> Option<SvgIcon> {
-    match icon {
-        Icon::Play => Some(SvgIcon::TransportPlay),
-        Icon::Pause => Some(SvgIcon::TransportPause),
-        Icon::Stop => Some(SvgIcon::TransportStop),
-        Icon::Split => Some(SvgIcon::Split),
-        Icon::Snap => Some(SvgIcon::Snapping),
-        _ => None,
-    }
+    Some(match icon {
+        Icon::GoToStart => SvgIcon::GotoStart,
+        Icon::Play => SvgIcon::TransportPlay,
+        Icon::Pause => SvgIcon::TransportPause,
+        Icon::Stop => SvgIcon::TransportStop,
+        Icon::Split => SvgIcon::Split,
+        Icon::Undo => SvgIcon::Undo,
+        Icon::Redo => SvgIcon::Redo,
+        Icon::AddAudioTrack => SvgIcon::AddAudioTrack,
+        Icon::AddVideoTrack => SvgIcon::AddVideoTrack,
+        Icon::Loop => SvgIcon::LoopRegion,
+        Icon::Group => SvgIcon::Group,
+        Icon::Snap => SvgIcon::Snapping,
+        Icon::Crossfade => SvgIcon::Crossfade,
+        Icon::ZoomOut => SvgIcon::ZoomOut,
+        Icon::ZoomIn => SvgIcon::ZoomIn,
+        Icon::Reset => SvgIcon::Reset,
+        Icon::Bypass => SvgIcon::BypassFx,
+        Icon::Remove => SvgIcon::Remove,
+        Icon::MoveUp => SvgIcon::MoveUp,
+        Icon::MoveDown => SvgIcon::MoveDown,
+        Icon::Add => SvgIcon::Add,
+        Icon::Import => SvgIcon::ImportMedia,
+        Icon::Export => SvgIcon::ExportRender,
+        Icon::Mute => SvgIcon::Mute,
+        Icon::Solo => SvgIcon::Solo,
+        Icon::Phase => SvgIcon::PhaseInvert,
+        Icon::Record => SvgIcon::TransportRecord,
+        Icon::Lock => SvgIcon::LockEvent,
+    })
 }
 
 /// The SVG with every `currentColor` made white, so the image can be tinted with any theme color
@@ -496,7 +770,7 @@ pub fn install(ctx: &egui::Context) {
 /// Draws `icon` into `rect` tinted with `color`. `false` when it could not be rendered (the
 /// caller then falls back to another drawing); a pending load asks for a repaint and counts as drawn.
 pub fn paint_svg(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bool {
-    let image = egui::Image::from_bytes(icon.uri(), tintable_bytes(icon)).tint(color);
+    let image = Image::from_bytes(icon.uri(), tintable_bytes(icon)).tint(color);
     match image.load_for_size(ui.ctx(), rect.size()) {
         Ok(egui::load::TexturePoll::Ready { .. }) => {
             image.paint_at(ui, rect);
@@ -514,43 +788,23 @@ pub fn paint_svg(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bo
 }
 
 /// A flat, square-cornered button showing an SVG icon (the same look as [`icon_button`]).
-#[allow(dead_code)] // for the event-header buttons (pan/crop, event FX) and the auto ripple toggle
+#[allow(dead_code)]
 pub fn svg_button(ui: &mut egui::Ui, icon: SvgIcon, tooltip: &str, selected: bool) -> Response {
-    let side = BUTTON_SIZE;
-    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
-    if ui.is_rect_visible(rect) {
-        let fill = if selected {
-            ui.visuals().selection.bg_fill
-        } else if response.hovered() {
-            ui.visuals().widgets.hovered.bg_fill
-        } else {
-            Color32::TRANSPARENT
-        };
-        ui.painter().rect_filled(rect, Rounding::ZERO, fill);
-        if selected {
-            ui.painter().rect_stroke(
-                rect,
-                Rounding::ZERO,
-                Stroke::new(1.0_f32, ui.visuals().selection.stroke.color),
-            );
-        }
-        let color = if ui.is_enabled() {
-            ui.visuals().text_color()
-        } else {
-            ui.visuals().weak_text_color()
-        };
-        paint_svg(ui, icon, rect.shrink(side * 0.18), color);
-    }
-    response.on_hover_text(tooltip)
+    IconButton::new(icon)
+        .tooltip(tooltip)
+        .selected(selected)
+        .show(ui)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eframe::egui::pos2;
 
     #[test]
     fn every_svg_follows_the_house_style() {
-        for icon in SvgIcon::ALL {
+        assert_eq!(SvgIcon::ALL.len(), 64);
+        for &icon in SvgIcon::ALL {
             let text = icon.source();
             let name = icon.name();
             assert!(text.contains("viewBox=\"0 0 24 24\""), "{name}: viewBox");
@@ -564,25 +818,32 @@ mod tests {
             assert!(!text.contains("rx="), "{name}: rx");
             assert!(text.trim_end().ends_with("</svg>"), "{name}");
             assert_eq!(text.matches("<svg").count(), 1, "{name}");
+            assert!(!icon.default_tooltip().is_empty(), "{name}: tooltip");
         }
     }
 
     #[test]
-    fn svg_names_are_unique_and_match_their_files() {
+    fn svg_names_are_unique_and_match_every_file_on_disk() {
         let mut names: Vec<_> = SvgIcon::ALL.iter().map(|i| i.name()).collect();
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), SvgIcon::ALL.len());
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons");
-        for icon in SvgIcon::ALL {
+        for &icon in SvgIcon::ALL {
             let on_disk = std::fs::read_to_string(format!("{dir}/{}.svg", icon.name())).unwrap();
             assert_eq!(on_disk, icon.source());
         }
+        let disk_count = std::fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "svg"))
+            .count();
+        assert_eq!(disk_count, SvgIcon::ALL.len());
     }
 
     #[test]
     fn the_tinted_bytes_drop_current_color_and_keep_the_drawing() {
-        for icon in SvgIcon::ALL {
+        for &icon in SvgIcon::ALL {
             let text = String::from_utf8(tintable_bytes(icon).to_vec()).unwrap();
             assert!(!text.contains("currentColor"), "{}", icon.name());
             assert!(text.contains("#ffffff"), "{}", icon.name());
@@ -591,15 +852,94 @@ mod tests {
     }
 
     #[test]
-    fn the_transport_and_edit_icons_use_their_svgs() {
+    fn every_toolbar_icon_is_backed_by_its_svg() {
+        for &icon in Icon::ALL {
+            assert!(svg_for(icon).is_some(), "{icon:?} has no SVG mapping");
+        }
         assert_eq!(svg_for(Icon::Play), Some(SvgIcon::TransportPlay));
         assert_eq!(svg_for(Icon::Pause), Some(SvgIcon::TransportPause));
         assert_eq!(svg_for(Icon::Stop), Some(SvgIcon::TransportStop));
         assert_eq!(svg_for(Icon::Split), Some(SvgIcon::Split));
         assert_eq!(svg_for(Icon::Snap), Some(SvgIcon::Snapping));
-        assert_eq!(svg_for(Icon::Undo), None);
+        assert_eq!(svg_for(Icon::Undo), Some(SvgIcon::Undo));
     }
-    use eframe::egui::pos2;
+
+    #[test]
+    fn icons_utility_methods_cover_all_64_tools_and_panels() {
+        let all_buttons = [
+            Icons::split(),
+            Icons::trim_start(),
+            Icons::trim_end(),
+            Icons::auto_ripple(),
+            Icons::snapping(),
+            Icons::envelope_volume(),
+            Icons::envelope_pan(),
+            Icons::pitch_stretch(),
+            Icons::group(),
+            Icons::ungroup(),
+            Icons::crossfade(),
+            Icons::undo(),
+            Icons::redo(),
+            Icons::zoom_in(),
+            Icons::zoom_out(),
+            Icons::keyframe_add(),
+            Icons::keyframe_delete(),
+            Icons::pan_crop(),
+            Icons::event_fx(),
+            Icons::mute_event(),
+            Icons::lock_event(),
+            Icons::active_take(),
+            Icons::normalize_audio(),
+            Icons::mute(),
+            Icons::solo(),
+            Icons::mute_track(),
+            Icons::solo_track(),
+            Icons::track_fx(),
+            Icons::arm_record(),
+            Icons::track_motion(),
+            Icons::phase_invert(),
+            Icons::bypass_fx(),
+            Icons::add_audio_track(),
+            Icons::add_video_track(),
+            Icons::transport_play(),
+            Icons::transport_pause(),
+            Icons::transport_stop(),
+            Icons::transport_record(),
+            Icons::goto_start(),
+            Icons::goto_end(),
+            Icons::loop_region(),
+            Icons::shuttle_reverse(),
+            Icons::shuttle_hold(),
+            Icons::shuttle_forward(),
+            Icons::project_media(),
+            Icons::trimmer(),
+            Icons::video_scopes(),
+            Icons::mixing_console(),
+            Icons::explorer(),
+            Icons::master_bus(),
+            Icons::loudness_meter(),
+            Icons::video_preview(),
+            Icons::timeline_view(),
+            Icons::color_grading(),
+            Icons::chroma_key(),
+            Icons::captions(),
+            Icons::media_generators(),
+            Icons::import_media(),
+            Icons::export_render(),
+            Icons::reset(),
+            Icons::add(),
+            Icons::remove(),
+            Icons::move_up(),
+            Icons::move_down(),
+        ];
+        assert_eq!(all_buttons.len(), SvgIcon::ALL.len());
+        for (btn, &expected) in all_buttons.iter().zip(SvgIcon::ALL.iter()) {
+            assert_eq!(btn.icon(), expected);
+            let _ = btn.small().selected(true).tooltip("teste").image();
+            let _ = btn.track_header().tint(Color32::WHITE).image();
+            let _ = btn.dock_tab().image();
+        }
+    }
 
     fn frame() -> Rect {
         Rect::from_min_size(pos2(10.0, 20.0), vec2(24.0, 24.0))
@@ -670,6 +1010,11 @@ mod tests {
             let c = icon.tint();
             let luma = (u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b())) / 3;
             assert!(luma > 120, "{icon:?} is too dark: {c:?}");
+        }
+        for &svg in SvgIcon::ALL {
+            let c = svg.tint();
+            let luma = (u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b())) / 3;
+            assert!(luma > 120, "{svg:?} is too dark: {c:?}");
         }
     }
 }
