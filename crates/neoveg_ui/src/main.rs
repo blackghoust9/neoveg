@@ -17,6 +17,7 @@ mod project_dialog;
 mod render_dialog;
 mod scopes_panel;
 mod shortcuts;
+mod slideshow_window;
 mod splash;
 mod theme;
 mod waveform_paint;

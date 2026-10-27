@@ -318,6 +318,11 @@ struct AppState {
     log_viewer: crate::log_viewer::LogViewerState,
     /// Arquivo > Renderizar como… (Make Movie).
     render_dialog: crate::render_dialog::RenderDialogState,
+    /// Faixas > Inserir apresentação de slides.
+    slideshow: crate::slideshow_window::SlideshowState,
+    /// True once the project's frame size and rate were chosen (by the user or by a file), so the
+    /// first media does not overwrite them.
+    format_chosen: bool,
     /// Faixas > Inserir mídia gerada.
     generator_dialog: crate::generator_dialog::GeneratorDialogState,
     /// Subtitles tab (text and times being edited).
@@ -1147,6 +1152,8 @@ impl AppState {
             show_credits: false,
             log_viewer: Default::default(),
             generator_dialog: Default::default(),
+            slideshow: Default::default(),
+            format_chosen: false,
             render_dialog: Default::default(),
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
@@ -1814,6 +1821,74 @@ impl AppState {
         self.spawn_media(path, None, ctx);
     }
 
+    /// Lays a slideshow on the video track: one event per picture, `settings.overlap` apart so that the
+    /// neighbours crossfade, all as one undo step. A picture that cannot be read is skipped.
+    fn insert_slideshow(
+        &mut self,
+        slides: &[neoveg_engine::slideshow::Slide],
+        settings: neoveg_engine::slideshow::SlideshowSettings,
+    ) {
+        let fps = self.project.settings.fps;
+        // Read the pictures first: one that cannot be read leaves no gap in the show
+        let mut readable = Vec::new();
+        let mut skipped = 0;
+        for slide in slides {
+            match neoveg_video::worker::probe_with_defaults(
+                std::path::Path::new(&slide.path),
+                fps,
+                settings.per_photo,
+            ) {
+                Ok(info) => readable.push((slide, info)),
+                Err(_) => skipped += 1,
+            }
+        }
+        let laid = neoveg_engine::slideshow::layout(readable.len(), &settings);
+        let video_track = self.track_of_kind(TrackKind::Video);
+        let first_clip = self.timeline.tracks.iter().all(|t| t.events.is_empty());
+        let mut commands = Vec::new();
+        for ((slide, mut info), (start, duration)) in readable.into_iter().zip(laid) {
+            if first_clip && commands.is_empty() && !self.format_chosen {
+                self.project.settings.width = info.width;
+                self.project.settings.height = info.height;
+                self.format_chosen = true;
+            }
+            // A still has no length of its own: it lasts what the show gives it
+            info.duration = duration;
+            let media_id = self.timeline.alloc_id();
+            self.project.media_pool.push(MediaRef {
+                subproject: false,
+                id: media_id,
+                path: slide.path.clone(),
+                duration_seconds: info.duration,
+            });
+            self.video_info.insert(media_id, info);
+            commands.push(EditCommand::AddEvent {
+                track_id: video_track,
+                event: TrackEvent {
+                    id: self.timeline.alloc_id(),
+                    name: slide.name.clone(),
+                    media_id: Some(media_id),
+                    start,
+                    duration,
+                    ..Default::default()
+                },
+            });
+        }
+        let placed = commands.len();
+        if placed > 0 {
+            self.history
+                .execute(&mut self.timeline, EditCommand::Batch(commands));
+            self.last_frame_key = None;
+        }
+        self.status = match (placed, skipped) {
+            (0, _) => "Nenhuma imagem pôde ser lida: nada foi inserido".into(),
+            (n, 0) => format!("Apresentação de slides inserida: {n} imagens"),
+            (n, s) => {
+                format!("Apresentação de slides inserida: {n} imagens ({s} ilegíveis ignoradas)")
+            }
+        };
+    }
+
     /// Saves a procedural generator as a `.neoveggen` manifest (beside the project, or in the data
     /// folder of an unsaved one) and imports it like any other video media.
     fn insert_generated(
@@ -2039,6 +2114,7 @@ impl AppState {
             self.remember_recent(path);
         }
         self.project_path = associate;
+        self.format_chosen = true;
         self.mark_clean();
         true
     }
@@ -2531,6 +2607,7 @@ impl AppState {
             return;
         }
         self.project.settings = settings;
+        self.format_chosen = true;
         // The settings are not an undoable edit, but the project has changed
         self.forced_dirty = true;
         self.last_frame_key = None;
@@ -2611,6 +2688,7 @@ impl AppState {
     fn new_project_with(&mut self, settings: ProjectSettings) {
         self.new_tab();
         self.project.settings = settings;
+        self.format_chosen = true;
         self.last_frame_key = None;
         self.last_composite_key = None;
         self.status = format!(
@@ -2864,12 +2942,13 @@ impl AppState {
     }
 
     fn place_video(&mut self, path: PathBuf, info: VideoInfo, audio: Option<LoadedMedia>) {
-        // The first clip defines the project format
-        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+        // The first clip defines the project format, unless the format was chosen
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) && !self.format_chosen {
             let settings = &mut self.project.settings;
             settings.width = info.width;
             settings.height = info.height;
             settings.fps = info.fps;
+            self.format_chosen = true;
         }
         let media_id = self.timeline.alloc_id();
         let name = path
@@ -4097,6 +4176,7 @@ impl NeovegApp {
                     // The blank project the program started with is used as it is
                     if self.state.is_blank_project() {
                         self.state.project.settings = *settings;
+                        self.state.format_chosen = true;
                     } else {
                         self.state.new_project_with(*settings);
                     }
@@ -4294,6 +4374,10 @@ impl NeovegApp {
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
+        if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
+            self.state
+                .insert_slideshow(&request.slides, request.settings);
+        }
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
@@ -4544,6 +4628,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertVideoTrack);
             if ui.button("Inserir mídia gerada…").clicked() {
                 state.generator_dialog.open = true;
+                ui.close_menu();
+            }
+            if ui.button("Inserir apresentação de slides…").clicked() {
+                state.slideshow.open = true;
                 ui.close_menu();
             }
             command_item(state, ui, Command::InsertTime);
@@ -8441,6 +8529,105 @@ mod tests {
         s.edit_tool = EditTool::Normal;
         s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
         assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::Move);
+    }
+
+    fn write_png(path: &std::path::Path, width: u32, height: u32) {
+        image::RgbaImage::from_pixel(width, height, image::Rgba([200, 30, 30, 255]))
+            .save(path)
+            .unwrap();
+    }
+
+    #[test]
+    fn a_slideshow_is_laid_on_the_video_track_with_overlaps_as_one_undo_step() {
+        use neoveg_engine::slideshow::{Slide, SlideshowSettings};
+        let dir = std::env::temp_dir().join(format!("neoveg_show_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["a.png", "b.png", "c.png"] {
+            write_png(&dir.join(name), 64, 36);
+        }
+        let mut slides: Vec<Slide> = ["a.png", "b.png", "c.png"]
+            .iter()
+            .map(|n| Slide::new(&dir.join(n).to_string_lossy(), 0))
+            .collect();
+        // A picture that is gone is skipped, not an error for the others
+        slides.insert(1, Slide::new(&dir.join("sumiu.png").to_string_lossy(), 0));
+
+        let mut s = AppState::new();
+        // The track exists already, so what is measured is the show alone
+        s.add_track(TrackKind::Video);
+        let revision = s.history.revision();
+        s.insert_slideshow(
+            &slides,
+            SlideshowSettings {
+                start: 2.0,
+                per_photo: 4.0,
+                overlap: 1.0,
+            },
+        );
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("a video track was made");
+        let spans: Vec<(f64, f64)> = track.events.iter().map(|e| (e.start, e.end())).collect();
+        // Each picture starts 3 s after the last (4 s long, 1 s overlap)
+        assert_eq!(spans, vec![(2.0, 6.0), (5.0, 9.0), (8.0, 12.0)]);
+        assert_eq!(s.project.media_pool.len(), 3);
+        assert_eq!(s.history.revision(), revision + 1, "one undo step");
+        assert!(s.status.contains("1 ilegíveis"));
+        // The neighbours overlap, so with automatic crossfades they fade into each other
+        assert_eq!(
+            neoveg_engine::crossfade::find_crossfades(&track.events).len(),
+            2
+        );
+        run(&mut s, Command::EditUndo);
+        assert!(
+            s.timeline.tracks.iter().all(|t| t.events.is_empty()),
+            "undo takes the whole show away"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_first_media_does_not_overwrite_a_format_the_user_chose() {
+        let dir = std::env::temp_dir().join(format!("neoveg_format_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("foto.png");
+        write_png(&file, 640, 480);
+        let slide = neoveg_engine::slideshow::Slide::new(&file.to_string_lossy(), 0);
+        let settings = neoveg_engine::slideshow::SlideshowSettings {
+            start: 0.0,
+            per_photo: 3.0,
+            overlap: 0.0,
+        };
+
+        // Nothing chosen: the first picture sets the frame size
+        let mut open = AppState::new();
+        open.insert_slideshow(std::slice::from_ref(&slide), settings);
+        assert_eq!(
+            (open.project.settings.width, open.project.settings.height),
+            (640, 480)
+        );
+
+        // A project made with a format keeps it
+        let mut chosen = AppState::new();
+        chosen.new_project_with(ProjectSettings {
+            width: 3840,
+            height: 2160,
+            ..ProjectSettings::default()
+        });
+        chosen.insert_slideshow(std::slice::from_ref(&slide), settings);
+        assert_eq!(
+            (
+                chosen.project.settings.width,
+                chosen.project.settings.height
+            ),
+            (3840, 2160)
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

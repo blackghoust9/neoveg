@@ -472,7 +472,8 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 
 - [x] Notas do projeto (Exibir > Notas do projeto): notas presas a um tempo da linha do tempo, com cor, etiqueta, texto, timecode editável, ir para a nota, usar o tempo do cursor, resolver e ocultar as resolvidas; quadrados coloridos na régua; salvas no `.neoveg`
 - [ ] Detalhes de edição (*Edit Details*): lista de todos os eventos com início, duração e fim
-- [ ] Apresentação de slides (*Insert Slideshow*): várias imagens em sequência com duração e transição
+- [x] Apresentação de slides (Faixas > Inserir apresentação de slides): escolher imagens, mover -1/+1, remover, ordenar de A a Z, de Z a A, do novo ao antigo, do antigo ao novo ou embaralhar, começar no cursor ou em um tempo exato, duração por imagem ou total, sobreposição que vira crossfade; um passo de desfazer
+- [x] O primeiro arquivo importado só define o formato do projeto se o usuário ainda não escolheu um (propriedades, boas-vindas ou projeto aberto)
 - [ ] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois
 - [ ] Arquivar projetos (copiar projeto e mídia para uma pasta) e referências do projeto nos arquivos renderizados
 - [ ] Estabilização de clipes de vídeo, congelar quadro no cursor e reverter evento

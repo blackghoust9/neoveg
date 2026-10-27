@@ -21,6 +21,7 @@ pub mod project_manager;
 pub mod relink;
 pub mod ripple;
 pub mod selection;
+pub mod slideshow;
 pub mod switches;
 pub mod timeline;
 
