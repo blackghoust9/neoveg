@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (107 comandos, 105 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (113 comandos, 110 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -40,6 +40,12 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Aparar à seleção | `Ctrl+T` | `edit.trim` | implementado |
 | Aparar o início ao cursor | `Alt+[` | `edit.trim_start` | implementado |
 | Aparar o fim ao cursor | — | `edit.trim_end` | implementado |
+| Aparo por teclado: borda anterior | `[` | `edit.trim_edge.previous` | implementado |
+| Aparo por teclado: próxima borda | — | `edit.trim_edge.next` | implementado |
+| Aparo por teclado: esticar a borda um quadro à esquerda | `Shift+Left` | `edit.trim_edge.stretch_left` | implementado |
+| Aparo por teclado: esticar a borda um quadro à direita | `Shift+Right` | `edit.trim_edge.stretch_right` | implementado |
+| Aparo por teclado: mover o corte adjacente um quadro à esquerda | `Ctrl+Shift+Left` | `edit.trim_edge.roll_left` | implementado |
+| Aparo por teclado: mover o corte adjacente um quadro à direita | `Ctrl+Shift+Right` | `edit.trim_edge.roll_right` | implementado |
 | Selecionar tudo | `Ctrl+A` | `edit.select_all` | implementado |
 | Desfazer seleção | `Ctrl+Shift+A` | `edit.select_none` | implementado |
 | Agrupar eventos | `G` | `edit.group` | implementado |
@@ -120,14 +126,14 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | :--- | :--- | :--- | :--- |
 | Alinhamento (snap) | `F8` | `options.snapping` | implementado |
 | Crossfade automático | `Ctrl+Shift+X` | `options.auto_crossfade` | implementado |
-| Alinhar à grade | `Ctrl+F8` | `options.snap_grid` | *planejado* |
-| Alinhar a marcadores | `Shift+F8` | `options.snap_markers` | *planejado* |
-| Alinhar a todos os eventos | `Ctrl+Shift+F8` | `options.snap_all_events` | *planejado* |
-| Quantizar para quadros | `Alt+F8` | `options.quantize` | *planejado* |
+| Alinhar à grade | `Ctrl+F8` | `options.snap_grid` | implementado |
+| Alinhar a marcadores | `Shift+F8` | `options.snap_markers` | implementado |
+| Alinhar a todos os eventos | `Ctrl+Shift+F8` | `options.snap_all_events` | implementado |
+| Quantizar para quadros | `Alt+F8` | `options.quantize` | implementado |
 | Ripple automático | `Ctrl+L` | `options.auto_ripple` | implementado |
-| Ripple nas faixas afetadas | `F` | `edit.ripple.affected` | *planejado* |
-| Ripple nas faixas, marcadores e regiões | `Ctrl+F` | `edit.ripple.markers` | *planejado* |
-| Ripple em tudo | `Ctrl+Shift+F` | `edit.ripple.all` | *planejado* |
+| Ripple nas faixas afetadas | `F` | `edit.ripple.affected` | implementado |
+| Ripple nas faixas, marcadores e regiões | `Ctrl+F` | `edit.ripple.markers` | implementado |
+| Ripple em tudo | `Ctrl+Shift+F` | `edit.ripple.all` | implementado |
 
 ### Faixas
 

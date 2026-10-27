@@ -7,9 +7,13 @@ Regras de edição extraídas dos manuais de referência (Auto-Crossfade, Snappi
 
 ## Regras já implementadas no Neoveg
 - **Auto-crossfade**: eventos da mesma faixa que se sobrepõem *parcialmente* fazem crossfade na sobreposição; um evento inteiramente dentro de outro não faz. Ligado por padrão (`Ctrl+Shift+X` alterna).
-- **Snapping** (`F8`): alinha à origem, ao playhead e às bordas de outros eventos em até 8 px; senão, quantiza a quadros. `Alt` ao arrastar ignora.
+- **Snapping** (`F8`): alinha à origem, ao playhead, às bordas da seleção de tempo e às bordas de eventos em até 8 px; `Ctrl+F8` soma a grade de quadros, `Shift+F8` marcadores e regiões e `Ctrl+Shift+F8` os eventos de outras faixas. Senão, quantiza a quadros (`Alt+F8` desliga a quantização). `Alt` ao arrastar ignora.
 - **Fades**: cinco curvas — Linear, Fast, Slow, Smooth, Sharp.
 - **Trim**: mantém a fonte alinhada, nunca revela mídia fora da fonte e mantém ao menos um quadro.
+- **Escopos de ripple** (`RippleScope`): faixas afetadas (eventos, keyframes e envelopes), faixas afetadas mais marcadores e regiões, ou todas as faixas mais marcadores e regiões. `F`, `Ctrl+F` e `Ctrl+Shift+F` escolhem o escopo usado pelo Ripple automático e pela exclusão com ripple e fazem o ripple da última edição (exclusão simples, aparo ou esticar) enquanto ela for a última mudança do histórico; tempos dentro de um trecho removido colapsam no início dele e nada vai antes de zero. Eventos travados não se movem. Com o Ripple automático ligado, aparar ou esticar uma borda também move o que vem depois pela mudança de comprimento (a borda esquerda fecha para a esquerda e o evento mantém o início).
+- **Aparo de grupo**: aparar a borda de um evento agrupado apara também os membros do grupo cuja mesma borda está no mesmo instante; a borda comum para no limite mais restritivo. `Shift` ao arrastar (ou Ignorar agrupamento) apara só o evento arrastado (cortes em J e L). Não vale com o Ripple automático ligado.
+- **Aparo adjacente (rolling)** (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam; sem vizinho colado vira aparo comum): a borda entre dois eventos que se tocam anda para os dois lados e o comprimento total não muda; o limite é o mais restrito entre as duas fontes.
+- **Shuffle** (ferramenta Embaralhar no ciclo `D`; o botão direito e o item de menu ainda faltam): reordena uma sequência simples (sem sobreposição nem eventos travados) e reaplica a ordem mantendo a sequência original dos intervalos.
 
 ## Resumo das entradas de pesquisa
 

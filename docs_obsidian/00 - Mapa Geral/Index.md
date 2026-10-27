@@ -24,6 +24,7 @@ A direção das dependências é `neoveg_common` → (`neoveg_audio`, `neoveg_vi
 ## 04 - Pesquisas e Benchmarks
 - [[regras_de_timeline]] — regras extraídas dos manuais.
 - [[desempenho_resolucoes]] — medições de desempenho.
+- [[lacunas_funcionais]] — o que a pesquisa de referência prevê e o Neoveg ainda não registra ou não implementa.
 
 ## Fontes de verdade fora do vault
 - `AGENTS.md` — padrões e regras (a seção 26 descreve este vault).
