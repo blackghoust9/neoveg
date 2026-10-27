@@ -30,6 +30,9 @@ struct ProjectJson {
     name: String,
     settings: ProjectSettings,
     timeline: Timeline,
+    /// Notes pinned to the timeline; files written before notes existed have none.
+    #[serde(default)]
+    notes: Vec<neoveg_common::project::ProjectNote>,
 }
 
 /// Undo history is session-only for now; the entry reserves the slot in the container.
@@ -88,6 +91,7 @@ pub fn save_with_recovery(
                 name: info.name.clone(),
                 settings: info.settings.clone(),
                 timeline: timeline.clone(),
+                notes: info.notes.clone(),
             },
         )?;
         write_entry(&mut zip, "media_pool.json", &info.media_pool)?;
@@ -126,6 +130,7 @@ pub fn load(path: &Path) -> Result<(ProjectInfo, Timeline), String> {
         name: project.name,
         settings: project.settings,
         media_pool,
+        notes: project.notes,
     };
     Ok((info, project.timeline))
 }
@@ -302,5 +307,41 @@ mod tests {
         assert_eq!(back.group, Some(7));
         assert!((back.playback_rate - 1.5).abs() < 1e-9);
         assert!(!back.preserve_pitch);
+    }
+
+    #[test]
+    fn notes_survive_a_save_and_files_without_notes_still_load() {
+        use neoveg_common::project::ProjectNote;
+        let dir = std::env::temp_dir().join(format!("neoveg_notes_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (mut info, tl) = sample_project();
+        info.notes.push(ProjectNote {
+            id: 7,
+            time: 12.5,
+            text: "Cortar aqui".into(),
+            label: "Revisão".into(),
+            color: 3,
+            resolved: true,
+        });
+        let path = dir.join("notas.neoveg");
+        save(&path, &info, &tl).unwrap();
+        let (back, _) = load(&path).unwrap();
+        assert_eq!(back.notes, info.notes);
+
+        // A project.json written before notes existed has no `notes` key
+        let (plain, timeline) = sample_project();
+        let mut value = serde_json::to_value(ProjectJson {
+            format_version: FORMAT_VERSION,
+            name: plain.name.clone(),
+            settings: plain.settings.clone(),
+            timeline,
+            notes: Vec::new(),
+        })
+        .unwrap();
+        value.as_object_mut().unwrap().remove("notes");
+        let old: ProjectJson = serde_json::from_value(value).unwrap();
+        assert!(old.notes.is_empty());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

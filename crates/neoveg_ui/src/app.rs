@@ -244,6 +244,8 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
+    /// Exibir > Notas do projeto.
+    notes: crate::notes_window::NotesState,
     /// The welcome screen (recent projects, new project).
     welcome: crate::welcome::WelcomeState,
     /// File > Properties: the project's video and audio format.
@@ -1083,6 +1085,7 @@ impl AppState {
             repeat_dialog: None,
             goto_dialog: None,
             insert_time_dialog: None,
+            notes: Default::default(),
             welcome: Default::default(),
             project_dialog: Default::default(),
             persist_prefs: false,
@@ -3943,6 +3946,31 @@ fn audio_dock() -> DockState<Tab> {
 }
 
 impl NeovegApp {
+    /// The project notes window: what the user did to the notes, and the cursor jump of "Ir".
+    fn run_notes_window(&mut self, ctx: &egui::Context) {
+        let fps = self.state.project.settings.fps;
+        let drop_frame = self.state.drop_frame();
+        let actions = self
+            .state
+            .notes
+            .show(ctx, &self.state.project.notes, fps, drop_frame);
+        for action in actions {
+            let effect = crate::notes_window::apply_note_action(
+                &mut self.state.project.notes,
+                action,
+                self.state.playhead,
+            );
+            if let Some(time) = effect.jump_to {
+                let now = ctx.input(|i| i.time);
+                self.state.go_to_time(time, now);
+            }
+            if effect.changed {
+                // The notes are not an undoable edit, but the project has changed
+                self.state.forced_dirty = true;
+            }
+        }
+    }
+
     /// The welcome screen and the project properties window.
     fn run_start_dialogs(&mut self, ctx: &egui::Context) {
         use crate::welcome::WelcomeAction;
@@ -4179,6 +4207,7 @@ impl NeovegApp {
         self.state.log_viewer.show(ctx, &log_dir);
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
+        self.run_notes_window(ctx);
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
@@ -4483,6 +4512,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         });
         ui.menu_button("Exibir", |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
+            if ui.button("Notas do projeto…").clicked() {
+                state.notes.open = true;
+                ui.close_menu();
+            }
             ui.separator();
             for command in [
                 Command::ViewPreview,
@@ -7092,6 +7125,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Color32::from_gray(235),
         );
     }
+    // Notes of the project: a square on the ruler, hollow once resolved
+    for note in &state.project.notes {
+        let x = to_x(note.time);
+        if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
+            continue;
+        }
+        let [r, g, b] = note.rgb();
+        let color = Color32::from_rgb(r, g, b);
+        let square = Rect::from_min_size(
+            pos2(x - 3.0, rect.top() + RULER_HEIGHT - MARK_STRIP_HEIGHT - 3.0),
+            vec2(6.0, 6.0),
+        );
+        if note.resolved {
+            lane_painter.rect_stroke(square, Rounding::ZERO, Stroke::new(1.0_f32, color));
+        } else {
+            lane_painter.rect_filled(square, Rounding::ZERO, color);
+        }
+    }
     for marker in &state.timeline.markers {
         let x = to_x(state.shown_span(marker.id, (marker.time, marker.time)).0);
         if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
@@ -8162,6 +8213,36 @@ mod tests {
             .recent_projects
             .iter()
             .any(|p| p.ends_with("sumiu.neoveg")));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn project_notes_are_part_of_the_project_and_the_window_actions_mark_it_changed() {
+        use crate::notes_window::{apply_note_action, NoteAction};
+        let mut s = AppState::new();
+        s.playhead = 6.0;
+        assert!(!s.is_dirty());
+        let effect = apply_note_action(
+            &mut s.project.notes,
+            NoteAction::Add {
+                color: 1,
+                label: "som".into(),
+            },
+            s.playhead,
+        );
+        assert!(effect.changed);
+        assert_eq!(s.project.notes[0].time, 6.0);
+        // The window loop marks the project changed when an action says so
+        s.forced_dirty = effect.changed;
+        assert!(s.is_dirty());
+        // A note is saved with the project and comes back
+        let dir = std::env::temp_dir().join(format!("neoveg_notes_ui_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("n.neoveg");
+        project_file::save(&file, &s.project, &s.timeline).unwrap();
+        let (info, _) = project_file::load(&file).unwrap();
+        assert_eq!(info.notes, s.project.notes);
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -451,6 +451,19 @@ fn demo_project() -> AppState {
             s.history.execute(&mut s.timeline, command);
         }
     }
+    for (id, time, text, label, color) in [
+        (1, 3.0, "Entrada da trilha ainda alta", "áudio", 1),
+        (2, 16.5, "Trocar este plano", "corte", 3),
+    ] {
+        s.project.notes.push(neoveg_common::project::ProjectNote {
+            id,
+            time,
+            text: text.into(),
+            label: label.into(),
+            color,
+            resolved: false,
+        });
+    }
     s.playhead = 9.0;
     s.pixels_per_second = 44.0;
     s.status = "Projeto de demonstração: capturas de tela geradas fora da tela".into();

@@ -469,7 +469,7 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 
 **Fase 15 — Lacunas encontradas no índice dos manuais v18 a v21 (o que o Neoveg ainda não tem)**
 
-- [ ] Notas do projeto (título, autor, direitos e comentários) e janela de notas
+- [x] Notas do projeto (Exibir > Notas do projeto): notas presas a um tempo da linha do tempo, com cor, etiqueta, texto, timecode editável, ir para a nota, usar o tempo do cursor, resolver e ocultar as resolvidas; quadrados coloridos na régua; salvas no `.neoveg`
 - [ ] Detalhes de edição (*Edit Details*): lista de todos os eventos com início, duração e fim
 - [ ] Apresentação de slides (*Insert Slideshow*): várias imagens em sequência com duração e transição
 - [ ] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois

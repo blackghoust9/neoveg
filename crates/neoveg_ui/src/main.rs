@@ -11,6 +11,7 @@ mod icons;
 mod log_viewer;
 mod loudness_panel;
 mod mixer_panel;
+mod notes_window;
 mod precision_slider;
 mod project_dialog;
 mod render_dialog;

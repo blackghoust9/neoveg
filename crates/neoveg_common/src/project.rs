@@ -147,12 +147,64 @@ impl MediaRef {
     }
 }
 
+/// Colours a note can take (the index is stored in the project).
+pub const NOTE_COLORS: [(&str, [u8; 3]); 6] = [
+    ("Amarelo", [0xF1, 0xC4, 0x0F]),
+    ("Vermelho", [0xE7, 0x4C, 0x3C]),
+    ("Verde", [0x2E, 0xCC, 0x71]),
+    ("Azul", [0x34, 0x98, 0xDB]),
+    ("Roxo", [0x9B, 0x59, 0xB6]),
+    ("Cinza", [0x95, 0xA5, 0xA6]),
+];
+
+/// A note pinned to a moment of the timeline: a reminder for oneself or a comment for a
+/// collaborator, sorted by time, colour-coded, with a label, and marked as resolved when dealt with.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectNote {
+    pub id: u64,
+    /// Timeline position in seconds.
+    pub time: f64,
+    pub text: String,
+    #[serde(default)]
+    pub label: String,
+    /// Index into [`NOTE_COLORS`].
+    #[serde(default)]
+    pub color: u8,
+    #[serde(default)]
+    pub resolved: bool,
+}
+
+impl ProjectNote {
+    /// The colour of the note (the first one when the stored index is out of range).
+    pub fn rgb(&self) -> [u8; 3] {
+        NOTE_COLORS[usize::from(self.color).min(NOTE_COLORS.len() - 1)].1
+    }
+}
+
+/// The notes in time order, optionally without the resolved ones.
+pub fn notes_in_order(notes: &[ProjectNote], hide_resolved: bool) -> Vec<&ProjectNote> {
+    let mut list: Vec<&ProjectNote> = notes
+        .iter()
+        .filter(|n| !(hide_resolved && n.resolved))
+        .collect();
+    list.sort_by(|a, b| a.time.total_cmp(&b.time).then(a.id.cmp(&b.id)));
+    list
+}
+
+/// An id no note has yet.
+pub fn next_note_id(notes: &[ProjectNote]) -> u64 {
+    notes.iter().map(|n| n.id).max().map_or(1, |m| m + 1)
+}
+
 /// Top-level project metadata. Neoveg starts with an empty project (no media).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectInfo {
     pub name: String,
     pub settings: ProjectSettings,
     pub media_pool: Vec<MediaRef>,
+    /// Notes pinned to the timeline (Exibir > Notas do projeto).
+    #[serde(default)]
+    pub notes: Vec<ProjectNote>,
 }
 
 impl ProjectInfo {
@@ -161,6 +213,7 @@ impl ProjectInfo {
             name: "Untitled".into(),
             settings: ProjectSettings::default(),
             media_pool: Vec::new(),
+            notes: Vec::new(),
         }
     }
 }
@@ -191,5 +244,36 @@ mod tests {
     #[test]
     fn empty_project_has_no_media() {
         assert!(ProjectInfo::create_empty().media_pool.is_empty());
+    }
+
+    fn note(id: u64, time: f64, resolved: bool) -> ProjectNote {
+        ProjectNote {
+            id,
+            time,
+            text: format!("nota {id}"),
+            label: String::new(),
+            color: 0,
+            resolved,
+        }
+    }
+
+    #[test]
+    fn notes_come_in_time_order_and_resolved_ones_can_be_hidden() {
+        let notes = vec![note(1, 9.0, false), note(2, 2.0, true), note(3, 2.0, false)];
+        let all: Vec<u64> = notes_in_order(&notes, false).iter().map(|n| n.id).collect();
+        assert_eq!(all, vec![2, 3, 1], "same time: the older note first");
+        let open: Vec<u64> = notes_in_order(&notes, true).iter().map(|n| n.id).collect();
+        assert_eq!(open, vec![3, 1]);
+        assert_eq!(next_note_id(&notes), 4);
+        assert_eq!(next_note_id(&[]), 1);
+    }
+
+    #[test]
+    fn a_note_colour_outside_the_palette_falls_back_to_the_last_one() {
+        let mut n = note(1, 0.0, false);
+        n.color = 200;
+        assert_eq!(n.rgb(), NOTE_COLORS[NOTE_COLORS.len() - 1].1);
+        n.color = 1;
+        assert_eq!(n.rgb(), NOTE_COLORS[1].1);
     }
 }
