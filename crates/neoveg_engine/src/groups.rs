@@ -71,7 +71,7 @@ pub fn expand_to_groups(timeline: &Timeline, events: &[EventRef]) -> Vec<EventRe
 /// Groups the given events (at least two). Events that were in other groups leave them.
 /// `None` when fewer than two exist or they already form exactly one group.
 pub fn group_events(timeline: &mut Timeline, events: &[EventRef]) -> Option<Outcome> {
-    let events = existing(timeline, events);
+    let events = crate::switches::unlocked(timeline, &existing(timeline, events));
     if events.len() < 2 {
         return None;
     }
@@ -99,7 +99,7 @@ pub fn group_events(timeline: &mut Timeline, events: &[EventRef]) -> Option<Outc
 
 /// Dissolves every group that contains one of `events`. `None` when none of them is grouped.
 pub fn ungroup_events(timeline: &Timeline, events: &[EventRef]) -> Option<Outcome> {
-    let groups: Vec<GroupId> = existing(timeline, events)
+    let groups: Vec<GroupId> = crate::switches::unlocked(timeline, &existing(timeline, events))
         .into_iter()
         .filter_map(|e| group_of(timeline, e))
         .collect();
@@ -125,7 +125,7 @@ pub fn ungroup_events(timeline: &Timeline, events: &[EventRef]) -> Option<Outcom
 /// Moves every event of `events` by `delta` seconds, together, as one edit. The shift is limited
 /// so that none of them starts before zero. `None` when nothing moves.
 pub fn move_events(timeline: &Timeline, events: &[EventRef], delta: f64) -> Option<Outcome> {
-    let events = existing(timeline, events);
+    let events = crate::switches::unlocked(timeline, &existing(timeline, events));
     let earliest = events
         .iter()
         .filter_map(|&(t, id)| {

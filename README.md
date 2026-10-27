@@ -273,7 +273,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 4 — Envelopes, chaves e propriedades do evento (entrada 10)**
 - [ ] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor
 - [ ] Envelopes de evento: volume (dB), fade, opacidade, velocidade (negativa = reverso, presets de -100 % a 300 %) e progresso de transição
-- [ ] Switches por evento: mudo, travar, repetir, inverter fase, normalizar (com recalcular), manter proporção, reduzir cintilação, reamostragem Smart/Force/Disable
+- [x] Switches por evento: mudo, travar e inverter fase (Editar > Interruptores, `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I`, botão de cadeado na barra); um evento travado não se move, apara, divide, agrupa, corta nem apaga
+- [ ] Switches por evento que faltam: repetir (Loop), normalizar (com recalcular), manter proporção, reduzir cintilação, reamostragem Smart/Force/Disable
 - [ ] Seleção não destrutiva de canal/stream de áudio (ambos, esquerdo, direito, combinar, trocar, canal x)
 - [ ] Esticar no tempo e mudar o tom (teclas `=` e `-`), taxa de reprodução e subamostragem de vídeo
 - [ ] Takes por evento (adicionar como take, `T` / `Shift+T`, escolher/apagar ativo, "slip em todos os takes")

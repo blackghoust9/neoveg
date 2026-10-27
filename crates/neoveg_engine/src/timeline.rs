@@ -40,6 +40,10 @@ fn is_true(v: &bool) -> bool {
     *v
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrackEvent {
     pub id: EventId,
@@ -68,6 +72,15 @@ pub struct TrackEvent {
     /// Events that share a group are selected and moved together (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<GroupId>,
+    /// Event switch Mute: the event is left out of playback (audio and video).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub muted: bool,
+    /// Event switch Lock: the event cannot be moved, trimmed, split, grouped or deleted.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub locked: bool,
+    /// Event switch Invert Phase (audio only): the event's samples are negated.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub invert_phase: bool,
 }
 
 impl Default for TrackEvent {
@@ -86,6 +99,9 @@ impl Default for TrackEvent {
             playback_rate: 1.0,
             preserve_pitch: true,
             group: None,
+            muted: false,
+            locked: false,
+            invert_phase: false,
         }
     }
 }
@@ -456,5 +472,13 @@ impl Timeline {
             .events
             .iter()
             .find(|e| time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
+    }
+
+    /// Like [`Self::event_at`], but muted events are skipped: the event that is actually played.
+    pub fn playing_event_at(&self, track_id: TrackId, time: f64) -> Option<&TrackEvent> {
+        self.track(track_id)?
+            .events
+            .iter()
+            .find(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
     }
 }

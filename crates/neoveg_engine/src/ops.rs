@@ -180,7 +180,7 @@ fn outcome(command: Option<EditCommand>, touched: Vec<EventRef>) -> Option<Outco
 /// Removes the given events.
 pub fn delete_events(timeline: &Timeline, events: &[EventRef]) -> Option<Outcome> {
     let mut draft = Draft::new(timeline);
-    for &(track_id, event_id) in events {
+    for (track_id, event_id) in crate::switches::unlocked(timeline, events) {
         if let Some(list) = draft.list(track_id) {
             list.retain(|e| e.id != event_id);
         }
@@ -281,7 +281,7 @@ pub fn remove_range(
         };
         let mut result = Vec::with_capacity(list.len() + 1);
         for ev in list.drain(..) {
-            if !scope.includes(track_id, ev.id) {
+            if ev.locked || !scope.includes(track_id, ev.id) {
                 result.push(ev);
                 continue;
             }
@@ -442,7 +442,7 @@ pub fn trim_to_range(
         return None;
     }
     let mut draft = Draft::new(timeline);
-    for &(track_id, event_id) in targets {
+    for (track_id, event_id) in crate::switches::unlocked(timeline, targets) {
         if let Some(list) = draft.list(track_id) {
             if let Some(i) = list.iter().position(|e| e.id == event_id) {
                 match clip_to(&list[i], range) {
@@ -470,7 +470,7 @@ pub fn trim_end_to(timeline: &Timeline, targets: &[EventRef], time: f64) -> Opti
 fn trim_edge(timeline: &Timeline, targets: &[EventRef], time: f64, start: bool) -> Option<Outcome> {
     let mut draft = Draft::new(timeline);
     let mut touched = Vec::new();
-    for &(track_id, event_id) in targets {
+    for (track_id, event_id) in crate::switches::unlocked(timeline, targets) {
         let Some(list) = draft.list(track_id) else {
             continue;
         };
@@ -516,7 +516,9 @@ fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Optio
             continue;
         };
         for &at in times {
-            let created = split_list(list, at, &mut alloc, |e| scope.includes(track_id, e.id));
+            let created = split_list(list, at, &mut alloc, |e| {
+                !e.locked && scope.includes(track_id, e.id)
+            });
             for id in &created {
                 if let Some(e) = list.iter_mut().find(|e| e.id == *id) {
                     if let Some(old) = e.group {

@@ -277,6 +277,9 @@ impl EditCommand {
                     fade_out_curve: left.fade_out_curve,
                     playback_rate: left.playback_rate,
                     preserve_pitch: left.preserve_pitch,
+                    muted: left.muted,
+                    locked: left.locked,
+                    invert_phase: left.invert_phase,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;

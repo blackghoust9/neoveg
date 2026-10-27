@@ -53,6 +53,7 @@ icons! {
     Solo,
     Phase,
     Record,
+    Lock,
 }
 
 impl Icon {
@@ -307,6 +308,11 @@ fn draw(c: &mut Canvas, icon: Icon) {
             // A circle with a slash: polarity inversion
             c.circle((0.5, 0.5), 0.32);
             c.line((0.26, 0.74), (0.74, 0.26), 1.0);
+        }
+        Icon::Lock => {
+            // A padlock: solid body under a square-topped shackle
+            c.fill_rect((0.26, 0.46), (0.74, 0.84));
+            c.path(&[(0.36, 0.46), (0.36, 0.2), (0.64, 0.2), (0.64, 0.46)]);
         }
         Icon::Remove => {
             c.line((0.24, 0.24), (0.76, 0.76), 1.1);

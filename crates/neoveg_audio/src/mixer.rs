@@ -133,6 +133,15 @@ mod tests {
     }
 
     #[test]
+    fn a_negative_gain_inverts_the_phase_and_cancels_the_original() {
+        let mut inverted = clip(0.5, 0.0, 1.0);
+        inverted.gain = -1.0;
+        assert_eq!(inverted.sample_at(0.5), (-0.5, -0.5));
+        let clips = [clip(0.5, 0.0, 1.0), inverted];
+        assert_eq!(mix_frame(&clips, 0.5), (0.0, 0.0));
+    }
+
+    #[test]
     fn overlapping_clips_are_summed() {
         let clips = [clip(0.25, 0.0, 1.0), clip(0.5, 0.0, 1.0)];
         assert_eq!(mix_frame(&clips, 0.5), (0.75, 0.75));

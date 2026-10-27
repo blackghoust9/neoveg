@@ -7,6 +7,7 @@ use crate::timeline::{Timeline, TrackEvent, TrackId, TIME_EPSILON};
 /// Removes the given events and moves every later event of the same track earlier by the length of
 /// the gaps that were opened before it (overlapping removals count once). One undo step.
 pub fn ripple_delete_events(timeline: &Timeline, events: &[EventRef]) -> Option<Outcome> {
+    let events = &crate::switches::unlocked(timeline, events);
     let mut draft = Draft::new(timeline);
     let track_ids: Vec<TrackId> = events.iter().map(|(t, _)| *t).collect();
     let mut seen: Vec<TrackId> = Vec::new();

@@ -1751,3 +1751,39 @@ Implementation Guidelines for Neoveg:
 Sources: Sony_Vegas_Pro_8_Manual.pdf (keyboard shortcut tables), Vegas140_Manual_EN.pdf (pp. 15-16 what's
 new, hover scrub and HFR sections).
 Research Date: 2026-10-27
+
+46. Feature Name: Event Switches (Mute, Lock, Invert Phase): Rules and Neoveg Choices
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf, "Applying switches to events", pp. 169-170, with the switches reachable
+   from the Edit menu, the event shortcut menu and the Event Properties dialog.)
+  - Event switches "determine the behavior of events on the timeline". They apply to the selected events and
+    are toggles. The manual lists: Mute, Lock, Loop, Invert Phase (audio only), Normalize (audio only),
+    Maintain Aspect Ratio (video only), Reduce Interlace Flicker (video only) and Resample (video only).
+  - Mute: excludes the event from playback; muted events are darkened on the timeline.
+  - Lock: locks an event so it cannot be moved or edited; the editing toolbar has a Lock button that locks and
+    unlocks the selected event quickly.
+  - Invert Phase: reverses the phase of the sound data. It makes no audible difference in a single file but
+    prevents phase cancellation when mixing or crossfading audio signals.
+  - The manual gives no keyboard shortcut for the switches and does not say how a locked event behaves inside
+    a group or a multi-selection, or whether a muted event still crossfades.
+Implementation Guidelines for Neoveg:
+  - Implemented: Mute, Lock and Invert Phase as `TrackEvent::{muted, locked, invert_phase}` (`#[serde(default)]`,
+    omitted from the file when off), `neoveg_engine::switches` (one `EditCommand::ReplaceEvents` per toggle, so
+    one undo step), Edit > Switches with check marks, the event context menu, a Lock toolbar button, Ctrl+Alt+M
+    / L / I (Neoveg's own bindings). Not yet implemented: Loop, Normalize, aspect ratio, interlace flicker,
+    resample.
+  - Neoveg choices where the manual is silent: (1) a locked event is frozen - move, trim, split, group,
+    ungroup, cut (time range), delete and ripple delete all leave it untouched, and Mute / Invert Phase skip it
+    until it is unlocked; (2) operations from menus or shortcuts on a mixed selection skip the locked events
+    and still apply to the others, while a mouse drag that starts on a locked event, or on a selection that
+    holds one, is refused as a whole; (3) a muted event is left out of audio playback, of the video preview
+    and of automatic crossfade detection (the remaining event is not faded against silence); (4) Invert Phase
+    is the mixer clip gain -1, applied before the track effects; (5) toggling over a mixed selection turns the
+    switch on for all of it, and toggling when all are on turns it off; (6) a split keeps the switches on
+    both halves.
+  - Tests: engine (toggle, undo, mixed state, video skip, lock vs. delete / move / trim / split / range cut /
+    ripple / group, old files without the fields, round trip), mixer (negative gain cancels the original) and
+    UI state (one undo step, drag refusal).
+Sources: VEGAS_Pro_18_EN.pdf pp. 169-170.
+Research Date: 2026-10-27

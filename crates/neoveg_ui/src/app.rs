@@ -50,6 +50,7 @@ use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::otio;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
+use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
@@ -1674,6 +1675,9 @@ impl AppState {
             }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
+            Command::EditSwitchMute | Command::EditSwitchLock | Command::EditSwitchInvertPhase => {
+                has_events
+            }
             Command::EditUngroup => self
                 .selection
                 .refs()
@@ -1947,6 +1951,19 @@ impl AppState {
         } else {
             Vec::new()
         };
+        // A locked event cannot be dragged, and neither can a selection that holds one
+        let dragged: Vec<EventRef> = if moving.is_empty() {
+            vec![(track_id, event_id)]
+        } else {
+            moving.clone()
+        };
+        if dragged
+            .iter()
+            .any(|&e| switches::is_locked(&self.timeline, e))
+        {
+            self.status = "Evento bloqueado: desbloqueie para editá-lo".into();
+            return;
+        }
         self.drag = Some(EventDrag {
             mode,
             track_id,
@@ -2211,6 +2228,32 @@ impl AppState {
         }
     }
 
+    /// Edit > Switches: turns a switch on for the selected events, or off when it is on for all
+    /// of them. One undo step.
+    fn toggle_event_switch(&mut self, switch: Switch) {
+        let refs = self.selection.refs();
+        let on = switches::state(&self.timeline, &refs, switch) != SwitchState::On;
+        match switches::toggle(&self.timeline, &refs, switch) {
+            Some(command) => {
+                self.history.execute(&mut self.timeline, command);
+                let name = match switch {
+                    Switch::Mute => "Mute",
+                    Switch::Lock => "Bloqueio",
+                    Switch::InvertPhase => "Inverter fase",
+                };
+                self.status = format!("{name} {}", if on { "ligado" } else { "desligado" });
+            }
+            None => {
+                self.status = match switch {
+                    Switch::InvertPhase => {
+                        "Inverter fase vale só para eventos de áudio desbloqueados".into()
+                    }
+                    _ => "Nenhum evento desbloqueado na seleção".into(),
+                };
+            }
+        }
+    }
+
     /// `Ctrl+Shift+U`: clicks select single events of a group (or the whole group again).
     fn toggle_ignore_grouping(&mut self) {
         self.ignore_grouping = !self.ignore_grouping;
@@ -2465,7 +2508,7 @@ impl AppState {
             .tracks
             .iter()
             .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
-            .find_map(|t| timeline.event_at(t.id, self.playhead))
+            .find_map(|t| timeline.playing_event_at(t.id, self.playhead))
             .and_then(|e| {
                 let rate = edit::clamp_playback_rate(e.playback_rate);
                 Some((e.media_id?, (self.playhead - e.start) * rate + e.trim_in))
@@ -2673,8 +2716,11 @@ impl AppState {
             .enumerate()
             .filter(|(_, t)| t.kind == TrackKind::Audio && timeline.audible(t))
         {
+            // A muted event is out of playback, so it takes no part in the crossfades either
+            let playable: Vec<TrackEvent> =
+                track.events.iter().filter(|e| !e.muted).cloned().collect();
             let crossfades = if self.project.settings.auto_crossfade {
-                find_crossfades(&track.events)
+                find_crossfades(&playable)
             } else {
                 Vec::new()
             };
@@ -2685,7 +2731,7 @@ impl AppState {
                     .map(Crossfade::length)
                     .fold(0.0, f64::max)
             };
-            for e in &track.events {
+            for e in &playable {
                 let Some(media_id) = e.media_id else {
                     continue;
                 };
@@ -2696,7 +2742,7 @@ impl AppState {
                 let out_curve = crossfades
                     .iter()
                     .filter(|c| c.earlier == e.id)
-                    .filter_map(|c| track.events.iter().find(|o| o.id == c.later))
+                    .filter_map(|c| playable.iter().find(|o| o.id == c.later))
                     .map(|later| later.fade_in_curve)
                     .next()
                     .unwrap_or_default();
@@ -2736,7 +2782,7 @@ impl AppState {
                     start: e.start,
                     duration: e.duration,
                     trim_in,
-                    gain: 1.0,
+                    gain: if e.invert_phase { -1.0 } else { 1.0 },
                     fade_in: e.fade_in,
                     fade_out: e.fade_out,
                     fade_in_curve: e.fade_in_curve,
@@ -3204,6 +3250,9 @@ impl AppState {
             Command::EditGroup => self.group_selection(),
             Command::EditUngroup => self.ungroup_selection(),
             Command::EditIgnoreGrouping => self.toggle_ignore_grouping(),
+            Command::EditSwitchMute => self.toggle_event_switch(Switch::Mute),
+            Command::EditSwitchLock => self.toggle_event_switch(Switch::Lock),
+            Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
             Command::TransportLoop => self.toggle_loop(),
             Command::TransportShuttleForward => self.shuttle(true, now),
             Command::TransportShuttleReverse => self.shuttle(false, now),
@@ -3708,6 +3757,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            ui.menu_button("Interruptores", |ui| switch_items(state, ui));
             ui.separator();
             for command in [
                 Command::EditSplit,
@@ -3892,6 +3942,57 @@ fn credits_window(ctx: &egui::Context, state: &mut AppState) {
 }
 
 /// A menu entry that runs `command`, with its shortcut and enabled state.
+/// A small padlock (body and shackle) with its top-left corner at `at`, for locked events.
+fn paint_lock_mark(painter: &egui::Painter, at: Pos2) {
+    let ink = Color32::from_gray(235);
+    painter.rect_filled(
+        Rect::from_min_size(at + vec2(1.0, 5.0), vec2(8.0, 6.0)),
+        Rounding::ZERO,
+        ink,
+    );
+    painter.rect_stroke(
+        Rect::from_min_size(at + vec2(2.5, 1.0), vec2(5.0, 5.0)),
+        Rounding::ZERO,
+        Stroke::new(1.2_f32, ink),
+    );
+}
+
+/// A checked menu item for one event switch: ticked when it is on for every selected event that
+/// can take it, and greyed out when the selection holds none.
+fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command: Command) {
+    let refs = state.selection.refs();
+    let current = switches::state(&state.timeline, &refs, switch);
+    let enabled = state.command_enabled(command);
+    let mut on = current == SwitchState::On;
+    let label = state.with_hint(command.label(), command);
+    let label = if current == SwitchState::Mixed {
+        format!("{label} (parcial)")
+    } else {
+        label
+    };
+    if ui
+        .add_enabled(enabled, egui::Checkbox::new(&mut on, label))
+        .clicked()
+    {
+        let ctx = ui.ctx().clone();
+        let now = ctx.input(|i| i.time);
+        state.run_command(command, &ctx, now);
+        ui.close_menu();
+    }
+}
+
+/// Editar > Interruptores (and the same entries in the event context menu).
+fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
+    switch_item(state, ui, Switch::Mute, Command::EditSwitchMute);
+    switch_item(state, ui, Switch::Lock, Command::EditSwitchLock);
+    switch_item(
+        state,
+        ui,
+        Switch::InvertPhase,
+        Command::EditSwitchInvertPhase,
+    );
+}
+
 fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
     let enabled = state.command_enabled(command);
     let label = state.with_hint(command.label(), command);
@@ -5400,6 +5501,7 @@ fn event_context_menu(
     ] {
         command_item(state, ui, command);
     }
+    ui.menu_button("Interruptores", |ui| switch_items(state, ui));
     if ui.button("Selecionar eventos até o fim").clicked() {
         state
             .selection
@@ -5564,6 +5666,19 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         .clicked()
         {
             state.toggle_ignore_grouping();
+        }
+        let selected_refs = state.selection.refs();
+        let all_locked = !selected_refs.is_empty()
+            && switches::state(&state.timeline, &selected_refs, Switch::Lock) == SwitchState::On;
+        if icons::icon_button(
+            ui,
+            Icon::Lock,
+            "Bloquear ou desbloquear os eventos selecionados (Editar > Interruptores)",
+            all_locked,
+        )
+        .clicked()
+        {
+            state.toggle_event_switch(Switch::Lock);
         }
         ui.separator();
         if icons::icon_button(
@@ -6323,6 +6438,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     start_frame,
                     frames_per_pixel,
                     Color32::from_rgb(150, 215, 245),
+                );
+            }
+            if ev.muted {
+                // A muted event is darkened: it is out of playback
+                lane_painter.rect_filled(ev_rect, Rounding::ZERO, Color32::from_black_alpha(150));
+            }
+            if ev.locked && x1 - x0 >= 18.0 {
+                paint_lock_mark(
+                    &lane_painter,
+                    pos2(ev_rect.right() - 16.0, ev_rect.top() + 2.0),
                 );
             }
             if x1 - x0 >= FADE_HANDLE_MIN_EVENT_PX {
@@ -7385,6 +7510,55 @@ mod tests {
         run(&mut s, Command::EditUndo);
         assert_eq!(geometry(&s, b.0, b.1).start, 10.0);
         assert_eq!(geometry(&s, c.0, c.1).start, 14.0);
+    }
+
+    fn flags(s: &AppState, r: EventRef) -> (bool, bool, bool) {
+        let e = s
+            .timeline
+            .track(r.0)
+            .unwrap()
+            .events
+            .iter()
+            .find(|e| e.id == r.1)
+            .unwrap();
+        (e.muted, e.locked, e.invert_phase)
+    }
+
+    #[test]
+    fn switch_commands_toggle_the_selection_as_one_undo_step() {
+        let (mut s, [a, b, _]) = state_with_three_events();
+        s.selection.set([a, b]);
+        let revision = s.history.revision();
+        run(&mut s, Command::EditSwitchMute);
+        assert_eq!(s.history.revision(), revision + 1);
+        assert!(flags(&s, a).0 && flags(&s, b).0);
+        run(&mut s, Command::EditSwitchMute);
+        assert!(!flags(&s, a).0, "a second toggle turns it off");
+        run(&mut s, Command::EditUndo);
+        assert!(flags(&s, a).0 && flags(&s, b).0);
+    }
+
+    #[test]
+    fn a_locked_event_refuses_a_drag_and_a_selection_holding_one_too() {
+        let (mut s, [a, b, _]) = state_with_three_events();
+        s.selection.set([a]);
+        run(&mut s, Command::EditSwitchLock);
+        assert!(flags(&s, a).1);
+
+        let hit = (a.0, a.1, DragMode::Move, geometry(&s, a.0, a.1));
+        s.begin_drag(hit, 3.0);
+        assert!(s.drag.is_none());
+
+        s.selection.set([a, b]);
+        let hit = (b.0, b.1, DragMode::Move, geometry(&s, b.0, b.1));
+        s.begin_drag(hit, 11.0);
+        assert!(s.drag.is_none(), "the whole gesture is refused");
+
+        run(&mut s, Command::EditDelete);
+        assert!(
+            s.timeline.track(a.0).unwrap().events.iter().any(|e| e.id == a.1),
+            "Delete leaves the locked event"
+        );
     }
 
     #[test]
