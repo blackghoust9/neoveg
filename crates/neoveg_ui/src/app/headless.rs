@@ -47,6 +47,15 @@ pub fn run(dir: &Path) -> Result<(), String> {
         // 1. The whole workspace
         let ctx = new_context();
         let mut app = headless_app(demo_project(), default_dock());
+        let real = install_sample_frame(&ctx, &mut app.state);
+        println!(
+            "previa: {}",
+            if real {
+                "quadro real do vídeo de amostra"
+            } else {
+                "sem vídeo de amostra ou ffmpeg: previa preta"
+            }
+        );
         let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[0]))?;
 
@@ -59,6 +68,7 @@ pub fn run(dir: &Path) -> Result<(), String> {
         // 3. Several projects open, one of them a sub-project of the first
         let ctx = new_context();
         let mut app = headless_app(demo_tabs(&ctx, &scratch), default_dock());
+        install_sample_frame(&ctx, &mut app.state);
         let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[2]))?;
 
@@ -321,6 +331,59 @@ fn save(image: &image::RgbaImage, path: &Path) -> Result<(), String> {
         .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     println!("gravado {}", path.display());
     Ok(())
+}
+
+/// The sample video of the tests: a real 1080p clip with motion and gradients, made with `ffmpeg`.
+const SAMPLE_VIDEO: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../neoveg_video/tests/assets/sample_video.mp4"
+);
+/// The decoded frame is scaled to this size (the preview shows it at most this large).
+const SAMPLE_FRAME: (u32, u32) = (960, 540);
+
+/// Decodes the frame of `video` at `seconds` with the `ffmpeg` program and returns it as RGBA, scaled
+/// to [`SAMPLE_FRAME`]. `None` when the file or the program is missing or the frame cannot be read.
+fn decode_sample_frame(video: &Path, seconds: f64) -> Option<neoveg_video::frame::FrameBuffer> {
+    if !video.is_file() {
+        return None;
+    }
+    let (width, height) = SAMPLE_FRAME;
+    let output = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-ss", &format!("{seconds:.4}"), "-i"])
+        .arg(video)
+        .args(["-frames:v", "1", "-vf", &format!("scale={width}:{height}")])
+        .args(["-f", "rawvideo", "-pix_fmt", "rgba", "-"])
+        .output()
+        .ok()?;
+    let expected = (width * height * 4) as usize;
+    (output.status.success() && output.stdout.len() == expected).then(|| {
+        neoveg_video::frame::FrameBuffer {
+            width,
+            height,
+            rgba: output.stdout,
+        }
+    })
+}
+
+/// Puts the real frame under the cursor into the preview: the frame of the sample video at the
+/// cursor time (the whole frame, as the decoder returns it), uploaded as the preview texture, and its
+/// scopes. Without the sample file or `ffmpeg` the preview stays as it was and `false` is returned.
+fn install_sample_frame(ctx: &egui::Context, state: &mut AppState) -> bool {
+    // The frame at the cursor: frame index (floor) over the project rate, like the timecode box
+    let fps = state.project.settings.fps;
+    let seconds = (state.playhead * fps).floor() / fps;
+    let Some(frame) = decode_sample_frame(Path::new(SAMPLE_VIDEO), seconds) else {
+        return false;
+    };
+    state.frame_scopes = Some(Scopes::from_frame(&frame));
+    state.frame_scopes_version += 1;
+    let image = egui::ColorImage::from_rgba_unmultiplied(
+        [frame.width as usize, frame.height as usize],
+        &frame.rgba,
+    );
+    state.video_texture =
+        Some(ctx.load_texture("preview_frame", image, egui::TextureOptions::LINEAR));
+    true
 }
 
 // ---- demonstration content ---------------------------------------------------------------------------

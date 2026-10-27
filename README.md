@@ -22,7 +22,7 @@ Consulte [AGENTS.md](./AGENTS.md) para os padrões de arquitetura e codificaçã
 
 ## Galeria visual
 
-As imagens abaixo são geradas pelo próprio programa, **fora da tela** (sem abrir janela), com um projeto de demonstração montado em memória: `cargo test -p neoveg_ui --test headless_screenshot` com `NEOVEG_SCREENSHOTS=1` (veja [Capturas de tela](#capturas-de-tela-headless)). O áudio das mídias é sintético; o painel de visualização aparece preto porque a demonstração não decodifica vídeo.
+As imagens abaixo são geradas pelo próprio programa, **fora da tela** (sem abrir janela), com um projeto de demonstração montado em memória: `cargo test -p neoveg_ui --test headless_screenshot` com `NEOVEG_SCREENSHOTS=1` (veja [Capturas de tela](#capturas-de-tela-headless)). O áudio das mídias é sintético; o painel de visualização mostra um **quadro real decodificado** de um vídeo de amostra em 1080p (`crates/neoveg_video/tests/assets/sample_video.mp4`, gerado com o `ffmpeg`), o quadro do cursor (00:00:08;29), lido pelo programa `ffmpeg` e enviado como textura do painel; sem o `ffmpeg` no PATH ele fica preto.
 
 ### Layout geral
 

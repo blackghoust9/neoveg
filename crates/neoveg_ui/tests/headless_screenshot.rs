@@ -76,4 +76,27 @@ fn the_interface_renders_offscreen_to_png_files() {
             colours.len()
         );
     }
+
+    // The preview shows a real decoded frame of the sample video (when the clip and `ffmpeg` exist):
+    // the test pattern is full of colours, where a black preview has almost none
+    let sample = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../neoveg_video/tests/assets/sample_video.mp4");
+    let ffmpeg_works = Command::new("ffmpeg")
+        .arg("-version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if sample.is_file() && ffmpeg_works {
+        let main = image::open(dir.join("ui_main_layout.png"))
+            .unwrap()
+            .to_rgba8();
+        let colours: HashSet<[u8; 4]> = (140..460)
+            .flat_map(|y| (620..1230).map(move |x| (x, y)))
+            .map(|(x, y)| main.get_pixel(x, y).0)
+            .collect();
+        assert!(
+            colours.len() > 300,
+            "the preview of ui_main_layout.png has only {} colours: the real frame is missing",
+            colours.len()
+        );
+    }
 }
