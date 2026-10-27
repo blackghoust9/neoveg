@@ -11,8 +11,9 @@ use neoveg_common::timecode::{nominal_fps, timecode_seconds_to_frame};
 
 pub const MIN_MINOR_SPACING_PX: f64 = 8.0;
 pub const MIN_MAJOR_SPACING_PX: f64 = 90.0;
-/// Same lower bound the timeline uses when converting time to x.
-const MIN_PIXELS_PER_SECOND: f64 = 20.0;
+/// Only a guard against a zero or negative zoom: the timeline never goes below 15 px/s, and the
+/// grid must follow the real zoom (a higher floor made the ruler stop short of the right edge).
+const MIN_PIXELS_PER_SECOND: f64 = 0.5;
 const MAX_LINES_PER_LIST: usize = 4096;
 
 const FRAME_STEP_LADDER: [i64; 4] = [1, 2, 5, 10];
@@ -147,6 +148,29 @@ pub fn snap_to_device_pixel(x: f32, pixels_per_point: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_grid_covers_the_whole_viewport_at_every_zoom_the_timeline_allows() {
+        // The timeline zooms out to 15 px/s; the ruler must reach the right edge there too
+        for pps in [15.0, 17.5, 19.9, 20.0, 60.0, 480.0, 480_000.0] {
+            let width = 1000.0;
+            let grid = FrameGrid::compute(29.97, pps, 0.0, width);
+            let visible = width / pps;
+            let last = grid.major_times.last().copied().unwrap_or(0.0);
+            let step = choose_step(29.97, pps, MIN_MAJOR_SPACING_PX).seconds(29.97);
+            assert!(
+                visible - last <= step * 1.01 + 1e-6,
+                "at {pps} px/s the last label is at {last} s of {visible} s (step {step})"
+            );
+            // Neighbouring labels never sit closer than the room a label needs
+            for pair in grid.major_times.windows(2) {
+                assert!(
+                    (pair[1] - pair[0]) * pps >= MIN_MAJOR_SPACING_PX - 1.0,
+                    "labels too close at {pps} px/s"
+                );
+            }
+        }
+    }
 
     #[test]
     fn close_zoom_draws_one_minor_line_per_frame() {
