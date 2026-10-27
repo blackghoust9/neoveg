@@ -422,6 +422,15 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 
 ---
 
+## 33. Documentation-Driven Development Protocol
+
+- **The manuals are the only source** for UI, UX and features. Look first in `manuais/` inside the repository (git-ignored, local) and, when it is missing there, in `G:\Meu Drive\vp-rev-eng\teste\teste2\manuais`. Search the extracted text of the PDFs before designing a window, a menu, a shortcut or a behaviour.
+- **Zero hallucination.** Do not add a feature, menu item, dialog or shortcut from memory of other editors. If the manuals do not describe it, it is not built; if it is a deliberate decision of the project, it is recorded in `docs/research/ui_audit.md` with the reason.
+- **Clean room stays.** The manuals describe behaviour; their text, screenshots and icons are not copied (section 9.1 and the memory notes on reverse engineering still apply).
+- **Audit.** `docs/research/ui_audit.md` lists what in `neoveg_ui` has support in the manuals and what is Neoveg's own decision. Anything marked "a confirmar" is checked against the PDFs before it is changed or removed; nothing is mass-deleted.
+
+---
+
 # Part II — Legacy history
 
 The C# / C++ / Python implementation (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`, the root `Dockerfile` and `docker-compose.yml`) was removed from the tree. Its protocols (Avalonia UI, FFI naming, C++ extensions, Python scripting, AppCache bootstrap, Docker multi-language pipeline) no longer apply; they remain in Git history before commit `36b1d19` as a porting reference only. Nothing in Part I depends on them.
