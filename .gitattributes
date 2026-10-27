@@ -60,3 +60,32 @@ CMakeLists.txt  text eol=lf
 *.zip    binary
 *.gz     binary
 *.tar    binary
+
+# ============================================================================
+# GitHub Linguist: the language bar should show the Rust code, not the tooling
+# ============================================================================
+
+# Auxiliary languages and scripts do not count in the statistics
+*.py   linguist-vendored
+*.cs   linguist-vendored
+*.js   linguist-vendored
+*.ts   linguist-vendored
+*.ps1  linguist-vendored
+*.sh   linguist-vendored
+*.h    linguist-vendored
+*.rc   linguist-vendored
+*.qss  linguist-vendored
+*.html linguist-documentation
+*.css  linguist-documentation
+
+# Folders of scripts, research, documentation and third-party material
+scripts/**             linguist-vendored
+docs/**                linguist-documentation
+docs_obsidian/**       linguist-documentation
+assets/**              linguist-vendored
+third_party/**         linguist-vendored
+pdf_ui_references/**   linguist-vendored
+results_assets/**      linguist-vendored
+
+# The Rust crates are what the repository is
+*.rs linguist-detectable=true
