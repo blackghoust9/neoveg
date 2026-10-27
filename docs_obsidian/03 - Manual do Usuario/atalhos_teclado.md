@@ -53,9 +53,9 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Interruptor: repetir (laço do evento) | `Ctrl+Alt+O` | `edit.switch.loop` | implementado |
 | Interruptor: normalizar | `Ctrl+Alt+N` | `edit.switch.normalize` | implementado |
 | Recalcular a normalização | `Ctrl+Alt+Shift+N` | `edit.normalize.recalculate` | implementado |
-| Ferramenta normal | `Ctrl+D` | `edit.tool.normal` | *planejado* |
-| Próxima ferramenta de edição | `D` | `edit.tool.next` | *planejado* |
-| Ferramenta de edição anterior | `Shift+D` | `edit.tool.previous` | *planejado* |
+| Ferramenta normal | `Ctrl+D` | `edit.tool.normal` | implementado |
+| Próxima ferramenta de edição | `D` | `edit.tool.next` | implementado |
+| Ferramenta de edição anterior | `Shift+D` | `edit.tool.previous` | implementado |
 | Próximo take | `T` | `edit.take.next` | *planejado* |
 | Take anterior | `Shift+T` | `edit.take.previous` | *planejado* |
 

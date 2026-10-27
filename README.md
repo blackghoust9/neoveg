@@ -233,7 +233,8 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Composição de várias faixas de vídeo na prévia: a primeira faixa fica por cima, e a sobreposição de dois eventos da mesma faixa faz crossfade (o evento seguinte entra com fade); o mesmo pedido de quadro alimenta a exportação
 - [ ] Reprodução de vídeo sincronizada ao relógio de áudio (hoje o relógio é o do mixer; quadros podem ser descartados)
 - [ ] Janela de mídia ausente (passo 3: validar duração/canais com metadados) e relink manual
-- [ ] Slip, slide e stretch de eventos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
+- [x] Ferramentas de edição Slip e Slide (`D` / `Shift+D` / `Ctrl+D`, Editar > Ferramenta de edição e botões na barra): Slip desliza a mídia dentro do evento, Slide move o evento e a mídia fica no lugar; os dois param no início e no fim da mídia, em quadros inteiros, um passo de desfazer
+- [ ] Stretch por ferramenta, Shuffle, Split Trim e Slide com ajuste dos vizinhos; ripple (seleção múltipla, agrupar e desagrupar já feitos)
 - [ ] Aparar com o mouse em eventos de mídia gerada (hoje o limite de fonte só vale para mídia importada)
 - [x] Marcadores (`M`), regiões e loop
 - [x] Volume, pan, mute e solo por faixa
@@ -269,7 +270,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 **Edição e timeline**
 - [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
 - [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar
-- [ ] Slip, slide, stretch e *velocity* (envelope de velocidade) de eventos
+- [ ] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
 - [ ] Travar faixa/evento
 - [x] Marcadores (`M`), regiões e loop

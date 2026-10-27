@@ -168,6 +168,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `G` / `U` | Group the selected events (a group is selected, moved and split together) / take the selected events out of their group, the others stay grouped (a group left with one member is dissolved) | implemented |
 | `Ctrl+U` / `Shift+G` | Dissolve the whole group of the selected events / select every event of their groups | implemented |
 | `Alt+Shift+Up` / `Alt+Shift+Down` | Move the track focus one track up / down | implemented |
+| `D` / `Shift+D` / `Ctrl+D` | Editing tool: next / previous / normal (Normal, Slip, Slide). With Slip or Slide, dragging the body of an event slips its media or slides the event over its media; the edges keep trimming | implemented |
 | `Ctrl+Alt+S` | Save Version: save the project as `name_0001.neoveg`, `name_0002.neoveg`… and go on working in that file | implemented |
 | `Ctrl+Alt+T` | Insert Time: open empty time at the cursor on the tracks of the selected events (every track when none is selected), moving the ruler too in the latter case (Neoveg's own binding) | implemented |
 | `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I` | Event switches Mute / Lock / Invert Phase on the selected events (Editar → Interruptores, event context menu; Lock also has a toolbar button). Neoveg's own bindings: the reference manuals list the switches but give them no shortcut | implemented |

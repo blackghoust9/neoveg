@@ -89,6 +89,41 @@ pub fn loop_length(source_len: f64, trim_in: f64) -> f64 {
     (source_len - trim_in).max(0.0)
 }
 
+/// *Slip*: the event stays where it is on the timeline and its media moves under it, so another part
+/// of the source is shown. `delta` is the drag in timeline seconds (positive shows later media).
+/// The window cannot leave the source: it stays between its start and `source_len` when that is known.
+pub fn slip(g: EventGeometry, delta: f64, source_len: Option<f64>) -> EventGeometry {
+    let rate = clamp_playback_rate(g.playback_rate);
+    let span = g.duration * rate;
+    let lowest = -g.trim_in;
+    let highest = source_len
+        .map_or(f64::INFINITY, |len| len - span - g.trim_in)
+        .max(lowest);
+    EventGeometry {
+        trim_in: g.trim_in + (delta * rate).clamp(lowest, highest),
+        ..g
+    }
+}
+
+/// *Slide*: the event moves on the timeline while its media keeps its place on it, so the event is a
+/// window that slides over the media: its start and its in point move together. `delta` is the drag
+/// in timeline seconds. The event cannot start before zero, nor show media before the source start or
+/// past its end (when `source_len` is known).
+pub fn slide(g: EventGeometry, delta: f64, source_len: Option<f64>) -> EventGeometry {
+    let rate = clamp_playback_rate(g.playback_rate);
+    let span = g.duration * rate;
+    let lowest = (-g.start).max(-g.trim_in / rate);
+    let highest = source_len
+        .map_or(f64::INFINITY, |len| (len - span - g.trim_in) / rate)
+        .max(lowest);
+    let moved = delta.clamp(lowest, highest);
+    EventGeometry {
+        start: g.start + moved,
+        trim_in: g.trim_in + moved * rate,
+        ..g
+    }
+}
+
 /// Drags the right edge to `new_end`, limited by the remaining source (`source_len`, when known) and
 /// by `min_len`.
 pub fn trim_right(
@@ -304,5 +339,85 @@ mod tests {
         // start at 10.05 snaps to 10
         assert!((snap_block(10.05, 2.0, &c, 0.2).unwrap() - 10.0).abs() < 1e-9);
         assert_eq!(snap_block(1.0, 2.0, &c, 0.2), None);
+    }
+
+    fn window(start: f64, duration: f64, trim_in: f64) -> EventGeometry {
+        EventGeometry {
+            start,
+            duration,
+            trim_in,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            playback_rate: 1.0,
+            preserve_pitch: true,
+        }
+    }
+
+    #[test]
+    fn slip_shifts_the_media_and_keeps_the_event_where_it_is() {
+        let g = window(10.0, 4.0, 5.0);
+        let slipped = slip(g, 2.0, Some(30.0));
+        assert_eq!(
+            (slipped.start, slipped.duration, slipped.trim_in),
+            (10.0, 4.0, 7.0)
+        );
+        let back = slip(g, -2.0, Some(30.0));
+        assert_eq!(back.trim_in, 3.0);
+    }
+
+    #[test]
+    fn slip_cannot_leave_the_source() {
+        let g = window(10.0, 4.0, 5.0);
+        assert_eq!(
+            slip(g, -99.0, Some(30.0)).trim_in,
+            0.0,
+            "not before the start of the media"
+        );
+        // 30 s of media, 4 s shown: the window can start at 26 s at the latest
+        assert_eq!(slip(g, 99.0, Some(30.0)).trim_in, 26.0);
+        assert_eq!(
+            slip(g, 99.0, None).trim_in,
+            104.0,
+            "an unbounded source has no end"
+        );
+    }
+
+    #[test]
+    fn slip_counts_the_media_that_plays_per_timeline_second() {
+        // At double speed a drag of 1 s moves 2 s of media
+        let mut g = window(0.0, 4.0, 5.0);
+        g.playback_rate = 2.0;
+        assert_eq!(slip(g, 1.0, Some(60.0)).trim_in, 7.0);
+        // and the 8 s of media shown must still fit: 60 - 8 = 52 at the latest
+        assert_eq!(slip(g, 500.0, Some(60.0)).trim_in, 52.0);
+    }
+
+    #[test]
+    fn slide_moves_the_event_and_keeps_the_media_in_place() {
+        let g = window(10.0, 4.0, 5.0);
+        let slid = slide(g, 3.0, Some(30.0));
+        assert_eq!((slid.start, slid.trim_in), (13.0, 8.0));
+        // The media is where it was: timeline time t shows the same source time as before
+        let before = (12.0 - g.start) + g.trim_in;
+        let after = (12.0 - slid.start) + slid.trim_in;
+        assert_eq!(before, after);
+        assert_eq!(slid.duration, g.duration);
+    }
+
+    #[test]
+    fn slide_is_bounded_by_zero_the_source_start_and_the_source_end() {
+        let g = window(2.0, 4.0, 5.0);
+        // Not before time zero
+        assert_eq!(slide(g, -99.0, Some(30.0)).start, 0.0);
+        // Not before the start of the media: the in point reaches 0 at a slide of -5, the start at -2
+        let g2 = window(8.0, 4.0, 3.0);
+        let slid = slide(g2, -99.0, Some(30.0));
+        assert_eq!((slid.start, slid.trim_in), (5.0, 0.0));
+        // Not past the end of the media
+        let slid = slide(g, 99.0, Some(30.0));
+        assert_eq!(slid.trim_in, 26.0);
+        assert_eq!(slid.start, 23.0);
     }
 }

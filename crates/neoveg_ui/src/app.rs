@@ -170,10 +170,57 @@ enum LoadMsg {
     Failed(String),
 }
 
+/// The editing tool: what dragging the body of an event does.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+enum EditTool {
+    /// Moves the event (the usual behaviour).
+    #[default]
+    Normal,
+    /// Moves the media under the event, which stays where it is.
+    Slip,
+    /// Moves the event while its media keeps its place on the timeline.
+    Slide,
+}
+
+impl EditTool {
+    const ALL: [EditTool; 3] = [EditTool::Normal, EditTool::Slip, EditTool::Slide];
+
+    fn label(self) -> &'static str {
+        match self {
+            EditTool::Normal => "Normal: seleciona, move e apara",
+            EditTool::Slip => "Slip: desliza a mídia dentro do evento",
+            EditTool::Slide => "Slide: move o evento sem mover a mídia",
+        }
+    }
+
+    fn icon(self) -> icons::SvgIcon {
+        match self {
+            EditTool::Normal => icons::SvgIcon::ToolNormal,
+            EditTool::Slip => icons::SvgIcon::ToolSlip,
+            EditTool::Slide => icons::SvgIcon::ToolSlide,
+        }
+    }
+
+    /// The next tool in the cycle (`D`), or the previous one (`Shift+D`).
+    fn step(self, forward: bool) -> EditTool {
+        let i = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
+        let n = Self::ALL.len();
+        Self::ALL[if forward {
+            (i + 1) % n
+        } else {
+            (i + n - 1) % n
+        }]
+    }
+}
+
 /// What a mouse drag on an event does, decided by where the press landed.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum DragMode {
     Move,
+    /// Slip tool: the media moves under the event.
+    Slip,
+    /// Slide tool: the event moves, its media stays on the timeline.
+    Slide,
     TrimLeft,
     TrimRight,
     StretchLeft,
@@ -246,6 +293,8 @@ struct AppState {
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
     notes: crate::notes_window::NotesState,
+    /// The editing tool (`D` cycles through them).
+    edit_tool: EditTool,
     /// The welcome screen (recent projects, new project).
     welcome: crate::welcome::WelcomeState,
     /// File > Properties: the project's video and audio format.
@@ -1086,6 +1135,7 @@ impl AppState {
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
+            edit_tool: EditTool::default(),
             welcome: Default::default(),
             project_dialog: Default::default(),
             persist_prefs: false,
@@ -2052,6 +2102,12 @@ impl AppState {
 
     fn begin_drag(&mut self, hit: (TrackId, EventId, DragMode, EventGeometry), pointer_time: f64) {
         let (track_id, event_id, mode, origin) = hit;
+        // The body of an event does what the editing tool says
+        let mode = match (mode, self.edit_tool) {
+            (DragMode::Move, EditTool::Slip) => DragMode::Slip,
+            (DragMode::Move, EditTool::Slide) => DragMode::Slide,
+            (mode, _) => mode,
+        };
         self.selected_track = Some(track_id);
         if !self.selection.contains((track_id, event_id)) {
             self.click_select((track_id, event_id));
@@ -2134,6 +2190,27 @@ impl AppState {
                         drag.target_track = track.id;
                     }
                 }
+            }
+            DragMode::Slip | DragMode::Slide => {
+                // How far the pointer has moved since the press, in whole frames
+                let moved = pointer_time - drag.grab_offset - drag.origin.start;
+                let delta = (moved * fps).round() / fps;
+                // A looping event, a still or a generator has no end of its media to stop at
+                let looping = self
+                    .timeline
+                    .track(drag.track_id)
+                    .and_then(|t| t.events.iter().find(|e| e.id == drag.event_id))
+                    .is_some_and(|e| e.looping);
+                let len = if looping {
+                    None
+                } else {
+                    self.source_len(drag.track_id, drag.event_id)
+                };
+                drag.current = if drag.mode == DragMode::Slip {
+                    edit::slip(drag.origin, delta, len)
+                } else {
+                    edit::slide(drag.origin, delta, len)
+                };
             }
             DragMode::TrimLeft => {
                 drag.current = edit::trim_left(drag.origin, snap(pointer_time), min_len);
@@ -2335,6 +2412,12 @@ impl AppState {
             }
             None => self.status = "Selecione dois ou mais eventos para agrupar".into(),
         }
+    }
+
+    /// Chooses the editing tool (`Ctrl+D` normal, `D` next, `Shift+D` previous).
+    fn set_edit_tool(&mut self, tool: EditTool) {
+        self.edit_tool = tool;
+        self.status = format!("Ferramenta de edição: {}", tool.label());
     }
 
     /// `Shift+G`: selects every event of the groups the selected events belong to.
@@ -3767,6 +3850,9 @@ impl AppState {
             Command::TrackFocusPrevious => self.move_track_focus(-1),
             Command::TrackFocusNext => self.move_track_focus(1),
             Command::EditIgnoreGrouping => self.toggle_ignore_grouping(),
+            Command::EditToolNormal => self.set_edit_tool(EditTool::Normal),
+            Command::EditToolNext => self.set_edit_tool(self.edit_tool.step(true)),
+            Command::EditToolPrevious => self.set_edit_tool(self.edit_tool.step(false)),
             Command::EditSwitchMute => self.toggle_event_switch(Switch::Mute),
             Command::EditSwitchLock => self.toggle_event_switch(Switch::Lock),
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
@@ -4414,6 +4500,17 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.menu_button("Interruptores", |ui| switch_items(state, ui));
             ui.menu_button("Canais de áudio", |ui| channel_items(state, ui));
+            ui.menu_button("Ferramenta de edição", |ui| {
+                for tool in EditTool::ALL {
+                    if ui.radio(state.edit_tool == tool, tool.label()).clicked() {
+                        state.set_edit_tool(tool);
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                command_item(state, ui, Command::EditToolNext);
+                command_item(state, ui, Command::EditToolPrevious);
+            });
             ui.separator();
             for command in [
                 Command::EditSplit,
@@ -6543,6 +6640,13 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.toggle_event_switch(Switch::Lock);
         }
         ui.separator();
+        for tool in EditTool::ALL {
+            let selected = state.edit_tool == tool;
+            if icons::svg_button(ui, tool.icon(), tool.label(), selected).clicked() {
+                state.set_edit_tool(tool);
+            }
+        }
+        ui.separator();
         if icons::icon_button(
             ui,
             Icon::Snap,
@@ -7022,8 +7126,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ) => {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
             }
-            Some(DragMode::Move) => ui.ctx().set_cursor_icon(egui::CursorIcon::Grab),
-            None => {}
+            Some(DragMode::Move) => {
+                // The body of an event: the slip and slide tools show the sideways arrows
+                let icon = if state.edit_tool == EditTool::Normal {
+                    egui::CursorIcon::Grab
+                } else {
+                    egui::CursorIcon::ResizeHorizontal
+                };
+                ui.ctx().set_cursor_icon(icon);
+            }
+            Some(DragMode::Slip | DragMode::Slide) | None => {}
         }
     }
 
@@ -8244,6 +8356,91 @@ mod tests {
         let (info, _) = project_file::load(&file).unwrap();
         assert_eq!(info.notes, s.project.notes);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_edit_tool_cycles_with_d_and_shift_d_and_can_be_chosen_directly() {
+        let mut s = AppState::new();
+        assert_eq!(s.edit_tool, EditTool::Normal);
+        run(&mut s, Command::EditToolNext);
+        assert_eq!(s.edit_tool, EditTool::Slip);
+        run(&mut s, Command::EditToolNext);
+        assert_eq!(s.edit_tool, EditTool::Slide);
+        run(&mut s, Command::EditToolNext);
+        assert_eq!(s.edit_tool, EditTool::Normal, "the cycle wraps around");
+        run(&mut s, Command::EditToolPrevious);
+        assert_eq!(s.edit_tool, EditTool::Slide);
+        run(&mut s, Command::EditToolNormal);
+        assert_eq!(s.edit_tool, EditTool::Normal);
+        assert!(s.status.contains("Ferramenta de edição"));
+    }
+
+    #[test]
+    fn dragging_with_the_slip_tool_moves_the_media_and_not_the_event() {
+        let (mut s, track, ev) = state_with_clip();
+        // The clip is 2..6 s of a 10 s source; give it a 1 s in point so it can slip both ways
+        s.timeline.track_mut(track).unwrap().events[0].trim_in = 1.0;
+        s.edit_tool = EditTool::Slip;
+        let revision = s.history.revision();
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::Slip);
+        // Drag 2 s to the right: later media shows, the event stays put
+        s.update_drag(5.0, None, 0.0, false);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        // The drag is rounded to whole frames (60 frames of 29.97 fps is 2.002 s)
+        assert_eq!((g.start, g.duration), (2.0, 4.0));
+        assert!((g.trim_in - 3.0).abs() < 1.0 / 29.97, "{}", g.trim_in);
+        assert_eq!(s.history.revision(), revision + 1, "one undo step");
+        run(&mut s, Command::EditUndo);
+        assert_eq!(geometry(&s, track, ev).trim_in, 1.0);
+    }
+
+    #[test]
+    fn dragging_with_the_slide_tool_moves_the_event_and_keeps_the_media_in_place() {
+        let (mut s, track, ev) = state_with_clip();
+        s.timeline.track_mut(track).unwrap().events[0].trim_in = 1.0;
+        s.edit_tool = EditTool::Slide;
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::Slide);
+        s.update_drag(5.0, None, 0.0, false);
+        s.finish_drag();
+        let g = geometry(&s, track, ev);
+        // The event moved 2 s and its in point moved with it: the same media sits at the same time
+        assert!((g.start - 4.0).abs() < 1.0 / 29.97 && g.duration == 4.0);
+        assert!(
+            ((g.trim_in - 1.0) - (g.start - 2.0)).abs() < 1e-9,
+            "start and in point move together"
+        );
+    }
+
+    #[test]
+    fn slip_stops_at_the_end_of_the_media_and_a_locked_event_refuses_the_tool() {
+        let (mut s, track, ev) = state_with_clip();
+        s.edit_tool = EditTool::Slip;
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        // 10 s of media, 4 s shown: the in point is at most 6 s however far the pointer goes
+        s.update_drag(500.0, None, 0.0, false);
+        s.finish_drag();
+        assert_eq!(geometry(&s, track, ev).trim_in, 6.0);
+
+        s.selection.set([(track, ev)]);
+        run(&mut s, Command::EditSwitchLock);
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        assert!(s.drag.is_none(), "a locked event cannot be slipped either");
+    }
+
+    #[test]
+    fn the_normal_tool_still_moves_the_event_and_the_trim_edges_ignore_the_tool() {
+        let (mut s, track, ev) = state_with_clip();
+        s.edit_tool = EditTool::Slip;
+        // The edges keep trimming whatever the tool is
+        s.begin_drag(hit(&s, track, ev, DragMode::TrimRight), 6.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::TrimRight);
+        s.drag = None;
+        s.edit_tool = EditTool::Normal;
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::Move);
     }
 
     #[test]

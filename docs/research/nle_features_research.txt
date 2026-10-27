@@ -1861,3 +1861,34 @@ Implementation Guidelines for Neoveg:
     UI state (group commands, focus keys, Insert Time, numbering).
 Sources: VEGAS_Pro_18_EN.pdf p. 57 and the Insert Time steps; Sony_Vegas_Pro_8_Manual.pdf keyboard tables.
 Research Date: 2026-10-27
+
+49. Feature Name: Editing Tools: Normal, Shuffle, Slip, Slide, Time Stretch / Compress, Split Trim
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf, "Editing Tool" and the Transport and Editing toolbar, pp. 15-17, and the
+   slipping and sliding section, p. 147; Sony_Vegas_Pro_8_Manual.pdf keyboard tables for D / Shift+D.)
+  - The active tool is chosen from Edit > Editing Tool or the arrow beside the tool button. The tools are:
+    Normal (select, move and trim the ends of events; Ctrl+click adds to the selection, Shift+click selects the
+    range between two clicks; dragging an edge changes the length and snaps while snapping is on, Shift
+    suspending it), Shuffle (rearrange events), Slip ("slip an event's media without moving the event on the
+    timeline"), Slide ("move an event on the timeline without moving the underlying media"), Time Stretch /
+    Compress and Split Trim. Holding Alt while dragging slips when the Slip tool is not active.
+  - D selects the next tool and Shift+D the previous one (v8 table); Ctrl+D returns to the Normal tool.
+  - The manual does not say how far a slip may go, whether a slide also moves the neighbours, or what a slide
+    does at the ends of the media.
+Implementation Guidelines for Neoveg:
+  - Implemented: `edit::slip` and `edit::slide` (pure, tested), `EditTool` {Normal, Slip, Slide}, the tool
+    buttons on the toolbar, Edit > Edit tool, and the commands `edit.tool.normal` / `next` / `previous` with D,
+    Shift+D and Ctrl+D. Dragging the body of an event follows the tool; the edges keep trimming and the fade
+    handles keep working whatever the tool is. One drag is one undo step and a locked event refuses it.
+  - Neoveg choices: the drag is rounded to whole frames; a slip keeps the window inside the media (the in
+    point between 0 and the source length minus what is shown, counting the playback speed) and a looping,
+    still or generated clip has no end to stop at; a slide moves the start and the in point together (so the
+    same media stays at the same timeline time) and is bounded by time zero, by the start of the media and by
+    its end; a slide moves only the dragged event (the neighbours are not trimmed) and Alt keeps meaning
+    "ignore snapping", not slip (README, shortcut notes). Shuffle, Time Stretch / Compress by tool and Split
+    Trim are not implemented as tools yet (time stretch exists as Ctrl+drag on an edge).
+  - Tests: engine (slip and slide bounds, speed, window), UI state (tool cycle, slip, slide, end of media,
+    locked event, the edges unaffected).
+Sources: VEGAS_Pro_18_EN.pdf pp. 15-17 and 147; Sony_Vegas_Pro_8_Manual.pdf keyboard tables.
+Research Date: 2026-10-27
