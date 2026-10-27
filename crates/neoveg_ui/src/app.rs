@@ -244,6 +244,8 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
+    /// Insert > Time…: the text of the length being typed, while the window is open.
+    insert_time_dialog: Option<String>,
     /// Width of the lane area in points, from the last drawn frame.
     lanes_width: f32,
 
@@ -1063,6 +1065,7 @@ impl AppState {
             clipboard: None,
             repeat_dialog: None,
             goto_dialog: None,
+            insert_time_dialog: None,
             lanes_width: 800.0,
             meter: Arc::new(PeakMeter::new()),
             loudness: Arc::new(LoudnessReadout::new()),
@@ -1697,7 +1700,7 @@ impl AppState {
             | Command::EditSwitchLoop
             | Command::EditSwitchNormalize
             | Command::EditNormalizeRecalculate => has_events,
-            Command::EditUngroup => self
+            Command::EditUngroup | Command::EditRemoveFromGroup | Command::EditSelectGroup => self
                 .selection
                 .refs()
                 .into_iter()
@@ -2290,6 +2293,92 @@ impl AppState {
                 self.status = format!("{} eventos agrupados", refs.len());
             }
             None => self.status = "Selecione dois ou mais eventos para agrupar".into(),
+        }
+    }
+
+    /// `Shift+G`: selects every event of the groups the selected events belong to.
+    fn select_group_members(&mut self) {
+        let refs = self.selection.refs();
+        let all = groups::expand_to_groups(&self.timeline, &refs);
+        if all.len() <= refs.len() {
+            self.status = "Os eventos selecionados não pertencem a um grupo maior".into();
+            return;
+        }
+        self.status = format!("{} eventos do grupo selecionados", all.len());
+        self.selection.set(all);
+    }
+
+    /// `U`: takes the selected events out of their groups; the other members stay grouped.
+    fn remove_selection_from_groups(&mut self) {
+        let refs = self.selection.refs();
+        match groups::remove_from_groups(&self.timeline, &refs) {
+            Some(outcome) => {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.status = "Eventos retirados do grupo".into();
+            }
+            None => self.status = "Nenhum evento agrupado e desbloqueado na seleção".into(),
+        }
+    }
+
+    /// `Alt+Shift+Up` / `Alt+Shift+Down`: moves the track focus one track up or down.
+    fn move_track_focus(&mut self, delta: isize) {
+        let count = self.timeline.tracks.len();
+        if count == 0 {
+            return;
+        }
+        let current = self
+            .selected_track
+            .and_then(|id| self.timeline.tracks.iter().position(|t| t.id == id));
+        let next = match current {
+            Some(i) => (i as isize + delta).clamp(0, count as isize - 1) as usize,
+            None if delta < 0 => count - 1,
+            None => 0,
+        };
+        let track = &self.timeline.tracks[next];
+        self.selected_track = Some(track.id);
+        self.status = format!("Faixa {}: {}", next + 1, track.name);
+    }
+
+    /// Insert > Time: opens `length` seconds of empty time at the cursor, on the tracks of the
+    /// selected events or, with nothing selected, on every track.
+    fn insert_time_at_cursor(&mut self, length: f64) {
+        let mut chosen: Vec<TrackId> = self.selection.refs().iter().map(|r| r.0).collect();
+        chosen.sort_unstable();
+        chosen.dedup();
+        let tracks = (!chosen.is_empty()).then_some(chosen.as_slice());
+        match ops::insert_time(&mut self.timeline, self.playhead, length, tracks) {
+            Some(outcome) => {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.status = format!("{length:.2} s de tempo inseridos no cursor");
+            }
+            None => self.status = "Informe um tempo maior que zero".into(),
+        }
+    }
+
+    /// `Ctrl+Alt+S` (*Save Version*): saves the project under the next numbered name
+    /// (`projeto_0001.neoveg`, `projeto_0002.neoveg`…) beside it and goes on working in that file;
+    /// the previous file keeps the work as it was.
+    fn save_incremental(&mut self) {
+        let Some(path) = self.project_path.clone() else {
+            // A project that was never saved has no name to count from
+            self.save_project(true);
+            return;
+        };
+        let copy = incremental_path(&path, &|p| p.exists());
+        match project_file::save(&copy, &self.project, &self.timeline) {
+            Ok(()) => {
+                tracing::info!("[INFO] new version saved: {}", copy.display());
+                if let Some(stem) = copy.file_stem() {
+                    self.project.name = stem.to_string_lossy().into_owned();
+                }
+                self.status = format!("Versão salva: {}", copy.display());
+                self.project_path = Some(copy);
+                self.mark_clean();
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] incremental save failed: {e}");
+                self.status = format!("Falha ao salvar a cópia: {e}");
+            }
         }
     }
 
@@ -3474,6 +3563,12 @@ impl AppState {
             Command::SelectionSetOut => self.set_selection_edge(false),
             Command::EditGroup => self.group_selection(),
             Command::EditUngroup => self.ungroup_selection(),
+            Command::EditRemoveFromGroup => self.remove_selection_from_groups(),
+            Command::EditSelectGroup => self.select_group_members(),
+            Command::FileSaveIncremental => self.save_incremental(),
+            Command::InsertTime => self.insert_time_dialog = Some(String::new()),
+            Command::TrackFocusPrevious => self.move_track_focus(-1),
+            Command::TrackFocusNext => self.move_track_focus(1),
             Command::EditIgnoreGrouping => self.toggle_ignore_grouping(),
             Command::EditSwitchMute => self.toggle_event_switch(Switch::Mute),
             Command::EditSwitchLock => self.toggle_event_switch(Switch::Lock),
@@ -3818,6 +3913,7 @@ impl NeovegApp {
         credits_window(ctx, &mut self.state);
         let log_dir = crate::log_viewer::default_log_dir();
         self.state.log_viewer.show(ctx, &log_dir);
+        insert_time_window(ctx, &mut self.state);
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
@@ -3889,6 +3985,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.save_project(true);
                 ui.close_menu();
             }
+            command_item(state, ui, Command::FileSaveIncremental);
             ui.separator();
             if ui.button("Importar mídia…").clicked() {
                 let ctx = ui.ctx().clone();
@@ -4010,6 +4107,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             for command in [
                 Command::EditGroup,
                 Command::EditUngroup,
+                Command::EditRemoveFromGroup,
+                Command::EditSelectGroup,
                 Command::EditIgnoreGrouping,
             ] {
                 command_item(state, ui, command);
@@ -4050,6 +4149,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.generator_dialog.open = true;
                 ui.close_menu();
             }
+            command_item(state, ui, Command::InsertTime);
             ui.separator();
             for command in [
                 Command::TrackMute,
@@ -4518,6 +4618,76 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
 }
 
 /// Ctrl+G: type a time (timecode, minutes:seconds, seconds or frames) and the cursor goes there.
+/// The next numbered version of a project file: `projeto.neoveg` becomes `projeto_0001.neoveg`, the
+/// first number that is not taken; a name that already ends in `_NNNN` counts on from that number.
+fn incremental_path(path: &std::path::Path, exists: &dyn Fn(&std::path::Path) -> bool) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "projeto".into());
+    let (base, start) = match stem.rsplit_once('_') {
+        Some((base, digits))
+            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            (base.to_owned(), digits.parse::<u32>().unwrap_or(0) + 1)
+        }
+        _ => (stem.clone(), 1),
+    };
+    let extension = path
+        .extension()
+        .map(|e| e.to_string_lossy().into_owned())
+        .unwrap_or_else(|| project_file::EXTENSION.into());
+    (start..)
+        .map(|n| path.with_file_name(format!("{base}_{n:04}.{extension}")))
+        .find(|candidate| !exists(candidate))
+        .expect("a free number exists")
+}
+
+/// Insert > Time…: asks how much empty time to open at the cursor.
+fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(mut text) = state.insert_time_dialog.take() else {
+        return;
+    };
+    let fps = state.project.settings.fps;
+    let (mut insert, mut cancel) = (false, false);
+    egui::Window::new("Inserir tempo")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
+            if !edit.has_focus() && !edit.lost_focus() {
+                edit.request_focus();
+            }
+            let valid = navigation::parse_time(&text, fps).is_some_and(|t| t > 0.0);
+            if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && valid {
+                insert = true;
+            }
+            ui.weak("Duração a abrir em todas as faixas: 00:00:05:00, 5, 2,5 ou 120f");
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(valid, egui::Button::new("Inserir"))
+                    .clicked()
+                {
+                    insert = true;
+                }
+                if ui.button("Cancelar").clicked() {
+                    cancel = true;
+                }
+            });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
+        });
+    if insert {
+        if let Some(length) = navigation::parse_time(&text, fps) {
+            state.insert_time_at_cursor(length);
+        }
+    } else if !cancel {
+        state.insert_time_dialog = Some(text);
+    }
+}
+
 fn goto_window(ctx: &egui::Context, state: &mut AppState) {
     let Some(mut text) = state.goto_dialog.take() else {
         return;
@@ -5766,6 +5936,7 @@ fn event_context_menu(
         Command::EditDelete,
         Command::EditGroup,
         Command::EditUngroup,
+        Command::EditRemoveFromGroup,
     ] {
         command_item(state, ui, command);
     }
@@ -7272,6 +7443,112 @@ mod tests {
         assert!((track.events[0].duration - 4.0).abs() < 1e-9);
         assert_eq!(s.project.media_pool.len(), 1);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn select_group_and_remove_from_group_work_on_the_selected_events() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        s.selection.set([a, b, c]);
+        run(&mut s, Command::EditGroup);
+        assert_eq!(groups::group_members(&s.timeline, a).len(), 3);
+
+        // Selecting one event and asking for its group selects all three
+        s.selection.set([a]);
+        run(&mut s, Command::EditSelectGroup);
+        assert_eq!(s.selection.len(), 3);
+
+        // `U` takes only the selected event out; the others stay together
+        s.selection.set([a]);
+        run(&mut s, Command::EditRemoveFromGroup);
+        assert_eq!(groups::group_members(&s.timeline, a), vec![a]);
+        assert_eq!(groups::group_members(&s.timeline, b).len(), 2);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(groups::group_members(&s.timeline, a).len(), 3);
+
+        // `Ctrl+U` dissolves the whole group
+        run(&mut s, Command::EditUngroup);
+        assert_eq!(groups::group_members(&s.timeline, b), vec![b]);
+    }
+
+    #[test]
+    fn the_track_focus_keys_walk_the_tracks_and_stop_at_the_ends() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        s.add_track(TrackKind::Video);
+        s.add_track(TrackKind::Audio);
+        let ids: Vec<TrackId> = s.timeline.tracks.iter().map(|t| t.id).collect();
+        s.selected_track = None;
+        run(&mut s, Command::TrackFocusNext);
+        assert_eq!(
+            s.selected_track,
+            Some(ids[0]),
+            "nothing focused: Down starts at the top"
+        );
+        run(&mut s, Command::TrackFocusNext);
+        run(&mut s, Command::TrackFocusNext);
+        run(&mut s, Command::TrackFocusNext);
+        assert_eq!(s.selected_track, Some(ids[2]), "it stops at the last track");
+        run(&mut s, Command::TrackFocusPrevious);
+        assert_eq!(s.selected_track, Some(ids[1]));
+        s.selected_track = None;
+        run(&mut s, Command::TrackFocusPrevious);
+        assert_eq!(
+            s.selected_track,
+            Some(ids[2]),
+            "nothing focused: Up starts at the bottom"
+        );
+    }
+
+    #[test]
+    fn insert_time_opens_a_gap_at_the_cursor_as_one_undo_step() {
+        let (mut s, [a, b, c]) = state_with_three_events();
+        // The events start at 2, 10 and 14 seconds
+        s.playhead = 5.0;
+        let revision = s.history.revision();
+        s.insert_time_at_cursor(3.0);
+        assert_eq!(s.history.revision(), revision + 1);
+        assert_eq!(
+            geometry(&s, a.0, a.1).start,
+            2.0,
+            "an event before the cursor stays"
+        );
+        assert_eq!(geometry(&s, b.0, b.1).start, 13.0);
+        assert_eq!(geometry(&s, c.0, c.1).start, 17.0);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(geometry(&s, b.0, b.1).start, 10.0);
+        // A length of zero is refused with a message and changes nothing
+        let revision = s.history.revision();
+        s.insert_time_at_cursor(0.0);
+        assert_eq!(s.history.revision(), revision);
+        assert!(s.status.contains("maior que zero"));
+        // The command opens the dialog
+        run(&mut s, Command::InsertTime);
+        assert!(s.insert_time_dialog.is_some());
+    }
+
+    #[test]
+    fn incremental_versions_count_up_from_the_first_free_number() {
+        use std::path::{Path, PathBuf};
+        let taken: Vec<PathBuf> = ["a/filme_0001.neoveg", "a/filme_0002.neoveg"]
+            .iter()
+            .map(PathBuf::from)
+            .collect();
+        let exists = |p: &Path| taken.iter().any(|t| t == p);
+        assert_eq!(
+            incremental_path(Path::new("a/filme.neoveg"), &exists),
+            PathBuf::from("a/filme_0003.neoveg"),
+            "0001 and 0002 are taken"
+        );
+        // A name that already ends in a number counts on from it
+        assert_eq!(
+            incremental_path(Path::new("a/filme_0007.neoveg"), &|_| false),
+            PathBuf::from("a/filme_0008.neoveg")
+        );
+        assert_eq!(
+            incremental_path(Path::new("a/cena_final.neoveg"), &|_| false),
+            PathBuf::from("a/cena_final_0001.neoveg"),
+            "a trailing word is not a number"
+        );
     }
 
     #[test]

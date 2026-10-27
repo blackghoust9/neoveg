@@ -494,6 +494,81 @@ fn trim_edge(timeline: &Timeline, targets: &[EventRef], time: f64, start: bool) 
     outcome(draft.finish(), touched)
 }
 
+/// Opens `length` seconds of empty time at `at` (*Insert Time*) on `tracks`, or on every track when
+/// that is `None`: events that cross `at` are split there and everything from `at` on moves later
+/// by `length`. With every track, the markers and regions after `at` move with it (a region that
+/// spans `at` grows); with a choice of tracks the ruler is left alone. Locked events neither move
+/// nor split, so they stay where they are. One undo step; `None` for a length that is not positive.
+pub fn insert_time(
+    timeline: &mut Timeline,
+    at: f64,
+    length: f64,
+    tracks: Option<&[TrackId]>,
+) -> Option<Outcome> {
+    if !at.is_finite() || !length.is_finite() || length <= TIME_EPSILON {
+        return None;
+    }
+    let at = at.max(0.0);
+    let marks_before = timeline.marks();
+    let mut draft = Draft::new(timeline);
+    let track_ids: Vec<TrackId> = timeline
+        .tracks
+        .iter()
+        .map(|t| t.id)
+        .filter(|id| tracks.is_none_or(|chosen| chosen.contains(id)))
+        .collect();
+    let mut alloc = || timeline.alloc_id();
+    for track_id in track_ids {
+        let Some(list) = draft.list(track_id) else {
+            continue;
+        };
+        split_list(list, at, &mut alloc, |e| !e.locked);
+        for e in list.iter_mut() {
+            if !e.locked && e.start >= at - TIME_EPSILON {
+                e.start += length;
+            }
+        }
+    }
+    // With a choice of tracks the ruler stays where it is
+    let mut marks_after = marks_before.clone();
+    if tracks.is_none() {
+        shift_marks(&mut marks_after, at, length);
+    }
+    let mut commands: Vec<EditCommand> = draft.finish().into_iter().collect();
+    if marks_after != marks_before {
+        commands.push(EditCommand::ReplaceMarks {
+            before: marks_before,
+            after: marks_after,
+        });
+    }
+    let command = match commands.len() {
+        0 => return None,
+        1 => commands.remove(0),
+        _ => EditCommand::Batch(commands),
+    };
+    Some(Outcome {
+        command,
+        touched: Vec::new(),
+    })
+}
+
+/// Moves the markers and regions after `at` later by `length`; a region that spans `at` grows.
+fn shift_marks(marks: &mut crate::markers::Marks, at: f64, length: f64) {
+    for m in &mut marks.markers {
+        if m.time >= at - TIME_EPSILON {
+            m.time += length;
+        }
+    }
+    for r in &mut marks.regions {
+        if r.start >= at - TIME_EPSILON {
+            r.start += length;
+        }
+        if r.end >= at - TIME_EPSILON {
+            r.end += length;
+        }
+    }
+}
+
 /// Splits every event inside `scope` that strictly contains `time`.
 pub fn split_at(timeline: &mut Timeline, time: f64, scope: Scope) -> Option<Outcome> {
     split_at_times(timeline, &[time], scope)
@@ -565,6 +640,104 @@ mod tests {
         let outcome = outcome.expect("operation should change the timeline");
         assert!(history.execute(tl, outcome.command));
         outcome.touched
+    }
+
+    /// Two audio tracks: `a` 0..4 and `b` 6..9 on the first, `c` 2..8 on the second.
+    fn gap_timeline() -> Timeline {
+        let mut tl = Timeline::new();
+        let mut first = tl.new_track(TrackKind::Audio);
+        let mut second = tl.new_track(TrackKind::Audio);
+        for (on_second, start, duration) in [(false, 0.0, 4.0), (false, 6.0, 3.0), (true, 2.0, 6.0)]
+        {
+            let event = TrackEvent {
+                id: tl.alloc_id(),
+                media_id: Some(1),
+                start,
+                duration,
+                ..TrackEvent::default()
+            };
+            let track = if on_second { &mut second } else { &mut first };
+            track.events.push(event);
+        }
+        tl.tracks.extend([first, second]);
+        tl
+    }
+
+    #[test]
+    fn insert_time_splits_what_crosses_the_cursor_and_moves_the_rest_later() {
+        let mut tl = gap_timeline();
+        let mut history = History::new();
+        let out = insert_time(&mut tl, 3.0, 2.0, None);
+        run(&mut tl, &mut history, out);
+        // 0..4 is cut at 3 and its second half moves to 5..6; 6..9 moves to 8..11
+        assert_eq!(spans(&tl, 0), vec![(0.0, 3.0), (5.0, 6.0), (8.0, 11.0)]);
+        // 2..8 is cut at 3: 2..3 stays, 3..8 moves to 5..10
+        assert_eq!(spans(&tl, 1), vec![(2.0, 3.0), (5.0, 10.0)]);
+        // The source stays aligned: the moved half of the first event starts 3 s into its media
+        assert_eq!(tl.tracks[0].events[1].trim_in, 3.0);
+        assert!(history.undo(&mut tl));
+        assert_eq!(spans(&tl, 0), vec![(0.0, 4.0), (6.0, 9.0)]);
+        assert_eq!(spans(&tl, 1), vec![(2.0, 8.0)]);
+    }
+
+    #[test]
+    fn insert_time_moves_markers_and_stretches_a_region_that_spans_the_cursor() {
+        let mut tl = gap_timeline();
+        let mut history = History::new();
+        // Each mark is applied before the next is made: every command carries the whole ruler
+        let command = crate::markers::add_marker(&mut tl, 1.0, Some("antes")).expect("added");
+        assert!(history.execute(&mut tl, command));
+        let command = crate::markers::add_marker(&mut tl, 7.0, Some("depois")).expect("added");
+        assert!(history.execute(&mut tl, command));
+        let command = crate::markers::add_region(&mut tl, TimeRange::new(2.0, 6.0), Some("região"))
+            .expect("added");
+        assert!(history.execute(&mut tl, command));
+        let out = insert_time(&mut tl, 4.0, 1.5, None);
+        run(&mut tl, &mut history, out);
+        let times: Vec<f64> = tl.markers.iter().map(|m| m.time).collect();
+        assert_eq!(times, vec![1.0, 8.5]);
+        assert_eq!((tl.regions[0].start, tl.regions[0].end), (2.0, 7.5));
+        assert!(history.undo(&mut tl));
+        assert_eq!(
+            tl.markers.iter().map(|m| m.time).collect::<Vec<_>>(),
+            vec![1.0, 7.0]
+        );
+        assert_eq!(
+            tl.regions[0].end, 6.0,
+            "one undo step covers events and marks"
+        );
+    }
+
+    #[test]
+    fn insert_time_on_chosen_tracks_leaves_the_others_and_the_ruler_alone() {
+        let mut tl = gap_timeline();
+        let mut history = History::new();
+        let marker = crate::markers::add_marker(&mut tl, 7.0, Some("fica"));
+        assert!(history.execute(&mut tl, marker.unwrap()));
+        let only_first = [tl.tracks[0].id];
+        let out = insert_time(&mut tl, 3.0, 2.0, Some(&only_first));
+        run(&mut tl, &mut history, out);
+        assert_eq!(spans(&tl, 0), vec![(0.0, 3.0), (5.0, 6.0), (8.0, 11.0)]);
+        assert_eq!(
+            spans(&tl, 1),
+            vec![(2.0, 8.0)],
+            "the other track is untouched"
+        );
+        assert_eq!(tl.markers[0].time, 7.0, "so is the ruler");
+    }
+
+    #[test]
+    fn insert_time_leaves_locked_events_alone_and_rejects_a_bad_length() {
+        let mut tl = gap_timeline();
+        tl.tracks[0].events[1].locked = true;
+        let mut history = History::new();
+        let out = insert_time(&mut tl, 1.0, 2.0, None);
+        run(&mut tl, &mut history, out);
+        // The locked 6..9 stays; the first event is split and its second half moves
+        assert_eq!(spans(&tl, 0), vec![(0.0, 1.0), (3.0, 6.0), (6.0, 9.0)]);
+        assert!(insert_time(&mut tl, 1.0, 0.0, None).is_none());
+        assert!(insert_time(&mut tl, 1.0, -3.0, None).is_none());
+        assert!(insert_time(&mut tl, f64::NAN, 1.0, None).is_none());
     }
 
     #[test]

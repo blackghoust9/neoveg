@@ -23,24 +23,24 @@ Manuais de referência lidos para a pesquisa (somente texto e descrições; as p
 
 | Documento de Referência | Páginas | MB |
 | :--- | ---: | ---: |
-| 2585676.pdf | 63 | 1.9 |
-| 5639017.pdf | 5 | 0.0 |
-| 5649010.pdf | 486 | 16.1 |
-| 5680056.pdf | 312 | 8.7 |
-| 5828511.pdf | 510 | 15.1 |
-| 6918831.pdf | 538 | 14.1 |
-| Guía_de_Classic_NLE_Entry_130.pdf | 26 | 13.8 |
-| manual_Classic_NLE21_en.pdf | 1206 | 52.1 |
-| Classic_NLE_Entry_HD130_QSG.pdf | 68 | 1.5 |
-| Classic_NLE_14_Manual.pdf | 716 | 57.3 |
-| Classic_NLE_8_Manual.pdf | 440 | 36.3 |
-| Classic_NLE-14-manual.pdf | 9 | 0.8 |
-| Classic_NLE_v140_Manual_EN.pdf | 716 | 9.8 |
-| Classic_NLE_Entry_15_EN.pdf | 104 | 11.7 |
-| Classic_NLE_18_EN.pdf | 592 | 16.6 |
-| Classic_NLE_18_EN_Keyboard_shortcuts.pdf | 15 | 0.1 |
-| Classic_DVD_Authoring_Manual_EN.pdf | 331 | 7.1 |
-| Classic_NLE13-0-manual-enu-477102.pdf | 692 | 11.6 |
+| 2585676.pdf | ? | 1.9 |
+| 5639017.pdf | ? | 0.0 |
+| 5649010.pdf | ? | 16.1 |
+| 5680056.pdf | ? | 8.7 |
+| 5828511.pdf | ? | 15.1 |
+| 6918831.pdf | ? | 14.1 |
+| Guía_de_Movie_Studio_Platinum_130.pdf | ? | 13.8 |
+| manual_Classic_NLE21_en.pdf | ? | 52.1 |
+| MovieStudioHD130_QSG.pdf | ? | 1.5 |
+| Classic_NLE_14_Manual.pdf | ? | 57.3 |
+| Classic_NLE_8_Manual.pdf | ? | 36.3 |
+| Classic_NLE-14-manual.pdf | ? | 0.8 |
+| Classic_NLE_v140_Manual_EN.pdf | ? | 9.8 |
+| Classic_NLE_Entry_15_EN.pdf | ? | 11.7 |
+| Classic_NLE_18_EN.pdf | ? | 16.6 |
+| Classic_NLE_18_EN_Keyboard_shortcuts.pdf | ? | 0.1 |
+| Classic_DVD_Authoring_Manual_EN.pdf | ? | 7.1 |
+| Classic_NLE13-0-manual-enu-477102.pdf | ? | 11.6 |
 
 Os fatos extraídos estão em [[regras_de_timeline]] e em `docs/research/nle_features_research.txt`.
 <!-- auto:end -->

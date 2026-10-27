@@ -122,6 +122,50 @@ pub fn ungroup_events(timeline: &Timeline, events: &[EventRef]) -> Option<Outcom
     draft.finish().map(|command| Outcome { command, touched })
 }
 
+/// Takes the given events out of their groups and leaves the other members grouped (`U`; the
+/// whole-group version is [`ungroup_events`]). A group left with a single member is dissolved, as
+/// a group of one means nothing. Locked events keep their group. `None` when none of the events
+/// is grouped.
+pub fn remove_from_groups(timeline: &Timeline, events: &[EventRef]) -> Option<Outcome> {
+    let leaving: Vec<EventRef> = crate::switches::unlocked(timeline, &existing(timeline, events))
+        .into_iter()
+        .filter(|&e| group_of(timeline, e).is_some())
+        .collect();
+    if leaving.is_empty() {
+        return None;
+    }
+    // Groups that end up with fewer than two members are dissolved altogether
+    let mut dissolved: Vec<GroupId> = Vec::new();
+    for &e in &leaving {
+        let Some(group) = group_of(timeline, e) else {
+            continue;
+        };
+        let staying = members_of(timeline, group)
+            .into_iter()
+            .filter(|m| !leaving.contains(m))
+            .count();
+        if staying < 2 && !dissolved.contains(&group) {
+            dissolved.push(group);
+        }
+    }
+    let mut draft = Draft::new(timeline);
+    let mut touched = Vec::new();
+    for track in &timeline.tracks {
+        let Some(list) = draft.list(track.id) else {
+            continue;
+        };
+        for e in list.iter_mut() {
+            let leaves = leaving.contains(&(track.id, e.id));
+            let in_dissolved = e.group.is_some_and(|g| dissolved.contains(&g)) && !e.locked;
+            if leaves || in_dissolved {
+                e.group = None;
+                touched.push((track.id, e.id));
+            }
+        }
+    }
+    draft.finish().map(|command| Outcome { command, touched })
+}
+
 /// Moves every event of `events` by `delta` seconds, together, as one edit. The shift is limited
 /// so that none of them starts before zero. `None` when nothing moves.
 pub fn move_events(timeline: &Timeline, events: &[EventRef], delta: f64) -> Option<Outcome> {
@@ -230,6 +274,50 @@ mod tests {
         want.sort();
         assert_eq!(expanded, want);
         assert_eq!(expand_to_groups(&tl, &[c]), vec![c]);
+    }
+
+    #[test]
+    fn removing_one_event_leaves_the_rest_of_the_group_together() {
+        let mut tl = sample();
+        let mut h = History::new();
+        let (a, b, c) = (r(&tl, 0, 0), r(&tl, 1, 0), r(&tl, 0, 1));
+        let out = group_events(&mut tl, &[a, b, c]);
+        run(&mut tl, &mut h, out);
+        assert!(remove_from_groups(&tl, &[]).is_none());
+        let out = remove_from_groups(&tl, &[a]);
+        run(&mut tl, &mut h, out);
+        assert_eq!(group_members(&tl, a), vec![a], "a is loose");
+        let mut rest = group_members(&tl, b);
+        rest.sort();
+        let mut want = vec![b, c];
+        want.sort();
+        assert_eq!(rest, want, "b and c are still a group");
+        assert!(h.undo(&mut tl));
+        assert_eq!(group_members(&tl, a).len(), 3, "one undo step restores it");
+    }
+
+    #[test]
+    fn a_group_left_with_one_member_is_dissolved() {
+        let mut tl = sample();
+        let mut h = History::new();
+        let (a, b) = (r(&tl, 0, 0), r(&tl, 1, 0));
+        let out = group_events(&mut tl, &[a, b]);
+        run(&mut tl, &mut h, out);
+        let out = remove_from_groups(&tl, &[a]);
+        run(&mut tl, &mut h, out);
+        assert_eq!(group_members(&tl, a), vec![a]);
+        assert_eq!(group_members(&tl, b), vec![b], "a group of one is no group");
+    }
+
+    #[test]
+    fn a_locked_event_keeps_its_group() {
+        let mut tl = sample();
+        let mut h = History::new();
+        let (a, b, c) = (r(&tl, 0, 0), r(&tl, 1, 0), r(&tl, 0, 1));
+        let out = group_events(&mut tl, &[a, b, c]);
+        run(&mut tl, &mut h, out);
+        tl.tracks[0].events[0].locked = true;
+        assert!(remove_from_groups(&tl, &[a]).is_none());
     }
 
     #[test]

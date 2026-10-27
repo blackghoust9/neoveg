@@ -1825,3 +1825,39 @@ Implementation Guidelines for Neoveg:
     stretched, measured gain, recalculate after extending, undo, no media loaded).
 Sources: VEGAS_Pro_18_EN.pdf pp. 169-170 and 542-543.
 Research Date: 2026-10-27
+
+48. Feature Name: Group Commands, Insert Time, Save Version (Incremental Save) and Track Focus Keys
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf: "Saving a new version of the project (Incremental Save)", p. 57, the Insert
+   Time steps in the editing chapter, and the keyboard tables; and from Sony_Vegas_Pro_8_Manual.pdf, the
+   keyboard shortcut tables.)
+  - Groups (v8 table): G groups the selected events; U removes the event(s) from the group; Ctrl+U clears the
+    group without deleting its events; Shift+G selects all events of the group; Ctrl+Shift+U ignores grouping.
+  - Focus (v8 table): Alt+Shift+Up / Alt+Shift+Down change the track that has focus.
+  - Save Version: "save your current project under a new project file name (e.g. <project name>_001) and
+    continue to work with this project. The old work state remains available in the original project." The
+    File menu command automates the naming: saved once as "myproject", the next call saves "myproject_0001",
+    then "myproject_0002", and so on (the manual's own example uses four digits). Default shortcut
+    Ctrl+Alt+S; a toolbar button exists but is not shown by default.
+  - Insert Time: select the tracks, put the cursor where the time should start, Insert > Time, give the amount.
+    With no events selected, time is inserted across all tracks; with events selected, at the cursor position
+    in the selected events. (The manual does not say what happens to events that cross the cursor, to markers,
+    or to locked events.)
+Implementation Guidelines for Neoveg:
+  - Implemented: `groups::remove_from_groups` (U: only the selected events leave; a group left with one member is
+    dissolved; locked events keep their group), Ctrl+U = `ungroup_events` (dissolves the whole group), Shift+G
+    selects the whole group (`expand_to_groups`), Alt+Shift+Up / Down move the track focus (and stop at the
+    ends), `ops::insert_time`, `File > Salvar versão` (Ctrl+Alt+S, `incremental_path`).
+  - Neoveg choices where the manual is silent: Insert Time splits the events that cross the cursor (the source
+    stays aligned: the moved half starts later in its media), moves everything from the cursor on, and with
+    every track chosen also moves the markers and regions after the cursor (a region that spans it grows); a
+    choice of tracks leaves the ruler alone; locked events neither split nor move. The tracks are those of the
+    selected events, or every track when nothing is selected. Save Version continues in the new file (its name
+    becomes the project name, the project counts as saved there) and uses four digits, counting on from a name
+    that already ends in digits.
+  - Shortcuts: Ctrl+Alt+T for Insert Time is Neoveg's own (the manual gives it none).
+  - Tests: engine (group removal, dissolving, locked events, Insert Time over tracks, ruler, undo, bad length),
+    UI state (group commands, focus keys, Insert Time, numbering).
+Sources: VEGAS_Pro_18_EN.pdf p. 57 and the Insert Time steps; Sony_Vegas_Pro_8_Manual.pdf keyboard tables.
+Research Date: 2026-10-27

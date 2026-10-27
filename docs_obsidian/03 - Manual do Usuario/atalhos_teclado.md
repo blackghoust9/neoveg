@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (101 comandos, 99 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (107 comandos, 105 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -16,6 +16,7 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Abrir projeto… | `Ctrl+O` | `file.open` | implementado |
 | Salvar | `Ctrl+S` | `file.save` | implementado |
 | Salvar como… | `Ctrl+Shift+S` | `file.save_as` | implementado |
+| Salvar versão (incremental) | `Ctrl+Alt+S` | `file.save_incremental` | implementado |
 | Novo projeto (em uma nova aba) | `Ctrl+N` | `file.new` | implementado |
 | Criar sub-projeto a partir da seleção | `Ctrl+Shift+N` | `file.create_subproject` | implementado |
 | Novo projeto vazio (sem diálogo) | — | `file.new_quick` | *planejado* |
@@ -42,7 +43,9 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Selecionar tudo | `Ctrl+A` | `edit.select_all` | implementado |
 | Desfazer seleção | `Ctrl+Shift+A` | `edit.select_none` | implementado |
 | Agrupar eventos | `G` | `edit.group` | implementado |
-| Desagrupar eventos | `U` | `edit.ungroup` | implementado |
+| Desagrupar (dissolver o grupo inteiro) | `Ctrl+U` | `edit.ungroup` | implementado |
+| Remover evento(s) do grupo | `U` | `edit.remove_from_group` | implementado |
+| Selecionar todos os eventos do grupo | `Shift+G` | `edit.select_group` | implementado |
 | Ignorar agrupamento | `Ctrl+Shift+U` | `edit.ignore_grouping` | implementado |
 | Interruptor: silenciar evento | `Ctrl+Alt+M` | `edit.switch.mute` | implementado |
 | Interruptor: bloquear evento | `Ctrl+Alt+L` | `edit.switch.lock` | implementado |
@@ -63,6 +66,7 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Inserir faixa de áudio | `Ctrl+Q` | `insert.audio_track` | implementado |
 | Inserir faixa de vídeo | `Ctrl+Shift+Q` | `insert.video_track` | implementado |
 | Inserir marcador | `M` | `insert.marker` | implementado |
+| Inserir tempo… | `Ctrl+Alt+T` | `insert.time` | implementado |
 | Inserir região | `R` | `insert.region` | implementado |
 | Inserir marcador de comando… | `C` | `insert.command` | *planejado* |
 | Renderizar para nova faixa | `Ctrl+M` | `tools.render_to_new_track` | *planejado* |
@@ -130,6 +134,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Ação | Atalho | Id | Estado |
 | :--- | :--- | :--- | :--- |
 | Mudo na faixa | `Z` | `track.mute` | implementado |
+| Foco na faixa de cima | `Alt+Shift+Up` | `track.focus_previous` | implementado |
+| Foco na faixa de baixo | `Alt+Shift+Down` | `track.focus_next` | implementado |
 | Mudo só nesta faixa | `Shift+Z` | `track.mute_exclusive` | implementado |
 | Solo na faixa | `X` | `track.solo` | implementado |
 | Solo só nesta faixa | `Shift+X` | `track.solo_exclusive` | implementado |
