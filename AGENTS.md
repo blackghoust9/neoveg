@@ -165,7 +165,11 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo | implemented |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / save / save as | implemented |
 | `M` | Marker (opens the inline name box) | implemented |
-| `G` / `U` | Group / ungroup the selected events (a group is selected, moved and split together) | implemented |
+| `G` / `U` | Group the selected events (a group is selected, moved and split together) / take the selected events out of their group, the others stay grouped (a group left with one member is dissolved) | implemented |
+| `Ctrl+U` / `Shift+G` | Dissolve the whole group of the selected events / select every event of their groups | implemented |
+| `Alt+Shift+Up` / `Alt+Shift+Down` | Move the track focus one track up / down | implemented |
+| `Ctrl+Alt+S` | Save Version: save the project as `name_0001.neoveg`, `name_0002.neoveg`… and go on working in that file | implemented |
+| `Ctrl+Alt+T` | Insert Time: open empty time at the cursor on the tracks of the selected events (every track when none is selected), moving the ruler too in the latter case (Neoveg's own binding) | implemented |
 | `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I` | Event switches Mute / Lock / Invert Phase on the selected events (Editar → Interruptores, event context menu; Lock also has a toolbar button). Neoveg's own bindings: the reference manuals list the switches but give them no shortcut | implemented |
 | `Ctrl+Alt+O` / `Ctrl+Alt+N` / `Ctrl+Alt+Shift+N` | Event switches Loop / Normalize, and Recalculate normalization (Neoveg's own bindings) | implemented |
 | `Ctrl+Shift+U` | Ignore event grouping (clicks select a single event) | implemented |

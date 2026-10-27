@@ -60,12 +60,12 @@ Custo, **por quadro**, do caminho de vídeo em CPU, de 480p a 8K UHD, medido com
 <!-- bench:begin -->
 | Resolução | Tamanho | Gerar quadro | Correção de cor | Scopes | Crossfade (CPU) | Quadro normal: cor + scopes (quadros/s) | Quadro em transição: + crossfade (quadros/s) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 480p | 854x480 | 2.37 ms | 1.24 ms | 7.76 ms | 40.28 ms | 9.00 ms (111) | 49.27 ms (20.3) |
-| 720p | 1280x720 | 5.26 ms | 2.47 ms | 7.40 ms | 90.11 ms | 9.87 ms (101) | 99.98 ms (10.0) |
-| 1080p | 1920x1080 | 11.60 ms | 5.07 ms | 9.35 ms | 203 ms | 14.42 ms (69) | 218 ms (4.6) |
-| 1440p | 2560x1440 | 21.46 ms | 7.88 ms | 10.66 ms | 363 ms | 18.55 ms (54) | 382 ms (2.6) |
-| 4K | 3840x2160 | 48.46 ms | 17.03 ms | 8.62 ms | 827 ms | 25.64 ms (39) | 853 ms (1.2) |
-| 8K | 7680x4320 | 196 ms | 66.03 ms | 9.57 ms | 3205 ms | 75.60 ms (13) | 3280 ms (0.3) |
+| 480p | 854x480 | 2.15 ms | 1.13 ms | 7.02 ms | 11.27 ms | 8.14 ms (123) | 19.41 ms (51.5) |
+| 720p | 1280x720 | 4.71 ms | 2.28 ms | 7.09 ms | 25.34 ms | 9.37 ms (107) | 34.71 ms (28.8) |
+| 1080p | 1920x1080 | 10.52 ms | 4.57 ms | 9.74 ms | 57.51 ms | 14.31 ms (70) | 71.82 ms (13.9) |
+| 1440p | 2560x1440 | 18.70 ms | 7.63 ms | 9.65 ms | 99.84 ms | 17.28 ms (58) | 117 ms (8.5) |
+| 4K | 3840x2160 | 43.56 ms | 17.09 ms | 8.48 ms | 226 ms | 25.57 ms (39) | 251 ms (4.0) |
+| 8K | 7680x4320 | 171 ms | 61.65 ms | 9.55 ms | 954 ms | 71.20 ms (14) | 1025 ms (1.0) |
 
 Medido em: Intel(R) Core(TM) i5-7500T CPU @ 2.70GHz (4 threads), Windows 10, Rust 1.99.1.
 <!-- bench:end -->
@@ -312,7 +312,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Correspondência de cor entre clipes (*Color Match*) e fluxo S-Log/ACES com OpenColorIO por mídia e projeto (VP12)
 - [ ] Edições em L-cut e J-cut, fades simultâneos de áudio e vídeo e sincronismo de eventos (*sync links*) (VP12/VP13)
 - [ ] Edição multicâmera (sincronizar, criar evento multicâmera, alternar câmeras) e *takes* como versões alternativas do evento (VP13)
-- [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências e trocar arquivos de mídia por pasta (VP18)
+- [x] Salvar versão incremental (`Ctrl+Alt+S`: `nome_0001`, `nome_0002`…, continua no arquivo novo)
+- [ ] Exportar/importar preferências e trocar arquivos de mídia por pasta (VP18)
 - [ ] Painel de rastreamento de movimento e Black Bar Fill, Denoiser, Flicker Control (VP18)
 - [ ] Eventos de ajuste (*adjustment events*): o efeito vale para os eventos de vídeo abaixo dele (VP21)
 - [ ] Decodificação AV1/HEVC/AVC com aceleração de GPU e suporte a HEIC/HEIF (VP21)
@@ -332,7 +333,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Aparar à seleção (`Ctrl+T`) e aparar início/fim ao cursor (`Alt+[` / `Alt+]`)
 - [ ] `[` e `]` selecionam a borda do evento (modo de aparo por teclado, Fase 2)
 - [x] `S` divide sem seleção em todas as faixas sob o cursor, com eventos selecionados só neles e, com seleção de tempo, nas duas bordas
-- [ ] Inserir evento vazio e inserir tempo (espaço em branco no cursor)
+- [x] Inserir tempo (`Ctrl+Alt+T`): abre espaço vazio no cursor nas faixas dos eventos selecionados ou em todas
+- [ ] Inserir evento vazio
 
 **Fase 2 — Ripple, aparar e edição expandida (entrada 8)**
 - [ ] `RippleScope` (faixas afetadas / + marcadores e regiões / tudo) e `ripple_after(edição, escopo)`; teclas `F`, `Ctrl+F`, `Ctrl+Shift+F`; modo Auto Ripple (`Ctrl+L`) com lista de escopos

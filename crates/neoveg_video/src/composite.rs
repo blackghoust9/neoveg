@@ -122,6 +122,48 @@ fn sample_clamped(buf: &FrameBuffer, x: i32, y: i32) -> [f32; 4] {
     unpack_px(&buf.rgba, cy * buf.width as usize + cx)
 }
 
+/// `SourceAlpha` blend of two RGBA8 buffers of the same size, straight on the bytes. It is the mode of
+/// almost every layer, so it skips the float round trip of the generic path: an opaque backdrop
+/// (the usual case) is a plain linear mix, anything else uses the same alpha-over formula as
+/// [`CompositeMode::composite_rgba`]. The result matches the generic path to within one level.
+fn blend_source_alpha(dst: &[u8], src: &[u8], opacity: f32) -> Vec<u8> {
+    let mut out = Vec::with_capacity(dst.len());
+    for (d, s) in dst
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(src.as_chunks::<4>().0.iter())
+    {
+        let eff = (f32::from(s[3]) * (1.0 / 255.0) * opacity).clamp(0.0, 1.0);
+        if eff <= 0.0 {
+            out.extend_from_slice(d);
+            continue;
+        }
+        if d[3] == 255 {
+            // Opaque backdrop: out = d + (s - d) * eff
+            for c in 0..3 {
+                let (dc, sc) = (f32::from(d[c]), f32::from(s[c]));
+                out.push((dc + (sc - dc) * eff + 0.5).clamp(0.0, 255.0) as u8);
+            }
+            out.push(255);
+        } else {
+            let da = f32::from(d[3]) * (1.0 / 255.0);
+            let out_a = eff + da * (1.0 - eff);
+            if out_a <= 1e-6 {
+                out.extend_from_slice(&[0, 0, 0, 0]);
+                continue;
+            }
+            let keep = (1.0 - eff) * da;
+            for c in 0..3 {
+                let value = (eff * f32::from(s[c]) + keep * f32::from(d[c])) / out_a;
+                out.push((value + 0.5).clamp(0.0, 255.0) as u8);
+            }
+            out.push((out_a * 255.0 + 0.5).clamp(0.0, 255.0) as u8);
+        }
+    }
+    out
+}
+
 /// CPU reference blend of `src` over `dst` (`dst` and `src` may have different resolutions; `src`
 /// is aspect-fit onto `dst`'s dimensions automatically).
 pub fn blend_buffer_cpu(
@@ -143,6 +185,14 @@ pub fn blend_buffer_cpu(
     let h = dst.height as i32;
     let min_dim = w.min(h) as f32;
     let mut out = vec![0u8; dst.rgba.len()];
+
+    if mode == CompositeMode::SourceAlpha {
+        return FrameBuffer {
+            width: dst.width,
+            height: dst.height,
+            rgba: blend_source_alpha(&dst.rgba, &fitted.rgba, op),
+        };
+    }
 
     if !mode.is_spatial() {
         let count = (dst.width * dst.height) as usize;
@@ -738,6 +788,78 @@ impl GpuCompositor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The byte-level `SourceAlpha` path must agree with the generic float path to within one level
+    /// on every kind of pixel: opaque and see-through backdrops, any source alpha and opacity.
+    #[test]
+    fn the_source_alpha_fast_path_matches_the_generic_blend() {
+        // A small deterministic generator, so a failure is reproducible
+        let mut state = 0x2545_F491_4F6C_DD1D_u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 32) as u32
+        };
+        for opacity in [1.0_f32, 0.5, 0.25, 0.9] {
+            let mut dst = Vec::new();
+            let mut src = Vec::new();
+            for i in 0..4_000 {
+                let mut px = |alpha: Option<u8>| {
+                    let v = next();
+                    [
+                        v as u8,
+                        (v >> 8) as u8,
+                        (v >> 16) as u8,
+                        alpha.unwrap_or((v >> 24) as u8),
+                    ]
+                };
+                // Mostly opaque backdrops, with transparent and half-transparent ones mixed in
+                let backdrop = match i % 4 {
+                    0 => px(Some(255)),
+                    1 => px(Some(0)),
+                    _ => px(None),
+                };
+                dst.extend(backdrop);
+                src.extend(px(None));
+            }
+            let fast = blend_source_alpha(&dst, &src, opacity);
+            for i in 0..4_000 {
+                let reference = pack_px(CompositeMode::SourceAlpha.composite_rgba(
+                    unpack_px(&dst, i),
+                    unpack_px(&src, i),
+                    opacity,
+                ));
+                for c in 0..4 {
+                    let (a, b) = (fast[i * 4 + c], reference[c]);
+                    // A fully transparent result has no colour: any value is the same picture
+                    if c < 3 && reference[3] == 0 && fast[i * 4 + 3] == 0 {
+                        continue;
+                    }
+                    assert!(
+                        a.abs_diff(b) <= 1,
+                        "pixel {i} channel {c} at opacity {opacity}: fast {a} vs reference {b} (dst {:?}, src {:?})",
+                        &dst[i * 4..i * 4 + 4],
+                        &src[i * 4..i * 4 + 4]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn an_opaque_layer_over_an_opaque_backdrop_replaces_it_and_zero_opacity_keeps_it() {
+        let dst = FrameBuffer::solid(8, 8, [10, 20, 30, 255]);
+        let src = FrameBuffer::solid(8, 8, [200, 100, 50, 255]);
+        let top = blend_buffer_cpu(&dst, &src, CompositeMode::SourceAlpha, 1.0);
+        assert_eq!(top.pixel(3, 3), [200, 100, 50, 255]);
+        let half = blend_buffer_cpu(&dst, &src, CompositeMode::SourceAlpha, 0.5);
+        assert_eq!(half.pixel(3, 3), [105, 60, 40, 255]);
+        assert_eq!(
+            blend_buffer_cpu(&dst, &src, CompositeMode::SourceAlpha, 0.0),
+            dst
+        );
+    }
 
     fn test_pattern_dst(w: u32, h: u32) -> FrameBuffer {
         let mut rgba = Vec::with_capacity((w * h * 4) as usize);
