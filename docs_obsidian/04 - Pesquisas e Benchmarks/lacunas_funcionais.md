@@ -3,7 +3,7 @@ tags: [neoveg, pesquisa, lacunas, roadmap]
 ---
 # Lacunas funcionais
 
-Cruzamento entre o inventário funcional de uma varredura local do produto de referência (menus, janelas, painéis, comandos) e o que o Neoveg já registra no roadmap e na pesquisa. Volta ao hub: [[Index]]. Regras de edição relacionadas: [[regras_de_timeline]]. Implementação: [[neoveg_engine]], [[neoveg_ui]], [[neoveg_video]], [[neoveg_audio]].
+Cruzamento entre o inventário funcional de uma varredura local do produto de referência (menus, janelas, painéis, comandos) e o que o Neoveg já registra no roadmap e na pesquisa. Volta ao hub: [[Index]]. Catálogos por tema: [[segundo_cerebro]]. Regras de edição relacionadas: [[regras_de_timeline]]. Implementação: [[neoveg_engine]], [[neoveg_ui]], [[neoveg_video]], [[neoveg_audio]].
 
 > Clean room (AGENTS.md §28): esta nota descreve **funções** com palavras próprias. Não há texto, captura, ícone ou nome de marca copiados. A varredura bruta fica fora do Git (`results_assets/vegasscan/`, ignorada); ela é só evidência de apoio, e o comportamento de cada recurso continua vindo dos manuais (§33).
 

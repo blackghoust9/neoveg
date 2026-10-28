@@ -26,6 +26,11 @@ A direção das dependências é `neoveg_common` → (`neoveg_audio`, `neoveg_vi
 - [[desempenho_resolucoes]] — medições de desempenho.
 - [[lacunas_funcionais]] — o que a pesquisa de referência prevê e o Neoveg ainda não registra ou não implementa.
 
+## 05 - Referencia Funcional
+- [[segundo_cerebro]] — hub do conhecimento sobre o editor de referência e como usar o vault.
+- [[catalogo_efeitos_video]] · [[catalogo_transicoes_e_geradores]] · [[catalogo_efeitos_audio]] · [[estrutura_de_menus]]
+- [[janelas_e_paineis]] · [[formatos_e_tecnologia]] · [[diferencas_entre_versoes]]
+
 ## Fontes de verdade fora do vault
 - `AGENTS.md` — padrões e regras (a seção 26 descreve este vault).
 - `docs/research/nle_features_research.txt` — base de pesquisa completa.

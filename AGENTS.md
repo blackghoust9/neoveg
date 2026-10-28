@@ -343,6 +343,7 @@ Several projects can be open at once, one tab each, and a project can play anoth
 
 The vault `docs_obsidian/` holds the visual window planning, the module documentation and the user manual. It is part of the repository; the maintainer's working copy is mirrored to `D:\ambiente_neoveg\docs_obsidian` (see section 12 for the environment drive).
 
+- **Referência funcional (`05 - Referencia Funcional/`):** o vault é o segundo cérebro do projeto. Ali ficam notas por tema (efeitos, transições, geradores, menus) escritas em palavras próprias a partir da varredura local `VegasScan/` (ignorada pelo Git, nunca versionada). Decisão do mantenedor de 2026-10-28; sem textos de menu, strings, capturas, ícones nem nomes de marca, e o comportamento continua vindo dos manuais (§33).
 - **Layout:** `00 - Mapa Geral/` (hub `Index.md`), `01 - Arquitetura Rust/` (one note per crate, named after it), `02 - UI e Planejamento de Janelas/` (`layout_janelas.canvas`, `especificacao_janelas.md`, `inventario_icones.md`), `03 - Manual do Usuario/` (`guia_de_inicio.md`, `atalhos_teclado.md`, `subprojetos_e_abas.md`), `04 - Pesquisas e Benchmarks/` (`regras_de_timeline.md`, `desempenho_resolucoes.md`).
 - **Links:** notes connect with `[[wikilinks]]`; every note links back to `[[Index]]`. A new crate or window needs its note and a link from the hub in the same change.
 - **Canvas:** `layout_janelas.canvas` mirrors `default_dock()` in `neoveg_ui/src/app.rs`. Changing the default dock, a window title or a proportion updates the canvas and `especificacao_janelas.md` in the same commit.
