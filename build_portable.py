@@ -216,7 +216,65 @@ def ffmpeg_environment() -> List[str]:
         problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")
     if not libclang or not Path(libclang).is_dir():
         problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")
+    else:
+        major = libclang_major(Path(libclang))
+        if major is not None and major >= 22:
+            problems.append(
+                f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 7.1.x needs LLVM 19.x "
+                f"(it fails to compile with 22 or newer): {libclang}"
+            )
     return problems
+
+
+def libclang_major(folder: Path) -> Optional[int]:
+    """Major version of the LLVM in `folder` (read from its `clang`), or None when it cannot be told."""
+    for name in ("clang.exe", "clang"):
+        clang = folder / name
+        if clang.is_file():
+            out = capture([str(clang), "--version"])
+            match = re.search(r"clang version (\d+)", out or "")
+            if match:
+                return int(match.group(1))
+    return None
+
+
+def ensure_app_icon() -> None:
+    """Creates `assets/app_icon/app_icon.ico` when it is missing.
+
+    The icon is drawn by `scripts/generate_app_icon.py` (Pillow) and the `.ico` is not committed (the
+    repository ignores `*.ico`), so a clean checkout would otherwise produce an executable without an
+    icon. Only the `.ico` is taken from the generator: the tracked PNG is left untouched.
+    """
+    ico = ROOT / "assets" / "app_icon" / "app_icon.ico"
+    if ico.is_file():
+        return
+    generator = ROOT / "scripts" / "generate_app_icon.py"
+    scratch = TARGET_DIR / "tmp" / "app_icon"
+    try:
+        scratch.mkdir(parents=True, exist_ok=True)
+        done = subprocess.run(
+            [sys.executable, str(generator), "--out", str(scratch)], cwd=ROOT, capture_output=True, text=True
+        )
+        if done.returncode == 0 and (scratch / "app_icon.ico").is_file():
+            shutil.copy2(scratch / "app_icon.ico", ico)
+            log("INFO", f"generated {ico.relative_to(ROOT)} for the executable icon")
+        else:
+            log("WARN", "no app_icon.ico and the generator failed (needs Pillow): the exe will have no icon")
+    except OSError as error:
+        log("WARN", f"could not generate the application icon: {error}")
+
+
+def force_rmtree(path: Path) -> None:
+    """`shutil.rmtree` that also removes folders flagged read-only (Windows raises WinError 5 for them)."""
+
+    def make_writable(function, target, _excinfo):  # type: ignore[no-untyped-def]
+        os.chmod(target, 0o700)
+        function(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=lambda f, t, e: make_writable(f, t, e))
+    else:
+        shutil.rmtree(path, onerror=make_writable)
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -307,6 +365,7 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
+    ensure_app_icon()
     steps = qa_steps(args)
     failed = False
     for step in steps:
@@ -418,7 +477,7 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool) -> Path:
     """Builds dist/Neoveg-Portable-<rid>/ from the compiled binary."""
     stage = DIST / f"Neoveg-Portable-{rid}"
     if stage.exists():
-        shutil.rmtree(stage)
+        force_rmtree(stage)
     stage.mkdir(parents=True)
     exe = TARGETS[rid]["exe"]
     if rid.startswith("osx"):
@@ -476,7 +535,7 @@ def prune_legacy_dist() -> None:
     """Removes portable folders of the previous architecture; a Rust package has none of these."""
     for folder in sorted(DIST.glob("Neoveg-Portable-*")):
         if folder.is_dir() and any((folder / m).exists() for m in LEGACY_PACKAGE_MARKERS):
-            shutil.rmtree(folder, ignore_errors=True)
+            force_rmtree(folder)
             log("INFO", f"removed legacy package folder {folder.name}")
 
 
@@ -492,6 +551,7 @@ def cmd_build(args: argparse.Namespace) -> int:
             for problem in problems:
                 log("ERROR", problem)
             return 1
+    ensure_app_icon()
     if not args.skip_qa:
         log("INFO", "running the quality gates before packaging (use --skip-qa to bypass)")
         if cmd_qa(args) != 0:
@@ -527,9 +587,12 @@ def cmd_build(args: argparse.Namespace) -> int:
         except (RuntimeError, OSError) as error:
             log("ERROR", f"{rid}: {error}")
             failures.append(rid)
-    (DIST / "build_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    lines = [f"{p['sha256']}  {p['file']}" for p in manifest["packages"]]  # type: ignore[union-attr]
-    (DIST / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if manifest["packages"]:
+        (DIST / "build_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        lines = [f"{p['sha256']}  {p['file']}" for p in manifest["packages"]]  # type: ignore[union-attr]
+        (DIST / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        log("WARN", "no package was produced: build_manifest.json and SHA256SUMS.txt were left as they were")
     if args.sync:
         sync = ROOT / "scripts" / "sync_gdrive.ps1"
         if sync.is_file() and platform.system() == "Windows":

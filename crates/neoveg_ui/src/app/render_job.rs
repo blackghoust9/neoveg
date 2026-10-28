@@ -317,12 +317,29 @@ mod tests {
             .is_ok_and(|s| s.success())
     }
 
+    /// Whether this `ffmpeg` can encode with `name` (LGPL builds have no `libx264` or `libx265`).
+    fn ffmpeg_has_encoder(name: &str) -> bool {
+        std::process::Command::new("ffmpeg")
+            .args(["-hide_banner", "-encoders"])
+            .output()
+            .is_ok_and(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .any(|l| l.split_whitespace().nth(1) == Some(name))
+            })
+    }
+
     /// The whole Make Movie path for video: a generated clip is composited, encoded by `ffmpeg`
     /// together with the audio mixdown, and the result is a playable file. Skips without `ffmpeg`.
     #[test]
     fn a_video_render_encodes_the_composited_frames_when_ffmpeg_is_installed() {
         if !ffmpeg_available() {
             eprintln!("skipped: ffmpeg is not installed");
+            return;
+        }
+        // MP4 H.264 is encoded with libx264, which LGPL builds of ffmpeg do not include
+        if !ffmpeg_has_encoder("libx264") {
+            eprintln!("skipped: this ffmpeg has no libx264 encoder");
             return;
         }
         let dir = std::env::temp_dir().join(format!("neoveg_render_video_{}", std::process::id()));
