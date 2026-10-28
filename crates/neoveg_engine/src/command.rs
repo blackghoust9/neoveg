@@ -11,6 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
+use neoveg_common::pan_crop::PanCrop;
 
 /// Where an effect chain lives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +97,14 @@ pub enum EditCommand {
         target: FxTarget,
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
+    },
+    /// Any change to the Pan/Crop of a video event (a key added, moved or removed, the stretch
+    /// switch): the whole Pan/Crop before and after, so it is one exactly reversible undo step.
+    SetPanCrop {
+        track_id: TrackId,
+        event_id: EventId,
+        before: PanCrop,
+        after: PanCrop,
     },
     /// The color a video track fades to.
     SetFadeColor {
@@ -274,6 +283,12 @@ impl EditCommand {
             }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SetVideoEffects { target, after, .. } => set_video_effects(tl, *target, after),
+            Self::SetPanCrop {
+                track_id,
+                event_id,
+                after,
+                ..
+            } => set_pan_crop(tl, *track_id, *event_id, after),
             Self::SetFadeColor {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -324,6 +339,8 @@ impl EditCommand {
                     normalize_gain: left.normalize_gain,
                     channels: left.channels,
                     video_effects: left.video_effects.clone(),
+                    // The left half keeps its keys (so undoing the split restores it as it was)
+                    pan_crop: left.pan_crop.from_offset(left_duration),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -396,6 +413,14 @@ impl EditCommand {
             Self::SetVideoEffects { target, before, .. } => {
                 set_video_effects(tl, *target, before);
             }
+            Self::SetPanCrop {
+                track_id,
+                event_id,
+                before,
+                ..
+            } => {
+                set_pan_crop(tl, *track_id, *event_id, before);
+            }
             Self::SetFadeColor {
                 track_id, before, ..
             } => {
@@ -464,6 +489,19 @@ fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope
             }
             None => false,
         },
+    }
+}
+
+fn set_pan_crop(tl: &mut Timeline, track_id: TrackId, event_id: EventId, value: &PanCrop) -> bool {
+    let event = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+    match event {
+        Some(e) => {
+            e.pan_crop = value.clone();
+            true
+        }
+        None => false,
     }
 }
 

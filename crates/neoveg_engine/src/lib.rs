@@ -18,6 +18,7 @@ pub mod mix;
 pub mod navigation;
 pub mod ops;
 pub mod otio;
+pub mod pan_crop;
 pub mod project_file;
 pub mod project_manager;
 pub mod relink;

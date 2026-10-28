@@ -9,6 +9,7 @@ pub mod gpu;
 pub mod grading;
 pub mod info;
 pub mod lut;
+pub mod pan_crop;
 pub mod render;
 pub mod scopes;
 pub mod still;

@@ -10,6 +10,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
+use neoveg_common::pan_crop::PanCrop;
 use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
@@ -109,6 +110,10 @@ pub struct TrackEvent {
     /// registry id and the parameters; `neoveg_video::vfx` knows what each effect does.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub video_effects: Vec<TrackEffect>,
+    /// Pan/Crop of a video event: the part of the picture it shows, with keyframes measured from
+    /// the start of the event (older projects show the whole picture).
+    #[serde(default, skip_serializing_if = "PanCrop::is_default")]
+    pub pan_crop: PanCrop,
 }
 
 impl Default for TrackEvent {
@@ -135,6 +140,7 @@ impl Default for TrackEvent {
             normalize_gain: 1.0,
             channels: ChannelMode::Both,
             video_effects: Vec::new(),
+            pan_crop: PanCrop::default(),
         }
     }
 }

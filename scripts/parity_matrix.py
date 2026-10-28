@@ -103,7 +103,7 @@ ROWS: List[Row] = [
     ("fer.projeto_origem", A_FER, "Editar o projeto de origem de um evento aninhado", r"^Tools > Audio > Edit Source", "feito", "duplo clique no sub-projeto abre a aba", "-"),
     ("fer.fx_audio", A_FER, "Efeitos de áudio do evento e da faixa, aplicar fora de tempo real", r"^Tools > Audio > (Audio Event FX|Track FX|Remove Assignable|Apply Non)", "parcial", "faixa e master feitos (28 efeitos); efeitos por evento não", "P2"),
     ("fer.fx_video", A_FER, "Efeitos de vídeo da mídia, do evento, da faixa e da saída", r"^Tools > Video > (Media FX|Video Event FX|Video Track FX|Video Output FX)", "feito", "cadeias de mídia, evento, faixa e projeto (4 efeitos)", "-"),
-    ("fer.pancrop", A_FER, "Pan/Crop do evento", r"^Tools > Video > Video Event Pan", "previsto", "roteiro: gizmo `F` e quadros-chave", "P1"),
+    ("fer.pancrop", A_FER, "Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave", r"^Tools > Video > Video Event Pan", "parcial", "janela com caixa e alças, campos numéricos, quadros-chave com suavidade e prévia ao lado; faltam máscaras, centro de rotação e o botão no cabeçalho do evento", "P2"),
     ("fer.movimento", A_FER, "Movimento da trilha", r"^Tools > Video > Track Motion", "previsto", "roteiro (README)", "P1"),
     ("fer.cor_mov", A_FER, "Modo de gradação de cor e rastreamento de movimento", r"^Tools > Video > (Color Grading|Motion Tracking)", "parcial", "correção de cor primária e LUT feitas; gradação por evento e rastreamento não", "P2"),
     ("fer.debug_video", A_FER, "Ferramentas de depuração de efeitos, transições, geradores e compositores", r"^Tools > Video > DEBUG", "sem_plano", "uso interno do fabricante", "-"),

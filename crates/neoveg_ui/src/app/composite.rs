@@ -9,8 +9,10 @@
 //! opacity (fading both would dip through black).
 
 use super::*;
+use crate::pan_crop_window::PanCropDraft;
 use crate::video_fx_panel::{effects_for, VfxDraft};
 use neoveg_common::composite::CompositeMode;
+use neoveg_video::pan_crop::PanCropRequest;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
 
 /// Where a media id is on disk and how it plays.
@@ -35,6 +37,33 @@ pub(super) struct FrameSettings {
     pub chroma_key: ChromaKey,
     /// A video effect slider that is being dragged: the preview shows its value live.
     pub fx_draft: Option<VfxDraft>,
+    /// A Pan/Crop being edited: the preview shows it instead of the event's own.
+    pub pan_crop_draft: Option<PanCropDraft>,
+}
+
+/// The Pan/Crop request of `event` at timeline `time`: its keys (or the draft being edited) at the
+/// time since the event started, or `None` for an event without Pan/Crop.
+fn pan_crop_request(
+    event: &TrackEvent,
+    track_id: TrackId,
+    time: f64,
+    settings: &FrameSettings,
+) -> Option<PanCropRequest> {
+    let stored = match settings
+        .pan_crop_draft
+        .as_ref()
+        .filter(|d| d.track_id == track_id && d.event_id == event.id)
+    {
+        Some(draft) => &draft.pan_crop,
+        None => &event.pan_crop,
+    };
+    if stored.is_default() {
+        return None;
+    }
+    Some(PanCropRequest {
+        frame: stored.frame_at((time - event.start).max(0.0)),
+        stretch_to_fill: stored.stretch_to_fill,
+    })
 }
 
 fn ramp(curve: FadeCurve, length: f64, position: f64) -> f64 {
@@ -131,6 +160,7 @@ pub(super) fn composite_request(
                     playback_rate: edit::clamp_playback_rate(e.playback_rate),
                     event_opacity: event_opacity(e, time, cross_in),
                     apply_chroma: true,
+                    pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
                         let stored = timeline
@@ -213,11 +243,17 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .media_id
                 .and_then(|m| timeline.media_video_effects.get(&m))
                 .is_some_and(|chain| on(chain));
+            let pan_crop_on = !e.pan_crop.is_default();
             let envelope_on = track
                 .envelopes
                 .iter()
                 .any(|env| env.enabled && env.target.is_video());
-            if on(&e.video_effects) || on(&track.video_effects) || media_on || envelope_on {
+            if on(&e.video_effects)
+                || on(&track.video_effects)
+                || media_on
+                || envelope_on
+                || pan_crop_on
+            {
                 return true;
             }
         }
@@ -240,6 +276,7 @@ mod tests {
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
             fx_draft: None,
+            pan_crop_draft: None,
         }
     }
 
@@ -519,5 +556,66 @@ mod tests {
         }
         assert_eq!(node(&tl, 2.0).unwrap().0, 1.0);
         assert!(!has_effects(&tl, 2.0));
+    }
+
+    #[test]
+    fn the_pan_crop_of_an_event_reaches_the_request_at_the_time_since_its_start() {
+        use neoveg_common::pan_crop::{PanCrop, PanCropFrame};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 10.0, 8.0);
+        let mut pc = PanCrop::default();
+        let at = |x: f32| PanCropFrame {
+            x_center: x,
+            width: 0.5,
+            height: 0.5,
+            rotation_deg: 0.0,
+            y_center: 0.5,
+        };
+        pc.upsert_key(0.0, at(0.25), 1e-3);
+        pc.upsert_key(4.0, at(0.75), 1e-3);
+        e.pan_crop = pc;
+        let (tid, eid) = (track.id, e.id);
+        track.events.push(e);
+        tl.tracks.push(track);
+        assert!(
+            has_effects(&tl, 12.0),
+            "a Pan/Crop sends the preview through the composite path"
+        );
+
+        let clip = |tl: &Timeline, settings: &FrameSettings, time: f64| {
+            let r = composite_request(tl, time, settings, &resolve).unwrap();
+            let TrackCompositeNode::Track { clips, .. } = &r.nodes[0] else {
+                panic!("a track node");
+            };
+            clips[0].pan_crop
+        };
+        let mid = clip(&tl, &settings(), 12.0).unwrap();
+        assert!(
+            (mid.frame.x_center - 0.5).abs() < 1e-5,
+            "2 s into a 0 to 4 s move"
+        );
+        assert!(mid.stretch_to_fill);
+        assert_eq!(clip(&tl, &settings(), 10.0).unwrap().frame.x_center, 0.25);
+
+        // The draft being edited replaces the stored one for that event only
+        let mut live = settings();
+        let mut draft = PanCrop::default();
+        draft.upsert_key(0.0, at(0.9), 1e-3);
+        live.pan_crop_draft = Some(PanCropDraft {
+            track_id: tid,
+            event_id: eid,
+            pan_crop: draft,
+        });
+        assert_eq!(clip(&tl, &live, 12.0).unwrap().frame.x_center, 0.9);
+        assert_eq!(
+            tl.tracks[0].events[0].pan_crop.keys.len(),
+            2,
+            "the project is untouched"
+        );
+
+        // An event without Pan/Crop sends none
+        tl.tracks[0].events[0].pan_crop = PanCrop::default();
+        assert!(clip(&tl, &settings(), 12.0).is_none());
     }
 }

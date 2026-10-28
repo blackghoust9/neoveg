@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 8] = [
+pub const OUTPUTS: [&str; 9] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -32,6 +32,7 @@ pub const OUTPUTS: [&str; 8] = [
     "ui_project_properties.png",
     "ui_edit_details.png",
     "ui_video_effects.png",
+    "ui_pan_crop.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -112,6 +113,27 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, effects_dock());
         let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[7]))?;
+
+        // 9. The Pan/Crop editor on an animated event, with the live preview beside it
+        let ctx = new_context();
+        let mut state = demo_project_with_pan_crop();
+        let source = decode_sample_frame(Path::new(SAMPLE_VIDEO), 3.0)
+            .unwrap_or_else(|| neoveg_video::generators::smpte_color_bars(960, 540));
+        let (track_id, event_id, shown) = pan_crop_demo_target(&state);
+        let result = neoveg_video::pan_crop::apply(&source, &shown, true);
+        state.video_texture = Some(ctx.load_texture(
+            "preview_frame",
+            egui::ColorImage::from_rgba_unmultiplied(
+                [result.width as usize, result.height as usize],
+                &result.rgba,
+            ),
+            egui::TextureOptions::LINEAR,
+        ));
+        state.pan_crop.open_for(track_id, event_id);
+        state.pan_crop.set_source(&ctx, &source);
+        let mut app = headless_app(state, default_dock());
+        let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[8]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -610,6 +632,71 @@ fn demo_project_with_video_effects() -> AppState {
     s
 }
 
+/// The demonstration project with a Pan/Crop that moves and zooms during the first video event,
+/// the cursor in the middle of the move.
+fn demo_project_with_pan_crop() -> AppState {
+    use neoveg_common::pan_crop::{PanCrop, PanCropFrame};
+    let mut s = demo_project();
+    let (track_id, event_id) = {
+        let track = s
+            .timeline
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("the demonstration has a video track");
+        let mut pan_crop = PanCrop::default();
+        pan_crop.upsert_key(
+            0.0,
+            PanCropFrame {
+                x_center: 0.32,
+                y_center: 0.42,
+                width: 0.62,
+                height: 0.62,
+                rotation_deg: 0.0,
+            },
+            1e-3,
+        );
+        pan_crop.upsert_key(
+            6.0,
+            PanCropFrame {
+                x_center: 0.66,
+                y_center: 0.56,
+                width: 0.46,
+                height: 0.46,
+                rotation_deg: 8.0,
+            },
+            1e-3,
+        );
+        pan_crop.keys[0].smoothness = 0.6;
+        let event = &mut track.events[0];
+        event.pan_crop = pan_crop;
+        (track.id, event.id)
+    };
+    s.selected_track = Some(track_id);
+    s.selection.select_only((track_id, event_id));
+    s.playhead = 2.5;
+    s.status = "Pan/Crop do evento: caixa animada entre dois quadros-chave".into();
+    s
+}
+
+/// The event the Pan/Crop demo edits, and the box at the cursor.
+fn pan_crop_demo_target(
+    state: &AppState,
+) -> (
+    neoveg_engine::TrackId,
+    neoveg_engine::EventId,
+    neoveg_common::pan_crop::PanCropFrame,
+) {
+    let (track_id, event_id) = state.selection.primary().expect("a selected event");
+    let event = state
+        .timeline
+        .track(track_id)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .expect("the event exists");
+    let frame = event.pan_crop.frame_at(state.playhead - event.start);
+    (track_id, event_id, frame)
+}
+
 /// The chain the preview shows for the first video event: media, event, then project (the track
 /// has none), the same order as the worker.
 fn preview_chain(state: &AppState) -> Vec<neoveg_video::vfx::VideoEffect> {
@@ -807,5 +894,15 @@ mod tests {
             kinds,
             ["unsharp_mask", "gaussian_blur", "vignette", "vignette"]
         );
+    }
+
+    #[test]
+    fn the_pan_crop_demo_moves_between_two_keys_and_edits_a_video_event() {
+        let s = demo_project_with_pan_crop();
+        let (track_id, event_id, frame) = pan_crop_demo_target(&s);
+        assert!(neoveg_engine::pan_crop::get(&s.timeline, track_id, event_id).is_some());
+        // 2.5 s into a move from x 0.32 to 0.66 that eases out of the first key
+        assert!(frame.x_center > 0.32 && frame.x_center < 0.66, "{frame:?}");
+        assert!(frame.width < 0.62 && frame.width > 0.46);
     }
 }

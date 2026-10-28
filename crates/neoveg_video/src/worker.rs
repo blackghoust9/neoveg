@@ -20,6 +20,7 @@ use crate::generators::{
 };
 use crate::info::{fit_size, VideoInfo};
 use crate::lut::Lut;
+use crate::pan_crop::{self, PanCropRequest};
 use crate::still::{
     decode_image, decode_sequence_at, is_image_path, is_sequence_manifest_path, probe_image,
     probe_sequence_manifest,
@@ -66,6 +67,8 @@ pub struct VideoClipRequest {
     /// Event effect chain (bypassed effects already left out), run after the chroma key and
     /// before the event's opacity and crossfade.
     pub effects: Vec<VideoEffect>,
+    /// Pan/Crop of the event, run right after the chroma key and before the effects.
+    pub pan_crop: Option<PanCropRequest>,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -109,6 +112,22 @@ pub struct CompositeFrameRequest {
     pub project_effects: Vec<VideoEffect>,
 }
 
+/// One decoded source frame for the Pan/Crop editor: the picture as the decoder returns it, with
+/// no grading, key, effects or Pan/Crop.
+#[derive(Debug, Clone)]
+pub struct SourceRequest {
+    pub path: PathBuf,
+    pub seconds: f64,
+    /// Maximum decoded width (0 = source size).
+    pub max_width: u32,
+}
+
+pub struct SourceReply {
+    pub path: PathBuf,
+    pub seconds: f64,
+    pub result: Result<FrameBuffer, String>,
+}
+
 pub struct CompositeFrameReply {
     pub timeline_seconds: f64,
     pub result: Result<FrameBuffer, String>,
@@ -117,6 +136,7 @@ pub struct CompositeFrameReply {
 enum WorkerJob {
     Single(FrameRequest),
     Composite(CompositeFrameRequest),
+    Source(SourceRequest),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -187,6 +207,7 @@ pub struct FrameWorker {
     tx: Sender<WorkerJob>,
     pub rx: Receiver<FrameReply>,
     pub composite_rx: Receiver<CompositeFrameReply>,
+    pub source_rx: Receiver<SourceReply>,
 }
 
 impl FrameWorker {
@@ -196,14 +217,16 @@ impl FrameWorker {
         let (tx, jobs) = channel::<WorkerJob>();
         let (single_tx, rx) = channel::<FrameReply>();
         let (composite_tx, composite_rx) = channel::<CompositeFrameReply>();
+        let (source_tx, source_rx) = channel::<SourceReply>();
         std::thread::Builder::new()
             .name("neoveg-video-decode".into())
-            .spawn(move || run(jobs, single_tx, composite_tx, on_reply))
+            .spawn(move || run(jobs, single_tx, composite_tx, source_tx, on_reply))
             .map_err(|e| format!("cannot start video thread: {e}"))?;
         Ok(Self {
             tx,
             rx,
             composite_rx,
+            source_rx,
         })
     }
 
@@ -213,6 +236,11 @@ impl FrameWorker {
 
     pub fn request_composite(&self, request: CompositeFrameRequest) {
         let _ = self.tx.send(WorkerJob::Composite(request));
+    }
+
+    /// Asks for one raw source frame (the Pan/Crop editor's background).
+    pub fn request_source(&self, request: SourceRequest) {
+        let _ = self.tx.send(WorkerJob::Source(request));
     }
 }
 
@@ -272,6 +300,21 @@ impl WorkerState {
             self.gpu_compositor = GpuCompositor::try_headless();
         }
         self.gpu_compositor.as_ref()
+    }
+
+    /// What a clip needs after its picture is decoded and keyed: the Pan/Crop, then the effect
+    /// chain. A clip with neither returns the same `Arc`, so the cached source frame is never
+    /// copied or changed.
+    fn finish_clip(
+        &mut self,
+        frame: Arc<FrameBuffer>,
+        clip: &VideoClipRequest,
+    ) -> Arc<FrameBuffer> {
+        let frame = match clip.pan_crop.filter(|p| !p.is_identity()) {
+            Some(p) => Arc::new(pan_crop::apply(&frame, &p.frame, p.stretch_to_fill)),
+            None => frame,
+        };
+        self.apply_effects(frame, &clip.effects)
     }
 
     /// Runs an effect chain on `frame`: on the GPU when there is an adapter and the picture is big
@@ -372,6 +415,7 @@ fn run(
     jobs: Receiver<WorkerJob>,
     single_tx: Sender<FrameReply>,
     composite_tx: Sender<CompositeFrameReply>,
+    source_tx: Sender<SourceReply>,
     on_reply: impl Fn(),
 ) {
     let mut state = WorkerState::new();
@@ -388,16 +432,37 @@ fn run(
 
         let mut latest_single: Option<FrameRequest> = None;
         let mut latest_composite: Option<CompositeFrameRequest> = None;
+        let mut latest_source: Option<SourceRequest> = None;
         match first {
             WorkerJob::Single(r) => latest_single = Some(r),
             WorkerJob::Composite(r) => latest_composite = Some(r),
+            WorkerJob::Source(r) => latest_source = Some(r),
         }
         // Scrubbing floods the queue: keep only the newest pending job of each kind.
         while let Ok(newer) = jobs.try_recv() {
             match newer {
                 WorkerJob::Single(r) => latest_single = Some(r),
                 WorkerJob::Composite(r) => latest_composite = Some(r),
+                WorkerJob::Source(r) => latest_source = Some(r),
             }
+        }
+
+        if let Some(req) = latest_source {
+            let result = state
+                .decode_raw_cached(&req.path, req.seconds, 29.97, req.max_width)
+                .map(|raw| (*raw).clone());
+            if let Err(e) = &result {
+                tracing::warn!("[WARN] source frame failed for {}: {e}", req.path.display());
+            }
+            let reply = SourceReply {
+                path: req.path.clone(),
+                seconds: req.seconds,
+                result,
+            };
+            if source_tx.send(reply).is_err() {
+                break;
+            }
+            on_reply();
         }
 
         if let Some(req) = latest_single {
@@ -451,6 +516,25 @@ fn hash_f32(h: &mut impl Hasher, v: f32) {
     v.to_bits().hash(h);
 }
 
+/// Feeds a clip's Pan/Crop into the cache key.
+fn hash_pan_crop(h: &mut impl Hasher, pan_crop: Option<&PanCropRequest>) {
+    let Some(p) = pan_crop else {
+        0u8.hash(h);
+        return;
+    };
+    1u8.hash(h);
+    p.stretch_to_fill.hash(h);
+    for v in [
+        p.frame.x_center,
+        p.frame.y_center,
+        p.frame.width,
+        p.frame.height,
+        p.frame.rotation_deg,
+    ] {
+        hash_f32(h, v);
+    }
+}
+
 fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
     match node {
         TrackCompositeNode::Track {
@@ -479,6 +563,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 hash_f32(h, clip.event_opacity);
                 clip.apply_chroma.hash(h);
                 vfx::hash_chain(&clip.effects, h);
+                hash_pan_crop(h, clip.pan_crop.as_ref());
             }
         }
         TrackCompositeNode::Group {
@@ -508,6 +593,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 hash_f32(h, clip.event_opacity);
                 clip.apply_chroma.hash(h);
                 vfx::hash_chain(&clip.effects, h);
+                hash_pan_crop(h, clip.pan_crop.as_ref());
             }
         }
     }
@@ -569,7 +655,7 @@ fn decode_clip_stack(
         } else {
             raw
         };
-        return Ok(Some(state.apply_effects(frame, &clip.effects)));
+        return Ok(Some(state.finish_clip(frame, clip)));
     }
 
     // Multiple overlapping clips on the same track (crossfade) or partial event fade-in/out:
@@ -587,7 +673,7 @@ fn decode_clip_stack(
         } else {
             raw
         };
-        let frame = state.apply_effects(frame, &clip.effects);
+        let frame = state.finish_clip(frame, clip);
         layers.push(CompositeNode::Layer(DecodedLayer {
             frame,
             mode: CompositeMode::SourceAlpha,
@@ -849,6 +935,7 @@ mod tests {
                     event_opacity: 1.0,
                     apply_chroma: false,
                     effects: Vec::new(),
+                    pan_crop: None,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -912,6 +999,7 @@ mod tests {
                     event_opacity: 1.0,
                     apply_chroma: false,
                     effects: clip_fx,
+                    pan_crop: None,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1047,6 +1135,85 @@ mod tests {
         // Back to no fade is the original picture again (neither cache served a stale frame)
         let again = renderer.render_frame(&faded(0.0)).unwrap();
         assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_clip_pan_crop_frames_the_picture_and_follows_the_cache_key() {
+        use neoveg_common::pan_crop::PanCropFrame;
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_pc_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("split.png");
+        let mut img = ImageBuffer::from_pixel(128, 96, Rgba([255u8, 0, 0, 255]));
+        for y in 0..96 {
+            for x in 64..128 {
+                img.put_pixel(x, y, Rgba([0, 0, 255, 255]));
+            }
+        }
+        img.save(&path).unwrap();
+
+        let with_box = |x_center: f32| {
+            let mut request = effect_request(&path, Vec::new(), Vec::new());
+            if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
+                clips[0].pan_crop = Some(PanCropRequest {
+                    frame: PanCropFrame {
+                        x_center,
+                        width: 0.5,
+                        ..PanCropFrame::FULL
+                    },
+                    stretch_to_fill: true,
+                });
+            }
+            request
+        };
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(plain.pixel(10, 10), [255, 0, 0, 255]);
+        assert_eq!(plain.pixel(120, 10), [0, 0, 255, 255]);
+
+        // The left half of the picture fills the frame: red everywhere
+        let left = renderer.render_frame(&with_box(0.25)).unwrap();
+        assert_eq!(left.pixel(120, 10), [255, 0, 0, 255]);
+        // Moving the box is a different frame, not a cached one
+        let right = renderer.render_frame(&with_box(0.75)).unwrap();
+        assert_eq!(right.pixel(10, 10), [0, 0, 255, 255]);
+        // And the cached source frame was not changed by any of it
+        let again = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_worker_returns_the_raw_source_frame_on_its_own_channel() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_src_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("green.png");
+        write_png(&path, 40, 30, [0, 255, 0, 255]);
+
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        worker.request_source(SourceRequest {
+            path: path.clone(),
+            seconds: 0.0,
+            max_width: 0,
+        });
+        let reply = worker
+            .source_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the worker answers");
+        assert_eq!(reply.path, path);
+        let frame = reply.result.unwrap();
+        assert_eq!((frame.width, frame.height), (40, 30));
+        assert_eq!(frame.pixel(5, 5), [0, 255, 0, 255]);
+        assert!(
+            worker.rx.try_recv().is_err(),
+            "nothing leaks into the preview channel"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

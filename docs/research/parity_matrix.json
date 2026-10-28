@@ -397,8 +397,8 @@
     {
       "id": "fer.pancrop",
       "area": "Ferramentas",
-      "estado": "previsto",
-      "prioridade": "P1",
+      "estado": "parcial",
+      "prioridade": "P2",
       "comandos": 1
     },
     {

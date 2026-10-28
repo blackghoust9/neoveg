@@ -24,11 +24,12 @@ Hub: [[fontes_de_referencia_de_ui]]. Catálogos: [[catalogo_efeitos_video]] e [[
 | Biblioteca de efeitos com miniaturas | `previsto`; hoje é uma lista no botão "Adicionar efeito" |
 | Transições (biblioteca, parâmetros, envelope de progresso) | `previsto` |
 | Geradores (cor, padrão de teste, gradiente, título) | `feito`; tabuleiro e textura de ruído `previsto` |
-| Pan/Crop do evento e movimento de trilha | `previsto` |
+| Pan/Crop do evento (caixa, rotação, quadros-chave, prévia ao lado) | `feito`, sem máscaras nem centro de rotação |
+| Movimento da trilha | `previsto` |
 | Composição e modos de mistura (17) | `feito` no compositor; painel de compositores `previsto` |
 | Rastreamento de movimento | `previsto` |
 | Correção de cor primária e LUT | `feito`; gradação por evento `previsto` |
 
 ## Próximos passos
 1. Biblioteca com miniaturas e pré-ajustes (pede o registro de efeitos com categoria).
-2. Pan/Crop com o quadro `F` e quadros-chave.
+2. Movimento da trilha e máscaras do Pan/Crop.

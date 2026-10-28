@@ -17,14 +17,14 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 18 | 56 | 26 | 0 | 46 % |
 | Inserir | 32 | 30 | 16 | 3 | 11 | 2 | 58 % |
-| Ferramentas | 56 | 38 | 6 | 7 | 25 | 18 | 25 % |
+| Ferramentas | 56 | 38 | 6 | 8 | 24 | 18 | 26 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 37 | 19 | 5 | 46 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **38 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 28 parciais, 46 previstas e 18 sem plano, de 127 linhas (109 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 29 parciais, 45 previstas e 18 sem plano, de 127 linhas (109 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -33,7 +33,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Prioridade | Função | Área | Comandos | Estado |
 | :--- | :--- | :--- | ---: | :--- |
 | P1 | Envelopes de evento de vídeo: velocidade e progresso de transição | Inserir | 2 | previsto |
-| P1 | Pan/Crop do evento | Ferramentas | 1 | previsto |
 | P1 | Movimento da trilha | Ferramentas | 1 | previsto |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
 | P2 | Colar atributos do evento, completo e seletivo | Editar | 2 | previsto |
@@ -48,6 +47,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | previsto |
 | P2 | Inserir transição de áudio | Inserir | 1 | parcial |
 | P2 | Efeitos de áudio do evento e da faixa, aplicar fora de tempo real | Ferramentas | 4 | parcial |
+| P2 | Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave | Ferramentas | 1 | parcial |
 | P2 | Modo de gradação de cor e rastreamento de movimento | Ferramentas | 2 | parcial |
 | P2 | Renderizar para nova faixa | Ferramentas | 1 | previsto |
 | P2 | Pré-renderização seletiva e prévia dinâmica em RAM | Ferramentas | 4 | previsto |
@@ -146,7 +146,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Editar o projeto de origem de um evento aninhado | 1 | feito | duplo clique no sub-projeto abre a aba | - |
 | Efeitos de áudio do evento e da faixa, aplicar fora de tempo real | 4 | parcial | faixa e master feitos (28 efeitos); efeitos por evento não | P2 |
 | Efeitos de vídeo da mídia, do evento, da faixa e da saída | 4 | feito | cadeias de mídia, evento, faixa e projeto (4 efeitos) | - |
-| Pan/Crop do evento | 1 | previsto | roteiro: gizmo `F` e quadros-chave | P1 |
+| Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave | 1 | parcial | janela com caixa e alças, campos numéricos, quadros-chave com suavidade e prévia ao lado; faltam máscaras, centro de rotação e o botão no cabeçalho do evento | P2 |
 | Movimento da trilha | 1 | previsto | roteiro (README) | P1 |
 | Modo de gradação de cor e rastreamento de movimento | 2 | parcial | correção de cor primária e LUT feitas; gradação por evento e rastreamento não | P2 |
 | Ferramentas de depuração de efeitos, transições, geradores e compositores | 4 | sem plano | uso interno do fabricante | - |

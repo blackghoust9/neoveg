@@ -9,6 +9,7 @@ pub mod grade;
 pub mod keymap;
 pub mod logging;
 pub mod pan;
+pub mod pan_crop;
 pub mod paths;
 pub mod preferences;
 pub mod presets;

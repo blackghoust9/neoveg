@@ -52,6 +52,7 @@ use neoveg_engine::mix;
 use neoveg_engine::navigation;
 use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::otio;
+use neoveg_engine::pan_crop as pcrop;
 use neoveg_engine::project_file;
 use neoveg_engine::relink::relink_missing;
 use neoveg_engine::ripple::RippleScope;
@@ -66,7 +67,7 @@ use neoveg_engine::{
 use neoveg_video::info::{is_video_path, is_visual_media_path, VideoInfo};
 use neoveg_video::lut::Lut;
 use neoveg_video::scopes::Scopes;
-use neoveg_video::worker::{probe, FrameRequest, FrameWorker};
+use neoveg_video::worker::{probe, FrameRequest, FrameWorker, SourceRequest};
 use tabs::{close_tab_window, project_tab_bar, Tabs};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
@@ -75,6 +76,7 @@ use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::mixer_panel::{self, MixAction, MixerPanelState};
+use crate::pan_crop_window::{PanCropAction, PanCropDraft, PanCropView, PanCropWindow};
 use crate::precision_slider::PrecisionSlider;
 use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
@@ -400,6 +402,9 @@ struct AppState {
     vfx: VfxPanelState,
     /// The video effect slider being dragged, for the live preview.
     vfx_draft: Option<VfxDraft>,
+    /// The Pan/Crop editor and the Pan/Crop it is changing right now (for the live preview).
+    pan_crop: PanCropWindow,
+    pan_crop_draft: Option<PanCropDraft>,
     /// Per-track mixer strip (fader or pan being dragged).
     mixer: MixerPanelState,
     master_volume: f32,
@@ -1257,6 +1262,8 @@ impl AppState {
             fx: FxPanelState::default(),
             vfx: VfxPanelState::default(),
             vfx_draft: None,
+            pan_crop: PanCropWindow::default(),
+            pan_crop_draft: None,
             mixer: MixerPanelState::default(),
             master_volume: 1.0,
             active_player: None,
@@ -3535,6 +3542,7 @@ impl AppState {
         // (also when an effect is on: only that path runs the video effects)
         if composite::visible_clips(timeline, self.playhead) > 1
             || composite::has_effects(timeline, self.playhead)
+            || self.pan_crop_draft.is_some()
         {
             self.request_composite_frame(max_width, flat.as_deref());
             return;
@@ -3628,7 +3636,8 @@ impl AppState {
             frame,
             max_width,
             self.history.revision(),
-            VfxDraft::stamp(self.vfx_draft.as_ref()),
+            VfxDraft::stamp(self.vfx_draft.as_ref())
+                ^ PanCropDraft::stamp(self.pan_crop_draft.as_ref()),
         );
         if self.last_composite_key == Some(key) {
             return;
@@ -3645,6 +3654,7 @@ impl AppState {
             grade,
             chroma_key: chroma,
             fx_draft: self.vfx_draft.clone(),
+            pan_crop_draft: self.pan_crop_draft.clone(),
         };
         let sources = self.render_sources(flat);
         let timeline = flat.map_or(&self.timeline, |f| &f.timeline);
@@ -3666,6 +3676,13 @@ impl AppState {
         let Some(worker) = &self.frame_worker else {
             return;
         };
+        // The Pan/Crop editor's background picture
+        while let Ok(reply) = worker.source_rx.try_recv() {
+            match reply.result {
+                Ok(frame) => self.pan_crop.set_source(ctx, &frame),
+                Err(e) => tracing::debug!("[DEBUG] Pan/Crop source frame: {e}"),
+            }
+        }
         // Only the newest reply matters, and only from the kind of request now in use
         let mut single = None;
         while let Ok(reply) = worker.rx.try_recv() {
@@ -4061,6 +4078,23 @@ impl AppState {
                 None => (VideoFxTarget::Project, "Projeto".into(), scopes),
             },
             VfxScope::Project => (VideoFxTarget::Project, "Projeto inteiro".into(), scopes),
+        }
+    }
+
+    /// Opens the Pan/Crop editor on a video event.
+    fn open_pan_crop(&mut self, track_id: TrackId, event_id: EventId) {
+        if pcrop::get(&self.timeline, track_id, event_id).is_none() {
+            self.status = "O Pan/Crop vale para eventos de faixas de vídeo".into();
+            return;
+        }
+        self.pan_crop.open_for(track_id, event_id);
+    }
+
+    /// Ferramentas > Pan/Crop do evento: the primary selected event.
+    fn open_pan_crop_for_selection(&mut self) {
+        match self.selection.primary() {
+            Some((track_id, event_id)) => self.open_pan_crop(track_id, event_id),
+            None => self.status = "Selecione um evento de vídeo para editar o Pan/Crop".into(),
         }
     }
 
@@ -5134,6 +5168,7 @@ impl NeovegApp {
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
+        pan_crop_editor(ctx, &mut self.state);
         chroma_key_window(ctx, &mut self.state);
         recovery_window(ctx, &mut self.state);
         exit_window(ctx, &mut self.state);
@@ -5482,6 +5517,17 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.separator();
             // Video tools
+            let video_event = state
+                .selection
+                .primary()
+                .is_some_and(|(t, e)| pcrop::get(&state.timeline, t, e).is_some());
+            if ui
+                .add_enabled(video_event, egui::Button::new("Pan/Crop do evento…"))
+                .clicked()
+            {
+                state.open_pan_crop_for_selection();
+                ui.close_menu();
+            }
             if ui.button("Correção de cor…").clicked() {
                 state.show_grade = true;
                 ui.close_menu();
@@ -5825,6 +5871,104 @@ type GradeRow<'a> = (
 
 /// Ferramentas → Correção de cor: primary correction of the video. The sliders act on a draft that
 /// is shown at once and committed as one undo step when the drag ends.
+/// The Pan/Crop editor: shows the window for the event it was opened on and runs what the user did.
+fn pan_crop_editor(ctx: &egui::Context, state: &mut AppState) {
+    if !state.pan_crop.open {
+        return;
+    }
+    let Some((track_id, event_id)) = state.pan_crop.target else {
+        return;
+    };
+    let event = state
+        .timeline
+        .track(track_id)
+        .filter(|t| t.kind == TrackKind::Video)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .cloned();
+    let Some(event) = event else {
+        // The event was deleted (or undone away) while the window was open
+        state.pan_crop.close();
+        state.pan_crop_draft = None;
+        return;
+    };
+    let fps = state.project.settings.fps;
+    let info = event
+        .media_id
+        .and_then(|id| state.video_info.get(&id))
+        .cloned();
+    let time = (state.playhead - event.start).clamp(0.0, event.duration);
+
+    // The source picture under the cursor, asked for once per frame number
+    if let (Some(item), Some(worker)) = (
+        event
+            .media_id
+            .and_then(|id| state.project.media_pool.iter().find(|m| m.id == id)),
+        &state.frame_worker,
+    ) {
+        let source_fps = info.as_ref().map_or(fps, |i| i.fps).max(1.0);
+        let source_duration = info.as_ref().map_or(event.duration, |i| i.duration);
+        let seconds = composite::source_seconds(&event, event.start + time, source_duration);
+        let frame = (seconds * source_fps).round() as i64;
+        let key = (PathBuf::from(&item.path), frame);
+        if state.pan_crop.source_key.as_ref() != Some(&key) {
+            worker.request_source(SourceRequest {
+                path: key.0.clone(),
+                seconds: frame as f64 / source_fps,
+                max_width: 960,
+            });
+            state.pan_crop.source_key = Some(key);
+        }
+    }
+
+    let committed = event.pan_crop.clone();
+    let source_aspect = info
+        .as_ref()
+        .map_or(16.0 / 9.0, |i| i.width as f32 / i.height.max(1) as f32);
+    let project_aspect = {
+        let s = &state.project.settings;
+        s.width as f32 / s.height.max(1) as f32
+    };
+    let view = PanCropView {
+        event_name: &event.name,
+        pan_crop: &committed,
+        time,
+        duration: event.duration,
+        fps,
+        source_aspect,
+        project_aspect,
+        preview: state.video_texture.as_ref(),
+    };
+    let actions = state.pan_crop.show(ctx, &view);
+    for action in actions {
+        match action {
+            PanCropAction::Draft(pan_crop) => {
+                state.pan_crop_draft = Some(PanCropDraft {
+                    track_id,
+                    event_id,
+                    pan_crop,
+                });
+            }
+            PanCropAction::EndDraft => state.pan_crop_draft = None,
+            PanCropAction::Commit(pan_crop) => {
+                if let Some(cmd) = pcrop::set(&state.timeline, track_id, event_id, pan_crop) {
+                    if state.history.execute(&mut state.timeline, cmd) {
+                        state.last_frame_key = None;
+                        state.last_composite_key = None;
+                    }
+                }
+            }
+            PanCropAction::SeekTo(seconds) => {
+                let now = ctx.input(|i| i.time);
+                state.go_to_time(event.start + seconds, now);
+            }
+            PanCropAction::Close => {
+                state.pan_crop.close();
+                state.pan_crop_draft = None;
+            }
+        }
+    }
+}
+
 fn grade_window(ctx: &egui::Context, state: &mut AppState) {
     if !state.show_grade {
         return;
@@ -7539,6 +7683,12 @@ fn event_context_menu(
         ui.separator();
     }
     command_item(state, ui, Command::FileCreateSubproject);
+    if pcrop::get(&state.timeline, track_id, event_id).is_some()
+        && ui.button("Pan/Crop do evento…").clicked()
+    {
+        state.open_pan_crop(track_id, event_id);
+        ui.close_menu();
+    }
     ui.separator();
     for command in [
         Command::EditCut,
