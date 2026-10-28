@@ -9,7 +9,7 @@
   <a href="https://github.com/blackghoust9/neoveg/actions/workflows/rust.yml"><img alt="Build Rust" src="https://github.com/blackghoust9/neoveg/actions/workflows/rust.yml/badge.svg?branch=refactor%2F100-percent-rust"></a>
   <img alt="Arquitetura 100% Rust" src="https://img.shields.io/badge/arquitetura-100%25%20Rust-b7410e?logo=rust&logoColor=white">
   <img alt="Rust 1.88+" src="https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust&logoColor=white">
-  <img alt="Plataformas" src="https://img.shields.io/badge/plataformas-Windows%20%7C%20Linux%20%7C%20macOS-2980b9">
+  <img alt="Plataformas" src="https://img.shields.io/badge/plataforma-Windows%20(Linux%20e%20macOS%20depois)-2980b9">
 </p>
 
 <p align="center">
@@ -115,7 +115,7 @@ Custo, **por quadro**, do caminho de vídeo em CPU, de 480p a 8K UHD, medido com
 | 4K | 3840x2160 | 43.56 ms | 17.09 ms | 8.48 ms | 226 ms | 25.57 ms (39) | 251 ms (4.0) |
 | 8K | 7680x4320 | 171 ms | 61.65 ms | 9.55 ms | 954 ms | 71.20 ms (14) | 1025 ms (1.0) |
 
-Medido em: Intel(R) Core(TM) i5-7500T CPU @ 2.70GHz (4 threads), Windows 10, Rust 1.99.1.
+Medido em: Intel(R) Core(TM) i5-7500T CPU @ 2.70GHz (4 threads), Windows 10, Rust 1.99.1. A tabela seguinte vem de uma segunda máquina (AMD Ryzen 5 5600GT, 12 threads, Windows 11 Pro); os números das duas não são comparáveis um a um fora do mesmo benchmark e da mesma versão do Rust.
 <!-- bench:end -->
 
 Segunda máquina (mesmo benchmark, 2026-10-28): AMD Ryzen 5 5600GT with Radeon Graphics (12 threads), Windows 11 Pro, Rust 1.99.1. No 8K, o crossfade teve variação alta entre as amostras (531 a 661 ms); a mediana é a da tabela.
@@ -206,13 +206,15 @@ NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot -- --noc
 $env:NEOVEG_SCREENSHOTS = "1"; cargo test -p neoveg_ui --test headless_screenshot -- --nocapture   # PowerShell
 cargo run -p neoveg_ui -- --screenshots docs/screenshots                                    # o mesmo, direto pelo programa
 
-# capturas, benchmark (quando existir) e conversão de ícones em segundo plano, sem travar o terminal
+# capturas, benchmark e conversão de ícones em segundo plano, sem travar o terminal
 powershell -File scripts\run_background_agent.ps1 -Wait
 ```
 
 Sem `NEOVEG_SCREENSHOTS=1` o teste é ignorado (ele reescreve arquivos versionados e precisa de adaptador gráfico), então `cargo test --workspace` não depende de GPU.
 
 ### Testar e compilar em qualquer máquina (Docker)
+
+> **Em pausa.** Desde 28/10/2026 o foco é só o Windows; o Docker (Linux e macOS) fica para o porte, depois. O ambiente abaixo continua no repositório (inclusive as distros Debian, Ubuntu, Fedora e Arch no perfil `distros`, e o Docker-OSX no perfil `macos-native`), mas não é o fluxo de trabalho atual. Em 28/10 o Debian, o Ubuntu e o Fedora passaram `rustfmt`, `clippy` e 142 testes; o Arch e o Docker-OSX nunca rodaram.
 
 O ambiente isolado em `docker/` roda `rustfmt`, `clippy -D warnings` e `cargo test --workspace` num container Linux (com Xvfb para a parte gráfica) e compila os binários otimizados de Linux e, opcionalmente, de macOS (Intel e Apple Silicon). Só precisa do Docker.
 
@@ -287,7 +289,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Marcadores (`M`), regiões e loop
 - [x] Volume, pan, mute e solo por faixa
 - [ ] Barramentos e sends; plug-ins de áudio (VST3 via crate Rust)
-- [ ] Efeitos de vídeo e transições na GPU (`wgpu`), composição e Pan/Crop do evento
+- [ ] Mais efeitos de vídeo e transições na GPU (`wgpu`); a composição, o Pan/Crop do evento e os primeiros efeitos já existem
 - [x] Geradores de mídia (cor sólida, padrões de teste, gradientes e títulos com contorno, sombra e animação) pela janela Faixas > Inserir mídia gerada
 - [ ] Cabeçalho de evento (mídia gerada, Pan/Crop, FX, menu) e inspetor de evento
 - [x] Renderização/exportação (Make Movie) com FFmpeg em segundo plano (Arquivo > Renderizar como…): MP4 H.264 / HEVC, MOV ProRes, WebM VP9 ou só áudio WAV; mixagem offline com os efeitos das faixas e do master, relatório de loudness BS.1770-4 ao lado do arquivo, progresso e cancelamento
@@ -337,7 +339,7 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 
 **Pesquisa e documentação**
 - [ ] Registrar em `docs/research/nle_features_research.txt` os quatro itens da análise de lacunas sem registro (importar projeto de outro editor, envelope de vídeo "esmaecer para cor", conexão com serviço online de clipes, sobreposição de quadros de borda de edição) antes de virarem tarefa; ver `docs_obsidian/04 - Pesquisas e Benchmarks/lacunas_funcionais.md`.
-- [ ] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código: o idioma da interface (`Assets/i18n` tem oito idiomas) e a composição de vídeo em várias faixas.
+- [ ] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código. Feito em 28/10: velocidade do evento, Track Motion, Pan/Crop e a composição de vídeo em várias faixas. O idioma da interface continua pendente: `Assets/i18n` tem oito arquivos, mas nenhum código os carrega.
 
 ### Próximos passos da referência funcional (registrados em 28/10/2026)
 
@@ -351,7 +353,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [x] Movimento da trilha: a camada de uma faixa de vídeo muda de posição, escala e rotação no quadro do projeto, com quadros-chave e suavidade (picture-in-picture, deslizes, camadas inclinadas), na mesma janela do Pan/Crop (Faixas ou Ferramentas > Movimento da trilha). Faltam 3D, sombra, brilho e o movimento do pai de um grupo.
 - [x] Pan/Crop do evento: janela com a caixa de seleção sobre a origem (alças, rotação, mover, travar proporção, tamanho pelo centro, esticar para preencher), campos numéricos, quadros-chave com suavidade e prévia ao lado, valendo na prévia e na renderização (Ferramentas > Pan/Crop do evento). Faltam máscaras, centro de rotação, inverter e o botão no cabeçalho do evento.
 - [x] Envelopes de faixa de vídeo: nível da faixa, esmaecer para cor (com paleta de cores) e mudo, editados na linha do tempo como os de áudio; valem na prévia e na renderização (Faixas > Envelopes de vídeo, `V` na faixa de vídeo).
-- [ ] Envelopes de evento de vídeo: velocidade (remapeamento de tempo da fonte) e progresso de transição (depende das transições de vídeo).
+- [ ] Envelopes de evento de vídeo: a velocidade está pronta; falta o envelope livre de progresso de transição (hoje o progresso é o ganho do fade).
 - [x] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento e por faixa (até 32 efeitos, bypass, parâmetros, desfazer): painel **Efeitos de Vídeo** (`Ctrl+Alt+8`), versão de referência na CPU e versão em compute shader conferidas por teste, usada também na renderização. Também por mídia (vale para todos os eventos dela) e por projeto, e a prévia mostra o valor ao vivo durante o arraste de um controle.
 - [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez e vinheta. Faltam curvas de cor, recorte e o restante da lista abaixo.
 - [ ] Mais efeitos, pelo maior valor: desfoques linear e radial, curvas de cor e recorte.
@@ -387,7 +389,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 **Edição e timeline**
 - [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
 - [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar (aparar e esticar bordas já seguem o escopo com o Auto Ripple ligado; falta mover e colar)
-- [ ] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
+- [x] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
 - [ ] Travar faixa/evento
 - [x] Marcadores (`M`), regiões e loop
@@ -417,8 +419,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 
 **Vídeo e composição**
 - [ ] Composição multicamada na prévia e modos de composição (mistura)
-- [ ] Track Motion, Pan/Crop de evento com gizmo `'F'` e keyframes
-- [ ] Transições (categorias, presets, parâmetros) e efeitos de vídeo na GPU; OFX
+- [x] Track Motion, Pan/Crop de evento com caixa de seleção e keyframes (faltam máscaras, centro de rotação próprio e o botão no cabeçalho do evento)
+- [ ] Transições: as oito básicas estão prontas; faltam categorias, presets, miniaturas e transições 3D. Faltam também os efeitos de vídeo na GPU e o OFX
 - [x] LUT de cor do projeto (`.cube` 1D e 3D, interpolação trilinear) aplicada ao quadro decodificado na thread de vídeo; Ferramentas → LUT de cor do vídeo (incluídas em `assets/luts` ou arquivo próprio), um passo de desfazer
 - [x] Scopes de vídeo (aba **Scopes de Vídeo** ao lado do Loudness): forma de onda de luma, parada RGB, histograma (com aviso de estouro) e vectorscópio com os alvos das barras 75 % (Rec. 709), calculados do quadro no cursor ou das barras SMPTE
 - [x] Correção de cor primária (Ferramentas → Correção de cor…): exposição, temperatura, matiz, pretos (lift), contraste, gama e saturação, aplicada na thread de vídeo antes da LUT e nas barras SMPTE, ao vivo durante o arraste e como um passo de desfazer
@@ -485,7 +487,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 4 — Envelopes, chaves e propriedades do evento (entrada 10)**
 - [ ] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor
-- [ ] Envelopes de evento: volume (dB), fade, opacidade, velocidade (negativa = reverso, presets de -100 % a 300 %) e progresso de transição
+- [ ] Envelopes de evento: a velocidade (negativa = reverso, de -100 % a 300 %) está pronta; faltam volume (dB), fade, opacidade e progresso de transição
 - [x] Switches por evento: mudo, travar e inverter fase (Editar > Interruptores, `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I`, botão de cadeado na barra); um evento travado não se move, apara, divide, agrupa, corta nem apaga
 - [x] Switch Loop (`Ctrl+Alt+O`): estender o evento além do fim da mídia repete a fonte, do ponto de entrada até o fim, com marcas a cada repetição; só em velocidade normal
 - [x] Switch Normalize (`Ctrl+Alt+N`) e Recalcular normalização (`Ctrl+Alt+Shift+N`): o ganho leva o pico da parte tocada ao nível `normalize_peak_db` do projeto (0 dBFS por padrão)
@@ -528,7 +530,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Editor de keyframes (anterior/próximo, adicionar/remover, suavidade) para Track Motion, Pan/Crop e FX
 
 **Fase 9 — Movimento, máscaras e composição (entrada 15)**
-- [ ] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico, menu de contexto, sombra e brilho)
+- [x] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico e menu de contexto; faltam sombra e brilho)
 - [ ] Máscaras (âncoras, positivo/negativo, pena, formas retângulo/elipse) e máscara de FX
 - [ ] `parent: Option<TrackId>`, `composite_mode` e `level` por faixa; árvore pai/filho no engine
 - [ ] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump)
