@@ -122,6 +122,14 @@ pub enum EditCommand {
         before: Option<TrackEffect>,
         after: Option<TrackEffect>,
     },
+    /// The velocity envelope of a video event (created, edited or removed): the envelope before and
+    /// after, so it is one exactly reversible undo step.
+    SetVelocity {
+        track_id: TrackId,
+        event_id: EventId,
+        before: Option<TrackEnvelope>,
+        after: Option<TrackEnvelope>,
+    },
     /// The color a video track fades to.
     SetFadeColor {
         track_id: TrackId,
@@ -321,6 +329,12 @@ impl EditCommand {
                 after,
                 ..
             } => set_transition(tl, *track_id, *event_id, *outgoing, after),
+            Self::SetVelocity {
+                track_id,
+                event_id,
+                after,
+                ..
+            } => set_velocity(tl, *track_id, *event_id, after),
             Self::SetFadeColor {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -356,7 +370,9 @@ impl EditCommand {
                     media_id: left.media_id,
                     start: *at,
                     duration: left.duration - left_duration,
-                    trim_in: left.trim_in + left_duration * left.playback_rate,
+                    trim_in: left.trim_in
+                        + left.playback_rate
+                            * crate::velocity::source_offset(left.velocity.as_ref(), left_duration),
                     fade_in: 0.0,
                     fade_out: left.fade_out,
                     fade_in_curve: FadeCurve::default(),
@@ -377,6 +393,7 @@ impl EditCommand {
                     // old one did (the left half's fade-out is cleared, so its copy is inert)
                     transition_in: None,
                     transition_out: left.transition_out.clone(),
+                    velocity: crate::velocity::from_offset(left.velocity.as_ref(), left_duration),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -473,6 +490,14 @@ impl EditCommand {
             } => {
                 set_transition(tl, *track_id, *event_id, *outgoing, before);
             }
+            Self::SetVelocity {
+                track_id,
+                event_id,
+                before,
+                ..
+            } => {
+                set_velocity(tl, *track_id, *event_id, before);
+            }
             Self::SetFadeColor {
                 track_id, before, ..
             } => {
@@ -541,6 +566,24 @@ fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope
             }
             None => false,
         },
+    }
+}
+
+fn set_velocity(
+    tl: &mut Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+    value: &Option<TrackEnvelope>,
+) -> bool {
+    let event = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+    match event {
+        Some(e) => {
+            e.velocity = value.clone();
+            true
+        }
+        None => false,
     }
 }
 

@@ -135,6 +135,7 @@ fn run(
         chroma_key: plan.chroma_key,
         fx_draft: None,
         pan_crop_draft: None,
+        velocity_draft: None,
     };
     let resolve = |id: u64| plan.sources.get(&id).cloned();
     let mut renderer = OfflineFrameRenderer::new();

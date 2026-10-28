@@ -299,7 +299,7 @@
     {
       "id": "ins.env_velocidade",
       "area": "Inserir",
-      "estado": "previsto",
+      "estado": "parcial",
       "prioridade": "P1",
       "comandos": 1
     },

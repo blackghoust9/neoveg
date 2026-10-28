@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 11] = [
+pub const OUTPUTS: [&str; 12] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -35,6 +35,7 @@ pub const OUTPUTS: [&str; 11] = [
     "ui_pan_crop.png",
     "ui_track_motion.png",
     "ui_transitions.png",
+    "ui_velocity.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -172,6 +173,22 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, transitions_dock());
         let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[10]))?;
+
+        // 12. The velocity of an event: slow motion in the middle, with the picture it shows
+        let ctx = new_context();
+        let mut state = demo_project_with_velocity();
+        let shown = velocity_demo_preview(&state);
+        state.video_texture = Some(ctx.load_texture(
+            "preview_frame",
+            egui::ColorImage::from_rgba_unmultiplied(
+                [shown.width as usize, shown.height as usize],
+                &shown.rgba,
+            ),
+            egui::TextureOptions::LINEAR,
+        ));
+        let mut app = headless_app(state, effects_dock());
+        let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[11]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -791,6 +808,52 @@ fn transition_demo_preview(state: &AppState) -> neoveg_video::frame::FrameBuffer
     )
 }
 
+/// The demonstration project with a velocity envelope on its first video event: normal speed, a
+/// slow-motion stretch at a quarter of the speed, then double speed. That event is selected and the
+/// cursor is inside the slow stretch.
+fn demo_project_with_velocity() -> AppState {
+    let mut s = demo_project();
+    let (track_id, event_id) = {
+        let track = s
+            .timeline
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("the demonstration has a video track");
+        let mut speed = neoveg_engine::velocity::new_envelope(1.0);
+        for (time, value) in [(2.0, 1.0), (3.5, 0.25), (5.5, 0.25), (6.5, 2.0), (8.0, 2.0)] {
+            speed.points.push(EnvelopePoint {
+                time,
+                value,
+                shape: EnvelopeShape::Linear,
+            });
+        }
+        let event = &mut track.events[0];
+        event.velocity = Some(speed);
+        (track.id, event.id)
+    };
+    s.selected_track = Some(track_id);
+    s.selection.select_only((track_id, event_id));
+    s.playhead = 4.5;
+    s.status = "Velocidade do evento: câmera lenta no meio do plano".into();
+    s
+}
+
+/// The preview of the velocity demo: the frame of the sample video that the speed puts under the
+/// cursor (not the one at the cursor time).
+fn velocity_demo_preview(state: &AppState) -> neoveg_video::frame::FrameBuffer {
+    let track = state
+        .timeline
+        .tracks
+        .iter()
+        .find(|t| t.kind == TrackKind::Video)
+        .expect("a video track");
+    let event = &track.events[0];
+    let seconds = composite::source_seconds(event, state.playhead, 15.0);
+    decode_sample_frame(Path::new(SAMPLE_VIDEO), seconds)
+        .unwrap_or_else(|| neoveg_video::generators::smpte_color_bars(960, 540))
+}
+
 /// The preview, the Transitions tab and the timeline.
 fn transitions_dock() -> DockState<Tab> {
     let mut dock = DockState::new(vec![Tab::Preview]);
@@ -1097,5 +1160,31 @@ mod tests {
         let (left, right) = (shown.pixel(20, 270), shown.pixel(940, 270));
         assert_ne!(left, right);
         assert_eq!(left[3], 255);
+    }
+
+    #[test]
+    fn the_velocity_demo_slows_the_middle_of_the_event_and_the_preview_shows_that_frame() {
+        let s = demo_project_with_velocity();
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .unwrap();
+        let event = &track.events[0];
+        assert!(event.velocity.is_some());
+        // The cursor is in the quarter-speed stretch, so far less source has played than time
+        let source = composite::source_seconds(event, s.playhead, 15.0);
+        assert!(
+            source < s.playhead - 1.0,
+            "source {source} at {}",
+            s.playhead
+        );
+        assert!(source > 3.0);
+        // The event keeps its length
+        assert_eq!(event.duration, 9.0);
+        let (target, _, scopes) = s.vfx_target();
+        assert!(matches!(target, VideoFxTarget::Event { .. }) && scopes.event);
+        assert!(velocity_demo_preview(&s).width > 0);
     }
 }

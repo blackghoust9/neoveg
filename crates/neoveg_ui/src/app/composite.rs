@@ -10,8 +10,10 @@
 
 use super::*;
 use crate::pan_crop_window::{EditTarget, PanCropDraft};
+use crate::velocity_editor::VelocityDraft;
 use crate::video_fx_panel::{effects_for, VfxDraft};
 use neoveg_common::composite::CompositeMode;
+use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
 
@@ -39,6 +41,8 @@ pub(super) struct FrameSettings {
     pub fx_draft: Option<VfxDraft>,
     /// A Pan/Crop being edited: the preview shows it instead of the event's own.
     pub pan_crop_draft: Option<PanCropDraft>,
+    /// A velocity envelope being edited: the preview shows it instead of the event's own.
+    pub velocity_draft: Option<VelocityDraft>,
 }
 
 /// Where the layer of `track` sits in the frame at timeline `time` (the motion being edited, when
@@ -135,14 +139,62 @@ pub(super) fn clip_look(
     (opacity, list)
 }
 
-/// Seconds into the source of the event's media at timeline `time`, honouring speed and Loop.
+/// The velocity envelope of `event` as the preview must see it: the one being edited when there
+/// is a draft for this event, else the stored one.
+fn velocity_of<'a>(
+    event: &'a TrackEvent,
+    track_id: u64,
+    settings: &'a FrameSettings,
+) -> Option<&'a neoveg_engine::TrackEnvelope> {
+    match settings
+        .velocity_draft
+        .as_ref()
+        .filter(|d| d.track_id == track_id && d.event_id == event.id)
+    {
+        Some(draft) => draft.envelope.as_ref(),
+        None => event.velocity.as_ref(),
+    }
+}
+
+/// Seconds into the source of the event's media at timeline `time`, honouring speed, the velocity
+/// envelope and Loop.
 pub(super) fn source_seconds(event: &TrackEvent, time: f64, source_duration: f64) -> f64 {
+    source_seconds_with(event, event.velocity.as_ref(), time, source_duration)
+}
+
+/// [`source_seconds`] with an explicit velocity envelope (the one being edited, for instance).
+///
+/// The event keeps its length; the envelope only decides how much of the source plays in it. A speed
+/// below zero plays backwards and stops at the start of the media (the first frame is held), and an
+/// event that runs past the end of the media holds the last frame.
+pub(super) fn source_seconds_with(
+    event: &TrackEvent,
+    velocity: Option<&neoveg_engine::TrackEnvelope>,
+    time: f64,
+    source_duration: f64,
+) -> f64 {
     let rate = edit::clamp_playback_rate(event.playback_rate);
-    let mut offset = (time - event.start) * rate;
+    let local = time - event.start;
+    let shaped = velocity.is_some_and(|v| v.enabled && !v.points.is_empty());
+    let mut offset = if shaped {
+        rate * velocity::source_offset(velocity, local)
+    } else {
+        local * rate
+    };
     if event.looping {
         offset = edit::wrap_loop(offset, edit::loop_length(source_duration, event.trim_in));
     }
-    offset + event.trim_in
+    let seconds = offset + event.trim_in;
+    if shaped {
+        let end = if source_duration.is_finite() && source_duration > 0.0 {
+            source_duration
+        } else {
+            f64::INFINITY
+        };
+        seconds.clamp(0.0, end)
+    } else {
+        seconds
+    }
 }
 
 /// Number of video clips visible at `time` (muted events and muted tracks do not count).
@@ -204,12 +256,15 @@ pub(super) fn composite_request(
                     .map(Crossfade::length)
                     .fold(0.0, f64::max);
                 let (opacity, transitions) = clip_look(e, time, cross_in);
+                let speed = velocity_of(e, track.id, settings);
                 Some(VideoClipRequest {
                     media_id,
-                    seconds: source_seconds(e, time, source.duration),
+                    seconds: source_seconds_with(e, speed, time, source.duration),
                     source_fps: source.fps,
                     path: source.path,
-                    playback_rate: edit::clamp_playback_rate(e.playback_rate),
+                    // The sign says which way the picture runs (the decoder reads ahead with it)
+                    playback_rate: edit::clamp_playback_rate(e.playback_rate)
+                        * velocity::rate_at(speed, time - e.start),
                     event_opacity: opacity,
                     transitions,
                     apply_chroma: true,
@@ -299,6 +354,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
+            let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled);
             let envelope_on = track
                 .envelopes
                 .iter()
@@ -309,6 +365,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 || envelope_on
                 || pan_crop_on
                 || transition_on
+                || velocity_on
             {
                 return true;
             }
@@ -333,6 +390,7 @@ mod tests {
             chroma_key: ChromaKey::default(),
             fx_draft: None,
             pan_crop_draft: None,
+            velocity_draft: None,
         }
     }
 
@@ -804,5 +862,120 @@ mod tests {
             panic!("a track node");
         };
         assert!(clips[0].transitions.is_empty());
+    }
+
+    /// An envelope with these `(time, speed)` keys, each held to the next one.
+    fn speeds(points: &[(f64, f32)]) -> neoveg_engine::TrackEnvelope {
+        let mut env = velocity::new_envelope(1.0);
+        env.points = points
+            .iter()
+            .map(|&(time, value)| neoveg_engine::EnvelopePoint {
+                time,
+                value,
+                shape: neoveg_engine::EnvelopeShape::Hold,
+            })
+            .collect();
+        env
+    }
+
+    #[test]
+    fn the_velocity_envelope_decides_how_much_of_the_source_plays_and_not_how_long_the_event_is() {
+        let mut e = TrackEvent {
+            start: 2.0,
+            duration: 8.0,
+            trim_in: 1.0,
+            ..TrackEvent::default()
+        };
+        // Double speed all along: 3 s into the event is 6 s of source
+        e.velocity = Some(speeds(&[(0.0, 2.0)]));
+        assert!((source_seconds(&e, 5.0, 20.0) - 7.0).abs() < 1e-6);
+        // Half speed for 2 s, then normal: 1 s + 2 s of the source after 4 s of the event
+        e.velocity = Some(speeds(&[(0.0, 0.5), (2.0, 1.0)]));
+        assert!((source_seconds(&e, 6.0, 20.0) - (1.0 + 1.0 + 2.0)).abs() < 1e-3);
+        // The event's own speed multiplies the envelope: 3 s of envelope make 6 s of source
+        e.playback_rate = 2.0;
+        assert!((source_seconds(&e, 6.0, 20.0) - (1.0 + 2.0 * 3.0)).abs() < 1e-3);
+        // A disabled envelope is plain speed again
+        e.playback_rate = 1.0;
+        let mut off = speeds(&[(0.0, 3.0)]);
+        off.enabled = false;
+        e.velocity = Some(off);
+        assert_eq!(source_seconds(&e, 5.0, 20.0), 4.0);
+    }
+
+    #[test]
+    fn a_freeze_holds_one_frame_and_a_reverse_stops_at_the_first_frame() {
+        let mut e = TrackEvent {
+            start: 0.0,
+            duration: 10.0,
+            trim_in: 0.0,
+            ..TrackEvent::default()
+        };
+        // Normal for 3 s, then frozen
+        e.velocity = Some(velocity::freeze_at(None, 3.0));
+        let held = source_seconds(&e, 3.5, 20.0);
+        assert!((held - 3.0).abs() < 0.01, "got {held}");
+        assert_eq!(
+            held,
+            source_seconds(&e, 9.0, 20.0),
+            "the same frame to the end"
+        );
+        // Backwards from 2 s: it passes through 1 s and then holds the start of the media
+        e.velocity = Some(speeds(&[(0.0, 1.0), (2.0, -1.0)]));
+        assert!((source_seconds(&e, 3.0, 20.0) - 1.0).abs() < 1e-3);
+        assert_eq!(source_seconds(&e, 6.0, 20.0), 0.0);
+        // Running past the end of the media holds the last frame
+        e.velocity = Some(speeds(&[(0.0, 3.0)]));
+        assert_eq!(source_seconds(&e, 9.0, 10.0), 10.0);
+    }
+
+    #[test]
+    fn the_velocity_reaches_the_request_with_its_sign_and_sends_the_preview_through_the_composite_path(
+    ) {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 0.0, 8.0);
+        e.trim_in = 0.0;
+        track.events.push(e);
+        let (track_id, event_id) = (track.id, track.events[0].id);
+        tl.tracks.push(track);
+        assert!(!has_effects(&tl, 2.0), "no envelope, the plain path");
+        tl.tracks[0].events[0].velocity = Some(speeds(&[(0.0, 2.0), (4.0, -1.0)]));
+        assert!(has_effects(&tl, 2.0));
+        let rate_of = |tl: &Timeline, settings: &FrameSettings, time: f64| {
+            let request = composite_request(tl, time, settings, &resolve).unwrap();
+            let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+                panic!("a track node");
+            };
+            (clips[0].playback_rate, clips[0].seconds)
+        };
+        let (rate, seconds) = rate_of(&tl, &settings(), 1.0);
+        assert_eq!(rate, 2.0);
+        assert!((seconds - 2.0).abs() < 1e-6);
+        let (rate, _) = rate_of(&tl, &settings(), 5.0);
+        assert_eq!(
+            rate, -1.0,
+            "backwards: the decoder reads ahead the other way"
+        );
+        // The envelope being dragged replaces the stored one for that event only
+        let mut live = settings();
+        live.velocity_draft = Some(VelocityDraft {
+            track_id,
+            event_id,
+            envelope: Some(speeds(&[(0.0, 0.5)])),
+        });
+        let (rate, seconds) = rate_of(&tl, &live, 1.0);
+        assert_eq!(rate, 0.5);
+        assert!((seconds - 0.5).abs() < 1e-6);
+        live.velocity_draft = Some(VelocityDraft {
+            track_id,
+            event_id: event_id + 1,
+            envelope: Some(speeds(&[(0.0, 0.5)])),
+        });
+        assert_eq!(
+            rate_of(&tl, &live, 1.0).0,
+            2.0,
+            "another event's draft is not ours"
+        );
     }
 }

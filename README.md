@@ -82,6 +82,12 @@ A mesma janela edita o **movimento da trilha** de vídeo: a caixa mostra onde a 
 
 A aba **Transições** escolhe como o evento selecionado aparece (**Entrada**) ou some (**Saída**): oito transições com seus parâmetros. A transição dura o fade do evento, ou a sobreposição com o evento anterior, e segue a curva do fade. Na imagem, uma cortina linear a 20° com borda suave passa a cena 2 por cima da cena 1, a meio caminho da sobreposição de 1 s.
 
+### Velocidade do evento
+
+![Velocidade do evento](docs/screenshots/ui_velocity.png)
+
+Na aba **Efeitos de Vídeo**, a seção **Velocidade do evento** desenha a velocidade ao longo do evento, de −100 % (para trás) a 300 %, com as linhas de 0 % (congelar) e 100 % (normal). Os pontos arrastam-se, ganham pré-ajustes e curvas pelo menu do botão direito, e um duplo clique cria um ponto novo. O evento mantém o comprimento: o envelope só decide quanto da mídia toca. Na imagem, o plano segue em velocidade normal, cai para 25 % no meio e termina a 200 %; no cursor, o quadro mostrado é o da posição de origem 3,19 s, e não o do tempo 4,5 s da linha do tempo.
+
 ### Propriedades do projeto
 
 ![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
@@ -328,6 +334,7 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**
+- [x] Velocidade do evento: o envelope de velocidade (de −100 %, para trás, a 300 %, com 0 % congelando) decide quanto da mídia toca sem mudar o comprimento do evento; pontos arrastáveis com curvas, pré-ajustes, *Congelar quadro no cursor* e prévia ao vivo na seção *Velocidade do evento* da aba Efeitos de Vídeo e no menu do evento. Faltam desenhá-lo sobre o evento na linha do tempo e o áudio vinculado acompanhar.
 - [x] Transições de vídeo: oito transições (dissolver, cortina linear, cortina de relógio, íris, porta de celeiro, persianas, deslizar, crescer) na entrada e na saída do evento e na sobreposição com o anterior, com a duração e a curva do fade, parâmetros e prévia na renderização (aba Transições, `Ctrl+Alt+6`). Faltam miniaturas e pré-ajustes, o envelope livre de progresso e as transições 3D.
 - [x] Movimento da trilha: a camada de uma faixa de vídeo muda de posição, escala e rotação no quadro do projeto, com quadros-chave e suavidade (picture-in-picture, deslizes, camadas inclinadas), na mesma janela do Pan/Crop (Faixas ou Ferramentas > Movimento da trilha). Faltam 3D, sombra, brilho e o movimento do pai de um grupo.
 - [x] Pan/Crop do evento: janela com a caixa de seleção sobre a origem (alças, rotação, mover, travar proporção, tamanho pelo centro, esticar para preencher), campos numéricos, quadros-chave com suavidade e prévia ao lado, valendo na prévia e na renderização (Ferramentas > Pan/Crop do evento). Faltam máscaras, centro de rotação, inverter e o botão no cabeçalho do evento.

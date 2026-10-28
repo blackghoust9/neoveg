@@ -60,6 +60,7 @@ use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::track_motion as tmotion;
 use neoveg_engine::transitions as trans;
+use neoveg_engine::velocity as vel;
 use neoveg_engine::video_effects as vfxe;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
@@ -85,6 +86,7 @@ use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
 use crate::timeline_scroll;
 use crate::transitions_panel::{TransitionAction, TransitionsPanelState, TransitionsView};
+use crate::velocity_editor::{VelocityAction, VelocityDraft, VelocityEditor, VelocityView};
 use crate::video_fx_panel::{self, VfxAction, VfxDraft, VfxPanelState, VfxScope, VfxScopes};
 use crate::waveform_paint::paint_waveform;
 
@@ -412,6 +414,10 @@ struct AppState {
     /// The Pan/Crop editor and the Pan/Crop it is changing right now (for the live preview).
     pan_crop: PanCropWindow,
     pan_crop_draft: Option<PanCropDraft>,
+    /// The velocity envelope being dragged in the video effects panel (for the live preview).
+    velocity_draft: Option<VelocityDraft>,
+    /// The velocity graph of the video effects panel.
+    velocity_editor: VelocityEditor,
     /// Per-track mixer strip (fader or pan being dragged).
     mixer: MixerPanelState,
     master_volume: f32,
@@ -1272,6 +1278,8 @@ impl AppState {
             vfx_draft: None,
             pan_crop: PanCropWindow::default(),
             pan_crop_draft: None,
+            velocity_draft: None,
+            velocity_editor: VelocityEditor::default(),
             mixer: MixerPanelState::default(),
             master_volume: 1.0,
             active_player: None,
@@ -3551,6 +3559,7 @@ impl AppState {
         if composite::visible_clips(timeline, self.playhead) > 1
             || composite::has_effects(timeline, self.playhead)
             || self.pan_crop_draft.is_some()
+            || self.velocity_draft.is_some()
         {
             self.request_composite_frame(max_width, flat.as_deref());
             return;
@@ -3645,7 +3654,8 @@ impl AppState {
             max_width,
             self.history.revision(),
             VfxDraft::stamp(self.vfx_draft.as_ref())
-                ^ PanCropDraft::stamp(self.pan_crop_draft.as_ref()),
+                ^ PanCropDraft::stamp(self.pan_crop_draft.as_ref())
+                ^ VelocityDraft::stamp(self.velocity_draft.as_ref()),
         );
         if self.last_composite_key == Some(key) {
             return;
@@ -3663,6 +3673,7 @@ impl AppState {
             chroma_key: chroma,
             fx_draft: self.vfx_draft.clone(),
             pan_crop_draft: self.pan_crop_draft.clone(),
+            velocity_draft: self.velocity_draft.clone(),
         };
         let sources = self.render_sources(flat);
         let timeline = flat.map_or(&self.timeline, |f| &f.timeline);
@@ -4163,6 +4174,74 @@ impl AppState {
         if changed {
             self.last_frame_key = None;
             self.last_composite_key = None;
+        }
+    }
+
+    /// Puts `envelope` as the velocity of the event (one undo step). `true` when the project changed.
+    fn set_velocity(
+        &mut self,
+        track_id: TrackId,
+        event_id: EventId,
+        envelope: Option<neoveg_engine::TrackEnvelope>,
+    ) -> bool {
+        let Some(command) = vel::set(&self.timeline, track_id, event_id, envelope) else {
+            return false;
+        };
+        let changed = self.history.execute(&mut self.timeline, command);
+        if changed {
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+        }
+        changed
+    }
+
+    /// Freeze frame at the cursor: the velocity of the event drops to zero there and stays so to the
+    /// end of the event (one undo step).
+    fn freeze_frame_at_cursor(&mut self, track_id: TrackId, event_id: EventId) {
+        let Some(event) = self
+            .timeline
+            .track(track_id)
+            .filter(|t| t.kind == TrackKind::Video)
+            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+            .cloned()
+        else {
+            return;
+        };
+        if self.playhead < event.start - TIME_EPSILON || self.playhead >= event.end() - TIME_EPSILON
+        {
+            self.status = "Congelar quadro: leve o cursor para dentro do evento".into();
+            return;
+        }
+        let envelope = vel::freeze_at(event.velocity.as_ref(), self.playhead - event.start);
+        if self.set_velocity(track_id, event_id, Some(envelope)) {
+            self.status = format!(
+                "Quadro congelado em {}",
+                seconds_to_timecode(self.playhead, self.project.settings.fps, false)
+            );
+        }
+    }
+
+    fn apply_velocity_actions(
+        &mut self,
+        track_id: TrackId,
+        event_id: EventId,
+        actions: Vec<VelocityAction>,
+    ) {
+        for action in actions {
+            match action {
+                VelocityAction::Draft(envelope) => {
+                    self.velocity_draft = envelope.map(|envelope| VelocityDraft {
+                        track_id,
+                        event_id,
+                        envelope: Some(envelope),
+                    });
+                }
+                VelocityAction::Commit(envelope) => {
+                    self.velocity_draft = None;
+                    self.set_velocity(track_id, event_id, envelope);
+                }
+                VelocityAction::Freeze => self.freeze_frame_at_cursor(track_id, event_id),
+            }
         }
     }
 
@@ -7500,6 +7579,35 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
             value,
         });
     state.apply_vfx_actions(target, actions);
+    if let VideoFxTarget::Event { track_id, event_id } = target {
+        velocity_section(state, ui, track_id, event_id);
+    }
+}
+
+/// The velocity graph of the selected video event, under its effects.
+fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, event_id: EventId) {
+    let Some(event) = state
+        .timeline
+        .track(track_id)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .cloned()
+    else {
+        return;
+    };
+    ui.separator();
+    let open = event.velocity.is_some();
+    egui::CollapsingHeader::new("Velocidade do evento")
+        .id_salt("event_velocity")
+        .default_open(open)
+        .show(ui, |ui| {
+            let view = VelocityView {
+                envelope: event.velocity.as_ref(),
+                duration: event.duration,
+                time: (state.playhead - event.start).clamp(0.0, event.duration),
+            };
+            let actions = state.velocity_editor.show(ui, &view);
+            state.apply_velocity_actions(track_id, event_id, actions);
+        });
 }
 
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -7899,6 +8007,23 @@ fn event_context_menu(
     {
         state.open_pan_crop(track_id, event_id);
         ui.close_menu();
+    }
+    // Only video events have a velocity: `Some(true)` when one is already there
+    if let Some(has_velocity) = vel::get(&state.timeline, track_id, event_id).map(|v| v.is_some()) {
+        let label = if has_velocity {
+            "Remover envelope de velocidade"
+        } else {
+            "Inserir envelope de velocidade"
+        };
+        if ui.button(label).clicked() {
+            let next = (!has_velocity).then(|| vel::new_envelope(1.0));
+            state.set_velocity(track_id, event_id, next);
+            ui.close_menu();
+        }
+        if ui.button("Congelar quadro no cursor").clicked() {
+            state.freeze_frame_at_cursor(track_id, event_id);
+            ui.close_menu();
+        }
     }
     ui.separator();
     for command in [

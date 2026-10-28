@@ -16,7 +16,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 18 | 56 | 26 | 0 | 46 % |
-| Inserir | 32 | 30 | 16 | 4 | 10 | 2 | 60 % |
+| Inserir | 32 | 30 | 16 | 5 | 9 | 2 | 62 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 38 | 18 | 5 | 47 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **38 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 32 parciais, 44 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 33 parciais, 43 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -32,7 +32,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 
 | Prioridade | Função | Área | Comandos | Estado |
 | :--- | :--- | :--- | ---: | :--- |
-| P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | previsto |
+| P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
 | P2 | Colar atributos do evento, completo e seletivo | Editar | 2 | previsto |
 | P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
@@ -129,7 +129,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Auto-ducking: controlador e ouvinte | 3 | feito | auto-ducking por faixa (`neoveg_audio::duck`) | - |
 | Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor | 3 | feito | Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização | - |
 | Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
-| Envelope de velocidade do evento de vídeo | 1 | previsto | pede remapeamento de tempo da fonte, com velocidade negativa para reverso | P1 |
+| Envelope de velocidade do evento de vídeo | 1 | parcial | envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo e o áudio vinculado acompanhar | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
 | Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | previsto | roteiro (barramentos e envios) | P2 |

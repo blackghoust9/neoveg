@@ -122,6 +122,11 @@ pub struct TrackEvent {
     /// Video transition that hides the event over its fade-out.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transition_out: Option<TrackEffect>,
+    /// Speed of a video event over time, keyframes in seconds from the start of the event: how much
+    /// of the source plays per second (negative plays backwards). The length of the event does not
+    /// change. Older projects play at the event's `playback_rate`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub velocity: Option<TrackEnvelope>,
 }
 
 impl Default for TrackEvent {
@@ -151,6 +156,7 @@ impl Default for TrackEvent {
             pan_crop: PanCrop::default(),
             transition_in: None,
             transition_out: None,
+            velocity: None,
         }
     }
 }

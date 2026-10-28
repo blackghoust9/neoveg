@@ -31,6 +31,7 @@ pub mod timeline;
 pub mod track_motion;
 pub mod transitions;
 pub mod trimmer;
+pub mod velocity;
 pub mod video_effects;
 
 pub use captions::{Caption, CaptionId};

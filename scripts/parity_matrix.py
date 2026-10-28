@@ -88,7 +88,7 @@ ROWS: List[Row] = [
     ("ins.ducking", A_INS, "Auto-ducking: controlador e ouvinte", r"^Insert > Audio Envelopes > Auto Ducking", "feito", "auto-ducking por faixa (`neoveg_audio::duck`)", "-"),
     ("ins.env_video", A_INS, "Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor", r"^Insert > Video Envelopes > (Track Mute|Track Composite Level|Track Fade to Color)", "feito", "Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização", "-"),
     ("ins.env_progresso", A_INS, "Envelope do progresso de uma transição de vídeo", r"^Insert > Video Envelopes > Transition Progress", "parcial", "o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos", "P2"),
-    ("ins.env_velocidade", A_INS, "Envelope de velocidade do evento de vídeo", r"^Insert > Video Envelopes", "previsto", "pede remapeamento de tempo da fonte, com velocidade negativa para reverso", "P1"),
+    ("ins.env_velocidade", A_INS, "Envelope de velocidade do evento de vídeo", r"^Insert > Video Envelopes", "parcial", "envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo e o áudio vinculado acompanhar", "P1"),
     ("ins.faixas", A_INS, "Inserir faixa de áudio e de vídeo", r"^Insert > (Audio Track|Video Track)$", "feito", "`insert.audio_track`, `insert.video_track`", "-"),
     ("ins.faixa_ajuste", A_INS, "Inserir faixa de ajuste", r"^Insert > Adjustment Track", "previsto", "roteiro (eventos de ajuste)", "P2"),
     ("ins.barramentos", A_INS, "Inserir barramento de áudio, de entrada e efeito atribuível", r"^Insert > (Audio Bus|Audio Input Bus|Audio Assignable)", "previsto", "roteiro (barramentos e envios)", "P2"),

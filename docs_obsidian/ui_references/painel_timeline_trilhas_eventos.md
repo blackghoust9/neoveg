@@ -35,7 +35,7 @@ Hub: [[fontes_de_referencia_de_ui]]. Regras de edição já registradas: [[regra
 | Curvas de fade (5) e crossfade automático | `feito` |
 | Envelopes de volume e pan e de parâmetros de efeito | `feito` |
 | Envelopes da faixa de vídeo (nível, esmaecer para cor, mudo) | `feito`, na prévia e na renderização |
-| Envelopes de evento de vídeo (velocidade, progresso de transição) | `previsto` |
+| Envelope de velocidade do evento de vídeo (−100 % a 300 %, reverso, congelar no cursor) | `parcial`: falta desenhá-lo sobre o evento; o progresso de transição segue a curva do fade |
 | Trilhas de barramento visíveis na linha do tempo | `sem plano` ainda |
 | Alternar foco entre lista de trilhas e linha do tempo (`Tab`) | `sem plano` ainda |
 | Altura das trilhas por atalho e minimizar | `sem plano` ainda |
