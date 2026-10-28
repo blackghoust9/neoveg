@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (113 comandos, 110 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (114 comandos, 111 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -161,4 +161,5 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Medidores de loudness | `Ctrl+Alt+7` | `view.loudness_meters` | implementado |
 | Scopes de vídeo | `Ctrl+Alt+2` | `view.video_scopes` | implementado |
 | Efeitos de áudio | `Ctrl+Alt+9` | `view.audio_effects` | implementado |
+| Efeitos de vídeo | `Ctrl+Alt+8` | `view.video_effects` | implementado |
 <!-- auto:end -->

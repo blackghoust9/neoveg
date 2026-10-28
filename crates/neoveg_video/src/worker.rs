@@ -24,6 +24,8 @@ use crate::still::{
     decode_image, decode_sequence_at, is_image_path, is_sequence_manifest_path, probe_image,
     probe_sequence_manifest,
 };
+use crate::vfx::{self, VideoEffect};
+use crate::vfx_gpu::VfxGpu;
 
 pub struct FrameRequest {
     pub media_id: u64,
@@ -61,6 +63,9 @@ pub struct VideoClipRequest {
     pub event_opacity: f32,
     /// Whether project chroma key applies to this clip (enabled for foreground clips).
     pub apply_chroma: bool,
+    /// Event effect chain (bypassed effects already left out), run after the chroma key and
+    /// before the event's opacity and crossfade.
+    pub effects: Vec<VideoEffect>,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -71,6 +76,8 @@ pub enum TrackCompositeNode {
         clips: Vec<VideoClipRequest>,
         mode: CompositeMode,
         level: f32,
+        /// Track effect chain, run on the composited layer of the track.
+        effects: Vec<VideoEffect>,
     },
     Group {
         children: Vec<TrackCompositeNode>,
@@ -235,6 +242,8 @@ struct WorkerState {
     composite_cache: LruFrameCache<u64>,
     gpu_compositor: Option<GpuCompositor>,
     gpu_probed: bool,
+    /// Effect chain pipelines, built on the compositor's device the first time they are needed.
+    vfx_gpu: Option<VfxGpu>,
     #[cfg(feature = "ffmpeg")]
     decoders: std::collections::HashMap<PathBuf, crate::decode::VideoDecoder>,
 }
@@ -246,6 +255,7 @@ impl WorkerState {
             composite_cache: LruFrameCache::new(48 * 1024 * 1024),
             gpu_compositor: None,
             gpu_probed: false,
+            vfx_gpu: None,
             #[cfg(feature = "ffmpeg")]
             decoders: std::collections::HashMap::new(),
         }
@@ -257,6 +267,38 @@ impl WorkerState {
             self.gpu_compositor = GpuCompositor::try_headless();
         }
         self.gpu_compositor.as_ref()
+    }
+
+    /// Runs an effect chain on `frame`: on the GPU when there is an adapter and the picture is big
+    /// enough to be worth the transfer, on the CPU otherwise or when the GPU refuses the picture.
+    /// A chain with nothing to do returns the same `Arc`, so the cached source frame is never
+    /// copied or changed.
+    fn apply_effects(
+        &mut self,
+        frame: Arc<FrameBuffer>,
+        chain: &[VideoEffect],
+    ) -> Arc<FrameBuffer> {
+        let resolved = vfx::resolve_chain(chain);
+        if resolved.is_empty() || frame.width == 0 || frame.height == 0 {
+            return frame;
+        }
+        if frame.width * frame.height >= 64 * 64 {
+            if self.vfx_gpu.is_none() {
+                self.vfx_gpu = self.ensure_gpu().map(|g| {
+                    let (device, queue) = g.device_queue();
+                    VfxGpu::new(device, queue)
+                });
+            }
+            if let Some(gpu) = &self.vfx_gpu {
+                match gpu.process(&frame, &resolved) {
+                    Ok(done) => return Arc::new(done),
+                    Err(e) => tracing::debug!("[DEBUG] video effects on the CPU: {e}"),
+                }
+            }
+        }
+        let mut copy = (*frame).clone();
+        vfx::apply_chain_cpu(&mut copy, chain);
+        Arc::new(copy)
     }
 
     fn decode_raw_cached(
@@ -406,10 +448,16 @@ fn hash_f32(h: &mut impl Hasher, v: f32) {
 
 fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
     match node {
-        TrackCompositeNode::Track { clips, mode, level } => {
+        TrackCompositeNode::Track {
+            clips,
+            mode,
+            level,
+            effects,
+        } => {
             0u8.hash(h);
             mode.code().hash(h);
             hash_f32(h, *level);
+            vfx::hash_chain(effects, h);
             clips.len().hash(h);
             for clip in clips {
                 let sk = SourceCacheKey::for_source(
@@ -421,6 +469,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 sk.hash(h);
                 hash_f32(h, clip.event_opacity);
                 clip.apply_chroma.hash(h);
+                vfx::hash_chain(&clip.effects, h);
             }
         }
         TrackCompositeNode::Group {
@@ -449,6 +498,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 sk.hash(h);
                 hash_f32(h, clip.event_opacity);
                 clip.apply_chroma.hash(h);
+                vfx::hash_chain(&clip.effects, h);
             }
         }
     }
@@ -502,12 +552,14 @@ fn decode_clip_stack(
     if clips.len() == 1 && (clips[0].event_opacity - 1.0).abs() < 1e-4 {
         let clip = &clips[0];
         let raw = state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?;
-        if clip.apply_chroma && !chroma.is_disabled() {
+        let frame = if clip.apply_chroma && !chroma.is_disabled() {
             let mut keyed = (*raw).clone();
             crate::chroma::apply_chroma_key(&mut keyed, chroma);
-            return Ok(Some(Arc::new(keyed)));
-        }
-        return Ok(Some(raw));
+            Arc::new(keyed)
+        } else {
+            raw
+        };
+        return Ok(Some(state.apply_effects(frame, &clip.effects)));
     }
 
     // Multiple overlapping clips on the same track (crossfade) or partial event fade-in/out:
@@ -525,6 +577,7 @@ fn decode_clip_stack(
         } else {
             raw
         };
+        let frame = state.apply_effects(frame, &clip.effects);
         layers.push(CompositeNode::Layer(DecodedLayer {
             frame,
             mode: CompositeMode::SourceAlpha,
@@ -549,13 +602,19 @@ fn build_decoded_tree(
     let mut out = Vec::with_capacity(nodes.len());
     for node in nodes {
         match node {
-            TrackCompositeNode::Track { clips, mode, level } => {
+            TrackCompositeNode::Track {
+                clips,
+                mode,
+                level,
+                effects,
+            } => {
                 if *level <= 0.0 {
                     continue;
                 }
                 if let Some(frame) =
                     decode_clip_stack(state, clips, canvas_w, canvas_h, max_width, chroma)?
                 {
+                    let frame = state.apply_effects(frame, effects);
                     out.push(CompositeNode::Layer(DecodedLayer {
                         frame,
                         mode: *mode,
@@ -762,9 +821,11 @@ mod tests {
                     playback_rate: 1.0,
                     event_opacity: 1.0,
                     apply_chroma: false,
+                    effects: Vec::new(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
+                effects: Vec::new(),
             }],
             lut: None,
             grade: Grade::default(),
@@ -857,5 +918,94 @@ mod ffmpeg_tests {
             .result
             .is_err());
         let _ = std::fs::remove_file(path);
+    }
+
+    fn effect_request(
+        path: &Path,
+        clip_fx: Vec<VideoEffect>,
+        track_fx: Vec<VideoEffect>,
+    ) -> CompositeFrameRequest {
+        CompositeFrameRequest {
+            timeline_seconds: 0.0,
+            fps: 25.0,
+            playing: false,
+            shuttle_speed: 1.0,
+            canvas_width: 128,
+            canvas_height: 96,
+            max_width: 0,
+            nodes: vec![TrackCompositeNode::Track {
+                clips: vec![VideoClipRequest {
+                    media_id: 1,
+                    path: path.to_path_buf(),
+                    seconds: 0.0,
+                    source_fps: 25.0,
+                    playback_rate: 1.0,
+                    event_opacity: 1.0,
+                    apply_chroma: false,
+                    effects: clip_fx,
+                }],
+                mode: CompositeMode::SourceAlpha,
+                level: 1.0,
+                effects: track_fx,
+            }],
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+        }
+    }
+
+    #[test]
+    fn event_and_track_effects_change_the_frame_without_touching_the_cached_source() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_fx_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("split.png");
+        let mut img = ImageBuffer::from_pixel(128, 96, Rgba([0u8, 0, 0, 255]));
+        for y in 0..96 {
+            for x in 64..128 {
+                img.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+        img.save(&path).unwrap();
+
+        let blur = vec![VideoEffect::new(vfx::GAUSSIAN_BLUR).with("h_range", 0.05)];
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(
+            plain.pixel(63, 40),
+            [0, 0, 0, 255],
+            "hard edge without effects"
+        );
+
+        let on_event = renderer
+            .render_frame(&effect_request(&path, blur.clone(), Vec::new()))
+            .unwrap();
+        assert!(
+            on_event.pixel(63, 40)[0] > 20,
+            "event blur softens the edge"
+        );
+        let on_track = renderer
+            .render_frame(&effect_request(&path, Vec::new(), blur))
+            .unwrap();
+        assert!(
+            on_track.pixel(63, 40)[0] > 20,
+            "track blur softens the edge"
+        );
+
+        // The cached source frame and the composite cache were not poisoned by the effects
+        let again = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(again, plain);
+
+        // One changed value is a different frame (the cache key follows the parameters)
+        let wider = vec![VideoEffect::new(vfx::GAUSSIAN_BLUR).with("h_range", 0.01)];
+        let narrow = renderer
+            .render_frame(&effect_request(&path, wider, Vec::new()))
+            .unwrap();
+        assert_ne!(narrow, on_event);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

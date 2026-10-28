@@ -104,6 +104,11 @@ pub struct TrackEvent {
     /// Edit > Channels (audio only): how the two channels of the media reach the mix.
     #[serde(default, skip_serializing_if = "ChannelMode::is_default")]
     pub channels: ChannelMode,
+    /// Video effect chain of the event, applied in order to the decoded picture before the event's
+    /// opacity and the track's effects (older projects have none). The engine only stores the
+    /// registry id and the parameters; `neoveg_video::vfx` knows what each effect does.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub video_effects: Vec<TrackEffect>,
 }
 
 impl Default for TrackEvent {
@@ -129,6 +134,7 @@ impl Default for TrackEvent {
             normalize: false,
             normalize_gain: 1.0,
             channels: ChannelMode::Both,
+            video_effects: Vec::new(),
         }
     }
 }
@@ -355,6 +361,10 @@ pub struct Track {
     /// Keyframed automation envelopes (volume, pan, effect parameters; older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub envelopes: Vec<TrackEnvelope>,
+    /// Video effect chain of a video track, applied to the track's composited layer (older
+    /// projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub video_effects: Vec<TrackEffect>,
 }
 
 fn is_neutral_grade(grade: &Grade) -> bool {
@@ -474,6 +484,7 @@ impl Timeline {
             effects: Vec::new(),
             ducking: None,
             envelopes: Vec::new(),
+            video_effects: Vec::new(),
         }
     }
 

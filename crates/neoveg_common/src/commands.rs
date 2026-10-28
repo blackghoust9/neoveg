@@ -216,6 +216,7 @@ commands! {
     ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
     ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
     ViewAudioEffects => ("view.audio_effects", "Efeitos de áudio", View, true),
+    ViewVideoEffects => ("view.video_effects", "Efeitos de vídeo", View, true),
 }
 
 impl Command {

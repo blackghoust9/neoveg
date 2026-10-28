@@ -12,6 +12,8 @@ pub mod lut;
 pub mod render;
 pub mod scopes;
 pub mod still;
+pub mod vfx;
+pub mod vfx_gpu;
 pub mod worker;
 
 #[cfg(feature = "ffmpeg")]

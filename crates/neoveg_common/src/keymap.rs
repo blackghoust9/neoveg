@@ -289,6 +289,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewLoudnessMeters, &["Ctrl+Alt+7"]),
     (Command::ViewVideoScopes, &["Ctrl+Alt+2"]),
     (Command::ViewAudioEffects, &["Ctrl+Alt+9"]),
+    (Command::ViewVideoEffects, &["Ctrl+Alt+8"]),
 ];
 
 /// The shortcuts of `command` in the default map.

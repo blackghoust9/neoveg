@@ -25,6 +25,7 @@ Não é uma leitura página a página dos PDFs; itens marcados "a confirmar" pre
 | Janelas destacadas em viewports nativos (seção 32) | `neoveg_ui/src/app/detached.rs` | Pedido explícito do projeto, não decorre dos manuais. |
 | Cartão da tela de abertura (splash) com dados da máquina | `neoveg_ui/src/splash.rs` | Pedido explícito do projeto (seção 30). |
 | Ícones coloridos opcionais em BMP (`assets/icons_color/`) | `neoveg_ui/src/icons.rs` | Pedido explícito do projeto. Vêm do conjunto Flat Color Icons (MIT), via Iconify. Os sites Icons8, FlatIcon, IconScout, Streamline e UXWing foram **avaliados e não usados diretamente**: as licenças deles exigem atribuição, cobram ou restringem a redistribuição dos arquivos em repositório público. |
+| Efeitos de vídeo: Nitidez com intensidade fixa, Máscara de nitidez com raio fixo (0,6 % da altura) e escolha dos canais do desfoque gaussiano ainda sem controle | `neoveg_video/src/vfx.rs` | Os manuais descrevem o desfoque (alcance horizontal e vertical), a nitidez (sem parâmetros), a máscara de nitidez (proporção) e a vinheta (raios, aspecto, centro). O raio da máscara, a faixa dos valores, a unidade em fração da altura do quadro e a ordem do sinal são decisões do projeto; **a confirmar** com os manuais. |
 
 ## Regra aplicada daqui em diante
 

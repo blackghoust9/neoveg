@@ -33,6 +33,9 @@ Histograma, código de tempo na imagem, rastreador de movimento, detecção de c
 Reenquadramento automático, colorização, remoção de névoa, mapa de profundidade, nitidez, máscara inteligente (duas gerações), suavização, transferência de estilo, ampliação de resolução.
 - Neoveg: `previsto` transcrição, máscara e ampliação (fase de IA do roadmap).
 
+## Estado da cadeia de efeitos
+`feito` (28/10/2026): cadeia por evento e por faixa na GPU (`wgpu`) com versão de referência na CPU, painel Efeitos de Vídeo e uso na renderização. Efeitos prontos: desfoque gaussiano, nitidez, máscara de nitidez e vinheta. Código em [[neoveg_video]] e [[neoveg_engine]].
+
 ## Próximos passos
-1. Cadeia de efeitos por evento, faixa, mídia e projeto na GPU (`wgpu`), base de todos os grupos acima.
-2. Começar pelos efeitos de maior valor: desfoques, nitidez, curvas de cor, vinheta e recorte.
+1. Cadeia por mídia e por projeto, e prévia ao vivo durante o arraste de um controle.
+2. Mais efeitos pelo maior valor: desfoques linear e radial, curvas de cor e recorte.

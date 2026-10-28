@@ -9,6 +9,7 @@
 //! opacity (fading both would dip through black).
 
 use super::*;
+use crate::video_fx_panel;
 use neoveg_common::composite::CompositeMode;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
 
@@ -123,6 +124,7 @@ pub(super) fn composite_request(
                     playback_rate: edit::clamp_playback_rate(e.playback_rate),
                     event_opacity: event_opacity(e, time, cross_in),
                     apply_chroma: true,
+                    effects: video_fx_panel::to_worker_chain(&e.video_effects),
                 })
             })
             .collect();
@@ -131,6 +133,7 @@ pub(super) fn composite_request(
                 clips,
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
+                effects: video_fx_panel::to_worker_chain(&track.video_effects),
             });
         }
     }
@@ -305,5 +308,36 @@ mod tests {
         e.looping = true;
         // The source runs 1..10 s, so it repeats every 9 s: 14 s into the event is 5 s in
         assert_eq!(source_seconds(&e, 16.0, 10.0), 6.0);
+    }
+
+    #[test]
+    fn event_and_track_effects_reach_the_request_without_the_bypassed_ones() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 0.0, 4.0);
+        let mut off = TrackEffect::new("sharpen");
+        off.bypass = true;
+        e.video_effects = vec![TrackEffect::new("gaussian_blur"), off];
+        track.events.push(e);
+        track.video_effects = vec![TrackEffect::new("vignette")];
+        tl.tracks.push(track);
+
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, effects, .. } = &request.nodes[0] else {
+            panic!("a track node");
+        };
+        assert_eq!(
+            clips[0]
+                .effects
+                .iter()
+                .map(|f| f.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["gaussian_blur"]
+        );
+        assert_eq!(
+            effects.iter().map(|f| f.kind.as_str()).collect::<Vec<_>>(),
+            ["vignette"]
+        );
     }
 }

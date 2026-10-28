@@ -302,8 +302,9 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**
-- [ ] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento, faixa, mídia e projeto: é a base de todos os grupos de efeitos e destrava o resto desta lista (nota `catalogo_efeitos_video`).
-- [ ] Primeiros efeitos, pelo maior valor: desfoques (gaussiano, linear, radial), nitidez, curvas de cor, vinheta e recorte.
+- [x] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento e por faixa (até 32 efeitos, bypass, parâmetros, desfazer): painel **Efeitos de Vídeo** (`Ctrl+Alt+8`), versão de referência na CPU e versão em compute shader conferidas por teste, usada também na renderização. Falta a cadeia por mídia e por projeto, e as previas ao vivo durante o arraste.
+- [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez e vinheta. Faltam curvas de cor, recorte e o restante da lista abaixo.
+- [ ] Mais efeitos, pelo maior valor: desfoques linear e radial, curvas de cor e recorte.
 - [ ] Geradores que faltam: tabuleiro (xadrez) e textura de ruído (só pixels, baixo custo).
 - [ ] Modelo de transição no engine antes da GPU: duração, curva, eixo A/B e envelope de progresso (nota `catalogo_transicoes_e_geradores`).
 - [ ] Medir a GPU com o benchmark de reprodução antes de escolher a primeira família de efeitos (`desempenho_resolucoes`).

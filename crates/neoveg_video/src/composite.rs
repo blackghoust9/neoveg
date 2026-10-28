@@ -592,6 +592,11 @@ impl GpuCompositor {
         }
     }
 
+    /// The device and queue this compositor runs on, shared with the effect chain.
+    pub fn device_queue(&self) -> (Arc<wgpu::Device>, Arc<wgpu::Queue>) {
+        (Arc::clone(&self.device), Arc::clone(&self.queue))
+    }
+
     /// Attempts to initialize a headless `wgpu` compute device (hardware first, then software
     /// fallback adapter if available). Returns `None` in environments without any Vulkan/DX12/Metal
     /// adapter so callers fall back transparently to `composite_nodes_cpu`.

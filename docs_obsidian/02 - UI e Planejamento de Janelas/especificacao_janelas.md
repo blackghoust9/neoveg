@@ -25,7 +25,7 @@ Complementa o mapa visual em `layout_janelas.canvas`. A fonte normativa é a se�
 
 ## Mídia do Projeto · Trimmer · Legendas
 - Painel à esquerda (≈28% da largura), três abas de rodapé. O Trimmer edita a mídia antes de colocá-la na timeline.
-- Abaixo dele fica **Efeitos de Áudio**, com a cadeia da faixa selecionada.
+- Abaixo dele fica **Efeitos de Áudio**, com a cadeia da faixa selecionada. Na mesma janela, em aba, fica **Efeitos de Vídeo**, com a cadeia do evento ou da faixa de vídeo selecionados (até 32 efeitos).
 
 ## Barramento Master (Audio Mixer)
 - Mostra apenas medidores de pico L e R em dBFS (escala 0, −6, −12, −24, −48, −∞), leituras numéricas e o fader master. Nunca contém scopes de vídeo.

@@ -19,6 +19,18 @@ pub enum FxTarget {
     Master,
 }
 
+/// Where a video effect chain lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoFxTarget {
+    /// One event of a video track.
+    Event {
+        track_id: TrackId,
+        event_id: EventId,
+    },
+    /// The composited layer of a video track.
+    Track(TrackId),
+}
+
 /// The whole event list of one track before and after an edit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrackChange {
@@ -78,6 +90,13 @@ pub enum EditCommand {
     /// before and after, so it is one exactly reversible undo step.
     SetEffects {
         target: FxTarget,
+        before: Vec<TrackEffect>,
+        after: Vec<TrackEffect>,
+    },
+    /// Any change to a video effect chain (add, remove, reorder, bypass, parameter): the whole
+    /// chain before and after, so it is one exactly reversible undo step.
+    SetVideoEffects {
+        target: VideoFxTarget,
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
     },
@@ -244,6 +263,7 @@ impl EditCommand {
                 true
             }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
+            Self::SetVideoEffects { target, after, .. } => set_video_effects(tl, *target, after),
             Self::SetDucking {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
@@ -284,6 +304,7 @@ impl EditCommand {
                     normalize: left.normalize,
                     normalize_gain: left.normalize_gain,
                     channels: left.channels,
+                    video_effects: left.video_effects.clone(),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -353,6 +374,9 @@ impl EditCommand {
             Self::SetEffects { target, before, .. } => {
                 set_effects(tl, *target, before);
             }
+            Self::SetVideoEffects { target, before, .. } => {
+                set_video_effects(tl, *target, before);
+            }
             Self::SetDucking {
                 track_id, before, ..
             } => {
@@ -414,6 +438,30 @@ fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope
             }
             None => false,
         },
+    }
+}
+
+fn set_video_effects(tl: &mut Timeline, target: VideoFxTarget, chain: &[TrackEffect]) -> bool {
+    match target {
+        VideoFxTarget::Track(id) => match tl.track_mut(id) {
+            Some(t) => {
+                t.video_effects = chain.to_vec();
+                true
+            }
+            None => false,
+        },
+        VideoFxTarget::Event { track_id, event_id } => {
+            let event = tl
+                .track_mut(track_id)
+                .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+            match event {
+                Some(e) => {
+                    e.video_effects = chain.to_vec();
+                    true
+                }
+                None => false,
+            }
+        }
     }
 }
 

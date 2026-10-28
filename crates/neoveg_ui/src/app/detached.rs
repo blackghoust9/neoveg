@@ -28,13 +28,14 @@ pub(super) fn viewport_id(tab: Tab) -> egui::ViewportId {
     egui::ViewportId::from_hash_of(("neoveg_detached", tab.id()))
 }
 
-const ALL_TABS: [Tab; 7] = [
+const ALL_TABS: [Tab; 8] = [
     Tab::Preview,
     Tab::Timeline,
     Tab::Media,
     Tab::MasterBus,
     Tab::Loudness,
     Tab::AudioFx,
+    Tab::VideoFx,
     Tab::Scopes,
 ];
 
@@ -48,6 +49,7 @@ impl Tab {
             Tab::MasterBus => "master_bus",
             Tab::Loudness => "loudness",
             Tab::AudioFx => "audio_fx",
+            Tab::VideoFx => "video_fx",
             Tab::Scopes => "scopes",
         }
     }

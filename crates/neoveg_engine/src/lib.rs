@@ -28,9 +28,10 @@ pub mod snapping;
 pub mod switches;
 pub mod timeline;
 pub mod trimmer;
+pub mod video_effects;
 
 pub use captions::{Caption, CaptionId};
-pub use command::{EditCommand, FxTarget, History, TrackChange};
+pub use command::{EditCommand, FxTarget, History, TrackChange, VideoFxTarget};
 pub use envelope::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEnvelope};
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};

@@ -57,10 +57,11 @@ use neoveg_engine::relink::relink_missing;
 use neoveg_engine::ripple::RippleScope;
 use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
+use neoveg_engine::video_effects as vfxe;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
     EditCommand, EventId, EventRef, FxTarget, History, Selection, TimeRange, Timeline, TrackEvent,
-    TrackId, TrackKind,
+    TrackId, TrackKind, VideoFxTarget,
 };
 use neoveg_video::info::{is_video_path, is_visual_media_path, VideoInfo};
 use neoveg_video::lut::Lut;
@@ -79,6 +80,7 @@ use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
 use crate::timeline_scroll;
+use crate::video_fx_panel::{self, VfxAction, VfxPanelState, VfxScopes};
 use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
@@ -129,6 +131,7 @@ enum Tab {
     MasterBus,
     Loudness,
     AudioFx,
+    VideoFx,
     Scopes,
 }
 
@@ -141,6 +144,7 @@ impl Tab {
             Tab::MasterBus => "Barramento Master",
             Tab::Loudness => "Loudness",
             Tab::AudioFx => "Efeitos de Áudio",
+            Tab::VideoFx => "Efeitos de Vídeo",
             Tab::Scopes => "Scopes de Vídeo",
         }
     }
@@ -392,6 +396,8 @@ struct AppState {
     captions_panel: CaptionsPanelState,
     /// Audio effects panel (target and the slider being dragged).
     fx: FxPanelState,
+    /// Video effects panel (event or track scope and the slider being dragged).
+    vfx: VfxPanelState,
     /// Per-track mixer strip (fader or pan being dragged).
     mixer: MixerPanelState,
     master_volume: f32,
@@ -1247,6 +1253,7 @@ impl AppState {
             render_dialog: Default::default(),
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
+            vfx: VfxPanelState::default(),
             mixer: MixerPanelState::default(),
             master_volume: 1.0,
             active_player: None,
@@ -3981,6 +3988,66 @@ impl AppState {
         (track.kind == TrackKind::Audio).then(|| (FxTarget::Track(track.id), track.name.clone()))
     }
 
+    /// The video chain the effects panel edits, with what can be chosen: the primary selected
+    /// event of a video track, or the video track itself (the selected track, or the track of the
+    /// selected event).
+    fn vfx_target(&self) -> Option<(VideoFxTarget, String, VfxScopes)> {
+        let video_track = |id: TrackId| {
+            self.timeline
+                .track(id)
+                .filter(|t| t.kind == TrackKind::Video)
+        };
+        let event = self.selection.primary().and_then(|(track_id, event_id)| {
+            let track = video_track(track_id)?;
+            let event = track.events.iter().find(|e| e.id == event_id)?;
+            Some((track_id, event_id, event.name.clone()))
+        });
+        let track = event
+            .as_ref()
+            .map(|(t, _, _)| *t)
+            .or(self.selected_track)
+            .and_then(video_track);
+        let scopes = VfxScopes {
+            event: event.is_some(),
+            track: track.is_some(),
+        };
+        if self.vfx.track_scope || event.is_none() {
+            let track = track?;
+            Some((VideoFxTarget::Track(track.id), track.name.clone(), scopes))
+        } else {
+            let (track_id, event_id, name) = event?;
+            Some((VideoFxTarget::Event { track_id, event_id }, name, scopes))
+        }
+    }
+
+    /// Runs what the user did in the video effects panel; each action is one undo step and the
+    /// preview is asked for a new frame.
+    fn apply_vfx_actions(&mut self, target: VideoFxTarget, actions: Vec<VfxAction>) {
+        let mut changed = false;
+        for action in actions {
+            let command = match action {
+                VfxAction::Add(kind) => vfxe::add_effect(&self.timeline, target, kind),
+                VfxAction::Remove(i) => vfxe::remove_effect(&self.timeline, target, i),
+                VfxAction::Move { from, to } => vfxe::move_effect(&self.timeline, target, from, to),
+                VfxAction::Bypass(i, bypass) => vfxe::set_bypass(&self.timeline, target, i, bypass),
+                VfxAction::SetParam {
+                    index,
+                    param,
+                    value,
+                } => vfxe::set_param(&self.timeline, target, index, &param, value),
+                VfxAction::ResetParam { index, param } => {
+                    vfxe::reset_param(&self.timeline, target, index, &param)
+                }
+            };
+            if let Some(command) = command {
+                changed |= self.history.execute(&mut self.timeline, command);
+            }
+        }
+        if changed {
+            self.last_frame_key = None;
+        }
+    }
+
     /// Runs what the user did in the effects panel; each action is one undo step. While playing,
     /// the audio restarts at the cursor so the new chain is heard at once.
     fn apply_fx_actions(&mut self, target: FxTarget, actions: Vec<FxAction>) {
@@ -4393,6 +4460,9 @@ impl AppState {
             Command::ViewAudioEffects => {
                 self.window_request = Some(WindowAction::Toggle(Tab::AudioFx))
             }
+            Command::ViewVideoEffects => {
+                self.window_request = Some(WindowAction::Toggle(Tab::VideoFx))
+            }
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
@@ -4657,7 +4727,7 @@ fn default_dock() -> DockState<Tab> {
     let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
     let [preview, media] = surface.split_left(top, 0.28, vec![Tab::Media]);
     // The effects of the selected track sit under the project media
-    surface.split_below(media, 0.55, vec![Tab::AudioFx]);
+    surface.split_below(media, 0.55, vec![Tab::AudioFx, Tab::VideoFx]);
     let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
     // The loudness readouts live in their own panel under the master bus
     // and the video scopes are a tab beside them
@@ -4672,7 +4742,7 @@ fn audio_dock() -> DockState<Tab> {
     let surface = dock.main_surface_mut();
     let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.40, vec![Tab::Timeline]);
     let [_, master] = surface.split_right(top, 0.30, vec![Tab::MasterBus]);
-    let [_, effects] = surface.split_right(master, 0.40, vec![Tab::AudioFx]);
+    let [_, effects] = surface.split_right(master, 0.40, vec![Tab::AudioFx, Tab::VideoFx]);
     surface.split_below(effects, 0.50, vec![Tab::Loudness, Tab::Scopes]);
     dock
 }
@@ -5369,6 +5439,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewProjectMedia,
                 Command::ViewTrimmer,
                 Command::ViewAudioEffects,
+                Command::ViewVideoEffects,
                 Command::ViewMasterBus,
                 Command::ViewLoudnessMeters,
                 Command::ViewVideoScopes,
@@ -6572,6 +6643,7 @@ impl TabViewer for Viewer<'_> {
             Tab::Media => media_ui(self.state, ui),
             Tab::MasterBus => master_bus_ui(self.state, ui),
             Tab::AudioFx => audio_fx_ui(self.state, ui),
+            Tab::VideoFx => video_fx_ui(self.state, ui),
             Tab::Scopes => {
                 egui::ScrollArea::both()
                     .auto_shrink([false, false])
@@ -6952,6 +7024,18 @@ fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
         scopes,
         state.frame_scopes_version,
     );
+}
+
+fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    let Some((target, title, scopes)) = state.vfx_target() else {
+        ui.weak("Selecione um evento ou uma faixa de vídeo para ver os efeitos.");
+        return;
+    };
+    let chain = vfxe::chain(&state.timeline, target)
+        .map(<[_]>::to_vec)
+        .unwrap_or_default();
+    let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes);
+    state.apply_vfx_actions(target, actions);
 }
 
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -8923,6 +9007,7 @@ mod tests {
             Tab::MasterBus,
             Tab::Loudness,
             Tab::AudioFx,
+            Tab::VideoFx,
         ] {
             assert!(default_dock().find_tab(&tab).is_some(), "{tab:?}");
         }
@@ -9299,6 +9384,7 @@ mod tests {
                 Tab::MasterBus,
                 Tab::Loudness,
                 Tab::AudioFx,
+                Tab::VideoFx,
                 Tab::Scopes,
             ] {
                 assert!(dock.find_tab(&tab).is_some(), "{tab:?} is missing");
