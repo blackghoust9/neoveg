@@ -511,6 +511,17 @@ fn flatten_level(
                     // The part of the clip inside the window, moved to the parent's time
                     let cut_front = s - ce.start;
                     copy.trim_in += cut_front * ce.playback_rate;
+                    if let Some(env) = ce
+                        .velocity
+                        .as_ref()
+                        .filter(|v| crate::velocity::is_active(Some(v)))
+                    {
+                        let rate = crate::edit::clamp_playback_rate(ce.playback_rate);
+                        let (trim_in, shifted) =
+                            crate::velocity::shift_start(env, ce.trim_in, rate, cut_front);
+                        copy.trim_in = trim_in;
+                        copy.velocity = Some(shifted);
+                    }
                     copy.start = event.start + (s - window_start);
                     copy.duration = e - s;
                     copy.fade_in = if cut_front > 0.0 { 0.0 } else { copy.fade_in };

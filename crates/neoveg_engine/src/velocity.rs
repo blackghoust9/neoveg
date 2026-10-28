@@ -131,6 +131,37 @@ pub fn freeze_at(envelope: Option<&TrackEnvelope>, time: f64) -> TrackEnvelope {
     env
 }
 
+/// *Freeze frame at cursor* for `events`: each video event that holds `cursor` gets the freeze of
+/// [`freeze_at`] in one command (a batch for several events, as when a selection is frozen at once).
+/// Events that do not hold the cursor, and events of audio tracks, are left out; `None` when no event
+/// qualifies or nothing changes.
+pub fn freeze_command(
+    timeline: &Timeline,
+    events: &[(TrackId, EventId)],
+    cursor: f64,
+) -> Option<EditCommand> {
+    let mut commands = Vec::new();
+    for &(track_id, event_id) in events {
+        let Some(event) = timeline
+            .track(track_id)
+            .filter(|t| t.kind == TrackKind::Video)
+            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        else {
+            continue;
+        };
+        if cursor < event.start - TIME_EPSILON || cursor >= event.end() - TIME_EPSILON {
+            continue;
+        }
+        let envelope = freeze_at(event.velocity.as_ref(), cursor - event.start);
+        commands.extend(set(timeline, track_id, event_id, Some(envelope)));
+    }
+    match commands.len() {
+        0 => None,
+        1 => commands.pop(),
+        _ => Some(EditCommand::Batch(commands)),
+    }
+}
+
 /// The velocity envelope of an event of a video track (`Some(None)` is none), or `None` when the
 /// event does not exist or is not on a video track.
 pub fn get(
@@ -147,7 +178,7 @@ pub fn get(
 }
 
 /// A command that puts `after` as the velocity envelope, or `None` when nothing changes. Keyframes are
-/// kept sorted, inside the event and their values inside the speed range.
+/// kept sorted, from zero on, and their values inside the speed range.
 pub fn set(
     timeline: &Timeline,
     track_id: TrackId,
@@ -177,6 +208,104 @@ pub fn set(
         before,
         after,
     })
+}
+
+/// `true` when `envelope` changes the speed: it is there, on, and has keyframes.
+pub fn is_active(envelope: Option<&TrackEnvelope>) -> bool {
+    envelope.is_some_and(|e| e.enabled && !e.points.is_empty())
+}
+
+/// Moves the start of an event `delta` seconds (later when positive, earlier when negative) while the
+/// media stays where it is on the timeline: returns the new `trim_in` and the envelope that goes with
+/// it. `rate` is the event's own speed. Later, the part cut off the front takes its share of the
+/// source; earlier, the new head plays at the speed the event started with.
+pub fn shift_start(
+    envelope: &TrackEnvelope,
+    trim_in: f64,
+    rate: f64,
+    delta: f64,
+) -> (f64, TrackEnvelope) {
+    if delta >= 0.0 {
+        let trim = trim_in + rate * source_offset(Some(envelope), delta);
+        let env = from_offset(Some(envelope), delta).unwrap_or_else(|| envelope.clone());
+        return (trim, env);
+    }
+    let head = -delta;
+    let first = rate_at(Some(envelope), 0.0);
+    let mut env = envelope.clone();
+    env.points = vec![EnvelopePoint {
+        time: 0.0,
+        value: first as f32,
+        shape: EnvelopeShape::Linear,
+    }];
+    env.points
+        .extend(envelope.points.iter().map(|p| EnvelopePoint {
+            time: p.time + head,
+            ..*p
+        }));
+    ((trim_in - rate * first * head).max(0.0), env)
+}
+
+/// Lets a left-edge trim or a slide keep the picture where it is on events that have a velocity
+/// envelope. The geometry functions of `edit` compute `trim_in` as if the speed were normal; for such
+/// an event this adds the matching change of the envelope (one more command in a batch, so undo puts
+/// both back). Commands that are not that kind of edit, or events without an active envelope, come
+/// back as they were. `History::execute` runs every command through here.
+pub fn keep_picture(timeline: &Timeline, command: EditCommand) -> EditCommand {
+    match command {
+        EditCommand::Batch(list) => EditCommand::Batch(
+            list.into_iter()
+                .map(|c| keep_picture(timeline, c))
+                .collect(),
+        ),
+        EditCommand::EditEvent {
+            from_track,
+            to_track,
+            event_id,
+            old,
+            new,
+        } => {
+            let envelope = timeline
+                .track(from_track)
+                .filter(|t| t.kind == TrackKind::Video)
+                .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+                .and_then(|e| e.velocity.as_ref())
+                .filter(|v| is_active(Some(v)))
+                .cloned();
+            let rate = crate::edit::clamp_playback_rate(old.playback_rate);
+            let delta = new.start - old.start;
+            // The edit moved the start and the in point together by the same amount of media
+            let anchored = delta.abs() > TIME_EPSILON
+                && (new.trim_in - old.trim_in - rate * delta).abs() <= 1e-6
+                && (new.playback_rate - old.playback_rate).abs() < 1e-9;
+            let Some(envelope) = envelope.filter(|_| anchored) else {
+                return EditCommand::EditEvent {
+                    from_track,
+                    to_track,
+                    event_id,
+                    old,
+                    new,
+                };
+            };
+            let (trim_in, after) = shift_start(&envelope, old.trim_in, rate, delta);
+            EditCommand::Batch(vec![
+                EditCommand::EditEvent {
+                    from_track,
+                    to_track,
+                    event_id,
+                    old,
+                    new: crate::timeline::EventGeometry { trim_in, ..new },
+                },
+                EditCommand::SetVelocity {
+                    track_id: to_track,
+                    event_id,
+                    before: Some(envelope),
+                    after: Some(after),
+                },
+            ])
+        }
+        other => other,
+    }
 }
 
 #[cfg(test)]
@@ -293,6 +422,63 @@ mod tests {
             );
         }
         assert!(from_offset(None, 3.0).is_none());
+    }
+
+    #[test]
+    fn freezing_a_selection_at_the_cursor_is_one_undo_step_for_the_events_that_hold_it() {
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let mut refs = Vec::new();
+        for (start, kind) in [
+            (0.0, TrackKind::Video),
+            (2.0, TrackKind::Video),
+            (9.0, TrackKind::Video),
+            (0.0, TrackKind::Audio),
+        ] {
+            let track = tl.new_track(kind);
+            let tid = track.id;
+            assert!(h.execute(&mut tl, EditCommand::AddTrack { track }));
+            let eid = tl.alloc_id();
+            let event = TrackEvent {
+                id: eid,
+                media_id: Some(1),
+                start,
+                duration: 6.0,
+                ..TrackEvent::default()
+            };
+            assert!(h.execute(
+                &mut tl,
+                EditCommand::AddEvent {
+                    track_id: tid,
+                    event
+                }
+            ));
+            refs.push((tid, eid));
+        }
+        let before = tl.clone();
+        // At 4 s: the first two video events hold the cursor, the third starts later, the audio is no video
+        let command = freeze_command(&tl, &refs, 4.0).expect("two events freeze");
+        assert!(matches!(command, EditCommand::Batch(ref list) if list.len() == 2));
+        assert!(h.execute(&mut tl, command));
+        for (i, (tid, eid)) in refs.iter().enumerate() {
+            let frozen = event_of(&tl, *tid, *eid).velocity.is_some();
+            assert_eq!(frozen, i < 2, "event {i}");
+        }
+        let first = event_of(&tl, refs[0].0, refs[0].1);
+        assert!(
+            rate_at(first.velocity.as_ref(), 5.0).abs() < 1e-6,
+            "still after the cursor"
+        );
+        assert!((rate_at(first.velocity.as_ref(), 2.0) - 1.0).abs() < 1e-6);
+        assert!(h.undo(&mut tl));
+        assert_eq!(tl, before);
+        // Nothing holds the cursor: no command
+        assert!(freeze_command(&tl, &refs, 20.0).is_none());
+        // One event gives the plain command
+        assert!(matches!(
+            freeze_command(&tl, &refs[..1], 1.0),
+            Some(EditCommand::SetVelocity { .. })
+        ));
     }
 
     #[test]
@@ -429,5 +615,182 @@ mod tests {
         let back: TrackEvent =
             serde_json::from_str(&serde_json::to_string(&with).unwrap()).unwrap();
         assert_eq!(back.velocity, with.velocity);
+    }
+
+    /// Where the source is at timeline time `t`, as the preview works it out.
+    fn source_at(e: &TrackEvent, t: f64) -> f64 {
+        e.trim_in
+            + crate::edit::clamp_playback_rate(e.playback_rate)
+                * source_offset(e.velocity.as_ref(), t - e.start)
+    }
+
+    /// A video track with one event of 8 s at 2 s whose speed goes 100 % -> 50 % -> 200 %.
+    fn timeline_with_speeds() -> (Timeline, History, TrackId, EventId) {
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let track = tl.new_track(TrackKind::Video);
+        let tid = track.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track }));
+        let eid = tl.alloc_id();
+        let event = TrackEvent {
+            id: eid,
+            media_id: Some(1),
+            start: 2.0,
+            duration: 8.0,
+            trim_in: 3.0,
+            velocity: Some(env(&[(0.0, 1.0, LIN), (3.0, 0.5, LIN), (6.0, 2.0, LIN)])),
+            ..TrackEvent::default()
+        };
+        assert!(h.execute(
+            &mut tl,
+            EditCommand::AddEvent {
+                track_id: tid,
+                event
+            }
+        ));
+        (tl, h, tid, eid)
+    }
+
+    fn event_of(tl: &Timeline, tid: TrackId, eid: EventId) -> TrackEvent {
+        tl.track(tid)
+            .unwrap()
+            .events
+            .iter()
+            .find(|e| e.id == eid)
+            .unwrap()
+            .clone()
+    }
+
+    fn edit_geometry(
+        tl: &mut Timeline,
+        h: &mut History,
+        tid: TrackId,
+        eid: EventId,
+        new: crate::timeline::EventGeometry,
+    ) -> bool {
+        let old = event_of(tl, tid, eid).geometry();
+        h.execute(
+            tl,
+            EditCommand::EditEvent {
+                from_track: tid,
+                to_track: tid,
+                event_id: eid,
+                old,
+                new,
+            },
+        )
+    }
+
+    #[test]
+    fn trimming_the_left_edge_or_sliding_keeps_the_picture_under_every_remaining_time() {
+        for later in [true, false] {
+            let (mut tl, mut h, tid, eid) = timeline_with_speeds();
+            let before = event_of(&tl, tid, eid);
+            let g = before.geometry();
+            let new = if later {
+                crate::edit::trim_left(g, 5.0, 0.04)
+            } else {
+                crate::edit::slide(g, 1.5, None)
+            };
+            assert!(new.start > g.start);
+            assert!(edit_geometry(&mut tl, &mut h, tid, eid, new));
+            let after = event_of(&tl, tid, eid);
+            assert!(after.start > before.start);
+            let from = after.start.max(before.start);
+            for t in [from, from + 0.7, 6.4, 7.9, 9.9] {
+                let (a, b) = (source_at(&before, t), source_at(&after, t));
+                assert!((a - b).abs() < 1e-3, "later={later} t={t}: {a} vs {b}");
+            }
+            // One undo step puts the geometry, the in point and the envelope back
+            assert!(h.undo(&mut tl));
+            assert_eq!(event_of(&tl, tid, eid), before);
+            assert!(h.redo(&mut tl));
+            assert_eq!(event_of(&tl, tid, eid), after);
+        }
+    }
+
+    #[test]
+    fn extending_the_left_edge_plays_the_new_head_at_the_first_speed_and_keeps_the_rest() {
+        let (mut tl, mut h, tid, eid) = timeline_with_speeds();
+        let before = event_of(&tl, tid, eid);
+        let new = crate::edit::trim_left(before.geometry(), 1.0, 0.04);
+        assert!(new.start < before.start);
+        assert!(edit_geometry(&mut tl, &mut h, tid, eid, new));
+        let after = event_of(&tl, tid, eid);
+        for t in [2.0, 3.0, 5.5, 8.0, 9.9] {
+            let (a, b) = (source_at(&before, t), source_at(&after, t));
+            assert!((a - b).abs() < 1e-3, "t={t}: {a} vs {b}");
+        }
+        // The new second plays at the speed the event started with (100 %)
+        assert!((source_at(&after, 2.0) - source_at(&after, 1.0) - 1.0).abs() < 1e-3);
+        assert!(h.undo(&mut tl));
+        assert_eq!(event_of(&tl, tid, eid), before);
+    }
+
+    #[test]
+    fn moving_trimming_the_right_edge_and_slipping_leave_the_envelope_alone() {
+        let (mut tl, mut h, tid, eid) = timeline_with_speeds();
+        let before = event_of(&tl, tid, eid);
+        let g = before.geometry();
+        // A plain move: the event takes its speed profile with it
+        assert!(edit_geometry(
+            &mut tl,
+            &mut h,
+            tid,
+            eid,
+            crate::timeline::EventGeometry {
+                start: g.start + 4.0,
+                ..g
+            }
+        ));
+        assert_eq!(event_of(&tl, tid, eid).velocity, before.velocity);
+        assert!((source_at(&event_of(&tl, tid, eid), 8.0) - source_at(&before, 4.0)).abs() < 1e-9);
+        assert!(h.undo(&mut tl));
+        // The right edge
+        assert!(edit_geometry(
+            &mut tl,
+            &mut h,
+            tid,
+            eid,
+            crate::edit::trim_right(g, 8.0, 0.04, None)
+        ));
+        assert_eq!(event_of(&tl, tid, eid).velocity, before.velocity);
+        assert!(h.undo(&mut tl));
+        // A slip changes the in point only
+        assert!(edit_geometry(
+            &mut tl,
+            &mut h,
+            tid,
+            eid,
+            crate::edit::slip(g, 1.0, None)
+        ));
+        assert_eq!(event_of(&tl, tid, eid).velocity, before.velocity);
+    }
+
+    #[test]
+    fn a_disabled_envelope_or_an_audio_event_is_left_to_the_plain_rules() {
+        let (mut tl, mut h, tid, eid) = timeline_with_speeds();
+        tl.track_mut(tid).unwrap().events[0]
+            .velocity
+            .as_mut()
+            .unwrap()
+            .enabled = false;
+        let before = event_of(&tl, tid, eid);
+        let new = crate::edit::trim_left(before.geometry(), 5.0, 0.04);
+        assert!(edit_geometry(&mut tl, &mut h, tid, eid, new));
+        let after = event_of(&tl, tid, eid);
+        assert_eq!(after.velocity, before.velocity);
+        assert!((after.trim_in - (before.trim_in + 3.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_front_cut_off_by_a_time_range_takes_its_share_of_the_media() {
+        let (tl, _, tid, eid) = timeline_with_speeds();
+        let ev = event_of(&tl, tid, eid);
+        let part = crate::ops::clip_to_for_tests(&ev, 5.0, 9.0).unwrap();
+        for t in [5.0, 6.0, 7.5, 8.9] {
+            let (a, b) = (source_at(&ev, t), source_at(&part, t));
+            assert!((a - b).abs() < 1e-3, "t={t}: {a} vs {b}");
+        }
     }
 }

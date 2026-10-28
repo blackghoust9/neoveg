@@ -729,6 +729,8 @@ impl History {
 
     /// Applies `command`; returns `false` (and records nothing) when it does not apply.
     pub fn execute(&mut self, timeline: &mut Timeline, command: EditCommand) -> bool {
+        // A trim or slide of an event with a velocity envelope keeps the picture in place
+        let command = crate::velocity::keep_picture(timeline, command);
         if !command.apply(timeline) {
             return false;
         }

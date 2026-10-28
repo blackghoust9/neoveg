@@ -129,7 +129,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Auto-ducking: controlador e ouvinte | 3 | feito | auto-ducking por faixa (`neoveg_audio::duck`) | - |
 | Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor | 3 | feito | Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização | - |
 | Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
-| Envelope de velocidade do evento de vídeo | 1 | parcial | envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo e o áudio vinculado acompanhar | P1 |
+| Envelope de velocidade do evento de vídeo | 1 | parcial | envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo, o áudio vinculado acompanhar e a velocidade nas exportações | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
 | Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | previsto | roteiro (barramentos e envios) | P2 |

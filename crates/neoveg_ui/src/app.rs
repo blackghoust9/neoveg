@@ -4196,28 +4196,37 @@ impl AppState {
     }
 
     /// Freeze frame at the cursor: the velocity of the event drops to zero there and stays so to the
-    /// end of the event (one undo step).
+    /// end of the event. With the event inside a selection, every selected video event under the
+    /// cursor freezes, on every track, in one undo step.
     fn freeze_frame_at_cursor(&mut self, track_id: TrackId, event_id: EventId) {
-        let Some(event) = self
-            .timeline
-            .track(track_id)
-            .filter(|t| t.kind == TrackKind::Video)
-            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
-            .cloned()
-        else {
+        let targets = if self.selection.contains((track_id, event_id)) {
+            self.selection.refs()
+        } else {
+            vec![(track_id, event_id)]
+        };
+        let Some(command) = vel::freeze_command(&self.timeline, &targets, self.playhead) else {
+            self.status = "Congelar quadro: leve o cursor para dentro de um evento de vídeo".into();
             return;
         };
-        if self.playhead < event.start - TIME_EPSILON || self.playhead >= event.end() - TIME_EPSILON
-        {
-            self.status = "Congelar quadro: leve o cursor para dentro do evento".into();
-            return;
-        }
-        let envelope = vel::freeze_at(event.velocity.as_ref(), self.playhead - event.start);
-        if self.set_velocity(track_id, event_id, Some(envelope)) {
+        if self.history.execute(&mut self.timeline, command) {
+            self.last_frame_key = None;
+            self.last_composite_key = None;
             self.status = format!(
                 "Quadro congelado em {}",
                 seconds_to_timecode(self.playhead, self.project.settings.fps, false)
             );
+        }
+    }
+
+    /// A velocity draft only lives while the mouse button is down (or was just let go): when the panel was hidden or the
+    /// selection changed in the middle of a drag, nothing may keep the preview on the draft.
+    fn drop_stale_velocity_draft(&mut self, ctx: &egui::Context) {
+        // The frame of the release still belongs to the drag: the editor commits it then
+        let dragging = ctx.input(|i| i.pointer.any_down() || i.pointer.any_released());
+        if self.velocity_draft.is_some() && !dragging {
+            self.velocity_draft = None;
+            self.velocity_editor.reset();
+            self.last_composite_key = None;
         }
     }
 
@@ -5292,6 +5301,7 @@ impl NeovegApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.state.maybe_autosave(now);
+        self.state.drop_stale_velocity_draft(ctx);
         self.state.update_title(ctx);
         if ctx.input(|i| i.viewport().close_requested()) && !self.state.allow_close {
             if self.state.is_dirty() {
@@ -7596,7 +7606,7 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
     };
     ui.separator();
     let open = event.velocity.is_some();
-    egui::CollapsingHeader::new("Velocidade do evento")
+    let section = egui::CollapsingHeader::new("Velocidade do evento")
         .id_salt("event_velocity")
         .default_open(open)
         .show(ui, |ui| {
@@ -7605,9 +7615,14 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
                 duration: event.duration,
                 time: (state.playhead - event.start).clamp(0.0, event.duration),
             };
-            let actions = state.velocity_editor.show(ui, &view);
+            let actions = state.velocity_editor.show(ui, (track_id, event_id), &view);
             state.apply_velocity_actions(track_id, event_id, actions);
         });
+    if section.body_returned.is_none() {
+        // Folded away: nothing of an earlier drag may linger in the preview
+        state.velocity_editor.reset();
+        state.velocity_draft = None;
+    }
 }
 
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {

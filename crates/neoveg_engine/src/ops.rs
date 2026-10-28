@@ -85,6 +85,18 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     out.start = start;
     out.duration = end - start;
     out.trim_in = ev.trim_in + (start - ev.start);
+    // The cut-off front of an event with a velocity envelope takes its share of the media
+    if let Some(env) = ev
+        .velocity
+        .as_ref()
+        .filter(|v| crate::velocity::is_active(Some(v)))
+    {
+        let rate = crate::edit::clamp_playback_rate(ev.playback_rate);
+        let (trim_in, shifted) =
+            crate::velocity::shift_start(env, ev.trim_in, rate, start - ev.start);
+        out.trim_in = trim_in;
+        out.velocity = Some(shifted);
+    }
     if start > ev.start + TIME_EPSILON {
         out.fade_in = 0.0;
     }
@@ -96,6 +108,12 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
         .fade_out
         .clamp(0.0, (out.duration - out.fade_in).max(0.0));
     Some(out)
+}
+
+/// [`clip_to`] for the tests of other modules.
+#[cfg(test)]
+pub(crate) fn clip_to_for_tests(ev: &TrackEvent, start: f64, end: f64) -> Option<TrackEvent> {
+    clip_to(ev, TimeRange::new(start, end))
 }
 
 /// Splits every event of `list` that strictly contains `at` and passes `pick`; returns the new

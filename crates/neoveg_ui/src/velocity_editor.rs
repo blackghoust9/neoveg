@@ -178,6 +178,8 @@ pub struct VelocityView<'a> {
 
 #[derive(Debug, Default)]
 pub struct VelocityEditor {
+    /// The event this state belongs to: another event starts from a clean slate.
+    owner: Option<(TrackId, EventId)>,
     selected: Option<usize>,
     dragging: Option<usize>,
     draft: Option<TrackEnvelope>,
@@ -190,8 +192,30 @@ fn percent(speed: f32) -> String {
 }
 
 impl VelocityEditor {
-    /// Draws the editor and returns what the user did.
-    pub fn show(&mut self, ui: &mut egui::Ui, view: &VelocityView) -> Vec<VelocityAction> {
+    /// Forgets the selected point, a drag in progress and the draft (the section went out of sight,
+    /// or another event was chosen).
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Makes `owner` the event this editor works on; `true` when that was a change (state dropped).
+    fn follow(&mut self, owner: (TrackId, EventId)) -> bool {
+        if self.owner == Some(owner) {
+            return false;
+        }
+        self.reset();
+        self.owner = Some(owner);
+        true
+    }
+
+    /// Draws the editor of the velocity of event `owner` and returns what the user did.
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        owner: (TrackId, EventId),
+        view: &VelocityView,
+    ) -> Vec<VelocityAction> {
+        self.follow(owner);
         let mut actions = Vec::new();
         let shown = self.draft.clone().or_else(|| view.envelope.cloned());
         match &shown {
@@ -547,6 +571,28 @@ mod tests {
         assert_eq!(c.points.len(), 1);
         assert_eq!(velocity::rate_at(Some(&c), 7.0), 0.5);
         assert_eq!(PRESETS.len(), 6);
+    }
+
+    #[test]
+    fn another_event_starts_with_no_selection_no_drag_and_no_draft() {
+        let mut editor = VelocityEditor::default();
+        assert!(editor.follow((1, 2)), "the first event is a change");
+        assert!(!editor.follow((1, 2)), "the same event keeps its state");
+        editor.selected = Some(1);
+        editor.dragging = Some(1);
+        editor.draft = Some(env(&[(0.0, 2.0)]));
+        editor.menu_at = Some(pos2(5.0, 5.0));
+        assert!(!editor.follow((1, 2)));
+        assert_eq!(editor.selected, Some(1));
+        assert!(editor.follow((1, 3)), "another event");
+        assert_eq!(editor.selected, None);
+        assert_eq!(editor.dragging, None);
+        assert_eq!(editor.draft, None);
+        assert_eq!(editor.menu_at, None);
+        editor.selected = Some(0);
+        editor.reset();
+        assert_eq!(editor.selected, None);
+        assert_eq!(editor.owner, None);
     }
 
     #[test]
