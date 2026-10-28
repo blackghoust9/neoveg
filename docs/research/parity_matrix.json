@@ -285,9 +285,16 @@
     {
       "id": "ins.env_video",
       "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "ins.env_video_evento",
+      "area": "Inserir",
       "estado": "previsto",
       "prioridade": "P1",
-      "comandos": 5
+      "comandos": 2
     },
     {
       "id": "ins.faixas",

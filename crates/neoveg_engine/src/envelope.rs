@@ -1,5 +1,5 @@
-//! Parameter automation envelopes: keyframed curves over timeline time for track volume, track pan
-//! and audio effect parameters.
+//! Parameter automation envelopes: keyframed curves over timeline time for track volume, track pan,
+//! audio effect parameters and the video track controls (composite level, fade to color, mute).
 //!
 //! Envelopes are pure functions in the engine; [`BlockMixer`](../../neoveg_audio/fxmixer/index.html)
 //! evaluates them per audio block/sample with zero allocations inside the real-time callback.
@@ -90,14 +90,33 @@ pub enum AutomationTarget {
         effect_index: usize,
         param_id: String,
     },
+    /// Video track composite level (`0.0..=1.0`, `1.0` is fully opaque).
+    VideoLevel,
+    /// Video track fade to color (`0.0..=1.0`, `0.0` leaves the picture alone).
+    VideoFade,
+    /// Video track mute (`0.0..=1.0`, `0.5` and above hide the track).
+    VideoMute,
 }
 
 impl AutomationTarget {
+    /// `true` for the targets that live on video tracks.
+    pub fn is_video(&self) -> bool {
+        matches!(
+            self,
+            AutomationTarget::VideoLevel
+                | AutomationTarget::VideoFade
+                | AutomationTarget::VideoMute
+        )
+    }
+
     /// Human-readable short name in pt-BR.
     pub fn label(&self) -> String {
         match self {
             AutomationTarget::Volume => "Volume".into(),
             AutomationTarget::Pan => "Pan".into(),
+            AutomationTarget::VideoLevel => "Nível da faixa".into(),
+            AutomationTarget::VideoFade => "Esmaecer para cor".into(),
+            AutomationTarget::VideoMute => "Mudo da faixa".into(),
             AutomationTarget::EffectParam {
                 effect_index,
                 param_id,
@@ -113,6 +132,8 @@ impl AutomationTarget {
                 (lo, hi, 0.0)
             }
             AutomationTarget::Pan => (-1.0, 1.0, 0.0),
+            AutomationTarget::VideoLevel => (0.0, 1.0, 1.0),
+            AutomationTarget::VideoFade | AutomationTarget::VideoMute => (0.0, 1.0, 0.0),
             AutomationTarget::EffectParam { .. } => (0.0, 1.0, 0.0),
         }
     }
@@ -287,9 +308,8 @@ fn edit(
     change: impl FnOnce(&mut Vec<TrackEnvelope>) -> bool,
 ) -> Option<EditCommand> {
     if let FxTarget::Track(id) = target {
-        if timeline.track(id)?.kind != TrackKind::Audio {
-            return None;
-        }
+        // A video track has its own targets and an audio track its own: nothing else is edited
+        timeline.track(id)?;
     }
     let before = envelopes(timeline, target)?.to_vec();
     let mut after = before.clone();
@@ -319,6 +339,13 @@ pub fn toggle_envelope(
     {
         return None;
     }
+    if let FxTarget::Track(id) = target {
+        // Video targets only on video tracks, audio targets only on audio tracks
+        let is_video_track = timeline.track(id)?.kind == TrackKind::Video;
+        if auto_target.is_video() != is_video_track {
+            return None;
+        }
+    }
     edit(timeline, target, |list| {
         if let Some(env) = list.iter_mut().find(|e| e.target == auto_target) {
             env.visible = !env.visible;
@@ -336,8 +363,13 @@ pub fn toggle_all_envelopes(timeline: &Timeline, target: FxTarget) -> Option<Edi
         FxTarget::Track(id) => timeline.track(id)?.volume_db,
         FxTarget::Master => 0.0,
     };
+    let video_track = matches!(target, FxTarget::Track(id) if timeline.track(id).is_some_and(|t| t.kind == TrackKind::Video));
     edit(timeline, target, |list| {
         if list.is_empty() {
+            if video_track {
+                list.push(TrackEnvelope::new(AutomationTarget::VideoLevel, 1.0));
+                return true;
+            }
             if matches!(target, FxTarget::Track(_)) {
                 list.push(TrackEnvelope::new(AutomationTarget::Volume, default_vol));
                 return true;
@@ -456,6 +488,68 @@ pub fn remove_keyframe(
     })
 }
 
+// ---- video track state --------------------------------------------------------------------------
+
+/// What the video envelopes of a track say at one instant.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VideoTrackState {
+    /// Composite level `0.0..=1.0` (`1.0` without an envelope).
+    pub level: f32,
+    /// Fade to the track's color `0.0..=1.0` (`0.0` without an envelope).
+    pub fade: f32,
+    /// The mute envelope hides the track.
+    pub muted: bool,
+}
+
+impl Default for VideoTrackState {
+    fn default() -> Self {
+        Self {
+            level: 1.0,
+            fade: 0.0,
+            muted: false,
+        }
+    }
+}
+
+/// The level, fade and mute of `track` at timeline `time`, from its enabled envelopes. Values are
+/// clamped to their range, so a damaged file cannot produce a level above 1 or a NaN.
+pub fn video_track_state(track: &crate::timeline::Track, time: f64) -> VideoTrackState {
+    let mut state = VideoTrackState::default();
+    for env in track.envelopes.iter().filter(|e| e.enabled) {
+        let (min, max, default) = env.target.default_bounds();
+        let value = env.value_at(time, default);
+        let value = if value.is_finite() {
+            value.clamp(min, max)
+        } else {
+            default
+        };
+        match env.target {
+            AutomationTarget::VideoLevel => state.level = value,
+            AutomationTarget::VideoFade => state.fade = value,
+            AutomationTarget::VideoMute => state.muted = value >= 0.5,
+            _ => {}
+        }
+    }
+    state
+}
+
+/// A command that sets the color a video track fades to, or `None` when it does not change or the
+/// track is not a video track.
+pub fn set_fade_color(
+    timeline: &Timeline,
+    track_id: crate::timeline::TrackId,
+    color: [u8; 3],
+) -> Option<EditCommand> {
+    let track = timeline.track(track_id)?;
+    (track.kind == TrackKind::Video && track.fade_color != color).then_some(
+        EditCommand::SetFadeColor {
+            track_id,
+            before: track.fade_color,
+            after: color,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -540,5 +634,121 @@ mod tests {
         assert!(tl.tracks[0].envelopes.is_empty());
         assert!(h.redo(&mut tl));
         assert_eq!(tl.tracks[0].envelopes.len(), 1);
+    }
+
+    fn video_track(tl: &mut Timeline) -> (crate::command::History, crate::timeline::TrackId) {
+        let mut h = crate::command::History::new();
+        let track = tl.new_track(TrackKind::Video);
+        let id = track.id;
+        assert!(h.execute(tl, EditCommand::AddTrack { track }));
+        (h, id)
+    }
+
+    #[test]
+    fn video_targets_live_on_video_tracks_and_audio_targets_on_audio_tracks() {
+        let mut tl = Timeline::new();
+        let (mut h, vid) = video_track(&mut tl);
+        let audio = tl.new_track(TrackKind::Audio);
+        let aid = audio.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: audio }));
+
+        assert!(
+            toggle_envelope(&tl, FxTarget::Track(vid), AutomationTarget::Volume, 0.0).is_none()
+        );
+        assert!(
+            toggle_envelope(&tl, FxTarget::Track(aid), AutomationTarget::VideoLevel, 1.0).is_none()
+        );
+        let cmd =
+            toggle_envelope(&tl, FxTarget::Track(vid), AutomationTarget::VideoLevel, 1.0).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(tl.track(vid).unwrap().envelopes.len(), 1);
+        // `Ctrl+Shift+E` on a video track starts with the level envelope
+        let mut empty = Timeline::new();
+        let (_, other) = video_track(&mut empty);
+        let cmd = toggle_all_envelopes(&empty, FxTarget::Track(other)).unwrap();
+        let mut h2 = crate::command::History::new();
+        assert!(h2.execute(&mut empty, cmd));
+        assert_eq!(
+            empty.track(other).unwrap().envelopes[0].target,
+            AutomationTarget::VideoLevel
+        );
+    }
+
+    #[test]
+    fn the_video_state_follows_the_envelopes_and_stays_in_range() {
+        let mut tl = Timeline::new();
+        let (mut h, id) = video_track(&mut tl);
+        assert_eq!(
+            video_track_state(tl.track(id).unwrap(), 3.0),
+            VideoTrackState::default()
+        );
+
+        let mut level = TrackEnvelope::new(AutomationTarget::VideoLevel, 1.0);
+        level.upsert_point(4.0, 0.0, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        let mut fade = TrackEnvelope::new(AutomationTarget::VideoFade, 0.0);
+        fade.upsert_point(2.0, 1.0, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        let mut mute = TrackEnvelope::new(AutomationTarget::VideoMute, 0.0);
+        // A step: the first keyframe holds until the second one
+        mute.points[0].shape = EnvelopeShape::Hold;
+        mute.upsert_point(6.0, 1.0, EnvelopeShape::Hold, 0.0, 1.0, 1e-4);
+        let before = tl.track(id).unwrap().envelopes.clone();
+        assert!(h.execute(
+            &mut tl,
+            EditCommand::SetEnvelopes {
+                target: FxTarget::Track(id),
+                before,
+                after: vec![level, fade, mute],
+            }
+        ));
+        let at = |t: f64| video_track_state(tl.track(id).unwrap(), t);
+        assert!((at(2.0).level - 0.5).abs() < 1e-6);
+        assert!((at(1.0).fade - 0.5).abs() < 1e-6);
+        assert!(!at(5.0).muted && at(6.0).muted);
+
+        // A disabled envelope is ignored; an out-of-range stored value is clamped
+        let mut bad = TrackEnvelope::new(AutomationTarget::VideoLevel, 7.0);
+        bad.points[0].value = 7.0;
+        tl.track_mut(id).unwrap().envelopes = vec![bad.clone()];
+        assert_eq!(video_track_state(tl.track(id).unwrap(), 0.0).level, 1.0);
+        bad.enabled = false;
+        tl.track_mut(id).unwrap().envelopes = vec![bad];
+        assert_eq!(
+            video_track_state(tl.track(id).unwrap(), 0.0),
+            VideoTrackState::default()
+        );
+    }
+
+    #[test]
+    fn the_fade_color_is_a_video_track_property_with_undo_and_old_files_fade_to_black() {
+        let mut tl = Timeline::new();
+        let (mut h, id) = video_track(&mut tl);
+        assert!(
+            set_fade_color(&tl, id, [0, 0, 0]).is_none(),
+            "already black"
+        );
+        let cmd = set_fade_color(&tl, id, [255, 255, 255]).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(tl.track(id).unwrap().fade_color, [255, 255, 255]);
+        assert!(h.undo(&mut tl));
+        assert_eq!(tl.track(id).unwrap().fade_color, [0, 0, 0]);
+
+        let old: crate::timeline::Track =
+            serde_json::from_str(r#"{"id":1,"kind":"Video","name":"V","muted":false,"events":[]}"#)
+                .unwrap();
+        assert_eq!(old.fade_color, [0, 0, 0]);
+        assert!(!serde_json::to_string(&old).unwrap().contains("fade_color"));
+        let mut white = old.clone();
+        white.fade_color = [9, 8, 7];
+        let back: crate::timeline::Track =
+            serde_json::from_str(&serde_json::to_string(&white).unwrap()).unwrap();
+        assert_eq!(back.fade_color, [9, 8, 7]);
+
+        let audio = tl.new_track(TrackKind::Audio);
+        let aid = audio.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: audio }));
+        assert!(
+            set_fade_color(&tl, aid, [1, 2, 3]).is_none(),
+            "audio tracks have no fade color"
+        );
     }
 }

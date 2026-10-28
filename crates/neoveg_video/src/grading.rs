@@ -36,6 +36,26 @@ pub fn apply_grade(frame: &mut FrameBuffer, grade: &Grade) {
     }
 }
 
+/// Fades the layer toward `color`: every pixel's color moves `amount` (`0.0..=1.0`) of the way to
+/// the color, the alpha is left alone. `0.0` is a no-op and `1.0` paints the layer's visible pixels
+/// solid in the color (the transparent ones stay transparent, so lower tracks still show there).
+pub fn fade_to_color(frame: &mut FrameBuffer, color: [u8; 3], amount: f32) {
+    let amount = if amount.is_finite() {
+        amount.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if amount <= 0.0 {
+        return;
+    }
+    let keep = 1.0 - amount;
+    for px in frame.rgba.as_chunks_mut::<4>().0.iter_mut() {
+        for c in 0..3 {
+            px[c] = (f32::from(px[c]) * keep + f32::from(color[c]) * amount).round() as u8;
+        }
+    }
+}
+
 /// The whole look: the primary correction, then the LUT (either may be absent).
 pub fn apply_look(frame: &mut FrameBuffer, grade: &Grade, lut: Option<&Lut>) {
     apply_grade(frame, grade);
@@ -120,5 +140,27 @@ mod tests {
         let mut plain = FrameBuffer::solid(1, 1, [10, 20, 30, 255]);
         apply_look(&mut plain, &Grade::default(), None);
         assert_eq!(plain.pixel(0, 0), [10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn fading_to_a_color_moves_the_rgb_and_keeps_the_alpha() {
+        let original = FrameBuffer::solid(4, 4, [200, 100, 0, 128]);
+        let mut frame = original.clone();
+        fade_to_color(&mut frame, [0, 0, 0], 0.0);
+        assert_eq!(frame, original, "zero changes nothing");
+        fade_to_color(&mut frame, [0, 0, 100], 0.5);
+        assert_eq!(frame.pixel(1, 1), [100, 50, 50, 128]);
+        fade_to_color(&mut frame, [255, 255, 255], 1.0);
+        assert_eq!(
+            frame.pixel(0, 0),
+            [255, 255, 255, 128],
+            "fully faded, alpha untouched"
+        );
+        fade_to_color(&mut frame, [0, 0, 0], f32::NAN);
+        assert_eq!(
+            frame.pixel(0, 0),
+            [255, 255, 255, 128],
+            "a bad amount is ignored"
+        );
     }
 }

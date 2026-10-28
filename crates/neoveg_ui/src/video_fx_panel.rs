@@ -30,7 +30,21 @@ pub enum VfxAction {
         index: usize,
         param: String,
     },
+    /// The color the video track fades to (track chain only).
+    FadeColor([u8; 3]),
 }
+
+/// Colors offered for the fade to color of a video track.
+pub const FADE_COLORS: [(&str, [u8; 3]); 8] = [
+    ("Preto", [0, 0, 0]),
+    ("Branco", [255, 255, 255]),
+    ("Vermelho", [220, 40, 40]),
+    ("Verde", [40, 170, 70]),
+    ("Azul", [40, 90, 220]),
+    ("Amarelo", [240, 200, 30]),
+    ("Ciano", [30, 190, 210]),
+    ("Magenta", [210, 50, 160]),
+];
 
 /// A slider value that is being dragged: the project changes only when the drag ends.
 #[derive(Debug, Clone, PartialEq)]
@@ -184,6 +198,7 @@ pub fn vfx_ui(
     title: &str,
     chain: &[TrackEffect],
     scopes: VfxScopes,
+    fade_color: Option<[u8; 3]>,
 ) -> Vec<VfxAction> {
     let mut actions = Vec::new();
     panel.scope = scopes.resolve(panel.scope);
@@ -214,6 +229,27 @@ pub fn vfx_ui(
                 }
             });
     });
+    if let Some(current) = fade_color {
+        ui.horizontal(|ui| {
+            ui.label("Esmaecer para:");
+            for (name, rgb) in FADE_COLORS {
+                let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+                let stroke = if rgb == current {
+                    egui::Stroke::new(2.0_f32, ui.visuals().text_color())
+                } else {
+                    egui::Stroke::new(1.0_f32, ui.visuals().widgets.noninteractive.bg_stroke.color)
+                };
+                let button = egui::Button::new("")
+                    .fill(fill)
+                    .stroke(stroke)
+                    .min_size(egui::vec2(22.0, 18.0));
+                if ui.add(button).on_hover_text(name).clicked() && rgb != current {
+                    actions.push(VfxAction::FadeColor(rgb));
+                }
+            }
+        });
+        ui.weak("A cor vale para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo).");
+    }
     if chain.is_empty() {
         ui.weak("Sem efeitos. Os efeitos rodam na ordem da lista, antes da opacidade do evento.");
     }
@@ -468,5 +504,17 @@ mod tests {
         assert_ne!(a, 0);
         assert_ne!(a, b);
         assert_eq!(a, VfxDraft::stamp(Some(&draft)));
+    }
+
+    #[test]
+    fn the_fade_palette_starts_with_black_and_has_no_repeated_color() {
+        assert_eq!(
+            FADE_COLORS[0].1,
+            [0, 0, 0],
+            "black is the default of a track"
+        );
+        for (i, (_, a)) in FADE_COLORS.iter().enumerate() {
+            assert!(FADE_COLORS.iter().skip(i + 1).all(|(_, b)| a != b));
+        }
     }
 }

@@ -586,7 +586,18 @@ fn demo_project_with_video_effects() -> AppState {
         off.bypass = true;
         let event = &mut track.events[0];
         event.video_effects = vec![blur, vignette, off];
-        (track.id, event.id)
+        let ids = (track.id, event.id);
+        // The track's level envelope: opaque, a dip in the second scene, opaque again
+        let mut level = TrackEnvelope::new(AutomationTarget::VideoLevel, 1.0);
+        for (time, value) in [(8.0, 1.0), (10.0, 0.35), (14.0, 0.35), (16.0, 1.0)] {
+            level.points.push(EnvelopePoint {
+                time,
+                value,
+                shape: EnvelopeShape::Linear,
+            });
+        }
+        track.envelopes.push(level);
+        ids
     };
     s.timeline
         .media_video_effects

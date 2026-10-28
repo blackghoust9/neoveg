@@ -97,6 +97,11 @@ pub(super) fn composite_request(
         .rev()
         .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
     {
+        // The track's level, fade to color and mute envelopes at this instant
+        let track_state = envelope::video_track_state(track, time);
+        if track_state.muted {
+            continue;
+        }
         let crossfades = if settings.auto_crossfade {
             find_crossfades(&track.events)
         } else {
@@ -154,12 +159,14 @@ pub(super) fn composite_request(
             nodes.push(TrackCompositeNode::Track {
                 clips,
                 mode: CompositeMode::SourceAlpha,
-                level: 1.0,
+                level: track_state.level,
                 effects: effects_for(
                     &track.video_effects,
                     VideoFxTarget::Track(track.id),
                     settings.fx_draft.as_ref(),
                 ),
+                fade_color: track.fade_color,
+                fade_amount: track_state.fade,
             });
         }
     }
@@ -206,7 +213,11 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .media_id
                 .and_then(|m| timeline.media_video_effects.get(&m))
                 .is_some_and(|chain| on(chain));
-            if on(&e.video_effects) || on(&track.video_effects) || media_on {
+            let envelope_on = track
+                .envelopes
+                .iter()
+                .any(|env| env.enabled && env.target.is_video());
+            if on(&e.video_effects) || on(&track.video_effects) || media_on || envelope_on {
                 return true;
             }
         }
@@ -460,5 +471,53 @@ mod tests {
         track.events.push(e);
         tl.tracks.push(track);
         assert!(!has_effects(&tl, 1.0));
+    }
+
+    #[test]
+    fn the_track_envelopes_set_the_level_the_fade_and_the_mute_of_each_request() {
+        use neoveg_engine::envelope::{AutomationTarget, EnvelopeShape, TrackEnvelope};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 0.0, 10.0);
+        track.events.push(e);
+        track.fade_color = [10, 20, 30];
+        let mut level = TrackEnvelope::new(AutomationTarget::VideoLevel, 1.0);
+        level.upsert_point(4.0, 0.0, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        let mut fade = TrackEnvelope::new(AutomationTarget::VideoFade, 0.0);
+        fade.upsert_point(4.0, 1.0, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        let mut mute = TrackEnvelope::new(AutomationTarget::VideoMute, 0.0);
+        mute.points[0].shape = EnvelopeShape::Hold;
+        mute.upsert_point(8.0, 1.0, EnvelopeShape::Hold, 0.0, 1.0, 1e-4);
+        track.envelopes = vec![level, fade, mute];
+        tl.tracks.push(track);
+
+        let node = |tl: &Timeline, time: f64| {
+            composite_request(tl, time, &settings(), &resolve).map(|r| match &r.nodes[0] {
+                TrackCompositeNode::Track {
+                    level,
+                    fade_color,
+                    fade_amount,
+                    ..
+                } => (*level, *fade_color, *fade_amount),
+                TrackCompositeNode::Group { .. } => panic!("no groups here"),
+            })
+        };
+        let (level, color, amount) = node(&tl, 2.0).unwrap();
+        assert!((level - 0.5).abs() < 1e-6 && (amount - 0.5).abs() < 1e-6);
+        assert_eq!(color, [10, 20, 30]);
+        assert!(
+            has_effects(&tl, 2.0),
+            "an envelope sends the preview through the composite path"
+        );
+        assert!(
+            node(&tl, 9.0).is_none(),
+            "the mute envelope hides the only track: black"
+        );
+        // A disabled envelope leaves the track alone
+        for env in &mut tl.tracks[0].envelopes {
+            env.enabled = false;
+        }
+        assert_eq!(node(&tl, 2.0).unwrap().0, 1.0);
+        assert!(!has_effects(&tl, 2.0));
     }
 }

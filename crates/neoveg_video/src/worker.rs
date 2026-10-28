@@ -78,6 +78,9 @@ pub enum TrackCompositeNode {
         level: f32,
         /// Track effect chain, run on the composited layer of the track.
         effects: Vec<VideoEffect>,
+        /// Color the layer fades to and how far (`0.0` leaves it alone), run after the effects.
+        fade_color: [u8; 3],
+        fade_amount: f32,
     },
     Group {
         children: Vec<TrackCompositeNode>,
@@ -455,11 +458,15 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             mode,
             level,
             effects,
+            fade_color,
+            fade_amount,
         } => {
             0u8.hash(h);
             mode.code().hash(h);
             hash_f32(h, *level);
             vfx::hash_chain(effects, h);
+            fade_color.hash(h);
+            hash_f32(h, *fade_amount);
             clips.len().hash(h);
             for clip in clips {
                 let sk = SourceCacheKey::for_source(
@@ -610,6 +617,8 @@ fn build_decoded_tree(
                 mode,
                 level,
                 effects,
+                fade_color,
+                fade_amount,
             } => {
                 if *level <= 0.0 {
                     continue;
@@ -618,6 +627,13 @@ fn build_decoded_tree(
                     decode_clip_stack(state, clips, canvas_w, canvas_h, max_width, chroma)?
                 {
                     let frame = state.apply_effects(frame, effects);
+                    let frame = if *fade_amount > 0.0 {
+                        let mut faded = (*frame).clone();
+                        crate::grading::fade_to_color(&mut faded, *fade_color, *fade_amount);
+                        Arc::new(faded)
+                    } else {
+                        frame
+                    };
                     out.push(CompositeNode::Layer(DecodedLayer {
                         frame,
                         mode: *mode,
@@ -837,6 +853,8 @@ mod tests {
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
                 effects: Vec::new(),
+                fade_color: [0, 0, 0],
+                fade_amount: 0.0,
             }],
             lut: None,
             grade: Grade::default(),
@@ -898,6 +916,8 @@ mod tests {
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
                 effects: track_fx,
+                fade_color: [0, 0, 0],
+                fade_amount: 0.0,
             }],
             lut: None,
             grade: Grade::default(),
@@ -989,6 +1009,43 @@ mod tests {
         let again = renderer
             .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
             .unwrap();
+        assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_track_fade_to_color_paints_the_layer_and_follows_the_cache_key() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_fade_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("white.png");
+        write_png(&path, 128, 96, [255, 255, 255, 255]);
+
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(plain.pixel(10, 10), [255, 255, 255, 255]);
+
+        let faded = |amount: f32| {
+            let mut request = effect_request(&path, Vec::new(), Vec::new());
+            if let TrackCompositeNode::Track {
+                fade_color,
+                fade_amount,
+                ..
+            } = &mut request.nodes[0]
+            {
+                *fade_color = [255, 0, 0];
+                *fade_amount = amount;
+            }
+            request
+        };
+        let half = renderer.render_frame(&faded(0.5)).unwrap();
+        assert_eq!(half.pixel(10, 10), [255, 128, 128, 255]);
+        let full = renderer.render_frame(&faded(1.0)).unwrap();
+        assert_eq!(full.pixel(10, 10), [255, 0, 0, 255]);
+        // Back to no fade is the original picture again (neither cache served a stale frame)
+        let again = renderer.render_frame(&faded(0.0)).unwrap();
         assert_eq!(again, plain);
         let _ = std::fs::remove_dir_all(&dir);
     }

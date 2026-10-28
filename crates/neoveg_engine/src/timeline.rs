@@ -365,6 +365,13 @@ pub struct Track {
     /// projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub video_effects: Vec<TrackEffect>,
+    /// Color a video track fades to with its fade-to-color envelope (older projects fade to black).
+    #[serde(default, skip_serializing_if = "is_black")]
+    pub fade_color: [u8; 3],
+}
+
+fn is_black(color: &[u8; 3]) -> bool {
+    *color == [0, 0, 0]
 }
 
 fn is_neutral_grade(grade: &Grade) -> bool {
@@ -493,6 +500,7 @@ impl Timeline {
             ducking: None,
             envelopes: Vec::new(),
             video_effects: Vec::new(),
+            fade_color: [0, 0, 0],
         }
     }
 

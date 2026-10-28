@@ -7,7 +7,6 @@ use neoveg_audio::clap_host;
 use neoveg_audio::dsp::effects;
 use neoveg_engine::{
     AutomationTarget, EnvelopePoint, EnvelopeShape, Track, TrackEffect, TrackEnvelope, TrackId,
-    TrackKind,
 };
 
 use crate::fx_panel;
@@ -43,7 +42,11 @@ pub struct EnvelopeHit {
 /// Returns `(min, max, default)` for `target` on a track with `chain`.
 pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, f32, f32) {
     match target {
-        AutomationTarget::Volume | AutomationTarget::Pan => target.default_bounds(),
+        AutomationTarget::Volume
+        | AutomationTarget::Pan
+        | AutomationTarget::VideoLevel
+        | AutomationTarget::VideoFade
+        | AutomationTarget::VideoMute => target.default_bounds(),
         AutomationTarget::EffectParam {
             effect_index,
             param_id,
@@ -73,6 +76,9 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
     match target {
         AutomationTarget::Volume => Color32::from_rgb(0x34, 0x98, 0xDB),
         AutomationTarget::Pan => Color32::from_rgb(0xE6, 0x7E, 0x22),
+        AutomationTarget::VideoLevel => Color32::from_rgb(0xF1, 0xC4, 0x0F),
+        AutomationTarget::VideoFade => Color32::from_rgb(0xE9, 0x1E, 0x8C),
+        AutomationTarget::VideoMute => Color32::from_rgb(0xE7, 0x4C, 0x3C),
         AutomationTarget::EffectParam { .. } => Color32::from_rgb(0x2E, 0xCC, 0x71),
     }
 }
@@ -82,6 +88,9 @@ pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String 
     match target {
         AutomationTarget::Volume => "Volume".into(),
         AutomationTarget::Pan => "Pan".into(),
+        AutomationTarget::VideoLevel
+        | AutomationTarget::VideoFade
+        | AutomationTarget::VideoMute => target.label(),
         AutomationTarget::EffectParam {
             effect_index,
             param_id,
@@ -132,6 +141,16 @@ pub fn format_envelope_value(
                 format!("{:.0}% E", -value * 100.0)
             } else {
                 format!("{:.0}% D", value * 100.0)
+            }
+        }
+        AutomationTarget::VideoLevel | AutomationTarget::VideoFade => {
+            format!("{:.0} %", value * 100.0)
+        }
+        AutomationTarget::VideoMute => {
+            if value >= 0.5 {
+                "Oculta".into()
+            } else {
+                "Visível".into()
             }
         }
         AutomationTarget::EffectParam {
@@ -185,9 +204,6 @@ pub fn hit_test(
     }
     let row_idx = row as usize;
     let track = tracks.get(row_idx)?;
-    if track.kind != TrackKind::Audio {
-        return None;
-    }
     let y0 = lane_top + row_idx as f32 * track_height;
     let ptr_time = (scroll_seconds + f64::from(pos.x - lanes_left) / pps).max(0.0);
 
@@ -246,7 +262,7 @@ fn preview_envelope(
     copy
 }
 
-/// Paints all visible automation envelopes on an audio `track` inside its lane row.
+/// Paints all visible automation envelopes on a `track` (audio or video) inside its lane row.
 #[allow(clippy::too_many_arguments)]
 pub fn paint_track_envelopes(
     painter: &egui::Painter,
@@ -258,7 +274,7 @@ pub fn paint_track_envelopes(
     track: &Track,
     drag: Option<&EnvelopeDrag>,
 ) {
-    if track.kind != TrackKind::Audio || pps <= 0.0 {
+    if pps <= 0.0 {
         return;
     }
     let t_left = scroll_seconds;
@@ -401,7 +417,7 @@ pub fn new_point_on_curve(env: &TrackEnvelope, time: f64, value: f32) -> Envelop
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neoveg_engine::Timeline;
+    use neoveg_engine::{Timeline, TrackKind};
 
     #[test]
     fn y_mapping_inverts_cleanly_and_hit_test_finds_nodes_before_lines() {

@@ -86,7 +86,8 @@ ROWS: List[Row] = [
     ("ins.env_audio", A_INS, "Envelopes de áudio: volume e pan", r"^Insert > Audio Envelopes > (Volume|Pan)$", "feito", "`track.volume_envelope`, `track.pan_envelope`", "-"),
     ("ins.env_audio_mudo", A_INS, "Envelope de mudo de áudio", r"^Insert > Audio Envelopes > Mute", "previsto", "volume e pan feitos; mudo não", "P3"),
     ("ins.ducking", A_INS, "Auto-ducking: controlador e ouvinte", r"^Insert > Audio Envelopes > Auto Ducking", "feito", "auto-ducking por faixa (`neoveg_audio::duck`)", "-"),
-    ("ins.env_video", A_INS, "Envelopes de vídeo: mudo, nível de composição, esmaecer para cor, velocidade, progresso de transição", r"^Insert > Video Envelopes", "previsto", "roteiro (README, envelopes de evento)", "P1"),
+    ("ins.env_video", A_INS, "Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor", r"^Insert > Video Envelopes > (Track Mute|Track Composite Level|Track Fade to Color)", "feito", "Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização", "-"),
+    ("ins.env_video_evento", A_INS, "Envelopes de evento de vídeo: velocidade e progresso de transição", r"^Insert > Video Envelopes", "previsto", "velocidade pede remapeamento de tempo da fonte; progresso pede as transições de vídeo", "P1"),
     ("ins.faixas", A_INS, "Inserir faixa de áudio e de vídeo", r"^Insert > (Audio Track|Video Track)$", "feito", "`insert.audio_track`, `insert.video_track`", "-"),
     ("ins.faixa_ajuste", A_INS, "Inserir faixa de ajuste", r"^Insert > Adjustment Track", "previsto", "roteiro (eventos de ajuste)", "P2"),
     ("ins.barramentos", A_INS, "Inserir barramento de áudio, de entrada e efeito atribuível", r"^Insert > (Audio Bus|Audio Input Bus|Audio Assignable)", "previsto", "roteiro (barramentos e envios)", "P2"),
@@ -143,7 +144,7 @@ ROWS: List[Row] = [
     ("exi.janelas_fora", A_EXI, "Janelas de pan surround, explorador de dispositivos, disco profissional e hub online", r"^View > Window > (Surround|Device|XDCAM|.*Hub)", "sem_plano", "hardware e serviço do fabricante", "-"),
     ("exi.mixer", A_EXI, "Fader de prévia do mixer e trilhas de barramento", r"^View > (Mixer Preview|Audio Bus|Video Bus)", "previsto", "roteiro (barramentos)", "P2"),
     ("exi.evento", A_EXI, "Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento", r"^View > (Event|Video Event Edge|Active Take|Audio Event Waveforms)", "previsto", "roteiro: atalhos de visualização", "P2"),
-    ("exi.envelopes", A_EXI, "Mostrar envelopes de áudio e de vídeo", r"^View > (Audio Envelopes|Video Envelopes|Show Envelopes)", "parcial", "áudio feito (`track.toggle_envelopes`); vídeo não", "P2"),
+    ("exi.envelopes", A_EXI, "Mostrar envelopes de áudio e de vídeo", r"^View > (Audio Envelopes|Video Envelopes|Show Envelopes)", "parcial", "áudio e, no vídeo, nível, esmaecer e mudo feitos; velocidade, progresso, desfoque de movimento e supersampling não", "P2"),
     ("exi.trilhas", A_EXI, "Minimizar todas as trilhas e reconstruir picos de áudio", r"^View > (Minimize|Rebuild)", "previsto", "roteiro: cache de picos", "P3"),
     ("exi.extensoes", A_EXI, "Menu de extensões", r"^View > Extensions", "feito", "gerenciador de extensões", "-"),
     # ---------------------------------------------------------------- Ajuda

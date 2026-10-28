@@ -1998,14 +1998,15 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some(),
-            Command::TrackSolo
-            | Command::TrackSoloExclusive
-            | Command::TrackVolumeEnvelope
-            | Command::TrackPanEnvelope
-            | Command::TrackToggleEnvelopes => self
+            Command::TrackSolo | Command::TrackSoloExclusive | Command::TrackPanEnvelope => self
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Audio),
+            // On a video track `V` shows the level envelope and `Ctrl+Shift+E` the video ones
+            Command::TrackVolumeEnvelope | Command::TrackToggleEnvelopes => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some(),
             _ => true,
         }
     }
@@ -4081,6 +4082,10 @@ impl AppState {
                 VfxAction::ResetParam { index, param } => {
                     vfxe::reset_param(&self.timeline, target, index, &param)
                 }
+                VfxAction::FadeColor(color) => match target {
+                    VideoFxTarget::Track(id) => envelope::set_fade_color(&self.timeline, id, color),
+                    _ => None,
+                },
             };
             if let Some(command) = command {
                 changed |= self.history.execute(&mut self.timeline, command);
@@ -4213,24 +4218,31 @@ impl AppState {
 
     fn run_track_envelope_command(&mut self, command: Command) {
         let Some(track_id) = self.selected_track else {
-            self.status = "Selecione uma faixa de áudio primeiro".into();
+            self.status = "Selecione uma faixa primeiro".into();
             return;
         };
         let Some(track) = self.timeline.track(track_id) else {
             return;
         };
-        if track.kind != TrackKind::Audio {
-            self.status = "Envelopes de volume e pan aplicam-se a faixas de áudio".into();
-            return;
-        }
+        let is_video = track.kind == TrackKind::Video;
         let target = FxTarget::Track(track_id);
         let cmd = match command {
+            // `V`: the volume of an audio track, the composite level of a video track
+            Command::TrackVolumeEnvelope if is_video => {
+                envelope::toggle_envelope(&self.timeline, target, AutomationTarget::VideoLevel, 1.0)
+            }
             Command::TrackVolumeEnvelope => envelope::toggle_envelope(
                 &self.timeline,
                 target,
                 AutomationTarget::Volume,
                 track.volume_db,
             ),
+            Command::TrackPanEnvelope if is_video => {
+                self.status =
+                    "O envelope de pan vale para faixas de áudio; veja Faixas > Envelopes de vídeo"
+                        .into();
+                return;
+            }
             Command::TrackPanEnvelope => {
                 envelope::toggle_envelope(&self.timeline, target, AutomationTarget::Pan, track.pan)
             }
@@ -4240,7 +4252,31 @@ impl AppState {
         if let Some(cmd) = cmd {
             if self.history.execute(&mut self.timeline, cmd) {
                 self.restart_audio_if_playing();
+                self.last_frame_key = None;
             }
+        }
+    }
+
+    /// Faixas > Envelopes de vídeo: shows or hides (creating it the first time) the level, fade to
+    /// color or mute envelope of the selected video track.
+    fn toggle_video_envelope(&mut self, auto_target: AutomationTarget, initial: f32) {
+        let Some(track_id) = self.selected_track else {
+            self.status = "Selecione uma faixa de vídeo primeiro".into();
+            return;
+        };
+        let cmd = envelope::toggle_envelope(
+            &self.timeline,
+            FxTarget::Track(track_id),
+            auto_target,
+            initial,
+        );
+        match cmd {
+            Some(cmd) => {
+                if self.history.execute(&mut self.timeline, cmd) {
+                    self.last_frame_key = None;
+                }
+            }
+            None => self.status = "Os envelopes de vídeo valem para faixas de vídeo".into(),
         }
     }
 
@@ -4259,6 +4295,7 @@ impl AppState {
         ) {
             if self.history.execute(&mut self.timeline, cmd) {
                 self.restart_audio_if_playing();
+                self.last_frame_key = None;
             }
         }
     }
@@ -5419,6 +5456,24 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            let video_track = state
+                .selected_track
+                .and_then(|id| state.timeline.track(id))
+                .is_some_and(|t| t.kind == TrackKind::Video);
+            ui.add_enabled_ui(video_track, |ui| {
+                ui.menu_button("Envelopes de vídeo", |ui| {
+                    for (label, target, initial) in [
+                        ("Nível da faixa", AutomationTarget::VideoLevel, 1.0),
+                        ("Esmaecer para cor", AutomationTarget::VideoFade, 0.0),
+                        ("Mudo da faixa", AutomationTarget::VideoMute, 0.0),
+                    ] {
+                        if ui.button(label).clicked() {
+                            state.toggle_video_envelope(target, initial);
+                            ui.close_menu();
+                        }
+                    }
+                });
+            });
         });
         ui.menu_button("Ferramentas", |ui| {
             if ui.button("Inspetor").clicked() {
@@ -7074,7 +7129,11 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let chain = vfxe::chain(&state.timeline, target)
         .map(<[_]>::to_vec)
         .unwrap_or_default();
-    let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes);
+    let fade_color = match target {
+        VideoFxTarget::Track(id) => state.timeline.track(id).map(|t| t.fade_color),
+        _ => None,
+    };
+    let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes, fade_color);
     // A slider being dragged shows in the preview at once; the project changes on release
     state.vfx_draft = state
         .vfx
@@ -8748,18 +8807,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 lane_painter.line_segment([area.left_top(), area.right_bottom()], stroke);
             }
         }
-        if track.kind == TrackKind::Audio {
-            envelope_canvas::paint_track_envelopes(
-                &lane_painter,
-                lanes,
-                y,
-                TRACK_HEIGHT,
-                state.scroll_seconds,
-                state.pixels_per_second,
-                track,
-                state.env_drag.as_ref(),
-            );
-        }
+        envelope_canvas::paint_track_envelopes(
+            &lane_painter,
+            lanes,
+            y,
+            TRACK_HEIGHT,
+            state.scroll_seconds,
+            state.pixels_per_second,
+            track,
+            state.env_drag.as_ref(),
+        );
     }
 
     // Time selection: translucent band over the lanes and the ruler

@@ -16,7 +16,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 18 | 56 | 26 | 0 | 46 % |
-| Inserir | 32 | 30 | 13 | 3 | 14 | 2 | 48 % |
+| Inserir | 32 | 30 | 16 | 3 | 11 | 2 | 58 % |
 | Ferramentas | 56 | 38 | 6 | 7 | 25 | 18 | 25 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 37 | 19 | 5 | 46 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **38 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 34 feitas, 28 parciais, 46 previstas e 18 sem plano, de 126 linhas (108 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 28 parciais, 46 previstas e 18 sem plano, de 127 linhas (109 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -32,7 +32,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 
 | Prioridade | Função | Área | Comandos | Estado |
 | :--- | :--- | :--- | ---: | :--- |
-| P1 | Envelopes de vídeo: mudo, nível de composição, esmaecer para cor, velocidade, progresso de transição | Inserir | 5 | previsto |
+| P1 | Envelopes de evento de vídeo: velocidade e progresso de transição | Inserir | 2 | previsto |
 | P1 | Pan/Crop do evento | Ferramentas | 1 | previsto |
 | P1 | Movimento da trilha | Ferramentas | 1 | previsto |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
@@ -125,7 +125,8 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Envelopes de áudio: volume e pan | 2 | feito | `track.volume_envelope`, `track.pan_envelope` | - |
 | Envelope de mudo de áudio | 1 | previsto | volume e pan feitos; mudo não | P3 |
 | Auto-ducking: controlador e ouvinte | 3 | feito | auto-ducking por faixa (`neoveg_audio::duck`) | - |
-| Envelopes de vídeo: mudo, nível de composição, esmaecer para cor, velocidade, progresso de transição | 5 | previsto | roteiro (README, envelopes de evento) | P1 |
+| Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor | 3 | feito | Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização | - |
+| Envelopes de evento de vídeo: velocidade e progresso de transição | 2 | previsto | velocidade pede remapeamento de tempo da fonte; progresso pede as transições de vídeo | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
 | Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | previsto | roteiro (barramentos e envios) | P2 |
@@ -194,7 +195,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Janelas de pan surround, explorador de dispositivos, disco profissional e hub online | 5 | sem plano | hardware e serviço do fabricante | - |
 | Fader de prévia do mixer e trilhas de barramento | 3 | previsto | roteiro (barramentos) | P2 |
 | Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | 9 | previsto | roteiro: atalhos de visualização | P2 |
-| Mostrar envelopes de áudio e de vídeo | 12 | parcial | áudio feito (`track.toggle_envelopes`); vídeo não | P2 |
+| Mostrar envelopes de áudio e de vídeo | 12 | parcial | áudio e, no vídeo, nível, esmaecer e mudo feitos; velocidade, progresso, desfoque de movimento e supersampling não | P2 |
 | Minimizar todas as trilhas e reconstruir picos de áudio | 2 | previsto | roteiro: cache de picos | P3 |
 | Menu de extensões | 1 | feito | gerenciador de extensões | - |
 

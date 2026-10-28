@@ -97,6 +97,12 @@ pub enum EditCommand {
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
     },
+    /// The color a video track fades to.
+    SetFadeColor {
+        track_id: TrackId,
+        before: [u8; 3],
+        after: [u8; 3],
+    },
     /// Any change to a video effect chain (add, remove, reorder, bypass, parameter): the whole
     /// chain before and after, so it is one exactly reversible undo step.
     SetVideoEffects {
@@ -268,6 +274,15 @@ impl EditCommand {
             }
             Self::SetEffects { target, after, .. } => set_effects(tl, *target, after),
             Self::SetVideoEffects { target, after, .. } => set_video_effects(tl, *target, after),
+            Self::SetFadeColor {
+                track_id, after, ..
+            } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.fade_color = *after;
+                    true
+                }
+                None => false,
+            },
             Self::SetDucking {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
@@ -380,6 +395,13 @@ impl EditCommand {
             }
             Self::SetVideoEffects { target, before, .. } => {
                 set_video_effects(tl, *target, before);
+            }
+            Self::SetFadeColor {
+                track_id, before, ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.fade_color = *before;
+                }
             }
             Self::SetDucking {
                 track_id, before, ..

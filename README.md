@@ -310,6 +310,8 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**
+- [x] Envelopes de faixa de vídeo: nível da faixa, esmaecer para cor (com paleta de cores) e mudo, editados na linha do tempo como os de áudio; valem na prévia e na renderização (Faixas > Envelopes de vídeo, `V` na faixa de vídeo).
+- [ ] Envelopes de evento de vídeo: velocidade (remapeamento de tempo da fonte) e progresso de transição (depende das transições de vídeo).
 - [x] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento e por faixa (até 32 efeitos, bypass, parâmetros, desfazer): painel **Efeitos de Vídeo** (`Ctrl+Alt+8`), versão de referência na CPU e versão em compute shader conferidas por teste, usada também na renderização. Também por mídia (vale para todos os eventos dela) e por projeto, e a prévia mostra o valor ao vivo durante o arraste de um controle.
 - [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez e vinheta. Faltam curvas de cor, recorte e o restante da lista abaixo.
 - [ ] Mais efeitos, pelo maior valor: desfoques linear e radial, curvas de cor e recorte.
