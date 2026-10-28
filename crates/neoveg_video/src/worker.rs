@@ -102,6 +102,8 @@ pub struct CompositeFrameRequest {
     pub lut: Option<Arc<Lut>>,
     pub grade: Grade,
     pub chroma_key: ChromaKey,
+    /// Project effect chain, run on the composited picture before the color correction and the LUT.
+    pub project_effects: Vec<VideoEffect>,
 }
 
 pub struct CompositeFrameReply {
@@ -520,6 +522,7 @@ fn composite_request_signature(req: &CompositeFrameRequest, out_w: u32, out_h: u
     hash_f32(&mut h, req.grade.contrast);
     hash_f32(&mut h, req.grade.gamma);
     hash_f32(&mut h, req.grade.saturation);
+    vfx::hash_chain(&req.project_effects, &mut h);
     req.chroma_key.enabled.hash(&mut h);
     if req.chroma_key.enabled {
         for c in req.chroma_key.key_color {
@@ -687,7 +690,7 @@ fn handle_composite(
         &req.chroma_key,
     )?;
 
-    let mut composited = if decoded_tree.is_empty() {
+    let composited = if decoded_tree.is_empty() {
         FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])
     } else if uses_non_trivial_blend(&decoded_tree) && (out_w * out_h) >= 64 * 64 {
         if let Some(gpu) = state.ensure_gpu() {
@@ -702,6 +705,14 @@ fn handle_composite(
         composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
     };
 
+    let composited = if req.project_effects.is_empty() {
+        composited
+    } else {
+        // The project chain sees the whole picture; the cache keeps the result of the chain
+        let done = state.apply_effects(Arc::new(composited), &req.project_effects);
+        Arc::try_unwrap(done).unwrap_or_else(|shared| (*shared).clone())
+    };
+    let mut composited = composited;
     crate::grading::apply_look(&mut composited, &req.grade, req.lut.as_deref());
     state
         .composite_cache
@@ -830,6 +841,7 @@ mod tests {
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
         };
 
         // Request frame 0 while playing = true -> triggers lookahead prefetch of frames 1 and 2.
@@ -857,67 +869,6 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[cfg(not(feature = "ffmpeg"))]
-    #[test]
-    fn video_container_without_ffmpeg_reports_clear_portuguese_message() {
-        assert!(probe(Path::new("x.mp4")).unwrap_err().contains("ffmpeg"));
-    }
-}
-
-#[cfg(all(test, feature = "ffmpeg"))]
-mod ffmpeg_tests {
-    use super::*;
-    use std::process::Command;
-    use std::time::Duration;
-
-    #[test]
-    fn worker_decodes_requested_frames_off_thread() {
-        let path = std::env::temp_dir().join(format!("neoveg_worker_{}.mp4", std::process::id()));
-        let made = Command::new("ffmpeg")
-            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
-            .arg("testsrc=duration=2:size=320x240:rate=25")
-            .args(["-c:v", "mpeg4"])
-            .arg(&path)
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        if !made {
-            return;
-        }
-
-        let worker = FrameWorker::spawn(|| {}).unwrap();
-        worker.request(FrameRequest {
-            media_id: 7,
-            path: path.clone(),
-            seconds: 0.4,
-            max_width: 160,
-            lut: None,
-            grade: Grade::default(),
-            chroma_key: ChromaKey::default(),
-        });
-        let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
-        assert_eq!(reply.media_id, 7);
-        let frame = reply.result.unwrap();
-        assert_eq!((frame.width, frame.height), (160, 120));
-
-        worker.request(FrameRequest {
-            media_id: 7,
-            path: PathBuf::from("missing.mp4"),
-            seconds: 0.0,
-            max_width: 0,
-            lut: None,
-            grade: Grade::default(),
-            chroma_key: ChromaKey::default(),
-        });
-        assert!(worker
-            .rx
-            .recv_timeout(Duration::from_secs(10))
-            .unwrap()
-            .result
-            .is_err());
-        let _ = std::fs::remove_file(path);
     }
 
     fn effect_request(
@@ -951,6 +902,7 @@ mod ffmpeg_tests {
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
         }
     }
 
@@ -1007,5 +959,100 @@ mod ffmpeg_tests {
             .unwrap();
         assert_ne!(narrow, on_event);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn project_effects_act_on_the_whole_picture_and_follow_the_cache_key() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_pfx_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("white.png");
+        write_png(&path, 128, 96, [255, 255, 255, 255]);
+
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(plain.pixel(0, 0), [255, 255, 255, 255]);
+
+        let mut with_vignette = effect_request(&path, Vec::new(), Vec::new());
+        with_vignette.project_effects = vec![VideoEffect::new(vfx::VIGNETTE)];
+        let dark = renderer.render_frame(&with_vignette).unwrap();
+        assert!(dark.pixel(0, 0)[0] < 30, "the corner is dark");
+        assert_eq!(
+            dark.pixel(64, 48),
+            [255, 255, 255, 255],
+            "the centre is not"
+        );
+
+        // The same request without the chain is a different frame (the cache key follows it)
+        let again = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(feature = "ffmpeg"))]
+    #[test]
+    fn video_container_without_ffmpeg_reports_clear_portuguese_message() {
+        assert!(probe(Path::new("x.mp4")).unwrap_err().contains("ffmpeg"));
+    }
+}
+
+#[cfg(all(test, feature = "ffmpeg"))]
+mod ffmpeg_tests {
+    use super::*;
+    use std::process::Command;
+    use std::time::Duration;
+
+    #[test]
+    fn worker_decodes_requested_frames_off_thread() {
+        let path = std::env::temp_dir().join(format!("neoveg_worker_{}.mp4", std::process::id()));
+        let made = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg("testsrc=duration=2:size=320x240:rate=25")
+            .args(["-c:v", "mpeg4"])
+            .arg(&path)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !made {
+            return;
+        }
+
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        worker.request(FrameRequest {
+            media_id: 7,
+            path: path.clone(),
+            seconds: 0.4,
+            max_width: 160,
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
+        });
+        let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(reply.media_id, 7);
+        let frame = reply.result.unwrap();
+        assert_eq!((frame.width, frame.height), (160, 120));
+
+        worker.request(FrameRequest {
+            media_id: 7,
+            path: PathBuf::from("missing.mp4"),
+            seconds: 0.0,
+            max_width: 0,
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
+        });
+        assert!(worker
+            .rx
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap()
+            .result
+            .is_err());
+        let _ = std::fs::remove_file(path);
     }
 }

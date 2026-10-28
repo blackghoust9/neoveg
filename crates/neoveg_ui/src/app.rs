@@ -80,7 +80,7 @@ use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
 use crate::timeline_scroll;
-use crate::video_fx_panel::{self, VfxAction, VfxPanelState, VfxScopes};
+use crate::video_fx_panel::{self, VfxAction, VfxDraft, VfxPanelState, VfxScope, VfxScopes};
 use crate::waveform_paint::paint_waveform;
 
 const HEADER_WIDTH: f32 = 150.0;
@@ -398,6 +398,8 @@ struct AppState {
     fx: FxPanelState,
     /// Video effects panel (event or track scope and the slider being dragged).
     vfx: VfxPanelState,
+    /// The video effect slider being dragged, for the live preview.
+    vfx_draft: Option<VfxDraft>,
     /// Per-track mixer strip (fader or pan being dragged).
     mixer: MixerPanelState,
     master_volume: f32,
@@ -438,7 +440,7 @@ struct AppState {
     last_frame_key: Option<(u64, i64, u32)>,
     /// The composite shown in the preview when several video clips overlap: frame, decoded
     /// width and project revision. `Some` means the preview is in composite mode.
-    last_composite_key: Option<(i64, u32, u64)>,
+    last_composite_key: Option<(i64, u32, u64, u64)>,
     /// The color table loaded for `Timeline::video_lut` (`None` inside when the file is unusable).
     lut_cache: Option<(String, Option<Arc<Lut>>)>,
     last_lut_path: Option<String>,
@@ -1254,6 +1256,7 @@ impl AppState {
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
             vfx: VfxPanelState::default(),
+            vfx_draft: None,
             mixer: MixerPanelState::default(),
             master_volume: 1.0,
             active_player: None,
@@ -3528,7 +3531,10 @@ impl AppState {
         let flat = self.flattened();
         let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
         // Overlapping video clips (several tracks, or a crossfade) are composited
-        if composite::visible_clips(timeline, self.playhead) > 1 {
+        // (also when an effect is on: only that path runs the video effects)
+        if composite::visible_clips(timeline, self.playhead) > 1
+            || composite::has_effects(timeline, self.playhead)
+        {
             self.request_composite_frame(max_width, flat.as_deref());
             return;
         }
@@ -3617,7 +3623,12 @@ impl AppState {
         let settings = &self.project.settings;
         let fps = settings.fps;
         let frame = (self.playhead * fps).round() as i64;
-        let key = (frame, max_width, self.history.revision());
+        let key = (
+            frame,
+            max_width,
+            self.history.revision(),
+            VfxDraft::stamp(self.vfx_draft.as_ref()),
+        );
         if self.last_composite_key == Some(key) {
             return;
         }
@@ -3632,6 +3643,7 @@ impl AppState {
             lut,
             grade,
             chroma_key: chroma,
+            fx_draft: self.vfx_draft.clone(),
         };
         let sources = self.render_sources(flat);
         let timeline = flat.map_or(&self.timeline, |f| &f.timeline);
@@ -3989,9 +4001,9 @@ impl AppState {
     }
 
     /// The video chain the effects panel edits, with what can be chosen: the primary selected
-    /// event of a video track, or the video track itself (the selected track, or the track of the
-    /// selected event).
-    fn vfx_target(&self) -> Option<(VideoFxTarget, String, VfxScopes)> {
+    /// event of a video track, the media it plays, the video track (the selected one, or the track
+    /// of the selected event) or the whole project.
+    fn vfx_target(&self) -> (VideoFxTarget, String, VfxScopes) {
         let video_track = |id: TrackId| {
             self.timeline
                 .track(id)
@@ -4000,23 +4012,50 @@ impl AppState {
         let event = self.selection.primary().and_then(|(track_id, event_id)| {
             let track = video_track(track_id)?;
             let event = track.events.iter().find(|e| e.id == event_id)?;
-            Some((track_id, event_id, event.name.clone()))
+            Some((track_id, event_id, event.name.clone(), event.media_id))
         });
         let track = event
             .as_ref()
-            .map(|(t, _, _)| *t)
+            .map(|(t, ..)| *t)
             .or(self.selected_track)
             .and_then(video_track);
+        let media = event.as_ref().and_then(|(.., m)| *m);
         let scopes = VfxScopes {
             event: event.is_some(),
+            media: media.is_some(),
             track: track.is_some(),
         };
-        if self.vfx.track_scope || event.is_none() {
-            let track = track?;
-            Some((VideoFxTarget::Track(track.id), track.name.clone(), scopes))
-        } else {
-            let (track_id, event_id, name) = event?;
-            Some((VideoFxTarget::Event { track_id, event_id }, name, scopes))
+        match scopes.resolve(self.vfx.scope) {
+            VfxScope::Event => match event {
+                Some((track_id, event_id, name, _)) => {
+                    (VideoFxTarget::Event { track_id, event_id }, name, scopes)
+                }
+                None => (VideoFxTarget::Project, "Projeto".into(), scopes),
+            },
+            VfxScope::Media => {
+                let id = media.unwrap_or_default();
+                let name = self
+                    .project
+                    .media_pool
+                    .iter()
+                    .find(|m| m.id == id)
+                    .map(|m| {
+                        std::path::Path::new(&m.path)
+                            .file_name()
+                            .map_or_else(|| m.path.clone(), |n| n.to_string_lossy().into_owned())
+                    })
+                    .unwrap_or_else(|| "mídia".into());
+                (
+                    VideoFxTarget::Media(id),
+                    format!("{name} (todos os eventos desta mídia)"),
+                    scopes,
+                )
+            }
+            VfxScope::Track => match track {
+                Some(t) => (VideoFxTarget::Track(t.id), t.name.clone(), scopes),
+                None => (VideoFxTarget::Project, "Projeto".into(), scopes),
+            },
+            VfxScope::Project => (VideoFxTarget::Project, "Projeto inteiro".into(), scopes),
         }
     }
 
@@ -7027,14 +7066,21 @@ fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
-    let Some((target, title, scopes)) = state.vfx_target() else {
-        ui.weak("Selecione um evento ou uma faixa de vídeo para ver os efeitos.");
-        return;
-    };
+    let (target, title, scopes) = state.vfx_target();
     let chain = vfxe::chain(&state.timeline, target)
         .map(<[_]>::to_vec)
         .unwrap_or_default();
     let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes);
+    // A slider being dragged shows in the preview at once; the project changes on release
+    state.vfx_draft = state
+        .vfx
+        .draft_view()
+        .map(|(index, param, value)| VfxDraft {
+            target,
+            index,
+            param: param.to_owned(),
+            value,
+        });
     state.apply_vfx_actions(target, actions);
 }
 

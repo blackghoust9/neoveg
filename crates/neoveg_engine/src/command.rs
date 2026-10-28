@@ -29,6 +29,10 @@ pub enum VideoFxTarget {
     },
     /// The composited layer of a video track.
     Track(TrackId),
+    /// Every event that plays this media pool entry.
+    Media(u64),
+    /// The whole composited picture.
+    Project,
 }
 
 /// The whole event list of one track before and after an edit.
@@ -443,6 +447,18 @@ fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope
 
 fn set_video_effects(tl: &mut Timeline, target: VideoFxTarget, chain: &[TrackEffect]) -> bool {
     match target {
+        VideoFxTarget::Project => {
+            tl.video_effects = chain.to_vec();
+            true
+        }
+        VideoFxTarget::Media(id) => {
+            if chain.is_empty() {
+                tl.media_video_effects.remove(&id);
+            } else {
+                tl.media_video_effects.insert(id, chain.to_vec());
+            }
+            true
+        }
         VideoFxTarget::Track(id) => match tl.track_mut(id) {
             Some(t) => {
                 t.video_effects = chain.to_vec();

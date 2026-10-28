@@ -432,6 +432,14 @@ pub struct Timeline {
     /// Chroma key (green/blue screen) settings of the video (older projects have none).
     #[serde(default, skip_serializing_if = "ChromaKey::is_disabled")]
     pub chroma_key: ChromaKey,
+    /// Video effect chain of the whole project, applied to the composited picture before the
+    /// color correction and the LUT (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub video_effects: Vec<TrackEffect>,
+    /// Video effect chain of a media pool entry, by media id: applied to every event that plays
+    /// the media, before the event's own chain (older projects have none).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media_video_effects: BTreeMap<u64, Vec<TrackEffect>>,
     next_id: u64,
 }
 

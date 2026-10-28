@@ -133,6 +133,7 @@ fn run(
         lut: plan.lut.clone(),
         grade: plan.grade,
         chroma_key: plan.chroma_key,
+        fx_draft: None,
     };
     let resolve = |id: u64| plan.sources.get(&id).cloned();
     let mut renderer = OfflineFrameRenderer::new();

@@ -12,9 +12,16 @@ use crate::timeline::{Timeline, TrackEffect, TrackKind};
 pub const MAX_VIDEO_EFFECTS: usize = 32;
 
 /// The chain at `target`, or `None` when the track or the event does not exist (or the track is
-/// not a video track).
+/// not a video track). A media or the project always has a chain, possibly empty.
 pub fn chain(timeline: &Timeline, target: VideoFxTarget) -> Option<&[TrackEffect]> {
     match target {
+        VideoFxTarget::Project => Some(timeline.video_effects.as_slice()),
+        VideoFxTarget::Media(id) => Some(
+            timeline
+                .media_video_effects
+                .get(&id)
+                .map_or(&[][..], Vec::as_slice),
+        ),
         VideoFxTarget::Track(id) => {
             let track = timeline.track(id)?;
             (track.kind == TrackKind::Video).then_some(track.video_effects.as_slice())
@@ -321,5 +328,45 @@ mod tests {
         let events = &tl.track(track_id).unwrap().events;
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].video_effects.len(), 1);
+    }
+
+    #[test]
+    fn media_and_project_chains_are_edited_undone_and_saved() {
+        let (mut tl, mut h, _track_id, _event_id) = setup();
+        let media = VideoFxTarget::Media(7);
+        let project = VideoFxTarget::Project;
+        assert!(chain(&tl, media).unwrap().is_empty());
+        exec!(tl, h, add_effect(&tl, media, "gaussian_blur"));
+        exec!(tl, h, set_param(&tl, media, 0, "h_range", 0.03));
+        exec!(tl, h, add_effect(&tl, project, "vignette"));
+        assert_eq!(kinds(&tl, media), ["gaussian_blur"]);
+        assert_eq!(kinds(&tl, project), ["vignette"]);
+        assert!(
+            chain(&tl, VideoFxTarget::Media(8)).unwrap().is_empty(),
+            "another media is untouched"
+        );
+
+        let json = serde_json::to_string(&tl).unwrap();
+        let back: Timeline = serde_json::from_str(&json).unwrap();
+        assert_eq!(chain(&back, media).unwrap(), chain(&tl, media).unwrap());
+        assert_eq!(chain(&back, project).unwrap(), chain(&tl, project).unwrap());
+
+        assert!(h.undo(&mut tl) && h.undo(&mut tl) && h.undo(&mut tl));
+        assert!(chain(&tl, media).unwrap().is_empty());
+        assert!(
+            tl.media_video_effects.is_empty(),
+            "an emptied chain leaves no entry in the file"
+        );
+        assert!(chain(&tl, project).unwrap().is_empty());
+        assert!(h.redo(&mut tl));
+        assert_eq!(kinds(&tl, media), ["gaussian_blur"]);
+    }
+
+    #[test]
+    fn projects_saved_before_media_and_project_chains_still_load() {
+        let tl: Timeline = serde_json::from_str(r#"{"tracks":[],"next_id":3}"#).unwrap();
+        assert!(tl.video_effects.is_empty() && tl.media_video_effects.is_empty());
+        let json = serde_json::to_string(&tl).unwrap();
+        assert!(!json.contains("video_effects") && !json.contains("media_video_effects"));
     }
 }

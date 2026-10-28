@@ -9,7 +9,7 @@
 //! opacity (fading both would dip through black).
 
 use super::*;
-use crate::video_fx_panel;
+use crate::video_fx_panel::{effects_for, VfxDraft};
 use neoveg_common::composite::CompositeMode;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
 
@@ -33,6 +33,8 @@ pub(super) struct FrameSettings {
     pub lut: Option<Arc<Lut>>,
     pub grade: Grade,
     pub chroma_key: ChromaKey,
+    /// A video effect slider that is being dragged: the preview shows its value live.
+    pub fx_draft: Option<VfxDraft>,
 }
 
 fn ramp(curve: FadeCurve, length: f64, position: f64) -> f64 {
@@ -124,7 +126,27 @@ pub(super) fn composite_request(
                     playback_rate: edit::clamp_playback_rate(e.playback_rate),
                     event_opacity: event_opacity(e, time, cross_in),
                     apply_chroma: true,
-                    effects: video_fx_panel::to_worker_chain(&e.video_effects),
+                    effects: {
+                        // The media's chain runs first, then the event's own
+                        let stored = timeline
+                            .media_video_effects
+                            .get(&media_id)
+                            .map_or(&[][..], Vec::as_slice);
+                        let mut chain = effects_for(
+                            stored,
+                            VideoFxTarget::Media(media_id),
+                            settings.fx_draft.as_ref(),
+                        );
+                        chain.extend(effects_for(
+                            &e.video_effects,
+                            VideoFxTarget::Event {
+                                track_id: track.id,
+                                event_id: e.id,
+                            },
+                            settings.fx_draft.as_ref(),
+                        ));
+                        chain
+                    },
                 })
             })
             .collect();
@@ -133,7 +155,11 @@ pub(super) fn composite_request(
                 clips,
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
-                effects: video_fx_panel::to_worker_chain(&track.video_effects),
+                effects: effects_for(
+                    &track.video_effects,
+                    VideoFxTarget::Track(track.id),
+                    settings.fx_draft.as_ref(),
+                ),
             });
         }
     }
@@ -152,7 +178,40 @@ pub(super) fn composite_request(
         lut: settings.lut.clone(),
         grade: settings.grade,
         chroma_key: settings.chroma_key,
+        project_effects: effects_for(
+            &timeline.video_effects,
+            VideoFxTarget::Project,
+            settings.fx_draft.as_ref(),
+        ),
     })
+}
+
+/// `true` when a clip visible at `time` has a video effect that is on (media, event, track) or
+/// the project has one: the preview then goes through the composite path, the one that runs them.
+pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
+    let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
+    let mut visible = false;
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
+    {
+        for e in track
+            .events
+            .iter()
+            .filter(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
+        {
+            visible = true;
+            let media_on = e
+                .media_id
+                .and_then(|m| timeline.media_video_effects.get(&m))
+                .is_some_and(|chain| on(chain));
+            if on(&e.video_effects) || on(&track.video_effects) || media_on {
+                return true;
+            }
+        }
+    }
+    visible && on(&timeline.video_effects)
 }
 
 #[cfg(test)]
@@ -169,6 +228,7 @@ mod tests {
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
+            fx_draft: None,
         }
     }
 
@@ -339,5 +399,66 @@ mod tests {
             effects.iter().map(|f| f.kind.as_str()).collect::<Vec<_>>(),
             ["vignette"]
         );
+    }
+
+    #[test]
+    fn media_chains_run_before_event_chains_and_the_project_chain_rides_the_request() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 0.0, 4.0);
+        e.video_effects = vec![TrackEffect::new("vignette")];
+        let eid = e.id;
+        let tid = track.id;
+        track.events.push(e);
+        tl.tracks.push(track);
+        tl.media_video_effects
+            .insert(1, vec![TrackEffect::new("gaussian_blur")]);
+        tl.video_effects = vec![TrackEffect::new("sharpen")];
+
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("a track node");
+        };
+        let kinds: Vec<&str> = clips[0].effects.iter().map(|f| f.kind.as_str()).collect();
+        assert_eq!(kinds, ["gaussian_blur", "vignette"]);
+        assert_eq!(request.project_effects[0].kind, "sharpen");
+        assert!(has_effects(&tl, 1.0));
+        assert!(!has_effects(&tl, 9.0), "nothing is visible then");
+
+        // A dragged slider shows its value in the request and nowhere else
+        let mut live = settings();
+        live.fx_draft = Some(VfxDraft {
+            target: VideoFxTarget::Event {
+                track_id: tid,
+                event_id: eid,
+            },
+            index: 0,
+            param: "outer_radius".into(),
+            value: 0.7,
+        });
+        let request = composite_request(&tl, 1.0, &live, &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("a track node");
+        };
+        assert_eq!(clips[0].effects[1].params["outer_radius"], 0.7);
+        assert!(clips[0].effects[0].params.is_empty());
+        assert!(tl.track(tid).unwrap().events[0].video_effects[0]
+            .params
+            .is_empty());
+    }
+
+    #[test]
+    fn a_bypassed_chain_does_not_send_the_preview_through_the_effects_path() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 0.0, 4.0);
+        let mut off = TrackEffect::new("vignette");
+        off.bypass = true;
+        e.video_effects = vec![off];
+        track.events.push(e);
+        tl.tracks.push(track);
+        assert!(!has_effects(&tl, 1.0));
     }
 }
