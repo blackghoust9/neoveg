@@ -1,10 +1,12 @@
 //! Video & audio export (*Make Movie*): streams composited RGBA8 frames into `ffmpeg` along with
 //! an offline master WAV mixdown, reporting live frame progress and supporting cancellation.
 
+use std::collections::HashSet;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -55,14 +57,121 @@ impl RenderFormat {
     }
 }
 
+/// Video encoders to try for `format`, best first. Software builds ship `libx264` / `libx265`; an
+/// LGPL build (the one `winget` installs) has `libopenh264` and the Media Foundation encoders instead.
+/// Hardware encoders (NVENC, AMF, QuickSync) are left out: `ffmpeg` lists them even on a machine
+/// without the card, and they then fail when the render starts.
+pub fn encoder_candidates(format: RenderFormat) -> &'static [&'static str] {
+    match format {
+        RenderFormat::Mp4H264 => &["libx264", "libopenh264", "h264_mf"],
+        RenderFormat::Mp4Hevc => &["libx265", "hevc_mf"],
+        RenderFormat::MovProRes => &["prores_ks", "prores_aw"],
+        RenderFormat::WebmVp9 => &["libvpx-vp9"],
+        RenderFormat::WavPcm16 => &[],
+    }
+}
+
+/// The first of [`encoder_candidates`] that is in `available`.
+pub fn pick_encoder(format: RenderFormat, available: &HashSet<String>) -> Option<&'static str> {
+    encoder_candidates(format)
+        .iter()
+        .copied()
+        .find(|name| available.contains(*name))
+}
+
+/// Encoder names in the output of `ffmpeg -encoders` (video, audio and subtitle rows alike).
+pub fn parse_encoder_list(listing: &str) -> HashSet<String> {
+    listing
+        .lines()
+        .filter_map(|line| {
+            let mut columns = line.split_whitespace();
+            let flags = columns.next()?;
+            // rows look like ` V....D libx264 ...`; the header and legend rows do not match
+            let is_row = flags.len() == 6
+                && flags.starts_with(['V', 'A', 'S'])
+                && flags[1..]
+                    .chars()
+                    .all(|c| c == '.' || c.is_ascii_uppercase());
+            if is_row {
+                // the legend (` V..... = Video`) has the same shape as a row
+                columns
+                    .next()
+                    .filter(|name| *name != "=")
+                    .map(str::to_string)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+static ENCODERS: OnceLock<Option<HashSet<String>>> = OnceLock::new();
+
+/// The encoders of the `ffmpeg` on the `PATH`, asked once (this starts `ffmpeg`, so not on the UI
+/// thread: see [`probe_encoders_in_background`]); `None` when it cannot be started.
+pub fn available_encoders() -> Option<&'static HashSet<String>> {
+    ENCODERS
+        .get_or_init(|| {
+            let output = Command::new("ffmpeg")
+                .args(["-hide_banner", "-encoders"])
+                .stdin(Stdio::null())
+                .output()
+                .ok()?;
+            output
+                .status
+                .success()
+                .then(|| parse_encoder_list(&String::from_utf8_lossy(&output.stdout)))
+        })
+        .as_ref()
+}
+
+/// Asks `ffmpeg` for its encoders on a worker thread, so [`cached_encoder_for`] has an answer later.
+pub fn probe_encoders_in_background() {
+    if ENCODERS.get().is_none() {
+        std::thread::spawn(|| {
+            available_encoders();
+        });
+    }
+}
+
+/// The encoder for `format` if the probe has finished: `None` while it is running, `Some(Err)`
+/// when `ffmpeg` is missing or lacks every candidate. Never blocks.
+pub fn cached_encoder_for(format: RenderFormat) -> Option<Result<&'static str, String>> {
+    ENCODERS.get().map(|_| encoder_for(format))
+}
+
+/// The encoder this machine's `ffmpeg` will use for `format`, or why there is none.
+pub fn encoder_for(format: RenderFormat) -> Result<&'static str, String> {
+    let available = available_encoders().ok_or_else(|| {
+        "não foi possível iniciar o `ffmpeg` (verifique se está instalado no PATH)".to_string()
+    })?;
+    pick_encoder(format, available).ok_or_else(|| {
+        format!(
+            "o `ffmpeg` instalado não tem codificador para {} (procurados: {})",
+            format.label(),
+            encoder_candidates(format).join(", ")
+        )
+    })
+}
+
+/// A target bitrate for encoders without a constant-quality mode, from the CRF slider: about
+/// 0.1 bit per pixel per frame at CRF 23, doubling for every 6 CRF steps lower (the x264 scale).
+fn target_bitrate(width: u32, height: u32, fps: f64, crf: u8) -> String {
+    let base = f64::from(width) * f64::from(height) * fps * 0.1;
+    let scale = 2f64.powf((23.0 - f64::from(crf.clamp(0, 51))) / 6.0);
+    format!("{}", (base * scale).clamp(200_000.0, 400_000_000.0) as u64)
+}
+
 /// Builds the exact `ffmpeg` CLI argument vector for streaming `width x height` RGBA8 raw video
 /// from `stdin` (`pipe:0`) plus an optional pre-rendered stereo `audio_wav` file into `output`.
+#[allow(clippy::too_many_arguments)] // one flat description of the encode, as `ffmpeg` takes it
 pub fn build_ffmpeg_encode_args(
     format: RenderFormat,
     width: u32,
     height: u32,
     fps: f64,
     crf: u8,
+    encoder: &str,
     audio_wav: Option<&Path>,
     output: &Path,
 ) -> Vec<String> {
@@ -96,37 +205,24 @@ pub fn build_ffmpeg_encode_args(
     }
 
     let q = crf.clamp(0, 51).to_string();
+    let bitrate = target_bitrate(w, h, rate, crf);
     match format {
-        RenderFormat::Mp4H264 => {
-            args.extend([
-                "-c:v".into(),
-                "libx264".into(),
-                "-preset".into(),
-                "medium".into(),
-                "-crf".into(),
-                q,
-                "-pix_fmt".into(),
-                "yuv420p".into(),
-                "-movflags".into(),
-                "+faststart".into(),
-            ]);
-            if audio_wav.is_some() {
-                args.extend(["-c:a".into(), "aac".into(), "-b:a".into(), "192k".into()]);
+        RenderFormat::Mp4H264 | RenderFormat::Mp4Hevc => {
+            args.extend(["-c:v".into(), encoder.into()]);
+            match encoder {
+                // x264 / x265 take a constant rate factor
+                "libx264" | "libx265" => {
+                    args.extend(["-preset".into(), "medium".into(), "-crf".into(), q])
+                }
+                // OpenH264 and the Media Foundation encoders only take a target bitrate
+                _ => args.extend(["-b:v".into(), bitrate]),
             }
-        }
-        RenderFormat::Mp4Hevc => {
-            args.extend([
-                "-c:v".into(),
-                "libx265".into(),
-                "-preset".into(),
-                "medium".into(),
-                "-crf".into(),
-                q,
-                "-pix_fmt".into(),
-                "yuv420p".into(),
-                "-tag:v".into(),
-                "hvc1".into(),
-            ]);
+            args.extend(["-pix_fmt".into(), "yuv420p".into()]);
+            if format == RenderFormat::Mp4Hevc {
+                args.extend(["-tag:v".into(), "hvc1".into()]);
+            } else {
+                args.extend(["-movflags".into(), "+faststart".into()]);
+            }
             if audio_wav.is_some() {
                 args.extend(["-c:a".into(), "aac".into(), "-b:a".into(), "192k".into()]);
             }
@@ -134,7 +230,7 @@ pub fn build_ffmpeg_encode_args(
         RenderFormat::MovProRes => {
             args.extend([
                 "-c:v".into(),
-                "prores_ks".into(),
+                encoder.into(),
                 "-profile:v".into(),
                 "3".into(),
                 "-pix_fmt".into(),
@@ -147,7 +243,7 @@ pub fn build_ffmpeg_encode_args(
         RenderFormat::WebmVp9 => {
             args.extend([
                 "-c:v".into(),
-                "libvpx-vp9".into(),
+                encoder.into(),
                 "-crf".into(),
                 q,
                 "-b:v".into(),
@@ -201,12 +297,18 @@ pub fn encode_video_with_ffmpeg(
     }
     let w = spec.width.max(2) & !1;
     let h = spec.height.max(2) & !1;
+    let encoder = if spec.format.has_video() {
+        encoder_for(spec.format)?
+    } else {
+        ""
+    };
     let args = build_ffmpeg_encode_args(
         spec.format,
         w,
         h,
         spec.fps,
         spec.crf,
+        encoder,
         spec.audio_wav,
         spec.output,
     );
@@ -288,6 +390,7 @@ mod tests {
             1081,
             29.97,
             20,
+            "libx264",
             Some(Path::new("mix.wav")),
             Path::new("out.mp4"),
         );
@@ -302,10 +405,79 @@ mod tests {
             720,
             24.0,
             18,
+            "prores_ks",
             None,
             Path::new("master.mov"),
         );
         assert!(prores.contains(&"prores_ks".to_string()));
         assert!(!prores.contains(&"-shortest".to_string()));
+    }
+
+    #[test]
+    fn the_encoder_follows_what_ffmpeg_has() {
+        let gpl: HashSet<String> = ["libx264", "libx265", "prores_ks", "libvpx-vp9"]
+            .map(String::from)
+            .into();
+        let lgpl: HashSet<String> = ["libopenh264", "h264_mf", "hevc_mf", "h264_nvenc"]
+            .map(String::from)
+            .into();
+        assert_eq!(pick_encoder(RenderFormat::Mp4H264, &gpl), Some("libx264"));
+        assert_eq!(
+            pick_encoder(RenderFormat::Mp4H264, &lgpl),
+            Some("libopenh264")
+        );
+        assert_eq!(pick_encoder(RenderFormat::Mp4Hevc, &lgpl), Some("hevc_mf"));
+        // no ProRes or VP9 in the LGPL build: nothing is picked and the render says so
+        assert_eq!(pick_encoder(RenderFormat::MovProRes, &lgpl), None);
+        assert_eq!(pick_encoder(RenderFormat::WebmVp9, &lgpl), None);
+        // a hardware encoder alone is never chosen
+        let only_hw: HashSet<String> = ["h264_nvenc".to_string()].into();
+        assert_eq!(pick_encoder(RenderFormat::Mp4H264, &only_hw), None);
+    }
+
+    #[test]
+    fn the_encoder_list_is_read_from_the_ffmpeg_listing() {
+        let listing = "Encoders:
+ V..... = Video
+ ------
+ V....D libx264              libx264 H.264
+ A....D aac                  AAC
+ V..... h264_mf             H264 via MediaFoundation
+";
+        let names = parse_encoder_list(listing);
+        assert!(names.contains("libx264") && names.contains("aac") && names.contains("h264_mf"));
+        assert!(!names.contains("=") && !names.contains("Encoders:") && !names.contains("------"));
+    }
+
+    #[test]
+    fn bitrate_encoders_get_a_bitrate_and_x264_a_crf() {
+        let args = |encoder: &str| {
+            build_ffmpeg_encode_args(
+                RenderFormat::Mp4H264,
+                1920,
+                1080,
+                30.0,
+                23,
+                encoder,
+                None,
+                Path::new("o.mp4"),
+            )
+        };
+        let x264 = args("libx264");
+        assert!(x264.contains(&"-crf".to_string()) && !x264.contains(&"-b:v".to_string()));
+        for encoder in ["libopenh264", "h264_mf"] {
+            let a = args(encoder);
+            assert!(a.contains(&encoder.to_string()));
+            assert!(!a.contains(&"-crf".to_string()), "{encoder} has no -crf");
+            let i = a.iter().position(|x| x == "-b:v").expect("bitrate");
+            // CRF 23 at 1080p30 is about 6 Mbit/s
+            let bits: u64 = a[i + 1].parse().unwrap();
+            assert!((5_000_000..8_000_000).contains(&bits), "{bits}");
+        }
+        // a lower CRF asks for more
+        assert!(
+            target_bitrate(1920, 1080, 30.0, 17).parse::<u64>().unwrap()
+                > target_bitrate(1920, 1080, 30.0, 23).parse::<u64>().unwrap()
+        );
     }
 }

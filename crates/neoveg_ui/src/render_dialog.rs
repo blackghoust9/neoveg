@@ -121,6 +121,20 @@ impl RenderDialogState {
                     });
 
                     if self.format.has_video() {
+                        neoveg_video::render::probe_encoders_in_background();
+                        match neoveg_video::render::cached_encoder_for(self.format) {
+                            None => {
+                                ui.weak("Procurando codificadores do ffmpeg…");
+                                ui.ctx()
+                                    .request_repaint_after(std::time::Duration::from_millis(100));
+                            }
+                            Some(Ok(encoder)) => {
+                                ui.weak(format!("Codificador: {encoder}"));
+                            }
+                            Some(Err(why)) => {
+                                ui.colored_label(ui.visuals().warn_fg_color, why);
+                            }
+                        }
                         ui.checkbox(
                             &mut self.custom_resolution,
                             "Personalizar resolução de saída",
