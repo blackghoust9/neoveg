@@ -31,6 +31,9 @@ A direção das dependências é `neoveg_common` → (`neoveg_audio`, `neoveg_vi
 - [[catalogo_efeitos_video]] · [[catalogo_transicoes_e_geradores]] · [[catalogo_efeitos_audio]] · [[estrutura_de_menus]]
 - [[janelas_e_paineis]] · [[formatos_e_tecnologia]] · [[diferencas_entre_versoes]]
 
+## ui_references
+- [[fontes_de_referencia_de_ui]] — manuais, varredura e imagens extraídas cruzados por painel: [[medidas_da_interface]], [[painel_timeline_trilhas_eventos]], [[painel_preview_e_scopes]], [[painel_trimmer_midia_explorer]], [[painel_audio_master_e_mixer]], [[painel_efeitos_transicoes_geradores]], [[mapa_de_icones_por_funcao]], [[validacao_de_atalhos]].
+
 ## Fontes de verdade fora do vault
 - `AGENTS.md` — padrões e regras (a seção 26 descreve este vault).
 - `docs/research/nle_features_research.txt` — base de pesquisa completa.

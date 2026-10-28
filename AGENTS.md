@@ -345,6 +345,7 @@ Several projects can be open at once, one tab each, and a project can play anoth
 
 The vault `docs_obsidian/` holds the visual window planning, the module documentation and the user manual. It is part of the repository; the maintainer's working copy is mirrored to `D:\ambiente_neoveg\docs_obsidian` (see section 12 for the environment drive).
 
+- **Referências de interface (`ui_references/`):** notas por painel que cruzam os manuais, a varredura `VegasScan/` e as imagens extraídas de `results_assets/` (só descrições e medidas; protocolo na seção 37).
 - **Referência funcional (`05 - Referencia Funcional/`):** o vault é o segundo cérebro do projeto. Ali ficam notas por tema (efeitos, transições, geradores, menus) escritas em palavras próprias a partir da varredura local `VegasScan/` (ignorada pelo Git, nunca versionada). Decisão do mantenedor de 2026-10-28; sem textos de menu, strings, capturas, ícones nem nomes de marca, e o comportamento continua vindo dos manuais (§33).
 - **Layout:** `00 - Mapa Geral/` (hub `Index.md`), `01 - Arquitetura Rust/` (one note per crate, named after it), `02 - UI e Planejamento de Janelas/` (`layout_janelas.canvas`, `especificacao_janelas.md`, `inventario_icones.md`), `03 - Manual do Usuario/` (`guia_de_inicio.md`, `atalhos_teclado.md`, `subprojetos_e_abas.md`), `04 - Pesquisas e Benchmarks/` (`regras_de_timeline.md`, `desempenho_resolucoes.md`).
 - **Links:** notes connect with `[[wikilinks]]`; every note links back to `[[Index]]`. A new crate or window needs its note and a link from the hub in the same change.
@@ -459,6 +460,23 @@ The numbered steps of a full maintenance pass, in order. Each one states what it
 5. **Dependencies.** Every crate keeps `version.workspace = true` and `edition.workspace = true` (Rust 2021). A dependency is removed only when no source file of that crate names it; confirm with a build of the crate. Versions pulled in by other crates (for example `pollster 0.3` through `eframe`) are reported, not forced. Outdated crates are listed with `cargo update --dry-run`; patch updates are applied only together with the quality gates, and `Cargo.lock` is committed with any manifest change.
 6. **Git.** `git status`, then `git gc --prune=now --aggressive`. Commit only files the pass changed; leave per-machine state such as `.obsidian/workspace.json` and untracked local folders out.
 7. **Gates and commit.** Run the commands of section 3 (`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`) and then commit on `refactor/100-percent-rust` with a `chore(repo): ...` subject in Portuguese without accents.
+
+---
+
+## 37. Extended Reference & Asset Scanning Protocol
+
+The visual and structural study of the interface uses three local reference folders together. All three are git-ignored and never committed (section 28.1); the conclusions live in `docs_obsidian/ui_references/` (section 26).
+
+- **Where they are.** `manuais/`, `VegasScan/` and `results_assets/` in the repository root, with `G:\Meu Drive\vp-rev-eng\teste\teste2\` as the fallback. A missing folder is reported and skipped, never recreated.
+- **What each source is for.**
+  - `manuais/` (the official PDFs): behaviour. Shortcuts, tools, toggle and hover states, workflows. It is the source of truth for what a feature does (section 33).
+  - `VegasScan/` (static scan of the installed files): structure. Menu and panel hierarchy, control names, the size in dialog units of the few titled dialogs, the size of the bitmap strips. It carries **no** panel positions, spacing, colours or default shortcuts (its own README says so).
+  - `results_assets/` (extracted resource images, named by resource number): **measures only**. Cell sizes (16 px at 100 %, 20 / 32 / 64 at larger scales), strip sizes, counts. A resource number does not say which button uses it.
+- **What may be derived.** Descriptions in the project's own words, measures (pixels, dialog units, counts), the hierarchy of widgets, function names, shortcut facts with their manual page, and a map from each reference *function* to the Neoveg icon file that serves it (`mapa_de_icones_por_funcao`). Manual pages found by title search are labelled as candidates until someone opens the manual.
+- **What is never done.** No image, icon, bitmap, dialog or palette from `results_assets/`, the scan or the manuals is copied, converted, traced, recoloured or embedded into `crates/`, `assets/`, `docs/` or the vault, and the `.bmp` exception of section 28.1 covers only `crates/neoveg_ui/assets/icons_color/` (Flat Color Icons, MIT). Neoveg icons stay original (section 28.2). A request to bring those images in is declined; the nearest allowed result is the function map above.
+- **Layout metrics.** `neoveg_ui/src/theme.rs` holds colours only. An egui metric (button size, spacing, panel size) changes only when one of the sources gives a number for it, the change cites the note that holds the measure, and a screenshot (section 27) shows the result. Today the only usable number is the 16 px icon cell, and the 26 px button already draws a glyph of about 16.6 px, so nothing changed.
+- **Evidence.** Each statement in a note says whether it comes from a manual (with page), from the scan, or from a measure; inference is marked as such. Where the sources disagree, the manual wins for behaviour and the scan wins over memory for structure. A deliberate project decision goes to `docs/research/ui_audit.md` with its reason.
+- **Upkeep.** A change to a panel updates its note in the same commit; a new shortcut is checked against `validacao_de_atalhos` before it is bound (section 4.5).
 
 ---
 
