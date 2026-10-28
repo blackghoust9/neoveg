@@ -5,6 +5,7 @@
 //! both dark and light themes via `currentColor`.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use eframe::egui::{
@@ -803,10 +804,77 @@ pub fn install(ctx: &egui::Context) {
     egui_extras::install_image_loaders(ctx);
 }
 
+static COLOR_ICONS: AtomicBool = AtomicBool::new(false);
+
+/// Turns the colour (BMP) icons on or off for every icon drawn afterwards.
+pub fn set_color_icons(on: bool) {
+    COLOR_ICONS.store(on, Ordering::Relaxed);
+}
+
+macro_rules! color_table {
+    ($($name:literal),+ $(,)?) => {
+        /// Colour versions (32-bit BMP with alpha, Flat Color Icons, MIT) of icons that have a
+        /// clear equivalent; every other icon stays monochrome.
+        pub const COLOR_ICONS_TABLE: &[(&str, &[u8])] = &[
+            $(($name, include_bytes!(concat!("../assets/icons_color/", $name, ".bmp")))),+
+        ];
+    };
+}
+
+color_table!(
+    "add",
+    "add_audio_track",
+    "add_video_track",
+    "delete",
+    "export_render",
+    "goto_end",
+    "goto_start",
+    "help",
+    "import_media",
+    "lock_event",
+    "marker",
+    "master_bus",
+    "media_generators",
+    "new_project",
+    "open_project",
+    "preferences",
+    "project_media",
+    "project_properties",
+    "recent_projects",
+    "redo",
+    "remove",
+    "subproject",
+    "timeline_view",
+    "trimmer",
+    "undo",
+    "video_preview",
+    "welcome",
+);
+
+/// The BMP bytes of the colour version of `icon`, if it has one.
+pub fn color_bytes(icon: SvgIcon) -> Option<&'static [u8]> {
+    COLOR_ICONS_TABLE
+        .iter()
+        .find(|(name, _)| *name == icon.name())
+        .map(|(_, bytes)| *bytes)
+}
+
 /// Draws `icon` into `rect` tinted with `color`. `false` when it could not be rendered (the
 /// caller then falls back to another drawing); a pending load asks for a repaint and counts as drawn.
 pub fn paint_svg(ui: &egui::Ui, icon: SvgIcon, rect: Rect, color: Color32) -> bool {
-    let image = Image::from_bytes(icon.uri(), tintable_bytes(icon)).tint(color);
+    let colored = COLOR_ICONS
+        .load(Ordering::Relaxed)
+        .then(|| color_bytes(icon))
+        .flatten();
+    let image = match colored {
+        // Colour icons keep their own colours; only the alpha of the tint (disabled, hover) applies.
+        Some(bytes) => Image::from_bytes(
+            format!("bytes://neoveg/icons_color/{}.bmp", icon.name()),
+            bytes,
+        )
+        .tint(Color32::from_white_alpha(color.a())),
+        None => Image::from_bytes(icon.uri(), tintable_bytes(icon)).tint(color),
+    };
     match image.load_for_size(ui.ctx(), rect.size()) {
         Ok(egui::load::TexturePoll::Ready { .. }) => {
             image.paint_at(ui, rect);
@@ -855,6 +923,39 @@ mod tests {
             assert!(text.trim_end().ends_with("</svg>"), "{name}");
             assert_eq!(text.matches("<svg").count(), 1, "{name}");
             assert!(!icon.default_tooltip().is_empty(), "{name}: tooltip");
+        }
+    }
+
+    #[test]
+    fn every_colour_bmp_is_mapped_decodes_and_belongs_to_a_known_icon() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons_color");
+        let mut on_disk: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|x| x == "bmp"))
+            .map(|e| e.path().file_stem().unwrap().to_string_lossy().into_owned())
+            .collect();
+        on_disk.sort_unstable();
+        let mut mapped: Vec<String> = COLOR_ICONS_TABLE
+            .iter()
+            .map(|(n, _)| n.to_string())
+            .collect();
+        mapped.sort_unstable();
+        assert_eq!(
+            on_disk, mapped,
+            "every file is mapped and the other way round"
+        );
+        for (name, bytes) in COLOR_ICONS_TABLE {
+            assert!(
+                SvgIcon::ALL.iter().any(|i| i.name() == *name),
+                "{name}: no monochrome icon of that name"
+            );
+            let img = image::load_from_memory_with_format(bytes, image::ImageFormat::Bmp)
+                .unwrap_or_else(|e| panic!("{name}: {e}"))
+                .to_rgba8();
+            assert!(img.width() >= 32 && img.width() == img.height(), "{name}");
+            assert!(img.pixels().any(|p| p[3] > 0), "{name}: blank");
+            assert!(img.pixels().any(|p| p[3] == 0), "{name}: no transparency");
         }
     }
 

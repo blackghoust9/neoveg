@@ -373,6 +373,7 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 
 1. **Isolation & Purge of Proprietary Binary Assets:**
    - **Never commit** `.ico`, `.bmp`, `.dll`, `.exe`, `.veg`, PE/BAML resource dumps, or bitmap images extracted from commercial software (`results_assets/`, `icons 22/`, `G:/*`).
+   - **Exception:** `crates/neoveg_ui/assets/icons_color/*.bmp` are the optional colour icons (32-bit BMP with alpha) derived from the MIT-licensed Flat Color Icons (`third_party/flat-color-icons/`, `scripts/fetch_color_icons.py`); they are tracked, off for the High Contrast theme, and switched in Editar → Preferências.
    - `.gitignore` blocks `results_assets/`, `icons 22/`, `*.ico`, `*.bmp`, `*.dll`, `*.exe`, and `G:/*`.
    - If proprietary dumps ever entered historical Git commits, rewrite history on a coordinated maintenance window using `git-filter-repo` (preferred) or `bfg`:
      ```bash

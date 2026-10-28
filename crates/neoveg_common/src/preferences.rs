@@ -23,6 +23,9 @@ pub struct Preferences {
     pub still_image_seconds: f64,
     /// Show the welcome screen (recent projects, new project) when the program starts.
     pub show_welcome_on_startup: bool,
+    /// Draw the toolbar icons that have a colour version (BMP, Flat Color Icons) in colour.
+    /// The High Contrast theme always uses the monochrome icons.
+    pub color_icons: bool,
     /// Project files opened or saved lately, newest first.
     pub recent_projects: Vec<String>,
     /// How many recent projects to remember and list (`0` turns the list off).
@@ -61,6 +64,7 @@ impl Default for Preferences {
             auto_fade_on_import: false,
             still_image_seconds: 5.0,
             show_welcome_on_startup: true,
+            color_icons: true,
             recent_projects: Vec::new(),
             recent_projects_max: 10,
             new_project_settings: None,
@@ -171,6 +175,9 @@ mod tests {
             p.show_welcome_on_startup,
             "the welcome screen is on unless turned off"
         );
+        assert!(p.color_icons, "older files get the colour icons by default");
+        let off: Preferences = serde_json::from_str(r#"{"color_icons":false}"#).unwrap();
+        assert!(!off.color_icons);
         assert!(p.recent_projects.is_empty() && p.new_project_settings.is_none());
         // Files written before the keymap existed keep the default shortcuts
         assert!(p.keymap.is_empty());

@@ -20,6 +20,8 @@ Este diretório centraliza os cabeçalhos C/C++, submódulos, conectores de rend
 | **OpenTimelineIO** | [`AcademySoftwareFoundation/OpenTimelineIO`](https://github.com/AcademySoftwareFoundation/OpenTimelineIO) | `Apache-2.0` | `third_party/opentimelineio/` | Exportação/Importação `.otio` nativo e em `python-backend/` |
 | **FilmCraft (`filmcraft-audio-dsp`)** | [`storytold/filmcraft`](https://github.com/storytold/filmcraft) | `MIT OR Apache-2.0` (usado sob a `MIT`) | `third_party/filmcraft/` (origem e licença) e `crates/neoveg_audio/src/dsp/` (código adaptado) | `neoveg_audio` (medidor de loudness BS.1770-4 / EBU R128 e efeitos de áudio por faixa e no master e análise de auto-ducking, dentro do callback de áudio) e painéis **Loudness** e **Efeitos de Áudio** em `neoveg_ui` |
 
+| **Flat Color Icons** | [`icons8/flat-color-icons`](https://github.com/icons8/flat-color-icons) | `MIT` (ou Good Boy License; usado sob a `MIT`) | `third_party/flat-color-icons/` (licença) e `crates/neoveg_ui/assets/icons_color/` (BMP derivados) | Ícones coloridos opcionais da interface (`neoveg_ui::icons`, preferência **Ícones coloridos**) |
+
 ---
 
 ## 2. Detalhamento das Licenças e Conformidade

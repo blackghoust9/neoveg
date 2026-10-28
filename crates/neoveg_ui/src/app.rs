@@ -6199,6 +6199,7 @@ enum PrefsTab {
 
 /// Repaints the interface when the chosen theme (or the file it points to) changed.
 fn sync_theme(ctx: &egui::Context, state: &mut AppState) {
+    icons::set_color_icons(state.prefs.color_icons && state.prefs.theme != "high-contrast");
     let key = (state.prefs.theme.clone(), state.prefs.theme_file.clone());
     if state.theme_applied.as_ref() == Some(&key) {
         return;
@@ -6256,6 +6257,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                     ui.checkbox(
                         &mut prefs.quantize_audio_edits,
                         "Quantizar para quadros também as edições só de áudio",
+                    );
+                    ui.checkbox(
+                        &mut prefs.color_icons,
+                        "Ícones coloridos (BMP) onde existirem; o tema High Contrast usa sempre os monocromáticos",
                     );
                     ui.checkbox(
                         &mut prefs.show_welcome_on_startup,

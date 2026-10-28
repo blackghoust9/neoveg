@@ -27,7 +27,7 @@ egui_extras = { version = "0.29", default-features = false, features = ["svg", "
 rfd = "0.15"
 # Offscreen screenshots (`neoveg --screenshots`): block on wgpu futures and write PNG files
 pollster = "0.4"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
 
 [target.'cfg(windows)'.build-dependencies]
 # Embeds the Nv icon in the executable (see build.rs)

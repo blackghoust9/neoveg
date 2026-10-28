@@ -36,6 +36,13 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/storytold/filmcraft",
     },
     Credit {
+        name: "Flat Color Icons",
+        used_for: "Ícones coloridos opcionais da interface (27 imagens BMP derivadas)",
+        authors: "Icons8",
+        license: "MIT",
+        url: "https://github.com/icons8/flat-color-icons",
+    },
+    Credit {
         name: "Tela de carregamento e ícones do Neoveg",
         used_for: "Formas 3D, carretel de filme animado, animação do nome e ícones vetoriais: \
                    arte original desenhada em código",

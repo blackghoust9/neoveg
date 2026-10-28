@@ -131,6 +131,7 @@ results_assets/
 icons 22/
 *.ico
 *.bmp
+!crates/neoveg_ui/assets/icons_color/*.bmp
 *.dll
 *.exe
 G:/*

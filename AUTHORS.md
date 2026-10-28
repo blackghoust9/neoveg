@@ -87,6 +87,8 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 | **`Audacity Waveform & Audio DSP Architecture`** | [`audacity/audacity`](https://github.com/audacity/audacity) | Audacity Team & Audacity Contributors | `GPL-3.0-or-later` (`GPLv3`) | Estudo arquitetural do algoritmo de amostragem multi-zoom de picos de forma de onda (`min`, `max`, `rms` em `rust-core/src/audio_peaks.rs` e `AudioWaveformRenderer.cs`) e processamento DSP (`Neoveg.AudioEngine`) |
 | **`Kdenlive / Neoveg Presets & Color Scopes`** | [`KDE/kdenlive`](https://invent.kde.org/multimedia/kdenlive) | Jean-Baptiste Mardelle, Simon Andreas Eugster & KDE Community | `GPL-3.0-only` | Coeficientes CIE Rec.601/Rec.709 (`colorconstants.h`), LUTs `.cube`, perfis de proxy e miniaturas `.webp` de transições |
 
+| **`Flat Color Icons`** | [`icons8/flat-color-icons`](https://github.com/icons8/flat-color-icons) | Icons8 | `MIT` | 27 ícones coloridos opcionais (BMP) em `crates/neoveg_ui/assets/icons_color/`, via Iconify |
+
 ---
 
 ## 6. FFmpeg, Whisper.cpp e Modelos de Inteligência Artificial
