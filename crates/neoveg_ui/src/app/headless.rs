@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 7] = [
+pub const OUTPUTS: [&str; 8] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -31,6 +31,7 @@ pub const OUTPUTS: [&str; 7] = [
     "ui_welcome_screen.png",
     "ui_project_properties.png",
     "ui_edit_details.png",
+    "ui_video_effects.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -101,6 +102,16 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, DockState::new(vec![Tab::Timeline]));
         let image = gpu.capture(&ctx, [1400, 700], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[6]))?;
+
+        // 8. The video effects panel with a chain on the event, its media and the project, and
+        // the preview showing the chain
+        let ctx = new_context();
+        let mut state = demo_project_with_video_effects();
+        let chain = preview_chain(&state);
+        install_sample_frame_with(&ctx, &mut state, &chain);
+        let mut app = headless_app(state, effects_dock());
+        let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[7]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -370,12 +381,22 @@ fn decode_sample_frame(video: &Path, seconds: f64) -> Option<neoveg_video::frame
 /// cursor time (the whole frame, as the decoder returns it), uploaded as the preview texture, and its
 /// scopes. Without the sample file or `ffmpeg` the preview stays as it was and `false` is returned.
 fn install_sample_frame(ctx: &egui::Context, state: &mut AppState) -> bool {
+    install_sample_frame_with(ctx, state, &[])
+}
+
+/// Like [`install_sample_frame`], with the video effect chain run on the frame first.
+fn install_sample_frame_with(
+    ctx: &egui::Context,
+    state: &mut AppState,
+    chain: &[neoveg_video::vfx::VideoEffect],
+) -> bool {
     // The frame at the cursor: frame index (floor) over the project rate, like the timecode box
     let fps = state.project.settings.fps;
     let seconds = (state.playhead * fps).floor() / fps;
-    let Some(frame) = decode_sample_frame(Path::new(SAMPLE_VIDEO), seconds) else {
+    let Some(mut frame) = decode_sample_frame(Path::new(SAMPLE_VIDEO), seconds) else {
         return false;
     };
+    neoveg_video::vfx::apply_chain_cpu(&mut frame, chain);
     state.frame_scopes = Some(Scopes::from_frame(&frame));
     state.frame_scopes_version += 1;
     let image = egui::ColorImage::from_rgba_unmultiplied(
@@ -544,6 +565,71 @@ fn demo_project() -> AppState {
     s
 }
 
+/// The demonstration project with a video effect chain on the first event, on its media and on the
+/// project, and that event selected so the panel shows its chain.
+fn demo_project_with_video_effects() -> AppState {
+    use neoveg_engine::TrackEffect;
+    let mut s = demo_project();
+    let (track_id, event_id) = {
+        let track = s
+            .timeline
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("the demonstration has a video track");
+        let mut blur = TrackEffect::new("gaussian_blur");
+        blur.params.insert("h_range".into(), 0.012);
+        blur.params.insert("v_range".into(), 0.012);
+        let mut vignette = TrackEffect::new("vignette");
+        vignette.params.insert("inner_radius".into(), 0.35);
+        let mut off = TrackEffect::new("sharpen");
+        off.bypass = true;
+        let event = &mut track.events[0];
+        event.video_effects = vec![blur, vignette, off];
+        (track.id, event.id)
+    };
+    s.timeline
+        .media_video_effects
+        .insert(4, vec![TrackEffect::new("unsharp_mask")]);
+    s.timeline.video_effects = vec![TrackEffect::new("vignette")];
+    s.selected_track = Some(track_id);
+    s.selection.select_only((track_id, event_id));
+    s.playhead = 3.0;
+    s.status = "Efeitos de vídeo: cadeia no evento, na mídia e no projeto".into();
+    s
+}
+
+/// The chain the preview shows for the first video event: media, event, then project (the track
+/// has none), the same order as the worker.
+fn preview_chain(state: &AppState) -> Vec<neoveg_video::vfx::VideoEffect> {
+    use crate::video_fx_panel::to_worker_chain;
+    let track = state
+        .timeline
+        .tracks
+        .iter()
+        .find(|t| t.kind == TrackKind::Video)
+        .expect("a video track");
+    let event = &track.events[0];
+    let mut chain = event
+        .media_id
+        .and_then(|m| state.timeline.media_video_effects.get(&m))
+        .map(|c| to_worker_chain(c))
+        .unwrap_or_default();
+    chain.extend(to_worker_chain(&event.video_effects));
+    chain.extend(to_worker_chain(&track.video_effects));
+    chain.extend(to_worker_chain(&state.timeline.video_effects));
+    chain
+}
+
+/// The preview, the video effects panel and the timeline.
+fn effects_dock() -> DockState<Tab> {
+    let mut dock = DockState::new(vec![Tab::Preview]);
+    let surface = dock.main_surface_mut();
+    let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.58, vec![Tab::Timeline]);
+    surface.split_right(top, 0.60, vec![Tab::VideoFx]);
+    dock
+}
+
 /// Several projects open at once: the main one, a draft and a sub-project made from two events.
 fn demo_tabs(ctx: &egui::Context, scratch: &Path) -> AppState {
     let mut s = demo_project();
@@ -687,5 +773,28 @@ mod tests {
         assert_eq!(s.tab_ids().len(), 3);
         assert_eq!(s.project.name, "Documentário");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_video_effects_demo_has_a_chain_at_each_level_and_the_preview_runs_them() {
+        let s = demo_project_with_video_effects();
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .unwrap();
+        assert_eq!(track.events[0].video_effects.len(), 3);
+        assert_eq!(s.timeline.media_video_effects[&4].len(), 1);
+        assert_eq!(s.timeline.video_effects.len(), 1);
+        let (target, _, scopes) = s.vfx_target();
+        assert!(matches!(target, VideoFxTarget::Event { .. }));
+        assert!(scopes.event && scopes.media && scopes.track);
+        // media (1) + event without the bypassed sharpen (2) + project (1)
+        let kinds: Vec<String> = preview_chain(&s).into_iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            ["unsharp_mask", "gaussian_blur", "vignette", "vignette"]
+        );
     }
 }

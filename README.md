@@ -58,6 +58,12 @@ Ao iniciar, a tela de boas-vindas lista os **projetos recentes** (os arquivos qu
 
 As **notas do projeto** ficam presas a um tempo da linha do tempo (quadrado colorido na régua), com cor, etiqueta e texto, e podem ser resolvidas ou ocultadas. Os **detalhes de edição** listam todos os eventos como uma lista de cortes.
 
+### Efeitos de vídeo
+
+![Efeitos de vídeo](docs/screenshots/ui_video_effects.png)
+
+A aba **Efeitos de Vídeo** (`Ctrl+Alt+8`, ao lado de Efeitos de Áudio) edita a cadeia do **evento** selecionado, da **mídia** dele (vale para todos os eventos que a usam), da **faixa** ou do **projeto**. Na imagem, o evento *Abertura* tem desfoque gaussiano, vinheta e uma nitidez em bypass; a mídia tem uma máscara de nitidez e o projeto uma vinheta. A prévia mostra o resultado, e um controle arrastado aparece nela ao vivo antes de soltar.
+
 ### Propriedades do projeto
 
 ![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
