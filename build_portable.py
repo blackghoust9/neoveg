@@ -18,8 +18,14 @@ For every target it produces, under `dist/`:
   * `SHA256SUMS.txt` and `build_manifest.json`
 
 Targets (`--targets`): `host` (default), `all`, or a comma list of `win-x64`, `linux-x64`, `osx-x64`,
-`osx-arm64`. A target other than the host needs its Rust target installed (`rustup target add ...`)
-and a working linker, because Neoveg links native windowing and audio libraries.
+`osx-arm64` and `osx-legacy`. A target other than the host needs its Rust target installed
+(`rustup target add ...`) and a working linker, because Neoveg links native windowing and audio
+libraries. A macOS target also needs the Apple SDK: build it on a Mac or with osxcross.
+
+`osx-legacy` is the Intel build for the oldest macOS the installed Rust toolchain can target (macOS 10.12
+Sierra with rustc 1.99). It is not part of `all`. `--macos-min X.Y` sets the deployment target of any
+macOS build (`MACOSX_DEPLOYMENT_TARGET` and `LSMinimumSystemVersion`); a value below what the toolchain
+supports is refused. Mac OS X Lion (10.7) is below that floor and cannot be produced (see AGENTS.md 7).
 
 The QA gates follow AGENTS.md section 3: `cargo fmt --all -- --check`,
 `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Each step is
@@ -43,7 +49,7 @@ import tarfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
@@ -65,6 +71,8 @@ TARGETS: Dict[str, Dict[str, str]] = {
     "linux-x64": {"triple": "x86_64-unknown-linux-gnu", "archive": "tar.gz", "exe": "neoveg"},
     "osx-x64": {"triple": "x86_64-apple-darwin", "archive": "tar.gz", "exe": "neoveg"},
     "osx-arm64": {"triple": "aarch64-apple-darwin", "archive": "tar.gz", "exe": "neoveg"},
+    # Intel build for the oldest macOS the toolchain supports; left out of `--targets all`
+    "osx-legacy": {"triple": "x86_64-apple-darwin", "archive": "tar.gz", "exe": "neoveg", "legacy": "1"},
 }
 
 # Files copied into every package (source -> name inside the package)
@@ -188,12 +196,53 @@ def resolve_targets(spec: str) -> List[str]:
     if spec == "host":
         return [host_rid()]
     if spec == "all":
-        return list(TARGETS)
+        return [rid for rid, info in TARGETS.items() if not info.get("legacy")]
     rids = [item.strip() for item in spec.split(",") if item.strip()]
     unknown = [rid for rid in rids if rid not in TARGETS]
     if unknown:
         raise SystemExit(f"unknown target(s): {', '.join(unknown)}; choose from {', '.join(TARGETS)}")
     return rids
+
+
+# Lowest macOS each Rust target can be built for when the toolchain cannot tell (older rustc)
+FALLBACK_MACOS_FLOOR = {"x86_64-apple-darwin": "10.12", "aarch64-apple-darwin": "11.0"}
+
+
+def version_tuple(text: str) -> Tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in text.strip().split("."))
+    except ValueError:
+        raise RuntimeError(f"not a macOS version: {text!r} (use a form like 10.12 or 11.0)") from None
+
+
+def macos_floor(triple: str) -> str:
+    """Oldest macOS the installed rustc can target for `triple` (it overrides anything lower)."""
+    text = capture(["rustc", "--target", triple, "--print", "deployment-target"]) or ""
+    match = re.search(r"MACOSX_DEPLOYMENT_TARGET=(\d+(?:\.\d+)*)", text)
+    return match.group(1) if match else FALLBACK_MACOS_FLOOR.get(triple, "10.12")
+
+
+def resolve_macos_min(rid: str, requested: str) -> Optional[str]:
+    """The deployment target of a macOS build, or `None` for other systems and for "leave it to rustc".
+
+    A value under the toolchain's floor is an error, never a silent clamp: a package that says it runs
+    on Lion but needs Sierra would only fail on the user's machine.
+    """
+    if not rid.startswith("osx"):
+        return None
+    info = TARGETS[rid]
+    floor = macos_floor(info["triple"])
+    wanted = requested or (floor if info.get("legacy") else "")
+    if not wanted:
+        return None
+    if version_tuple(wanted) < version_tuple(floor):
+        raise RuntimeError(
+            f"{rid}: macOS {wanted} cannot be targeted. The installed rustc builds for macOS {floor} or "
+            "newer only, and Mac OS X Lion (10.7) also predates Metal (macOS 10.11), the graphics API "
+            f"that wgpu uses on macOS. The oldest build this toolchain can make is macOS {floor} "
+            "(`--targets osx-legacy`)."
+        )
+    return wanted
 
 
 def sha256(path: Path) -> str:
@@ -305,8 +354,10 @@ def cmd_check(args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------------- QA
 
 
-def release_env(triple: str) -> Dict[str, str]:
+def release_env(triple: str, macos_min: Optional[str] = None) -> Dict[str, str]:
     """Environment of the release build; QA and packaging share it so the second build is cached."""
+    if "apple-darwin" in triple:
+        return {"MACOSX_DEPLOYMENT_TARGET": macos_min} if macos_min else {}
     if "windows-msvc" not in triple:
         return {}
     # Static C runtime: the portable exe does not need the Visual C++ redistributable
@@ -389,20 +440,24 @@ def cmd_qa(args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------------- build
 
 
-def cargo_build(rid: str, ffmpeg: bool) -> Path:
+def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None) -> Path:
     """Builds the release binary for `rid` and returns its path."""
     info = TARGETS[rid]
     triple = info["triple"]
     is_host = triple == host_triple()
     if not is_host and triple not in installed_targets():
-        raise RuntimeError(f"Rust target {triple} is not installed: {target_hint(triple)}")
+        hint = target_hint(triple)
+        if rid.startswith("osx") and platform.system() != "Darwin":
+            hint += "; it also needs the Apple SDK and a macOS linker (build on a Mac or with osxcross)"
+        raise RuntimeError(f"Rust target {triple} is not installed: {hint}")
     cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
-    env = release_env(triple)
+    env = release_env(triple, macos_min)
     if ffmpeg:
         cmd += ["--features", "ffmpeg"]
     if not is_host:
         cmd += ["--target", triple]
-    log("INFO", f"building {rid} ({triple}){' with FFmpeg' if ffmpeg else ''}")
+    log("INFO", f"building {rid} ({triple}){' with FFmpeg' if ffmpeg else ''}"
+                f"{f', macOS {macos_min} or newer' if macos_min else ''}")
     run(cmd, env)
     base = TARGET_DIR / ("release" if is_host else f"{triple}/release")
     binary = base / info["exe"]
@@ -470,12 +525,12 @@ MAC_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleShortVersionString</key><string>{version}</string>
   <key>CFBundleVersion</key><string>{version}</string>
   <key>NSHighResolutionCapable</key><true/>
-</dict>
+{min_key}</dict>
 </plist>
 """
 
 
-def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool) -> Path:
+def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool, macos_min: Optional[str] = None) -> Path:
     """Builds dist/Neoveg-Portable-<rid>/ from the compiled binary."""
     stage = DIST / f"Neoveg-Portable-{rid}"
     if stage.exists():
@@ -487,7 +542,11 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool) -> Path:
         macos.mkdir(parents=True)
         shutil.copy2(binary, macos / exe)
         (stage / "Neoveg.app" / "Contents" / "Info.plist").write_text(
-            MAC_PLIST.format(version=version), encoding="utf-8"
+            MAC_PLIST.format(
+                version=version,
+                min_key=f"  <key>LSMinimumSystemVersion</key><string>{macos_min}</string>\n" if macos_min else "",
+            ),
+            encoding="utf-8"
         )
         copy_payload(stage / "Neoveg.app" / "Contents" / "Resources")
         copy_payload(stage)
@@ -547,6 +606,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         DIST = Path(args.dist).resolve()
     version = workspace_version()
     rids = resolve_targets(args.targets)
+    # Refused before any build starts: a wrong minimum would only show on the user's Mac
+    macos_min = {rid: resolve_macos_min(rid, args.macos_min) for rid in rids}
     if args.ffmpeg:
         problems = ffmpeg_environment()
         if problems:
@@ -570,20 +631,21 @@ def cmd_build(args: argparse.Namespace) -> int:
     failures: List[str] = []
     for rid in rids:
         try:
-            binary = cargo_build(rid, args.ffmpeg)
+            binary = cargo_build(rid, args.ffmpeg, macos_min[rid])
             if args.ffmpeg:
                 log("WARN", f"{rid}: the standalone executable needs the FFmpeg shared libraries "
                             "on PATH; the portable package already bundles them")
             exe_name = f"neoveg_v{version}_{rid}" + (".exe" if rid == "win-x64" else "")
             standalone = DIST / exe_name
             shutil.copy2(binary, standalone)
-            stage = stage_package(rid, binary, version, args.ffmpeg)
+            stage = stage_package(rid, binary, version, args.ffmpeg, macos_min[rid])
             files = [standalone]
             if not args.no_archive:
                 files.append(make_archive(stage, rid, version))
             for path in files:
                 manifest["packages"].append(  # type: ignore[union-attr]
-                    {"target": rid, "file": path.name, "bytes": path.stat().st_size, "sha256": sha256(path)}
+                    {"target": rid, "file": path.name, "bytes": path.stat().st_size, "sha256": sha256(path),
+                     **({"macos_min": macos_min[rid]} if macos_min[rid] else {})}
                 )
                 log("INFO", f"{path.name}: {path.stat().st_size / 1_048_576:.1f} MiB")
         except (RuntimeError, OSError) as error:
@@ -620,7 +682,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     build = sub.add_parser("build", help="QA gates, release build, portable folders, archives and the exe")
     common(build)
-    build.add_argument("--targets", default="host", help="host (default), all, or win-x64,linux-x64,osx-x64,osx-arm64")
+    build.add_argument("--targets", default="host",
+                       help="host (default), all, or win-x64,linux-x64,osx-x64,osx-arm64,osx-legacy")
+    build.add_argument("--macos-min", default="", metavar="X.Y",
+                       help="oldest macOS the macOS builds must run on (refused below the toolchain floor)")
     build.add_argument("--skip-qa", action="store_true", help="skip fmt/clippy/tests (not for releases)")
     build.add_argument("--no-archive", action="store_true", help="only stage the folders and the exe")
     build.add_argument("--dist", default="", help="output folder (default: dist/ in the repository)")
