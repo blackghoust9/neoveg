@@ -59,6 +59,7 @@ use neoveg_engine::ripple::RippleScope;
 use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
 use neoveg_engine::track_motion as tmotion;
+use neoveg_engine::transitions as trans;
 use neoveg_engine::video_effects as vfxe;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
@@ -83,6 +84,7 @@ use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
 use crate::splash::Splash;
 use crate::timeline_scroll;
+use crate::transitions_panel::{TransitionAction, TransitionsPanelState, TransitionsView};
 use crate::video_fx_panel::{self, VfxAction, VfxDraft, VfxPanelState, VfxScope, VfxScopes};
 use crate::waveform_paint::paint_waveform;
 
@@ -135,6 +137,7 @@ enum Tab {
     Loudness,
     AudioFx,
     VideoFx,
+    Transitions,
     Scopes,
 }
 
@@ -148,6 +151,7 @@ impl Tab {
             Tab::Loudness => "Loudness",
             Tab::AudioFx => "Efeitos de Áudio",
             Tab::VideoFx => "Efeitos de Vídeo",
+            Tab::Transitions => "Transições",
             Tab::Scopes => "Scopes de Vídeo",
         }
     }
@@ -401,6 +405,8 @@ struct AppState {
     fx: FxPanelState,
     /// Video effects panel (event or track scope and the slider being dragged).
     vfx: VfxPanelState,
+    /// Transitions tab (entrance or exit, and the slider being dragged).
+    transitions: TransitionsPanelState,
     /// The video effect slider being dragged, for the live preview.
     vfx_draft: Option<VfxDraft>,
     /// The Pan/Crop editor and the Pan/Crop it is changing right now (for the live preview).
@@ -1262,6 +1268,7 @@ impl AppState {
             captions_panel: CaptionsPanelState::default(),
             fx: FxPanelState::default(),
             vfx: VfxPanelState::default(),
+            transitions: TransitionsPanelState::default(),
             vfx_draft: None,
             pan_crop: PanCropWindow::default(),
             pan_crop_draft: None,
@@ -4082,6 +4089,94 @@ impl AppState {
         }
     }
 
+    /// The video event whose transition the Transitions tab edits: the primary selection.
+    fn transitions_target(&self) -> Option<(TrackId, EventId)> {
+        let (track_id, event_id) = self.selection.primary()?;
+        trans::get(&self.timeline, track_id, event_id, false).map(|_| (track_id, event_id))
+    }
+
+    /// Runs what the user did in the Transitions tab; each action is one undo step. Choosing a
+    /// transition on a side with no fade and no overlap also gives that side a one-second fade, in
+    /// the same step, so the transition shows at once.
+    fn apply_transition_actions(
+        &mut self,
+        track_id: TrackId,
+        event_id: EventId,
+        outgoing: bool,
+        actions: Vec<TransitionAction>,
+    ) {
+        let mut changed = false;
+        for action in actions {
+            let command = match action {
+                TransitionAction::Choose(kind) => {
+                    let choose = trans::choose(&self.timeline, track_id, event_id, outgoing, kind);
+                    let geometry = self.event_geometry(track_id, event_id);
+                    let overlap = self.transition_overlap(track_id, event_id);
+                    match (choose, geometry) {
+                        (Some(choose), Some(g)) => {
+                            let length = if outgoing {
+                                g.fade_out
+                            } else {
+                                g.fade_in.max(overlap)
+                            };
+                            if length <= 0.0 {
+                                let fade = (g.duration / 2.0).clamp(0.0, 1.0);
+                                let new = if outgoing {
+                                    EventGeometry {
+                                        fade_out: fade,
+                                        ..g
+                                    }
+                                } else {
+                                    EventGeometry { fade_in: fade, ..g }
+                                };
+                                Some(EditCommand::Batch(vec![
+                                    choose,
+                                    EditCommand::EditEvent {
+                                        from_track: track_id,
+                                        to_track: track_id,
+                                        event_id,
+                                        old: g,
+                                        new,
+                                    },
+                                ]))
+                            } else {
+                                Some(choose)
+                            }
+                        }
+                        (choose, _) => choose,
+                    }
+                }
+                TransitionAction::Clear => {
+                    trans::clear(&self.timeline, track_id, event_id, outgoing)
+                }
+                TransitionAction::SetParam { param, value } => {
+                    trans::set_param(&self.timeline, track_id, event_id, outgoing, &param, value)
+                }
+                TransitionAction::ResetParam(param) => {
+                    trans::reset_param(&self.timeline, track_id, event_id, outgoing, &param)
+                }
+            };
+            if let Some(command) = command {
+                changed |= self.history.execute(&mut self.timeline, command);
+            }
+        }
+        if changed {
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+        }
+    }
+
+    /// Length of the overlap with the event before `event_id` (the automatic crossfade), or `0`.
+    fn transition_overlap(&self, track_id: TrackId, event_id: EventId) -> f64 {
+        self.timeline.track(track_id).map_or(0.0, |t| {
+            find_crossfades(&t.events)
+                .iter()
+                .filter(|c| c.later == event_id)
+                .map(Crossfade::length)
+                .fold(0.0, f64::max)
+        })
+    }
+
     /// Opens the Pan/Crop editor on a video event.
     fn open_pan_crop(&mut self, track_id: TrackId, event_id: EventId) {
         if pcrop::get(&self.timeline, track_id, event_id).is_none() {
@@ -4588,6 +4683,9 @@ impl AppState {
             Command::ViewVideoEffects => {
                 self.window_request = Some(WindowAction::Toggle(Tab::VideoFx))
             }
+            Command::ViewTransitions => {
+                self.window_request = Some(WindowAction::Toggle(Tab::Transitions))
+            }
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
@@ -4852,7 +4950,11 @@ fn default_dock() -> DockState<Tab> {
     let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.52, vec![Tab::Timeline]);
     let [preview, media] = surface.split_left(top, 0.28, vec![Tab::Media]);
     // The effects of the selected track sit under the project media
-    surface.split_below(media, 0.55, vec![Tab::AudioFx, Tab::VideoFx]);
+    surface.split_below(
+        media,
+        0.55,
+        vec![Tab::AudioFx, Tab::VideoFx, Tab::Transitions],
+    );
     let [_, master] = surface.split_right(preview, 0.82, vec![Tab::MasterBus]);
     // The loudness readouts live in their own panel under the master bus
     // and the video scopes are a tab beside them
@@ -4867,7 +4969,11 @@ fn audio_dock() -> DockState<Tab> {
     let surface = dock.main_surface_mut();
     let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.40, vec![Tab::Timeline]);
     let [_, master] = surface.split_right(top, 0.30, vec![Tab::MasterBus]);
-    let [_, effects] = surface.split_right(master, 0.40, vec![Tab::AudioFx, Tab::VideoFx]);
+    let [_, effects] = surface.split_right(
+        master,
+        0.40,
+        vec![Tab::AudioFx, Tab::VideoFx, Tab::Transitions],
+    );
     surface.split_below(effects, 0.50, vec![Tab::Loudness, Tab::Scopes]);
     dock
 }
@@ -5612,6 +5718,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewTrimmer,
                 Command::ViewAudioEffects,
                 Command::ViewVideoEffects,
+                Command::ViewTransitions,
                 Command::ViewMasterBus,
                 Command::ViewLoudnessMeters,
                 Command::ViewVideoScopes,
@@ -6953,6 +7060,7 @@ impl TabViewer for Viewer<'_> {
             Tab::MasterBus => master_bus_ui(self.state, ui),
             Tab::AudioFx => audio_fx_ui(self.state, ui),
             Tab::VideoFx => video_fx_ui(self.state, ui),
+            Tab::Transitions => transitions_ui(self.state, ui),
             Tab::Scopes => {
                 egui::ScrollArea::both()
                     .auto_shrink([false, false])
@@ -7333,6 +7441,42 @@ fn scopes_tab_ui(state: &mut AppState, ui: &mut egui::Ui) {
         scopes,
         state.frame_scopes_version,
     );
+}
+
+fn transitions_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    let Some((track_id, event_id)) = state.transitions_target() else {
+        state.transitions.show(ui, None);
+        return;
+    };
+    let outgoing = state.transitions.outgoing;
+    let overlap = state.transition_overlap(track_id, event_id);
+    let Some(event) = state
+        .timeline
+        .track(track_id)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .cloned()
+    else {
+        return;
+    };
+    let current = if outgoing {
+        event.transition_out.clone()
+    } else {
+        event.transition_in.clone()
+    };
+    let length = if outgoing {
+        event.fade_out
+    } else {
+        event.fade_in.max(overlap)
+    };
+    let view = TransitionsView {
+        event_name: &event.name,
+        current: current.as_ref(),
+        length,
+        overlaps: !outgoing && overlap > event.fade_in,
+    };
+    let actions = state.transitions.show(ui, Some(&view));
+    let outgoing = state.transitions.outgoing;
+    state.apply_transition_actions(track_id, event_id, outgoing, actions);
 }
 
 fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
@@ -9332,6 +9476,7 @@ mod tests {
             Tab::Loudness,
             Tab::AudioFx,
             Tab::VideoFx,
+            Tab::Transitions,
         ] {
             assert!(default_dock().find_tab(&tab).is_some(), "{tab:?}");
         }
@@ -9709,6 +9854,7 @@ mod tests {
                 Tab::Loudness,
                 Tab::AudioFx,
                 Tab::VideoFx,
+                Tab::Transitions,
                 Tab::Scopes,
             ] {
                 assert!(dock.find_tab(&tab).is_some(), "{tab:?} is missing");

@@ -290,11 +290,18 @@
       "comandos": 3
     },
     {
-      "id": "ins.env_video_evento",
+      "id": "ins.env_progresso",
+      "area": "Inserir",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 1
+    },
+    {
+      "id": "ins.env_velocidade",
       "area": "Inserir",
       "estado": "previsto",
       "prioridade": "P1",
-      "comandos": 2
+      "comandos": 1
     },
     {
       "id": "ins.faixas",
@@ -640,11 +647,18 @@
       "comandos": 2
     },
     {
+      "id": "exi.transicoes",
+      "area": "Exibir",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 1
+    },
+    {
       "id": "exi.janelas_faltam",
       "area": "Exibir",
       "estado": "previsto",
       "prioridade": "P2",
-      "comandos": 3
+      "comandos": 2
     },
     {
       "id": "exi.janelas_fora",

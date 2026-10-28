@@ -217,6 +217,7 @@ commands! {
     ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
     ViewAudioEffects => ("view.audio_effects", "Efeitos de áudio", View, true),
     ViewVideoEffects => ("view.video_effects", "Efeitos de vídeo", View, true),
+    ViewTransitions => ("view.transitions", "Transições", View, true),
 }
 
 impl Command {

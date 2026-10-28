@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 10] = [
+pub const OUTPUTS: [&str; 11] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -34,6 +34,7 @@ pub const OUTPUTS: [&str; 10] = [
     "ui_video_effects.png",
     "ui_pan_crop.png",
     "ui_track_motion.png",
+    "ui_transitions.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -155,6 +156,22 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, default_dock());
         let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[9]))?;
+
+        // 11. The Transitions tab: a wipe half way through the overlap of two scenes
+        let ctx = new_context();
+        let mut state = demo_project_with_transition();
+        let shown = transition_demo_preview(&state);
+        state.video_texture = Some(ctx.load_texture(
+            "preview_frame",
+            egui::ColorImage::from_rgba_unmultiplied(
+                [shown.width as usize, shown.height as usize],
+                &shown.rgba,
+            ),
+            egui::TextureOptions::LINEAR,
+        ));
+        let mut app = headless_app(state, transitions_dock());
+        let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[10]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -700,6 +717,89 @@ fn demo_project_with_pan_crop() -> AppState {
     s
 }
 
+/// The demonstration project with a linear wipe on the second scene, which overlaps the first one
+/// for a second; that scene is selected and the cursor is half way through the overlap.
+fn demo_project_with_transition() -> AppState {
+    use neoveg_engine::TrackEffect;
+    let mut s = demo_project();
+    let (track_id, event_id) = {
+        let track = s
+            .timeline
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("the demonstration has a video track");
+        let mut wipe = TrackEffect::new("linear_wipe");
+        wipe.params.insert("angle".into(), 20.0);
+        wipe.params.insert("softness".into(), 0.18);
+        let event = &mut track.events[1];
+        event.transition_in = Some(wipe);
+        (track.id, event.id)
+    };
+    s.selected_track = Some(track_id);
+    s.selection.select_only((track_id, event_id));
+    s.playhead = 8.5;
+    s.status = "Transições: cortina linear no meio da sobreposição das cenas".into();
+    s
+}
+
+/// The preview of the transition demo: the second scene wiped in over the first one.
+fn transition_demo_preview(state: &AppState) -> neoveg_video::frame::FrameBuffer {
+    use neoveg_common::composite::CompositeMode;
+    use neoveg_video::composite::{composite_layers_cpu, DecodedLayer};
+    let (w, h) = (960, 540);
+    let first = decode_sample_frame(Path::new(SAMPLE_VIDEO), 3.0)
+        .unwrap_or_else(|| neoveg_video::generators::smpte_color_bars(w, h));
+    // The second scene: a diagonal gradient, so the wipe edge shows against the first one
+    let mut second = neoveg_video::frame::FrameBuffer::solid(w, h, [0, 0, 0, 255]);
+    for y in 0..h {
+        for x in 0..w {
+            let i = ((y * w + x) * 4) as usize;
+            let t = (x + y) as f32 / (w + h) as f32;
+            second.rgba[i] = (40.0 + 200.0 * t) as u8;
+            second.rgba[i + 1] = (120.0 + 80.0 * (1.0 - t)) as u8;
+            second.rgba[i + 2] = (200.0 - 150.0 * t) as u8;
+        }
+    }
+    let track = state
+        .timeline
+        .tracks
+        .iter()
+        .find(|t| t.kind == TrackKind::Video)
+        .expect("a video track");
+    let event = &track.events[1];
+    let progress = ((state.playhead - event.start) / 1.0).clamp(0.0, 1.0) as f32;
+    let setting = event.transition_in.as_ref().expect("a transition");
+    let resolved = neoveg_video::transitions::resolve(&setting.kind, &setting.params)
+        .expect("a known transition");
+    let wiped = neoveg_video::transitions::apply(&second, &resolved, progress);
+    composite_layers_cpu(
+        w,
+        h,
+        &[
+            DecodedLayer {
+                frame: Arc::new(first),
+                mode: CompositeMode::SourceAlpha,
+                opacity: 1.0,
+            },
+            DecodedLayer {
+                frame: Arc::new(wiped),
+                mode: CompositeMode::SourceAlpha,
+                opacity: 1.0,
+            },
+        ],
+    )
+}
+
+/// The preview, the Transitions tab and the timeline.
+fn transitions_dock() -> DockState<Tab> {
+    let mut dock = DockState::new(vec![Tab::Preview]);
+    let surface = dock.main_surface_mut();
+    let [top, _timeline] = surface.split_below(NodeIndex::root(), 0.58, vec![Tab::Timeline]);
+    surface.split_right(top, 0.60, vec![Tab::Transitions]);
+    dock
+}
+
 /// The demonstration project with the motion of its video track: the layer shrinks to a third of
 /// the frame and slides from the lower right to the upper left, the cursor halfway along.
 fn demo_project_with_track_motion() -> AppState {
@@ -978,5 +1078,24 @@ mod tests {
         assert!(neoveg_engine::track_motion::get(&s.timeline, track_id).is_some());
         assert!(frame.x_center < 0.78 && frame.x_center > 0.24, "{frame:?}");
         assert_eq!(frame.width, 0.36);
+    }
+
+    #[test]
+    fn the_transition_demo_wipes_the_second_scene_in_over_the_first_half_way() {
+        let s = demo_project_with_transition();
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .unwrap();
+        assert!(track.events[1].transition_in.is_some());
+        // The scenes overlap, so the transition has a length to run over
+        assert!(!find_crossfades(&track.events).is_empty());
+        let shown = transition_demo_preview(&s);
+        // The left edge is the second scene (already wiped in), the right edge still the first one
+        let (left, right) = (shown.pixel(20, 270), shown.pixel(940, 270));
+        assert_ne!(left, right);
+        assert_eq!(left[3], 255);
     }
 }

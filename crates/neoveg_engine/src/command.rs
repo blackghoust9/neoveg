@@ -113,6 +113,15 @@ pub enum EditCommand {
         before: PanCrop,
         after: PanCrop,
     },
+    /// The video transition that reveals (`outgoing: false`) or hides an event: the transition
+    /// before and after, so it is one exactly reversible undo step.
+    SetTransition {
+        track_id: TrackId,
+        event_id: EventId,
+        outgoing: bool,
+        before: Option<TrackEffect>,
+        after: Option<TrackEffect>,
+    },
     /// The color a video track fades to.
     SetFadeColor {
         track_id: TrackId,
@@ -305,6 +314,13 @@ impl EditCommand {
                 }
                 None => false,
             },
+            Self::SetTransition {
+                track_id,
+                event_id,
+                outgoing,
+                after,
+                ..
+            } => set_transition(tl, *track_id, *event_id, *outgoing, after),
             Self::SetFadeColor {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -357,6 +373,10 @@ impl EditCommand {
                     video_effects: left.video_effects.clone(),
                     // The left half keeps its keys (so undoing the split restores it as it was)
                     pan_crop: left.pan_crop.from_offset(left_duration),
+                    // The new event starts at the cut without a transition; it ends where the
+                    // old one did (the left half's fade-out is cleared, so its copy is inert)
+                    transition_in: None,
+                    transition_out: left.transition_out.clone(),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -444,6 +464,15 @@ impl EditCommand {
                     t.motion = before.clone();
                 }
             }
+            Self::SetTransition {
+                track_id,
+                event_id,
+                outgoing,
+                before,
+                ..
+            } => {
+                set_transition(tl, *track_id, *event_id, *outgoing, before);
+            }
             Self::SetFadeColor {
                 track_id, before, ..
             } => {
@@ -512,6 +541,29 @@ fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope
             }
             None => false,
         },
+    }
+}
+
+fn set_transition(
+    tl: &mut Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+    outgoing: bool,
+    value: &Option<TrackEffect>,
+) -> bool {
+    let event = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+    match event {
+        Some(e) => {
+            if outgoing {
+                e.transition_out = value.clone();
+            } else {
+                e.transition_in = value.clone();
+            }
+            true
+        }
+        None => false,
     }
 }
 

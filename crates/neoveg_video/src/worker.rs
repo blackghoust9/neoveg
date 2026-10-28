@@ -25,6 +25,7 @@ use crate::still::{
     decode_image, decode_sequence_at, is_image_path, is_sequence_manifest_path, probe_image,
     probe_sequence_manifest,
 };
+use crate::transitions::{self, TransitionRequest};
 use crate::vfx::{self, VideoEffect};
 use crate::vfx_gpu::VfxGpu;
 use neoveg_common::pan_crop::PanCropFrame;
@@ -70,6 +71,9 @@ pub struct VideoClipRequest {
     pub effects: Vec<VideoEffect>,
     /// Pan/Crop of the event, run right after the chroma key and before the effects.
     pub pan_crop: Option<PanCropRequest>,
+    /// Transitions in progress (the one that reveals the event and the one that hides it), run on
+    /// the finished picture; the event's opacity then leaves out the part they replace.
+    pub transitions: Vec<TransitionRequest>,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -317,7 +321,14 @@ impl WorkerState {
             Some(p) => Arc::new(pan_crop::apply(&frame, &p.frame, p.stretch_to_fill)),
             None => frame,
         };
-        self.apply_effects(frame, &clip.effects)
+        let frame = self.apply_effects(frame, &clip.effects);
+        let mut frame = frame;
+        for t in &clip.transitions {
+            if let Some(resolved) = transitions::resolve(&t.kind, &t.params) {
+                frame = Arc::new(transitions::apply(&frame, &resolved, t.progress));
+            }
+        }
+        frame
     }
 
     /// Runs an effect chain on `frame`: on the GPU when there is an adapter and the picture is big
@@ -577,6 +588,10 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 clip.apply_chroma.hash(h);
                 vfx::hash_chain(&clip.effects, h);
                 hash_pan_crop(h, clip.pan_crop.as_ref());
+                clip.transitions.len().hash(h);
+                for t in &clip.transitions {
+                    t.hash_into(h);
+                }
             }
         }
         TrackCompositeNode::Group {
@@ -607,6 +622,10 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 clip.apply_chroma.hash(h);
                 vfx::hash_chain(&clip.effects, h);
                 hash_pan_crop(h, clip.pan_crop.as_ref());
+                clip.transitions.len().hash(h);
+                for t in &clip.transitions {
+                    t.hash_into(h);
+                }
             }
         }
     }
@@ -954,6 +973,7 @@ mod tests {
                     apply_chroma: false,
                     effects: Vec::new(),
                     pan_crop: None,
+                    transitions: Vec::new(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1019,6 +1039,7 @@ mod tests {
                     apply_chroma: false,
                     effects: clip_fx,
                     pan_crop: None,
+                    transitions: Vec::new(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1272,6 +1293,46 @@ mod tests {
         let right = renderer.render_frame(&placed(0.8)).unwrap();
         assert_eq!(right.pixel(26, 48), [0, 0, 0, 255]);
         assert_eq!(right.pixel(102, 48), [255, 255, 255, 255]);
+        let again = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_clip_transition_reveals_the_picture_with_its_progress_and_follows_the_cache_key() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_tr_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("white.png");
+        write_png(&path, 128, 96, [255, 255, 255, 255]);
+
+        let wipe = |progress: f32| {
+            let mut request = effect_request(&path, Vec::new(), Vec::new());
+            if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
+                clips[0].transitions.push(TransitionRequest {
+                    kind: transitions::LINEAR_WIPE.into(),
+                    params: [("softness".to_owned(), 0.0)].into(),
+                    progress,
+                });
+            }
+            request
+        };
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(plain.pixel(120, 10), [255, 255, 255, 255]);
+
+        // Half way through a wipe from the left: white on the left, the black canvas on the right
+        let half = renderer.render_frame(&wipe(0.5)).unwrap();
+        assert_eq!(half.pixel(10, 10), [255, 255, 255, 255]);
+        assert_eq!(half.pixel(120, 10), [0, 0, 0, 255]);
+        // A little further is a different frame, not the cached one
+        let more = renderer.render_frame(&wipe(0.9)).unwrap();
+        assert_eq!(more.pixel(100, 10), [255, 255, 255, 255]);
+        // And the cached source frame was not changed by any of it
         let again = renderer
             .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
             .unwrap();

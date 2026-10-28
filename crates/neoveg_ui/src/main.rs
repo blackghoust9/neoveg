@@ -25,6 +25,7 @@ mod slideshow_window;
 mod splash;
 mod theme;
 mod timeline_scroll;
+mod transitions_panel;
 mod video_fx_panel;
 mod waveform_paint;
 mod welcome;

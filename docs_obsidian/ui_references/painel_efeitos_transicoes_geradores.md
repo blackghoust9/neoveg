@@ -22,7 +22,7 @@ Hub: [[fontes_de_referencia_de_ui]]. Catálogos: [[catalogo_efeitos_video]] e [[
 | :--- | :--- |
 | Cadeia de efeitos de vídeo (mídia, evento, faixa, projeto) | `feito`: 4 efeitos, GPU, prévia ao vivo ao arrastar |
 | Biblioteca de efeitos com miniaturas | `previsto`; hoje é uma lista no botão "Adicionar efeito" |
-| Transições (biblioteca, parâmetros, envelope de progresso) | `previsto` |
+| Transições (8, entrada e saída, parâmetros, duração do fade) | `feito`; miniaturas, pré-ajustes e envelope livre de progresso `previsto` |
 | Geradores (cor, padrão de teste, gradiente, título) | `feito`; tabuleiro e textura de ruído `previsto` |
 | Pan/Crop do evento (caixa, rotação, quadros-chave, prévia ao lado) | `feito`, sem máscaras nem centro de rotação |
 | Movimento da trilha (caixa, picture-in-picture, rotação 2D, quadros-chave) | `feito`, sem 3D, sombra, brilho nem movimento do pai |

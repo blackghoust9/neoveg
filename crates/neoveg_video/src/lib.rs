@@ -13,6 +13,7 @@ pub mod pan_crop;
 pub mod render;
 pub mod scopes;
 pub mod still;
+pub mod transitions;
 pub mod vfx;
 pub mod vfx_gpu;
 pub mod worker;

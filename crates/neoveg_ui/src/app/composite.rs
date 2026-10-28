@@ -92,14 +92,47 @@ fn ramp(curve: FadeCurve, length: f64, position: f64) -> f64 {
     }
 }
 
-/// Opacity of `event` at `time`: its own fade in and fade out, times the fade in over an automatic
-/// crossfade of `cross_in` seconds (`0` = none).
-pub(super) fn event_opacity(event: &TrackEvent, time: f64, cross_in: f64) -> f32 {
+/// Gain of the fade-in of `event` at `time` (and of the overlap with the event before it).
+pub(super) fn in_ramp(event: &TrackEvent, time: f64, cross_in: f64) -> f64 {
     let local = time - event.start;
-    let remaining = event.end() - time;
-    (ramp(event.fade_in_curve, event.fade_in, local)
-        * ramp(event.fade_out_curve, event.fade_out, remaining.max(0.0))
-        * ramp(event.fade_in_curve, cross_in, local)) as f32
+    ramp(event.fade_in_curve, event.fade_in, local) * ramp(event.fade_in_curve, cross_in, local)
+}
+
+/// Gain of the fade-out of `event` at `time`.
+pub(super) fn out_ramp(event: &TrackEvent, time: f64) -> f64 {
+    ramp(
+        event.fade_out_curve,
+        event.fade_out,
+        (event.end() - time).max(0.0),
+    )
+}
+
+/// The opacity of a clip and the transitions in progress on it. A fade that has a transition is not
+/// an opacity any more: the transition draws it (the gain of the fade is its progress) and the clip
+/// stays opaque; a fade with the plain dissolve stays an opacity. `0.0` opacity means not visible.
+pub(super) fn clip_look(
+    event: &TrackEvent,
+    time: f64,
+    cross_in: f64,
+) -> (f32, Vec<neoveg_video::transitions::TransitionRequest>) {
+    let (gain_in, gain_out) = (in_ramp(event, time, cross_in), out_ramp(event, time));
+    if gain_in <= 0.0 || gain_out <= 0.0 {
+        return (0.0, Vec::new());
+    }
+    let mut list = Vec::new();
+    let mut part = |gain: f64, setting: &Option<neoveg_engine::TrackEffect>| -> f32 {
+        if gain < 1.0 {
+            if let Some(request) =
+                crate::transitions_panel::to_request(setting.as_ref(), gain as f32)
+            {
+                list.push(request);
+                return 1.0;
+            }
+        }
+        gain as f32
+    };
+    let opacity = part(gain_in, &event.transition_in) * part(gain_out, &event.transition_out);
+    (opacity, list)
 }
 
 /// Seconds into the source of the event's media at timeline `time`, honouring speed and Loop.
@@ -170,13 +203,15 @@ pub(super) fn composite_request(
                     .filter(|c| c.later == e.id)
                     .map(Crossfade::length)
                     .fold(0.0, f64::max);
+                let (opacity, transitions) = clip_look(e, time, cross_in);
                 Some(VideoClipRequest {
                     media_id,
                     seconds: source_seconds(e, time, source.duration),
                     source_fps: source.fps,
                     path: source.path,
                     playback_rate: edit::clamp_playback_rate(e.playback_rate),
-                    event_opacity: event_opacity(e, time, cross_in),
+                    event_opacity: opacity,
+                    transitions,
                     apply_chroma: true,
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
@@ -263,6 +298,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .and_then(|m| timeline.media_video_effects.get(&m))
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
+            let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
             let envelope_on = track
                 .envelopes
                 .iter()
@@ -272,6 +308,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 || media_on
                 || envelope_on
                 || pan_crop_on
+                || transition_on
             {
                 return true;
             }
@@ -700,5 +737,72 @@ mod tests {
             "a track without motion sends none"
         );
         assert!(!has_effects(&tl, 4.0));
+    }
+
+    #[test]
+    fn a_fade_with_a_transition_becomes_a_progress_and_a_plain_fade_stays_an_opacity() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut e = event(&mut tl, 1, 10.0, 8.0);
+        e.fade_in = 2.0;
+        e.fade_out = 2.0;
+        // No transition: the fades are opacities
+        let (opacity, list) = clip_look(&e, 11.0, 0.0);
+        assert!((opacity - 0.5).abs() < 1e-5 && list.is_empty());
+        assert_eq!(clip_look(&e, 14.0, 0.0), (1.0, Vec::new()));
+
+        e.transition_in = Some(TrackEffect::new("iris"));
+        e.transition_out = Some(TrackEffect::new("clock_wipe"));
+        // In the middle of the fade-in the clip is opaque and the transition is half way
+        let (opacity, list) = clip_look(&e, 11.0, 0.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!((list.len(), list[0].kind.as_str()), (1, "iris"));
+        assert!((list[0].progress - 0.5).abs() < 1e-5);
+        // The fade-out has its own, going down
+        let (opacity, list) = clip_look(&e, 17.0, 0.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!(
+            (list[0].kind.as_str(), list[0].progress),
+            ("clock_wipe", 0.5)
+        );
+        // Once the fade is over the transition is gone and the clip is a plain full clip
+        assert_eq!(clip_look(&e, 14.0, 0.0), (1.0, Vec::new()));
+        // At the very start nothing is visible: no request, opacity zero
+        assert_eq!(clip_look(&e, 10.0, 0.0), (0.0, Vec::new()));
+        // The overlap with the event before drives the entrance too, with the fade-in curve
+        e.fade_in = 0.0;
+        let (opacity, list) = clip_look(&e, 10.5, 1.0);
+        assert_eq!(opacity, 1.0);
+        assert!((list[0].progress - 0.5).abs() < 1e-5);
+        // The plain dissolve chosen by name is not a transition
+        e.transition_in = Some(TrackEffect::new("dissolve"));
+        let (opacity, list) = clip_look(&e, 10.5, 1.0);
+        assert!((opacity - 0.5).abs() < 1e-5 && list.is_empty());
+    }
+
+    #[test]
+    fn a_transition_reaches_the_request_of_its_clip_and_sends_the_preview_through_the_composite_path(
+    ) {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut e = event(&mut tl, 1, 0.0, 6.0);
+        e.fade_in = 2.0;
+        e.transition_in = Some(TrackEffect::new("linear_wipe"));
+        track.events.push(e);
+        tl.tracks.push(track);
+        assert!(has_effects(&tl, 4.0));
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("a track node");
+        };
+        assert_eq!(clips[0].event_opacity, 1.0);
+        assert_eq!(clips[0].transitions[0].kind, "linear_wipe");
+        // After the fade there is nothing left to draw
+        let later = composite_request(&tl, 3.0, &settings(), &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &later.nodes[0] else {
+            panic!("a track node");
+        };
+        assert!(clips[0].transitions.is_empty());
     }
 }

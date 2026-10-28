@@ -33,7 +33,7 @@ impl PanCropRequest {
 
 /// Bilinear sample at pixel position `(x, y)` (pixel centres at `+0.5`): premultiplied colour and
 /// alpha, `0..=255`. Taps outside the picture are transparent.
-fn sample(src: &FrameBuffer, x: f32, y: f32) -> [f32; 4] {
+pub(crate) fn sample(src: &FrameBuffer, x: f32, y: f32) -> [f32; 4] {
     let (w, h) = (src.width as i64, src.height as i64);
     let (fx, fy) = (x - 0.5, y - 0.5);
     let (x0, y0) = (fx.floor(), fy.floor());
@@ -104,7 +104,11 @@ pub fn apply(src: &FrameBuffer, frame: &PanCropFrame, stretch_to_fill: bool) -> 
 
 /// A `width` by `height` picture whose pixel `(x, y)` is `pixel(x, y)` (premultiplied colour and
 /// alpha, `0..=255`), computed on several threads when the picture is big enough.
-fn render(width: u32, height: u32, pixel: impl Fn(usize, usize) -> [f32; 4] + Sync) -> FrameBuffer {
+pub(crate) fn render(
+    width: u32,
+    height: u32,
+    pixel: impl Fn(usize, usize) -> [f32; 4] + Sync,
+) -> FrameBuffer {
     let (w, h) = (width as usize, height as usize);
     let mut out = FrameBuffer {
         width,

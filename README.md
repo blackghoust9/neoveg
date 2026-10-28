@@ -76,6 +76,12 @@ A janela **Pan/Crop do evento** mostra a imagem de origem com a caixa de seleç�
 
 A mesma janela edita o **movimento da trilha** de vídeo: a caixa mostra onde a camada fica no quadro do projeto (menor é um picture-in-picture), com posição, tamanho e rotação, quadros-chave na linha do tempo e a prévia ao lado. Na imagem, a camada encolhe para pouco mais de um terço do quadro e desliza do canto inferior direito para o superior esquerdo; o cursor está no meio do caminho (8 s).
 
+### Transições
+
+![Transições](docs/screenshots/ui_transitions.png)
+
+A aba **Transições** escolhe como o evento selecionado aparece (**Entrada**) ou some (**Saída**): oito transições com seus parâmetros. A transição dura o fade do evento, ou a sobreposição com o evento anterior, e segue a curva do fade. Na imagem, uma cortina linear a 20° com borda suave passa a cena 2 por cima da cena 1, a meio caminho da sobreposição de 1 s.
+
 ### Propriedades do projeto
 
 ![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
@@ -322,6 +328,7 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**
+- [x] Transições de vídeo: oito transições (dissolver, cortina linear, cortina de relógio, íris, porta de celeiro, persianas, deslizar, crescer) na entrada e na saída do evento e na sobreposição com o anterior, com a duração e a curva do fade, parâmetros e prévia na renderização (aba Transições, `Ctrl+Alt+6`). Faltam miniaturas e pré-ajustes, o envelope livre de progresso e as transições 3D.
 - [x] Movimento da trilha: a camada de uma faixa de vídeo muda de posição, escala e rotação no quadro do projeto, com quadros-chave e suavidade (picture-in-picture, deslizes, camadas inclinadas), na mesma janela do Pan/Crop (Faixas ou Ferramentas > Movimento da trilha). Faltam 3D, sombra, brilho e o movimento do pai de um grupo.
 - [x] Pan/Crop do evento: janela com a caixa de seleção sobre a origem (alças, rotação, mover, travar proporção, tamanho pelo centro, esticar para preencher), campos numéricos, quadros-chave com suavidade e prévia ao lado, valendo na prévia e na renderização (Ferramentas > Pan/Crop do evento). Faltam máscaras, centro de rotação, inverter e o botão no cabeçalho do evento.
 - [x] Envelopes de faixa de vídeo: nível da faixa, esmaecer para cor (com paleta de cores) e mudo, editados na linha do tempo como os de áudio; valem na prévia e na renderização (Faixas > Envelopes de vídeo, `V` na faixa de vídeo).

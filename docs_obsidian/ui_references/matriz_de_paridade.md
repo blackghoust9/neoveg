@@ -16,15 +16,15 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 18 | 56 | 26 | 0 | 46 % |
-| Inserir | 32 | 30 | 16 | 3 | 11 | 2 | 58 % |
+| Inserir | 32 | 30 | 16 | 4 | 10 | 2 | 60 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
-| Exibir | 75 | 70 | 14 | 37 | 19 | 5 | 46 % |
+| Exibir | 75 | 70 | 14 | 38 | 18 | 5 | 47 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **38 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 30 parciais, 44 previstas e 18 sem plano, de 127 linhas (109 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 32 parciais, 44 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -32,7 +32,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 
 | Prioridade | Função | Área | Comandos | Estado |
 | :--- | :--- | :--- | ---: | :--- |
-| P1 | Envelopes de evento de vídeo: velocidade e progresso de transição | Inserir | 2 | previsto |
+| P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | previsto |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
 | P2 | Colar atributos do evento, completo e seletivo | Editar | 2 | previsto |
 | P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
@@ -41,6 +41,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
 | P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | previsto |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
+| P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
 | P2 | Inserir faixa de ajuste | Inserir | 1 | previsto |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | previsto |
 | P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | previsto |
@@ -54,7 +55,8 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Formato da régua (amostras, tempo, quadros, compassos, filme, SMPTE) | Opções | 18 | previsto |
 | P2 | Layouts de janela: organizar, salvar, recarregar, padrão e os dez salvos | Exibir | 25 | parcial |
 | P2 | Janela do explorador de arquivos | Exibir | 2 | previsto |
-| P2 | Janelas de transições, compositores e gerenciador de plug-ins | Exibir | 3 | previsto |
+| P2 | Janela de transições | Exibir | 1 | parcial |
+| P2 | Janelas de compositores e gerenciador de plug-ins | Exibir | 2 | previsto |
 | P2 | Fader de prévia do mixer e trilhas de barramento | Exibir | 3 | previsto |
 | P2 | Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | Exibir | 9 | previsto |
 | P2 | Mostrar envelopes de áudio e de vídeo | Exibir | 12 | parcial |
@@ -126,7 +128,8 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Envelope de mudo de áudio | 1 | previsto | volume e pan feitos; mudo não | P3 |
 | Auto-ducking: controlador e ouvinte | 3 | feito | auto-ducking por faixa (`neoveg_audio::duck`) | - |
 | Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor | 3 | feito | Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização | - |
-| Envelopes de evento de vídeo: velocidade e progresso de transição | 2 | previsto | velocidade pede remapeamento de tempo da fonte; progresso pede as transições de vídeo | P1 |
+| Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
+| Envelope de velocidade do evento de vídeo | 1 | previsto | pede remapeamento de tempo da fonte, com velocidade negativa para reverso | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
 | Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | previsto | roteiro (barramentos e envios) | P2 |
@@ -191,7 +194,8 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Janelas: Trimmer, master, visualização, mídia, notas, escopos, detalhes de edição, loudness | 8 | feito | `view.*` e janelas do cofre | - |
 | Janelas de efeitos de vídeo e de geradores | 2 | feito | aba Efeitos de Vídeo; diálogo de geradores | - |
 | Janela do explorador de arquivos | 2 | previsto | roteiro (Explorer) | P2 |
-| Janelas de transições, compositores e gerenciador de plug-ins | 3 | previsto | roteiro (README) | P2 |
+| Janela de transições | 1 | parcial | aba Transições (`Ctrl+Alt+6`) com 8 transições, entrada e saída, parâmetros e duração; faltam miniaturas, pré-ajustes e favoritos | P2 |
+| Janelas de compositores e gerenciador de plug-ins | 2 | previsto | roteiro (README) | P2 |
 | Janelas de pan surround, explorador de dispositivos, disco profissional e hub online | 5 | sem plano | hardware e serviço do fabricante | - |
 | Fader de prévia do mixer e trilhas de barramento | 3 | previsto | roteiro (barramentos) | P2 |
 | Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | 9 | previsto | roteiro: atalhos de visualização | P2 |

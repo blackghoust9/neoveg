@@ -114,6 +114,14 @@ pub struct TrackEvent {
     /// the start of the event (older projects show the whole picture).
     #[serde(default, skip_serializing_if = "PanCrop::is_default")]
     pub pan_crop: PanCrop,
+    /// Video transition that reveals the event: it runs over the fade-in (or the overlap with the
+    /// event before it) and follows the fade-in curve. `None` is the plain dissolve. The engine stores
+    /// the registry id and the values; `neoveg_video::transitions` knows what each one draws.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transition_in: Option<TrackEffect>,
+    /// Video transition that hides the event over its fade-out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transition_out: Option<TrackEffect>,
 }
 
 impl Default for TrackEvent {
@@ -141,6 +149,8 @@ impl Default for TrackEvent {
             channels: ChannelMode::Both,
             video_effects: Vec::new(),
             pan_crop: PanCrop::default(),
+            transition_in: None,
+            transition_out: None,
         }
     }
 }
