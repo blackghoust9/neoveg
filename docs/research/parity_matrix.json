@@ -1,0 +1,895 @@
+{
+  "fonte": "varredura local da versão recente do editor de referência",
+  "comandos": 872,
+  "linhas": [
+    {
+      "id": "arq.novo",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 5
+    },
+    {
+      "id": "arq.fechar",
+      "area": "Arquivo",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "arq.salvar",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "arq.renderizar",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "arq.render_tempo_real",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "arq.importar_midia",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "arq.importar_projeto",
+      "area": "Arquivo",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "arq.edl",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "arq.xml",
+      "area": "Arquivo",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "arq.aaf",
+      "area": "Arquivo",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "arq.prproj",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "arq.arquivo_proprio",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "arq.legendas",
+      "area": "Arquivo",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "arq.formatos_disco",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "arq.captura",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "arq.servico_online",
+      "area": "Arquivo",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "edit.desfazer",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "edit.historico",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "edit.area_transf",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 5
+    },
+    {
+      "id": "edit.colar_atributos",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 2
+    },
+    {
+      "id": "edit.excluir",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "edit.aparar",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "edit.dividir",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "edit.edicao_assist",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "edit.ajuste",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 2
+    },
+    {
+      "id": "edit.navegar",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 20
+    },
+    {
+      "id": "edit.ripple_pos",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 4
+    },
+    {
+      "id": "edit.selecao",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 4
+    },
+    {
+      "id": "edit.selecao_tempo",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 10
+    },
+    {
+      "id": "edit.expandida",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 2
+    },
+    {
+      "id": "edit.ferramentas",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 5
+    },
+    {
+      "id": "edit.interruptores",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 5
+    },
+    {
+      "id": "edit.interruptores_video",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 9
+    },
+    {
+      "id": "edit.takes",
+      "area": "Editar",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 6
+    },
+    {
+      "id": "edit.grupos",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 7
+    },
+    {
+      "id": "edit.fluxo_canais",
+      "area": "Editar",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 6
+    },
+    {
+      "id": "edit.extensoes",
+      "area": "Editar",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "ins.env_audio",
+      "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "ins.env_audio_mudo",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "ins.ducking",
+      "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "ins.env_video",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P1",
+      "comandos": 5
+    },
+    {
+      "id": "ins.faixas",
+      "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "ins.faixa_ajuste",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 1
+    },
+    {
+      "id": "ins.barramentos",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "ins.legendas",
+      "area": "Inserir",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "ins.evento_vazio",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "ins.gerada",
+      "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "ins.transicao_audio",
+      "area": "Inserir",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 1
+    },
+    {
+      "id": "ins.tempo_marc",
+      "area": "Inserir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "ins.cd",
+      "area": "Inserir",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "ins.comando",
+      "area": "Inserir",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "fer.editor_ext",
+      "area": "Ferramentas",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "fer.projeto_origem",
+      "area": "Ferramentas",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "fer.fx_audio",
+      "area": "Ferramentas",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 4
+    },
+    {
+      "id": "fer.fx_video",
+      "area": "Ferramentas",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "fer.pancrop",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P1",
+      "comandos": 1
+    },
+    {
+      "id": "fer.movimento",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P1",
+      "comandos": 1
+    },
+    {
+      "id": "fer.cor_mov",
+      "area": "Ferramentas",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 2
+    },
+    {
+      "id": "fer.debug_video",
+      "area": "Ferramentas",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "fer.renderizar_faixa",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 1
+    },
+    {
+      "id": "fer.monitor_ext",
+      "area": "Ferramentas",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "fer.prerender",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 4
+    },
+    {
+      "id": "fer.ia",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 4
+    },
+    {
+      "id": "fer.fita_disco",
+      "area": "Ferramentas",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 9
+    },
+    {
+      "id": "fer.loudness_log",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "fer.hardware",
+      "area": "Ferramentas",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "fer.salvar_av",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "fer.scripts",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "fer.extensoes",
+      "area": "Ferramentas",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "fer.multicam",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 8
+    },
+    {
+      "id": "fer.limpeza",
+      "area": "Ferramentas",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "opc.quantizar",
+      "area": "Opções",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "opc.snap",
+      "area": "Opções",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "opc.grade",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 14
+    },
+    {
+      "id": "opc.regua",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 18
+    },
+    {
+      "id": "opc.quickfade",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "opc.ripple",
+      "area": "Opções",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 5
+    },
+    {
+      "id": "opc.slip_takes",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 1
+    },
+    {
+      "id": "opc.metronomo",
+      "area": "Opções",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "opc.mudo_geral",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 3
+    },
+    {
+      "id": "opc.timecode_midi",
+      "area": "Opções",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 3
+    },
+    {
+      "id": "opc.barras",
+      "area": "Opções",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "opc.teclado",
+      "area": "Opções",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "opc.preferencias",
+      "area": "Opções",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 3
+    },
+    {
+      "id": "exi.barras",
+      "area": "Exibir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "exi.layouts",
+      "area": "Exibir",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 25
+    },
+    {
+      "id": "exi.foco",
+      "area": "Exibir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "exi.janelas_ok",
+      "area": "Exibir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 8
+    },
+    {
+      "id": "exi.janela_fx",
+      "area": "Exibir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "exi.explorador",
+      "area": "Exibir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 2
+    },
+    {
+      "id": "exi.janelas_faltam",
+      "area": "Exibir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "exi.janelas_fora",
+      "area": "Exibir",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 5
+    },
+    {
+      "id": "exi.mixer",
+      "area": "Exibir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 3
+    },
+    {
+      "id": "exi.evento",
+      "area": "Exibir",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 9
+    },
+    {
+      "id": "exi.envelopes",
+      "area": "Exibir",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 12
+    },
+    {
+      "id": "exi.trilhas",
+      "area": "Exibir",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "exi.extensoes",
+      "area": "Exibir",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "aju.ajuda",
+      "area": "Ajuda",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 7
+    },
+    {
+      "id": "aju.sistema",
+      "area": "Ajuda",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 7
+    },
+    {
+      "id": "aux.ctx_evento",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 33
+    },
+    {
+      "id": "aux.ctx_faixa",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 35
+    },
+    {
+      "id": "aux.ctx_explorador",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 16
+    },
+    {
+      "id": "aux.trimmer",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 30
+    },
+    {
+      "id": "aux.qualidade",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 31
+    },
+    {
+      "id": "aux.escopos",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 25
+    },
+    {
+      "id": "aux.loudness",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 35
+    },
+    {
+      "id": "aux.envelope_menu",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 47
+    },
+    {
+      "id": "aux.midi",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 56
+    },
+    {
+      "id": "aux.mixer_menu",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 33
+    },
+    {
+      "id": "aux.marcadores",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 11
+    },
+    {
+      "id": "aux.scripts_modelos",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 3
+    },
+    {
+      "id": "aux.barra_edicao",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P2",
+      "comandos": 11
+    },
+    {
+      "id": "aux.fx_cadeia",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 9
+    },
+    {
+      "id": "aux.midia_colunas",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 42
+    },
+    {
+      "id": "aux.midia_acoes",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 31
+    },
+    {
+      "id": "aux.explorador_acoes",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P2",
+      "comandos": 19
+    },
+    {
+      "id": "aux.cores_texto",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 4
+    },
+    {
+      "id": "aux.sobreposicoes",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "aux.canais_cor",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 7
+    },
+    {
+      "id": "aux.closed_caption",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 4
+    },
+    {
+      "id": "aux.vista_dividida",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 3
+    },
+    {
+      "id": "aux.genericos",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "feito",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "aux.olho_vermelho",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 1
+    },
+    {
+      "id": "aux.grupos_faixa",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "previsto",
+      "prioridade": "P3",
+      "comandos": 7
+    },
+    {
+      "id": "aux.storyboard",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "sem_plano",
+      "prioridade": "-",
+      "comandos": 2
+    },
+    {
+      "id": "aux.formato_tempo",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "parcial",
+      "prioridade": "P3",
+      "comandos": 2
+    },
+    {
+      "id": "aux.solto",
+      "area": "Menus de contexto e auxiliares",
+      "estado": "a_classificar",
+      "prioridade": "P3",
+      "comandos": 0
+    }
+  ]
+}

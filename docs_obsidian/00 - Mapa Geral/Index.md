@@ -32,6 +32,7 @@ A direção das dependências é `neoveg_common` → (`neoveg_audio`, `neoveg_vi
 - [[janelas_e_paineis]] · [[formatos_e_tecnologia]] · [[diferencas_entre_versoes]]
 
 ## ui_references
+- [[matriz_de_paridade]] — estado e prioridade de cada função da referência no Neoveg.
 - [[fontes_de_referencia_de_ui]] — manuais, varredura e imagens extraídas cruzados por painel: [[medidas_da_interface]], [[painel_timeline_trilhas_eventos]], [[painel_preview_e_scopes]], [[painel_trimmer_midia_explorer]], [[painel_audio_master_e_mixer]], [[painel_efeitos_transicoes_geradores]], [[mapa_de_icones_por_funcao]], [[validacao_de_atalhos]].
 
 ## Fontes de verdade fora do vault

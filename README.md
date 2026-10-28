@@ -305,6 +305,8 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 
 ### Próximos passos da referência funcional (registrados em 28/10/2026)
 
+- [x] **Matriz de paridade** (`scripts/parity_matrix.py`, `docs_obsidian/ui_references/matriz_de_paridade.md`): os 872 comandos da referência agrupados por função, com estado e prioridade P1/P2/P3; é a lista de trabalho para chegar à paridade funcional.
+
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**

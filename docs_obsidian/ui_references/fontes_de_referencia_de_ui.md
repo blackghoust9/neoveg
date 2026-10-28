@@ -16,6 +16,9 @@ As três pastas ficam fora do Git (`.gitignore`). Só estas notas entram no repo
 
 As páginas dos manuais citadas nas notas por painel são **candidatas**: foram achadas por busca de títulos no texto dos PDFs e devem ser conferidas ao abrir o manual. O que as notas afirmam sobre comportamento vem do texto dos manuais e da lista de itens da varredura; o que é inferência vem marcado como tal.
 
+## Matriz de paridade
+- [[matriz_de_paridade]] — os 872 comandos da referência agrupados por função, com o estado no Neoveg e a prioridade. Gerada por `scripts/parity_matrix.py`.
+
 ## Notas por painel
 - [[medidas_da_interface]] — medidas reais encontradas e o que elas mudam (ou não) no Neoveg.
 - [[painel_timeline_trilhas_eventos]]
