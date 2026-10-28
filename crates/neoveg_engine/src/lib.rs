@@ -28,6 +28,7 @@ pub mod slideshow;
 pub mod snapping;
 pub mod switches;
 pub mod timeline;
+pub mod track_motion;
 pub mod trimmer;
 pub mod video_effects;
 

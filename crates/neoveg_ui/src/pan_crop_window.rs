@@ -248,11 +248,17 @@ pub enum PanCropAction {
     Close,
 }
 
-/// A live Pan/Crop that the preview must show instead of the project's: the event and its value.
+/// What the editor changes: the Pan/Crop of an event or the motion of a video track.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EditTarget {
+    Event(TrackId, EventId),
+    Track(TrackId),
+}
+
+/// A live Pan/Crop (or track motion) that the preview must show instead of the project's.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PanCropDraft {
-    pub track_id: TrackId,
-    pub event_id: EventId,
+    pub target: EditTarget,
     pub pan_crop: PanCrop,
 }
 
@@ -264,7 +270,7 @@ impl PanCropDraft {
             return 0;
         };
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (d.track_id, d.event_id, d.pan_crop.stretch_to_fill).hash(&mut h);
+        (d.target, d.pan_crop.stretch_to_fill).hash(&mut h);
         for key in &d.pan_crop.keys {
             key.time.to_bits().hash(&mut h);
             key.smoothness.to_bits().hash(&mut h);
@@ -282,9 +288,10 @@ impl PanCropDraft {
     }
 }
 
-/// What the window needs to know about the event it edits.
+/// What the window needs to know about what it edits.
 pub struct PanCropView<'a> {
-    pub event_name: &'a str,
+    /// Name of the event or of the track.
+    pub title: &'a str,
     /// The Pan/Crop stored in the project.
     pub pan_crop: &'a PanCrop,
     /// Seconds from the start of the event to the cursor, clamped to the event.
@@ -312,7 +319,7 @@ struct DragState {
 
 pub struct PanCropWindow {
     pub open: bool,
-    pub target: Option<(TrackId, EventId)>,
+    pub target: Option<EditTarget>,
     pub source: Option<SourceImage>,
     /// Key of the source frame already asked for or shown: media path and frame number.
     pub source_key: Option<(std::path::PathBuf, i64)>,
@@ -357,14 +364,23 @@ fn fit_rect(area: Rect, aspect: f32) -> Rect {
 
 impl PanCropWindow {
     /// Opens the editor on an event; the source picture is asked for again.
-    pub fn open_for(&mut self, track_id: TrackId, event_id: EventId) {
-        if self.target != Some((track_id, event_id)) {
+    pub fn open_event(&mut self, track_id: TrackId, event_id: EventId) {
+        self.open_target(EditTarget::Event(track_id, event_id));
+    }
+
+    /// Opens the editor on the motion of a video track.
+    pub fn open_track(&mut self, track_id: TrackId) {
+        self.open_target(EditTarget::Track(track_id));
+    }
+
+    fn open_target(&mut self, target: EditTarget) {
+        if self.target != Some(target) {
             self.source = None;
             self.source_key = None;
             self.draft = None;
             self.dragging = None;
         }
-        self.target = Some((track_id, event_id));
+        self.target = Some(target);
         self.open = true;
     }
 
@@ -400,27 +416,33 @@ impl PanCropWindow {
         let current = working.frame_at(view.time);
         let mut next: Option<(PanCrop, bool)> = None; // (new value, gesture finished)
 
-        crate::dialogs::dialog(ctx, "Pan/Crop do evento")
+        let track_mode = matches!(self.target, Some(EditTarget::Track(_)));
+        let window_title = if track_mode {
+            "Movimento da trilha"
+        } else {
+            "Pan/Crop do evento"
+        };
+        crate::dialogs::dialog(ctx, window_title)
             .open(&mut open)
             .default_size([1000.0, 580.0])
             .resizable(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.strong(view.event_name);
+                    ui.strong(view.title);
                     ui.weak(format!("· {:.2} s de {:.2} s", view.time, view.duration));
                     ui.separator();
-                    if ui.button("Restaurar").on_hover_text("Volta a mostrar a imagem inteira, sem quadros-chave").clicked() {
+                    if ui.button("Restaurar").on_hover_text(if track_mode { "A camada volta a ocupar o quadro inteiro, sem quadros-chave" } else { "Volta a mostrar a imagem inteira, sem quadros-chave" }).clicked() {
                         next = Some((PanCrop { stretch_to_fill: working.stretch_to_fill, ..PanCrop::default() }, true));
                     }
                     if ui.button("Centralizar").clicked() {
                         let f = PanCropFrame { x_center: 0.5, y_center: 0.5, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
                     }
-                    if ui.button("Proporção da origem").on_hover_text("A caixa passa a ter o formato da imagem de origem").clicked() {
+                    if !track_mode && ui.button("Proporção da origem").on_hover_text("A caixa passa a ter o formato da imagem de origem").clicked() {
                         let f = PanCropFrame { height: current.width, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
                     }
-                    if ui.button("Proporção do projeto").on_hover_text("A caixa passa a ter o formato do projeto: sem faixas pretas").clicked() {
+                    if ui.button("Proporção do projeto").on_hover_text(if track_mode { "A caixa passa a ter o formato do projeto" } else { "A caixa passa a ter o formato do projeto: sem faixas pretas" }).clicked() {
                         let height = height_for_aspect(current.width, view.source_aspect, view.project_aspect);
                         let f = PanCropFrame { height, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
@@ -436,7 +458,8 @@ impl PanCropWindow {
                     ui.selectable_value(&mut self.axis, Axis::XOnly, "só em X");
                     ui.selectable_value(&mut self.axis, Axis::YOnly, "só em Y");
                     let mut stretch = working.stretch_to_fill;
-                    if ui
+                    if !track_mode
+                        && ui
                         .checkbox(&mut stretch, "Esticar para preencher o quadro")
                         .on_hover_text("Ligado: a caixa vira o quadro (zoom). Desligado: a imagem mantém o tamanho e o que fica fora da caixa é cortado.")
                         .changed()
@@ -514,7 +537,7 @@ impl PanCropWindow {
                     ).0;
                     let aspect = self.source.as_ref().map_or(view.source_aspect, |s| s.aspect);
                     let canvas = fit_rect(canvas_area, aspect);
-                    self.paint_canvas(ui, canvas, &current, working.stretch_to_fill);
+                    self.paint_canvas(ui, canvas, &current, working.stretch_to_fill, track_mode);
                     self.handle_pointer(ui, canvas, &current, view, &working, tolerance, &mut next);
 
                     if right > 0.0 {
@@ -552,7 +575,14 @@ impl PanCropWindow {
         actions
     }
 
-    fn paint_canvas(&self, ui: &egui::Ui, canvas: Rect, frame: &PanCropFrame, stretch: bool) {
+    fn paint_canvas(
+        &self,
+        ui: &egui::Ui,
+        canvas: Rect,
+        frame: &PanCropFrame,
+        stretch: bool,
+        track_mode: bool,
+    ) {
         let painter = ui.painter_at(canvas.expand(40.0));
         painter.rect_filled(canvas, 0.0, Color32::from_gray(24));
         match &self.source {
@@ -565,10 +595,35 @@ impl PanCropWindow {
                 );
             }
             None => {
+                if track_mode {
+                    // The frame of the project, with the thirds, since a track has no single source
+                    for i in 1..3 {
+                        let f = i as f32 / 3.0;
+                        let line = Stroke::new(1.0_f32, Color32::from_gray(48));
+                        painter.line_segment(
+                            [
+                                pos2(canvas.left() + f * canvas.width(), canvas.top()),
+                                pos2(canvas.left() + f * canvas.width(), canvas.bottom()),
+                            ],
+                            line,
+                        );
+                        painter.line_segment(
+                            [
+                                pos2(canvas.left(), canvas.top() + f * canvas.height()),
+                                pos2(canvas.right(), canvas.top() + f * canvas.height()),
+                            ],
+                            line,
+                        );
+                    }
+                }
                 painter.text(
                     canvas.center(),
                     egui::Align2::CENTER_CENTER,
-                    "Sem imagem de origem neste instante",
+                    if track_mode {
+                        "Quadro do projeto"
+                    } else {
+                        "Sem imagem de origem neste instante"
+                    },
                     egui::FontId::proportional(13.0),
                     Color32::GRAY,
                 );
@@ -1030,8 +1085,7 @@ mod tests {
     #[test]
     fn the_draft_stamp_follows_every_number_of_the_pan_crop() {
         let d = |x: f32| PanCropDraft {
-            track_id: 1,
-            event_id: 2,
+            target: EditTarget::Event(1, 2),
             pan_crop: with_frame(&PanCrop::default(), 0.0, boxed(x, 0.5, 0.5, 0.5, 0.0), 0.02),
         };
         assert_eq!(PanCropDraft::stamp(None), 0);

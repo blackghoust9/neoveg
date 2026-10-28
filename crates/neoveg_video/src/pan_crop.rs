@@ -82,48 +82,52 @@ pub fn apply(src: &FrameBuffer, frame: &PanCropFrame, stretch_to_fill: bool) -> 
     let (cx, cy) = (frame.x_center * sw, frame.y_center * sh);
     let (half_w, half_h) = (frame.width * sw / 2.0, frame.height * sh / 2.0);
     let (sin, cos) = frame.rotation_deg.to_radians().sin_cos();
-    let width = src.width as usize;
-    let mut out = FrameBuffer {
-        width: src.width,
-        height: src.height,
-        rgba: vec![0; src.rgba.len()],
-    };
+    render(src.width, src.height, |x, y| {
+        let (ox, oy) = (x as f32 + 0.5, y as f32 + 0.5);
+        if stretch_to_fill {
+            // Output position inside the box, then the box's rotation, then its place on the source
+            let dx = (ox / sw - 0.5) * frame.width * sw;
+            let dy = (oy / sh - 0.5) * frame.height * sh;
+            sample(src, cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+        } else {
+            // Same position on the source; only what the rotated box covers stays visible
+            let (dx, dy) = (ox - cx, oy - cy);
+            let (lx, ly) = (dx * cos + dy * sin, -dx * sin + dy * cos);
+            if lx.abs() <= half_w && ly.abs() <= half_h {
+                sample(src, ox, oy)
+            } else {
+                [0.0; 4]
+            }
+        }
+    })
+}
 
+/// A `width` by `height` picture whose pixel `(x, y)` is `pixel(x, y)` (premultiplied colour and
+/// alpha, `0..=255`), computed on several threads when the picture is big enough.
+fn render(width: u32, height: u32, pixel: impl Fn(usize, usize) -> [f32; 4] + Sync) -> FrameBuffer {
+    let (w, h) = (width as usize, height as usize);
+    let mut out = FrameBuffer {
+        width,
+        height,
+        rgba: vec![0; w * h * 4],
+    };
     let row = |y: usize, line: &mut [u8]| {
         for (x, px) in line.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-            let (ox, oy) = (x as f32 + 0.5, y as f32 + 0.5);
-            let value = if stretch_to_fill {
-                // Output position inside the box, then the box's rotation, then its place on the source
-                let dx = (ox / sw - 0.5) * frame.width * sw;
-                let dy = (oy / sh - 0.5) * frame.height * sh;
-                sample(src, cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
-            } else {
-                // Same position on the source; only what the rotated box covers stays visible
-                let (dx, dy) = (ox - cx, oy - cy);
-                let (lx, ly) = (dx * cos + dy * sin, -dx * sin + dy * cos);
-                if lx.abs() <= half_w && ly.abs() <= half_h {
-                    sample(src, ox, oy)
-                } else {
-                    [0.0; 4]
-                }
-            };
-            write_pixel(px, value);
+            write_pixel(px, pixel(x, y));
         }
     };
-
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let height = src.height as usize;
-    if width * height < 64 * 1024 || threads < 2 {
-        for (y, line) in out.rgba.chunks_mut(width * 4).enumerate() {
+    if w * h < 64 * 1024 || threads < 2 || w == 0 {
+        for (y, line) in out.rgba.chunks_mut((w * 4).max(4)).enumerate() {
             row(y, line);
         }
     } else {
-        let band = height.div_ceil(threads);
+        let band = h.div_ceil(threads);
         std::thread::scope(|s| {
-            for (b, chunk) in out.rgba.chunks_mut(band * width * 4).enumerate() {
+            for (b, chunk) in out.rgba.chunks_mut(band * w * 4).enumerate() {
                 let row = &row;
                 s.spawn(move || {
-                    for (i, line) in chunk.chunks_mut(width * 4).enumerate() {
+                    for (i, line) in chunk.chunks_mut(w * 4).enumerate() {
                         row(b * band + i, line);
                     }
                 });
@@ -131,6 +135,38 @@ pub fn apply(src: &FrameBuffer, frame: &PanCropFrame, stretch_to_fill: bool) -> 
         });
     }
     out
+}
+
+/// The layer of a track placed in a `canvas_w` by `canvas_h` frame at the box `frame`: the layer is
+/// fitted to the frame first, then scaled to the box, turned with it and moved to its centre. What
+/// the box does not cover is transparent, so the tracks below show there. A whole-frame box that is
+/// not turned leaves the layer as it is.
+pub fn place(
+    layer: &FrameBuffer,
+    frame: &PanCropFrame,
+    canvas_w: u32,
+    canvas_h: u32,
+) -> FrameBuffer {
+    let frame = frame.sanitized();
+    let (cw, ch) = (canvas_w.max(1), canvas_h.max(1));
+    let fitted = crate::composite::fit_layer_to_canvas(layer, cw, ch);
+    if frame.is_full() {
+        return fitted.into_owned();
+    }
+    let (fw, fh) = (cw as f32, ch as f32);
+    let (cx, cy) = (frame.x_center * fw, frame.y_center * fh);
+    let (box_w, box_h) = ((frame.width * fw).max(1.0), (frame.height * fh).max(1.0));
+    let (sin, cos) = frame.rotation_deg.to_radians().sin_cos();
+    render(cw, ch, |x, y| {
+        let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+        // Back into the box's own axes, then into the layer
+        let (lx, ly) = (dx * cos + dy * sin, -dx * sin + dy * cos);
+        let (u, v) = (lx / box_w + 0.5, ly / box_h + 0.5);
+        if !(0.0..1.0).contains(&u) || !(0.0..1.0).contains(&v) {
+            return [0.0; 4];
+        }
+        sample(&fitted, u * fw, v * fh)
+    })
 }
 
 #[cfg(test)]
@@ -301,5 +337,90 @@ mod tests {
             })
             .count();
         assert!(agree >= 70, "{agree} of 81 samples agree (worst {worst})");
+    }
+
+    #[test]
+    fn a_whole_frame_box_leaves_the_layer_and_a_small_box_makes_a_picture_in_picture() {
+        let layer = FrameBuffer::solid(64, 36, [10, 200, 30, 255]);
+        assert_eq!(place(&layer, &PanCropFrame::FULL, 64, 36), layer);
+        // A quarter-size box in the lower-right corner
+        let pip = place(
+            &layer,
+            &PanCropFrame {
+                x_center: 0.8,
+                y_center: 0.8,
+                width: 0.4,
+                height: 0.4,
+                rotation_deg: 0.0,
+            },
+            64,
+            36,
+        );
+        assert!(
+            near(pip.pixel(51, 29), [10, 200, 30, 255]),
+            "inside the box"
+        );
+        assert_eq!(
+            pip.pixel(5, 5)[3],
+            0,
+            "outside the box: the tracks below show"
+        );
+        assert_eq!(pip.pixel(5, 30)[3], 0);
+        assert_eq!(pip.pixel(60, 3)[3], 0);
+    }
+
+    #[test]
+    fn a_placed_layer_keeps_its_picture_scaled_into_the_box_and_a_turned_box_tilts_it() {
+        let src = quadrants(64);
+        // Half size, centred: the four colours stay in the four quarters of the smaller square
+        let small = place(
+            &src,
+            &PanCropFrame {
+                width: 0.5,
+                height: 0.5,
+                ..PanCropFrame::FULL
+            },
+            64,
+            64,
+        );
+        assert!(near(small.pixel(20, 20), [255, 0, 0, 255]));
+        assert!(near(small.pixel(44, 20), [0, 255, 0, 255]));
+        assert!(near(small.pixel(20, 44), [0, 0, 255, 255]));
+        assert!(near(small.pixel(44, 44), [255, 255, 255, 255]));
+        assert_eq!(small.pixel(2, 2)[3], 0);
+        // A quarter turn clockwise: the layer's top-left colour moves to the top-right corner
+        let turned = place(
+            &src,
+            &PanCropFrame {
+                rotation_deg: 90.0,
+                ..PanCropFrame::FULL
+            },
+            64,
+            64,
+        );
+        assert!(near(turned.pixel(56, 8), [255, 0, 0, 255]));
+        assert!(near(turned.pixel(8, 8), [0, 0, 255, 255]));
+    }
+
+    #[test]
+    fn a_layer_of_another_shape_is_fitted_to_the_frame_before_it_is_placed() {
+        let wide = FrameBuffer::solid(80, 20, [200, 0, 0, 255]);
+        let out = place(
+            &wide,
+            &PanCropFrame {
+                width: 0.9,
+                height: 0.9,
+                ..PanCropFrame::FULL
+            },
+            40,
+            40,
+        );
+        assert_eq!((out.width, out.height), (40, 40));
+        assert!(near(out.pixel(20, 20), [200, 0, 0, 255]));
+        assert_eq!(
+            out.pixel(20, 3)[3],
+            0,
+            "the bar above the fitted picture is transparent"
+        );
     }
 }

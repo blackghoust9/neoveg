@@ -58,6 +58,7 @@ use neoveg_engine::relink::relink_missing;
 use neoveg_engine::ripple::RippleScope;
 use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
+use neoveg_engine::track_motion as tmotion;
 use neoveg_engine::video_effects as vfxe;
 use neoveg_engine::EventGeometry;
 use neoveg_engine::{
@@ -76,7 +77,7 @@ use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
 use crate::mixer_panel::{self, MixAction, MixerPanelState};
-use crate::pan_crop_window::{PanCropAction, PanCropDraft, PanCropView, PanCropWindow};
+use crate::pan_crop_window::{EditTarget, PanCropAction, PanCropDraft, PanCropView, PanCropWindow};
 use crate::precision_slider::PrecisionSlider;
 use crate::scopes_panel::{scopes_ui, ScopesPanelState};
 use crate::shortcuts::{from_egui, to_egui};
@@ -4087,7 +4088,17 @@ impl AppState {
             self.status = "O Pan/Crop vale para eventos de faixas de vídeo".into();
             return;
         }
-        self.pan_crop.open_for(track_id, event_id);
+        self.pan_crop.open_event(track_id, event_id);
+    }
+
+    /// Faixas > Movimento da trilha: the selected video track.
+    fn open_track_motion(&mut self) {
+        match self.selected_track {
+            Some(track_id) if tmotion::get(&self.timeline, track_id).is_some() => {
+                self.pan_crop.open_track(track_id);
+            }
+            _ => self.status = "Selecione uma faixa de vídeo para editar o movimento".into(),
+        }
     }
 
     /// Ferramentas > Pan/Crop do evento: the primary selected event.
@@ -5495,6 +5506,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .selected_track
                 .and_then(|id| state.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video);
+            if ui
+                .add_enabled(video_track, egui::Button::new("Movimento da trilha…"))
+                .clicked()
+            {
+                state.open_track_motion();
+                ui.close_menu();
+            }
             ui.add_enabled_ui(video_track, |ui| {
                 ui.menu_button("Envelopes de vídeo", |ui| {
                     for (label, target, initial) in [
@@ -5526,6 +5544,16 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .clicked()
             {
                 state.open_pan_crop_for_selection();
+                ui.close_menu();
+            }
+            let video_track = state
+                .selected_track
+                .is_some_and(|id| tmotion::get(&state.timeline, id).is_some());
+            if ui
+                .add_enabled(video_track, egui::Button::new("Movimento da trilha…"))
+                .clicked()
+            {
+                state.open_track_motion();
                 ui.close_menu();
             }
             if ui.button("Correção de cor…").clicked() {
@@ -5871,68 +5899,103 @@ type GradeRow<'a> = (
 
 /// Ferramentas → Correção de cor: primary correction of the video. The sliders act on a draft that
 /// is shown at once and committed as one undo step when the drag ends.
-/// The Pan/Crop editor: shows the window for the event it was opened on and runs what the user did.
+/// The Pan/Crop editor: shows the window for what it was opened on (an event, or a video track for
+/// its motion) and runs what the user did.
 fn pan_crop_editor(ctx: &egui::Context, state: &mut AppState) {
     if !state.pan_crop.open {
         return;
     }
-    let Some((track_id, event_id)) = state.pan_crop.target else {
-        return;
-    };
-    let event = state
-        .timeline
-        .track(track_id)
-        .filter(|t| t.kind == TrackKind::Video)
-        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
-        .cloned();
-    let Some(event) = event else {
-        // The event was deleted (or undone away) while the window was open
-        state.pan_crop.close();
-        state.pan_crop_draft = None;
+    let Some(target) = state.pan_crop.target else {
         return;
     };
     let fps = state.project.settings.fps;
-    let info = event
-        .media_id
-        .and_then(|id| state.video_info.get(&id))
-        .cloned();
-    let time = (state.playhead - event.start).clamp(0.0, event.duration);
-
-    // The source picture under the cursor, asked for once per frame number
-    if let (Some(item), Some(worker)) = (
-        event
-            .media_id
-            .and_then(|id| state.project.media_pool.iter().find(|m| m.id == id)),
-        &state.frame_worker,
-    ) {
-        let source_fps = info.as_ref().map_or(fps, |i| i.fps).max(1.0);
-        let source_duration = info.as_ref().map_or(event.duration, |i| i.duration);
-        let seconds = composite::source_seconds(&event, event.start + time, source_duration);
-        let frame = (seconds * source_fps).round() as i64;
-        let key = (PathBuf::from(&item.path), frame);
-        if state.pan_crop.source_key.as_ref() != Some(&key) {
-            worker.request_source(SourceRequest {
-                path: key.0.clone(),
-                seconds: frame as f64 / source_fps,
-                max_width: 960,
-            });
-            state.pan_crop.source_key = Some(key);
-        }
-    }
-
-    let committed = event.pan_crop.clone();
-    let source_aspect = info
-        .as_ref()
-        .map_or(16.0 / 9.0, |i| i.width as f32 / i.height.max(1) as f32);
     let project_aspect = {
         let s = &state.project.settings;
         s.width as f32 / s.height.max(1) as f32
     };
+    // What is being edited: its name, the stored value, the time of the cursor in its own clock
+    // and the length of that clock
+    let (title, committed, time, duration, source_aspect, event_start) = match target {
+        EditTarget::Event(track_id, event_id) => {
+            let event = state
+                .timeline
+                .track(track_id)
+                .filter(|t| t.kind == TrackKind::Video)
+                .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+                .cloned();
+            let Some(event) = event else {
+                // The event was deleted (or undone away) while the window was open
+                state.pan_crop.close();
+                state.pan_crop_draft = None;
+                return;
+            };
+            let info = event
+                .media_id
+                .and_then(|id| state.video_info.get(&id))
+                .cloned();
+            let time = (state.playhead - event.start).clamp(0.0, event.duration);
+            // The source picture under the cursor, asked for once per frame number
+            if let (Some(item), Some(worker)) = (
+                event
+                    .media_id
+                    .and_then(|id| state.project.media_pool.iter().find(|m| m.id == id)),
+                &state.frame_worker,
+            ) {
+                let source_fps = info.as_ref().map_or(fps, |i| i.fps).max(1.0);
+                let source_duration = info.as_ref().map_or(event.duration, |i| i.duration);
+                let seconds =
+                    composite::source_seconds(&event, event.start + time, source_duration);
+                let frame = (seconds * source_fps).round() as i64;
+                let key = (PathBuf::from(&item.path), frame);
+                if state.pan_crop.source_key.as_ref() != Some(&key) {
+                    worker.request_source(SourceRequest {
+                        path: key.0.clone(),
+                        seconds: frame as f64 / source_fps,
+                        max_width: 960,
+                    });
+                    state.pan_crop.source_key = Some(key);
+                }
+            }
+            let aspect = info
+                .as_ref()
+                .map_or(16.0 / 9.0, |i| i.width as f32 / i.height.max(1) as f32);
+            (
+                event.name.clone(),
+                event.pan_crop.clone(),
+                time,
+                event.duration,
+                aspect,
+                event.start,
+            )
+        }
+        EditTarget::Track(track_id) => {
+            let Some(track) = state
+                .timeline
+                .track(track_id)
+                .filter(|t| t.kind == TrackKind::Video)
+            else {
+                state.pan_crop.close();
+                state.pan_crop_draft = None;
+                return;
+            };
+            // A track has no single source: its motion is in timeline time and the frame is the project's
+            let length = state.timeline.duration().max(state.playhead + 1.0).max(1.0);
+            (
+                track.name.clone(),
+                track.motion.clone(),
+                state.playhead.clamp(0.0, length),
+                length,
+                project_aspect,
+                0.0,
+            )
+        }
+    };
+
     let view = PanCropView {
-        event_name: &event.name,
+        title: &title,
         pan_crop: &committed,
         time,
-        duration: event.duration,
+        duration,
         fps,
         source_aspect,
         project_aspect,
@@ -5942,15 +6005,19 @@ fn pan_crop_editor(ctx: &egui::Context, state: &mut AppState) {
     for action in actions {
         match action {
             PanCropAction::Draft(pan_crop) => {
-                state.pan_crop_draft = Some(PanCropDraft {
-                    track_id,
-                    event_id,
-                    pan_crop,
-                });
+                state.pan_crop_draft = Some(PanCropDraft { target, pan_crop });
             }
             PanCropAction::EndDraft => state.pan_crop_draft = None,
             PanCropAction::Commit(pan_crop) => {
-                if let Some(cmd) = pcrop::set(&state.timeline, track_id, event_id, pan_crop) {
+                let cmd = match target {
+                    EditTarget::Event(track_id, event_id) => {
+                        pcrop::set(&state.timeline, track_id, event_id, pan_crop)
+                    }
+                    EditTarget::Track(track_id) => {
+                        tmotion::set(&state.timeline, track_id, pan_crop)
+                    }
+                };
+                if let Some(cmd) = cmd {
                     if state.history.execute(&mut state.timeline, cmd) {
                         state.last_frame_key = None;
                         state.last_composite_key = None;
@@ -5959,7 +6026,7 @@ fn pan_crop_editor(ctx: &egui::Context, state: &mut AppState) {
             }
             PanCropAction::SeekTo(seconds) => {
                 let now = ctx.input(|i| i.time);
-                state.go_to_time(event.start + seconds, now);
+                state.go_to_time(event_start + seconds, now);
             }
             PanCropAction::Close => {
                 state.pan_crop.close();

@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 9] = [
+pub const OUTPUTS: [&str; 10] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -33,6 +33,7 @@ pub const OUTPUTS: [&str; 9] = [
     "ui_edit_details.png",
     "ui_video_effects.png",
     "ui_pan_crop.png",
+    "ui_track_motion.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -129,11 +130,31 @@ pub fn run(dir: &Path) -> Result<(), String> {
             ),
             egui::TextureOptions::LINEAR,
         ));
-        state.pan_crop.open_for(track_id, event_id);
+        state.pan_crop.open_event(track_id, event_id);
         state.pan_crop.set_source(&ctx, &source);
         let mut app = headless_app(state, default_dock());
         let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[8]))?;
+
+        // 10. The motion of a video track: a picture-in-picture that slides across the frame
+        let ctx = new_context();
+        let mut state = demo_project_with_track_motion();
+        let source = decode_sample_frame(Path::new(SAMPLE_VIDEO), 3.0)
+            .unwrap_or_else(|| neoveg_video::generators::smpte_color_bars(960, 540));
+        let (track_id, shown) = track_motion_demo_target(&state);
+        let placed = neoveg_video::pan_crop::place(&source, &shown, source.width, source.height);
+        state.video_texture = Some(ctx.load_texture(
+            "preview_frame",
+            egui::ColorImage::from_rgba_unmultiplied(
+                [placed.width as usize, placed.height as usize],
+                &placed.rgba,
+            ),
+            egui::TextureOptions::LINEAR,
+        ));
+        state.pan_crop.open_track(track_id);
+        let mut app = headless_app(state, default_dock());
+        let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[9]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -679,6 +700,50 @@ fn demo_project_with_pan_crop() -> AppState {
     s
 }
 
+/// The demonstration project with the motion of its video track: the layer shrinks to a third of
+/// the frame and slides from the lower right to the upper left, the cursor halfway along.
+fn demo_project_with_track_motion() -> AppState {
+    use neoveg_common::pan_crop::{PanCrop, PanCropFrame};
+    let mut s = demo_project();
+    let track_id = {
+        let track = s
+            .timeline
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::Video)
+            .expect("the demonstration has a video track");
+        let mut motion = PanCrop::default();
+        let at = |x: f32, y: f32, rotation: f32| PanCropFrame {
+            x_center: x,
+            y_center: y,
+            width: 0.36,
+            height: 0.36,
+            rotation_deg: rotation,
+        };
+        motion.upsert_key(2.0, at(0.78, 0.74, 0.0), 1e-3);
+        motion.upsert_key(14.0, at(0.24, 0.28, -6.0), 1e-3);
+        motion.keys[0].smoothness = 0.7;
+        track.motion = motion;
+        track.id
+    };
+    s.selected_track = Some(track_id);
+    s.playhead = 8.0;
+    s.status = "Movimento da trilha: a camada desliza entre dois quadros-chave".into();
+    s
+}
+
+/// The track the motion demo edits, and its box at the cursor.
+fn track_motion_demo_target(
+    state: &AppState,
+) -> (
+    neoveg_engine::TrackId,
+    neoveg_common::pan_crop::PanCropFrame,
+) {
+    let track_id = state.selected_track.expect("a selected track");
+    let track = state.timeline.track(track_id).expect("the track exists");
+    (track_id, track.motion.frame_at(state.playhead))
+}
+
 /// The event the Pan/Crop demo edits, and the box at the cursor.
 fn pan_crop_demo_target(
     state: &AppState,
@@ -904,5 +969,14 @@ mod tests {
         // 2.5 s into a move from x 0.32 to 0.66 that eases out of the first key
         assert!(frame.x_center > 0.32 && frame.x_center < 0.66, "{frame:?}");
         assert!(frame.width < 0.62 && frame.width > 0.46);
+    }
+
+    #[test]
+    fn the_track_motion_demo_slides_between_two_keys_and_edits_a_video_track() {
+        let s = demo_project_with_track_motion();
+        let (track_id, frame) = track_motion_demo_target(&s);
+        assert!(neoveg_engine::track_motion::get(&s.timeline, track_id).is_some());
+        assert!(frame.x_center < 0.78 && frame.x_center > 0.24, "{frame:?}");
+        assert_eq!(frame.width, 0.36);
     }
 }

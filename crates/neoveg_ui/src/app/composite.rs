@@ -9,7 +9,7 @@
 //! opacity (fading both would dip through black).
 
 use super::*;
-use crate::pan_crop_window::PanCropDraft;
+use crate::pan_crop_window::{EditTarget, PanCropDraft};
 use crate::video_fx_panel::{effects_for, VfxDraft};
 use neoveg_common::composite::CompositeMode;
 use neoveg_video::pan_crop::PanCropRequest;
@@ -41,6 +41,24 @@ pub(super) struct FrameSettings {
     pub pan_crop_draft: Option<PanCropDraft>,
 }
 
+/// Where the layer of `track` sits in the frame at timeline `time` (the motion being edited, when
+/// there is one), or `None` for a track that does not move.
+fn track_motion_frame(
+    track: &neoveg_engine::Track,
+    time: f64,
+    settings: &FrameSettings,
+) -> Option<neoveg_common::pan_crop::PanCropFrame> {
+    let stored = match settings
+        .pan_crop_draft
+        .as_ref()
+        .filter(|d| d.target == EditTarget::Track(track.id))
+    {
+        Some(draft) => &draft.pan_crop,
+        None => &track.motion,
+    };
+    (!stored.is_default()).then(|| stored.frame_at(time))
+}
+
 /// The Pan/Crop request of `event` at timeline `time`: its keys (or the draft being edited) at the
 /// time since the event started, or `None` for an event without Pan/Crop.
 fn pan_crop_request(
@@ -52,7 +70,7 @@ fn pan_crop_request(
     let stored = match settings
         .pan_crop_draft
         .as_ref()
-        .filter(|d| d.track_id == track_id && d.event_id == event.id)
+        .filter(|d| d.target == EditTarget::Event(track_id, event.id))
     {
         Some(draft) => &draft.pan_crop,
         None => &event.pan_crop,
@@ -197,6 +215,7 @@ pub(super) fn composite_request(
                 ),
                 fade_color: track.fade_color,
                 fade_amount: track_state.fade,
+                motion: track_motion_frame(track, time, settings),
             });
         }
     }
@@ -243,7 +262,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .media_id
                 .and_then(|m| timeline.media_video_effects.get(&m))
                 .is_some_and(|chain| on(chain));
-            let pan_crop_on = !e.pan_crop.is_default();
+            let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let envelope_on = track
                 .envelopes
                 .iter()
@@ -603,8 +622,7 @@ mod tests {
         let mut draft = PanCrop::default();
         draft.upsert_key(0.0, at(0.9), 1e-3);
         live.pan_crop_draft = Some(PanCropDraft {
-            track_id: tid,
-            event_id: eid,
+            target: EditTarget::Event(tid, eid),
             pan_crop: draft,
         });
         assert_eq!(clip(&tl, &live, 12.0).unwrap().frame.x_center, 0.9);
@@ -617,5 +635,70 @@ mod tests {
         // An event without Pan/Crop sends none
         tl.tracks[0].events[0].pan_crop = PanCrop::default();
         assert!(clip(&tl, &settings(), 12.0).is_none());
+    }
+
+    #[test]
+    fn the_motion_of_a_track_reaches_the_request_at_the_timeline_time() {
+        use neoveg_common::pan_crop::{PanCrop, PanCropFrame};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 0.0, 10.0);
+        track.events.push(e);
+        let at = |x: f32| PanCropFrame {
+            x_center: x,
+            y_center: 0.5,
+            width: 0.3,
+            height: 0.3,
+            rotation_deg: 0.0,
+        };
+        let mut motion = PanCrop::default();
+        motion.upsert_key(2.0, at(0.2), 1e-3);
+        motion.upsert_key(6.0, at(0.8), 1e-3);
+        let tid = track.id;
+        track.motion = motion;
+        tl.tracks.push(track);
+        assert!(
+            has_effects(&tl, 4.0),
+            "a moving track goes through the composite path"
+        );
+
+        let frame = |tl: &Timeline, settings: &FrameSettings, time: f64| {
+            let r = composite_request(tl, time, settings, &resolve).unwrap();
+            let TrackCompositeNode::Track { motion, .. } = &r.nodes[0] else {
+                panic!("a track node");
+            };
+            *motion
+        };
+        assert!(
+            (frame(&tl, &settings(), 4.0).unwrap().x_center - 0.5).abs() < 1e-5,
+            "halfway"
+        );
+        assert_eq!(
+            frame(&tl, &settings(), 1.0).unwrap().x_center,
+            0.2,
+            "held before the first key"
+        );
+
+        // The motion being edited replaces the stored one for that track only
+        let mut live = settings();
+        let mut draft = PanCrop::default();
+        draft.upsert_key(0.0, at(0.9), 1e-3);
+        live.pan_crop_draft = Some(PanCropDraft {
+            target: EditTarget::Track(tid),
+            pan_crop: draft,
+        });
+        assert_eq!(frame(&tl, &live, 4.0).unwrap().x_center, 0.9);
+        assert_eq!(
+            tl.tracks[0].motion.keys.len(),
+            2,
+            "the project is untouched"
+        );
+
+        tl.tracks[0].motion = PanCrop::default();
+        assert!(
+            frame(&tl, &settings(), 4.0).is_none(),
+            "a track without motion sends none"
+        );
+        assert!(!has_effects(&tl, 4.0));
     }
 }

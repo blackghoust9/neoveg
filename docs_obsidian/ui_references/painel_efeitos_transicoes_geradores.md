@@ -25,11 +25,11 @@ Hub: [[fontes_de_referencia_de_ui]]. Catálogos: [[catalogo_efeitos_video]] e [[
 | Transições (biblioteca, parâmetros, envelope de progresso) | `previsto` |
 | Geradores (cor, padrão de teste, gradiente, título) | `feito`; tabuleiro e textura de ruído `previsto` |
 | Pan/Crop do evento (caixa, rotação, quadros-chave, prévia ao lado) | `feito`, sem máscaras nem centro de rotação |
-| Movimento da trilha | `previsto` |
+| Movimento da trilha (caixa, picture-in-picture, rotação 2D, quadros-chave) | `feito`, sem 3D, sombra, brilho nem movimento do pai |
 | Composição e modos de mistura (17) | `feito` no compositor; painel de compositores `previsto` |
 | Rastreamento de movimento | `previsto` |
 | Correção de cor primária e LUT | `feito`; gradação por evento `previsto` |
 
 ## Próximos passos
 1. Biblioteca com miniaturas e pré-ajustes (pede o registro de efeitos com categoria).
-2. Movimento da trilha e máscaras do Pan/Crop.
+2. Máscaras do Pan/Crop, e sombra e brilho do movimento da trilha.

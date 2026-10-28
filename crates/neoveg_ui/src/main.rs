@@ -56,7 +56,22 @@ fn app_icon() -> egui::IconData {
 fn main() -> eframe::Result<()> {
     if let Some(dir) = screenshots_dir() {
         // No window, no log files, none of the user's data: see `app::headless`
-        let code = match app::headless::run(&dir) {
+        // A thread with a big stack: the demonstration projects of the ten screenshots live in one
+        // function, and a debug build gives every one of them its own stack slot
+        let worker = {
+            let dir = dir.clone();
+            std::thread::Builder::new()
+                .name("neoveg-screenshots".into())
+                .stack_size(256 * 1024 * 1024)
+                .spawn(move || app::headless::run(&dir))
+        };
+        let result = match worker {
+            Ok(handle) => handle
+                .join()
+                .unwrap_or_else(|_| Err("a captura de tela terminou em pânico".into())),
+            Err(e) => Err(format!("não foi possível iniciar a captura de tela: {e}")),
+        };
+        let code = match result {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("erro: {e}");

@@ -27,6 +27,7 @@ use crate::still::{
 };
 use crate::vfx::{self, VideoEffect};
 use crate::vfx_gpu::VfxGpu;
+use neoveg_common::pan_crop::PanCropFrame;
 
 pub struct FrameRequest {
     pub media_id: u64,
@@ -84,6 +85,8 @@ pub enum TrackCompositeNode {
         /// Color the layer fades to and how far (`0.0` leaves it alone), run after the effects.
         fade_color: [u8; 3],
         fade_amount: f32,
+        /// Where the layer of the track sits in the frame (`None` leaves it where it is), run last.
+        motion: Option<PanCropFrame>,
     },
     Group {
         children: Vec<TrackCompositeNode>,
@@ -544,6 +547,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             effects,
             fade_color,
             fade_amount,
+            motion,
         } => {
             0u8.hash(h);
             mode.code().hash(h);
@@ -551,6 +555,15 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             vfx::hash_chain(effects, h);
             fade_color.hash(h);
             hash_f32(h, *fade_amount);
+            match motion {
+                Some(m) => {
+                    1u8.hash(h);
+                    for v in [m.x_center, m.y_center, m.width, m.height, m.rotation_deg] {
+                        hash_f32(h, v);
+                    }
+                }
+                None => 0u8.hash(h),
+            }
             clips.len().hash(h);
             for clip in clips {
                 let sk = SourceCacheKey::for_source(
@@ -705,6 +718,7 @@ fn build_decoded_tree(
                 effects,
                 fade_color,
                 fade_amount,
+                motion,
             } => {
                 if *level <= 0.0 {
                     continue;
@@ -719,6 +733,10 @@ fn build_decoded_tree(
                         Arc::new(faded)
                     } else {
                         frame
+                    };
+                    let frame = match motion.filter(|m| !m.is_full()) {
+                        Some(m) => Arc::new(pan_crop::place(&frame, &m, canvas_w, canvas_h)),
+                        None => frame,
                     };
                     out.push(CompositeNode::Layer(DecodedLayer {
                         frame,
@@ -942,6 +960,7 @@ mod tests {
                 effects: Vec::new(),
                 fade_color: [0, 0, 0],
                 fade_amount: 0.0,
+                motion: None,
             }],
             lut: None,
             grade: Grade::default(),
@@ -1006,6 +1025,7 @@ mod tests {
                 effects: track_fx,
                 fade_color: [0, 0, 0],
                 fade_amount: 0.0,
+                motion: None,
             }],
             lut: None,
             grade: Grade::default(),
@@ -1214,6 +1234,48 @@ mod tests {
             worker.rx.try_recv().is_err(),
             "nothing leaks into the preview channel"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_motion_of_a_track_places_its_layer_in_the_frame_and_follows_the_cache_key() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_motion_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("white.png");
+        write_png(&path, 128, 96, [255, 255, 255, 255]);
+
+        let placed = |x_center: f32| {
+            let mut request = effect_request(&path, Vec::new(), Vec::new());
+            if let TrackCompositeNode::Track { motion, .. } = &mut request.nodes[0] {
+                *motion = Some(PanCropFrame {
+                    x_center,
+                    y_center: 0.5,
+                    width: 0.3,
+                    height: 0.3,
+                    rotation_deg: 0.0,
+                });
+            }
+            request
+        };
+        let mut renderer = OfflineFrameRenderer::new();
+        let plain = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(plain.pixel(10, 10), [255, 255, 255, 255]);
+
+        // A small box on the left: white there, the black canvas (nothing below) elsewhere
+        let left = renderer.render_frame(&placed(0.2)).unwrap();
+        assert_eq!(left.pixel(26, 48), [255, 255, 255, 255]);
+        assert_eq!(left.pixel(100, 48), [0, 0, 0, 255]);
+        // Moving the box is a different frame, not the cached one
+        let right = renderer.render_frame(&placed(0.8)).unwrap();
+        assert_eq!(right.pixel(26, 48), [0, 0, 0, 255]);
+        assert_eq!(right.pixel(102, 48), [255, 255, 255, 255]);
+        let again = renderer
+            .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
+            .unwrap();
+        assert_eq!(again, plain);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

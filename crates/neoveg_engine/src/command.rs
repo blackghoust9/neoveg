@@ -106,6 +106,13 @@ pub enum EditCommand {
         before: PanCrop,
         after: PanCrop,
     },
+    /// Any change to the motion of a video track (a key added, moved or removed): the whole motion
+    /// before and after, so it is one exactly reversible undo step.
+    SetTrackMotion {
+        track_id: TrackId,
+        before: PanCrop,
+        after: PanCrop,
+    },
     /// The color a video track fades to.
     SetFadeColor {
         track_id: TrackId,
@@ -289,6 +296,15 @@ impl EditCommand {
                 after,
                 ..
             } => set_pan_crop(tl, *track_id, *event_id, after),
+            Self::SetTrackMotion {
+                track_id, after, ..
+            } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.motion = after.clone();
+                    true
+                }
+                None => false,
+            },
             Self::SetFadeColor {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -420,6 +436,13 @@ impl EditCommand {
                 ..
             } => {
                 set_pan_crop(tl, *track_id, *event_id, before);
+            }
+            Self::SetTrackMotion {
+                track_id, before, ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.motion = before.clone();
+                }
             }
             Self::SetFadeColor {
                 track_id, before, ..

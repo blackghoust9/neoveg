@@ -70,6 +70,12 @@ A aba **Efeitos de Vídeo** (`Ctrl+Alt+8`, ao lado de Efeitos de Áudio) edita a
 
 A janela **Pan/Crop do evento** mostra a imagem de origem com a caixa de seleção (alças nos cantos e nas bordas, alça redonda para girar, arrastar dentro para mover), os valores numéricos, os quadros-chave do evento e, ao lado, a prévia com o recorte. Na imagem, a caixa se move e dá zoom entre dois quadros-chave e está no meio do caminho (2,5 s).
 
+### Movimento da trilha
+
+![Movimento da trilha](docs/screenshots/ui_track_motion.png)
+
+A mesma janela edita o **movimento da trilha** de vídeo: a caixa mostra onde a camada fica no quadro do projeto (menor é um picture-in-picture), com posição, tamanho e rotação, quadros-chave na linha do tempo e a prévia ao lado. Na imagem, a camada encolhe para pouco mais de um terço do quadro e desliza do canto inferior direito para o superior esquerdo; o cursor está no meio do caminho (8 s).
+
 ### Propriedades do projeto
 
 ![Propriedades do projeto](docs/screenshots/ui_project_properties.png)
@@ -316,6 +322,7 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
 
 **Vídeo, efeitos e geradores**
+- [x] Movimento da trilha: a camada de uma faixa de vídeo muda de posição, escala e rotação no quadro do projeto, com quadros-chave e suavidade (picture-in-picture, deslizes, camadas inclinadas), na mesma janela do Pan/Crop (Faixas ou Ferramentas > Movimento da trilha). Faltam 3D, sombra, brilho e o movimento do pai de um grupo.
 - [x] Pan/Crop do evento: janela com a caixa de seleção sobre a origem (alças, rotação, mover, travar proporção, tamanho pelo centro, esticar para preencher), campos numéricos, quadros-chave com suavidade e prévia ao lado, valendo na prévia e na renderização (Ferramentas > Pan/Crop do evento). Faltam máscaras, centro de rotação, inverter e o botão no cabeçalho do evento.
 - [x] Envelopes de faixa de vídeo: nível da faixa, esmaecer para cor (com paleta de cores) e mudo, editados na linha do tempo como os de áudio; valem na prévia e na renderização (Faixas > Envelopes de vídeo, `V` na faixa de vídeo).
 - [ ] Envelopes de evento de vídeo: velocidade (remapeamento de tempo da fonte) e progresso de transição (depende das transições de vídeo).

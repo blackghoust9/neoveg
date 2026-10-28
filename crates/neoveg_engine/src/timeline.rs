@@ -374,6 +374,10 @@ pub struct Track {
     /// Color a video track fades to with its fade-to-color envelope (older projects fade to black).
     #[serde(default, skip_serializing_if = "is_black")]
     pub fade_color: [u8; 3],
+    /// Where the layer of a video track sits in the project's frame, with keyframes in timeline
+    /// seconds (older projects leave the layer where it is).
+    #[serde(default, skip_serializing_if = "PanCrop::is_default")]
+    pub motion: PanCrop,
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -507,6 +511,7 @@ impl Timeline {
             envelopes: Vec::new(),
             video_effects: Vec::new(),
             fade_color: [0, 0, 0],
+            motion: PanCrop::default(),
         }
     }
 

@@ -93,6 +93,12 @@ pub struct PanCropKey {
     pub smoothness: f32,
 }
 
+/// The motion of a video **track**: the same keyframed box, read the other way round. Where Pan/Crop
+/// says which part of the source fills the frame, a track's motion says where the whole layer of
+/// the track sits in the project's frame (a smaller box is a picture-in-picture, a moved one a pan,
+/// a rotated one a tilted layer). Key times are timeline seconds, `stretch_to_fill` is not used.
+pub type TrackMotion = PanCrop;
+
 fn default_true() -> bool {
     true
 }
