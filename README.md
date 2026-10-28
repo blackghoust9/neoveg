@@ -269,6 +269,34 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov`
 - [x] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`), o `Dockerfile` e o `docker-compose.yml` da raiz (o ambiente Docker atual está em `docker/`)
 
+### Próximos passos (registrados em 27/10/2026)
+
+O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do Windows e da correção da timeline. Cada item vem de algo observado ao construir, testar ou abrir o programa; os de verificação dependem de olhar o programa em uso.
+
+**Vídeo e saída**
+- [ ] **Renderização com o encoder disponível:** o render só sabe `libx264`, `libx265` e `prores_ks`; um FFmpeg LGPL (como o instalado por `winget`) traz `libopenh264`, `h264_mf`, `hevc_mf` e `libvpx-vp9` e **nenhum** dos três, então MP4 H.264, HEVC e ProRes falham. Sondar `ffmpeg -encoders` uma vez, escolher o primeiro disponível por formato (com os argumentos de cada um, que mudam: sem `-crf` no `h264_mf`) e dizer na janela de renderização qual foi usado. Enquanto isso o teste `a_video_render_encodes_the_composited_frames_when_ffmpeg_is_installed` se pula sem `libx264`, o que esconde o problema.
+- [ ] **Conferir o som do vídeo importado em uso:** a faixa de áudio própria é criada e decodificada (corrigido: a faixa padrão de um MP4 é a imagem), mas o teste só confere o evento e o carregamento; abrir um vídeo real e ouvir.
+- [ ] **Conferir a qualidade da prévia:** Draft e Preview agora mostram a resolução reduzida em pixels (amostragem vizinho mais próximo) em vez de um desfoque; confirmar que é o que se espera e, se o desfoque aparece também no Auto, investigar o tamanho pedido ao decodificador.
+- [ ] Decodificação por GPU e HEIC/HEIF (já listados abaixo) seguem pendentes.
+
+**Linha do tempo**
+- [ ] **Régua:** a causa do piso de zoom foi corrigida (abaixo de 20 px/s a grade parava antes da borda). Se ainda quebrar em outro zoom ou posição, registrar o caso (zoom, rolagem, taxa de quadros) e reproduzir com um teste de `frame_grid`.
+- [ ] Rolagem vertical: levar a faixa selecionada ou o cursor de volta à vista ao inserir faixas ou mudar de seleção, e rolar as faixas pelo teclado.
+- [ ] Modo de edição expandida (A/B, quadros não usados dos dois lados, saída por `Esc`), passo de 1 pixel e roda do mouse com `Ctrl+Shift` no aparo por teclado, ripple ao mover e ao colar, e quadros ilegíveis em vermelho (Fase 2).
+- [ ] Flag de deslocamento de snap por evento (Fase 3).
+- [ ] Menus e janelas: conferir em uso o menu Arquivo reorganizado (Importar e Exportar) e a nova posição dos diálogos e das janelas de ferramenta; as janelas que já abrem ancoradas no centro (Inserir tempo, Ir para o tempo, Recuperar projetos, Alterações não salvas) ainda não seguem `dialogs.rs`.
+
+**Build, pacote e ambiente**
+- [ ] O `.ico` do programa não é versionado (`*.ico` está no `.gitignore`); o `build_portable.py` o gera, mas um `cargo build` direto sai sem ícone. Decidir entre uma exceção no `.gitignore` só para `assets/app_icon/app_icon.ico` ou gerar o ícone no `build.rs`.
+- [ ] O vídeo exige LLVM 19.x para compilar (`ffmpeg-sys-next` 7.1.x quebra com 22 ou mais novo). Avaliar subir a crate `ffmpeg-next` (a 9.x existe, mas anuncia compatibilidade com o FFmpeg 4) em um teste isolado, ou fixar o LLVM 19 no fluxo de contribuição; o `build_portable.py` já recusa LLVM 22+ antes de compilar.
+- [ ] CI com `cargo build/test/clippy/llvm-cov` e empacotamento nos três sistemas (já listado acima), incluindo FFmpeg com `libx264` quando houver.
+- [ ] Reduzir o tamanho do cache de build local (`target/` passa de 9 GB em depuração e release): avaliar `[profile.dev] debug = "line-tables-only"` e rodar com `CARGO_INCREMENTAL=0` em manutenção.
+- [ ] Falha intermitente de linkagem no Windows (`LNK1201`/`LNK1104`, um `.pdb` ou `.exe` de teste que não abre) depois de rebuilds seguidos: investigar antivírus e `mspdbsrv`; hoje basta apagar o `.pdb` do teste e repetir.
+
+**Pesquisa e documentação**
+- [ ] Registrar em `docs/research/nle_features_research.txt` os quatro itens da análise de lacunas sem registro (importar projeto de outro editor, envelope de vídeo "esmaecer para cor", conexão com serviço online de clipes, sobreposição de quadros de borda de edição) antes de virarem tarefa; ver `docs_obsidian/04 - Pesquisas e Benchmarks/lacunas_funcionais.md`.
+- [ ] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código: o idioma da interface (`Assets/i18n` tem oito idiomas) e a composição de vídeo em várias faixas.
+
 ### A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)
 
 Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os PDFs ficam em `manuais/` (ignorada pelo Git por causa do tamanho); a lista abaixo já incorpora a leitura deles.
