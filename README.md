@@ -297,6 +297,38 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 - [ ] Registrar em `docs/research/nle_features_research.txt` os quatro itens da análise de lacunas sem registro (importar projeto de outro editor, envelope de vídeo "esmaecer para cor", conexão com serviço online de clipes, sobreposição de quadros de borda de edição) antes de virarem tarefa; ver `docs_obsidian/04 - Pesquisas e Benchmarks/lacunas_funcionais.md`.
 - [ ] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código: o idioma da interface (`Assets/i18n` tem oito idiomas) e a composição de vídeo em várias faixas.
 
+### Próximos passos da referência funcional (registrados em 28/10/2026)
+
+Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras próprias da varredura local do editor de referência). O comportamento exato de cada item continua vindo dos manuais (AGENTS.md §33).
+
+**Vídeo, efeitos e geradores**
+- [ ] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento, faixa, mídia e projeto: é a base de todos os grupos de efeitos e destrava o resto desta lista (nota `catalogo_efeitos_video`).
+- [ ] Primeiros efeitos, pelo maior valor: desfoques (gaussiano, linear, radial), nitidez, curvas de cor, vinheta e recorte.
+- [ ] Geradores que faltam: tabuleiro (xadrez) e textura de ruído (só pixels, baixo custo).
+- [ ] Modelo de transição no engine antes da GPU: duração, curva, eixo A/B e envelope de progresso (nota `catalogo_transicoes_e_geradores`).
+- [ ] Medir a GPU com o benchmark de reprodução antes de escolher a primeira família de efeitos (`desempenho_resolucoes`).
+- [ ] Protótipo mínimo de host OFX em processo isolado.
+
+**Edição**
+- [ ] Eventos e faixas de ajuste (o efeito vale para os eventos abaixo), com redimensionamento ao projeto.
+- [ ] Interruptores de vídeo: manter o último quadro e mistura de quadros primeiro; fluxo óptico depois.
+- [ ] Fechar lacunas, divisão inteligente e colar atributos do evento, inclusive de forma seletiva.
+- [ ] Exportar e importar preferências (o `preferences.json` já é serializável).
+
+**Áudio**
+- [ ] VST3 em processo isolado, reaproveitando o modelo de latência do `BlockMixer`, e gerenciador de plug-ins.
+- [ ] Predefinições (presets) de cada efeito de áudio e importação de presets.
+
+**Janelas e projeto**
+- [ ] Layouts nomeados persistidos no disco, com organizar e layouts por tarefa (mixagem, cor, texto), incluindo as janelas destacadas.
+- [ ] Painel de compositores (modos de mistura), junto do modelo de composição.
+- [ ] Diálogo de propriedades da mídia: timecode do arquivo ou personalizado, taxa de quadros substituta, ordem dos campos, proporção do pixel, canal alfa e cor de fundo.
+- [ ] Esticar o tempo de evento de áudio com preservação de formantes.
+
+**Interoperabilidade**
+- [ ] Importar e exportar AAF (primeiro formato profissional a avaliar) e decidir quais formatos de câmera valem o custo (MXF, RAW).
+- [ ] Rever o menu Faixas contra os comandos de "Inserir" da referência quando os manuais cobrirem o assunto.
+
 ### A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)
 
 Fontes de referência (paridade funcional de NLE clássico; registrar achados em `docs/research/nle_features_research.txt`): manuais VEGAS Pro 10 (fundamentos e DSP de áudio), 11 (Titler, GPU, geradores), 12 (fluxos de edição expandidos), 13 (docking, correção de cor, pipelines de FX), 18 (UI escura moderna, rastreamento de movimento) e 21 (ferramentas de IA), além do inventário `results.md` (menus, diálogos, comandos e atalhos). Os PDFs ficam em `manuais/` (ignorada pelo Git por causa do tamanho); a lista abaixo já incorpora a leitura deles.
