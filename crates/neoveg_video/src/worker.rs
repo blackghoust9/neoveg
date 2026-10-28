@@ -1823,7 +1823,6 @@ mod ffmpeg_tests {
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
-            project_effects: Vec::new(),
         });
         let reply = worker.rx.recv_timeout(Duration::from_secs(10)).unwrap();
         assert_eq!(reply.media_id, 7);
@@ -1838,7 +1837,6 @@ mod ffmpeg_tests {
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
-            project_effects: Vec::new(),
         });
         assert!(worker
             .rx
