@@ -3653,7 +3653,11 @@ impl AppState {
             });
         match (request, &self.frame_worker) {
             (Some(request), Some(worker)) => worker.request_composite(request),
-            _ => self.video_texture = None,
+            // Nothing is visible here: black
+            (None, _) => self.video_texture = None,
+            // No decoder thread (the offscreen screenshots): there is nothing to ask, so the
+            // picture on screen stays as it is
+            (Some(_), None) => {}
         }
     }
 
@@ -5775,7 +5779,7 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    crate::dialogs::tool_window(ctx, "Correção de cor", 0)
+    crate::dialogs::tool_window(ctx, "Correção de cor")
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -5849,7 +5853,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    crate::dialogs::tool_window(ctx, "Chaveamento de croma (Chroma Key)", 1)
+    crate::dialogs::tool_window(ctx, "Chaveamento de croma (Chroma Key)")
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -5956,7 +5960,7 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
         state.project.settings.bpm,
         state.project.settings.beats_per_bar,
     );
-    crate::dialogs::tool_window(ctx, "Metrônomo", 2)
+    crate::dialogs::tool_window(ctx, "Metrônomo")
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -6555,7 +6559,7 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_inspector;
     let mut change = None;
-    crate::dialogs::tool_window(ctx, "Inspetor", 3)
+    crate::dialogs::tool_window(ctx, "Inspetor")
         .open(&mut open)
         .show(ctx, |ui| {
             let selected = state.selection.primary().and_then(|(track_id, event_id)| {

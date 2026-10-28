@@ -30,7 +30,7 @@ pub fn show(
     if !*open {
         return actions;
     }
-    crate::dialogs::tool_window(ctx, "Detalhes de edição", 4)
+    crate::dialogs::tool_window(ctx, "Detalhes de edição")
         .open(open)
         .default_width(760.0)
         .default_height(380.0)

@@ -152,7 +152,7 @@ impl LogViewerState {
 
         let mut is_open = self.open;
         let mut force_refresh = false;
-        crate::dialogs::tool_window(ctx, "Visualizador de Logs", 6)
+        crate::dialogs::tool_window(ctx, "Visualizador de Logs")
             .open(&mut is_open)
             .default_size([760.0, 440.0])
             .resizable(true)
