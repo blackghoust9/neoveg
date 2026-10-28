@@ -262,19 +262,19 @@ def ffmpeg_environment() -> List[str]:
     ffmpeg_dir = os.environ.get("FFMPEG_DIR")
     libclang = os.environ.get("LIBCLANG_PATH")
     if not ffmpeg_dir or not Path(ffmpeg_dir).is_dir():
-        problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")
+        problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
     elif not (Path(ffmpeg_dir) / "include").is_dir():
-        problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")
+        problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
     if not libclang or not Path(libclang).is_dir():
-        problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")
+        problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
     else:
         major = libclang_major(Path(libclang))
         if major is not None and major >= 22:
-            problems.append(
+            problems.append(  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
                 f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 7.1.x needs LLVM 19.x "
                 f"(it fails to compile with 22 or newer): {libclang}"
             )
-    return problems
+    return problems  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
 
 
 def libclang_major(folder: Path) -> Optional[int]:
@@ -319,7 +319,7 @@ def force_rmtree(path: Path) -> None:
     """`shutil.rmtree` that also removes folders flagged read-only (Windows raises WinError 5 for them)."""
 
     def make_writable(function, target, _excinfo):  # type: ignore[no-untyped-def]
-        os.chmod(target, 0o700)
+        os.chmod(target, 0o700)  # type: ignore  # `target` comes from shutil's untyped onerror callback (a path string)
         function(target)
 
     if sys.version_info >= (3, 12):
@@ -401,7 +401,7 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
             entry["passed"] += 1
         else:
             entry["status"] = "fail"
-    report = {
+    report = {  # type: ignore  # the report mixes str, int and list values; it is only written with json.dumps
         "generated_at": dt.datetime.now().astimezone().isoformat(),
         "platform": platform.system().lower(),
         "outcome": outcome,
@@ -603,7 +603,7 @@ def prune_legacy_dist() -> None:
 def cmd_build(args: argparse.Namespace) -> int:
     global DIST
     if args.dist:
-        DIST = Path(args.dist).resolve()
+        DIST = Path(args.dist).resolve()  # type: ignore  # DIST is a module constant that --dist overrides on purpose, once, before any build
     version = workspace_version()
     rids = resolve_targets(args.targets)
     # Refused before any build starts: a wrong minimum would only show on the user's Mac
