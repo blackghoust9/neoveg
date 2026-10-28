@@ -118,6 +118,18 @@ Custo, **por quadro**, do caminho de vídeo em CPU, de 480p a 8K UHD, medido com
 Medido em: Intel(R) Core(TM) i5-7500T CPU @ 2.70GHz (4 threads), Windows 10, Rust 1.99.1.
 <!-- bench:end -->
 
+Segunda máquina (mesmo benchmark, 2026-10-28): AMD Ryzen 5 5600GT with Radeon Graphics (12 threads), Windows 11 Pro, Rust 1.99.1. No 8K, o crossfade teve variação alta entre as amostras (531 a 661 ms); a mediana é a da tabela.
+
+| Resolução | Tamanho | Gerar quadro | Correção de cor | Scopes | Crossfade (CPU) | Quadro normal: cor + scopes (quadros/s) | Quadro em transição: + crossfade (quadros/s) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 480p | 854x480 | 0.98 ms | 0.48 ms | 2.14 ms | 6.36 ms | 2.62 ms (382) | 8.98 ms (111.4) |
+| 720p | 1280x720 | 2.25 ms | 0.96 ms | 1.97 ms | 14.20 ms | 2.93 ms (341) | 17.13 ms (58.4) |
+| 1080p | 1920x1080 | 5.02 ms | 2.01 ms | 2.43 ms | 31.75 ms | 4.44 ms (225) | 36.19 ms (27.6) |
+| 1440p | 2560x1440 | 9.00 ms | 3.42 ms | 2.80 ms | 56.19 ms | 6.21 ms (161) | 62.40 ms (16.0) |
+| 4K | 3840x2160 | 20.58 ms | 7.37 ms | 2.45 ms | 127 ms | 9.82 ms (102) | 137 ms (7.3) |
+| 8K | 7680x4320 | 82.96 ms | 29.54 ms | 2.83 ms | 511 ms | 32.37 ms (31) | 544 ms (1.8) |
+
+
 **O que isto não mede:** a decodificação (precisa do FFmpeg e de um arquivo de mídia), a GPU, o envio de texturas, a janela e o áudio. Os números são um **teto** de quadros por segundo para o trabalho de CPU, não uma taxa de reprodução. A qualidade da visualização reduz o custo: Draft decodifica 1/4 da largura, Preview 1/2, Good e Best a largura cheia (por exemplo, em 4K: 960, 1920 e 3840 px).
 
 ## Pré-requisitos para contribuidores
