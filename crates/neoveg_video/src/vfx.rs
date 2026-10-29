@@ -53,6 +53,10 @@ pub const GAUSSIAN_BLUR: &str = "gaussian_blur";
 pub const SHARPEN: &str = "sharpen";
 pub const UNSHARP_MASK: &str = "unsharp_mask";
 pub const VIGNETTE: &str = "vignette";
+pub const BLACK_AND_WHITE: &str = "black_and_white";
+pub const INVERT: &str = "invert";
+pub const BRIGHTNESS_CONTRAST: &str = "brightness_contrast";
+pub const PIXELATE: &str = "pixelate";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -141,6 +145,74 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: BLACK_AND_WHITE,
+        label: "Preto e branco",
+        params: &[ParamSpec {
+            id: "amount",
+            label: "Quantidade",
+            min: 0.0,
+            max: 1.0,
+            default: 1.0,
+            percent: true,
+        }],
+    },
+    EffectSpec {
+        id: INVERT,
+        label: "Inverter",
+        params: &[ParamSpec {
+            id: "amount",
+            label: "Quantidade",
+            min: 0.0,
+            max: 1.0,
+            default: 1.0,
+            percent: true,
+        }],
+    },
+    EffectSpec {
+        id: BRIGHTNESS_CONTRAST,
+        label: "Brilho e contraste",
+        params: &[
+            ParamSpec {
+                id: "brightness",
+                label: "Brilho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "contrast",
+                label: "Contraste",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: PIXELATE,
+        label: "Pixelizar",
+        params: &[
+            ParamSpec {
+                id: "h_size",
+                label: "Pixelização horizontal",
+                min: 0.0,
+                max: 0.25,
+                default: 0.02,
+                percent: true,
+            },
+            ParamSpec {
+                id: "v_size",
+                label: "Pixelização vertical",
+                min: 0.0,
+                max: 0.25,
+                default: 0.02,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -209,6 +281,20 @@ impl VideoEffect {
                     center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
                 }
             }
+            BLACK_AND_WHITE => Resolved::BlackAndWhite {
+                amount: self.value(spec, "amount"),
+            },
+            INVERT => Resolved::Invert {
+                amount: self.value(spec, "amount"),
+            },
+            BRIGHTNESS_CONTRAST => Resolved::BrightnessContrast {
+                brightness: self.value(spec, "brightness"),
+                contrast: self.value(spec, "contrast"),
+            },
+            PIXELATE => Resolved::Pixelate {
+                h_size: self.value(spec, "h_size"),
+                v_size: self.value(spec, "v_size"),
+            },
             _ => return None,
         })
     }
@@ -243,6 +329,23 @@ pub enum Resolved {
         /// `0.0, 0.0` is the lower-left corner of the frame.
         center: [f32; 2],
     },
+    /// Mixes the colour with its luma; `1.0` is full grey.
+    BlackAndWhite {
+        amount: f32,
+    },
+    /// Mixes the colour with its negative; `1.0` is the full negative.
+    Invert {
+        amount: f32,
+    },
+    BrightnessContrast {
+        brightness: f32,
+        contrast: f32,
+    },
+    /// Block sizes as fractions of the frame height.
+    Pixelate {
+        h_size: f32,
+        v_size: f32,
+    },
 }
 
 impl Resolved {
@@ -253,6 +356,13 @@ impl Resolved {
             Resolved::Sharpen => false,
             Resolved::UnsharpMask { ratio } => ratio <= 0.0,
             Resolved::Vignette { .. } => false,
+            Resolved::BlackAndWhite { amount } | Resolved::Invert { amount } => amount <= 0.0,
+            Resolved::BrightnessContrast {
+                brightness,
+                contrast,
+            } => brightness == 0.0 && contrast == 0.0,
+            // Blocks of a single pixel are the picture itself
+            Resolved::Pixelate { h_size, v_size } => h_size <= 0.0 && v_size <= 0.0,
         }
     }
 }
@@ -540,6 +650,84 @@ fn vignette(work: &mut Work, outer: f32, inner: f32, aspect: f32, center: [f32; 
     }
 }
 
+/// Rec. 709 luma weights, the same ones the compositor uses.
+const LUMA: [f32; 3] = [0.2126, 0.7152, 0.0722];
+
+/// The multiplier of the contrast control: `-1..0` flattens towards grey, `0..1` stretches (up to
+/// four times).
+pub fn contrast_gain(contrast: f32) -> f32 {
+    if contrast >= 0.0 {
+        1.0 + 3.0 * contrast
+    } else {
+        1.0 + contrast
+    }
+}
+
+/// Brightness adds to each channel and contrast stretches around mid grey, on straight colour. A
+/// pixel with no alpha stays as it is.
+pub fn brightness_contrast_px(p: [f32; 4], brightness: f32, gain: f32) -> [f32; 4] {
+    let a = p[3];
+    if a <= 1e-6 {
+        return p;
+    }
+    let mut out = [0.0, 0.0, 0.0, a];
+    for c in 0..3 {
+        let v = ((p[c] / a - 0.5) * gain + 0.5 + brightness).clamp(0.0, 1.0);
+        out[c] = v * a;
+    }
+    out
+}
+
+/// The size in pixels of a pixelate block for a size given as a fraction of the frame height; never
+/// under one pixel.
+pub fn pixelate_block(size: f32, height: u32) -> u32 {
+    (range_pixels(size, height).round() as u32).max(1)
+}
+
+fn black_and_white(work: &mut Work, amount: f32) {
+    for p in &mut work.px {
+        let l = p[0] * LUMA[0] + p[1] * LUMA[1] + p[2] * LUMA[2];
+        for v in p.iter_mut().take(3) {
+            *v += amount * (l - *v);
+        }
+    }
+}
+
+fn invert(work: &mut Work, amount: f32) {
+    for p in &mut work.px {
+        for c in 0..3 {
+            p[c] += amount * ((p[3] - p[c]) - p[c]);
+        }
+    }
+}
+
+fn brightness_contrast(work: &mut Work, brightness: f32, contrast: f32) {
+    let gain = contrast_gain(contrast);
+    for p in &mut work.px {
+        *p = brightness_contrast_px(*p, brightness, gain);
+    }
+}
+
+/// Every block takes the pixel at its centre.
+fn pixelate(work: &Work, h_size: f32, v_size: f32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let bw = pixelate_block(h_size, h as u32) as usize;
+    let bh = pixelate_block(v_size, h as u32) as usize;
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        let sy = (y / bh * bh + bh / 2).min(h - 1);
+        for x in 0..w {
+            let sx = (x / bw * bw + bw / 2).min(w - 1);
+            px.push(work.px[sy * w + sx]);
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -554,6 +742,13 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             aspect,
             center,
         } => vignette(work, outer, inner, aspect, center),
+        Resolved::BlackAndWhite { amount } => black_and_white(work, amount),
+        Resolved::Invert { amount } => invert(work, amount),
+        Resolved::BrightnessContrast {
+            brightness,
+            contrast,
+        } => brightness_contrast(work, brightness, contrast),
+        Resolved::Pixelate { h_size, v_size } => *work = pixelate(work, h_size, v_size),
     }
 }
 
@@ -591,6 +786,107 @@ mod tests {
         let mut h = DefaultHasher::new();
         hash_chain(chain, &mut h);
         h.finish()
+    }
+
+    #[test]
+    fn black_and_white_inverts_and_brightness_follow_their_definitions() {
+        let mut gray = smpte_color_bars(64, 36);
+        apply_chain_cpu(&mut gray, &[VideoEffect::new(BLACK_AND_WHITE)]);
+        for p in gray.rgba.as_chunks::<4>().0.iter() {
+            assert!(
+                p[0].abs_diff(p[1]) <= 1 && p[1].abs_diff(p[2]) <= 1,
+                "{p:?}"
+            );
+        }
+        // Half of the amount sits half way between the colour and the grey
+        let original = FrameBuffer {
+            width: 1,
+            height: 1,
+            rgba: vec![200, 100, 0, 255],
+        };
+        let mut half = original.clone();
+        apply_chain_cpu(
+            &mut half,
+            &[VideoEffect::new(BLACK_AND_WHITE).with("amount", 0.5)],
+        );
+        let luma = 200.0 * 0.2126 + 100.0 * 0.7152;
+        assert!((f32::from(half.rgba[0]) - (200.0 + luma) / 2.0).abs() <= 1.0);
+        // Invert twice gives the picture back, also with transparency
+        let mut twice = FrameBuffer {
+            width: 2,
+            height: 1,
+            rgba: vec![10, 200, 30, 255, 90, 40, 250, 128],
+        };
+        let before = twice.clone();
+        apply_chain_cpu(&mut twice, &[VideoEffect::new(INVERT)]);
+        assert_eq!(twice.rgba[..4], [245, 55, 225, 255]);
+        assert_eq!(twice.rgba[7], 128, "alpha is kept");
+        apply_chain_cpu(&mut twice, &[VideoEffect::new(INVERT)]);
+        assert!(twice
+            .rgba
+            .iter()
+            .zip(&before.rgba)
+            .all(|(a, b)| a.abs_diff(*b) <= 2));
+        // Brightness adds, contrast stretches around mid grey
+        let mut bright = FrameBuffer {
+            width: 1,
+            height: 1,
+            rgba: vec![100, 100, 100, 255],
+        };
+        apply_chain_cpu(
+            &mut bright,
+            &[VideoEffect::new(BRIGHTNESS_CONTRAST).with("brightness", 0.2)],
+        );
+        assert_eq!(bright.rgba[..3], [151, 151, 151]);
+        let mut stretched = FrameBuffer {
+            width: 1,
+            height: 1,
+            rgba: vec![191, 64, 128, 255],
+        };
+        apply_chain_cpu(
+            &mut stretched,
+            &[VideoEffect::new(BRIGHTNESS_CONTRAST).with("contrast", 0.5)],
+        );
+        assert!(stretched.rgba[0] > 191 && stretched.rgba[1] < 64);
+        assert!(
+            (i32::from(stretched.rgba[2]) - 128).abs() <= 2,
+            "mid grey stays"
+        );
+        // Neutral values leave the chain empty
+        assert!(resolve_chain(&[VideoEffect::new(BRIGHTNESS_CONTRAST)]).is_empty());
+        assert!(resolve_chain(&[VideoEffect::new(INVERT).with("amount", 0.0)]).is_empty());
+    }
+
+    #[test]
+    fn pixelate_makes_blocks_of_one_colour_and_a_tiny_size_changes_nothing() {
+        let original = smpte_color_bars(120, 60);
+        let mut blocky = original.clone();
+        apply_chain_cpu(
+            &mut blocky,
+            &[VideoEffect::new(PIXELATE)
+                .with("h_size", 0.2)
+                .with("v_size", 0.1)],
+        );
+        // 12 x 6 pixel blocks: every pixel of a block equals the first one
+        let px = |f: &FrameBuffer, x: usize, y: usize| {
+            let i = (y * 120 + x) * 4;
+            f.rgba[i..i + 4].to_vec()
+        };
+        for (bx, by) in [(0usize, 0usize), (5, 3), (9, 7)] {
+            let first = px(&blocky, bx * 12, by * 6);
+            for (dx, dy) in [(1, 1), (11, 5), (6, 3)] {
+                assert_eq!(px(&blocky, bx * 12 + dx, by * 6 + dy), first);
+            }
+        }
+        assert_ne!(blocky, original);
+        let mut same = original.clone();
+        apply_chain_cpu(
+            &mut same,
+            &[VideoEffect::new(PIXELATE)
+                .with("h_size", 0.0)
+                .with("v_size", 0.0)],
+        );
+        assert_eq!(same, original);
     }
 
     #[test]

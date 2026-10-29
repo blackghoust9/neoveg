@@ -12,7 +12,10 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
 use crate::frame::FrameBuffer;
-use crate::vfx::{gaussian_kernel, range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS};
+use crate::vfx::{
+    contrast_gain, gaussian_kernel, pixelate_block, range_pixels, vignette_corner, Resolved, Work,
+    UNSHARP_RADIUS,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -138,6 +141,52 @@ fn vignette(@builtin(global_invocation_id) id: vec3<u32>) {
     let s = src[i];
     dst[i] = vec4<f32>(s.x * gain, s.y * gain, s.z * gain, s.w);
 }
+
+// a = amount
+@compute @workgroup_size(8, 8, 1)
+fn black_and_white(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    let l = s.x * 0.2126 + s.y * 0.7152 + s.z * 0.0722;
+    dst[i] = vec4<f32>(s.x + p.a * (l - s.x), s.y + p.a * (l - s.y), s.z + p.a * (l - s.z), s.w);
+}
+
+// a = amount
+@compute @workgroup_size(8, 8, 1)
+fn invert(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    let n = vec3<f32>(s.w - s.x, s.w - s.y, s.w - s.z);
+    let c = s.xyz + p.a * (n - s.xyz);
+    dst[i] = vec4<f32>(c.x, c.y, c.z, s.w);
+}
+
+// a = brightness, b = contrast gain
+@compute @workgroup_size(8, 8, 1)
+fn brightness_contrast(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) {
+        dst[i] = s;
+        return;
+    }
+    let v = clamp((s.xyz / s.w - vec3<f32>(0.5)) * p.b + vec3<f32>(0.5 + p.a), vec3<f32>(0.0), vec3<f32>(1.0));
+    dst[i] = vec4<f32>(v.x * s.w, v.y * s.w, v.z * s.w, s.w);
+}
+
+// a = block width, b = block height (pixels)
+@compute @workgroup_size(8, 8, 1)
+fn pixelate(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let bw = u32(p.a);
+    let bh = u32(p.b);
+    let sx = min(id.x / bw * bw + bw / 2u, p.width - 1u);
+    let sy = min(id.y / bh * bh + bh / 2u, p.height - 1u);
+    dst[id.y * p.width + id.x] = src[sy * p.width + sx];
+}
 "#;
 
 /// The compute pipelines of the effect chain, built once per device.
@@ -150,6 +199,10 @@ pub struct VfxGpu {
     sharpen: wgpu::ComputePipeline,
     unsharp_mix: wgpu::ComputePipeline,
     vignette: wgpu::ComputePipeline,
+    black_and_white: wgpu::ComputePipeline,
+    invert: wgpu::ComputePipeline,
+    brightness_contrast: wgpu::ComputePipeline,
+    pixelate: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -173,6 +226,10 @@ enum Pass {
     Sharpen,
     UnsharpMix,
     Vignette,
+    BlackAndWhite,
+    Invert,
+    BrightnessContrast,
+    Pixelate,
 }
 
 impl VfxGpu {
@@ -221,6 +278,10 @@ impl VfxGpu {
             sharpen: make("sharpen"),
             unsharp_mix: make("unsharp_mix"),
             vignette: make("vignette"),
+            black_and_white: make("black_and_white"),
+            invert: make("invert"),
+            brightness_contrast: make("brightness_contrast"),
+            pixelate: make("pixelate"),
             device,
             queue,
             bgl,
@@ -234,6 +295,10 @@ impl VfxGpu {
             Pass::Sharpen => &self.sharpen,
             Pass::UnsharpMix => &self.unsharp_mix,
             Pass::Vignette => &self.vignette,
+            Pass::BlackAndWhite => &self.black_and_white,
+            Pass::Invert => &self.invert,
+            Pass::BrightnessContrast => &self.brightness_contrast,
+            Pass::Pixelate => &self.pixelate,
         }
     }
 
@@ -420,6 +485,45 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Vignette, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::BlackAndWhite { amount } | Resolved::Invert { amount } => {
+                    let pass = if matches!(effect, Resolved::Invert { .. }) {
+                        Pass::Invert
+                    } else {
+                        Pass::BlackAndWhite
+                    };
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = amount;
+                    run(&mut encoder, pass, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::BrightnessContrast {
+                    brightness,
+                    contrast,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = brightness;
+                    p.b = contrast_gain(contrast);
+                    run(
+                        &mut encoder,
+                        Pass::BrightnessContrast,
+                        p,
+                        cur,
+                        dst,
+                        None,
+                        None,
+                    );
+                    cur = dst;
+                }
+                Resolved::Pixelate { h_size, v_size } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = pixelate_block(h_size, h) as f32;
+                    p.b = pixelate_block(v_size, h) as f32;
+                    run(&mut encoder, Pass::Pixelate, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -463,7 +567,8 @@ mod tests {
     use crate::composite::GpuCompositor;
     use crate::generators::smpte_color_bars;
     use crate::vfx::{
-        apply_chain_cpu, resolve_chain, VideoEffect, GAUSSIAN_BLUR, SHARPEN, UNSHARP_MASK, VIGNETTE,
+        apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
+        GAUSSIAN_BLUR, INVERT, PIXELATE, SHARPEN, UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -494,6 +599,10 @@ mod tests {
             VideoEffect::new(SHARPEN),
             VideoEffect::new(UNSHARP_MASK).with("ratio", 1.5),
             VideoEffect::new(VIGNETTE).with("center_x", 0.3),
+            VideoEffect::new(BRIGHTNESS_CONTRAST).with("contrast", 0.3),
+            VideoEffect::new(PIXELATE).with("h_size", 0.02),
+            VideoEffect::new(INVERT).with("amount", 0.5),
+            VideoEffect::new(BLACK_AND_WHITE),
         ];
         let original = smpte_color_bars(320, 180);
         let mut cpu = original.clone();
@@ -523,6 +632,15 @@ mod tests {
             VideoEffect::new(SHARPEN),
             VideoEffect::new(UNSHARP_MASK),
             VideoEffect::new(VIGNETTE),
+            VideoEffect::new(BLACK_AND_WHITE).with("amount", 0.7),
+            VideoEffect::new(INVERT),
+            VideoEffect::new(BRIGHTNESS_CONTRAST)
+                .with("brightness", 0.1)
+                .with("contrast", 0.4),
+            VideoEffect::new(BRIGHTNESS_CONTRAST).with("contrast", -0.5),
+            VideoEffect::new(PIXELATE)
+                .with("h_size", 0.07)
+                .with("v_size", 0.03),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
