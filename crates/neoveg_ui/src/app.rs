@@ -8577,14 +8577,14 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
     let mut tab = state.prefs_tab;
     let mut reload = false;
     let mut note = std::mem::take(&mut state.theme_note);
-    crate::dialogs::dialog(ctx, "Preferências")
+    crate::dialogs::dialog(ctx, tr("Preferências"))
         .open(&mut open)
         .collapsible(false)
         .default_width(420.0)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut tab, PrefsTab::General, "Geral");
-                ui.selectable_value(&mut tab, PrefsTab::Themes, "Temas");
+                ui.selectable_value(&mut tab, PrefsTab::General, tr("Geral"));
+                ui.selectable_value(&mut tab, PrefsTab::Themes, tr("Temas"));
             });
             ui.separator();
             match tab {
@@ -8597,27 +8597,27 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                             }
                         });
                     ui.horizontal(|ui| {
-                        ui.label("Autosave (minutos, 0 = desligado)");
+                        ui.label(tr("Autosave (minutos, 0 = desligado)"));
                         ui.add(egui::DragValue::new(&mut prefs.autosave_minutes).range(0..=120));
                     });
                     ui.checkbox(
                         &mut prefs.auto_fade_on_import,
-                        "Fade-in/out automático ao importar mídia",
+                        tr("Fade-in/out automático ao importar mídia"),
                     );
                     ui.checkbox(
                         &mut prefs.quantize_audio_edits,
-                        "Quantizar para quadros também as edições só de áudio",
+                        tr("Quantizar para quadros também as edições só de áudio"),
                     );
                     ui.checkbox(
                         &mut prefs.color_icons,
-                        "Ícones coloridos (BMP) onde existirem; o tema High Contrast usa sempre os monocromáticos",
+                        tr("Ícones coloridos (BMP) onde existirem; o tema High Contrast usa sempre os monocromáticos"),
                     );
                     ui.checkbox(
                         &mut prefs.show_welcome_on_startup,
-                        "Mostrar a tela de boas-vindas ao iniciar o programa",
+                        tr("Mostrar a tela de boas-vindas ao iniciar o programa"),
                     );
                     ui.horizontal(|ui| {
-                        ui.label("Projetos recentes a lembrar (0 = desligado)");
+                        ui.label(tr("Projetos recentes a lembrar (0 = desligado)"));
                         ui.add(egui::DragValue::new(&mut prefs.recent_projects_max).range(0..=30));
                     });
                     prefs.trim_recent_projects();
@@ -8629,11 +8629,11 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                     ui.radio_value(
                         &mut prefs.theme,
                         theme::CUSTOM_THEME_ID.to_string(),
-                        "Personalizado (arquivo .json)",
+                        tr("Personalizado (arquivo .json)"),
                     );
                     ui.separator();
                     ui.horizontal(|ui| {
-                        if ui.button("Abrir tema…").clicked() {
+                        if ui.button(tr("Abrir tema…")).clicked() {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Tema do Neoveg", &["json"])
                                 .pick_file()
@@ -8651,7 +8651,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                                 }
                             }
                         }
-                        if ui.button("Exportar tema atual…").clicked() {
+                        if ui.button(tr("Exportar tema atual…")).clicked() {
                             let (current, _) = prefs.resolve_theme();
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Tema do Neoveg", &["json"])
@@ -8667,9 +8667,9 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         if ui
                             .add_enabled(
                                 prefs.theme == theme::CUSTOM_THEME_ID,
-                                egui::Button::new("Recarregar"),
+                                egui::Button::new(tr("Recarregar")),
                             )
-                            .on_hover_text("Lê o arquivo de tema de novo")
+                            .on_hover_text(tr("Lê o arquivo de tema de novo"))
                             .clicked()
                         {
                             reload = true;

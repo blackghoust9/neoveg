@@ -1,5 +1,6 @@
 //! "Renderizar como… (*Make Movie*)" dialog and non-blocking background render job state.
 
+use neoveg_common::i18n::tr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -116,7 +117,7 @@ impl RenderDialogState {
         let mut close_requested = false;
         let mut launch: Option<RenderLaunchRequest> = None;
 
-        crate::dialogs::dialog(ctx, "Renderizar como… (Make Movie)")
+        crate::dialogs::dialog(ctx, tr("Renderizar como… (Make Movie)"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
@@ -125,7 +126,7 @@ impl RenderDialogState {
                 let running = self.is_running();
                 ui.add_enabled_ui(!running, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Formato de saída:");
+                        ui.label(tr("Formato de saída:"));
                         egui::ComboBox::from_id_salt("render_format_combo")
                             .selected_text(self.format.label())
                             .width(280.0)
@@ -142,7 +143,7 @@ impl RenderDialogState {
 
                     if self.format.has_video() {
                         ui.horizontal(|ui| {
-                            ui.label("Codificador:");
+                            ui.label(tr("Codificador:"));
                             egui::ComboBox::from_id_salt("render_engine_combo")
                                 .selected_text(self.engine.label())
                                 .width(380.0)
@@ -159,15 +160,15 @@ impl RenderDialogState {
                         if !self.engine.can_write(self.format) {
                             ui.colored_label(
                                 ui.visuals().warn_fg_color,
-                                "O codificador interno só escreve MP4 H.264 + AAC: escolha o FFmpeg para este formato.",
+                                tr("O codificador interno só escreve MP4 H.264 + AAC: escolha o FFmpeg para este formato."),
                             );
                         } else if self.engine.resolve(self.format) == RenderEngine::Internal {
-                            ui.weak("Codificador interno: H.264 + AAC em Rust, sem o FFmpeg.");
+                            ui.weak(tr("Codificador interno: H.264 + AAC em Rust, sem o FFmpeg."));
                         } else {
                             neoveg_video::render::probe_encoders_in_background();
                             match neoveg_video::render::cached_encoder_for(self.format) {
                                 None => {
-                                    ui.weak("Procurando codificadores do ffmpeg…");
+                                    ui.weak(tr("Procurando codificadores do ffmpeg…"));
                                     ui.ctx().request_repaint_after(
                                         std::time::Duration::from_millis(100),
                                     );
@@ -182,11 +183,11 @@ impl RenderDialogState {
                         }
                         ui.checkbox(
                             &mut self.custom_resolution,
-                            "Personalizar resolução de saída",
+                            tr("Personalizar resolução de saída"),
                         );
                         if self.custom_resolution {
                             ui.horizontal(|ui| {
-                                ui.label("Dimensões:");
+                                ui.label(tr("Dimensões:"));
                                 ui.add(
                                     egui::DragValue::new(&mut self.width)
                                         .range(160..=7680)
@@ -214,15 +215,15 @@ impl RenderDialogState {
                         ) {
                             ui.add(
                                 egui::Slider::new(&mut self.crf, 10..=34)
-                                    .text("Qualidade CRF (menor = maior qualidade)"),
+                                    .text(tr("Qualidade CRF (menor = maior qualidade)")),
                             );
                         }
                         ui.checkbox(
                             &mut self.burn_captions,
-                            "Queimar as legendas do projeto no vídeo",
+                            tr("Queimar as legendas do projeto no vídeo"),
                         );
                         if self.burn_captions {
-                            egui::CollapsingHeader::new("Estilo das legendas")
+                            egui::CollapsingHeader::new(tr("Estilo das legendas"))
                                 .default_open(false)
                                 .show(ui, |ui| {
                                     self.caption_style_ui(ui, caption_style);
@@ -243,7 +244,7 @@ impl RenderDialogState {
 
                     ui.checkbox(
                         &mut self.save_loudness_log,
-                        "Salvar relatório de loudness ao lado do arquivo (<nome>_loud.txt)",
+                        tr("Salvar relatório de loudness ao lado do arquivo (<nome>_loud.txt)"),
                     );
                 });
 
@@ -276,7 +277,7 @@ impl RenderDialogState {
                                     st.current_frame, st.total_frames, elapsed, eta
                                 ));
                             }
-                            if ui.button("Cancelar renderização").clicked() {
+                            if ui.button(tr("Cancelar renderização")).clicked() {
                                 job.cancel.store(true, Ordering::Relaxed);
                             }
                         } else if let Some(err) = &st.error {
@@ -308,7 +309,7 @@ impl RenderDialogState {
                     if ui
                         .add_enabled(
                             can_start,
-                            egui::Button::new("Escolher destino e renderizar…"),
+                            egui::Button::new(tr("Escolher destino e renderizar…")),
                         )
                         .clicked()
                     {
@@ -333,12 +334,12 @@ impl RenderDialogState {
                             });
                         }
                     }
-                    if !running && ui.button("Fechar").clicked() {
+                    if !running && ui.button(tr("Fechar")).clicked() {
                         close_requested = true;
                     }
                 });
                 if timeline_duration <= 1e-3 {
-                    ui.weak("Adicione eventos à timeline antes de renderizar.");
+                    ui.weak(tr("Adicione eventos à timeline antes de renderizar."));
                 }
             });
 
@@ -354,7 +355,7 @@ impl RenderDialogState {
             self.font_list = neoveg_text::fonts::families();
         }
         ui.horizontal(|ui| {
-            ui.label("Fonte:");
+            ui.label(tr("Fonte:"));
             let mut family_pick: Option<String> = None;
             egui::ComboBox::from_id_salt("caption_font_family")
                 .selected_text(style.family.clone())
@@ -400,9 +401,9 @@ impl RenderDialogState {
                 });
             if ui
                 .button("Fontes do sistema")
-                .on_hover_text(
+                .on_hover_text(tr(
                     "Procura as fontes instaladas no computador (pode levar um instante)",
-                )
+                ))
                 .clicked()
             {
                 neoveg_text::fonts::scan_system();
@@ -411,21 +412,24 @@ impl RenderDialogState {
         });
         let mut size = style.size * 100.0;
         if ui
-            .add(egui::Slider::new(&mut size, 2.0..=15.0).text("Tamanho (% da altura)"))
+            .add(egui::Slider::new(&mut size, 2.0..=15.0).text(tr("Tamanho (% da altura)")))
             .changed()
         {
             style.size = size / 100.0;
         }
         let mut outline = style.outline * 100.0;
         if ui
-            .add(egui::Slider::new(&mut outline, 0.0..=3.0).text("Contorno (% da altura)"))
+            .add(egui::Slider::new(&mut outline, 0.0..=3.0).text(tr("Contorno (% da altura)")))
             .changed()
         {
             style.outline = outline / 100.0;
         }
         let mut margin = style.margin * 100.0;
         if ui
-            .add(egui::Slider::new(&mut margin, 0.0..=40.0).text("Distância da base (% da altura)"))
+            .add(
+                egui::Slider::new(&mut margin, 0.0..=40.0)
+                    .text(tr("Distância da base (% da altura)")),
+            )
             .changed()
         {
             style.margin = margin / 100.0;
@@ -433,7 +437,8 @@ impl RenderDialogState {
         let mut width = style.box_width * 100.0;
         if ui
             .add(
-                egui::Slider::new(&mut width, 30.0..=100.0).text("Largura do texto (% da largura)"),
+                egui::Slider::new(&mut width, 30.0..=100.0)
+                    .text(tr("Largura do texto (% da largura)")),
             )
             .changed()
         {
@@ -451,7 +456,7 @@ impl RenderDialogState {
                     *rgba = color.to_srgba_unmultiplied();
                 }
             }
-            if ui.button("Restaurar o padrão").clicked() {
+            if ui.button(tr("Restaurar o padrão")).clicked() {
                 *style = CaptionStyle::default();
             }
         });

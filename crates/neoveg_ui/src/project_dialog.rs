@@ -11,6 +11,7 @@
 //! rate of the export) is told apart from what is only stored for now.
 
 use eframe::egui::{self, Color32};
+use neoveg_common::i18n::tr;
 use neoveg_common::presets::{
     builtin_templates, clamp_size, display_aspect, frame_rate_of, resolution_named,
     CompositingGamma, Deinterlace, FieldOrder, HdrMode, MasterBusMode, MotionBlurType,
@@ -129,14 +130,14 @@ impl ProjectDialogState {
         }
         let mut open = self.open;
         let mut close = false;
-        crate::dialogs::dialog(ctx, "Propriedades do projeto")
+        crate::dialogs::dialog(ctx, tr("Propriedades do projeto"))
             .open(&mut open)
             .collapsible(false)
             .default_width(520.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.tab, ProjectTab::Video, "Vídeo");
-                    ui.selectable_value(&mut self.tab, ProjectTab::Audio, "Áudio");
+                    ui.selectable_value(&mut self.tab, ProjectTab::Video, tr("Vídeo"));
+                    ui.selectable_value(&mut self.tab, ProjectTab::Audio, tr("Áudio"));
                 });
                 ui.separator();
                 match self.tab {
@@ -146,7 +147,7 @@ impl ProjectDialogState {
                 ui.separator();
                 ui.checkbox(
                     &mut self.start_all_new,
-                    "Iniciar todos os novos projetos com estas configurações",
+                    tr("Iniciar todos os novos projetos com estas configurações"),
                 );
                 if !self.note.is_empty() {
                     ui.colored_label(Color32::from_rgb(230, 160, 60), &self.note);
@@ -160,14 +161,14 @@ impl ProjectDialogState {
                         });
                         close = true;
                     }
-                    if ui.button("Aplicar").clicked() {
+                    if ui.button(tr("Aplicar")).clicked() {
                         actions.push(ProjectAction::Apply {
                             settings: Box::new(self.sanitized()),
                             start_all_new: self.start_all_new,
                             close: false,
                         });
                     }
-                    if ui.button("Cancelar").clicked() {
+                    if ui.button(tr("Cancelar")).clicked() {
                         close = true;
                     }
                 });
@@ -184,7 +185,7 @@ impl ProjectDialogState {
     ) {
         let builtin = builtin_templates();
         ui.horizontal(|ui| {
-            ui.label("Modelo:");
+            ui.label(tr("Modelo:"));
             let selected = self
                 .chosen_template
                 .clone()
@@ -206,7 +207,7 @@ impl ProjectDialogState {
                     }
                     if !custom_templates.is_empty() {
                         ui.separator();
-                        ui.weak("Seus modelos");
+                        ui.weak(tr("Seus modelos"));
                         for template in custom_templates {
                             if ui.selectable_label(false, &template.name).clicked() {
                                 self.use_template(template);
@@ -214,16 +215,16 @@ impl ProjectDialogState {
                         }
                     }
                 });
-            if ui.button("Combinar com mídia…").clicked() {
+            if ui.button(tr("Combinar com mídia…")).clicked() {
                 actions.push(ProjectAction::MatchMedia);
             }
         });
         ui.horizontal(|ui| {
-            ui.label("Salvar como modelo:");
+            ui.label(tr("Salvar como modelo:"));
             ui.add(egui::TextEdit::singleline(&mut self.template_name).desired_width(180.0));
             let name = self.template_name.trim().to_owned();
             if ui
-                .add_enabled(!name.is_empty(), egui::Button::new("Salvar modelo"))
+                .add_enabled(!name.is_empty(), egui::Button::new(tr("Salvar modelo")))
                 .clicked()
             {
                 actions.push(ProjectAction::SaveTemplate(ProjectTemplate {
@@ -237,7 +238,7 @@ impl ProjectDialogState {
         // Frame size: a list of known sizes, then the two numbers
         let d = &mut self.draft;
         ui.horizontal(|ui| {
-            ui.label("Resolução:");
+            ui.label(tr("Resolução:"));
             let selected = resolution_named(d.width, d.height)
                 .map_or_else(|| "(personalizada)".to_owned(), |r| r.name.to_owned());
             egui::ComboBox::from_id_salt("project_resolution")
@@ -262,9 +263,9 @@ impl ProjectDialogState {
                 });
         });
         ui.horizontal(|ui| {
-            ui.label("Largura:");
+            ui.label(tr("Largura:"));
             ui.add(egui::DragValue::new(&mut d.width).range(SIZE_RANGE.0..=SIZE_RANGE.1));
-            ui.label("Altura:");
+            ui.label(tr("Altura:"));
             ui.add(egui::DragValue::new(&mut d.height).range(SIZE_RANGE.0..=SIZE_RANGE.1));
             ui.weak(format!(
                 "aspecto de tela {:.3}:1",
@@ -279,7 +280,7 @@ impl ProjectDialogState {
             FieldOrder::label,
         );
         ui.horizontal(|ui| {
-            ui.label("Proporção do pixel:");
+            ui.label(tr("Proporção do pixel:"));
             let selected = PIXEL_ASPECTS
                 .iter()
                 .find(|(_, v)| (v - d.pixel_aspect).abs() < 1e-3)
@@ -310,7 +311,7 @@ impl ProjectDialogState {
             OutputRotation::label,
         );
         ui.horizontal(|ui| {
-            ui.label("Taxa de quadros:");
+            ui.label(tr("Taxa de quadros:"));
             let selected = frame_rate_of(d.fps)
                 .map_or_else(|| format!("{:.3}", d.fps), |r| r.label.to_owned());
             egui::ComboBox::from_id_salt("project_fps")
@@ -386,7 +387,7 @@ impl ProjectDialogState {
     fn audio_tab(&mut self, ui: &mut egui::Ui) {
         let d = &mut self.draft;
         ui.horizontal(|ui| {
-            ui.label("Taxa de amostragem:");
+            ui.label(tr("Taxa de amostragem:"));
             egui::ComboBox::from_id_salt("project_rate")
                 .selected_text(format!("{} Hz", d.sample_rate))
                 .show_ui(ui, |ui| {
@@ -396,7 +397,7 @@ impl ProjectDialogState {
                 });
         });
         ui.horizontal(|ui| {
-            ui.label("Profundidade de bits:");
+            ui.label(tr("Profundidade de bits:"));
             egui::ComboBox::from_id_salt("project_bits")
                 .selected_text(bits_label(d.audio_bit_depth))
                 .show_ui(ui, |ui| {
@@ -413,7 +414,7 @@ impl ProjectDialogState {
             MasterBusMode::label,
         );
         ui.horizontal(|ui| {
-            ui.label("Nível de pico da normalização:");
+            ui.label(tr("Nível de pico da normalização:"));
             ui.add(
                 egui::DragValue::new(&mut d.normalize_peak_db)
                     .range(-60.0..=0.0)
