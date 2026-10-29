@@ -151,15 +151,15 @@ pub(crate) enum Tab {
 impl Tab {
     fn title(self) -> &'static str {
         match self {
-            Tab::Preview => "Visualização",
-            Tab::Timeline => "Linha do Tempo",
+            Tab::Preview => "Prévia de vídeo",
+            Tab::Timeline => "Linha do tempo",
             Tab::Media => "Mídia",
-            Tab::MasterBus => "Barramento Master",
-            Tab::Loudness => "Loudness",
-            Tab::AudioFx => "Efeitos de Áudio",
-            Tab::VideoFx => "Efeitos de Vídeo",
+            Tab::MasterBus => "Barramento master",
+            Tab::Loudness => "Medidores de loudness",
+            Tab::AudioFx => "Efeitos de áudio",
+            Tab::VideoFx => "Efeitos de vídeo",
             Tab::Transitions => "Transições",
-            Tab::Scopes => "Scopes de Vídeo",
+            Tab::Scopes => "Scopes de vídeo",
         }
     }
 }
@@ -7086,7 +7086,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     }
                 }
                 if state.layouts.is_empty() {
-                    ui.weak("Nenhum layout salvo");
+                    ui.weak(tr("Nenhum layout salvo"));
                 }
                 ui.separator();
                 let has_current = state.current_layout.is_some();
@@ -7177,7 +7177,7 @@ fn bundled_luts() -> Vec<(String, String)> {
 /// Help → Credits: authors and licences of the code Neoveg is built on.
 fn credits_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_credits;
-    crate::dialogs::dialog(ctx, "Créditos e licenças")
+    crate::dialogs::dialog(ctx, tr("Créditos e licenças"))
         .open(&mut open)
         .default_size([480.0, 420.0])
         .show(ctx, crate::credits::credits_ui);
@@ -7601,7 +7601,7 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
                 });
             }
             ui.separator();
-            if ui.button("Restaurar tudo").clicked() {
+            if ui.button(tr("Restaurar tudo")).clicked() {
                 reset = true;
             }
         });
@@ -7644,18 +7644,18 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
                 finished = true;
             }
             ui.horizontal(|ui| {
-                ui.label("Cor da tela:");
+                ui.label(tr("Cor da tela:"));
                 if ui.color_edit_button_rgb(&mut key.key_color).changed() {
                     changed = true;
                     finished = true;
                 }
-                if ui.button("Tela verde").clicked() {
+                if ui.button(tr("Tela verde")).clicked() {
                     key.key_color = ChromaKey::GREEN_SCREEN;
                     key.enabled = true;
                     changed = true;
                     finished = true;
                 }
-                if ui.button("Tela azul").clicked() {
+                if ui.button(tr("Tela azul")).clicked() {
                     key.key_color = ChromaKey::BLUE_SCREEN;
                     key.enabled = true;
                     changed = true;
@@ -7706,7 +7706,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
                 finished = true;
             }
             ui.separator();
-            if ui.button("Restaurar padrão").clicked() {
+            if ui.button(tr("Restaurar padrão")).clicked() {
                 reset = true;
             }
         });
@@ -7745,10 +7745,10 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
         .show(ctx, |ui| {
             ui.checkbox(
                 &mut state.metronome_on,
-                "Tocar o clique durante a reprodução",
+                tr("Tocar o clique durante a reprodução"),
             );
             ui.horizontal(|ui| {
-                ui.label("Andamento (bpm)");
+                ui.label(tr("Andamento (bpm)"));
                 let (lo, hi) = Metronome::BPM_RANGE;
                 ui.add(
                     egui::DragValue::new(&mut state.project.settings.bpm)
@@ -7758,13 +7758,13 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
                 );
             });
             ui.horizontal(|ui| {
-                ui.label("Tempos por compasso");
+                ui.label(tr("Tempos por compasso"));
                 ui.add(
                     egui::DragValue::new(&mut state.project.settings.beats_per_bar).range(1..=16),
                 );
             });
             ui.horizontal(|ui| {
-                ui.label("Volume");
+                ui.label(tr("Volume"));
                 ui.add(
                     PrecisionSlider::new(&mut state.metronome_volume, 0.0..=1.0, 0.5).width(120.0),
                 );
@@ -7828,10 +7828,12 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
             if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && valid {
                 insert = true;
             }
-            ui.weak("Duração a abrir em todas as faixas: 00:00:05:00, 5, 2,5 ou 120f");
+            ui.weak(tr(
+                "Duração a abrir em todas as faixas: 00:00:05:00, 5, 2,5 ou 120f",
+            ));
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(valid, egui::Button::new("Inserir"))
+                    .add_enabled(valid, egui::Button::new(tr("Inserir")))
                     .clicked()
                 {
                     insert = true;
@@ -7902,18 +7904,18 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let mut keep_open = true;
     let mut confirmed = false;
-    crate::dialogs::dialog(ctx, "Repetir colar")
+    crate::dialogs::dialog(ctx, tr("Repetir colar"))
         .collapsible(false)
         .resizable(false)
         .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Número de cópias");
+                ui.label(tr("Número de cópias"));
                 ui.add(egui::DragValue::new(&mut dialog.count).range(1..=999));
             });
-            ui.radio_value(&mut dialog.spaced, false, "Uma após a outra");
+            ui.radio_value(&mut dialog.spaced, false, tr("Uma após a outra"));
             ui.horizontal(|ui| {
-                ui.radio_value(&mut dialog.spaced, true, "A cada");
+                ui.radio_value(&mut dialog.spaced, true, tr("A cada"));
                 ui.add_enabled(
                     dialog.spaced,
                     egui::DragValue::new(&mut dialog.seconds)
@@ -7986,25 +7988,25 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
     let mut everywhere = false;
     let mut stop = false;
     let searching = state.missing.iter().any(|m| m.searching);
-    crate::dialogs::dialog(ctx, "Mídia ausente")
+    crate::dialogs::dialog(ctx, tr("Mídia ausente"))
         .collapsible(false)
         .open(&mut keep_open)
         .show(ctx, |ui| {
-            ui.label("O projeto aponta para arquivos que não estão mais no lugar. Os eventos continuam na linha do tempo.");
+            ui.label(tr("O projeto aponta para arquivos que não estão mais no lugar. Os eventos continuam na linha do tempo."));
             ui.separator();
             egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                 for m in &state.missing {
                     ui.horizontal(|ui| {
                         ui.strong(&m.name);
                         if m.searching {
-                            ui.weak("procurando…");
+                            ui.weak(tr("procurando…"));
                         } else {
-                            if ui.button("Localizar…").clicked() {
+                            if ui.button(tr("Localizar…")).clicked() {
                                 locate = Some(m.id);
                             }
                             if m.ignored {
-                                ui.weak("deixada offline");
-                            } else if ui.button("Ignorar e deixar offline").clicked() {
+                                ui.weak(tr("deixada offline"));
+                            } else if ui.button(tr("Ignorar e deixar offline")).clicked() {
                                 ignore = Some(m.id);
                             }
                         }
@@ -8044,13 +8046,13 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
             }
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(!searching, egui::Button::new("Buscar em uma pasta…"))
+                    .add_enabled(!searching, egui::Button::new(tr("Buscar em uma pasta…")))
                     .clicked()
                 {
                     search = true;
                 }
                 if ui
-                    .add_enabled(!searching, egui::Button::new("Buscar em todos os lugares"))
+                    .add_enabled(!searching, egui::Button::new(tr("Buscar em todos os lugares")))
                     .clicked()
                 {
                     everywhere = true;
@@ -8058,7 +8060,7 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui
                     .add_enabled(
                         state.missing.iter().any(|m| !m.ignored),
-                        egui::Button::new("Ignorar todas"),
+                        egui::Button::new(tr("Ignorar todas")),
                     )
                     .clicked()
                 {
@@ -8112,11 +8114,13 @@ fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
     let dir = state.project_dir();
     let mut keep_open = true;
     let mut copy: Option<Vec<u64>> = None;
-    crate::dialogs::dialog(ctx, "Mídia encontrada")
+    crate::dialogs::dialog(ctx, tr("Mídia encontrada"))
         .collapsible(false)
         .open(&mut keep_open)
         .show(ctx, |ui| {
-            ui.label("Estes arquivos foram encontrados fora da pasta do projeto.");
+            ui.label(tr(
+                "Estes arquivos foram encontrados fora da pasta do projeto.",
+            ));
             match &dir {
                 Some(dir) => {
                     ui.weak(format!(
@@ -8125,7 +8129,7 @@ fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
                     ));
                 }
                 None => {
-                    ui.weak("Salve o projeto para escolher a pasta da cópia.");
+                    ui.weak(tr("Salve o projeto para escolher a pasta da cópia."));
                 }
             }
             ui.separator();
@@ -8137,11 +8141,11 @@ fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
                             ui.strong(&f.name);
                             if f.copying {
                                 ui.spinner();
-                                ui.weak("copiando…");
+                                ui.weak(tr("copiando…"));
                             } else if ui
                                 .add_enabled(
                                     dir.is_some(),
-                                    egui::Button::new("Copiar para a pasta do projeto"),
+                                    egui::Button::new(tr("Copiar para a pasta do projeto")),
                                 )
                                 .clicked()
                             {
@@ -8157,7 +8161,7 @@ fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui
                     .add_enabled(
                         dir.is_some() && idle,
-                        egui::Button::new("Copiar todas para a pasta do projeto"),
+                        egui::Button::new(tr("Copiar todas para a pasta do projeto")),
                     )
                     .clicked()
                 {
@@ -8181,7 +8185,7 @@ fn media_error_window(ctx: &egui::Context, state: &mut AppState) {
     let mut replace = false;
     let mut ignore = false;
     let mut ignore_all = false;
-    crate::dialogs::dialog(ctx, "Erro de arquivo de mídia")
+    crate::dialogs::dialog(ctx, tr("Erro de arquivo de mídia"))
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
@@ -8190,13 +8194,13 @@ fn media_error_window(ctx: &egui::Context, state: &mut AppState) {
             ui.weak(&text);
             ui.separator();
             ui.horizontal(|ui| {
-                if ui.button("Escolher outro arquivo…").clicked() {
+                if ui.button(tr("Escolher outro arquivo…")).clicked() {
                     replace = true;
                 }
-                if ui.button("Ignorar").clicked() {
+                if ui.button(tr("Ignorar")).clicked() {
                     ignore = true;
                 }
-                if ui.button("Ignorar todos os erros seguintes").clicked() {
+                if ui.button(tr("Ignorar todos os erros seguintes")).clicked() {
                     ignore_all = true;
                 }
             });
@@ -8225,7 +8229,7 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
     let mut keep_open = true;
     let mut convert = false;
     let mut cancel = false;
-    crate::dialogs::dialog(ctx, "Mídia não compatível")
+    crate::dialogs::dialog(ctx, tr("Mídia não compatível"))
         .collapsible(false)
         .resizable(false)
         .open(&mut keep_open)
@@ -8241,7 +8245,7 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
                 target.label()
             ));
             ui.horizontal(|ui| {
-                if ui.button("Converter").clicked() {
+                if ui.button(tr("Converter")).clicked() {
                     convert = true;
                 }
                 if ui.button("Cancelar").clicked() {
@@ -8263,17 +8267,17 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
         let mut keep_open = true;
         let mut save = false;
         let mut cancel = false;
-        crate::dialogs::dialog(ctx, "Salvar layout como")
+        crate::dialogs::dialog(ctx, tr("Salvar layout como"))
             .collapsible(false)
             .resizable(false)
             .open(&mut keep_open)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Nome");
+                    ui.label(tr("Nome"));
                     ui.text_edit_singleline(&mut dialog.name);
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Atalho");
+                    ui.label(tr("Atalho"));
                     slot_combo(ui, "layout_save_slot", &mut dialog.slot);
                 });
                 if let Some(dir) = &state.layouts_dir {
@@ -8309,7 +8313,7 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
             .iter()
             .map(|l| (l.path.clone(), l.file.name.clone(), l.file.slot))
             .collect();
-        crate::dialogs::dialog(ctx, "Organizar layouts")
+        crate::dialogs::dialog(ctx, tr("Organizar layouts"))
             .collapsible(false)
             .open(&mut keep_open)
             .show(ctx, |ui| {
@@ -8317,9 +8321,9 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                     ui.weak(format!("Pasta: {}", dir.display()));
                 }
                 if rows.is_empty() {
-                    ui.label(
+                    ui.label(tr(
                         "Nenhum layout salvo ainda. Use Exibir > Layouts > Salvar layout como.",
-                    );
+                    ));
                 }
                 for (i, (path, name, slot)) in rows.iter().enumerate() {
                     ui.horizontal(|ui| {
@@ -8329,10 +8333,10 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                         if chosen != *slot {
                             request = Some(WindowAction::SetLayoutSlot(path.clone(), chosen));
                         }
-                        if ui.button("Carregar").clicked() {
+                        if ui.button(tr("Carregar")).clicked() {
                             request = Some(WindowAction::LoadLayout(path.clone()));
                         }
-                        if ui.button("Excluir").clicked() {
+                        if ui.button(tr("Excluir")).clicked() {
                             request = Some(WindowAction::DeleteLayout(path.clone()));
                         }
                     });
@@ -8370,13 +8374,13 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
         .resizable(false)
         .open(&mut keep_open)
         .show(ctx, |ui| {
-            ui.checkbox(&mut set.switches, "Interruptores do evento");
-            ui.checkbox(&mut set.pitch, "Tom do evento de áudio");
-            ui.checkbox(&mut set.rate, "Velocidade de reprodução do vídeo");
-            ui.checkbox(&mut set.effects, "Efeitos de vídeo do evento");
-            ui.checkbox(&mut set.pan_crop, "Pan/Crop do evento");
-            ui.checkbox(&mut set.velocity, "Envelope de velocidade");
-            ui.checkbox(&mut set.transitions, "Transições de entrada e saída");
+            ui.checkbox(&mut set.switches, tr("Interruptores do evento"));
+            ui.checkbox(&mut set.pitch, tr("Tom do evento de áudio"));
+            ui.checkbox(&mut set.rate, tr("Velocidade de reprodução do vídeo"));
+            ui.checkbox(&mut set.effects, tr("Efeitos de vídeo do evento"));
+            ui.checkbox(&mut set.pan_crop, tr("Pan/Crop do evento"));
+            ui.checkbox(&mut set.velocity, tr("Envelope de velocidade"));
+            ui.checkbox(&mut set.transitions, tr("Transições de entrada e saída"));
             ui.separator();
             ui.horizontal(|ui| {
                 if ui
@@ -8385,10 +8389,10 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
                 {
                     confirmed = true;
                 }
-                if ui.button("Marcar tudo").clicked() {
+                if ui.button(tr("Marcar tudo")).clicked() {
                     set = Attributes::ALL;
                 }
-                if ui.button("Limpar").clicked() {
+                if ui.button(tr("Limpar")).clicked() {
                     set = Attributes::NONE;
                 }
             });
@@ -8443,15 +8447,15 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
     }
 
     let mut open = true;
-    crate::dialogs::dialog(ctx, "Personalizar teclado")
+    crate::dialogs::dialog(ctx, tr("Personalizar teclado"))
         .open(&mut open)
         .default_width(520.0)
         .default_height(480.0)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Filtro:");
+                ui.label(tr("Filtro:"));
                 ui.text_edit_singleline(&mut state.keymap_filter);
-                if ui.button("Restaurar tudo").clicked() {
+                if ui.button(tr("Restaurar tudo")).clicked() {
                     state.keymap = KeyMap::defaults();
                     state.persist_keymap();
                     state.keymap_message = "Atalhos padrão restaurados".into();
@@ -8500,7 +8504,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                             for shortcut in state.keymap.shortcuts_for(command) {
                                 if ui
                                     .small_button(format!("{shortcut} ×"))
-                                    .on_hover_text("Remover este atalho")
+                                    .on_hover_text(tr("Remover este atalho"))
                                     .clicked()
                                 {
                                     remove = Some(shortcut);
@@ -8508,7 +8512,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                             }
                             if ui
                                 .small_button("+")
-                                .on_hover_text("Atribuir atalho")
+                                .on_hover_text(tr("Atribuir atalho"))
                                 .clicked()
                             {
                                 state.capture_for = Some(command);
@@ -8719,7 +8723,9 @@ fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            ui.label("O Neoveg não foi encerrado normalmente. Projetos com alterações não salvas:");
+            ui.label(tr(
+                "O Neoveg não foi encerrado normalmente. Projetos com alterações não salvas:",
+            ));
             ui.separator();
             for entry in &state.pending_recovery {
                 ui.horizontal(|ui| {
@@ -8728,16 +8734,16 @@ fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
                         entry.meta.project_name,
                         format_age(entry.meta.saved_unix, now)
                     ));
-                    if ui.button("Recuperar").clicked() {
+                    if ui.button(tr("Recuperar")).clicked() {
                         recover = Some(entry.clone());
                     }
-                    if ui.button("Descartar").clicked() {
+                    if ui.button(tr("Descartar")).clicked() {
                         discard = Some(entry.path.clone());
                     }
                 });
             }
             ui.separator();
-            if ui.button("Descartar todos").clicked() {
+            if ui.button(tr("Descartar todos")).clicked() {
                 discard_all = true;
             }
         });
@@ -8769,8 +8775,8 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
                 state.project.name
             ));
             ui.horizontal(|ui| {
-                save = ui.button("Salvar e sair").clicked();
-                discard = ui.button("Sair sem salvar").clicked();
+                save = ui.button(tr("Salvar e sair")).clicked();
+                discard = ui.button(tr("Sair sem salvar")).clicked();
                 cancel = ui.button("Cancelar").clicked();
             });
         });
@@ -8822,7 +8828,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 ))
             });
             let Some((track_id, event_id, name, g)) = selected else {
-                ui.label("Nenhum evento selecionado");
+                ui.label(tr("Nenhum evento selecionado"));
                 return;
             };
             target = Some((track_id, event_id));
@@ -8841,7 +8847,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             let generated = state.is_generated_event(&ev);
             let mut new_name = name.clone();
             ui.horizontal(|ui| {
-                ui.label("Nome");
+                ui.label(tr("Nome"));
                 let response = ui.text_edit_singleline(&mut new_name);
                 if response.lost_focus() && new_name.trim() != name {
                     rename = Some(new_name.clone());
@@ -8872,7 +8878,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             // Where it starts and how long it lasts: both go through the same rules as the mouse
             let source_len = state.source_len(track_id, event_id);
             ui.horizontal(|ui| {
-                ui.label("Início");
+                ui.label(tr("Início"));
                 let mut start = g.start;
                 if ui
                     .add(
@@ -8886,7 +8892,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 {
                     new = edit::move_to(new, start);
                 }
-                ui.label("Duração");
+                ui.label(tr("Duração"));
                 let mut length = g.duration;
                 if ui
                     .add(
@@ -8902,7 +8908,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 }
             });
             ui.horizontal(|ui| {
-                ui.label("Velocidade");
+                ui.label(tr("Velocidade"));
                 let mut rate = edit::clamp_playback_rate(new.playback_rate);
                 if ui
                     .add(
@@ -8912,23 +8918,28 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                             .fixed_decimals(2)
                             .suffix("×"),
                     )
-                    .on_hover_text("0,25× a 4,00× (Ctrl + arrastar borda do evento na timeline)")
+                    .on_hover_text(tr(
+                        "0,25× a 4,00× (Ctrl + arrastar borda do evento na timeline)",
+                    ))
                     .changed()
                 {
                     new = edit::set_playback_rate(new, rate, fps_min_len);
                 }
                 if ui
                     .small_button("1,00×")
-                    .on_hover_text("Restaurar velocidade original")
+                    .on_hover_text(tr("Restaurar velocidade original"))
                     .clicked()
                 {
                     new = edit::set_playback_rate(new, 1.0, fps_min_len);
                 }
             });
-            ui.checkbox(&mut new.preserve_pitch, "Preservar tom ao esticar (WSOLA)");
+            ui.checkbox(
+                &mut new.preserve_pitch,
+                tr("Preservar tom ao esticar (WSOLA)"),
+            );
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label("Fade-in");
+                ui.label(tr("Fade-in"));
                 ui.add(
                     egui::DragValue::new(&mut new.fade_in)
                         .range(0.0..=g.duration)
@@ -8944,7 +8955,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                     });
             });
             ui.horizontal(|ui| {
-                ui.label("Fade-out");
+                ui.label(tr("Fade-out"));
                 ui.add(
                     egui::DragValue::new(&mut new.fade_out)
                         .range(0.0..=g.duration)
@@ -9003,14 +9014,16 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             }
             ui.separator();
             ui.horizontal_wrapped(|ui| {
-                if kind == TrackKind::Video && !ev.adjustment && ui.button("Pan/Crop…").clicked()
+                if kind == TrackKind::Video
+                    && !ev.adjustment
+                    && ui.button(tr("Pan/Crop…")).clicked()
                 {
                     header = Some(event_header::HeaderButton::PanCrop);
                 }
-                if ui.button("Efeitos…").clicked() {
+                if ui.button(tr("Efeitos…")).clicked() {
                     header = Some(event_header::HeaderButton::Fx);
                 }
-                if generated && ui.button("Editar mídia gerada…").clicked() {
+                if generated && ui.button(tr("Editar mídia gerada…")).clicked() {
                     header = Some(event_header::HeaderButton::GeneratedMedia);
                 }
             });
@@ -9105,8 +9118,8 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
                 }
             })
             .response
-            .on_hover_text("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela");
-        ui.checkbox(&mut state.show_bars, "Barras SMPTE");
+            .on_hover_text(tr("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela"));
+        ui.checkbox(&mut state.show_bars, tr("Barras SMPTE"));
     });
 
     let avail = ui.available_size();
@@ -9214,7 +9227,7 @@ fn media_ui(state: &mut AppState, ui: &mut egui::Ui) {
     footer_tabs(
         ui,
         "media_footer",
-        &["Mídia do Projeto", "Trimmer", "Legendas"],
+        &["Mídia do projeto", "Trimmer", "Legendas"],
         &mut tab,
     );
     state.media_tab = tab;
@@ -9235,13 +9248,13 @@ fn media_ui(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
-    if ui.button("Importar mídia…").clicked() {
+    if ui.button(tr("Importar mídia…")).clicked() {
         let ctx = ui.ctx().clone();
         state.import_media(&ctx);
     }
     ui.separator();
     if state.project.media_pool.is_empty() {
-        ui.weak("Nenhuma mídia no projeto");
+        ui.weak(tr("Nenhuma mídia no projeto"));
     }
     let mut open = None;
     for item in &state.project.media_pool {
@@ -9254,7 +9267,7 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
                         .is_some_and(|t| t.media_id == item.id),
                     format!("{}  ({:.2} s, {} Hz)", m.name, m.duration, m.sample_rate),
                 )
-                .on_hover_text("Duplo clique: abrir no Trimmer");
+                .on_hover_text(tr("Duplo clique: abrir no Trimmer"));
             if row.double_clicked() {
                 open = Some(item.id);
             }
@@ -9274,7 +9287,9 @@ fn trimmer_ui(state: &mut AppState, ui: &mut egui::Ui) {
         }
     }
     let Some(trimmer) = state.trimmer.as_mut() else {
-        ui.weak("Abra uma mídia no Trimmer (duplo clique em Mídia do Projeto)");
+        ui.weak(tr(
+            "Abra uma mídia no Trimmer (duplo clique em Mídia do Projeto)",
+        ));
         return;
     };
     let fps = state.project.settings.fps;
@@ -9532,7 +9547,7 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
     };
     ui.separator();
     let open = event.velocity.is_some();
-    let section = egui::CollapsingHeader::new("Velocidade do evento")
+    let section = egui::CollapsingHeader::new(tr("Velocidade do evento"))
         .id_salt("event_velocity")
         .default_open(open)
         .show(ui, |ui| {
@@ -9555,7 +9570,7 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
 fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let on_track = !state.fx.master && state.fx.bus.is_none();
-        if ui.selectable_label(on_track, "Faixa").clicked() {
+        if ui.selectable_label(on_track, tr("Faixa")).clicked() {
             state.fx.master = false;
             state.fx.bus = None;
         }
@@ -9578,7 +9593,7 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
                     .map(|b| (b.id, neoveg_engine::buses::label(&state.timeline, b.id)))
                     .collect();
                 if list.is_empty() {
-                    ui.weak("Nenhum barramento");
+                    ui.weak(tr("Nenhum barramento"));
                 }
                 for (id, label) in list {
                     if ui.selectable_label(current == Some(id), label).clicked() {
@@ -9587,13 +9602,13 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
                     }
                 }
             });
-        if ui.selectable_label(state.fx.master, "Master").clicked() {
+        if ui.selectable_label(state.fx.master, tr("Master")).clicked() {
             state.fx.master = true;
             state.fx.bus = None;
         }
         if ui
             .button("+ Barramento")
-            .on_hover_text("Inserir barramento de áudio (Ctrl+Alt+B)")
+            .on_hover_text(tr("Inserir barramento de áudio (Ctrl+Alt+B)"))
             .clicked()
         {
             state.add_audio_bus();
@@ -9630,9 +9645,11 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
                     }
                     ui.label(&video.name);
                 });
-                ui.weak("Faixa de vídeo: sem efeitos de áudio.");
+                ui.weak(tr("Faixa de vídeo: sem efeitos de áudio."));
             } else {
-                ui.weak("Selecione uma faixa de áudio para ver o mixer e os efeitos dela.");
+                ui.weak(tr(
+                    "Selecione uma faixa de áudio para ver o mixer e os efeitos dela.",
+                ));
             }
             return;
         }
@@ -9937,7 +9954,7 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
         .and_then(|t| t.envelopes.iter().find(|e| e.target == hit.target))
         .cloned()
     else {
-        ui.label("Envelope não encontrado");
+        ui.label(tr("Envelope não encontrado"));
         return;
     };
     let title = state
@@ -9971,7 +9988,7 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
                 }
             }
         });
-        if ui.button("Restaurar valor padrão").clicked() {
+        if ui.button(tr("Restaurar valor padrão")).clicked() {
             cmd_to_run = envelope::move_keyframe(
                 &state.timeline,
                 target,
@@ -9983,13 +10000,13 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
             ui.close_menu();
         }
         if ui
-            .add_enabled(env.points.len() > 1, egui::Button::new("Remover ponto"))
+            .add_enabled(env.points.len() > 1, egui::Button::new(tr("Remover ponto")))
             .clicked()
         {
             cmd_to_run = envelope::remove_keyframe(&state.timeline, target, &hit.target, idx);
             ui.close_menu();
         }
-    } else if ui.button("Adicionar ponto aqui").clicked() {
+    } else if ui.button(tr("Adicionar ponto aqui")).clicked() {
         let pt = envelope_canvas::new_point_on_curve(&env, hit.time, hit.value);
         cmd_to_run =
             envelope::upsert_keyframe(&state.timeline, target, &hit.target, pt, hit.bounds, 1e-4);
@@ -9998,16 +10015,16 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
 
     ui.separator();
     let mut enabled = env.enabled;
-    if ui.checkbox(&mut enabled, "Automação ativa").changed() {
+    if ui.checkbox(&mut enabled, tr("Automação ativa")).changed() {
         cmd_to_run = envelope::set_envelope_enabled(&state.timeline, target, &hit.target, enabled);
         ui.close_menu();
     }
-    if ui.button("Ocultar envelope").clicked() {
+    if ui.button(tr("Ocultar envelope")).clicked() {
         cmd_to_run =
             envelope::toggle_envelope(&state.timeline, target, hit.target.clone(), hit.default);
         ui.close_menu();
     }
-    if ui.button("Remover envelope").clicked() {
+    if ui.button(tr("Remover envelope")).clicked() {
         cmd_to_run = envelope::remove_envelope(&state.timeline, target, &hit.target);
         ui.close_menu();
     }
@@ -10026,11 +10043,11 @@ fn event_context_menu(
     event_id: EventId,
 ) {
     let Some(g) = state.event_geometry(track_id, event_id) else {
-        ui.label("Evento não encontrado");
+        ui.label(tr("Evento não encontrado"));
         return;
     };
     if let Some(path) = state.subproject_path_of(track_id, event_id) {
-        if ui.button("Abrir sub-projeto em uma aba").clicked() {
+        if ui.button(tr("Abrir sub-projeto em uma aba")).clicked() {
             state.tabs.open_request = Some(path);
             ui.close_menu();
         }
@@ -10055,7 +10072,7 @@ fn event_context_menu(
             state.set_velocity(track_id, event_id, next);
             ui.close_menu();
         }
-        if ui.button("Congelar quadro no cursor").clicked() {
+        if ui.button(tr("Congelar quadro no cursor")).clicked() {
             state.freeze_frame_at_cursor(track_id, event_id);
             ui.close_menu();
         }
@@ -10075,7 +10092,7 @@ fn event_context_menu(
     }
     ui.menu_button(tr("Interruptores"), |ui| switch_items(state, ui));
     ui.menu_button(tr("Canais de áudio"), |ui| channel_items(state, ui));
-    if ui.button("Selecionar eventos até o fim").clicked() {
+    if ui.button(tr("Selecionar eventos até o fim")).clicked() {
         state
             .selection
             .select_to_end(&state.timeline, (track_id, event_id));
@@ -10105,7 +10122,7 @@ fn event_context_menu(
     ui.separator();
     let has_fades = g.fade_in > 0.0 || g.fade_out > 0.0;
     if ui
-        .add_enabled(has_fades, egui::Button::new("Remover fades"))
+        .add_enabled(has_fades, egui::Button::new(tr("Remover fades")))
         .clicked()
     {
         state.apply_geometry(
@@ -10816,15 +10833,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         match (state.context_event, state.context_mark) {
             (Some((track_id, event_id)), _) => event_context_menu(state, ui, track_id, event_id),
             (None, Some(id)) => {
-                if ui.button("Renomear").clicked() {
+                if ui.button(tr("Renomear")).clicked() {
                     state.begin_name_edit(NameTarget::Existing(id));
                     ui.close_menu();
                 }
-                if ui.button("Remover marcador ou região").clicked() {
+                if ui.button(tr("Remover marcador ou região")).clicked() {
                     state.remove_mark(id);
                     ui.close_menu();
                 }
-                if ui.button("Apagar todos os marcadores e regiões").clicked() {
+                if ui
+                    .button(tr("Apagar todos os marcadores e regiões"))
+                    .clicked()
+                {
                     state.time_selection = None;
                     state.clear_marks();
                     ui.close_menu();
@@ -10837,9 +10857,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 if ui
                     .add_enabled(
                         !state.timeline.marks().is_empty(),
-                        egui::Button::new("Apagar marcadores e regiões"),
+                        egui::Button::new(tr("Apagar marcadores e regiões")),
                     )
-                    .on_hover_text("Na seleção de tempo; sem ela, todos")
+                    .on_hover_text(tr("Na seleção de tempo; sem ela, todos"))
                     .clicked()
                 {
                     state.clear_marks();
@@ -11091,7 +11111,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             box_rect,
             egui::TextEdit::singleline(&mut edit.text)
                 .font(FontId::proportional(11.0))
-                .hint_text("Nome")
+                .hint_text(tr("Nome"))
                 .desired_width(NAME_BOX_WIDTH),
         );
         if !edit.focused {
