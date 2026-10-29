@@ -6,6 +6,7 @@ pub mod commands;
 pub mod composite;
 pub mod fade;
 pub mod grade;
+pub mod i18n;
 pub mod keymap;
 pub mod logging;
 pub mod pan;

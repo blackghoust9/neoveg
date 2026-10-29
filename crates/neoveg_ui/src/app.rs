@@ -31,6 +31,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
+use neoveg_common::i18n::tr;
 use neoveg_common::keymap::{KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
@@ -6637,8 +6638,10 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
 }
 
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
+    // the interface language follows the preference, also right after the selector changes it
+    neoveg_common::i18n::set_language(&state.prefs.language);
     egui::menu::bar(ui, |ui| {
-        ui.menu_button("Arquivo", |ui| {
+        ui.menu_button(tr("Arquivo"), |ui| {
             // New and open
             command_item(state, ui, Command::FileNew);
             if ui
@@ -6692,7 +6695,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.missing_open = true;
                 ui.close_menu();
             }
-            ui.menu_button("Importar", |ui| {
+            ui.menu_button(tr("Importar"), |ui| {
                 if ui.button("Mídia…").clicked() {
                     let ctx = ui.ctx().clone();
                     state.import_media(&ctx);
@@ -6725,7 +6728,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
             });
-            ui.menu_button("Exportar", |ui| {
+            ui.menu_button(tr("Exportar"), |ui| {
                 if ui.button("Renderizar como… (Make Movie)").clicked() {
                     state.render_dialog.open = true;
                     ui.close_menu();
@@ -6792,7 +6795,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         });
-        ui.menu_button("Editar", |ui| {
+        ui.menu_button(tr("Editar"), |ui| {
             if ui
                 .add_enabled(
                     state.history.can_undo(),
@@ -6836,9 +6839,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
-            ui.menu_button("Interruptores", |ui| switch_items(state, ui));
-            ui.menu_button("Canais de áudio", |ui| channel_items(state, ui));
-            ui.menu_button("Ferramenta de edição", |ui| {
+            ui.menu_button(tr("Interruptores"), |ui| switch_items(state, ui));
+            ui.menu_button(tr("Canais de áudio"), |ui| channel_items(state, ui));
+            ui.menu_button(tr("Ferramenta de edição"), |ui| {
                 for tool in EditTool::ALL {
                     if ui.radio(state.edit_tool == tool, tool.label()).clicked() {
                         state.set_edit_tool(tool);
@@ -6902,7 +6905,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
         });
-        ui.menu_button("Faixas", |ui| {
+        ui.menu_button(tr("Faixas"), |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
@@ -6945,7 +6948,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             ui.add_enabled_ui(video_track, |ui| {
-                ui.menu_button("Envelopes de vídeo", |ui| {
+                ui.menu_button(tr("Envelopes de vídeo"), |ui| {
                     for (label, target, initial) in [
                         ("Nível da faixa", AutomationTarget::VideoLevel, 1.0),
                         ("Esmaecer para cor", AutomationTarget::VideoFade, 0.0),
@@ -6959,7 +6962,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 });
             });
         });
-        ui.menu_button("Ferramentas", |ui| {
+        ui.menu_button(tr("Ferramentas"), |ui| {
             if ui.button("Inspetor").clicked() {
                 state.show_inspector = true;
                 ui.close_menu();
@@ -6995,7 +6998,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_chroma = true;
                 ui.close_menu();
             }
-            ui.menu_button("LUT de cor do vídeo", |ui| {
+            ui.menu_button(tr("LUT de cor do vídeo"), |ui| {
                 let current = state.timeline.video_lut.clone();
                 if ui.selectable_label(current.is_none(), "Nenhuma").clicked() {
                     state.set_video_lut(None);
@@ -7026,7 +7029,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
         });
-        ui.menu_button("Exibir", |ui| {
+        ui.menu_button(tr("Exibir"), |ui| {
             ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
             if ui.button("Notas do projeto…").clicked() {
                 state.notes.open = true;
@@ -7052,7 +7055,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 command_item(state, ui, command);
             }
             ui.separator();
-            ui.menu_button("Layouts", |ui| {
+            ui.menu_button(tr("Layouts"), |ui| {
                 state.ensure_layouts();
                 if ui.button("Layout padrão").clicked() {
                     state.window_request = Some(WindowAction::DefaultLayout);
@@ -7110,7 +7113,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 }
             });
         });
-        ui.menu_button("Ajuda", |ui| {
+        ui.menu_button(tr("Ajuda"), |ui| {
             if ui.button("Tela de boas-vindas…").clicked() {
                 let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
                 state.welcome.open_with(&defaults);
@@ -7277,7 +7280,7 @@ fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
 fn recent_projects_menu(state: &mut AppState, ui: &mut egui::Ui) {
     let entries = state.prefs.recent_projects.clone();
     ui.add_enabled_ui(!entries.is_empty(), |ui| {
-        ui.menu_button("Projetos recentes", |ui| {
+        ui.menu_button(tr("Projetos recentes"), |ui| {
             for path in &entries {
                 let name = std::path::Path::new(path)
                     .file_stem()
@@ -7348,7 +7351,7 @@ fn resample_items(state: &mut AppState, ui: &mut egui::Ui) {
         return;
     }
     let current = neoveg_engine::switches::resample_of(&state.timeline, &selected);
-    ui.menu_button("Reamostragem", |ui| {
+    ui.menu_button(tr("Reamostragem"), |ui| {
         for mode in neoveg_engine::ResampleMode::ALL {
             if ui.radio(current == Some(mode), mode.label()).clicked() {
                 if let Some(command) =
@@ -8580,7 +8583,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
             ui.separator();
             match tab {
                 PrefsTab::General => {
-                    egui::ComboBox::from_label("Idioma")
+                    egui::ComboBox::from_label(tr("Idioma"))
                         .selected_text(prefs.language.clone())
                         .show_ui(ui, |ui| {
                             for lang in LANGUAGES {
@@ -9944,7 +9947,7 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
             .points
             .get(idx)
             .map_or(EnvelopeShape::Linear, |p| p.shape);
-        ui.menu_button("Curva de interpolação", |ui| {
+        ui.menu_button(tr("Curva de interpolação"), |ui| {
             for shape in EnvelopeShape::ALL {
                 if ui
                     .selectable_label(shape == current_shape, shape.label())
@@ -10063,8 +10066,8 @@ fn event_context_menu(
     ] {
         command_item(state, ui, command);
     }
-    ui.menu_button("Interruptores", |ui| switch_items(state, ui));
-    ui.menu_button("Canais de áudio", |ui| channel_items(state, ui));
+    ui.menu_button(tr("Interruptores"), |ui| switch_items(state, ui));
+    ui.menu_button(tr("Canais de áudio"), |ui| channel_items(state, ui));
     if ui.button("Selecionar eventos até o fim").clicked() {
         state
             .selection
