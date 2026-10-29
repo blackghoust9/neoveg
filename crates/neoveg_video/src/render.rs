@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Once, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -127,11 +127,13 @@ pub fn available_encoders() -> Option<&'static HashSet<String>> {
 
 /// Asks `ffmpeg` for its encoders on a worker thread, so [`cached_encoder_for`] has an answer later.
 pub fn probe_encoders_in_background() {
-    if ENCODERS.get().is_none() {
+    // the dialog calls this every frame: start the probe once, not once per frame while it runs
+    static STARTED: Once = Once::new();
+    STARTED.call_once(|| {
         std::thread::spawn(|| {
             available_encoders();
         });
-    }
+    });
 }
 
 /// The encoder for `format` if the probe has finished: `None` while it is running, `Some(Err)`
