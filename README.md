@@ -357,7 +357,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [x] Envelopes de faixa de vídeo: nível da faixa, esmaecer para cor (com paleta de cores) e mudo, editados na linha do tempo como os de áudio; valem na prévia e na renderização (Faixas > Envelopes de vídeo, `V` na faixa de vídeo).
 - [ ] Envelopes de evento de vídeo: a velocidade está pronta; falta o envelope livre de progresso de transição (hoje o progresso é o ganho do fade).
 - [x] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento e por faixa (até 32 efeitos, bypass, parâmetros, desfazer): painel **Efeitos de Vídeo** (`Ctrl+Alt+8`), versão de referência na CPU e versão em compute shader conferidas por teste, usada também na renderização. Também por mídia (vale para todos os eventos dela) e por projeto, e a prévia mostra o valor ao vivo durante o arraste de um controle.
-- [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez, vinheta, preto e branco, inverter, brilho e contraste e pixelizar (cada um na GPU e na referência da CPU, conferidos por teste). Faltam curvas de cor, recorte e o restante da lista abaixo.
+- [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez, vinheta, preto e branco, inverter, brilho e contraste, pixelizar e espelho (cada um na GPU e na referência da CPU, conferidos por teste). Faltam curvas de cor, recorte e o restante da lista abaixo.
 - [ ] Mais efeitos, pelo maior valor: desfoques linear e radial, curvas de cor e recorte.
 - [ ] Geradores que faltam: tabuleiro (xadrez) e textura de ruído (só pixels, baixo custo).
 - [ ] Modelo de transição no engine antes da GPU: duração, curva, eixo A/B e envelope de progresso (nota `catalogo_transicoes_e_geradores`).

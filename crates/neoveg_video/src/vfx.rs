@@ -57,6 +57,7 @@ pub const BLACK_AND_WHITE: &str = "black_and_white";
 pub const INVERT: &str = "invert";
 pub const BRIGHTNESS_CONTRAST: &str = "brightness_contrast";
 pub const PIXELATE: &str = "pixelate";
+pub const MIRROR: &str = "mirror";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -213,6 +214,36 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: MIRROR,
+        label: "Espelho",
+        params: &[
+            ParamSpec {
+                id: "angle",
+                label: "Ângulo",
+                min: 0.0,
+                max: 360.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "center_x",
+                label: "Centro horizontal",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "center_y",
+                label: "Centro vertical",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -295,6 +326,10 @@ impl VideoEffect {
                 h_size: self.value(spec, "h_size"),
                 v_size: self.value(spec, "v_size"),
             },
+            MIRROR => Resolved::Mirror {
+                angle: self.value(spec, "angle"),
+                center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
+            },
             _ => return None,
         })
     }
@@ -346,6 +381,12 @@ pub enum Resolved {
         h_size: f32,
         v_size: f32,
     },
+    /// Reflects one side of a line over the other (see [`mirror`]). The centre is in fractions of
+    /// the frame, `0.0, 0.0` being the lower-left corner.
+    Mirror {
+        angle: f32,
+        center: [f32; 2],
+    },
 }
 
 impl Resolved {
@@ -363,6 +404,7 @@ impl Resolved {
             } => brightness == 0.0 && contrast == 0.0,
             // Blocks of a single pixel are the picture itself
             Resolved::Pixelate { h_size, v_size } => h_size <= 0.0 && v_size <= 0.0,
+            Resolved::Mirror { .. } => false,
         }
     }
 }
@@ -728,6 +770,60 @@ fn pixelate(work: &Work, h_size: f32, v_size: f32) -> Work {
     }
 }
 
+/// Bilinear sample of the working buffer at pixel position `(x, y)` (pixel centres at `+0.5`).
+/// Taps outside the picture are transparent.
+fn sample_work(work: &Work, x: f32, y: f32) -> [f32; 4] {
+    let (w, h) = (work.width as i64, work.height as i64);
+    let (fx, fy) = (x - 0.5, y - 0.5);
+    let (x0, y0) = (fx.floor(), fy.floor());
+    let (tx, ty) = (fx - x0, fy - y0);
+    let (x0, y0) = (x0 as i64, y0 as i64);
+    let mut acc = [0.0f32; 4];
+    for (dy, wy) in [(0, 1.0 - ty), (1, ty)] {
+        for (dx, wx) in [(0, 1.0 - tx), (1, tx)] {
+            let (px, py) = (x0 + dx, y0 + dy);
+            if px < 0 || py < 0 || px >= w || py >= h {
+                continue;
+            }
+            let p = work.px[py as usize * w as usize + px as usize];
+            let weight = wx * wy;
+            for c in 0..4 {
+                acc[c] += p[c] * weight;
+            }
+        }
+    }
+    acc
+}
+
+/// The side of the mirror line that is kept: `angle` `0` keeps the top and reflects it onto the
+/// bottom, `180` the other way round. Positions are in pixels with the origin at the lower-left
+/// corner and `y` up, so the line has the angle it shows. What the reflection brings from outside the
+/// frame is transparent.
+fn mirror(work: &Work, angle: f32, center: [f32; 2]) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (sin, cos) = angle.to_radians().sin_cos();
+    let normal = (-sin, cos);
+    let (cx, cy) = (center[0] * w as f32, center[1] * h as f32);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (qx, qy) = (x as f32 + 0.5, h as f32 - (y as f32 + 0.5));
+            let side = (qx - cx) * normal.0 + (qy - cy) * normal.1;
+            if side >= 0.0 {
+                px.push(work.px[y * w + x]);
+            } else {
+                let (rx, ry) = (qx - 2.0 * side * normal.0, qy - 2.0 * side * normal.1);
+                px.push(sample_work(work, rx, h as f32 - ry));
+            }
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -749,6 +845,7 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             contrast,
         } => brightness_contrast(work, brightness, contrast),
         Resolved::Pixelate { h_size, v_size } => *work = pixelate(work, h_size, v_size),
+        Resolved::Mirror { angle, center } => *work = mirror(work, angle, center),
     }
 }
 
@@ -887,6 +984,69 @@ mod tests {
                 .with("v_size", 0.0)],
         );
         assert_eq!(same, original);
+    }
+
+    #[test]
+    fn the_mirror_reflects_the_kept_side_and_the_other_angle_keeps_the_other_half() {
+        // Left to right gradient with the red channel, 8 x 4
+        let mut frame = FrameBuffer {
+            width: 8,
+            height: 4,
+            rgba: vec![0; 8 * 4 * 4],
+        };
+        for y in 0..4usize {
+            for x in 0..8usize {
+                let i = (y * 8 + x) * 4;
+                frame.rgba[i] = (x * 30 + y) as u8;
+                frame.rgba[i + 3] = 255;
+            }
+        }
+        // Angle 0 keeps the top and copies it, flipped, to the bottom
+        let mut top = frame.clone();
+        apply_chain_cpu(&mut top, &[VideoEffect::new(MIRROR)]);
+        for x in 0..8usize {
+            assert_eq!(top.rgba[x * 4], frame.rgba[x * 4], "row 0 kept");
+            assert_eq!(top.rgba[(8 + x) * 4], frame.rgba[(8 + x) * 4], "row 1 kept");
+            assert_eq!(
+                top.rgba[(16 + x) * 4],
+                frame.rgba[(8 + x) * 4],
+                "row 2 is row 1"
+            );
+            assert_eq!(top.rgba[(24 + x) * 4], frame.rgba[x * 4], "row 3 is row 0");
+        }
+        // Angle 180 keeps the bottom
+        let mut bottom = frame.clone();
+        apply_chain_cpu(
+            &mut bottom,
+            &[VideoEffect::new(MIRROR).with("angle", 180.0)],
+        );
+        for x in 0..8usize {
+            assert_eq!(
+                bottom.rgba[x * 4],
+                frame.rgba[(24 + x) * 4],
+                "row 0 is row 3"
+            );
+            assert_eq!(
+                bottom.rgba[(24 + x) * 4],
+                frame.rgba[(24 + x) * 4],
+                "row 3 kept"
+            );
+        }
+        // A line near the top edge reflects a lot of nothing: transparent, never garbage
+        let mut edge = frame.clone();
+        apply_chain_cpu(
+            &mut edge,
+            &[VideoEffect::new(MIRROR)
+                .with("angle", 180.0)
+                .with("center_y", 1.0)],
+        );
+        assert!(edge
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p[3] == 255 || p[3] == 0));
+        assert_eq!(edge.rgba[3], 255, "the kept side is the one below the line");
     }
 
     #[test]

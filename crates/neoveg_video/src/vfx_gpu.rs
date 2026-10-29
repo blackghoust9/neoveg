@@ -187,6 +187,48 @@ fn pixelate(@builtin(global_invocation_id) id: vec3<u32>) {
     let sy = min(id.y / bh * bh + bh / 2u, p.height - 1u);
     dst[id.y * p.width + id.x] = src[sy * p.width + sx];
 }
+
+fn sample_bilinear(x: f32, y: f32) -> vec4<f32> {
+    let fx = x - 0.5;
+    let fy = y - 0.5;
+    let x0 = floor(fx);
+    let y0 = floor(fy);
+    let tx = fx - x0;
+    let ty = fy - y0;
+    var acc = vec4<f32>(0.0);
+    for (var j = 0; j < 2; j = j + 1) {
+        for (var i = 0; i < 2; i = i + 1) {
+            let px = i32(x0) + i;
+            let py = i32(y0) + j;
+            if (px < 0 || py < 0 || px >= i32(p.width) || py >= i32(p.height)) { continue; }
+            var wx = 1.0 - tx;
+            if (i == 1) { wx = tx; }
+            var wy = 1.0 - ty;
+            if (j == 1) { wy = ty; }
+            acc = acc + wx * wy * src[u32(py) * p.width + u32(px)];
+        }
+    }
+    return acc;
+}
+
+// a = angle, b/c = centre (fractions of the frame, lower-left origin)
+@compute @workgroup_size(8, 8, 1)
+fn mirror(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let r = radians(p.a);
+    let n = vec2<f32>(-sin(r), cos(r));
+    let q = vec2<f32>(f32(id.x) + 0.5, h - (f32(id.y) + 0.5));
+    let side = dot(q - vec2<f32>(p.b * w, p.c * h), n);
+    let i = id.y * p.width + id.x;
+    if (side >= 0.0) {
+        dst[i] = src[i];
+    } else {
+        let rr = q - 2.0 * side * n;
+        dst[i] = sample_bilinear(rr.x, h - rr.y);
+    }
+}
 "#;
 
 /// The compute pipelines of the effect chain, built once per device.
@@ -203,6 +245,7 @@ pub struct VfxGpu {
     invert: wgpu::ComputePipeline,
     brightness_contrast: wgpu::ComputePipeline,
     pixelate: wgpu::ComputePipeline,
+    mirror: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -230,6 +273,7 @@ enum Pass {
     Invert,
     BrightnessContrast,
     Pixelate,
+    Mirror,
 }
 
 impl VfxGpu {
@@ -282,6 +326,7 @@ impl VfxGpu {
             invert: make("invert"),
             brightness_contrast: make("brightness_contrast"),
             pixelate: make("pixelate"),
+            mirror: make("mirror"),
             device,
             queue,
             bgl,
@@ -299,6 +344,7 @@ impl VfxGpu {
             Pass::Invert => &self.invert,
             Pass::BrightnessContrast => &self.brightness_contrast,
             Pass::Pixelate => &self.pixelate,
+            Pass::Mirror => &self.mirror,
         }
     }
 
@@ -524,6 +570,15 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Pixelate, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::Mirror { angle, center } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = angle;
+                    p.b = center[0];
+                    p.c = center[1];
+                    run(&mut encoder, Pass::Mirror, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -568,7 +623,7 @@ mod tests {
     use crate::generators::smpte_color_bars;
     use crate::vfx::{
         apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
-        GAUSSIAN_BLUR, INVERT, PIXELATE, SHARPEN, UNSHARP_MASK, VIGNETTE,
+        GAUSSIAN_BLUR, INVERT, MIRROR, PIXELATE, SHARPEN, UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -641,6 +696,13 @@ mod tests {
             VideoEffect::new(PIXELATE)
                 .with("h_size", 0.07)
                 .with("v_size", 0.03),
+            VideoEffect::new(MIRROR),
+            VideoEffect::new(MIRROR)
+                .with("angle", 35.0)
+                .with("center_x", 0.4),
+            VideoEffect::new(MIRROR)
+                .with("angle", 270.0)
+                .with("center_y", 0.7),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
