@@ -1,6 +1,7 @@
 //! Main application: dockable workspace (Preview, Timeline, Project Media, Trimmer, Master Bus).
 
 use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::tr_text;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6526,7 +6527,7 @@ impl NeovegApp {
         }
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(&self.state.status);
+                ui.label(tr_text(&self.state.status));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let s = &self.state.project.settings;
                     ui.label(format!(
@@ -9582,7 +9583,7 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
             .bus
             .filter(|id| state.timeline.buses.iter().any(|b| b.id == *id));
         let selected = current.map_or_else(
-            || "Barramento".to_owned(),
+            || tr("Barramento").to_owned(),
             |id| neoveg_engine::buses::label(&state.timeline, id),
         );
         egui::ComboBox::from_id_salt("fx_bus_pick")
@@ -9610,7 +9611,7 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
             state.fx.bus = None;
         }
         if ui
-            .button("+ Barramento")
+            .button(tr("+ Barramento"))
             .on_hover_text(tr("Inserir barramento de áudio (Ctrl+Alt+B)"))
             .clicked()
         {

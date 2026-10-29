@@ -6,6 +6,7 @@
 //! and `self.timeline` unchanged.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_text;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::Path;
@@ -82,7 +83,7 @@ impl AppState {
                 .as_deref()
                 .and_then(std::path::Path::file_stem)
                 .map_or_else(
-                    || self.project.name.clone(),
+                    || tr_text(&self.project.name).into_owned(),
                     |s| s.to_string_lossy().into_owned(),
                 );
             return if self.is_dirty() {

@@ -119,6 +119,39 @@ pub fn tr(text: &'static str) -> &'static str {
         .unwrap_or(text)
 }
 
+/// Like [`tr`] for a text that is not a literal of the program: the name of a new project, a status
+/// message, a preset label. It is shown in the interface language when the catalog knows it, and
+/// otherwise as it is, except that English writes the decimal point as a point (`29,97` becomes
+/// `29.97`), since the presets are written the Brazilian way.
+pub fn tr_text(text: &str) -> std::borrow::Cow<'_, str> {
+    use std::borrow::Cow;
+    let (tag, catalog) = CURRENT
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or((LANGUAGES[0], empty()));
+    if let Some(found) = catalog.get(text) {
+        return Cow::Borrowed(found);
+    }
+    if tag == "en-US" {
+        let bytes = text.as_bytes();
+        let comma_between_digits = |i: usize| {
+            bytes[i] == b','
+                && i > 0
+                && i + 1 < bytes.len()
+                && bytes[i - 1].is_ascii_digit()
+                && bytes[i + 1].is_ascii_digit()
+        };
+        if (0..bytes.len()).any(comma_between_digits) {
+            let converted: String = text
+                .char_indices()
+                .map(|(i, c)| if comma_between_digits(i) { '.' } else { c })
+                .collect();
+            return Cow::Owned(converted);
+        }
+    }
+    Cow::Borrowed(text)
+}
+
 /// Like [`tr`] for a text with `{}` markers, which are filled in order with `args`. The template is
 /// the Portuguese text with its markers (`"Quadro {} / {}"`), a translation keeps the same number of
 /// markers (a test checks it), and markers without an argument stay as written. Numbers with a given
@@ -246,6 +279,24 @@ mod tests {
         assert_eq!(tr_args("Arquivo: {}", &[&1, &2]), "File: 1");
         // a text that has no translation is filled as written
         assert_eq!(tr_args("Texto novo {}", &[&7]), "Texto novo 7");
+        set_language("pt-BR");
+    }
+
+    #[test]
+    fn text_built_at_run_time_is_translated_or_given_a_decimal_point() {
+        let _one_at_a_time = LANGUAGE_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        set_language("pt-BR");
+        assert_eq!(tr_text("29,97 (NTSC)"), "29,97 (NTSC)");
+        set_language("en-US");
+        assert_eq!(tr_text("Sem título"), "Untitled");
+        // a known label is translated, an unknown one only gets the decimal point
+        assert_eq!(tr_text("1,0000 (quadrado)"), "1.0000 (square)");
+        assert_eq!(tr_text("29,97 (NTSC)"), "29.97 (NTSC)");
+        // a comma that is not between digits stays
+        assert_eq!(tr_text("a, b e 1, 2"), "a, b e 1, 2");
+        set_language("de-DE");
+        assert_eq!(tr_text("29,97 (NTSC)"), "29,97 (NTSC)");
+        assert_eq!(tr_text("Sem título"), "Unbenannt");
         set_language("pt-BR");
     }
 }

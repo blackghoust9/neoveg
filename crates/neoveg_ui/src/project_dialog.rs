@@ -13,6 +13,7 @@
 use eframe::egui::{self, Color32};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::tr_text;
 use neoveg_common::presets::{
     builtin_templates, clamp_size, display_aspect, frame_rate_of, resolution_named,
     CompositingGamma, Deinterlace, FieldOrder, HdrMode, MasterBusMode, MotionBlurType,
@@ -240,8 +241,10 @@ impl ProjectDialogState {
         let d = &mut self.draft;
         ui.horizontal(|ui| {
             ui.label(tr("Resolução:"));
-            let selected = resolution_named(d.width, d.height)
-                .map_or_else(|| tr("(personalizada)").to_owned(), |r| r.name.to_owned());
+            let selected = resolution_named(d.width, d.height).map_or_else(
+                || tr("(personalizada)").to_owned(),
+                |r| tr_text(r.name).into_owned(),
+            );
             egui::ComboBox::from_id_salt("project_resolution")
                 .selected_text(selected)
                 .width(260.0)
@@ -250,11 +253,14 @@ impl ProjectDialogState {
                     for r in RESOLUTIONS {
                         if r.group != group {
                             group = r.group;
-                            ui.weak(group);
+                            ui.weak(tr_text(group));
                         }
                         let on = (r.width, r.height) == (d.width, d.height);
                         if ui
-                            .selectable_label(on, format!("{} — {}x{}", r.name, r.width, r.height))
+                            .selectable_label(
+                                on,
+                                format!("{} — {}x{}", tr_text(r.name), r.width, r.height),
+                            )
                             .clicked()
                         {
                             d.width = r.width;
@@ -290,13 +296,13 @@ impl ProjectDialogState {
                 .find(|(_, v)| (v - d.pixel_aspect).abs() < 1e-3)
                 .map_or_else(
                     || format!("{:.4}", d.pixel_aspect),
-                    |(l, _)| (*l).to_owned(),
+                    |(l, _)| tr_text(l).into_owned(),
                 );
             egui::ComboBox::from_id_salt("project_par")
                 .selected_text(selected)
                 .show_ui(ui, |ui| {
                     for (label, value) in PIXEL_ASPECTS {
-                        ui.selectable_value(&mut d.pixel_aspect, *value, *label);
+                        ui.selectable_value(&mut d.pixel_aspect, *value, tr_text(label));
                     }
                 });
         });
@@ -316,14 +322,16 @@ impl ProjectDialogState {
         );
         ui.horizontal(|ui| {
             ui.label(tr("Taxa de quadros:"));
-            let selected = frame_rate_of(d.fps)
-                .map_or_else(|| format!("{:.3}", d.fps), |r| r.label.to_owned());
+            let selected = frame_rate_of(d.fps).map_or_else(
+                || format!("{:.3}", d.fps),
+                |r| tr_text(r.label).into_owned(),
+            );
             egui::ComboBox::from_id_salt("project_fps")
                 .selected_text(selected)
                 .show_ui(ui, |ui| {
                     for rate in FRAME_RATES {
                         if ui
-                            .selectable_label((rate.fps - d.fps).abs() < 0.005, rate.label)
+                            .selectable_label((rate.fps - d.fps).abs() < 0.005, tr_text(rate.label))
                             .clicked()
                         {
                             d.fps = rate.fps;

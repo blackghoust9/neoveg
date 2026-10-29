@@ -8,6 +8,7 @@
 
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::tr_text;
 use std::path::Path;
 
 use eframe::egui::{self, Align2, Color32, RichText};
@@ -253,7 +254,7 @@ impl WelcomeState {
             ui.label(tr("Resolução:"));
             let selected = resolution_named(self.draft.width, self.draft.height).map_or_else(
                 || format!("{}x{}", self.draft.width, self.draft.height),
-                |r| r.name.to_owned(),
+                |r| tr_text(r.name).into_owned(),
             );
             egui::ComboBox::from_id_salt("welcome_resolution")
                 .selected_text(selected)
@@ -263,11 +264,14 @@ impl WelcomeState {
                     for r in RESOLUTIONS {
                         if r.group != group {
                             group = r.group;
-                            ui.weak(group);
+                            ui.weak(tr_text(group));
                         }
                         let on = (r.width, r.height) == (self.draft.width, self.draft.height);
                         if ui
-                            .selectable_label(on, format!("{} — {}x{}", r.name, r.width, r.height))
+                            .selectable_label(
+                                on,
+                                format!("{} — {}x{}", tr_text(r.name), r.width, r.height),
+                            )
                             .clicked()
                         {
                             self.draft.width = r.width;
@@ -279,15 +283,20 @@ impl WelcomeState {
         });
         ui.horizontal(|ui| {
             ui.label(tr("Taxa de quadros:"));
-            let selected = frame_rate_of(self.draft.fps)
-                .map_or_else(|| format!("{:.3}", self.draft.fps), |r| r.label.to_owned());
+            let selected = frame_rate_of(self.draft.fps).map_or_else(
+                || format!("{:.3}", self.draft.fps),
+                |r| tr_text(r.label).into_owned(),
+            );
             egui::ComboBox::from_id_salt("welcome_fps")
                 .selected_text(selected)
                 .width(230.0)
                 .show_ui(ui, |ui| {
                     for rate in FRAME_RATES {
                         if ui
-                            .selectable_label((rate.fps - self.draft.fps).abs() < 0.005, rate.label)
+                            .selectable_label(
+                                (rate.fps - self.draft.fps).abs() < 0.005,
+                                tr_text(rate.label),
+                            )
                             .clicked()
                         {
                             self.draft.fps = rate.fps;
