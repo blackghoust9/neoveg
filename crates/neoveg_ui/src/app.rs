@@ -6873,7 +6873,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::EditSelectNone);
             ui.separator();
             let mut auto = state.project.settings.auto_crossfade;
-            if ui.checkbox(&mut auto, "Crossfade automático").changed() {
+            if ui.checkbox(&mut auto, tr("Crossfade automático")).changed() {
                 state.project.settings.auto_crossfade = auto;
                 state.forced_dirty = true;
             }
@@ -7838,7 +7838,7 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
                 {
                     insert = true;
                 }
-                if ui.button("Cancelar").clicked() {
+                if ui.button(tr("Cancelar")).clicked() {
                     cancel = true;
                 }
             });
@@ -7879,7 +7879,7 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui.add_enabled(valid, egui::Button::new("Ir")).clicked() {
                     go = true;
                 }
-                if ui.button("Cancelar").clicked() {
+                if ui.button(tr("Cancelar")).clicked() {
                     cancel = true;
                 }
             });
@@ -7926,7 +7926,7 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                if ui.button("Colar").clicked() {
+                if ui.button(tr("Colar")).clicked() {
                     confirmed = true;
                 }
             });
@@ -8035,7 +8035,7 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
                             "Procurando em todos os lugares: {} pastas",
                             deep.folders.load(Ordering::Relaxed)
                         ));
-                        if ui.button("Parar").clicked() {
+                        if ui.button(tr("Parar")).clicked() {
                             stop = true;
                         }
                     });
@@ -8248,7 +8248,7 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui.button(tr("Converter")).clicked() {
                     convert = true;
                 }
-                if ui.button("Cancelar").clicked() {
+                if ui.button(tr("Cancelar")).clicked() {
                     cancel = true;
                 }
             });
@@ -8285,12 +8285,15 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                 }
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(!dialog.name.trim().is_empty(), egui::Button::new("Salvar"))
+                        .add_enabled(
+                            !dialog.name.trim().is_empty(),
+                            egui::Button::new(tr("Salvar")),
+                        )
                         .clicked()
                     {
                         save = true;
                     }
-                    if ui.button("Cancelar").clicked() {
+                    if ui.button(tr("Cancelar")).clicked() {
                         cancel = true;
                     }
                 });
@@ -8355,7 +8358,7 @@ fn slot_combo(ui: &mut egui::Ui, id: &str, slot: &mut Option<u8>) {
     egui::ComboBox::from_id_salt(id)
         .selected_text(text)
         .show_ui(ui, |ui| {
-            ui.selectable_value(slot, None, "Nenhum");
+            ui.selectable_value(slot, None, tr("Nenhum"));
             for n in crate::layouts::SLOTS {
                 ui.selectable_value(slot, Some(n), n.to_string());
             }
@@ -8369,7 +8372,7 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let mut keep_open = true;
     let mut confirmed = false;
-    crate::dialogs::dialog(ctx, "Colar atributos do evento")
+    crate::dialogs::dialog(ctx, tr("Colar atributos do evento"))
         .collapsible(false)
         .resizable(false)
         .open(&mut keep_open)
@@ -8384,7 +8387,7 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
             ui.separator();
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(!set.is_empty(), egui::Button::new("Colar"))
+                    .add_enabled(!set.is_empty(), egui::Button::new(tr("Colar")))
                     .clicked()
                 {
                     confirmed = true;
@@ -8777,7 +8780,7 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
             ui.horizontal(|ui| {
                 save = ui.button(tr("Salvar e sair")).clicked();
                 discard = ui.button(tr("Sair sem salvar")).clicked();
-                cancel = ui.button("Cancelar").clicked();
+                cancel = ui.button(tr("Cancelar")).clicked();
             });
         });
 
@@ -8997,7 +9000,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             });
             if kind == TrackKind::Video && !ev.adjustment {
                 ui.horizontal(|ui| {
-                    ui.label("Reamostragem");
+                    ui.label(tr("Reamostragem"));
                     egui::ComboBox::from_id_salt("inspector_resample")
                         .selected_text(ev.resample.label())
                         .show_ui(ui, |ui| {
@@ -10055,7 +10058,7 @@ fn event_context_menu(
     }
     command_item(state, ui, Command::FileCreateSubproject);
     if pcrop::get(&state.timeline, track_id, event_id).is_some()
-        && ui.button("Pan/Crop do evento…").clicked()
+        && ui.button(tr("Pan/Crop do evento…")).clicked()
     {
         state.open_pan_crop(track_id, event_id);
         ui.close_menu();
@@ -11649,7 +11652,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         header_painter.text(
             rect.left_top() + vec2(8.0, RULER_HEIGHT + 8.0),
             Align2::LEFT_TOP,
-            "Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo",
+            tr("Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo"),
             FontId::proportional(11.0),
             ui.visuals().weak_text_color(),
         );

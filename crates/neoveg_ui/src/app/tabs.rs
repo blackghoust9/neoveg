@@ -515,8 +515,8 @@ pub(super) fn close_tab_window(ctx: &egui::Context, state: &mut AppState) {
             ui.label(format!("\"{title}\" tem alterações não salvas."));
             ui.horizontal(|ui| {
                 save = ui.button(tr("Salvar e fechar")).clicked();
-                discard = ui.button("Descartar").clicked();
-                cancel = ui.button("Cancelar").clicked();
+                discard = ui.button(tr("Descartar")).clicked();
+                cancel = ui.button(tr("Cancelar")).clicked();
             });
         });
     if cancel {

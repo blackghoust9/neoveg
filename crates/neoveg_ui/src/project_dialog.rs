@@ -190,7 +190,7 @@ impl ProjectDialogState {
             let selected = self
                 .chosen_template
                 .clone()
-                .unwrap_or_else(|| "(personalizado)".into());
+                .unwrap_or_else(|| tr("(personalizado)").into());
             egui::ComboBox::from_id_salt("project_template")
                 .selected_text(selected)
                 .width(300.0)
@@ -241,7 +241,7 @@ impl ProjectDialogState {
         ui.horizontal(|ui| {
             ui.label(tr("Resolução:"));
             let selected = resolution_named(d.width, d.height)
-                .map_or_else(|| "(personalizada)".to_owned(), |r| r.name.to_owned());
+                .map_or_else(|| tr("(personalizada)").to_owned(), |r| r.name.to_owned());
             egui::ComboBox::from_id_salt("project_resolution")
                 .selected_text(selected)
                 .width(260.0)

@@ -7,6 +7,7 @@
 //! the screen off. The window returns [`WelcomeAction`]s; the application carries them out.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use std::path::Path;
 
 use eframe::egui::{self, Align2, Color32, RichText};
@@ -134,7 +135,7 @@ impl WelcomeState {
             return actions;
         }
         let mut open = self.open;
-        egui::Window::new("Bem-vindo ao Neoveg")
+        egui::Window::new(tr("Bem-vindo ao Neoveg"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -153,7 +154,7 @@ impl WelcomeState {
                 ui.separator();
                 let mut show = show_at_startup;
                 if ui
-                    .checkbox(&mut show, "Mostrar esta janela ao iniciar o programa")
+                    .checkbox(&mut show, tr("Mostrar esta janela ao iniciar o programa"))
                     .changed()
                 {
                     actions.push(WelcomeAction::ShowAtStartup(show));
@@ -171,7 +172,7 @@ impl WelcomeState {
         recents: &[RecentEntry],
         actions: &mut Vec<WelcomeAction>,
     ) {
-        ui.heading("Projetos recentes");
+        ui.heading(tr("Projetos recentes"));
         ui.add_space(4.0);
         if recents.is_empty() {
             ui.weak(tr(
@@ -187,7 +188,7 @@ impl WelcomeState {
                         let title = if entry.exists {
                             RichText::new(&entry.name).strong()
                         } else {
-                            RichText::new(format!("{} (arquivo não encontrado)", entry.name))
+                            RichText::new(tr_args("{} (arquivo não encontrado)", &[&entry.name]))
                                 .color(Color32::from_rgb(200, 120, 120))
                         };
                         let response = ui
@@ -209,7 +210,7 @@ impl WelcomeState {
                 }
             });
         ui.add_space(6.0);
-        if ui.button("Abrir projeto…").clicked() {
+        if ui.button(tr("Abrir projeto…")).clicked() {
             actions.push(WelcomeAction::OpenFile);
         }
     }
@@ -225,12 +226,12 @@ impl WelcomeState {
         ui.add_space(4.0);
         let builtin = builtin_templates();
         ui.horizontal(|ui| {
-            ui.label("Modelo:");
+            ui.label(tr("Modelo:"));
             egui::ComboBox::from_id_salt("welcome_template")
                 .selected_text(
                     self.chosen_template
                         .clone()
-                        .unwrap_or_else(|| "(escolha)".into()),
+                        .unwrap_or_else(|| tr("(escolha)").into()),
                 )
                 .width(230.0)
                 .show_ui(ui, |ui| {
@@ -249,7 +250,7 @@ impl WelcomeState {
                 });
         });
         ui.horizontal(|ui| {
-            ui.label("Resolução:");
+            ui.label(tr("Resolução:"));
             let selected = resolution_named(self.draft.width, self.draft.height).map_or_else(
                 || format!("{}x{}", self.draft.width, self.draft.height),
                 |r| r.name.to_owned(),
@@ -277,7 +278,7 @@ impl WelcomeState {
                 });
         });
         ui.horizontal(|ui| {
-            ui.label("Taxa de quadros:");
+            ui.label(tr("Taxa de quadros:"));
             let selected = frame_rate_of(self.draft.fps)
                 .map_or_else(|| format!("{:.3}", self.draft.fps), |r| r.label.to_owned());
             egui::ComboBox::from_id_salt("welcome_fps")
@@ -297,14 +298,14 @@ impl WelcomeState {
         });
         ui.add_space(6.0);
         let heading = if emphasise_layouts {
-            "Escolha o layout das janelas"
+            tr("Escolha o layout das janelas")
         } else {
-            "Layout das janelas"
+            tr("Layout das janelas")
         };
         ui.label(RichText::new(heading).strong());
         for layout in StartLayout::ALL {
-            ui.radio_value(&mut self.layout, layout, layout.label())
-                .on_hover_text(layout.description());
+            ui.radio_value(&mut self.layout, layout, tr(layout.label()))
+                .on_hover_text(tr(layout.description()));
         }
         ui.add_space(8.0);
         if ui.button(tr("Criar projeto")).clicked() {

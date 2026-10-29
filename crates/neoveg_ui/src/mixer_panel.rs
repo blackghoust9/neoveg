@@ -171,7 +171,7 @@ pub fn mixer_ui(
         .map_or(mix.pan, |(_, _, v)| v);
     let (lo, hi) = TrackMix::VOLUME_RANGE_DB;
     ui.horizontal(|ui| {
-        ui.allocate_ui(vec2(52.0, 18.0), |ui| ui.label("Volume"));
+        ui.allocate_ui(vec2(52.0, 18.0), |ui| ui.label(tr("Volume")));
         fader(
             ui,
             state,

@@ -495,5 +495,18 @@
   "Nenhum projeto recente ainda. Crie um projeto ao lado ou abra um arquivo.": "Недавних проектов пока нет. Создайте проект рядом или откройте файл.",
   "Esquecer este projeto": "Забыть этот проект",
   "Novo projeto": "Новый проект",
-  "Criar projeto": "Создать проект"
+  "Criar projeto": "Создать проект",
+  "Bem-vindo ao Neoveg": "Добро пожаловать в Neoveg",
+  "{} (arquivo não encontrado)": "{} (файл не найден)",
+  "(escolha)": "(выберите)",
+  "Edição de vídeo": "Видеомонтаж",
+  "Edição de áudio e mixagem": "Аудиомонтаж и микширование",
+  "Visualização grande, mídia à esquerda e linha do tempo embaixo.": "Большой просмотр, медиа слева и таймлайн внизу.",
+  "Linha do tempo alta, barramento master e efeitos de áudio em destaque.": "Высокий таймлайн, мастер-шина и аудиоэффекты на виду.",
+  "Escolha o layout das janelas": "Выберите раскладку окон",
+  "Layout das janelas": "Раскладка окон",
+  "Mostrar esta janela ao iniciar o programa": "Показывать это окно при запуске программы",
+  "Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo": "Нет дорожек\nCtrl+Q: аудио\nCtrl+Shift+Q: видео",
+  "(personalizado)": "(пользовательский)",
+  "(personalizada)": "(пользовательское)"
 }

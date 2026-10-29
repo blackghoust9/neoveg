@@ -495,5 +495,18 @@
   "Nenhum projeto recente ainda. Crie um projeto ao lado ou abra um arquivo.": "No recent project yet. Create a project alongside or open a file.",
   "Esquecer este projeto": "Forget this project",
   "Novo projeto": "New project",
-  "Criar projeto": "Create project"
+  "Criar projeto": "Create project",
+  "Bem-vindo ao Neoveg": "Welcome to Neoveg",
+  "{} (arquivo não encontrado)": "{} (file not found)",
+  "(escolha)": "(choose)",
+  "Edição de vídeo": "Video editing",
+  "Edição de áudio e mixagem": "Audio editing and mixing",
+  "Visualização grande, mídia à esquerda e linha do tempo embaixo.": "Large preview, media on the left and timeline below.",
+  "Linha do tempo alta, barramento master e efeitos de áudio em destaque.": "Tall timeline, master bus and audio effects in focus.",
+  "Escolha o layout das janelas": "Choose the window layout",
+  "Layout das janelas": "Window layout",
+  "Mostrar esta janela ao iniciar o programa": "Show this window when the program starts",
+  "Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo": "No tracks\nCtrl+Q: audio\nCtrl+Shift+Q: video",
+  "(personalizado)": "(custom)",
+  "(personalizada)": "(custom)"
 }

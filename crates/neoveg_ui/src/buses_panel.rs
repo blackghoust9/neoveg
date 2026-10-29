@@ -73,7 +73,7 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
     let mut out = Vec::new();
     let id = bus.id;
     ui.horizontal(|ui| {
-        ui.label("Nome");
+        ui.label(tr("Nome"));
         let mut name = bus.name.clone();
         // The default name is the letter of the bus's place in the list
         let index = timeline.buses.iter().position(|b| b.id == id).unwrap_or(0);
@@ -105,7 +105,7 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
     });
     let key = ui.id().with(("bus_mix", id));
     ui.horizontal(|ui| {
-        ui.allocate_ui(egui::vec2(52.0, 18.0), |ui| ui.label("Volume"));
+        ui.allocate_ui(egui::vec2(52.0, 18.0), |ui| ui.label(tr("Volume")));
         let (db, dragging, ended) =
             draft_slider(ui, key.with("vol"), bus.mix.volume_db, -60.0..=12.0, " dB");
         let pan = ui
@@ -137,7 +137,7 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
             .selected_text(output_label(timeline, bus.output))
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(bus.output == BusOutput::Master, "Master")
+                    .selectable_label(bus.output == BusOutput::Master, tr("Master"))
                     .clicked()
                 {
                     out.push(BusAction::Output(id, BusOutput::Master));
@@ -179,7 +179,7 @@ pub fn route_ui(ui: &mut egui::Ui, timeline: &Timeline, track: &Track) -> Vec<Ro
             .selected_text(output_label(timeline, track.output))
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(track.output == BusOutput::Master, "Master")
+                    .selectable_label(track.output == BusOutput::Master, tr("Master"))
                     .clicked()
                 {
                     out.push(RouteAction::Output(BusOutput::Master));

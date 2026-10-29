@@ -663,8 +663,8 @@ pub fn fx_ui(
 ) -> Vec<FxAction> {
     let mut actions = Vec::new();
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut panel.master, false, "Faixa");
-        ui.selectable_value(&mut panel.master, true, "Master");
+        ui.selectable_value(&mut panel.master, false, tr("Faixa"));
+        ui.selectable_value(&mut panel.master, true, tr("Master"));
         ui.label(title);
     });
 
@@ -1022,7 +1022,7 @@ fn param_row(
             _ => slider(ui, panel, index, spec, current, actions),
         };
         response.context_menu(|ui| {
-            if ui.button("Restaurar o padrão").clicked() {
+            if ui.button(tr("Restaurar o padrão")).clicked() {
                 actions.push(FxAction::ResetParam {
                     index,
                     param: spec.id.into(),
@@ -1148,7 +1148,7 @@ fn clap_param_row(
                 resp
             };
         response.context_menu(|ui| {
-            if ui.button("Restaurar o padrão").clicked() {
+            if ui.button(tr("Restaurar o padrão")).clicked() {
                 actions.push(FxAction::ResetParam {
                     index,
                     param: param.id.clone(),

@@ -188,7 +188,7 @@ impl TransitionsPanelState {
                 }
             }
             response.context_menu(|ui| {
-                if ui.button("Restaurar o padrão").clicked() {
+                if ui.button(tr("Restaurar o padrão")).clicked() {
                     actions.push(TransitionAction::ResetParam(spec.id.into()));
                     ui.close_menu();
                 }

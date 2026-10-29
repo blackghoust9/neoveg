@@ -318,7 +318,7 @@ impl GeneratorDialogState {
                                 .desired_width(f32::INFINITY),
                         );
                         ui.horizontal(|ui| {
-                            ui.label("Fonte:");
+                            ui.label(tr("Fonte:"));
                             if self.font_list.is_empty() {
                                 self.font_list = neoveg_text::fonts::families();
                             }
@@ -372,7 +372,7 @@ impl GeneratorDialogState {
                             if ui
                                 .button("Fontes do sistema")
                                 .on_hover_text(
-                                    "Procura as fontes instaladas no computador (pode levar um instante)",
+                                    tr("Procura as fontes instaladas no computador (pode levar um instante)"),
                                 )
                                 .clicked()
                             {
@@ -441,7 +441,7 @@ impl GeneratorDialogState {
                     if ui.button(label).clicked() {
                         confirmed = true;
                     }
-                    if ui.button("Cancelar").clicked() {
+                    if ui.button(tr("Cancelar")).clicked() {
                         cancelled = true;
                     }
                 });

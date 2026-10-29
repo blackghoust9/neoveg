@@ -229,7 +229,7 @@ impl VelocityEditor {
                         }
                     }
                 });
-                if ui.button("Congelar quadro no cursor").clicked() {
+                if ui.button(tr("Congelar quadro no cursor")).clicked() {
                     actions.push(VelocityAction::Freeze);
                 }
             }
@@ -252,10 +252,10 @@ impl VelocityEditor {
                 next.enabled = enabled;
                 actions.push(VelocityAction::Commit(Some(next)));
             }
-            if ui.button("Congelar quadro no cursor").clicked() {
+            if ui.button(tr("Congelar quadro no cursor")).clicked() {
                 actions.push(VelocityAction::Freeze);
             }
-            if ui.button("Remover envelope").clicked() {
+            if ui.button(tr("Remover envelope")).clicked() {
                 self.selected = None;
                 actions.push(VelocityAction::Commit(None));
             }
@@ -418,14 +418,14 @@ impl VelocityEditor {
                         }
                     }
                     ui.separator();
-                    if ui.button("Remover ponto").clicked() {
+                    if ui.button(tr("Remover ponto")).clicked() {
                         self.selected = None;
                         actions.push(VelocityAction::Commit(with_point_removed(env, i)));
                         ui.close_menu();
                     }
                 }
                 None => {
-                    if ui.button("Adicionar ponto aqui").clicked() {
+                    if ui.button(tr("Adicionar ponto aqui")).clicked() {
                         actions.push(VelocityAction::Commit(Some(with_point_added(
                             env,
                             rect,

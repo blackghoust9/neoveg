@@ -208,10 +208,10 @@ pub fn vfx_ui(
             ui.selectable_value(&mut panel.scope, VfxScope::Event, tr("Evento"));
         });
         ui.add_enabled_ui(scopes.media, |ui| {
-            ui.selectable_value(&mut panel.scope, VfxScope::Media, "Mídia");
+            ui.selectable_value(&mut panel.scope, VfxScope::Media, tr("Mídia"));
         });
         ui.add_enabled_ui(scopes.track, |ui| {
-            ui.selectable_value(&mut panel.scope, VfxScope::Track, "Faixa");
+            ui.selectable_value(&mut panel.scope, VfxScope::Track, tr("Faixa"));
         });
         ui.selectable_value(&mut panel.scope, VfxScope::Project, tr("Projeto"));
     });
@@ -381,7 +381,7 @@ fn param_row(
             }
         }
         response.context_menu(|ui| {
-            if ui.button("Restaurar o padrão").clicked() {
+            if ui.button(tr("Restaurar o padrão")).clicked() {
                 actions.push(VfxAction::ResetParam {
                     index,
                     param: spec.id.into(),

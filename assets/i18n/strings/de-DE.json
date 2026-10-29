@@ -495,5 +495,18 @@
   "Nenhum projeto recente ainda. Crie um projeto ao lado ou abra um arquivo.": "Noch kein zuletzt geöffnetes Projekt. Erstellen Sie daneben ein Projekt oder öffnen Sie eine Datei.",
   "Esquecer este projeto": "Dieses Projekt vergessen",
   "Novo projeto": "Neues Projekt",
-  "Criar projeto": "Projekt erstellen"
+  "Criar projeto": "Projekt erstellen",
+  "Bem-vindo ao Neoveg": "Willkommen bei Neoveg",
+  "{} (arquivo não encontrado)": "{} (Datei nicht gefunden)",
+  "(escolha)": "(wählen)",
+  "Edição de vídeo": "Videoschnitt",
+  "Edição de áudio e mixagem": "Audiobearbeitung und Mischung",
+  "Visualização grande, mídia à esquerda e linha do tempo embaixo.": "Große Vorschau, Medien links und Zeitleiste unten.",
+  "Linha do tempo alta, barramento master e efeitos de áudio em destaque.": "Hohe Zeitleiste, Master-Bus und Audioeffekte im Vordergrund.",
+  "Escolha o layout das janelas": "Fensterlayout wählen",
+  "Layout das janelas": "Fensterlayout",
+  "Mostrar esta janela ao iniciar o programa": "Dieses Fenster beim Programmstart anzeigen",
+  "Sem faixas\nCtrl+Q: áudio\nCtrl+Shift+Q: vídeo": "Keine Spuren\nStrg+Q: Audio\nStrg+Umschalt+Q: Video",
+  "(personalizado)": "(benutzerdefiniert)",
+  "(personalizada)": "(benutzerdefiniert)"
 }
