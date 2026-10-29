@@ -5,6 +5,7 @@
 //! manager and brings the other one back, so every editing function keeps working on `self.project`
 //! and `self.timeline` unchanged.
 
+use neoveg_common::i18n::tr;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::Path;
@@ -473,7 +474,7 @@ pub(super) fn project_tab_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             if ui
                 .small_button("×")
-                .on_hover_text("Fechar este projeto")
+                .on_hover_text(tr("Fechar este projeto"))
                 .clicked()
             {
                 close = Some(id);
@@ -482,7 +483,7 @@ pub(super) fn project_tab_bar(ui: &mut egui::Ui, state: &mut AppState) {
         }
         if ui
             .small_button("+")
-            .on_hover_text("Novo projeto em uma nova aba (Ctrl+N)")
+            .on_hover_text(tr("Novo projeto em uma nova aba (Ctrl+N)"))
             .clicked()
         {
             add = true;
@@ -513,7 +514,7 @@ pub(super) fn close_tab_window(ctx: &egui::Context, state: &mut AppState) {
         .show(ctx, |ui| {
             ui.label(format!("\"{title}\" tem alterações não salvas."));
             ui.horizontal(|ui| {
-                save = ui.button("Salvar e fechar").clicked();
+                save = ui.button(tr("Salvar e fechar")).clicked();
                 discard = ui.button("Descartar").clicked();
                 cancel = ui.button("Cancelar").clicked();
             });

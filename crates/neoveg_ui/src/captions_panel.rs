@@ -6,6 +6,7 @@
 //! returns [`CaptionAction`]s and the application turns each one into one undoable command
 //! (`neoveg_engine::captions`).
 
+use neoveg_common::i18n::tr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -393,7 +394,7 @@ pub fn captions_ui(
                     ui.selectable_value(
                         &mut panel.whisper_language,
                         "auto".to_owned(),
-                        "Detectar idioma (Auto)",
+                        tr("Detectar idioma (Auto)"),
                     );
                     for &(code, name) in whisper::SUPPORTED_LANGUAGES {
                         ui.selectable_value(
@@ -404,8 +405,8 @@ pub fn captions_ui(
                     }
                 });
 
-            ui.checkbox(&mut panel.whisper_replace_all, "Substituir")
-                .on_hover_text("Substituir as legendas existentes ao concluir a transcrição");
+            ui.checkbox(&mut panel.whisper_replace_all, tr("Substituir"))
+                .on_hover_text(tr("Substituir as legendas existentes ao concluir a transcrição"));
         });
 
         if let Some(progress) = panel.whisper_progress() {
@@ -449,7 +450,7 @@ pub fn captions_ui(
 
     ui.separator();
     if captions.is_empty() {
-        ui.weak("Nenhuma legenda. Adicione uma no cursor, importe SRT/WebVTT ou transcreva com Whisper.");
+        ui.weak(tr("Nenhuma legenda. Adicione uma no cursor, importe SRT/WebVTT ou transcreva com Whisper."));
         return actions;
     }
 
@@ -530,7 +531,7 @@ fn caption_row(
         egui::TextEdit::multiline(&mut text)
             .desired_rows(2)
             .desired_width(f32::INFINITY)
-            .hint_text("Texto da legenda"),
+            .hint_text(tr("Texto da legenda")),
     );
     if response.changed() {
         panel.text_drafts.insert(id, text.clone());

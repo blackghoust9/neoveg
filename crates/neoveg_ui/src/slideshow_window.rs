@@ -8,6 +8,7 @@
 //! `neoveg_engine::slideshow`; this file is only the screen.
 
 use eframe::egui;
+use neoveg_common::i18n::tr;
 use neoveg_engine::slideshow::{
     layout, move_selected, per_photo_for_total, sort_slides, total_length, Slide, SlideOrder,
     SlideshowSettings,
@@ -104,13 +105,13 @@ impl SlideshowState {
         }
         let mut open = self.open;
         let mut request = None;
-        crate::dialogs::dialog(ctx, "Apresentação de slides")
+        crate::dialogs::dialog(ctx, tr("Apresentação de slides"))
             .open(&mut open)
             .collapsible(false)
             .default_width(560.0)
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Adicionar imagens…").clicked() {
+                    if ui.button(tr("Adicionar imagens…")).clicked() {
                         if let Some(paths) = rfd::FileDialog::new()
                             .add_filter("Imagens", &neoveg_video::still::IMAGE_EXTENSIONS)
                             .pick_files()
@@ -120,19 +121,19 @@ impl SlideshowState {
                     }
                     let has_selection = !self.selected.is_empty();
                     ui.add_enabled_ui(has_selection, |ui| {
-                        if ui.button("Remover").clicked() {
+                        if ui.button(tr("Remover")).clicked() {
                             self.remove_selected();
                         }
-                        if ui.button("Mover −1").clicked() {
+                        if ui.button(tr("Mover −1")).clicked() {
                             self.selected = move_selected(&mut self.slides, &self.selected, -1);
                         }
-                        if ui.button("Mover +1").clicked() {
+                        if ui.button(tr("Mover +1")).clicked() {
                             self.selected = move_selected(&mut self.slides, &self.selected, 1);
                         }
                     });
                 });
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Ordenar:");
+                    ui.label(tr("Ordenar:"));
                     for (label, order) in [
                         ("A a Z", SlideOrder::NameAscending),
                         ("Z a A", SlideOrder::NameDescending),
@@ -144,7 +145,7 @@ impl SlideshowState {
                             self.selected.clear();
                         }
                     }
-                    if ui.button("Embaralhar").clicked() {
+                    if ui.button(tr("Embaralhar")).clicked() {
                         self.shuffles += 1;
                         let seed = (ui.input(|i| i.time) * 1000.0) as u64 ^ (self.shuffles << 32);
                         sort_slides(&mut self.slides, SlideOrder::Shuffle(seed));
@@ -156,7 +157,7 @@ impl SlideshowState {
                     .max_height(220.0)
                     .show(ui, |ui| {
                         if self.slides.is_empty() {
-                            ui.weak("Nenhuma imagem. Use Adicionar imagens…");
+                            ui.weak(tr("Nenhuma imagem. Use Adicionar imagens…"));
                         }
                         let additive = ui.input(|i| i.modifiers.command);
                         for (i, slide) in self.slides.iter().enumerate() {
@@ -180,8 +181,8 @@ impl SlideshowState {
                     });
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.at_cursor, true, "Começar no cursor");
-                    ui.radio_value(&mut self.at_cursor, false, "Começar em (s):");
+                    ui.radio_value(&mut self.at_cursor, true, tr("Começar no cursor"));
+                    ui.radio_value(&mut self.at_cursor, false, tr("Começar em (s):"));
                     ui.add_enabled(
                         !self.at_cursor,
                         egui::DragValue::new(&mut self.start)
@@ -190,14 +191,18 @@ impl SlideshowState {
                     );
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.use_total, false, "Duração de cada imagem (s):");
+                    ui.radio_value(
+                        &mut self.use_total,
+                        false,
+                        tr("Duração de cada imagem (s):"),
+                    );
                     ui.add_enabled(
                         !self.use_total,
                         egui::DragValue::new(&mut self.per_photo)
                             .range(0.1..=3_600.0)
                             .speed(0.1),
                     );
-                    ui.radio_value(&mut self.use_total, true, "Duração total (s):");
+                    ui.radio_value(&mut self.use_total, true, tr("Duração total (s):"));
                     ui.add_enabled(
                         self.use_total,
                         egui::DragValue::new(&mut self.total)
@@ -206,7 +211,7 @@ impl SlideshowState {
                     );
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Sobreposição (transição, s):");
+                    ui.label(tr("Sobreposição (transição, s):"));
                     ui.add(
                         egui::DragValue::new(&mut self.overlap)
                             .range(0.0..=30.0)
@@ -223,7 +228,7 @@ impl SlideshowState {
                 ui.horizontal(|ui| {
                     let ready = !self.slides.is_empty();
                     if ui
-                        .add_enabled(ready, egui::Button::new("Inserir na linha do tempo"))
+                        .add_enabled(ready, egui::Button::new(tr("Inserir na linha do tempo")))
                         .clicked()
                     {
                         let settings = self.settings(playhead);
@@ -235,7 +240,9 @@ impl SlideshowState {
                             });
                         }
                     }
-                    ui.weak("A sobreposição só vira crossfade com o crossfade automático ligado.");
+                    ui.weak(tr(
+                        "A sobreposição só vira crossfade com o crossfade automático ligado.",
+                    ));
                 });
             });
         self.open = open && request.is_none();

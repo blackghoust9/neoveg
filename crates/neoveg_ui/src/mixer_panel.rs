@@ -4,6 +4,7 @@
 //! drag follows a draft and changes the project once, on release.
 
 use eframe::egui::{self, vec2, RichText};
+use neoveg_common::i18n::tr;
 use neoveg_common::pan::PanLaw;
 use neoveg_engine::{Track, TrackId, TrackMix};
 
@@ -145,12 +146,12 @@ pub fn mixer_ui(
         }
         ui.add_space(8.0);
         egui::ComboBox::from_id_salt("pan_law")
-            .selected_text(law.label())
+            .selected_text(tr(law.label()))
             .width(150.0)
             .show_ui(ui, |ui| {
                 for candidate in PanLaw::ALL {
                     if ui
-                        .selectable_label(law == candidate, candidate.label())
+                        .selectable_label(law == candidate, tr(candidate.label()))
                         .clicked()
                     {
                         out.push(MixAction::PanLaw(candidate));
@@ -158,7 +159,7 @@ pub fn mixer_ui(
                 }
             })
             .response
-            .on_hover_text("Lei de pan do projeto");
+            .on_hover_text(tr("Lei de pan do projeto"));
     });
     let volume = state
         .draft
@@ -196,7 +197,7 @@ pub fn mixer_ui(
         ui.monospace(format_pan(pan));
     });
     if mix.muted {
-        ui.label(RichText::new("Faixa muda").weak());
+        ui.label(RichText::new(tr("Faixa muda")).weak());
     }
     out
 }

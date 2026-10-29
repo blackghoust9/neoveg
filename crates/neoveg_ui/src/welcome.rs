@@ -6,6 +6,7 @@
 //! window layouts to choose from when there are no recent projects, and a preference that turns
 //! the screen off. The window returns [`WelcomeAction`]s; the application carries them out.
 
+use neoveg_common::i18n::tr;
 use std::path::Path;
 
 use eframe::egui::{self, Align2, Color32, RichText};
@@ -173,7 +174,9 @@ impl WelcomeState {
         ui.heading("Projetos recentes");
         ui.add_space(4.0);
         if recents.is_empty() {
-            ui.weak("Nenhum projeto recente ainda. Crie um projeto ao lado ou abra um arquivo.");
+            ui.weak(tr(
+                "Nenhum projeto recente ainda. Crie um projeto ao lado ou abra um arquivo.",
+            ));
         }
         egui::ScrollArea::vertical()
             .id_salt("welcome_recents")
@@ -195,7 +198,7 @@ impl WelcomeState {
                         }
                         if ui
                             .small_button("x")
-                            .on_hover_text("Esquecer este projeto")
+                            .on_hover_text(tr("Esquecer este projeto"))
                             .clicked()
                         {
                             actions.push(WelcomeAction::ForgetRecent(entry.path.clone()));
@@ -218,7 +221,7 @@ impl WelcomeState {
         custom_templates: &[ProjectTemplate],
         actions: &mut Vec<WelcomeAction>,
     ) {
-        ui.heading("Novo projeto");
+        ui.heading(tr("Novo projeto"));
         ui.add_space(4.0);
         let builtin = builtin_templates();
         ui.horizontal(|ui| {
@@ -304,7 +307,7 @@ impl WelcomeState {
                 .on_hover_text(layout.description());
         }
         ui.add_space(8.0);
-        if ui.button("Criar projeto").clicked() {
+        if ui.button(tr("Criar projeto")).clicked() {
             actions.push(WelcomeAction::NewProject {
                 settings: Box::new(self.draft.clone()),
                 layout: self.layout,

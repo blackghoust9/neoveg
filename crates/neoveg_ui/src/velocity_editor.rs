@@ -8,6 +8,7 @@
 //! which `AppState` turns into one undo step.
 
 use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Shape, Stroke};
+use neoveg_common::i18n::tr;
 use neoveg_engine::velocity::{self, MAX_SPEED, MIN_SPEED, PRESETS};
 use neoveg_engine::{EnvelopeShape, EventId, TrackEnvelope, TrackId};
 
@@ -220,7 +221,7 @@ impl VelocityEditor {
         let shown = self.draft.clone().or_else(|| view.envelope.cloned());
         match &shown {
             None => {
-                ui.weak("Sem envelope: o evento toca na velocidade normal (100 %). A duração do evento não muda.");
+                ui.weak(tr("Sem envelope: o evento toca na velocidade normal (100 %). A duração do evento não muda."));
                 ui.horizontal_wrapped(|ui| {
                     for (label, speed) in PRESETS {
                         if ui.button(label).clicked() {
@@ -246,7 +247,7 @@ impl VelocityEditor {
     ) {
         ui.horizontal_wrapped(|ui| {
             let mut enabled = env.enabled;
-            if ui.checkbox(&mut enabled, "Ligado").changed() {
+            if ui.checkbox(&mut enabled, tr("Ligado")).changed() {
                 let mut next = env.clone();
                 next.enabled = enabled;
                 actions.push(VelocityAction::Commit(Some(next)));
@@ -260,7 +261,7 @@ impl VelocityEditor {
             }
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label("Ponto selecionado:");
+            ui.label(tr("Ponto selecionado:"));
             for (label, speed) in PRESETS {
                 let on = self.selected.is_some();
                 if ui.add_enabled(on, egui::Button::new(label)).clicked() {

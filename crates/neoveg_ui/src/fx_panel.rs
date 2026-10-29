@@ -4,6 +4,7 @@
 //! stored in the project (`neoveg_engine::effects`). The panel never touches the project: it
 //! returns [`FxAction`]s and the application turns each one into one undoable command.
 
+use neoveg_common::i18n::tr;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -675,7 +676,7 @@ pub fn fx_ui(
     ui.horizontal(|ui| {
         ui.add_enabled_ui(!full, |ui| {
             egui::ComboBox::from_id_salt("fx_add")
-                .selected_text("Adicionar efeito…")
+                .selected_text(tr("Adicionar efeito…"))
                 .width(200.0)
                 .show_ui(ui, |ui| {
                     for category in effects::Category::ALL {
@@ -691,7 +692,7 @@ pub fn fx_ui(
                     }
                     if !clap_plugins.is_empty() {
                         ui.separator();
-                        ui.weak("Plug-ins CLAP");
+                        ui.weak(tr("Plug-ins CLAP"));
                         for plugin in &clap_plugins {
                             let label = if plugin.vendor.is_empty() {
                                 plugin.name.clone()
@@ -706,7 +707,7 @@ pub fn fx_ui(
                     let vst3_plugins = vst3_host::cached_plugins();
                     if !vst3_plugins.is_empty() {
                         ui.separator();
-                        ui.weak("Plug-ins VST3");
+                        ui.weak(tr("Plug-ins VST3"));
                         for plugin in &vst3_plugins {
                             let label = if plugin.vendor.is_empty() {
                                 plugin.name.clone()
@@ -765,7 +766,7 @@ pub fn fx_ui(
         ui.weak(status);
     }
     if chain.is_empty() {
-        ui.weak("Sem efeitos. Os efeitos rodam na ordem da lista.");
+        ui.weak(tr("Sem efeitos. Os efeitos rodam na ordem da lista."));
     }
 
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -812,16 +813,18 @@ fn ducking_ui(
         actions.push(FxAction::Duck(DuckAction::Realtime(realtime)));
     }
     if duck.realtime {
-        ui.weak(
+        ui.weak(tr(
             "O detector acompanha ao vivo o áudio pós-efeitos e pós-fader das faixas de controle.",
-        );
+        ));
     } else {
-        ui.weak("A análise é feita ao iniciar a reprodução, e a faixa desce antes do som entrar.");
+        ui.weak(tr(
+            "A análise é feita ao iniciar a reprodução, e a faixa desce antes do som entrar.",
+        ));
     }
     if view.candidates.is_empty() {
-        ui.weak("Não há outras faixas de áudio.");
+        ui.weak(tr("Não há outras faixas de áudio."));
     } else {
-        ui.label("Abaixar quando houver som em:");
+        ui.label(tr("Abaixar quando houver som em:"));
         for (id, name) in &view.candidates {
             let mut selected = duck.controllers.contains(id);
             if ui.checkbox(&mut selected, name).changed() {
@@ -929,11 +932,11 @@ fn effect_ui(
             return;
         };
         if effect.bypass {
-            ui.weak("Em bypass");
+            ui.weak(tr("Em bypass"));
         }
         ui.add_enabled_ui(!effect.bypass, |ui| {
             if ci.params.is_empty() {
-                ui.weak("Este plug-in não expõe parâmetros editáveis.");
+                ui.weak(tr("Este plug-in não expõe parâmetros editáveis."));
             }
             for param in &ci.params {
                 clap_param_row(ui, panel, index, effect, param, actions);
@@ -949,7 +952,7 @@ fn effect_ui(
         return;
     };
     if effect.bypass {
-        ui.weak("Em bypass");
+        ui.weak(tr("Em bypass"));
     }
     ui.add_enabled_ui(!effect.bypass, |ui| {
         for (prefix, specs) in group_params(info.params) {
@@ -1026,7 +1029,7 @@ fn param_row(
                 });
                 ui.close_menu();
             }
-            if !panel.master && ui.button("Automatizar parâmetro na faixa").clicked() {
+            if !panel.master && ui.button(tr("Automatizar parâmetro na faixa")).clicked() {
                 actions.push(FxAction::ToggleAutomate {
                     index,
                     param: spec.id.into(),
@@ -1152,7 +1155,7 @@ fn clap_param_row(
                 });
                 ui.close_menu();
             }
-            if !panel.master && ui.button("Automatizar parâmetro na faixa").clicked() {
+            if !panel.master && ui.button(tr("Automatizar parâmetro na faixa")).clicked() {
                 actions.push(FxAction::ToggleAutomate {
                     index,
                     param: param.id.clone(),

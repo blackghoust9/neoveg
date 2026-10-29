@@ -3,6 +3,7 @@
 //! changes the project: every control returns an action and `AppState` turns it into a command.
 
 use eframe::egui;
+use neoveg_common::i18n::tr;
 use neoveg_engine::buses::{self, MAX_SEND_DB, MIN_SEND_DB};
 use neoveg_engine::{AudioBus, BusId, BusOutput, Timeline, Track, TrackSend};
 
@@ -81,19 +82,24 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
                 .hint_text(format!("Bus {}", buses::letter(index)))
                 .desired_width(140.0),
         )
-        .on_hover_text("Deixe em branco para voltar ao nome padrão (a letra do barramento)");
+        .on_hover_text(tr(
+            "Deixe em branco para voltar ao nome padrão (a letra do barramento)",
+        ));
         if name != bus.name {
             out.push(BusAction::Rename(id, name));
         }
-        if ui.button("Excluir barramento").clicked() {
+        if ui.button(tr("Excluir barramento")).clicked() {
             out.push(BusAction::Remove(id));
         }
     });
     ui.horizontal(|ui| {
-        if ui.selectable_label(bus.mix.muted, "Mudo").clicked() {
+        if ui.selectable_label(bus.mix.muted, tr("Mudo")).clicked() {
             out.push(BusAction::Mute(id, !bus.mix.muted));
         }
-        if ui.selectable_label(bus.mix.invert_phase, "Fase").clicked() {
+        if ui
+            .selectable_label(bus.mix.invert_phase, tr("Fase"))
+            .clicked()
+        {
             out.push(BusAction::Phase(id, !bus.mix.invert_phase));
         }
     });
@@ -126,7 +132,7 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
         }
     });
     ui.horizontal(|ui| {
-        ui.label("Saída");
+        ui.label(tr("Saída"));
         egui::ComboBox::from_id_salt(("bus_output", id))
             .selected_text(output_label(timeline, bus.output))
             .show_ui(ui, |ui| {
@@ -162,11 +168,13 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
 pub fn route_ui(ui: &mut egui::Ui, timeline: &Timeline, track: &Track) -> Vec<RouteAction> {
     let mut out = Vec::new();
     if timeline.buses.is_empty() {
-        ui.weak("Sem barramentos: Faixas > Inserir barramento de áudio cria um.");
+        ui.weak(tr(
+            "Sem barramentos: Faixas > Inserir barramento de áudio cria um.",
+        ));
         return out;
     }
     ui.horizontal(|ui| {
-        ui.label("Saída");
+        ui.label(tr("Saída"));
         egui::ComboBox::from_id_salt(("track_output", track.id))
             .selected_text(output_label(timeline, track.output))
             .show_ui(ui, |ui| {
@@ -202,22 +210,22 @@ pub fn route_ui(ui: &mut egui::Ui, timeline: &Timeline, track: &Track) -> Vec<Ro
                 out.push(RouteAction::SendLevel(send.bus, db));
             }
             if ui
-                .selectable_label(send.post_volume, "Pós")
-                .on_hover_text(
+                .selectable_label(send.post_volume, tr("Pós"))
+                .on_hover_text(tr(
                     "Depois do fader da faixa (desligado: antes do fader, independente dele)",
-                )
+                ))
                 .clicked()
             {
                 out.push(RouteAction::SendPost(send.bus, !send.post_volume));
             }
             if ui
                 .selectable_label(send.link_pan, "Pan")
-                .on_hover_text("Segue o pan da faixa (desligado: estéreo centralizado)")
+                .on_hover_text(tr("Segue o pan da faixa (desligado: estéreo centralizado)"))
                 .clicked()
             {
                 out.push(RouteAction::SendLinkPan(send.bus, !send.link_pan));
             }
-            if ui.button("x").on_hover_text("Remover o send").clicked() {
+            if ui.button("x").on_hover_text(tr("Remover o send")).clicked() {
                 out.push(RouteAction::RemoveSend(send.bus));
             }
         });

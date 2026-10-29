@@ -6,6 +6,7 @@
 //! step; a slider commits when the drag ends.
 
 use eframe::egui::{self, Slider};
+use neoveg_common::i18n::tr;
 use neoveg_engine::TrackEffect;
 use neoveg_video::transitions::{self, TransitionRequest};
 use neoveg_video::vfx::ParamSpec;
@@ -89,7 +90,9 @@ impl TransitionsPanelState {
     ) -> Vec<TransitionAction> {
         let mut actions = Vec::new();
         let Some(view) = view else {
-            ui.weak("Selecione um evento de uma faixa de vídeo para escolher a transição dele.");
+            ui.weak(tr(
+                "Selecione um evento de uma faixa de vídeo para escolher a transição dele.",
+            ));
             return actions;
         };
         ui.horizontal(|ui| {
@@ -140,7 +143,7 @@ impl TransitionsPanelState {
             };
             ui.separator();
             if spec.params.is_empty() {
-                ui.weak("Sem parâmetros.");
+                ui.weak(tr("Sem parâmetros."));
             }
             for param in spec.params {
                 self.param_row(ui, effect, param, &mut actions);

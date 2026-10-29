@@ -2,6 +2,7 @@
 //! `Títulos e texto`).
 
 use eframe::egui::{self, Color32};
+use neoveg_common::i18n::tr;
 use neoveg_video::generators::{
     GeneratorKind, GeneratorSpec, GradientShape, TestPatternVariant, TitleAnimation,
 };
@@ -268,7 +269,7 @@ impl GeneratorDialogState {
                 ui.separator();
 
                 ui.horizontal(|ui| {
-                    ui.label("Duração inicial (s):");
+                    ui.label(tr("Duração inicial (s):"));
                     ui.add(
                         egui::DragValue::new(&mut self.duration_seconds)
                             .range(0.2..=600.0)
@@ -283,7 +284,7 @@ impl GeneratorDialogState {
                     }
                     GeneratorTab::TestPattern => {
                         ui.horizontal(|ui| {
-                            ui.label("Padrão:");
+                            ui.label(tr("Padrão:"));
                             egui::ComboBox::from_id_salt("gen_test_pattern")
                                 .selected_text(self.pattern.label())
                                 .show_ui(ui, |ui| {
@@ -295,7 +296,7 @@ impl GeneratorDialogState {
                     }
                     GeneratorTab::Gradient => {
                         ui.horizontal(|ui| {
-                            ui.label("Formato:");
+                            ui.label(tr("Formato:"));
                             for sh in GradientShape::ALL {
                                 ui.selectable_value(&mut self.gradient_shape, sh, sh.label());
                             }
@@ -305,12 +306,12 @@ impl GeneratorDialogState {
                         if self.gradient_shape == GradientShape::Linear {
                             ui.add(
                                 egui::Slider::new(&mut self.grad_angle_deg, -180.0..=180.0)
-                                    .text("Ângulo (°)"),
+                                    .text(tr("Ângulo (°)")),
                             );
                         }
                     }
                     GeneratorTab::TitleText => {
-                        ui.label("Texto do título (suporta múltiplas linhas):");
+                        ui.label(tr("Texto do título (suporta múltiplas linhas):"));
                         ui.add(
                             egui::TextEdit::multiline(&mut self.title_text)
                                 .desired_rows(3)
@@ -380,7 +381,7 @@ impl GeneratorDialogState {
                             }
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Animação:");
+                            ui.label(tr("Animação:"));
                             egui::ComboBox::from_id_salt("gen_title_anim")
                                 .selected_text(self.title_animation.label())
                                 .show_ui(ui, |ui| {
@@ -395,11 +396,11 @@ impl GeneratorDialogState {
                         });
                         ui.add(
                             egui::Slider::new(&mut self.title_scale, 2..=16)
-                                .text("Escala da fonte"),
+                                .text(tr("Escala da fonte")),
                         );
                         ui.add(
                             egui::Slider::new(&mut self.title_align_y, 0.10..=0.90)
-                                .text("Posição vertical (0.5 = centro, 0.82 = terço inferior)"),
+                                .text(tr("Posição vertical (0.5 = centro, 0.82 = terço inferior)")),
                         );
                         ui.horizontal(|ui| {
                             edit_rgba(ui, "Texto:", &mut self.title_rgba);

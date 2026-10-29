@@ -6,6 +6,7 @@
 //! effects themselves (names, parameters, ranges) come from the registry in `neoveg_video::vfx`.
 
 use eframe::egui::{self, Slider};
+use neoveg_common::i18n::tr;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
 use neoveg_video::vfx::{self, ParamSpec, VideoEffect};
 
@@ -204,7 +205,7 @@ pub fn vfx_ui(
     panel.scope = scopes.resolve(panel.scope);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(scopes.event, |ui| {
-            ui.selectable_value(&mut panel.scope, VfxScope::Event, "Evento");
+            ui.selectable_value(&mut panel.scope, VfxScope::Event, tr("Evento"));
         });
         ui.add_enabled_ui(scopes.media, |ui| {
             ui.selectable_value(&mut panel.scope, VfxScope::Media, "Mídia");
@@ -212,14 +213,14 @@ pub fn vfx_ui(
         ui.add_enabled_ui(scopes.track, |ui| {
             ui.selectable_value(&mut panel.scope, VfxScope::Track, "Faixa");
         });
-        ui.selectable_value(&mut panel.scope, VfxScope::Project, "Projeto");
+        ui.selectable_value(&mut panel.scope, VfxScope::Project, tr("Projeto"));
     });
     ui.label(title);
 
     let full = chain.len() >= neoveg_engine::video_effects::MAX_VIDEO_EFFECTS;
     ui.add_enabled_ui(!full, |ui| {
         egui::ComboBox::from_id_salt("vfx_add")
-            .selected_text("Adicionar efeito…")
+            .selected_text(tr("Adicionar efeito…"))
             .width(200.0)
             .show_ui(ui, |ui| {
                 for spec in vfx::EFFECTS {
@@ -231,7 +232,7 @@ pub fn vfx_ui(
     });
     if let Some(current) = fade_color {
         ui.horizontal(|ui| {
-            ui.label("Esmaecer para:");
+            ui.label(tr("Esmaecer para:"));
             for (name, rgb) in FADE_COLORS {
                 let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
                 let stroke = if rgb == current {
@@ -248,10 +249,12 @@ pub fn vfx_ui(
                 }
             }
         });
-        ui.weak("A cor vale para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo).");
+        ui.weak(tr("A cor vale para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo)."));
     }
     if chain.is_empty() {
-        ui.weak("Sem efeitos. Os efeitos rodam na ordem da lista, antes da opacidade do evento.");
+        ui.weak(tr(
+            "Sem efeitos. Os efeitos rodam na ordem da lista, antes da opacidade do evento.",
+        ));
     }
 
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -320,10 +323,10 @@ fn effect_ui(
         return;
     };
     if effect.bypass {
-        ui.weak("Em bypass");
+        ui.weak(tr("Em bypass"));
     }
     if spec.params.is_empty() {
-        ui.weak("Sem parâmetros.");
+        ui.weak(tr("Sem parâmetros."));
     }
     ui.add_enabled_ui(!effect.bypass, |ui| {
         for param in spec.params {

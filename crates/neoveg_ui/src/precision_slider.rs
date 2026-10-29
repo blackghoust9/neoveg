@@ -1,6 +1,7 @@
 //! Precision NLE slider: flat square thumb, double-click reset, Ctrl for 1/10 sensitivity and a
 //! right-click menu with "Restaurar Padrão" and "Digitar Valor...".
 
+use neoveg_common::i18n::tr;
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
@@ -91,12 +92,12 @@ impl Widget for PrecisionSlider<'_> {
         }
 
         response.context_menu(|ui| {
-            if ui.button("Restaurar Padrão").clicked() {
+            if ui.button(tr("Restaurar Padrão")).clicked() {
                 *value = default;
                 changed = true;
                 ui.close_menu();
             }
-            if ui.button("Digitar Valor...").clicked() {
+            if ui.button(tr("Digitar Valor...")).clicked() {
                 let current = format!("{:.3}", *value);
                 ui.data_mut(|d| d.insert_temp(typed_id, current));
                 ui.close_menu();
@@ -128,6 +129,8 @@ impl Widget for PrecisionSlider<'_> {
         );
         painter.rect_filled(thumb, Rounding::ZERO, thumb_color);
 
-        response.on_hover_text("Duplo clique: padrão · Ctrl: ajuste fino · Botão direito: opções")
+        response.on_hover_text(tr(
+            "Duplo clique: padrão · Ctrl: ajuste fino · Botão direito: opções",
+        ))
     }
 }

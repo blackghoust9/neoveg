@@ -2,6 +2,7 @@
 //! `logs/crash.log`, filters by level and search query, and provides a `Copiar Logs` button that
 //! displays `Copiado!` for 2 seconds after copying.
 
+use neoveg_common::i18n::tr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -178,11 +179,11 @@ impl LogViewerState {
                         });
                     ui.add(
                         egui::TextEdit::singleline(&mut self.search)
-                            .hint_text("Filtrar texto…")
+                            .hint_text(tr("Filtrar texto…"))
                             .desired_width(180.0),
                     );
                     ui.checkbox(&mut self.auto_refresh, "Auto");
-                    if ui.button("Atualizar").clicked() {
+                    if ui.button(tr("Atualizar")).clicked() {
                         force_refresh = true;
                     }
 
@@ -217,7 +218,7 @@ impl LogViewerState {
 
                 let lines = filter_log_lines(&self.cached_text, self.level, &self.search);
                 if lines.is_empty() {
-                    ui.weak("Nenhuma entrada de log encontrada para o filtro atual.");
+                    ui.weak(tr("Nenhuma entrada de log encontrada para o filtro atual."));
                 } else {
                     egui::ScrollArea::both()
                         .auto_shrink([false, false])

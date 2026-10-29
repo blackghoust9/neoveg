@@ -7,6 +7,7 @@ use eframe::egui::{
     self, pos2, vec2, Align2, Color32, ColorImage, FontId, Rect, Sense, Stroke, TextureHandle,
     TextureOptions,
 };
+use neoveg_common::i18n::tr;
 use neoveg_video::scopes::{ycbcr, Grid, Scopes, GRID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -208,9 +209,9 @@ pub fn scopes_ui(
             }
         });
     let Some(scopes) = scopes else {
-        ui.weak(
+        ui.weak(tr(
             "Sem imagem no cursor. Ative as barras SMPTE ou posicione o cursor sobre um vídeo.",
-        );
+        ));
         return;
     };
     let size = ui.available_size().max(vec2(120.0, 140.0));

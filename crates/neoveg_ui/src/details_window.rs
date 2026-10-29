@@ -5,6 +5,7 @@
 //! its start; *Copiar tabela* puts the whole table on the clipboard as tab-separated text.
 
 use eframe::egui::{self, RichText};
+use neoveg_common::i18n::tr;
 use neoveg_common::timecode::seconds_to_timecode;
 use neoveg_engine::details::DetailRow;
 use neoveg_engine::selection::EventRef;
@@ -37,7 +38,7 @@ pub fn show(
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("{} eventos", rows.len()));
-                if ui.button("Copiar tabela").clicked() {
+                if ui.button(tr("Copiar tabela")).clicked() {
                     actions.push(DetailsAction::Copy);
                 }
             });

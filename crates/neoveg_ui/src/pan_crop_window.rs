@@ -7,6 +7,7 @@
 //! touched) and `Commit` when the gesture ends, which `AppState` turns into one undo step.
 
 use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Stroke, TextureHandle};
+use neoveg_common::i18n::tr;
 use neoveg_common::pan_crop::{PanCrop, PanCropFrame, KEY_TOLERANCE};
 use neoveg_engine::{EventId, TrackId};
 
@@ -431,37 +432,37 @@ impl PanCropWindow {
                     ui.strong(view.title);
                     ui.weak(format!("· {:.2} s de {:.2} s", view.time, view.duration));
                     ui.separator();
-                    if ui.button("Restaurar").on_hover_text(if track_mode { "A camada volta a ocupar o quadro inteiro, sem quadros-chave" } else { "Volta a mostrar a imagem inteira, sem quadros-chave" }).clicked() {
+                    if ui.button(tr("Restaurar")).on_hover_text(if track_mode { "A camada volta a ocupar o quadro inteiro, sem quadros-chave" } else { "Volta a mostrar a imagem inteira, sem quadros-chave" }).clicked() {
                         next = Some((PanCrop { stretch_to_fill: working.stretch_to_fill, ..PanCrop::default() }, true));
                     }
-                    if ui.button("Centralizar").clicked() {
+                    if ui.button(tr("Centralizar")).clicked() {
                         let f = PanCropFrame { x_center: 0.5, y_center: 0.5, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
                     }
-                    if !track_mode && ui.button("Proporção da origem").on_hover_text("A caixa passa a ter o formato da imagem de origem").clicked() {
+                    if !track_mode && ui.button(tr("Proporção da origem")).on_hover_text(tr("A caixa passa a ter o formato da imagem de origem")).clicked() {
                         let f = PanCropFrame { height: current.width, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
                     }
-                    if ui.button("Proporção do projeto").on_hover_text(if track_mode { "A caixa passa a ter o formato do projeto" } else { "A caixa passa a ter o formato do projeto: sem faixas pretas" }).clicked() {
+                    if ui.button(tr("Proporção do projeto")).on_hover_text(if track_mode { "A caixa passa a ter o formato do projeto" } else { "A caixa passa a ter o formato do projeto: sem faixas pretas" }).clicked() {
                         let height = height_for_aspect(current.width, view.source_aspect, view.project_aspect);
                         let f = PanCropFrame { height, ..current };
                         next = Some((with_frame(&working, view.time, f, tolerance), true));
                     }
                     ui.separator();
-                    ui.checkbox(&mut self.show_preview, "Prévia ao lado");
+                    ui.checkbox(&mut self.show_preview, tr("Prévia ao lado"));
                 });
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.lock_aspect, "Travar proporção");
-                    ui.checkbox(&mut self.about_center, "Redimensionar pelo centro");
-                    ui.label("Mover:");
-                    ui.selectable_value(&mut self.axis, Axis::Free, "livre");
+                    ui.checkbox(&mut self.lock_aspect, tr("Travar proporção"));
+                    ui.checkbox(&mut self.about_center, tr("Redimensionar pelo centro"));
+                    ui.label(tr("Mover:"));
+                    ui.selectable_value(&mut self.axis, Axis::Free, tr("livre"));
                     ui.selectable_value(&mut self.axis, Axis::XOnly, "só em X");
                     ui.selectable_value(&mut self.axis, Axis::YOnly, "só em Y");
                     let mut stretch = working.stretch_to_fill;
                     if !track_mode
                         && ui
                         .checkbox(&mut stretch, "Esticar para preencher o quadro")
-                        .on_hover_text("Ligado: a caixa vira o quadro (zoom). Desligado: a imagem mantém o tamanho e o que fica fora da caixa é cortado.")
+                        .on_hover_text(tr("Ligado: a caixa vira o quadro (zoom). Desligado: a imagem mantém o tamanho e o que fica fora da caixa é cortado."))
                         .changed()
                     {
                         let mut p = working.clone();
@@ -510,7 +511,7 @@ impl PanCropWindow {
                         if let Some(i) = working.key_near(view.time, tolerance) {
                             let mut smooth = working.keys[i].smoothness;
                             ui.horizontal(|ui| {
-                                ui.add_sized([86.0, 18.0], egui::Label::new("Suavidade"));
+                                ui.add_sized([86.0, 18.0], egui::Label::new(tr("Suavidade")));
                                 let r = ui.add(egui::Slider::new(&mut smooth, 0.0..=1.0).show_value(true));
                                 if r.changed() {
                                     let mut p = working.clone();
@@ -524,7 +525,7 @@ impl PanCropWindow {
                                 }
                             });
                         } else {
-                            ui.weak("Sem quadro-chave neste instante: a caixa é interpolada.");
+                            ui.weak(tr("Sem quadro-chave neste instante: a caixa é interpolada."));
                         }
                     });
 
@@ -764,7 +765,7 @@ impl PanCropWindow {
             let here = working.key_near(view.time, tolerance);
             if ui
                 .button("◀")
-                .on_hover_text("Quadro-chave anterior")
+                .on_hover_text(tr("Quadro-chave anterior"))
                 .clicked()
             {
                 if let Some(k) = working
@@ -778,7 +779,7 @@ impl PanCropWindow {
             }
             if ui
                 .button("▶")
-                .on_hover_text("Próximo quadro-chave")
+                .on_hover_text(tr("Próximo quadro-chave"))
                 .clicked()
             {
                 if let Some(k) = working.keys.iter().find(|k| k.time > view.time + tolerance) {
@@ -788,7 +789,7 @@ impl PanCropWindow {
             if ui
                 .add_enabled(
                     here.is_none(),
-                    egui::Button::new("Adicionar quadro-chave no cursor"),
+                    egui::Button::new(tr("Adicionar quadro-chave no cursor")),
                 )
                 .clicked()
             {
@@ -802,7 +803,10 @@ impl PanCropWindow {
                 *next = Some((p, true));
             }
             if ui
-                .add_enabled(here.is_some(), egui::Button::new("Remover quadro-chave"))
+                .add_enabled(
+                    here.is_some(),
+                    egui::Button::new(tr("Remover quadro-chave")),
+                )
                 .clicked()
             {
                 if let Some(i) = here {

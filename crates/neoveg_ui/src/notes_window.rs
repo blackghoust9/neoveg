@@ -9,6 +9,7 @@
 //! The window only reports [`NoteAction`]s; [`apply_note_action`] is the whole of the logic, so it
 //! is tested without a window.
 
+use neoveg_common::i18n::tr;
 use std::collections::HashMap;
 
 use eframe::egui::{self, Color32, RichText};
@@ -163,7 +164,7 @@ impl NotesState {
             .default_height(420.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Cor padrão:");
+                    ui.label(tr("Cor padrão:"));
                     for (i, (name, rgb)) in NOTE_COLORS.iter().enumerate() {
                         let selected = usize::from(self.default_color) == i;
                         let button =
@@ -178,22 +179,22 @@ impl NotesState {
                             self.default_color = i as u8;
                         }
                     }
-                    ui.label("Etiqueta padrão:");
+                    ui.label(tr("Etiqueta padrão:"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.default_label).desired_width(120.0),
                     );
-                    if ui.button("Adicionar nota").clicked() {
+                    if ui.button(tr("Adicionar nota")).clicked() {
                         actions.push(NoteAction::Add {
                             color: self.default_color,
                             label: self.default_label.clone(),
                         });
                     }
                 });
-                ui.checkbox(&mut self.hide_resolved, "Ocultar notas resolvidas");
+                ui.checkbox(&mut self.hide_resolved, tr("Ocultar notas resolvidas"));
                 ui.separator();
                 let list = notes_in_order(notes, self.hide_resolved);
                 if list.is_empty() {
-                    ui.weak("Nenhuma nota. Posicione o cursor e use Adicionar nota.");
+                    ui.weak(tr("Nenhuma nota. Posicione o cursor e use Adicionar nota."));
                 }
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for note in list {
@@ -218,7 +219,7 @@ impl NotesState {
         ui.horizontal(|ui| {
             // Colour: a swatch that cycles through the palette
             let swatch = egui::Button::new("  ").fill(color32(note.rgb()));
-            if ui.add(swatch).on_hover_text("Mudar a cor").clicked() {
+            if ui.add(swatch).on_hover_text(tr("Mudar a cor")).clicked() {
                 actions.push(NoteAction::SetColor {
                     id,
                     color: (note.color + 1) % NOTE_COLORS.len() as u8,
@@ -239,14 +240,14 @@ impl NotesState {
             }
             if ui
                 .small_button("Ir")
-                .on_hover_text("Mover o cursor para a nota")
+                .on_hover_text(tr("Mover o cursor para a nota"))
                 .clicked()
             {
                 actions.push(NoteAction::Jump(id));
             }
             if ui
                 .small_button("Cursor")
-                .on_hover_text("Usar o tempo atual do cursor")
+                .on_hover_text(tr("Usar o tempo atual do cursor"))
                 .clicked()
             {
                 actions.push(NoteAction::UpdateToCursor(id));
@@ -257,7 +258,7 @@ impl NotesState {
             }
             if ui
                 .small_button("x")
-                .on_hover_text("Excluir a nota")
+                .on_hover_text(tr("Excluir a nota"))
                 .clicked()
             {
                 actions.push(NoteAction::Delete(id));
@@ -268,7 +269,7 @@ impl NotesState {
             if ui
                 .add(
                     egui::TextEdit::singleline(&mut label)
-                        .hint_text("etiqueta")
+                        .hint_text(tr("etiqueta"))
                         .desired_width(110.0),
                 )
                 .changed()
@@ -277,7 +278,7 @@ impl NotesState {
             }
             let mut text = note.text.clone();
             let body = egui::TextEdit::multiline(&mut text)
-                .hint_text("anotação")
+                .hint_text(tr("anotação"))
                 .desired_rows(2)
                 .desired_width(f32::INFINITY);
             if ui.add(body).changed() {
@@ -285,7 +286,7 @@ impl NotesState {
             }
         });
         if note.resolved {
-            ui.label(RichText::new("resolvida").weak());
+            ui.label(RichText::new(tr("resolvida")).weak());
         }
     }
 }
