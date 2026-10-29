@@ -5,6 +5,7 @@ members = [
     "crates/neoveg_audio",
     "crates/neoveg_video",
     "crates/neoveg_engine",
+    "crates/neoveg_text",
     "crates/neoveg_ui",
 ]
 
@@ -19,6 +20,7 @@ neoveg_common = { path = "crates/neoveg_common" }
 neoveg_audio = { path = "crates/neoveg_audio" }
 neoveg_video = { path = "crates/neoveg_video" }
 neoveg_engine = { path = "crates/neoveg_engine" }
+neoveg_text = { path = "crates/neoveg_text" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 serde = { version = "1", features = ["derive"] }

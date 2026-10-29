@@ -42,6 +42,15 @@
 | :--- | :--- | :--- |
 | `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos efeitos Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair, Matiz, Misturador de canais, ASC CDL, Manter cor, Trocar por cor, Passar cor, Ajuste de alfa, Espelhar na horizontal e na vertical e Deslocar, reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
 
+## O motor de texto (copiado)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_text/src/` (`fonts.rs`, `layout.rs`, `layout/tests.rs`, `raster.rs`, `render.rs`, `mask.rs`, `sfnt.rs`, `lib.rs`) | `crates/text/src/` (`filmcraft-text`, commit `8d925e9`) | Banco de fontes (embutidas e do sistema), composição com HarfBuzz (`harfrust`), texto bidirecional, quebra de linha, parágrafos, estilos por trecho e rasterização com antisserrilhado (traço, desfoque e sombra) |
+| `crates/neoveg_text/fonts/` | `assets/fonts/` | Inter (5 estilos), JetBrains Mono e Noto Serif, sem alteração, sob a licença OFL-1.1 (os textos `OFL-*.txt` e os arquivos `.attribution` vêm junto) |
+
+Alterações: o crate usa a edição 2024 (o código usa `let` encadeado), a lista de fontes opcionais `craft-fonts` ficou vazia (não há `build.rs`) e o caminho das fontes embutidas mudou. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
+
 Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
 
 ## Alterações feitas pelo Neoveg
