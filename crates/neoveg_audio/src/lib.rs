@@ -2,6 +2,7 @@
 //! waveforms.
 
 pub mod clap_host;
+pub mod clock;
 pub mod decode;
 pub mod dsp;
 pub mod duck;

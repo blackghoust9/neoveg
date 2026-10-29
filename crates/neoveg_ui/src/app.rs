@@ -4852,7 +4852,12 @@ impl AppState {
         let dt = ctx.input(|i| i.unstable_dt) as f64;
         let ended = match &self.active_player {
             Some(active) => {
-                self.playhead = active.player.position_seconds();
+                // The picture follows the sound at the loudspeaker, smoothly, not the buffer step
+                self.playhead = neoveg_audio::clock::steady(
+                    self.playhead,
+                    active.player.synced_position(),
+                    self.shuttle_speed,
+                );
                 !active.player.is_playing()
             }
             None => {

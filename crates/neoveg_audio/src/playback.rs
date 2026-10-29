@@ -3,10 +3,12 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
+use crate::clock::{heard_position, ClockAnchor, ClockCell};
 use crate::fxmixer::{BlockMixer, FxPlan, LiveControls, TrackMixSpec, MAX_BLOCK};
 use crate::meter::PeakMeter;
 use crate::mixer::MixClip;
@@ -27,6 +29,8 @@ struct PlaybackState {
     loop_end: AtomicU64,
     /// Playback speed (`f64` bits): `1.0` normal, above 1 faster, negative backwards (J / K / L).
     speed: AtomicU64,
+    /// Where the programme is at the loudspeaker, published by every callback.
+    clock: ClockCell,
 }
 
 /// Speeds the L and J keys step through, one press each (the manual's "press again to accelerate").
@@ -99,6 +103,8 @@ pub struct AudioPlayer {
     live: Arc<LiveControls>,
     meter: Arc<PeakMeter>,
     loudness: Arc<LoudnessReadout>,
+    /// Time base of the clock anchors.
+    base: Instant,
 }
 
 impl AudioPlayer {
@@ -137,7 +143,10 @@ impl AudioPlayer {
             loop_start: AtomicU64::new(0f64.to_bits()),
             loop_end: AtomicU64::new(0f64.to_bits()),
             speed: AtomicU64::new(1.0f64.to_bits()),
+            clock: ClockCell::default(),
         });
+        // Time base of the clock anchors: the callback and the reader both count from here
+        let base = Instant::now();
 
         let cb_state = Arc::clone(&state);
         let cb_meter = Arc::clone(&meter);
@@ -153,7 +162,7 @@ impl AudioPlayer {
         let stream = device
             .build_output_stream(
                 &config,
-                move |data: &mut [f32], _| {
+                move |data: &mut [f32], info: &cpal::OutputCallbackInfo| {
                     if !cb_state.playing.load(Ordering::Relaxed) {
                         data.fill(0.0);
                         cb_meter.reset();
@@ -188,6 +197,20 @@ impl AudioPlayer {
                         }
                         mix_pos = t;
                     }
+
+                    // Where this buffer will be heard: its first frame is `heard_pos`, and it leaves the
+                    // loudspeaker `latency` after now (the device's output latency)
+                    let stamp = info.timestamp();
+                    let latency = stamp
+                        .playback
+                        .duration_since(&stamp.callback)
+                        .map_or(0.0, |d| d.as_secs_f64());
+                    cb_state.clock.write(&ClockAnchor {
+                        position: heard_pos,
+                        callback_micros: base.elapsed().as_micros() as u64,
+                        latency,
+                        speed,
+                    });
 
                     // The buffer is cut into blocks: every block is mixed per frame (positions,
                     // loop and end of the programme), then the effect chains run on the blocks
@@ -244,6 +267,7 @@ impl AudioPlayer {
             live,
             meter,
             loudness,
+            base,
         })
     }
 
@@ -251,6 +275,9 @@ impl AudioPlayer {
     pub fn play_from(&self, seconds: f64) {
         // Every start is a new measurement of the programme
         self.loudness.request_reset();
+        // The old anchor describes another position: the readers use the buffer position until the
+        // callback publishes a new one
+        self.state.clock.invalidate();
         self.state
             .position
             .store(seconds.max(0.0).to_bits(), Ordering::Relaxed);
@@ -280,6 +307,20 @@ impl AudioPlayer {
     /// Current timeline position in seconds.
     pub fn position_seconds(&self) -> f64 {
         f64::from_bits(self.state.position.load(Ordering::Relaxed))
+    }
+
+    /// Where the programme is at the loudspeaker right now: the position of the buffer the
+    /// callback last filled, moved on by the time since and back by the output latency. This is the
+    /// clock the picture follows. Without an anchor yet it is [`Self::position_seconds`].
+    pub fn synced_position(&self) -> f64 {
+        let Some(anchor) = self.state.clock.read() else {
+            return self.position_seconds();
+        };
+        let mut position = heard_position(&anchor, self.base.elapsed().as_micros() as u64);
+        let loop_start = f64::from_bits(self.state.loop_start.load(Ordering::Relaxed));
+        let loop_end = f64::from_bits(self.state.loop_end.load(Ordering::Relaxed));
+        position = wrap_loop(position, loop_start, loop_end);
+        position.clamp(0.0, self.state.end.max(0.0))
     }
 
     /// Playback speed: `1.0` normal, `2.0` double, negative backwards (scrubbing with J and L).
