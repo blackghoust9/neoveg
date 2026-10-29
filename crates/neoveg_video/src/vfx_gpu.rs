@@ -303,6 +303,55 @@ fn trans_grow(@builtin(global_invocation_id) id: vec3<u32>) {
     let cy = f32(p.height) / 2.0;
     dst[i] = sample_bilinear(cx + (f32(id.x) + 0.5 - cx) / p.a, cy + (f32(id.y) + 0.5 - cy) / p.a);
 }
+
+// a = progress, half = edge (0 left, 1 top, 2 right, 3 bottom)
+@compute @workgroup_size(8, 8, 1)
+fn trans_squeeze(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    if (p.a <= 0.001) {
+        dst[i] = vec4<f32>(0.0);
+        return;
+    }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let px = f32(id.x) + 0.5;
+    let py = f32(id.y) + 0.5;
+    if (p.half == 0u) {
+        dst[i] = sample_bilinear(px / p.a, py);
+    } else if (p.half == 1u) {
+        dst[i] = sample_bilinear(px, py / p.a);
+    } else if (p.half == 2u) {
+        dst[i] = sample_bilinear(w - (w - px) / p.a, py);
+    } else {
+        dst[i] = sample_bilinear(px, h - (h - py) / p.a);
+    }
+}
+
+// c = cosine, d = sine of the turn left, e = scale (computed on the CPU)
+@compute @workgroup_size(8, 8, 1)
+fn trans_spiral(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    if (p.e <= 0.001) {
+        dst[i] = vec4<f32>(0.0);
+        return;
+    }
+    let cx = f32(p.width) / 2.0;
+    let cy = f32(p.height) / 2.0;
+    let dx = f32(id.x) + 0.5 - cx;
+    let dy = f32(id.y) + 0.5 - cy;
+    dst[i] = sample_bilinear(cx + (p.c * dx + p.d * dy) / p.e, cy + (p.c * dy - p.d * dx) / p.e);
+}
+
+// a = progress, b = flash strength, c/d/e = flash colour
+@compute @workgroup_size(8, 8, 1)
+fn trans_flash(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let flash = vec4<f32>(p.c * p.b, p.d * p.b, p.e * p.b, p.b);
+    dst[i] = flash + src[i] * (p.a * (1.0 - p.b));
+}
 "#;
 
 /// The compute pipelines of the effect chain, built once per device.
@@ -323,6 +372,9 @@ pub struct VfxGpu {
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
+    trans_squeeze: wgpu::ComputePipeline,
+    trans_spiral: wgpu::ComputePipeline,
+    trans_flash: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -354,6 +406,9 @@ enum Pass {
     TransMask,
     TransSlide,
     TransGrow,
+    TransSqueeze,
+    TransSpiral,
+    TransFlash,
 }
 
 /// One step of a GPU run: an effect, or a transition at a progress.
@@ -417,6 +472,9 @@ impl VfxGpu {
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
+            trans_squeeze: make("trans_squeeze"),
+            trans_spiral: make("trans_spiral"),
+            trans_flash: make("trans_flash"),
             device,
             queue,
             bgl,
@@ -438,6 +496,9 @@ impl VfxGpu {
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
+            Pass::TransSqueeze => &self.trans_squeeze,
+            Pass::TransSpiral => &self.trans_spiral,
+            Pass::TransFlash => &self.trans_flash,
         }
     }
 
@@ -595,6 +656,24 @@ impl VfxGpu {
                             Pass::TransSlide
                         }
                         tr::Resolved::Grow => Pass::TransGrow,
+                        tr::Resolved::Squeeze { angle } => {
+                            p.half = tr::squeeze_edge(angle);
+                            Pass::TransSqueeze
+                        }
+                        tr::Resolved::Spiral {
+                            turns,
+                            zoom,
+                            clockwise,
+                        } => {
+                            (p.c, p.d, p.e) =
+                                tr::spiral_transform(turns, zoom, clockwise, progress);
+                            Pass::TransSpiral
+                        }
+                        tr::Resolved::Flash { color } => {
+                            p.b = tr::flash_strength(progress);
+                            (p.c, p.d, p.e) = (color[0], color[1], color[2]);
+                            Pass::TransFlash
+                        }
                         tr::Resolved::Dissolve => Pass::TransMask,
                         tr::Resolved::LinearWipe { angle, softness } => {
                             (p.half, p.c, p.d) = (1, angle, softness);

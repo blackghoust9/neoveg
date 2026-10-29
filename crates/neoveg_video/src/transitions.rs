@@ -24,6 +24,9 @@ pub const BARN_DOOR: &str = "barn_door";
 pub const BLINDS: &str = "blinds";
 pub const SLIDE: &str = "slide";
 pub const GROW: &str = "grow";
+pub const SQUEEZE: &str = "squeeze";
+pub const SPIRAL: &str = "spiral";
+pub const FLASH: &str = "flash";
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -121,6 +124,71 @@ pub fn transitions() -> &'static [EffectSpec] {
                 label: "Crescer",
                 params: &[],
             },
+            EffectSpec {
+                id: SQUEEZE,
+                label: "Espremer",
+                params: leak(vec![angle("angle", "Direção de entrada", 360.0)]),
+            },
+            EffectSpec {
+                id: SPIRAL,
+                label: "Espiral",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "turns",
+                        label: "Voltas",
+                        min: 0.0,
+                        max: 8.0,
+                        default: 1.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "zoom",
+                        label: "Zoom inicial",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "clockwise",
+                        label: "Sentido horário (0 ou 1)",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: false,
+                    },
+                ]),
+            },
+            EffectSpec {
+                id: FLASH,
+                label: "Flash",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "red",
+                        label: "Vermelho",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "green",
+                        label: "Verde",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "blue",
+                        label: "Azul",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                ]),
+            },
         ]
     })
 }
@@ -179,6 +247,20 @@ pub enum Resolved {
         angle: f32,
     },
     Grow,
+    /// The layer is compressed against the edge it enters from (see [`squeeze_edge`]).
+    Squeeze {
+        angle: f32,
+    },
+    /// The layer turns and grows from `zoom` to its full size (see [`spiral_transform`]).
+    Spiral {
+        turns: f32,
+        zoom: f32,
+        clockwise: bool,
+    },
+    /// A flash of `color` (`0..=1` per channel) covers the picture in the middle of the transition.
+    Flash {
+        color: [f32; 3],
+    },
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -217,8 +299,36 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
         },
         SLIDE => Resolved::Slide { angle: v("angle") },
         GROW => Resolved::Grow,
+        SQUEEZE => Resolved::Squeeze { angle: v("angle") },
+        SPIRAL => Resolved::Spiral {
+            turns: v("turns"),
+            zoom: v("zoom"),
+            clockwise: v("clockwise") >= 0.5,
+        },
+        FLASH => Resolved::Flash {
+            color: [v("red"), v("green"), v("blue")],
+        },
         _ => return None,
     })
+}
+
+/// The edge a squeeze starts from, from its angle: `0` the left, `1` the top, `2` the right, `3`
+/// the bottom (the nearest of the four, like the direction of a slide).
+pub fn squeeze_edge(angle: f32) -> u32 {
+    ((angle / 90.0).round() as i32).rem_euclid(4) as u32
+}
+
+/// What the spiral does to the layer at `progress`: the cosine and sine of the turn it still has to
+/// make and its scale (`zoom` at the start, `1.0` at the end).
+pub fn spiral_transform(turns: f32, zoom: f32, clockwise: bool, progress: f32) -> (f32, f32, f32) {
+    let turn = (1.0 - progress) * turns * std::f32::consts::TAU;
+    let (sin, cos) = (if clockwise { turn } else { -turn }).sin_cos();
+    (cos, sin, zoom + (1.0 - zoom) * progress)
+}
+
+/// How strong the flash is at `progress`: nothing at either end, full in the middle.
+pub fn flash_strength(progress: f32) -> f32 {
+    1.0 - (2.0 * progress - 1.0).abs()
 }
 
 /// Opacity of a point whose place in the reveal order is `s` (`0.0` is revealed first, `1.0`
@@ -281,7 +391,11 @@ fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
             let s = (along(u, v, aspect, angle) * count).fract();
             reveal(s, progress, softness)
         }
-        Resolved::Slide { .. } | Resolved::Grow => 1.0,
+        Resolved::Slide { .. }
+        | Resolved::Grow
+        | Resolved::Squeeze { .. }
+        | Resolved::Spiral { .. }
+        | Resolved::Flash { .. } => 1.0,
     }
 }
 
@@ -319,6 +433,53 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
                 sample(layer, cx + (px - cx) / progress, cy + (py - cy) / progress)
             })
         }
+        Resolved::Squeeze { angle } => {
+            if progress <= 0.001 {
+                return render(layer.width, layer.height, |_, _| [0.0; 4]);
+            }
+            let edge = squeeze_edge(angle);
+            render(layer.width, layer.height, |x, y| {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                match edge {
+                    0 => sample(layer, px / progress, py),
+                    1 => sample(layer, px, py / progress),
+                    2 => sample(layer, w - (w - px) / progress, py),
+                    _ => sample(layer, px, h - (h - py) / progress),
+                }
+            })
+        }
+        Resolved::Spiral {
+            turns,
+            zoom,
+            clockwise,
+        } => {
+            let (cos, sin, scale) = spiral_transform(turns, zoom, clockwise, progress);
+            if scale <= 0.001 {
+                return render(layer.width, layer.height, |_, _| [0.0; 4]);
+            }
+            let (cx, cy) = (w / 2.0, h / 2.0);
+            render(layer.width, layer.height, |x, y| {
+                let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+                sample(
+                    layer,
+                    cx + (cos * dx + sin * dy) / scale,
+                    cy + (cos * dy - sin * dx) / scale,
+                )
+            })
+        }
+        Resolved::Flash { color } => {
+            let f = flash_strength(progress);
+            render(layer.width, layer.height, |x, y| {
+                let p = sample(layer, x as f32 + 0.5, y as f32 + 0.5);
+                let keep = progress * (1.0 - f);
+                [
+                    color[0] * 255.0 * f + p[0] * keep,
+                    color[1] * 255.0 * f + p[1] * keep,
+                    color[2] * 255.0 * f + p[2] * keep,
+                    255.0 * f + p[3] * keep,
+                ]
+            })
+        }
         _ => render(layer.width, layer.height, |x, y| {
             let (u, v) = ((x as f32 + 0.5) / w, (y as f32 + 0.5) / h);
             let m = mask(t, u, v, aspect, progress);
@@ -331,6 +492,43 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn squeeze_spiral_and_flash_start_empty_end_whole_and_do_what_they_say() {
+        let layer = crate::generators::smpte_color_bars(80, 40);
+        let none = BTreeMap::new();
+        for id in [SQUEEZE, SPIRAL, FLASH] {
+            let t = resolve(id, &none).expect("registered");
+            assert_eq!(apply(&layer, &t, 1.0), layer, "{id} ends whole");
+            let first = apply(&layer, &t, 0.0);
+            assert!(
+                first.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 0),
+                "{id} starts empty"
+            );
+        }
+        // The squeeze enters from the left: at a half the picture fills the left half, squeezed
+        let t = resolve(SQUEEZE, &none).unwrap();
+        let half = apply(&layer, &t, 0.5);
+        let at = |f: &FrameBuffer, x: usize, y: usize| f.rgba[(y * 80 + x) * 4 + 3];
+        assert_eq!(at(&half, 20, 10), 255);
+        assert_eq!(at(&half, 60, 10), 0);
+        let from_right = resolve(SQUEEZE, &BTreeMap::from([("angle".to_owned(), 180.0)])).unwrap();
+        let half = apply(&layer, &from_right, 0.5);
+        assert_eq!((at(&half, 20, 10), at(&half, 60, 10)), (0, 255));
+        assert_eq!(squeeze_edge(0.0), 0);
+        assert_eq!(squeeze_edge(100.0), 1);
+        assert_eq!(squeeze_edge(359.0), 0);
+        // The spiral at the middle is smaller than the frame; the flash covers it whole
+        let spiral = resolve(SPIRAL, &none).unwrap();
+        let mid = apply(&layer, &spiral, 0.5);
+        assert_eq!(at(&mid, 0, 0), 0, "the corner is empty while it is smaller");
+        let flash = resolve(FLASH, &BTreeMap::from([("blue".to_owned(), 0.0)])).unwrap();
+        let peak = apply(&layer, &flash, 0.5);
+        for p in peak.rgba.as_chunks::<4>().0.iter() {
+            assert_eq!(*p, [255, 255, 0, 255]);
+        }
+        assert!((flash_strength(0.25) - 0.5).abs() < 1e-6);
+    }
 
     /// A picture with colour in it so a wrong move shows.
     fn picture(w: u32, h: u32) -> FrameBuffer {
@@ -369,7 +567,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 8);
+        assert_eq!(transitions().len(), 11);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {

@@ -13,7 +13,7 @@ Hub: [[segundo_cerebro]]. Implementação: [[neoveg_video]], [[neoveg_engine]].
 - **3D e movimento:** cascata 3D, entrada e saída 3D, embaralhar 3D, portais, espiral, zoom, fluxo de deformação.
 - **Luz e mistura:** dissolver, flash, efeito cruzado.
 - **Extensível:** uma transição que carrega efeitos GL de terceiros (versão recente).
-- Neoveg: `parcial`. Há oito transições (dissolver, cortina linear, cortina de relógio, íris, porta de celeiro, persianas, deslizar e crescer) na aba Transições, na entrada, na saída e na sobreposição, com a duração e a curva do fade. `previsto`: as demais (páginas, 3D, empurrar, zoom, estrela), miniaturas, pré-ajustes e o envelope livre de progresso.
+- Neoveg: `parcial`. Há onze transições (dissolver, cortina linear, cortina de relógio, íris, porta de celeiro, persianas, deslizar, crescer, espremer, espiral e flash) na aba Transições, na entrada, na saída e na sobreposição, com a duração e a curva do fade. `previsto`: as demais (páginas, 3D, empurrar, zoom, estrela), miniaturas, pré-ajustes e o envelope livre de progresso.
 
 ## Geradores de mídia (6 em ambas as versões)
 | Gerador | Neoveg |
