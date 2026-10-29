@@ -60,6 +60,8 @@ pub const PIXELATE: &str = "pixelate";
 pub const MIRROR: &str = "mirror";
 pub const SEPIA: &str = "sepia";
 pub const SWIRL: &str = "swirl";
+pub const RADIAL_BLUR: &str = "radial_blur";
+pub const MEDIAN: &str = "median";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -330,6 +332,58 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: RADIAL_BLUR,
+        label: "Desfoque radial",
+        params: &[
+            ParamSpec {
+                id: "center_x",
+                label: "Centro horizontal",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "center_y",
+                label: "Centro vertical",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "level",
+                label: "Nível",
+                min: 0.0,
+                max: 1.0,
+                default: 0.1,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: MEDIAN,
+        label: "Mediana",
+        params: &[
+            ParamSpec {
+                id: "h_range",
+                label: "Alcance horizontal",
+                min: 0.0,
+                max: 0.004,
+                default: 0.002,
+                percent: true,
+            },
+            ParamSpec {
+                id: "v_range",
+                label: "Alcance vertical",
+                min: 0.0,
+                max: 0.004,
+                default: 0.002,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -429,6 +483,14 @@ impl VideoEffect {
                 ratio: self.value(spec, "ratio"),
                 size: [self.value(spec, "h_size"), self.value(spec, "v_size")],
             },
+            RADIAL_BLUR => Resolved::RadialBlur {
+                center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
+                level: self.value(spec, "level"),
+            },
+            MEDIAN => Resolved::Median {
+                h_range: self.value(spec, "h_range"),
+                v_range: self.value(spec, "v_range"),
+            },
             _ => return None,
         })
     }
@@ -497,6 +559,16 @@ pub enum Resolved {
         ratio: f32,
         size: [f32; 2],
     },
+    /// See [`radial_blur`].
+    RadialBlur {
+        center: [f32; 2],
+        level: f32,
+    },
+    /// Ranges are fractions of the frame height (see [`median_radius`]).
+    Median {
+        h_range: f32,
+        v_range: f32,
+    },
 }
 
 impl Resolved {
@@ -517,6 +589,8 @@ impl Resolved {
             Resolved::Mirror { .. } => false,
             Resolved::Sepia { strength, .. } => strength <= 0.0,
             Resolved::Swirl { ratio, .. } => ratio == 0.0,
+            Resolved::RadialBlur { level, .. } => level <= 0.0,
+            Resolved::Median { h_range, v_range } => h_range <= 0.0 && v_range <= 0.0,
         }
     }
 }
@@ -1002,6 +1076,79 @@ fn swirl(work: &Work, center: [f32; 2], ratio: f32, size: [f32; 2]) -> Work {
     }
 }
 
+/// Taps along the ray of a radial blur.
+pub const RADIAL_TAPS: u32 = 24;
+
+/// How far toward the centre the last tap of a radial blur goes at level `1.0`.
+pub const RADIAL_REACH: f32 = 0.4;
+
+/// Longest half width of the median window, in pixels (the window is at most 9 by 9).
+pub const MEDIAN_MAX_RADIUS: u32 = 4;
+
+/// The half width in pixels of a median window for a range given as a fraction of the frame height.
+pub fn median_radius(range: f32, height: u32) -> u32 {
+    (range_pixels(range, height).round().max(0.0) as u32).min(MEDIAN_MAX_RADIUS)
+}
+
+/// A proportional blur: every pixel is the mean of taps on the line to the centre, the farther from
+/// the centre the longer the line (a zoom blur). `level` `1.0` reaches [`RADIAL_REACH`] of the way.
+fn radial_blur(work: &Work, center: [f32; 2], level: f32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (cx, cy) = (center[0] * w as f32, (1.0 - center[1]) * h as f32);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (qx, qy) = (x as f32 + 0.5, y as f32 + 0.5);
+            let mut acc = [0.0f32; 4];
+            for k in 0..RADIAL_TAPS {
+                let s = 1.0 - level * RADIAL_REACH * k as f32 / (RADIAL_TAPS - 1) as f32;
+                let t = sample_work(work, cx + (qx - cx) * s, cy + (qy - cy) * s);
+                for c in 0..4 {
+                    acc[c] += t[c];
+                }
+            }
+            px.push(acc.map(|v| v / RADIAL_TAPS as f32));
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
+/// Every channel becomes the median of the window around the pixel (edges repeat).
+fn median(work: &Work, rx: u32, ry: u32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (rx, ry) = (rx as isize, ry as isize);
+    let mut out = vec![[0.0f32; 4]; w * h];
+    par_rows(&mut out, w, |first_row, band| {
+        let mut window: Vec<f32> = Vec::with_capacity(81);
+        for (ry_row, row) in band.chunks_mut(w).enumerate() {
+            let y = (first_row + ry_row) as isize;
+            for (x, dst) in row.iter_mut().enumerate() {
+                for (c, value) in dst.iter_mut().enumerate() {
+                    window.clear();
+                    for dy in -ry..=ry {
+                        for dx in -rx..=rx {
+                            let sx = (x as isize + dx).clamp(0, w as isize - 1) as usize;
+                            let sy = (y + dy).clamp(0, h as isize - 1) as usize;
+                            window.push(work.px[sy * w + sx][c]);
+                        }
+                    }
+                    window.sort_unstable_by(f32::total_cmp);
+                    *value = window[window.len() / 2];
+                }
+            }
+        }
+    });
+    Work {
+        width: w,
+        height: h,
+        px: out,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -1030,6 +1177,11 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             ratio,
             size,
         } => *work = swirl(work, center, ratio, size),
+        Resolved::RadialBlur { center, level } => *work = radial_blur(work, center, level),
+        Resolved::Median { h_range, v_range } => {
+            let h = work.height as u32;
+            *work = median(work, median_radius(h_range, h), median_radius(v_range, h));
+        }
     }
 }
 
@@ -1273,6 +1425,47 @@ mod tests {
         let mut none = original.clone();
         apply_chain_cpu(&mut none, &[VideoEffect::new(SWIRL).with("ratio", 0.0)]);
         assert_eq!(none, original);
+    }
+
+    #[test]
+    fn the_radial_blur_spares_the_centre_and_the_median_removes_a_speck() {
+        let original = smpte_color_bars(120, 60);
+        let mut zoomed = original.clone();
+        apply_chain_cpu(
+            &mut zoomed,
+            &[VideoEffect::new(RADIAL_BLUR).with("level", 1.0)],
+        );
+        let centre = (30 * 120 + 60) * 4;
+        assert!(zoomed.rgba[centre..centre + 3]
+            .iter()
+            .zip(&original.rgba[centre..centre + 3])
+            .all(|(a, b)| a.abs_diff(*b) <= 2));
+        assert_ne!(zoomed, original, "the edges of the bars blur");
+        assert!(resolve_chain(&[VideoEffect::new(RADIAL_BLUR).with("level", 0.0)]).is_empty());
+        // A single bright pixel on a dark picture disappears
+        let mut speck = FrameBuffer {
+            width: 21,
+            height: 300,
+            rgba: [10u8, 10, 10, 255].repeat(21 * 300),
+        };
+        let at = (150 * 21 + 10) * 4;
+        speck.rgba[at..at + 3].copy_from_slice(&[250, 250, 250]);
+        let before = speck.clone();
+        // 300 pixels tall: the largest range, 0.004 of the height, is one pixel on each side
+        apply_chain_cpu(
+            &mut speck,
+            &[VideoEffect::new(MEDIAN)
+                .with("h_range", 0.004)
+                .with("v_range", 0.004)],
+        );
+        assert_ne!(speck, before);
+        assert!(speck.rgba.as_chunks::<4>().0.iter().all(|p| p[0] == 10));
+        assert_eq!(median_radius(0.5, 1080), MEDIAN_MAX_RADIUS);
+        assert_eq!(median_radius(0.0, 1080), 0);
+        assert!(resolve_chain(&[VideoEffect::new(MEDIAN)
+            .with("h_range", 0.0)
+            .with("v_range", 0.0)])
+        .is_empty());
     }
 
     #[test]

@@ -34,7 +34,7 @@ Reenquadramento automático, colorização, remoção de névoa, mapa de profund
 - Neoveg: `previsto` transcrição, máscara e ampliação (fase de IA do roadmap).
 
 ## Estado da cadeia de efeitos
-`feito` (28/10/2026): cadeia por mídia, por evento, por faixa e por projeto na GPU (`wgpu`) com versão de referência na CPU, painel Efeitos de Vídeo com prévia ao vivo durante o arraste e uso na renderização. Efeitos prontos: desfoque gaussiano, nitidez, máscara de nitidez, vinheta, preto e branco, inverter, brilho e contraste, pixelizar, espelho, sépia e redemoinho. Código em [[neoveg_video]] e [[neoveg_engine]].
+`feito` (28/10/2026): cadeia por mídia, por evento, por faixa e por projeto na GPU (`wgpu`) com versão de referência na CPU, painel Efeitos de Vídeo com prévia ao vivo durante o arraste e uso na renderização. Efeitos prontos: desfoque gaussiano, nitidez, máscara de nitidez, vinheta, preto e branco, inverter, brilho e contraste, pixelizar, espelho, sépia, redemoinho, desfoque radial e mediana. Código em [[neoveg_video]] e [[neoveg_engine]].
 
 ## Próximos passos
 1. Mais efeitos pelo maior valor: desfoques linear e radial, curvas de cor e recorte.

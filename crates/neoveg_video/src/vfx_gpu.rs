@@ -14,8 +14,8 @@ use wgpu::util::DeviceExt;
 use crate::frame::FrameBuffer;
 use crate::transitions as tr;
 use crate::vfx::{
-    contrast_gain, gaussian_kernel, pixelate_block, range_pixels, vignette_corner, Resolved, Work,
-    UNSHARP_RADIUS,
+    contrast_gain, gaussian_kernel, median_radius, pixelate_block, range_pixels, vignette_corner,
+    Resolved, Work, UNSHARP_RADIUS,
 };
 
 #[repr(C)]
@@ -270,6 +270,57 @@ fn swirl(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[i] = sample_bilinear(p.a + cs * dx - sn * dy, p.b + sn * dx + cs * dy);
 }
 
+// a/b = centre in pixels (y down), c = level; 24 taps, last one at 0.4 of the way at level 1
+@compute @workgroup_size(8, 8, 1)
+fn radial_blur(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let qx = f32(id.x) + 0.5;
+    let qy = f32(id.y) + 0.5;
+    var acc = vec4<f32>(0.0);
+    for (var k = 0; k < 24; k = k + 1) {
+        let s = 1.0 - p.c * 0.4 * f32(k) / 23.0;
+        acc = acc + sample_bilinear(p.a + (qx - p.a) * s, p.b + (qy - p.b) * s);
+    }
+    dst[id.y * p.width + id.x] = acc / 24.0;
+}
+
+// a/b = half width and height of the window in pixels (at most 4)
+@compute @workgroup_size(8, 8, 1)
+fn median(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let rx = i32(p.a);
+    let ry = i32(p.b);
+    let n = (2 * rx + 1) * (2 * ry + 1);
+    var out = vec4<f32>(0.0);
+    for (var ch = 0; ch < 4; ch = ch + 1) {
+        var arr: array<f32, 81>;
+        var m = 0;
+        for (var dy = -ry; dy <= ry; dy = dy + 1) {
+            for (var dx = -rx; dx <= rx; dx = dx + 1) {
+                let v = at(i32(id.x) + dx, i32(id.y) + dy);
+                var key = v.x;
+                if (ch == 1) { key = v.y; }
+                if (ch == 2) { key = v.z; }
+                if (ch == 3) { key = v.w; }
+                var j = m - 1;
+                loop {
+                    if (j < 0 || arr[j] <= key) { break; }
+                    arr[j + 1] = arr[j];
+                    j = j - 1;
+                }
+                arr[j + 1] = key;
+                m = m + 1;
+            }
+        }
+        let value = arr[n / 2];
+        if (ch == 0) { out.x = value; }
+        if (ch == 1) { out.y = value; }
+        if (ch == 2) { out.z = value; }
+        if (ch == 3) { out.w = value; }
+    }
+    dst[id.y * p.width + id.x] = out;
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -410,6 +461,8 @@ pub struct VfxGpu {
     mirror: wgpu::ComputePipeline,
     sepia: wgpu::ComputePipeline,
     swirl: wgpu::ComputePipeline,
+    radial_blur: wgpu::ComputePipeline,
+    median: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -446,6 +499,8 @@ enum Pass {
     Mirror,
     Sepia,
     Swirl,
+    RadialBlur,
+    Median,
     TransMask,
     TransSlide,
     TransGrow,
@@ -514,6 +569,8 @@ impl VfxGpu {
             mirror: make("mirror"),
             sepia: make("sepia"),
             swirl: make("swirl"),
+            radial_blur: make("radial_blur"),
+            median: make("median"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -540,6 +597,8 @@ impl VfxGpu {
             Pass::Mirror => &self.mirror,
             Pass::Sepia => &self.sepia,
             Pass::Swirl => &self.swirl,
+            Pass::RadialBlur => &self.radial_blur,
+            Pass::Median => &self.median,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -889,6 +948,23 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Swirl, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::RadialBlur { center, level } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = center[0] * w as f32;
+                    p.b = (1.0 - center[1]) * h as f32;
+                    p.c = level;
+                    run(&mut encoder, Pass::RadialBlur, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Median { h_range, v_range } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = median_radius(h_range, h) as f32;
+                    p.b = median_radius(v_range, h) as f32;
+                    run(&mut encoder, Pass::Median, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -933,7 +1009,8 @@ mod tests {
     use crate::generators::smpte_color_bars;
     use crate::vfx::{
         apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
-        GAUSSIAN_BLUR, INVERT, MIRROR, PIXELATE, SEPIA, SHARPEN, SWIRL, UNSHARP_MASK, VIGNETTE,
+        GAUSSIAN_BLUR, INVERT, MEDIAN, MIRROR, PIXELATE, RADIAL_BLUR, SEPIA, SHARPEN, SWIRL,
+        UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -1022,6 +1099,15 @@ mod tests {
                 .with("ratio", -1.2)
                 .with("center_x", 0.3)
                 .with("h_size", 0.8),
+            VideoEffect::new(RADIAL_BLUR),
+            VideoEffect::new(RADIAL_BLUR)
+                .with("level", 0.8)
+                .with("center_x", 0.2)
+                .with("center_y", 0.7),
+            VideoEffect::new(MEDIAN),
+            VideoEffect::new(MEDIAN)
+                .with("h_range", 0.004)
+                .with("v_range", 0.001),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
@@ -1063,6 +1149,34 @@ mod tests {
             gpu.process_transition(&original, &t, 1.0).unwrap(),
             original
         );
+    }
+
+    #[test]
+    fn the_median_matches_on_a_picture_tall_enough_for_a_window() {
+        let Some(gpu) = gpu() else {
+            eprintln!("no graphics adapter: GPU median test skipped");
+            return;
+        };
+        // 600 pixels tall: the largest range is two pixels on each side
+        let mut original = smpte_color_bars(640, 600);
+        for (i, p) in original.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            if i % 7 == 0 {
+                *p = [255, 255, 255, 255];
+            }
+            if (i % 640) < 40 {
+                p[3] = 100;
+            }
+        }
+        let chain = [VideoEffect::new(MEDIAN)
+            .with("h_range", 0.004)
+            .with("v_range", 0.002)];
+        let mut cpu = original.clone();
+        apply_chain_cpu(&mut cpu, &chain);
+        let on_gpu = gpu
+            .process(&original, &resolve_chain(&chain))
+            .expect("gpu chain");
+        assert_ne!(cpu, original);
+        assert!(max_difference(&cpu, &on_gpu) <= 1);
     }
 
     #[test]
