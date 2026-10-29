@@ -691,6 +691,24 @@ fn edge_dir(edge: u32) -> vec2<f32> {
     return vec2<f32>(1.0, 0.0);
 }
 
+// a = ratio inside the range, b = centre hue, c = spread, d = gain below the range, e = above it
+@compute @workgroup_size(8, 8, 1)
+fn saturation_adjust(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    var hsl = rgb_to_hsl(s.xyz / s.w);
+    let raw = hsl.x / 360.0 - p.b;
+    let offset = raw - floor(raw + 0.5);
+    let t = clamp((abs(offset) - p.c * 0.5) / 0.05, 0.0, 1.0);
+    let inside = 1.0 - t * t * (3.0 - 2.0 * t);
+    var gain = p.a * inside;
+    if (offset < 0.0) { gain = gain + p.d * (1.0 - inside); } else { gain = gain + p.e * (1.0 - inside); }
+    hsl.y = clamp(hsl.y * (1.0 + gain), 0.0, 1.0);
+    dst[i] = straight_color(s, hsl_to_rgb(hsl));
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -954,6 +972,7 @@ pub struct VfxGpu {
     median: wgpu::ComputePipeline,
     hsl_adjust: wgpu::ComputePipeline,
     linear_blur: wgpu::ComputePipeline,
+    saturation_adjust: wgpu::ComputePipeline,
     color_balance: wgpu::ComputePipeline,
     levels: wgpu::ComputePipeline,
     gamma_correction: wgpu::ComputePipeline,
@@ -1013,6 +1032,7 @@ enum Pass {
     Median,
     HslAdjust,
     LinearBlur,
+    SaturationAdjust,
     ColorBalance,
     Levels,
     Gamma,
@@ -1104,6 +1124,7 @@ impl VfxGpu {
             median: make("median"),
             hsl_adjust: make("hsl_adjust"),
             linear_blur: make("linear_blur"),
+            saturation_adjust: make("saturation_adjust"),
             color_balance: make("color_balance"),
             levels: make("levels"),
             gamma_correction: make("gamma_correction"),
@@ -1153,6 +1174,7 @@ impl VfxGpu {
             Pass::Median => &self.median,
             Pass::HslAdjust => &self.hsl_adjust,
             Pass::LinearBlur => &self.linear_blur,
+            Pass::SaturationAdjust => &self.saturation_adjust,
             Pass::ColorBalance => &self.color_balance,
             Pass::Levels => &self.levels,
             Pass::Gamma => &self.gamma_correction,
@@ -1395,6 +1417,27 @@ impl VfxGpu {
             let effect = match *op {
                 Op::Effect(e) => e,
                 Op::Transition(t, progress) => {
+                    // The diffusion of a flash is a blur of the picture before the light is added
+                    if let tr::Resolved::Flash {
+                        h_diffusion,
+                        v_diffusion,
+                        ..
+                    } = t
+                    {
+                        let f = tr::flash_strength(progress);
+                        for (dx, dy, half) in [
+                            (1.0, 0.0, tr::flash_blur_half(h_diffusion, f, w as f32)),
+                            (0.0, 1.0, tr::flash_blur_half(v_diffusion, f, h as f32)),
+                        ] {
+                            if half > 0.25 {
+                                let next = (cur + 1) % 3;
+                                let mut blur = Params::new(w, h);
+                                (blur.a, blur.b, blur.c) = (dx, dy, half);
+                                run(&mut encoder, Pass::LinearBlur, blur, cur, next, None, None);
+                                cur = next;
+                            }
+                        }
+                    }
                     let dst = (cur + 1) % 3;
                     let mut p = Params::new(w, h);
                     p.a = progress;
@@ -1472,7 +1515,7 @@ impl VfxGpu {
                                 tr::spiral_transform(turns, zoom, clockwise, progress);
                             Pass::TransSpiral
                         }
-                        tr::Resolved::Flash { color } => {
+                        tr::Resolved::Flash { color, .. } => {
                             p.b = tr::flash_strength(progress);
                             (p.c, p.d, p.e) = (color[0], color[1], color[2]);
                             Pass::TransFlash
@@ -1828,6 +1871,27 @@ impl VfxGpu {
                     run(&mut encoder, pass, Params::new(w, h), cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::SaturationAdjust {
+                    ratio,
+                    center,
+                    spread,
+                    low,
+                    up,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d, p.e) = (ratio, center, spread, low, up);
+                    run(
+                        &mut encoder,
+                        Pass::SaturationAdjust,
+                        p,
+                        cur,
+                        dst,
+                        None,
+                        None,
+                    );
+                    cur = dst;
+                }
                 Resolved::Offset { shift, blend } => {
                     let dst = (cur + 1) % 3;
                     let mut p = Params::new(w, h);
@@ -2054,6 +2118,14 @@ mod tests {
             VideoEffect::new(crate::vfx::OFFSET)
                 .with("shift_x", 0.2)
                 .with("blend", 0.4),
+            VideoEffect::new(crate::vfx::SATURATION_ADJUST)
+                .with("ratio", -0.8)
+                .with("center", 0.1)
+                .with("spread", 0.3),
+            VideoEffect::new(crate::vfx::SATURATION_ADJUST)
+                .with("low", 0.7)
+                .with("up", -0.6)
+                .with("center", 0.45),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
@@ -2090,7 +2162,7 @@ mod tests {
             }
         }
         // Values away from the defaults, the second mode of the split included
-        let extras: [(&str, &[(&str, f32)]); 6] = [
+        let extras: [(&str, &[(&str, f32)]); 7] = [
             (
                 tr::SPLIT,
                 &[("mode", 1.0), ("center_x", 0.3), ("center_y", 0.7)],
@@ -2106,6 +2178,10 @@ mod tests {
                 &[("turns", 2.0), ("zoom", 0.3), ("clockwise", 0.0)],
             ),
             (tr::FLASH, &[("red", 0.2), ("blue", 0.6)]),
+            (
+                tr::FLASH,
+                &[("h_diffusion", 0.8), ("v_diffusion", 0.5), ("red", 0.3)],
+            ),
         ];
         for (id, values) in extras {
             let params = values.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect();

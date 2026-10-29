@@ -84,6 +84,7 @@ pub const ALPHA_ADJUST: &str = "alpha_adjust";
 pub const HORIZONTAL_FLIP: &str = "horizontal_flip";
 pub const VERTICAL_FLIP: &str = "vertical_flip";
 pub const OFFSET: &str = "offset";
+pub const SATURATION_ADJUST: &str = "saturation_adjust";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -1158,6 +1159,52 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: SATURATION_ADJUST,
+        label: "Ajuste de saturação",
+        params: &[
+            ParamSpec {
+                id: "ratio",
+                label: "Razão (dentro da faixa)",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "center",
+                label: "Centro (matiz)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "spread",
+                label: "Largura (matizes)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.2,
+                percent: true,
+            },
+            ParamSpec {
+                id: "low",
+                label: "Abaixo da faixa",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "up",
+                label: "Acima da faixa",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -1397,6 +1444,13 @@ impl VideoEffect {
                 shift: [self.value(spec, "shift_x"), self.value(spec, "shift_y")],
                 blend: self.value(spec, "blend"),
             },
+            SATURATION_ADJUST => Resolved::SaturationAdjust {
+                ratio: self.value(spec, "ratio"),
+                center: self.value(spec, "center"),
+                spread: self.value(spec, "spread"),
+                low: self.value(spec, "low"),
+                up: self.value(spec, "up"),
+            },
             _ => return None,
         })
     }
@@ -1567,6 +1621,14 @@ pub enum Resolved {
         shift: [f32; 2],
         blend: f32,
     },
+    /// See [`saturation_gain`].
+    SaturationAdjust {
+        ratio: f32,
+        center: f32,
+        spread: f32,
+        low: f32,
+        up: f32,
+    },
 }
 
 impl Resolved {
@@ -1638,6 +1700,9 @@ impl Resolved {
             } => opacity == 1.0 && !ignore && !invert && !mask_only,
             Resolved::HFlip | Resolved::VFlip => false,
             Resolved::Offset { shift, blend } => shift == [0.5, 0.5] || blend >= 1.0,
+            Resolved::SaturationAdjust { ratio, low, up, .. } => {
+                ratio == 0.0 && low == 0.0 && up == 0.0
+            }
         }
     }
 }
@@ -2282,8 +2347,14 @@ pub fn linear_blur_line(angle: f32, ratio: f32, height: u32) -> (f32, f32, f32) 
 /// Blurs along a line: the mean of `2 * LINEAR_TAPS + 1` taps spread over the half length on each
 /// side of the pixel, the taps outside the picture taking the edge.
 fn linear_blur(work: &Work, angle: f32, ratio: f32) -> Work {
+    let (dx, dy, half) = linear_blur_line(angle, ratio, work.height as u32);
+    blur_along(work, dx, dy, half)
+}
+
+/// The blur of [`linear_blur`] along the unit vector `(dx, dy)` (`y` down) with a half length in
+/// pixels.
+pub fn blur_along(work: &Work, dx: f32, dy: f32, half: f32) -> Work {
     let (w, h) = (work.width, work.height);
-    let (dx, dy, half) = linear_blur_line(angle, ratio, h as u32);
     let (max_x, max_y) = (w as f32 - 0.5, h as f32 - 0.5);
     let mut px = Vec::with_capacity(w * h);
     for y in 0..h {
@@ -2515,6 +2586,33 @@ fn offset(work: &Work, dx: f32, dy: f32, blend: f32) -> Work {
     }
 }
 
+/// Saturation gain for a hue: `ratio` inside the range of `spread` around `center`, `low` for the
+/// hues before it and `up` for the hues after it (hues, `center` and `spread` are fractions of the
+/// colour circle), blended with a soft edge.
+pub fn saturation_gain(hue: f32, ratio: f32, center: f32, spread: f32, low: f32, up: f32) -> f32 {
+    let raw = hue - center;
+    let offset = raw - (raw + 0.5).floor();
+    let t = ((offset.abs() - spread * 0.5) / 0.05).clamp(0.0, 1.0);
+    let inside = 1.0 - t * t * (3.0 - 2.0 * t);
+    ratio * inside + if offset < 0.0 { low } else { up } * (1.0 - inside)
+}
+
+fn saturation_adjust(work: &mut Work, ratio: f32, center: f32, spread: f32, low: f32, up: f32) {
+    for p in &mut work.px {
+        let a = p[3];
+        if a <= 1e-6 {
+            continue;
+        }
+        let mut hsl = rgb_to_hsl([p[0] / a, p[1] / a, p[2] / a]);
+        let gain = saturation_gain(hsl[0] / 360.0, ratio, center, spread, low, up);
+        hsl[1] = (hsl[1] * (1.0 + gain)).clamp(0.0, 1.0);
+        let rgb = hsl_to_rgb(hsl);
+        for k in 0..3 {
+            p[k] = rgb[k].clamp(0.0, 1.0) * a;
+        }
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -2596,6 +2694,13 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             let (dx, dy) = offset_pixels(shift, work.width as u32, work.height as u32);
             *work = offset(work, dx, dy, blend);
         }
+        Resolved::SaturationAdjust {
+            ratio,
+            center,
+            spread,
+            low,
+            up,
+        } => saturation_adjust(work, ratio, center, spread, low, up),
         Resolved::ColorBalance {
             shadows,
             mids,
@@ -3175,6 +3280,45 @@ mod tests {
         );
         assert_eq!(red(&shifted), [30, 0, 10, 20, 31, 1, 11, 21]);
         assert_eq!(offset_pixels([0.5, 0.5], 100, 50), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_saturation_ranges_cut_or_boost_only_the_hues_they_name() {
+        let px = |rgb: [u8; 3], fx: VideoEffect| {
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![rgb[0], rgb[1], rgb[2], 255],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            [f.rgba[0], f.rgba[1], f.rgba[2]]
+        };
+        let grey = |c: [u8; 3]| c[0] == c[1] && c[1] == c[2];
+        // Red is in the range around hue 0: cutting it by all turns it grey, green stays
+        let inside = || {
+            VideoEffect::new(SATURATION_ADJUST)
+                .with("ratio", -1.0)
+                .with("center", 0.0)
+                .with("spread", 0.2)
+        };
+        assert!(grey(px([255, 0, 0], inside())));
+        assert_eq!(px([0, 255, 0], inside()), [0, 255, 0]);
+        // Below the range (green is 120 degrees on, blue 240, which is 120 before): the low side
+        // holds blue, the up side holds green
+        let low = || VideoEffect::new(SATURATION_ADJUST).with("low", -1.0);
+        assert!(grey(px([0, 0, 255], low())));
+        assert_eq!(px([0, 255, 0], low()), [0, 255, 0]);
+        let up = || VideoEffect::new(SATURATION_ADJUST).with("up", -1.0);
+        assert!(grey(px([0, 255, 0], up())));
+        assert_eq!(px([0, 0, 255], up()), [0, 0, 255]);
+        // Grey has no hue to change, and neutral values are skipped
+        assert_eq!(px([90, 90, 90], inside()), [90, 90, 90]);
+        assert!(resolve_chain(&[VideoEffect::new(SATURATION_ADJUST)]).is_empty());
+        // The gain is continuous across the edge of the range
+        let step = (0..200)
+            .map(|i| saturation_gain(i as f32 / 200.0, -1.0, 0.0, 0.2, 0.0, 0.0))
+            .collect::<Vec<_>>();
+        assert!(step.windows(2).all(|w| (w[0] - w[1]).abs() < 0.3));
     }
 
     #[test]

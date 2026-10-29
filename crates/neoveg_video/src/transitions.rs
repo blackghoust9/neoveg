@@ -192,6 +192,22 @@ pub fn transitions() -> &'static [EffectSpec] {
                         default: 1.0,
                         percent: true,
                     },
+                    ParamSpec {
+                        id: "h_diffusion",
+                        label: "Difusão horizontal",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "v_diffusion",
+                        label: "Difusão vertical",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: true,
+                    },
                 ]),
             },
             EffectSpec {
@@ -429,6 +445,9 @@ pub enum Resolved {
     /// A flash of `color` (`0..=1` per channel) covers the picture in the middle of the transition.
     Flash {
         color: [f32; 3],
+        /// How far the flash blurs the picture along each axis (see [`flash_blur_half`]).
+        h_diffusion: f32,
+        v_diffusion: f32,
     },
     /// The picture opens from `center` (fractions of the frame, lower-left origin): as a
     /// rectangular wipe, or, with `push`, as four quarters that slide in from the corners.
@@ -509,6 +528,8 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
         },
         FLASH => Resolved::Flash {
             color: [v("red"), v("green"), v("blue")],
+            h_diffusion: v("h_diffusion"),
+            v_diffusion: v("v_diffusion"),
         },
         SPLIT => Resolved::Split {
             center: [v("center_x"), v("center_y")],
@@ -548,6 +569,29 @@ pub fn spiral_transform(turns: f32, zoom: f32, clockwise: bool, progress: f32) -
     let turn = (1.0 - progress) * turns * std::f32::consts::TAU;
     let (sin, cos) = (if clockwise { turn } else { -turn }).sin_cos();
     (cos, sin, zoom + (1.0 - zoom) * progress)
+}
+
+/// Half length in pixels of the horizontal or vertical blur the flash puts on the picture: it grows
+/// with the strength of the flash and the diffusion asked for, over a frame `size` pixels long.
+pub fn flash_blur_half(diffusion: f32, strength: f32, size: f32) -> f32 {
+    diffusion * strength * 0.1 * size
+}
+
+/// The picture with the flash's diffusion on it, or `None` when it is too small to show.
+fn diffuse(layer: &FrameBuffer, half_h: f32, half_v: f32) -> Option<FrameBuffer> {
+    if half_h <= 0.25 && half_v <= 0.25 {
+        return None;
+    }
+    let mut work = crate::vfx::Work::from_frame(layer);
+    if half_h > 0.25 {
+        work = crate::vfx::blur_along(&work, 1.0, 0.0, half_h);
+    }
+    if half_v > 0.25 {
+        work = crate::vfx::blur_along(&work, 0.0, 1.0, half_v);
+    }
+    let mut out = layer.clone();
+    work.write_to(&mut out);
+    Some(out)
 }
 
 /// How strong the flash is at `progress`: nothing at either end, full in the middle.
@@ -948,8 +992,18 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
                 }
             })
         }
-        Resolved::Flash { color } => {
+        Resolved::Flash {
+            color,
+            h_diffusion,
+            v_diffusion,
+        } => {
             let f = flash_strength(progress);
+            let soft = diffuse(
+                layer,
+                flash_blur_half(h_diffusion, f, w),
+                flash_blur_half(v_diffusion, f, h),
+            );
+            let layer = soft.as_ref().unwrap_or(layer);
             render(layer.width, layer.height, |x, y| {
                 let p = sample(layer, x as f32 + 0.5, y as f32 + 0.5);
                 let keep = progress * (1.0 - f);
@@ -973,6 +1027,36 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_flash_diffusion_blurs_the_picture_under_the_light() {
+        // A chessboard has edges in both directions
+        let mut layer = FrameBuffer::solid(80, 40, [0, 0, 0, 255]);
+        for y in 0..40usize {
+            for x in 0..80usize {
+                if (x / 10 + y / 10) % 2 == 0 {
+                    let i = (y * 80 + x) * 4;
+                    layer.rgba[i..i + 3].copy_from_slice(&[255, 255, 255]);
+                }
+            }
+        }
+        let flash = |h: f32, v: f32| {
+            resolve(
+                FLASH,
+                &BTreeMap::from([("h_diffusion".to_owned(), h), ("v_diffusion".to_owned(), v)]),
+            )
+            .unwrap()
+        };
+        let sharp = apply(&layer, &flash(0.0, 0.0), 0.25);
+        let soft = apply(&layer, &flash(1.0, 0.0), 0.25);
+        let softer = apply(&layer, &flash(1.0, 1.0), 0.25);
+        assert_ne!(sharp, soft);
+        assert_ne!(soft, softer);
+        // No diffusion at the ends, where there is no flash
+        assert_eq!(apply(&layer, &flash(1.0, 1.0), 1.0), layer);
+        assert_eq!(flash_blur_half(0.0, 1.0, 100.0), 0.0);
+        assert!((flash_blur_half(1.0, 0.5, 100.0) - 5.0).abs() < 1e-6);
+    }
 
     #[test]
     fn the_transitions_that_see_the_outgoing_layer_move_both_pictures() {
