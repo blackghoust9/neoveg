@@ -1,6 +1,7 @@
 //! "Renderizar como… (*Make Movie*)" dialog and non-blocking background render job state.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -174,7 +175,7 @@ impl RenderDialogState {
                                     );
                                 }
                                 Some(Ok(encoder)) => {
-                                    ui.weak(format!("Codificador do FFmpeg: {encoder}"));
+                                    ui.weak(tr_args("Codificador do FFmpeg: {}", &[&encoder]));
                                 }
                                 Some(Err(why)) => {
                                     ui.colored_label(ui.visuals().warn_fg_color, why);
@@ -203,9 +204,9 @@ impl RenderDialogState {
                                 );
                             });
                         } else {
-                            ui.weak(format!(
-                                "Resolução do projeto: {}×{} @ {:.2} qps",
-                                self.width, self.height, project_fps
+                            ui.weak(tr_args(
+                                "Resolução do projeto: {}×{} @ {} qps",
+                                &[&self.width, &self.height, &format!("{project_fps:.2}")],
                             ));
                         }
 
@@ -272,9 +273,14 @@ impl RenderDialogState {
                                 let eta = elapsed
                                     * ((st.total_frames - st.current_frame) as f64
                                         / st.current_frame as f64);
-                                ui.weak(format!(
-                                    "Quadro {} / {} · Decorrido {:.1}s · Restante ~{:.1}s",
-                                    st.current_frame, st.total_frames, elapsed, eta
+                                ui.weak(tr_args(
+                                    "Quadro {} / {} · Decorrido {}s · Restante ~{}s",
+                                    &[
+                                        &st.current_frame,
+                                        &st.total_frames,
+                                        &format!("{elapsed:.1}"),
+                                        &format!("{eta:.1}"),
+                                    ],
                                 ));
                             }
                             if ui.button(tr("Cancelar renderização")).clicked() {
@@ -285,16 +291,15 @@ impl RenderDialogState {
                         } else {
                             ui.colored_label(
                                 egui::Color32::from_rgb(102, 214, 132),
-                                format!(
-                                    "Concluído em {:.1}s: {}",
-                                    elapsed,
-                                    st.output_path.display()
+                                tr_args(
+                                    "Concluído em {}s: {}",
+                                    &[&format!("{elapsed:.1}"), &st.output_path.display()],
                                 ),
                             );
                             if let Some(loud) = &st.loudness_path {
-                                ui.weak(format!(
+                                ui.weak(tr_args(
                                     "Relatório BS.1770-4 salvo em: {}",
-                                    loud.display()
+                                    &[&loud.display()],
                                 ));
                             }
                         }

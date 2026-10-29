@@ -1,5 +1,6 @@
 //! Main application: dockable workspace (Preview, Timeline, Project Media, Trimmer, Master Bus).
 
+use neoveg_common::i18n::tr_args;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8640,7 +8641,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                             {
                                 match Theme::load(&path) {
                                     Ok(theme) => {
-                                        note = format!("Tema \"{}\" carregado", theme.name);
+                                        note = tr_args("Tema \"{}\" carregado", &[&theme.name]);
                                         prefs.theme = theme::CUSTOM_THEME_ID.into();
                                         prefs.theme_file = path.display().to_string();
                                     }
@@ -8659,8 +8660,8 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                                 .save_file()
                             {
                                 note = match current.save(&path) {
-                                    Ok(()) => format!("Tema salvo em {}", path.display()),
-                                    Err(e) => format!("Falha ao salvar o tema: {e}"),
+                                    Ok(()) => tr_args("Tema salvo em {}", &[&path.display()]),
+                                    Err(e) => tr_args("Falha ao salvar o tema: {}", &[&e]),
                                 };
                             }
                         }
@@ -8676,7 +8677,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         }
                     });
                     if prefs.theme == theme::CUSTOM_THEME_ID {
-                        ui.small(format!("Arquivo: {}", prefs.theme_file));
+                        ui.small(tr_args("Arquivo: {}", &[&prefs.theme_file]));
                     }
                     if !note.is_empty() {
                         ui.label(note.as_str());

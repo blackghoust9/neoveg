@@ -12,6 +12,7 @@
 
 use eframe::egui::{self, Color32};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_common::presets::{
     builtin_templates, clamp_size, display_aspect, frame_rate_of, resolution_named,
     CompositingGamma, Deinterlace, FieldOrder, HdrMode, MasterBusMode, MotionBlurType,
@@ -267,9 +268,12 @@ impl ProjectDialogState {
             ui.add(egui::DragValue::new(&mut d.width).range(SIZE_RANGE.0..=SIZE_RANGE.1));
             ui.label(tr("Altura:"));
             ui.add(egui::DragValue::new(&mut d.height).range(SIZE_RANGE.0..=SIZE_RANGE.1));
-            ui.weak(format!(
-                "aspecto de tela {:.3}:1",
-                display_aspect(d.width, d.height, d.pixel_aspect)
+            ui.weak(tr_args(
+                "aspecto de tela {}:1",
+                &[&format!(
+                    "{:.3}",
+                    display_aspect(d.width, d.height, d.pixel_aspect)
+                )],
             ));
         });
         combo(

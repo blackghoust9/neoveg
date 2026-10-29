@@ -119,9 +119,35 @@ pub fn tr(text: &'static str) -> &'static str {
         .unwrap_or(text)
 }
 
+/// Like [`tr`] for a text with `{}` markers, which are filled in order with `args`. The template is
+/// the Portuguese text with its markers (`"Quadro {} / {}"`), a translation keeps the same number of
+/// markers (a test checks it), and markers without an argument stay as written. Numbers with a given
+/// precision are formatted by the caller, since the order of the words changes with the language but
+/// the digits do not.
+pub fn tr_args(template: &'static str, args: &[&dyn std::fmt::Display]) -> String {
+    let text = tr(template);
+    let mut out = String::with_capacity(text.len() + 16 * args.len());
+    let mut args = args.iter();
+    let mut parts = text.split("{}");
+    if let Some(first) = parts.next() {
+        out.push_str(first);
+    }
+    for part in parts {
+        match args.next() {
+            Some(arg) => out.push_str(&arg.to_string()),
+            None => out.push_str("{}"),
+        }
+        out.push_str(part);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The language is one global, so the tests that change it run one at a time.
+    static LANGUAGE_TESTS: Mutex<()> = Mutex::new(());
 
     #[test]
     fn every_embedded_catalog_is_valid_json_with_text_for_text_entries() {
@@ -157,7 +183,7 @@ mod tests {
 
     #[test]
     fn portuguese_and_unknown_languages_keep_the_text_and_a_known_one_translates_it() {
-        // one test touches the global language, so it stays in one test
+        let _one_at_a_time = LANGUAGE_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         set_language("pt-BR");
         assert_eq!(tr("Arquivo"), "Arquivo");
         set_language("en-US");
@@ -185,5 +211,41 @@ mod tests {
     fn the_offered_languages_match_the_preferences_selector() {
         assert_eq!(LANGUAGES[0], "pt-BR");
         assert_eq!(LANGUAGES.len(), 8);
+    }
+
+    #[test]
+    fn a_translation_keeps_the_markers_of_its_text() {
+        for (tag, text) in EMBEDDED {
+            let map: HashMap<String, String> = serde_json::from_str(text).unwrap();
+            for (from, to) in &map {
+                assert_eq!(
+                    from.matches("{}").count(),
+                    to.matches("{}").count(),
+                    "{tag}: {from:?} e a tradução têm números diferentes de {{}}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn arguments_fill_the_markers_in_order_in_every_language() {
+        let _one_at_a_time = LANGUAGE_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        set_language("pt-BR");
+        assert_eq!(tr_args("Arquivo: {}", &[&"a.json"]), "Arquivo: a.json");
+        set_language("en-US");
+        assert_eq!(tr_args("Arquivo: {}", &[&"a.json"]), "File: a.json");
+        assert_eq!(
+            tr_args(
+                "Quadro {} / {} · Decorrido {}s · Restante ~{}s",
+                &[&3, &10, &"1.5", &"2.0"]
+            ),
+            "Frame 3 / 10 · Elapsed 1.5s · Remaining ~2.0s"
+        );
+        // a marker without an argument stays visible, an extra argument is ignored
+        assert_eq!(tr_args("Arquivo: {}", &[]), "File: {}");
+        assert_eq!(tr_args("Arquivo: {}", &[&1, &2]), "File: 1");
+        // a text that has no translation is filled as written
+        assert_eq!(tr_args("Texto novo {}", &[&7]), "Texto novo 7");
+        set_language("pt-BR");
     }
 }

@@ -224,5 +224,15 @@
   "Contorno (% da altura)": "Outline (% of height)",
   "Distância da base (% da altura)": "Distance from the bottom (% of height)",
   "Largura do texto (% da largura)": "Text width (% of width)",
-  "Restaurar o padrão": "Restore default"
+  "Restaurar o padrão": "Restore default",
+  "Codificador do FFmpeg: {}": "FFmpeg encoder: {}",
+  "Resolução do projeto: {}×{} @ {} qps": "Project resolution: {}×{} @ {} fps",
+  "Quadro {} / {} · Decorrido {}s · Restante ~{}s": "Frame {} / {} · Elapsed {}s · Remaining ~{}s",
+  "Concluído em {}s: {}": "Finished in {}s: {}",
+  "Relatório BS.1770-4 salvo em: {}": "BS.1770-4 report saved to: {}",
+  "aspecto de tela {}:1": "display aspect {}:1",
+  "Tema \"{}\" carregado": "Theme \"{}\" loaded",
+  "Tema salvo em {}": "Theme saved to {}",
+  "Falha ao salvar o tema: {}": "Failed to save the theme: {}",
+  "Arquivo: {}": "File: {}"
 }

@@ -224,5 +224,15 @@
   "Contorno (% da altura)": "Контур (% высоты)",
   "Distância da base (% da altura)": "Расстояние от низа (% высоты)",
   "Largura do texto (% da largura)": "Ширина текста (% ширины)",
-  "Restaurar o padrão": "Восстановить по умолчанию"
+  "Restaurar o padrão": "Восстановить по умолчанию",
+  "Codificador do FFmpeg: {}": "Кодировщик FFmpeg: {}",
+  "Resolução do projeto: {}×{} @ {} qps": "Разрешение проекта: {}×{} @ {} к/с",
+  "Quadro {} / {} · Decorrido {}s · Restante ~{}s": "Кадр {} / {} · Прошло {} с · Осталось ~{} с",
+  "Concluído em {}s: {}": "Готово за {} с: {}",
+  "Relatório BS.1770-4 salvo em: {}": "Отчёт BS.1770-4 сохранён в: {}",
+  "aspecto de tela {}:1": "формат экрана {}:1",
+  "Tema \"{}\" carregado": "Тема «{}» загружена",
+  "Tema salvo em {}": "Тема сохранена в {}",
+  "Falha ao salvar o tema: {}": "Не удалось сохранить тему: {}",
+  "Arquivo: {}": "Файл: {}"
 }

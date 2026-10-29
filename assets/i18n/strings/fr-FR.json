@@ -224,5 +224,15 @@
   "Contorno (% da altura)": "Contour (% de la hauteur)",
   "Distância da base (% da altura)": "Distance du bas (% de la hauteur)",
   "Largura do texto (% da largura)": "Largeur du texte (% de la largeur)",
-  "Restaurar o padrão": "Rétablir la valeur par défaut"
+  "Restaurar o padrão": "Rétablir la valeur par défaut",
+  "Codificador do FFmpeg: {}": "Encodeur FFmpeg : {}",
+  "Resolução do projeto: {}×{} @ {} qps": "Résolution du projet : {}×{} @ {} i/s",
+  "Quadro {} / {} · Decorrido {}s · Restante ~{}s": "Image {} / {} · Écoulé {}s · Restant ~{}s",
+  "Concluído em {}s: {}": "Terminé en {}s : {}",
+  "Relatório BS.1770-4 salvo em: {}": "Rapport BS.1770-4 enregistré dans : {}",
+  "aspecto de tela {}:1": "format d'affichage {}:1",
+  "Tema \"{}\" carregado": "Thème « {} » chargé",
+  "Tema salvo em {}": "Thème enregistré dans {}",
+  "Falha ao salvar o tema: {}": "Échec de l'enregistrement du thème : {}",
+  "Arquivo: {}": "Fichier : {}"
 }

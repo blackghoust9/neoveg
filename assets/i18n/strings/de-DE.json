@@ -224,5 +224,15 @@
   "Contorno (% da altura)": "Kontur (% der Höhe)",
   "Distância da base (% da altura)": "Abstand vom unteren Rand (% der Höhe)",
   "Largura do texto (% da largura)": "Textbreite (% der Breite)",
-  "Restaurar o padrão": "Standard wiederherstellen"
+  "Restaurar o padrão": "Standard wiederherstellen",
+  "Codificador do FFmpeg: {}": "FFmpeg-Encoder: {}",
+  "Resolução do projeto: {}×{} @ {} qps": "Projektauflösung: {}×{} @ {} Bilder/s",
+  "Quadro {} / {} · Decorrido {}s · Restante ~{}s": "Bild {} / {} · Verstrichen {}s · Verbleibend ~{}s",
+  "Concluído em {}s: {}": "Fertig in {}s: {}",
+  "Relatório BS.1770-4 salvo em: {}": "BS.1770-4-Bericht gespeichert unter: {}",
+  "aspecto de tela {}:1": "Anzeigeseitenverhältnis {}:1",
+  "Tema \"{}\" carregado": "Design „{}“ geladen",
+  "Tema salvo em {}": "Design gespeichert unter {}",
+  "Falha ao salvar o tema: {}": "Design konnte nicht gespeichert werden: {}",
+  "Arquivo: {}": "Datei: {}"
 }
