@@ -231,6 +231,45 @@ fn mirror(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
+// a = strength, b/c/d = filter colour
+@compute @workgroup_size(8, 8, 1)
+fn sepia(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) {
+        dst[i] = s;
+        return;
+    }
+    let straight = s.xyz / s.w;
+    let l = straight.x * 0.2126 + straight.y * 0.7152 + straight.z * 0.0722;
+    let tint = vec3<f32>(p.b, p.c, p.d);
+    var toned = tint * 2.0 * l;
+    if (l >= 0.5) {
+        toned = tint + (vec3<f32>(1.0) - tint) * (2.0 * l - 1.0);
+    }
+    let c = (straight + p.a * (toned - straight)) * s.w;
+    dst[i] = vec4<f32>(c.x, c.y, c.z, s.w);
+}
+
+// a/b = centre in pixels (y down), c = ratio, d/e = radii in pixels
+@compute @workgroup_size(8, 8, 1)
+fn swirl(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let dx = f32(id.x) + 0.5 - p.a;
+    let dy = f32(id.y) + 0.5 - p.b;
+    let r = sqrt(pow(dx / p.d, 2.0) + pow(dy / p.e, 2.0));
+    if (r >= 1.0) {
+        dst[i] = src[i];
+        return;
+    }
+    let turn = p.c * 6.283185307179586 * (1.0 - r) * (1.0 - r);
+    let sn = sin(turn);
+    let cs = cos(turn);
+    dst[i] = sample_bilinear(p.a + cs * dx - sn * dy, p.b + sn * dx + cs * dy);
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -369,6 +408,8 @@ pub struct VfxGpu {
     brightness_contrast: wgpu::ComputePipeline,
     pixelate: wgpu::ComputePipeline,
     mirror: wgpu::ComputePipeline,
+    sepia: wgpu::ComputePipeline,
+    swirl: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -403,6 +444,8 @@ enum Pass {
     BrightnessContrast,
     Pixelate,
     Mirror,
+    Sepia,
+    Swirl,
     TransMask,
     TransSlide,
     TransGrow,
@@ -469,6 +512,8 @@ impl VfxGpu {
             brightness_contrast: make("brightness_contrast"),
             pixelate: make("pixelate"),
             mirror: make("mirror"),
+            sepia: make("sepia"),
+            swirl: make("swirl"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -493,6 +538,8 @@ impl VfxGpu {
             Pass::BrightnessContrast => &self.brightness_contrast,
             Pass::Pixelate => &self.pixelate,
             Pass::Mirror => &self.mirror,
+            Pass::Sepia => &self.sepia,
+            Pass::Swirl => &self.swirl,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -819,6 +866,29 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Mirror, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::Sepia { tint, strength } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = strength;
+                    (p.b, p.c, p.d) = (tint[0], tint[1], tint[2]);
+                    run(&mut encoder, Pass::Sepia, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Swirl {
+                    center,
+                    ratio,
+                    size,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = center[0] * w as f32;
+                    p.b = (1.0 - center[1]) * h as f32;
+                    p.c = ratio;
+                    p.d = size[0] * h as f32;
+                    p.e = size[1] * h as f32;
+                    run(&mut encoder, Pass::Swirl, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -863,7 +933,7 @@ mod tests {
     use crate::generators::smpte_color_bars;
     use crate::vfx::{
         apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
-        GAUSSIAN_BLUR, INVERT, MIRROR, PIXELATE, SHARPEN, UNSHARP_MASK, VIGNETTE,
+        GAUSSIAN_BLUR, INVERT, MIRROR, PIXELATE, SEPIA, SHARPEN, SWIRL, UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -943,6 +1013,15 @@ mod tests {
             VideoEffect::new(MIRROR)
                 .with("angle", 270.0)
                 .with("center_y", 0.7),
+            VideoEffect::new(SEPIA),
+            VideoEffect::new(SEPIA)
+                .with("strength", 0.4)
+                .with("blue", 0.6),
+            VideoEffect::new(SWIRL),
+            VideoEffect::new(SWIRL)
+                .with("ratio", -1.2)
+                .with("center_x", 0.3)
+                .with("h_size", 0.8),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();

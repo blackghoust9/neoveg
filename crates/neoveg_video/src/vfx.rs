@@ -58,6 +58,8 @@ pub const INVERT: &str = "invert";
 pub const BRIGHTNESS_CONTRAST: &str = "brightness_contrast";
 pub const PIXELATE: &str = "pixelate";
 pub const MIRROR: &str = "mirror";
+pub const SEPIA: &str = "sepia";
+pub const SWIRL: &str = "swirl";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -244,6 +246,90 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: SEPIA,
+        label: "Sépia",
+        params: &[
+            ParamSpec {
+                id: "red",
+                label: "Vermelho do filtro",
+                min: 0.0,
+                max: 1.0,
+                default: 0.70,
+                percent: true,
+            },
+            ParamSpec {
+                id: "green",
+                label: "Verde do filtro",
+                min: 0.0,
+                max: 1.0,
+                default: 0.50,
+                percent: true,
+            },
+            ParamSpec {
+                id: "blue",
+                label: "Azul do filtro",
+                min: 0.0,
+                max: 1.0,
+                default: 0.30,
+                percent: true,
+            },
+            ParamSpec {
+                id: "strength",
+                label: "Intensidade",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: SWIRL,
+        label: "Redemoinho",
+        params: &[
+            ParamSpec {
+                id: "center_x",
+                label: "Centro horizontal",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "center_y",
+                label: "Centro vertical",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "ratio",
+                label: "Razão",
+                min: -3.0,
+                max: 3.0,
+                default: 0.5,
+                percent: false,
+            },
+            ParamSpec {
+                id: "h_size",
+                label: "Largura",
+                min: 0.01,
+                max: 2.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "v_size",
+                label: "Altura",
+                min: 0.01,
+                max: 2.0,
+                default: 0.5,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -330,6 +416,19 @@ impl VideoEffect {
                 angle: self.value(spec, "angle"),
                 center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
             },
+            SEPIA => Resolved::Sepia {
+                tint: [
+                    self.value(spec, "red"),
+                    self.value(spec, "green"),
+                    self.value(spec, "blue"),
+                ],
+                strength: self.value(spec, "strength"),
+            },
+            SWIRL => Resolved::Swirl {
+                center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
+                ratio: self.value(spec, "ratio"),
+                size: [self.value(spec, "h_size"), self.value(spec, "v_size")],
+            },
             _ => return None,
         })
     }
@@ -387,6 +486,17 @@ pub enum Resolved {
         angle: f32,
         center: [f32; 2],
     },
+    /// A filter colour on the luma of the picture, `strength` `0..=1` of the way.
+    Sepia {
+        tint: [f32; 3],
+        strength: f32,
+    },
+    /// See [`swirl`]; the size is in fractions of the frame height.
+    Swirl {
+        center: [f32; 2],
+        ratio: f32,
+        size: [f32; 2],
+    },
 }
 
 impl Resolved {
@@ -405,6 +515,8 @@ impl Resolved {
             // Blocks of a single pixel are the picture itself
             Resolved::Pixelate { h_size, v_size } => h_size <= 0.0 && v_size <= 0.0,
             Resolved::Mirror { .. } => false,
+            Resolved::Sepia { strength, .. } => strength <= 0.0,
+            Resolved::Swirl { ratio, .. } => ratio == 0.0,
         }
     }
 }
@@ -829,6 +941,67 @@ fn mirror(work: &Work, angle: f32, center: [f32; 2]) -> Work {
     }
 }
 
+/// The colour a grey of luma `l` takes with the sepia filter: black stays black, white stays white
+/// and the middle is the filter colour.
+pub fn sepia_tone(l: f32, tint: [f32; 3]) -> [f32; 3] {
+    let mut out = [0.0; 3];
+    for c in 0..3 {
+        out[c] = if l < 0.5 {
+            tint[c] * 2.0 * l
+        } else {
+            tint[c] + (1.0 - tint[c]) * (2.0 * l - 1.0)
+        };
+    }
+    out
+}
+
+fn sepia(work: &mut Work, tint: [f32; 3], strength: f32) {
+    for p in &mut work.px {
+        let a = p[3];
+        if a <= 1e-6 {
+            continue;
+        }
+        let straight = [p[0] / a, p[1] / a, p[2] / a];
+        let l = straight[0] * LUMA[0] + straight[1] * LUMA[1] + straight[2] * LUMA[2];
+        let toned = sepia_tone(l, tint);
+        for c in 0..3 {
+            p[c] = (straight[c] + strength * (toned[c] - straight[c])) * a;
+        }
+    }
+}
+
+/// Twists the picture around `center` (fractions of the frame, lower-left origin). `size` is the
+/// radius of the swirl on each axis as a fraction of the frame height; the turn at the centre is
+/// `ratio` full turns and falls to nothing at the edge of that ellipse.
+fn swirl(work: &Work, center: [f32; 2], ratio: f32, size: [f32; 2]) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (cx, cy) = (center[0] * w as f32, (1.0 - center[1]) * h as f32);
+    let (rx, ry) = (size[0] * h as f32, size[1] * h as f32);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            let r = ((dx / rx).powi(2) + (dy / ry).powi(2)).sqrt();
+            if r >= 1.0 {
+                px.push(work.px[y * w + x]);
+                continue;
+            }
+            let turn = ratio * std::f32::consts::TAU * (1.0 - r) * (1.0 - r);
+            let (sin, cos) = turn.sin_cos();
+            px.push(sample_work(
+                work,
+                cx + cos * dx - sin * dy,
+                cy + sin * dx + cos * dy,
+            ));
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -851,6 +1024,12 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
         } => brightness_contrast(work, brightness, contrast),
         Resolved::Pixelate { h_size, v_size } => *work = pixelate(work, h_size, v_size),
         Resolved::Mirror { angle, center } => *work = mirror(work, angle, center),
+        Resolved::Sepia { tint, strength } => sepia(work, tint, strength),
+        Resolved::Swirl {
+            center,
+            ratio,
+            size,
+        } => *work = swirl(work, center, ratio, size),
     }
 }
 
@@ -1052,6 +1231,48 @@ mod tests {
             .iter()
             .all(|p| p[3] == 255 || p[3] == 0));
         assert_eq!(edge.rgba[3], 255, "the kept side is the one below the line");
+    }
+
+    #[test]
+    fn sepia_tints_greys_and_keeps_black_white_and_alpha_and_the_swirl_leaves_the_far_corners() {
+        let mut grey = FrameBuffer {
+            width: 3,
+            height: 1,
+            rgba: vec![0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 128],
+        };
+        apply_chain_cpu(&mut grey, &[VideoEffect::new(SEPIA)]);
+        assert_eq!(grey.rgba[..3], [0, 0, 0], "black stays black");
+        let mid = &grey.rgba[4..7];
+        assert!(
+            mid[0] > mid[1] && mid[1] > mid[2],
+            "the middle is warm: {mid:?}"
+        );
+        assert_eq!(
+            grey.rgba[8..12],
+            [255, 255, 255, 128],
+            "white and alpha stay"
+        );
+        let mut off = grey.clone();
+        apply_chain_cpu(&mut off, &[VideoEffect::new(SEPIA).with("strength", 0.0)]);
+        assert_eq!(off, grey, "no strength, no change");
+        // A swirl turns the middle and leaves what is outside its radius
+        let original = smpte_color_bars(120, 60);
+        let mut twisted = original.clone();
+        apply_chain_cpu(
+            &mut twisted,
+            &[VideoEffect::new(SWIRL)
+                .with("h_size", 0.4)
+                .with("v_size", 0.4)],
+        );
+        assert_ne!(twisted, original);
+        assert_eq!(
+            twisted.rgba[..4],
+            original.rgba[..4],
+            "the corner is far away"
+        );
+        let mut none = original.clone();
+        apply_chain_cpu(&mut none, &[VideoEffect::new(SWIRL).with("ratio", 0.0)]);
+        assert_eq!(none, original);
     }
 
     #[test]
