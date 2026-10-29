@@ -6,6 +6,7 @@
 
 use eframe::egui::{self, RichText};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_common::timecode::seconds_to_timecode;
 use neoveg_engine::details::DetailRow;
 use neoveg_engine::selection::EventRef;
@@ -31,13 +32,13 @@ pub fn show(
     if !*open {
         return actions;
     }
-    crate::dialogs::tool_window(ctx, "Detalhes de edição")
+    crate::dialogs::tool_window(ctx, tr("Detalhes de edição"))
         .open(open)
         .default_width(760.0)
         .default_height(380.0)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("{} eventos", rows.len()));
+                ui.label(tr_args("{} eventos", &[&rows.len()]));
                 if ui.button(tr("Copiar tabela")).clicked() {
                     actions.push(DetailsAction::Copy);
                 }
@@ -58,7 +59,7 @@ pub fn show(
                             "Fonte",
                             "Opções",
                         ] {
-                            ui.label(RichText::new(heading).strong());
+                            ui.label(RichText::new(tr(heading)).strong());
                         }
                         ui.end_row();
                         let tc = |t: f64| seconds_to_timecode(t, fps, drop_frame);

@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 14] = [
+pub const OUTPUTS: [&str; 18] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -38,6 +38,10 @@ pub const OUTPUTS: [&str; 14] = [
     "ui_velocity.png",
     "ui_preferences.png",
     "ui_render_dialog.png",
+    "ui_color_correction.png",
+    "ui_chroma_key.png",
+    "ui_inspector.png",
+    "ui_metronome.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -207,6 +211,26 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, default_dock());
         let image = gpu.capture(&ctx, [1280, 860], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[13]))?;
+
+        // 15 to 18. The tool windows: color correction, chroma key, event inspector and metronome
+        for (index, open) in [
+            (14, "grade"),
+            (15, "chroma"),
+            (16, "inspector"),
+            (17, "metronome"),
+        ] {
+            let ctx = new_context();
+            let mut state = demo_project();
+            match open {
+                "grade" => state.show_grade = true,
+                "chroma" => state.show_chroma = true,
+                "inspector" => state.show_inspector = true,
+                _ => state.show_metronome = true,
+            }
+            let mut app = headless_app(state, default_dock());
+            let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
+            save(&image, &dir.join(OUTPUTS[index]))?;
+        }
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);

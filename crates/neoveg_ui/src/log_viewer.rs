@@ -153,7 +153,7 @@ impl LogViewerState {
 
         let mut is_open = self.open;
         let mut force_refresh = false;
-        crate::dialogs::tool_window(ctx, "Visualizador de Logs")
+        crate::dialogs::tool_window(ctx, tr("Visualizador de Logs"))
             .open(&mut is_open)
             .default_size([760.0, 440.0])
             .resizable(true)
@@ -195,9 +195,9 @@ impl LogViewerState {
                         self.copied_until = None;
                     }
                     let copy_label = if showing_copied {
-                        "Copiado!"
+                        tr("Copiado!")
                     } else {
-                        "Copiar Logs"
+                        tr("Copiar Logs")
                     };
                     if ui.button(copy_label).clicked() {
                         let joined = lines.join("\n");

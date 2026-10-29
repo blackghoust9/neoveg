@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-const EXPECTED: [(&str, u32, u32); 14] = [
+const EXPECTED: [(&str, u32, u32); 18] = [
     ("ui_main_layout.png", 1600, 900),
     ("ui_timeline_events.png", 1400, 520),
     ("ui_multi_project_tabs.png", 1600, 900),
@@ -31,6 +31,10 @@ const EXPECTED: [(&str, u32, u32); 14] = [
     ("ui_velocity.png", 1600, 900),
     ("ui_preferences.png", 1280, 760),
     ("ui_render_dialog.png", 1280, 860),
+    ("ui_color_correction.png", 1280, 760),
+    ("ui_chroma_key.png", 1280, 760),
+    ("ui_inspector.png", 1280, 760),
+    ("ui_metronome.png", 1280, 760),
 ];
 
 fn output_dir() -> PathBuf {

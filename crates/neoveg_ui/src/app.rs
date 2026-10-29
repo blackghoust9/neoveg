@@ -7558,37 +7558,45 @@ fn grade_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    crate::dialogs::tool_window(ctx, "Correção de cor")
+    crate::dialogs::tool_window(ctx, tr("Correção de cor"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
             let rows: [GradeRow; 7] = [
-                ("Exposição", &mut grade.exposure, -4.0..=4.0, 0.0, |v| {
-                    format!("{v:+.2} EV")
-                }),
                 (
-                    "Temperatura",
+                    tr("Exposição"),
+                    &mut grade.exposure,
+                    -4.0..=4.0,
+                    0.0,
+                    |v| format!("{v:+.2} EV"),
+                ),
+                (
+                    tr("Temperatura"),
                     &mut grade.temperature,
                     -1.0..=1.0,
                     0.0,
                     |v| format!("{:+.0}", v * 100.0),
                 ),
-                ("Matiz (tint)", &mut grade.tint, -1.0..=1.0, 0.0, |v| {
+                (tr("Matiz (tint)"), &mut grade.tint, -1.0..=1.0, 0.0, |v| {
                     format!("{:+.0}", v * 100.0)
                 }),
-                ("Pretos (lift)", &mut grade.lift, -0.5..=0.5, 0.0, |v| {
+                (tr("Pretos (lift)"), &mut grade.lift, -0.5..=0.5, 0.0, |v| {
                     format!("{:+.0}", v * 200.0)
                 }),
-                ("Contraste", &mut grade.contrast, -1.0..=1.0, 0.0, |v| {
+                (tr("Contraste"), &mut grade.contrast, -1.0..=1.0, 0.0, |v| {
                     format!("{:+.0}", v * 100.0)
                 }),
-                ("Gama", &mut grade.gamma, 0.2..=3.0, 1.0, |v| {
+                (tr("Gama"), &mut grade.gamma, 0.2..=3.0, 1.0, |v| {
                     format!("{v:.2}")
                 }),
-                ("Saturação", &mut grade.saturation, -1.0..=1.0, 0.0, |v| {
-                    format!("{:+.0}", v * 100.0)
-                }),
+                (
+                    tr("Saturação"),
+                    &mut grade.saturation,
+                    -1.0..=1.0,
+                    0.0,
+                    |v| format!("{:+.0}", v * 100.0),
+                ),
             ];
             for (label, value, range, default, format) in rows {
                 ui.horizontal(|ui| {
@@ -7632,13 +7640,13 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
     let mut finished = false;
     let mut changed = false;
     let mut reset = false;
-    crate::dialogs::tool_window(ctx, "Chaveamento de croma (Chroma Key)")
+    crate::dialogs::tool_window(ctx, tr("Chaveamento de croma (Chroma Key)"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
             if ui
-                .checkbox(&mut key.enabled, "Ativar chaveamento de croma")
+                .checkbox(&mut key.enabled, tr("Ativar chaveamento de croma"))
                 .changed()
             {
                 changed = true;
@@ -7667,7 +7675,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
             let def = ChromaKey::default();
             let rows: [GradeRow; 3] = [
                 (
-                    "Similaridade",
+                    tr("Similaridade"),
                     &mut key.similarity,
                     0.01..=0.75,
                     def.similarity,
@@ -7681,7 +7689,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
                     |v| format!("{:.0} %", v * 100.0),
                 ),
                 (
-                    "Supressão de spill",
+                    tr("Supressão de spill"),
                     &mut key.spill,
                     0.0..=1.0,
                     def.spill,
@@ -7700,7 +7708,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
                 });
             }
             if ui
-                .checkbox(&mut key.show_matte, "Visualizar máscara (matte P&B)")
+                .checkbox(&mut key.show_matte, tr("Visualizar máscara (matte P&B)"))
                 .changed()
             {
                 changed = true;
@@ -7739,7 +7747,7 @@ fn metronome_window(ctx: &egui::Context, state: &mut AppState) {
         state.project.settings.bpm,
         state.project.settings.beats_per_bar,
     );
-    crate::dialogs::tool_window(ctx, "Metrônomo")
+    crate::dialogs::tool_window(ctx, tr("Metrônomo"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -7816,7 +7824,7 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let fps = state.project.settings.fps;
     let (mut insert, mut cancel) = (false, false);
-    egui::Window::new("Inserir tempo")
+    egui::Window::new(tr("Inserir tempo"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -7862,7 +7870,7 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let fps = state.project.settings.fps;
     let (mut go, mut cancel) = (false, false);
-    egui::Window::new("Ir para o tempo")
+    egui::Window::new(tr("Ir para o tempo"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -8722,7 +8730,7 @@ fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
     }
     let (mut recover, mut discard, mut discard_all) = (None, None, false);
     let now = autosave::unix_now();
-    egui::Window::new("Recuperar projetos")
+    egui::Window::new(tr("Recuperar projetos"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -8769,14 +8777,14 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     }
     let (mut save, mut discard, mut cancel) = (false, false, false);
-    egui::Window::new("Alterações não salvas")
+    egui::Window::new(tr("Alterações não salvas"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            ui.label(format!(
+            ui.label(tr_args(
                 "Salvar as alterações em \"{}\" antes de sair?",
-                state.project.name
+                &[&state.project.name],
             ));
             ui.horizontal(|ui| {
                 save = ui.button(tr("Salvar e sair")).clicked();
@@ -8812,7 +8820,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
     let mut header: Option<event_header::HeaderButton> = None;
-    crate::dialogs::tool_window(ctx, "Inspetor")
+    crate::dialogs::tool_window(ctx, tr("Inspetor"))
         .open(&mut open)
         .show(ctx, |ui| {
             let selected = state.selection.primary().and_then(|(track_id, event_id)| {
@@ -8858,13 +8866,13 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 }
             });
             let what = if ev.adjustment {
-                "Evento de ajuste (sem mídia: os efeitos valem para as faixas abaixo)"
+                tr("Evento de ajuste (sem mídia: os efeitos valem para as faixas abaixo)")
             } else if generated {
-                "Mídia gerada"
+                tr("Mídia gerada")
             } else if kind == TrackKind::Video {
-                "Evento de vídeo"
+                tr("Evento de vídeo")
             } else {
-                "Evento de áudio"
+                tr("Evento de áudio")
             };
             ui.weak(what);
             if let Some(media) = ev
@@ -8872,9 +8880,15 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 .and_then(|id| state.project.media_pool.iter().find(|m| m.id == id))
             {
                 ui.weak(&media.path);
-                ui.weak(format!("Duração da mídia: {:.3} s", media.duration_seconds));
+                ui.weak(tr_args(
+                    "Duração da mídia: {} s",
+                    &[&format!("{:.3}", media.duration_seconds)],
+                ));
             }
-            ui.label(format!("Corte de entrada: {:.3} s", g.trim_in));
+            ui.label(tr_args(
+                "Corte de entrada: {} s",
+                &[&format!("{:.3}", g.trim_in)],
+            ));
             ui.separator();
 
             let mut new = g;
@@ -8984,11 +8998,11 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             // Switches (the ones that make sense for the kind of event)
             ui.horizontal_wrapped(|ui| {
                 for (label, which, audio_only) in [
-                    ("Mudo", Switch::Mute, false),
-                    ("Travado", Switch::Lock, false),
-                    ("Laço", Switch::Loop, false),
-                    ("Inverter fase", Switch::InvertPhase, true),
-                    ("Normalizar", Switch::Normalize, true),
+                    (tr("Mudo"), Switch::Mute, false),
+                    (tr("Travado"), Switch::Lock, false),
+                    (tr("Laço"), Switch::Loop, false),
+                    (tr("Inverter fase"), Switch::InvertPhase, true),
+                    (tr("Normalizar"), Switch::Normalize, true),
                 ] {
                     if audio_only && kind != TrackKind::Audio {
                         continue;

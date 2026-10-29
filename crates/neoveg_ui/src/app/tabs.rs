@@ -6,6 +6,7 @@
 //! and `self.timeline` unchanged.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_common::i18n::tr_text;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -508,12 +509,12 @@ pub(super) fn close_tab_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let title = state.tab_title(id);
     let (mut save, mut discard, mut cancel) = (false, false, false);
-    egui::Window::new("Fechar projeto")
+    egui::Window::new(tr("Fechar projeto"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            ui.label(format!("\"{title}\" tem alterações não salvas."));
+            ui.label(tr_args("\"{}\" tem alterações não salvas.", &[&title]));
             ui.horizontal(|ui| {
                 save = ui.button(tr("Salvar e fechar")).clicked();
                 discard = ui.button(tr("Descartar")).clicked();

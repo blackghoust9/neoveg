@@ -158,7 +158,7 @@ impl NotesState {
             return actions;
         }
         let mut open = self.open;
-        crate::dialogs::tool_window(ctx, "Notas do projeto")
+        crate::dialogs::tool_window(ctx, tr("Notas do projeto"))
             .open(&mut open)
             .default_width(520.0)
             .default_height(420.0)
@@ -246,13 +246,17 @@ impl NotesState {
                 actions.push(NoteAction::Jump(id));
             }
             if ui
-                .small_button("Cursor")
+                .small_button(tr("Cursor"))
                 .on_hover_text(tr("Usar o tempo atual do cursor"))
                 .clicked()
             {
                 actions.push(NoteAction::UpdateToCursor(id));
             }
-            let label = if note.resolved { "Reabrir" } else { "Resolver" };
+            let label = if note.resolved {
+                tr("Reabrir")
+            } else {
+                tr("Resolver")
+            };
             if ui.small_button(label).clicked() {
                 actions.push(NoteAction::ToggleResolved(id));
             }
