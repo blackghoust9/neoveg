@@ -37,6 +37,7 @@ use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo, ProjectSettings};
 use neoveg_common::theme::{self, Theme};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
+use neoveg_engine::aaf;
 use neoveg_engine::attributes::{self, Attributes};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::captions;
@@ -803,6 +804,97 @@ impl AppState {
                 duration: m.duration_seconds,
             })
             .collect()
+    }
+
+    /// File > Export AAF: the whole timeline for Avid, Premiere Pro, DaVinci Resolve or Pro Tools.
+    fn export_aaf(&mut self) {
+        let media = self.xml_media_pool();
+        let settings = &self.project.settings;
+        let project = aaf::AafProject {
+            name: &self.project.name,
+            fps: settings.fps,
+            width: settings.width,
+            height: settings.height,
+            sample_rate: settings.sample_rate,
+        };
+        let (bytes, warnings) = match aaf::export(&self.timeline, &media, &project, false) {
+            Ok(done) => done,
+            Err(e) => {
+                self.status = format!("Não foi possível exportar o AAF: {e}");
+                return;
+            }
+        };
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("AAF (Advanced Authoring Format)", &["aaf"])
+            .set_file_name(format!("{}.aaf", self.project.name))
+            .save_file()
+        else {
+            return;
+        };
+        for warning in &warnings {
+            tracing::warn!("[WARN] AAF: {warning}");
+        }
+        match std::fs::write(&path, bytes) {
+            Ok(()) => {
+                self.status = if warnings.is_empty() {
+                    format!("AAF exportado: {}", path.display())
+                } else {
+                    format!(
+                        "AAF exportado: {} ({} aviso(s): {})",
+                        path.display(),
+                        warnings.len(),
+                        warnings.join("; ")
+                    )
+                };
+            }
+            Err(e) => {
+                tracing::error!("[ERROR] cannot write {}: {e}", path.display());
+                self.status = format!("Falha ao exportar o AAF: {e}");
+            }
+        }
+    }
+
+    /// File > Import AAF: places the clips whose media is in the project, as one undo step.
+    fn import_aaf(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("AAF (Advanced Authoring Format)", &["aaf"])
+            .pick_file()
+        else {
+            return;
+        };
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                tracing::error!("[ERROR] cannot read {}: {e}", path.display());
+                self.status = format!("Não foi possível ler o AAF: {e}");
+                return;
+            }
+        };
+        let doc = match aaf::parse(&bytes) {
+            Ok(doc) => doc,
+            Err(e) => {
+                tracing::warn!("[WARN] {}: {e}", path.display());
+                self.status = format!("Não foi possível abrir o AAF: {e}");
+                return;
+            }
+        };
+        for warning in &doc.warnings {
+            tracing::warn!("[WARN] {}: {warning}", path.display());
+        }
+        let pool = self.project.media_pool.clone();
+        let imported =
+            fcp7::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        self.status = match imported {
+            Some((command, report)) => {
+                self.history.execute(&mut self.timeline, command);
+                format!(
+                    "AAF importado: {} clipe(s); {} sem mídia no projeto",
+                    report.added,
+                    report.skipped.len()
+                )
+            }
+            None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
+        };
     }
 
     /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
@@ -6611,6 +6703,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     state.import_otio();
                     ui.close_menu();
                 }
+                if ui.button("AAF (Advanced Authoring Format)…").clicked() {
+                    state.import_aaf();
+                    ui.close_menu();
+                }
                 ui.separator();
                 if ui.button("Legendas (SRT, WebVTT)…").clicked() {
                     state.import_captions();
@@ -6652,6 +6748,16 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     .clicked()
                 {
                     state.export_otio();
+                    ui.close_menu();
+                }
+                if ui
+                    .add_enabled(
+                        has_events,
+                        egui::Button::new("AAF (Advanced Authoring Format)…"),
+                    )
+                    .clicked()
+                {
+                    state.export_aaf();
                     ui.close_menu();
                 }
                 ui.separator();

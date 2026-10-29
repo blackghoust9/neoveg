@@ -2914,6 +2914,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neoveg_aaf"
+version = "2.1.0"
+dependencies = [
+ "neoveg_cfb",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "neoveg_audio"
 version = "2.1.0"
 dependencies = [
@@ -2934,6 +2943,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "neoveg_cfb"
+version = "2.1.0"
+
+[[package]]
 name = "neoveg_common"
 version = "2.1.0"
 dependencies = [
@@ -2949,6 +2962,7 @@ dependencies = [
 name = "neoveg_engine"
 version = "2.1.0"
 dependencies = [
+ "neoveg_aaf",
  "neoveg_common",
  "roxmltree 0.21.2",
  "serde",

@@ -1,0 +1,13 @@
+[package]
+name = "neoveg_aaf"
+version.workspace = true
+# The code uses let chains, which need the 2024 edition (the rest of the workspace is on 2021)
+edition = "2024"
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "Neoveg AAF reader and writer (AAF Edit Protocol) on a neutral composition model (adapted from FilmCraft)"
+
+[dependencies]
+neoveg_cfb = { path = "../neoveg_cfb" }
+serde.workspace = true
+thiserror = "2"

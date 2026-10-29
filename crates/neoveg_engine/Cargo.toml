@@ -8,6 +8,7 @@ description = "Neoveg editing engine: timeline, tracks, events, split/move edits
 
 [dependencies]
 neoveg_common.workspace = true
+neoveg_aaf.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 roxmltree = "0.21"

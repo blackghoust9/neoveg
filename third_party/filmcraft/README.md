@@ -61,6 +61,18 @@ Alterações: o crate usa a edição 2024 (o código usa `let` encadeado), a lis
 
 Alterações: os três crates usam a edição 2024; `filmcraft_bitstream` virou `neoveg_media::bitstream`; o `matroska` do `craft-media` não foi copiado; os testes de integração com o `ffmpeg` como oráculo (pastas `tests/`) não foram copiados. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
 
+## AAF e arquivo composto (copiados)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_cfb/src/` | `crates/cfb/src/` (`filmcraft-cfb`) | Leitor e escritor do arquivo composto da Microsoft (MS-CFB), o contêiner do AAF, com setores de 512 e de 4096 bytes |
+| `crates/neoveg_aaf/src/` (`ids.rs`, `store.rs`, `read.rs`, `write.rs`) | `crates/interchange/src/aaf/` | O armazenamento estruturado do AAF, os identificadores das classes e a leitura e a escrita da composição (AAF Edit Protocol) |
+| `crates/neoveg_aaf/src/model.rs` | `crates/interchange/src/comp.rs` (só os tipos neutros) | O modelo neutro de composições, trilhas, clipes, transições e fontes de mídia |
+| `crates/neoveg_aaf/src/time.rs` | `crates/time/src/lib.rs` | `Tick` e `FrameRate` |
+| `crates/neoveg_aaf/src/support.rs` | `crates/interchange/src/common.rs` e `wav.rs` (algumas funções) | URLs de arquivo, nomes de arquivo, cabeçalho WAV; os tipos de erro e de relatório foram reescritos |
+
+O adaptador entre a linha do tempo do Neoveg e esse modelo, `crates/neoveg_engine/src/aaf.rs`, é código próprio do Neoveg. Alterações: os crates usam a edição 2024 e os testes que dependiam do modelo de projeto do FilmCraft não foram copiados.
+
 Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
 
 ## Alterações feitas pelo Neoveg

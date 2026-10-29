@@ -388,7 +388,8 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.
 
 **Interoperabilidade**
-- [ ] Importar e exportar AAF (primeiro formato profissional a avaliar) e decidir quais formatos de câmera valem o custo (MXF, RAW).
+- [x] Importar e exportar **AAF** (Arquivo > Importar e Exportar > AAF), pelos crates `neoveg_aaf` e `neoveg_cfb` adaptados do FilmCraft (escritos a partir das especificações públicas da AMWA e do formato de arquivo composto da Microsoft): uma composição com uma trilha por faixa de vídeo e de áudio, preenchimentos e clipes com entrada na fonte, a sobreposição de dois eventos como transição, nomes, caminhos das mídias (com acentos e espaços), marcadores e o timecode; a importação põe os clipes cujas mídias já estão no projeto, em um passo de desfazer. **Ainda não conferido** com o Avid, o Premiere ou o Resolve (não há nenhum aqui): a conferência é a ida e volta pelos próprios leitor e escritor.
+- [ ] Formatos de câmera (MXF, RAW): decidir quais valem o custo; AAF com velocidade, fades, volume e efeitos, com mídia embutida e com composições aninhadas
 - [ ] Rever o menu Faixas contra os comandos de "Inserir" da referência quando os manuais cobrirem o assunto.
 
 ### A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)

@@ -16,6 +16,7 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 | Origem | Autores / Organização | Licença (SPDX) | Onde está no Neoveg | Utilização |
 | :--- | :--- | :--- | :--- | :--- |
+| **FilmCraft — `filmcraft-cfb` e a parte AAF de `filmcraft-interchange`** | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_cfb/` e `crates/neoveg_aaf/` | Importar e exportar AAF (arquivo composto, armazenamento estruturado e AAF Edit Protocol) |
 | **FilmCraft — `filmcraft-h264enc` e `filmcraft-aac`**, e `craft-media` (`storytold/craft-libs`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_h264/`, `crates/neoveg_aac/` e `crates/neoveg_media/` | Codificadores H.264 e AAC e leitura e escrita de MP4 para a renderização sem FFmpeg |
 | **FilmCraft — `filmcraft-text`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8d925e9`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_text/` | Motor de texto: composição, fontes e rasterização dos títulos |
 | **Inter, JetBrains Mono e Noto Serif** (fontes) | The Inter Project Authors; The JetBrains Mono Project Authors; The Noto Project Authors | `OFL-1.1` (textos em `crates/neoveg_text/fonts/OFL-*.txt`) | `crates/neoveg_text/fonts/` (arquivos sem alteração, embutidos no programa) | Fontes padrão dos títulos |
