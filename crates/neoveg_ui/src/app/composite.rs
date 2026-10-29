@@ -288,6 +288,7 @@ pub(super) fn composite_request(
                     event_opacity: opacity,
                     transitions,
                     apply_chroma: true,
+                    blend: e.resample.blends(),
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
@@ -378,7 +379,9 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
-            let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled) || e.adjustment;
+            let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled)
+                || e.adjustment
+                || e.resample.blends();
             let envelope_on = track
                 .envelopes
                 .iter()

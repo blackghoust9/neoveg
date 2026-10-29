@@ -74,6 +74,9 @@ pub struct VideoClipRequest {
     /// Transitions in progress (the one that reveals the event and the one that hides it), run on
     /// the finished picture; the event's opacity then leaves out the part they replace.
     pub transitions: Vec<TransitionRequest>,
+    /// Frame blend: between two source frames the picture is the blend of both, in proportion to
+    /// how close each one is (slow motion, another frame rate).
+    pub blend: bool,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -598,6 +601,11 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 for t in &clip.transitions {
                     t.hash_into(h);
                 }
+                clip.blend.hash(h);
+                if clip.blend && clip.source_fps > 0.0 {
+                    // Blended pictures differ between frames: the key follows the position in 1/16ths
+                    ((clip.seconds * clip.source_fps * 16.0).floor() as i64).hash(h);
+                }
             }
         }
         TrackCompositeNode::Adjust { effects, opacity } => {
@@ -677,6 +685,44 @@ fn composite_request_signature(req: &CompositeFrameRequest, out_w: u32, out_h: u
     h.finish()
 }
 
+/// The source frame a clip shows, blended with the next one when the clip asks for it and the
+/// moment falls between two frames.
+fn decode_clip_raw(
+    state: &mut WorkerState,
+    clip: &VideoClipRequest,
+    max_width: u32,
+) -> Result<Arc<FrameBuffer>, String> {
+    if !clip.blend
+        || !(clip.source_fps.is_finite() && clip.source_fps > 0.0)
+        || is_image_path(&clip.path)
+    {
+        return state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width);
+    }
+    let position = clip.seconds * clip.source_fps;
+    let t = position - position.floor();
+    // Close to a frame there is nothing to blend
+    if !(0.02..=0.98).contains(&t) {
+        return state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width);
+    }
+    // Each frame is asked for at its own time, a hair after it: the cache rounds times to frames, so
+    // a time half way between two would otherwise share one entry
+    let at = |frame: f64| (frame + 0.01) / clip.source_fps;
+    let first =
+        state.decode_raw_cached(&clip.path, at(position.floor()), clip.source_fps, max_width)?;
+    match state.decode_raw_cached(
+        &clip.path,
+        at(position.floor() + 1.0),
+        clip.source_fps,
+        max_width,
+    ) {
+        Ok(next) if next.width == first.width && next.height == first.height => {
+            Ok(Arc::new(mix_frames(&first, &next, t as f32)))
+        }
+        // The last frame has no next one
+        _ => Ok(first),
+    }
+}
+
 fn decode_clip_stack(
     state: &mut WorkerState,
     clips: &[VideoClipRequest],
@@ -690,7 +736,7 @@ fn decode_clip_stack(
     }
     if clips.len() == 1 && (clips[0].event_opacity - 1.0).abs() < 1e-4 {
         let clip = &clips[0];
-        let raw = state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?;
+        let raw = decode_clip_raw(state, clip, max_width)?;
         let frame = if clip.apply_chroma && !chroma.is_disabled() {
             let mut keyed = (*raw).clone();
             crate::chroma::apply_chroma_key(&mut keyed, chroma);
@@ -708,7 +754,7 @@ fn decode_clip_stack(
         if clip.event_opacity <= 0.0 {
             continue;
         }
-        let raw = state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?;
+        let raw = decode_clip_raw(state, clip, max_width)?;
         let frame = if clip.apply_chroma && !chroma.is_disabled() {
             let mut keyed = (*raw).clone();
             crate::chroma::apply_chroma_key(&mut keyed, chroma);
@@ -1070,6 +1116,7 @@ mod tests {
                     effects: Vec::new(),
                     pan_crop: None,
                     transitions: Vec::new(),
+                    blend: false,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1136,6 +1183,7 @@ mod tests {
                     effects: clip_fx,
                     pan_crop: None,
                     transitions: Vec::new(),
+                    blend: false,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1149,6 +1197,74 @@ mod tests {
             chroma_key: ChromaKey::default(),
             project_effects: Vec::new(),
         }
+    }
+
+    #[test]
+    fn frame_blend_mixes_the_two_frames_around_the_moment_and_off_shows_the_nearest_one() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_blend_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (first, second) = ([200u8, 0, 0, 255], [0u8, 100, 0, 255]);
+        write_png(&dir.join("s_0001.png"), 16, 12, first);
+        write_png(&dir.join("s_0002.png"), 16, 12, second);
+        write_png(&dir.join("s_0003.png"), 16, 12, second);
+        let seq = detect_image_sequence(&dir.join("s_0001.png"), 25.0)
+            .unwrap()
+            .unwrap();
+        let manifest = dir.join("s.neovegseq");
+        seq.save_manifest(&manifest).unwrap();
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        let at = |seconds: f64, blend: bool| {
+            worker.request_composite(CompositeFrameRequest {
+                timeline_seconds: 0.0,
+                fps: 25.0,
+                playing: false,
+                shuttle_speed: 1.0,
+                canvas_width: 16,
+                canvas_height: 12,
+                max_width: 0,
+                nodes: vec![TrackCompositeNode::Track {
+                    clips: vec![VideoClipRequest {
+                        media_id: 1,
+                        path: manifest.clone(),
+                        seconds,
+                        source_fps: 25.0,
+                        playback_rate: 1.0,
+                        event_opacity: 1.0,
+                        apply_chroma: false,
+                        effects: Vec::new(),
+                        pan_crop: None,
+                        transitions: Vec::new(),
+                        blend,
+                    }],
+                    mode: CompositeMode::SourceAlpha,
+                    level: 1.0,
+                    effects: Vec::new(),
+                    fade_color: [0, 0, 0],
+                    fade_amount: 0.0,
+                    motion: None,
+                }],
+                lut: None,
+                grade: Grade::default(),
+                chroma_key: ChromaKey::default(),
+                project_effects: Vec::new(),
+            });
+            worker
+                .composite_rx
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap()
+                .result
+                .unwrap()
+                .pixel(4, 4)
+        };
+        // Half way between frame 1 (0.00 s) and frame 2 (0.04 s)
+        let blended = at(0.02, true);
+        assert!((i32::from(blended[0]) - 100).abs() <= 2, "{blended:?}");
+        assert!((i32::from(blended[1]) - 50).abs() <= 2, "{blended:?}");
+        assert_eq!(at(0.01, false), first, "without it, the nearest frame");
+        // On a frame there is nothing to blend
+        assert_eq!(at(0.04, true), second);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1186,6 +1302,7 @@ mod tests {
             effects: Vec::new(),
             pan_crop: None,
             transitions: Vec::new(),
+            blend: false,
         };
         let track = |path: &Path, sized: bool| TrackCompositeNode::Track {
             clips: vec![clip(path)],

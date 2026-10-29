@@ -15,7 +15,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
-| Editar | 100 | 100 | 20 | 56 | 24 | 0 | 48 % |
+| Editar | 100 | 100 | 20 | 65 | 15 | 0 | 52 % |
 | Inserir | 32 | 30 | 16 | 8 | 6 | 2 | 67 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **39 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 34 parciais, 41 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 35 parciais, 40 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -38,7 +38,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Redimensionar eventos de ajuste ao projeto | Editar | 2 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
-| P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | previsto |
+| P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
 | P2 | Inserir faixa de ajuste | Inserir | 1 | previsto |
@@ -113,7 +113,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Modo de edição expandida (entrar e sair) | 2 | previsto | roteiro (README) | P2 |
 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | 5 | parcial | normal, slip, slide e embaralhar com ciclo (`D`); faltam esticar e dividir-aparar | P2 |
 | Interruptores do evento: mudo, trava, fase, laço, normalizar | 5 | feito | `edit.switch.*` | - |
-| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | 9 | previsto | roteiro (README) | P2 |
+| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | 9 | parcial | reamostragem com mistura de quadros feita (manual v21 p.355-358); faltam fluxo óptico, proporção, cintilação do entrelaçamento e o ajuste do projeto | P2 |
 | Takes do evento: renomear, escolher, próximo, anterior, apagar | 6 | previsto | `edit.take.*` têm atalho, sem ação | P2 |
 | Grupos: criar, remover, limpar, selecionar, recortar, copiar e apagar tudo | 7 | parcial | criar, remover, desagrupar e selecionar feitos (`edit.group`, `edit.ungroup`) | P3 |
 | Escolha do fluxo de origem e dos canais (ambos, esquerdo, direito, combinar, trocar) | 6 | parcial | canais feitos (`ChannelMode`); fluxo de origem não | P3 |

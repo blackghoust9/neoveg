@@ -365,7 +365,8 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 **Edição**
 - [x] Eventos de ajuste (`Ctrl+Alt+J`, menu Faixas): um evento vazio numa faixa de vídeo, com cadeia de até 32 efeitos, fades e opacidade, que age sobre as faixas abaixo dele enquanto dura; cortar, copiar, colar, Mudo e Travar valem. Velocidade e Pan/Crop não se aplicam a ele.
 - [ ] Faixas de ajuste e redimensionar o evento de ajuste ao projeto.
-- [ ] Interruptores de vídeo: manter o último quadro e mistura de quadros primeiro; fluxo óptico depois.
+- [x] Interruptor de reamostragem do evento de vídeo (menu Editar > Interruptores e menu do evento > Reamostragem): *Usar configuração do projeto* (sem reamostrar), *Mistura de quadros* (entre dois quadros da fonte, como na câmera lenta pela velocidade, mistura os dois em proporção) e *Desativar reamostragem*.
+- [ ] Interruptores de vídeo que faltam: fluxo óptico, manter proporção, reduzir cintilação do entrelaçamento e a configuração de reamostragem do projeto.
 - [x] Colar atributos do evento, completo (`Ctrl+Alt+V`) e seletivo (`Ctrl+Alt+Shift+V`, janela com uma caixa por atributo): interruptores, tom do áudio, velocidade de reprodução, efeitos de vídeo, Pan/Crop, envelope de velocidade e transições, num só passo de desfazer, no menu Editar e no menu do evento.
 - [x] Mídia incompatível: quando a importação falha, uma janela oferece converter uma cópia (som para WAV, vídeo para MP4 H.264 + AAC, com o `ffmpeg`) e importá-la; o original não muda. O seletor de arquivos tem o filtro de todos os arquivos. Testado com 12 formatos de áudio e 6 de imagem; os de vídeo só rodam numa compilação com `--features ffmpeg`.
 - [ ] Fechar lacunas e divisão inteligente (o manual a descreve com a transição de fluxo de deformação, que ainda não existe).

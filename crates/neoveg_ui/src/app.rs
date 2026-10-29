@@ -6215,6 +6215,39 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
     switch_item(state, ui, Switch::Loop, Command::EditSwitchLoop);
     switch_item(state, ui, Switch::Normalize, Command::EditSwitchNormalize);
     command_item(state, ui, Command::EditNormalizeRecalculate);
+    resample_items(state, ui);
+}
+
+/// The Resample Mode of the selected video events: one radio entry per mode, checked when they all
+/// share it. It only appears when the selection holds a video event.
+fn resample_items(state: &mut AppState, ui: &mut egui::Ui) {
+    let selected = state.selection.refs();
+    let has_video = selected.iter().any(|&(t, e)| {
+        state
+            .timeline
+            .track(t)
+            .filter(|track| track.kind == TrackKind::Video)
+            .is_some_and(|track| track.events.iter().any(|ev| ev.id == e && !ev.adjustment))
+    });
+    if !has_video {
+        return;
+    }
+    let current = neoveg_engine::switches::resample_of(&state.timeline, &selected);
+    ui.menu_button("Reamostragem", |ui| {
+        for mode in neoveg_engine::ResampleMode::ALL {
+            if ui.radio(current == Some(mode), mode.label()).clicked() {
+                if let Some(command) =
+                    neoveg_engine::switches::set_resample(&state.timeline, &selected, mode)
+                {
+                    if state.history.execute(&mut state.timeline, command) {
+                        state.last_frame_key = None;
+                        state.last_composite_key = None;
+                    }
+                }
+                ui.close_menu();
+            }
+        }
+    });
 }
 
 /// A menu entry that runs `command`, with its shortcut and enabled state.

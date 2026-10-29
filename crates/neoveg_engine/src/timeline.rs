@@ -54,6 +54,47 @@ fn is_unity_gain(v: &f32) -> bool {
     (*v - 1.0).abs() < 1e-9
 }
 
+/// How a video event treats footage whose frames do not line up with the project's (slow motion,
+/// a different frame rate): the nearest frame is shown as it is, or the two around the moment are
+/// blended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResampleMode {
+    /// Follow the project's setting, which today is no resampling.
+    #[default]
+    Project,
+    /// Blend the frames before and after the moment, in proportion to how close each one is.
+    FrameBlend,
+    /// No resampling: the nearest frame is shown.
+    Disabled,
+}
+
+impl ResampleMode {
+    pub const ALL: [ResampleMode; 3] = [
+        ResampleMode::Project,
+        ResampleMode::FrameBlend,
+        ResampleMode::Disabled,
+    ];
+
+    /// Name for the menu, in pt-BR.
+    pub fn label(self) -> &'static str {
+        match self {
+            ResampleMode::Project => "Usar configuração do projeto",
+            ResampleMode::FrameBlend => "Mistura de quadros",
+            ResampleMode::Disabled => "Desativar reamostragem",
+        }
+    }
+
+    pub fn is_default(&self) -> bool {
+        *self == ResampleMode::Project
+    }
+
+    /// `true` when frames are blended.
+    pub fn blends(self) -> bool {
+        self == ResampleMode::FrameBlend
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrackEvent {
     pub id: EventId,
@@ -131,6 +172,9 @@ pub struct TrackEvent {
     /// tracks below it for as long as it lasts (see `neoveg_engine::adjustment`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub adjustment: bool,
+    /// Event switch Resample Mode (video only).
+    #[serde(default, skip_serializing_if = "ResampleMode::is_default")]
+    pub resample: ResampleMode,
 }
 
 impl Default for TrackEvent {
@@ -162,6 +206,7 @@ impl Default for TrackEvent {
             transition_out: None,
             velocity: None,
             adjustment: false,
+            resample: ResampleMode::Project,
         }
     }
 }

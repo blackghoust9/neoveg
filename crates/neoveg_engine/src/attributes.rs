@@ -72,6 +72,9 @@ pub fn apply(
         target.muted = source.muted;
         target.locked = source.locked;
         target.looping = source.looping;
+        if video {
+            target.resample = source.resample;
+        }
         if !video {
             target.invert_phase = source.invert_phase;
             target.normalize = source.normalize;

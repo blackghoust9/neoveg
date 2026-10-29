@@ -77,7 +77,7 @@ ROWS: List[Row] = [
     ("edit.expandida", A_EDIT, "Modo de edição expandida (entrar e sair)", r"^Edit > Select > (Enter Expanded|Exit Edit)", "previsto", "roteiro (README)", "P2"),
     ("edit.ferramentas", A_EDIT, "Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior", r"^Edit > Editing Tool", "parcial", "normal, slip, slide e embaralhar com ciclo (`D`); faltam esticar e dividir-aparar", "P2"),
     ("edit.interruptores", A_EDIT, "Interruptores do evento: mudo, trava, fase, laço, normalizar", r"^Edit > Switches > (Mute|Lock|Invert Phase|Normalize|Loop event)", "feito", "`edit.switch.*`", "-"),
-    ("edit.interruptores_video", A_EDIT, "Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção", r"^Edit > Switches", "previsto", "roteiro (README)", "P2"),
+    ("edit.interruptores_video", A_EDIT, "Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção", r"^Edit > Switches", "parcial", "reamostragem com mistura de quadros feita (manual v21 p.355-358); faltam fluxo óptico, proporção, cintilação do entrelaçamento e o ajuste do projeto", "P2"),
     ("edit.takes", A_EDIT, "Takes do evento: renomear, escolher, próximo, anterior, apagar", r"^Edit > Take", "previsto", "`edit.take.*` têm atalho, sem ação", "P2"),
     ("edit.grupos", A_EDIT, "Grupos: criar, remover, limpar, selecionar, recortar, copiar e apagar tudo", r"^Edit > Group", "parcial", "criar, remover, desagrupar e selecionar feitos (`edit.group`, `edit.ungroup`)", "P3"),
     ("edit.fluxo_canais", A_EDIT, "Escolha do fluxo de origem e dos canais (ambos, esquerdo, direito, combinar, trocar)", r"^Edit > (Stream|Channels)", "parcial", "canais feitos (`ChannelMode`); fluxo de origem não", "P3"),

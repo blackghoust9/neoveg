@@ -42,6 +42,6 @@ pub use envelope::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEnvelope
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{
-    EventGeometry, EventId, GroupId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent,
-    TrackId, TrackKind, TrackMix,
+    EventGeometry, EventId, GroupId, ResampleMode, Timeline, Track, TrackDucking, TrackEffect,
+    TrackEvent, TrackId, TrackKind, TrackMix,
 };

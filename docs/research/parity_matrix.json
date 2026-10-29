@@ -229,7 +229,7 @@
     {
       "id": "edit.interruptores_video",
       "area": "Editar",
-      "estado": "previsto",
+      "estado": "parcial",
       "prioridade": "P2",
       "comandos": 9
     },

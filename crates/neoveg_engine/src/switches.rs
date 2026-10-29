@@ -11,7 +11,7 @@ use neoveg_common::channels::ChannelMode;
 
 use crate::command::{EditCommand, TrackChange};
 use crate::selection::EventRef;
-use crate::timeline::{Timeline, TrackEvent, TrackKind};
+use crate::timeline::{Timeline, TrackEvent, TrackId, TrackKind};
 
 /// The per-event switches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,6 +224,67 @@ pub fn set_normalize(timeline: &Timeline, gains: &[(EventRef, f32)]) -> Option<E
         if changed {
             changes.push(TrackChange {
                 track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
+/// The Resample Mode the selected video events share, or `None` when there is none or they differ.
+pub fn resample_of(
+    timeline: &Timeline,
+    events: &[EventRef],
+) -> Option<crate::timeline::ResampleMode> {
+    let mut modes = events.iter().filter_map(|&(track_id, event_id)| {
+        let track = timeline.track(track_id)?;
+        if track.kind != TrackKind::Video {
+            return None;
+        }
+        track
+            .events
+            .iter()
+            .find(|e| e.id == event_id && !e.adjustment)
+            .map(|e| e.resample)
+    });
+    let first = modes.next()?;
+    modes.all(|m| m == first).then_some(first)
+}
+
+/// Sets the Resample Mode of the video events among `events` (one undo step). A locked event, an
+/// adjustment event and an event of an audio track are left alone; `None` when nothing changes.
+pub fn set_resample(
+    timeline: &Timeline,
+    events: &[EventRef],
+    mode: crate::timeline::ResampleMode,
+) -> Option<EditCommand> {
+    let mut changes: Vec<crate::command::TrackChange> = Vec::new();
+    let mut tracks: Vec<TrackId> = events.iter().map(|(t, _)| *t).collect();
+    tracks.sort_unstable();
+    tracks.dedup();
+    for track_id in tracks {
+        let Some(track) = timeline.track(track_id) else {
+            continue;
+        };
+        if track.kind != TrackKind::Video {
+            continue;
+        }
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            if events.contains(&(track_id, event.id))
+                && !event.locked
+                && !event.adjustment
+                && event.resample != mode
+            {
+                event.resample = mode;
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(crate::command::TrackChange {
+                track_id,
                 before: track.events.clone(),
                 after,
             });
@@ -483,5 +544,59 @@ mod tests {
         let back: TrackEvent =
             serde_json::from_str(&serde_json::to_string(&event).unwrap()).unwrap();
         assert_eq!(back, event);
+    }
+
+    #[test]
+    fn the_resample_mode_is_set_on_unlocked_video_events_only_in_one_undo_step() {
+        use crate::command::History;
+        use crate::timeline::ResampleMode;
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let mut refs = Vec::new();
+        for kind in [TrackKind::Video, TrackKind::Video, TrackKind::Audio] {
+            let track = tl.new_track(kind);
+            let tid = track.id;
+            assert!(h.execute(&mut tl, EditCommand::AddTrack { track }));
+            let id = tl.alloc_id();
+            let event = TrackEvent {
+                id,
+                media_id: Some(1),
+                duration: 2.0,
+                ..TrackEvent::default()
+            };
+            assert!(h.execute(
+                &mut tl,
+                EditCommand::AddEvent {
+                    track_id: tid,
+                    event
+                }
+            ));
+            refs.push((tid, id));
+        }
+        // The second video event is locked
+        tl.track_mut(refs[1].0).unwrap().events[0].locked = true;
+        assert_eq!(resample_of(&tl, &refs[..1]), Some(ResampleMode::Project));
+        let command = set_resample(&tl, &refs, ResampleMode::FrameBlend).unwrap();
+        assert!(h.execute(&mut tl, command));
+        assert_eq!(resample_of(&tl, &refs[..1]), Some(ResampleMode::FrameBlend));
+        // Locked and audio events stay as they were
+        assert_eq!(resample_of(&tl, &refs[1..2]), Some(ResampleMode::Project));
+        assert!(
+            resample_of(&tl, &refs[2..]).is_none(),
+            "an audio event has none"
+        );
+        // Mixed selections have no common mode, and the same mode again changes nothing
+        assert!(resample_of(&tl, &refs[..2]).is_none());
+        assert!(set_resample(&tl, &refs[..1], ResampleMode::FrameBlend).is_none());
+        assert!(h.undo(&mut tl));
+        assert_eq!(resample_of(&tl, &refs[..1]), Some(ResampleMode::Project));
+        // Old projects load with the default, and the default is not written
+        let event = &tl.track(refs[0].0).unwrap().events[0];
+        assert!(!serde_json::to_string(event).unwrap().contains("resample"));
+        let mut blended = event.clone();
+        blended.resample = ResampleMode::Disabled;
+        let back: TrackEvent =
+            serde_json::from_str(&serde_json::to_string(&blended).unwrap()).unwrap();
+        assert_eq!(back.resample, ResampleMode::Disabled);
     }
 }
