@@ -205,7 +205,19 @@ enum LoadMsg {
         audio: Option<LoadedMedia>,
         existing_id: Option<u64>,
     },
-    Failed(String),
+    Failed {
+        path: PathBuf,
+        error: String,
+        existing_id: Option<u64>,
+        /// The file is already the result of a conversion: do not offer another one.
+        converted: bool,
+    },
+}
+
+/// A file that could not be imported, waiting for the user to choose whether to convert it.
+struct ConvertOffer {
+    path: PathBuf,
+    error: String,
 }
 
 /// The editing tool: what dragging the body of an event does.
@@ -331,6 +343,39 @@ struct ActivePlayer {
     player: AudioPlayer,
 }
 
+/// Loads one media file (the work of a loader thread): a probe for pictures and videos, a decode for
+/// sound. A failure carries the path so the interface can offer to convert the file.
+fn load_message(path: PathBuf, existing_id: Option<u64>, converted: bool) -> LoadMsg {
+    let failed = |path: PathBuf, error: String| LoadMsg::Failed {
+        path,
+        error,
+        existing_id,
+        converted,
+    };
+    if is_visual_media_path(&path) {
+        match probe(&path) {
+            Ok(info) => LoadMsg::VideoLoaded {
+                // A video without a usable audio track is still a valid video clip; images and
+                // generators have no sound to look for
+                audio: if is_video_path(&path) {
+                    load_audio(&path).ok()
+                } else {
+                    None
+                },
+                path,
+                info,
+                existing_id,
+            },
+            Err(e) => failed(path, e),
+        }
+    } else {
+        match load_audio(&path) {
+            Ok(media) => LoadMsg::Loaded { media, existing_id },
+            Err(e) => failed(path, e),
+        }
+    }
+}
+
 /// Options of the "Repetir colar" dialog.
 struct RepeatDialog {
     count: u32,
@@ -366,6 +411,8 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
     /// The attributes picked in the *Colar atributos seletivamente* dialog.
     attributes_dialog: Option<Attributes>,
+    /// The *convert this media?* question after a failed import.
+    convert_offer: Option<ConvertOffer>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
@@ -1256,6 +1303,7 @@ impl AppState {
             clipboard: None,
             repeat_dialog: None,
             attributes_dialog: None,
+            convert_offer: None,
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
@@ -2082,6 +2130,7 @@ impl AppState {
         extensions.push("neoveggen");
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Mídia", &extensions)
+            .add_filter("Todos os arquivos (converte se preciso)", &["*"])
             .pick_file()
         else {
             return;
@@ -2201,27 +2250,42 @@ impl AppState {
     fn spawn_media(&self, path: PathBuf, existing_id: Option<u64>, ctx: &egui::Context) {
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
         std::thread::spawn(move || {
-            let msg = if is_visual_media_path(&path) {
-                match probe(&path) {
-                    Ok(info) => LoadMsg::VideoLoaded {
-                        // A video without a usable audio track is still a valid video clip; images
-                        // and generators have no sound to look for
-                        audio: if is_video_path(&path) {
-                            load_audio(&path).ok()
-                        } else {
-                            None
-                        },
-                        path,
-                        info,
-                        existing_id,
-                    },
-                    Err(e) => LoadMsg::Failed(e),
-                }
-            } else {
-                match load_audio(&path) {
-                    Ok(media) => LoadMsg::Loaded { media, existing_id },
-                    Err(e) => LoadMsg::Failed(e),
-                }
+            let _ = tx.send(load_message(path, existing_id, false));
+            ctx.request_repaint();
+        });
+    }
+
+    /// Where converted copies are written: beside the project, or in the data folder of an unsaved one.
+    fn conversion_dir(&self) -> Option<PathBuf> {
+        match self
+            .project_path
+            .as_deref()
+            .and_then(std::path::Path::parent)
+        {
+            Some(parent) => Some(parent.join("convertidos")),
+            None => neoveg_common::paths::app_data_dir().map(|d| d.join("convertidos")),
+        }
+    }
+
+    /// Converts `path` to the media Neoveg reads, on a worker thread, and imports the result.
+    fn start_conversion(&mut self, path: PathBuf, ctx: &egui::Context) {
+        let Some(dir) = self.conversion_dir() else {
+            self.status = "Não há pasta para guardar a mídia convertida".into();
+            return;
+        };
+        let target = neoveg_video::convert::target_for(&path);
+        let output = neoveg_video::convert::output_path(&path, &dir, target, |p| p.exists());
+        self.status = format!("Convertendo {} para {}…", path.display(), target.label());
+        let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let msg = match neoveg_video::convert::convert(&path, &output, target) {
+                Ok(()) => load_message(output, None, true),
+                Err(error) => LoadMsg::Failed {
+                    path,
+                    error,
+                    existing_id: None,
+                    converted: true,
+                },
             };
             let _ = tx.send(msg);
             ctx.request_repaint();
@@ -2231,9 +2295,22 @@ impl AppState {
     fn poll_loader(&mut self) {
         while let Ok(msg) = self.loader_rx.try_recv() {
             match msg {
-                LoadMsg::Failed(e) => {
-                    tracing::error!("[ERROR] import failed: {e}");
-                    self.status = format!("Falha ao importar: {e}");
+                LoadMsg::Failed {
+                    path,
+                    error,
+                    existing_id,
+                    converted,
+                } => {
+                    tracing::error!("[ERROR] import failed: {} ({error})", path.display());
+                    self.status = format!("Falha ao importar: {error}");
+                    // A fresh import of a file that exists may be converted; a reload of a project's
+                    // media, or the result of a conversion, may not
+                    // (and not a video in a build that cannot decode video: that would fail again)
+                    let hopeless =
+                        is_video_path(&path) && !neoveg_video::info::video_decoding_enabled();
+                    if existing_id.is_none() && !converted && !hopeless && path.exists() {
+                        self.convert_offer = Some(ConvertOffer { path, error });
+                    }
                 }
                 LoadMsg::Loaded {
                     media,
@@ -5417,6 +5494,7 @@ impl NeovegApp {
         keymap_window(ctx, &mut self.state);
         repeat_paste_window(ctx, &mut self.state);
         paste_attributes_window(ctx, &mut self.state);
+        convert_offer_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
@@ -6670,6 +6748,46 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
         state.paste_repeated(dialog.count as usize, spacing);
     } else if keep_open {
         state.repeat_dialog = Some(dialog);
+    }
+}
+
+/// "Converter mídia": the question after an import that failed because the file is not compatible.
+fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(offer) = state.convert_offer.take() else {
+        return;
+    };
+    let target = neoveg_video::convert::target_for(&offer.path);
+    let mut keep_open = true;
+    let mut convert = false;
+    let mut cancel = false;
+    crate::dialogs::dialog(ctx, "Mídia não compatível")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.label(format!(
+                "O Neoveg não conseguiu abrir {}.",
+                offer.path.display()
+            ));
+            ui.weak(&offer.error);
+            ui.separator();
+            ui.label(format!(
+                "Converter uma cópia para {} e importá-la? O arquivo original não é alterado.",
+                target.label()
+            ));
+            ui.horizontal(|ui| {
+                if ui.button("Converter").clicked() {
+                    convert = true;
+                }
+                if ui.button("Cancelar").clicked() {
+                    cancel = true;
+                }
+            });
+        });
+    if convert {
+        state.start_conversion(offer.path, ctx);
+    } else if keep_open && !cancel {
+        state.convert_offer = Some(offer);
     }
 }
 
@@ -12129,6 +12247,201 @@ mod tests {
         // The selective command opens the dialog
         run(&mut s, Command::EditPasteAttributesSelective);
         assert_eq!(s.attributes_dialog, Some(Attributes::ALL));
+    }
+
+    /// Every kind of file goes through the import; what Neoveg cannot read directly is converted and
+    /// the copy must then import. Files are made with `ffmpeg` (the test skips without it), and a
+    /// format the local `ffmpeg` cannot write is reported as not made, not as a failure.
+    #[test]
+    fn every_media_format_imports_directly_or_after_the_conversion() {
+        use std::process::{Command, Stdio};
+        let dir = std::env::temp_dir().join("neoveg_all_formats");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ffmpeg_ok = Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if !ffmpeg_ok
+            || neoveg_video::render::encoder_for(neoveg_video::render::RenderFormat::Mp4H264)
+                .is_err()
+        {
+            return;
+        }
+        const VIDEO_SRC: &str = "testsrc=size=320x240:rate=10:duration=1";
+        const SOUND_SRC: &str = "sine=frequency=440:duration=1";
+        // (file name, kind, extra ffmpeg output arguments)
+        let video: &[(&str, &[&str])] = &[
+            ("v.mp4", &["-c:v", "libx264", "-c:a", "aac"]),
+            ("v.m4v", &["-c:v", "libx264", "-c:a", "aac"]),
+            ("v.mov", &["-c:v", "mpeg4", "-c:a", "pcm_s16le"]),
+            ("v.mkv", &["-c:v", "mpeg4", "-c:a", "libmp3lame"]),
+            ("v.avi", &["-c:v", "mpeg4", "-c:a", "libmp3lame"]),
+            ("v.webm", &["-c:v", "libvpx", "-c:a", "libvorbis"]),
+            ("v.wmv", &["-c:v", "wmv2", "-c:a", "wmav2"]),
+            (
+                "v.flv",
+                &["-c:v", "flv", "-c:a", "libmp3lame", "-ar", "44100"],
+            ),
+            ("v.mpg", &["-c:v", "mpeg2video", "-c:a", "mp2"]),
+            ("v.ts", &["-c:v", "mpeg2video", "-c:a", "mp2"]),
+            ("v.ogv", &["-c:v", "libtheora", "-c:a", "libvorbis"]),
+            (
+                "v.3gp",
+                &[
+                    "-c:v", "h263", "-s", "176x144", "-c:a", "aac", "-ar", "8000", "-ac", "1",
+                ],
+            ),
+            ("v.mxf", &["-c:v", "mpeg2video", "-c:a", "pcm_s16le"]),
+        ];
+        let sound: &[(&str, &[&str])] = &[
+            ("a.wav", &["-c:a", "pcm_s16le"]),
+            ("a.mp3", &["-c:a", "libmp3lame"]),
+            ("a.flac", &["-c:a", "flac"]),
+            ("a.ogg", &["-c:a", "libvorbis"]),
+            ("a.opus", &["-c:a", "libopus"]),
+            ("a.m4a", &["-c:a", "aac"]),
+            ("a.aac", &["-c:a", "aac"]),
+            ("a.wma", &["-c:a", "wmav2"]),
+            ("a.aiff", &["-c:a", "pcm_s16be"]),
+            ("a.ac3", &["-c:a", "ac3"]),
+            ("a.mka", &["-c:a", "libvorbis"]),
+        ];
+        let images: &[(&str, &[&str])] = &[
+            ("i.png", &[]),
+            ("i.jpg", &[]),
+            ("i.bmp", &[]),
+            ("i.tiff", &[]),
+            ("i.webp", &[]),
+            ("i.gif", &[]),
+        ];
+        let make =
+            |name: &str, args: &[&str], with_video: bool, with_sound: bool, one_frame: bool| {
+                let out = dir.join(name);
+                let mut cmd = Command::new("ffmpeg");
+                cmd.args(["-hide_banner", "-y"]);
+                if with_video {
+                    cmd.args(["-f", "lavfi", "-i", VIDEO_SRC]);
+                }
+                if with_sound {
+                    cmd.args(["-f", "lavfi", "-i", SOUND_SRC]);
+                }
+                if !with_sound && with_video {
+                    cmd.arg("-an");
+                }
+                if one_frame {
+                    cmd.args(["-frames:v", "1"]);
+                }
+                cmd.args(args).arg("-shortest").arg(&out);
+                let ok = cmd
+                    .stdin(Stdio::null())
+                    .output()
+                    .is_ok_and(|o| o.status.success())
+                    && out.metadata().is_ok_and(|m| m.len() > 0);
+                ok.then_some(out)
+            };
+        let mut files = Vec::new();
+        let mut not_made = Vec::new();
+        for (name, args) in video {
+            match make(name, args, true, true, false) {
+                Some(f) => files.push(f),
+                None => not_made.push(*name),
+            }
+        }
+        for (name, args) in sound {
+            match make(name, args, false, true, false) {
+                Some(f) => files.push(f),
+                None => not_made.push(*name),
+            }
+        }
+        for (name, args) in images {
+            match make(name, args, true, false, true) {
+                Some(f) => files.push(f),
+                None => not_made.push(*name),
+            }
+        }
+        assert!(files.len() >= 10, "ffmpeg made only {} files", files.len());
+        let mut direct = 0;
+        let mut converted = 0;
+        let mut broken = Vec::new();
+        let mut no_video_decoder = Vec::new();
+        for file in &files {
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            // Without the `ffmpeg` feature no container video opens, converted or not
+            if is_video_path(file) && !neoveg_video::info::video_decoding_enabled() {
+                no_video_decoder.push(name);
+                continue;
+            }
+            match load_message(file.clone(), None, false) {
+                LoadMsg::Failed { path, error, .. } => {
+                    let target = neoveg_video::convert::target_for(&path);
+                    let out =
+                        neoveg_video::convert::output_path(&path, &dir.join("conv"), target, |p| {
+                            p.exists()
+                        });
+                    match neoveg_video::convert::convert(&path, &out, target) {
+                        Ok(())
+                            if !matches!(load_message(out, None, true), LoadMsg::Failed { .. }) =>
+                        {
+                            converted += 1;
+                            println!("{name:10} converte -> {} ({error})", target.label());
+                        }
+                        other => {
+                            println!("{name:10} FALHOU mesmo convertendo: {other:?}");
+                            broken.push(name);
+                        }
+                    }
+                }
+                _ => {
+                    direct += 1;
+                    println!("{name:10} importa direto");
+                }
+            }
+        }
+        println!(
+            "direto {direct}, convertido {converted}, sem codificador {not_made:?}, vídeos sem decodificador nesta compilação {no_video_decoder:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            broken.is_empty(),
+            "não importam nem convertidos: {broken:?}"
+        );
+    }
+
+    #[test]
+    fn a_failed_import_of_an_existing_file_offers_a_conversion_but_reloads_and_results_do_not() {
+        let mut s = AppState::new();
+        let file = std::env::temp_dir().join("neoveg_convert_offer.bin");
+        std::fs::write(&file, b"not media").unwrap();
+        let send = |s: &mut AppState, path: &std::path::Path, id: Option<u64>, converted: bool| {
+            s.loader_tx
+                .send(LoadMsg::Failed {
+                    path: path.to_path_buf(),
+                    error: "formato desconhecido".into(),
+                    existing_id: id,
+                    converted,
+                })
+                .unwrap();
+            s.poll_loader();
+        };
+        // A fresh import that failed: the question appears
+        send(&mut s, &file, None, false);
+        assert!(s.status.contains("Falha ao importar"));
+        assert_eq!(
+            s.convert_offer.as_ref().map(|o| o.path.clone()),
+            Some(file.clone())
+        );
+        s.convert_offer = None;
+        // The reload of a project's media, the result of a conversion and a file that is gone do not ask
+        send(&mut s, &file, Some(3), false);
+        assert!(s.convert_offer.is_none());
+        send(&mut s, &file, None, true);
+        assert!(s.convert_offer.is_none());
+        send(&mut s, std::path::Path::new("nao_existe.xyz"), None, false);
+        assert!(s.convert_offer.is_none());
+        let _ = std::fs::remove_file(&file);
     }
 
     #[test]

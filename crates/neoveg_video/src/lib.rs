@@ -3,6 +3,7 @@
 pub mod cache;
 pub mod chroma;
 pub mod composite;
+pub mod convert;
 pub mod frame;
 pub mod generators;
 pub mod gpu;

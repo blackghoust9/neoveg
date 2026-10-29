@@ -3,9 +3,16 @@
 use std::path::Path;
 
 /// Container extensions treated as video on import.
-pub const VIDEO_EXTENSIONS: [&str; 12] = [
-    "mp4", "mov", "mkv", "avi", "webm", "m4v", "mxf", "wmv", "mpg", "mpeg", "ts", "mts",
+pub const VIDEO_EXTENSIONS: [&str; 15] = [
+    "mp4", "mov", "mkv", "avi", "webm", "m4v", "mxf", "wmv", "mpg", "mpeg", "ts", "mts", "flv",
+    "3gp", "ogv",
 ];
+
+/// `true` when this build can decode container videos (the `ffmpeg` feature). Without it only
+/// sound, pictures and generators import, and converting a video would not help.
+pub const fn video_decoding_enabled() -> bool {
+    cfg!(feature = "ffmpeg")
+}
 
 pub fn is_video_path(path: &Path) -> bool {
     path.extension()
