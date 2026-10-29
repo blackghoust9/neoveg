@@ -9,6 +9,8 @@ members = [
     "crates/neoveg_media",
     "crates/neoveg_h264",
     "crates/neoveg_aac",
+    "crates/neoveg_cfb",
+    "crates/neoveg_aaf",
     "crates/neoveg_ui",
 ]
 
@@ -27,6 +29,8 @@ neoveg_text = { path = "crates/neoveg_text" }
 neoveg_media = { path = "crates/neoveg_media" }
 neoveg_h264 = { path = "crates/neoveg_h264" }
 neoveg_aac = { path = "crates/neoveg_aac" }
+neoveg_cfb = { path = "crates/neoveg_cfb" }
+neoveg_aaf = { path = "crates/neoveg_aaf" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 serde = { version = "1", features = ["derive"] }
