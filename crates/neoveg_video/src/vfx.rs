@@ -15,6 +15,11 @@
 //! **Alpha.** Neighbourhood effects work on premultiplied colour, so a keyed or faded edge does not
 //! pick up dark or green fringes.
 //!
+//! The colour tools (colour balance, levels, gamma, posterize, extract, tint) use the formulas of
+//! the FilmCraft effect stage (`render/src/gpufx.rs`, MIT OR Apache-2.0, ArtCraft Team and the
+//! FilmCraft contributors), rewritten for the premultiplied encoded working buffer of this module
+//! (see `third_party/filmcraft/README.md`).
+//!
 //! Effects and their parameters follow the reference manuals (Gaussian Blur: horizontal and vertical
 //! range; Sharpen: none; Unsharp Mask: ratio; Vignette: outer radius, inner radius, aspect and
 //! centre). Decisions of the project that the manuals do not state are in `docs/research/ui_audit.md`.
@@ -64,6 +69,12 @@ pub const RADIAL_BLUR: &str = "radial_blur";
 pub const MEDIAN: &str = "median";
 pub const HSL_ADJUST: &str = "hsl_adjust";
 pub const LINEAR_BLUR: &str = "linear_blur";
+pub const COLOR_BALANCE: &str = "color_balance";
+pub const LEVELS: &str = "levels";
+pub const GAMMA_CORRECTION: &str = "gamma_correction";
+pub const POSTERIZE: &str = "posterize";
+pub const EXTRACT: &str = "extract";
+pub const TINT: &str = "tint";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -438,6 +449,262 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: COLOR_BALANCE,
+        label: "Equilíbrio de cor",
+        params: &[
+            ParamSpec {
+                id: "shadow_r",
+                label: "Sombras, vermelho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shadow_g",
+                label: "Sombras, verde",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shadow_b",
+                label: "Sombras, azul",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "mid_r",
+                label: "Meios-tons, vermelho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "mid_g",
+                label: "Meios-tons, verde",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "mid_b",
+                label: "Meios-tons, azul",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_r",
+                label: "Realces, vermelho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_g",
+                label: "Realces, verde",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_b",
+                label: "Realces, azul",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "preserve",
+                label: "Preservar a luminosidade (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: LEVELS,
+        label: "Níveis",
+        params: &[
+            ParamSpec {
+                id: "in_black",
+                label: "Preto de entrada",
+                min: 0.0,
+                max: 255.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "in_white",
+                label: "Branco de entrada",
+                min: 0.0,
+                max: 255.0,
+                default: 255.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "gamma",
+                label: "Gama",
+                min: 10.0,
+                max: 300.0,
+                default: 100.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "out_black",
+                label: "Preto de saída",
+                min: 0.0,
+                max: 255.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "out_white",
+                label: "Branco de saída",
+                min: 0.0,
+                max: 255.0,
+                default: 255.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: GAMMA_CORRECTION,
+        label: "Correção de gama",
+        params: &[ParamSpec {
+            id: "gamma",
+            label: "Gama",
+            min: 1.0,
+            max: 28.0,
+            default: 10.0,
+            percent: false,
+        }],
+    },
+    EffectSpec {
+        id: POSTERIZE,
+        label: "Posterizar",
+        params: &[ParamSpec {
+            id: "levels",
+            label: "Níveis",
+            min: 2.0,
+            max: 256.0,
+            default: 8.0,
+            percent: false,
+        }],
+    },
+    EffectSpec {
+        id: EXTRACT,
+        label: "Extrair",
+        params: &[
+            ParamSpec {
+                id: "black",
+                label: "Preto",
+                min: 0.0,
+                max: 255.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "white",
+                label: "Branco",
+                min: 0.0,
+                max: 255.0,
+                default: 255.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "softness",
+                label: "Suavidade",
+                min: 0.0,
+                max: 100.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "invert",
+                label: "Inverter (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: TINT,
+        label: "Matiz",
+        params: &[
+            ParamSpec {
+                id: "black_r",
+                label: "Preto mapeado, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "black_g",
+                label: "Preto mapeado, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "black_b",
+                label: "Preto mapeado, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "white_r",
+                label: "Branco mapeado, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "white_g",
+                label: "Branco mapeado, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "white_b",
+                label: "Branco mapeado, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "amount",
+                label: "Quantidade",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -554,6 +821,63 @@ impl VideoEffect {
                 angle: self.value(spec, "angle"),
                 ratio: self.value(spec, "ratio"),
             },
+            COLOR_BALANCE => {
+                let zone = |name: &str| {
+                    [
+                        self.value(spec, &format!("{name}_r")) * BALANCE_SCALE,
+                        self.value(spec, &format!("{name}_g")) * BALANCE_SCALE,
+                        self.value(spec, &format!("{name}_b")) * BALANCE_SCALE,
+                    ]
+                };
+                Resolved::ColorBalance {
+                    shadows: zone("shadow"),
+                    mids: zone("mid"),
+                    highlights: zone("hi"),
+                    preserve: self.value(spec, "preserve") >= 0.5,
+                }
+            }
+            LEVELS => {
+                let ib = self.value(spec, "in_black") / 255.0;
+                Resolved::Levels {
+                    ib,
+                    iw: (self.value(spec, "in_white") / 255.0).max(ib + 1e-3),
+                    ob: self.value(spec, "out_black") / 255.0,
+                    ow: self.value(spec, "out_white") / 255.0,
+                    g: 100.0 / self.value(spec, "gamma").max(1.0),
+                }
+            }
+            GAMMA_CORRECTION => Resolved::Gamma {
+                g: self.value(spec, "gamma") / 10.0,
+            },
+            POSTERIZE => Resolved::Posterize {
+                n: self.value(spec, "levels").round().max(2.0) - 1.0,
+            },
+            EXTRACT => {
+                let softness = self.value(spec, "softness");
+                Resolved::Extract {
+                    lo: self.value(spec, "black") / 255.0,
+                    hi: self.value(spec, "white") / 255.0,
+                    soft: if softness <= 0.0 {
+                        0.0
+                    } else {
+                        softness / 100.0 * 0.2 + 1e-4
+                    },
+                    invert: self.value(spec, "invert") >= 0.5,
+                }
+            }
+            TINT => Resolved::Tint {
+                black: [
+                    self.value(spec, "black_r"),
+                    self.value(spec, "black_g"),
+                    self.value(spec, "black_b"),
+                ],
+                white: [
+                    self.value(spec, "white_r"),
+                    self.value(spec, "white_g"),
+                    self.value(spec, "white_b"),
+                ],
+                amount: self.value(spec, "amount"),
+            },
             _ => return None,
         })
     }
@@ -643,6 +967,43 @@ pub enum Resolved {
         angle: f32,
         ratio: f32,
     },
+    /// Colour offsets for the shadows, midtones and highlights (already scaled, see
+    /// [`BALANCE_SCALE`]); `preserve` keeps the luminosity.
+    ColorBalance {
+        shadows: [f32; 3],
+        mids: [f32; 3],
+        highlights: [f32; 3],
+        preserve: bool,
+    },
+    /// Input black and white, output black and white (`0..=1`) and the gamma exponent.
+    Levels {
+        ib: f32,
+        iw: f32,
+        ob: f32,
+        ow: f32,
+        g: f32,
+    },
+    /// `v^g` on each channel.
+    Gamma {
+        g: f32,
+    },
+    /// `n` is the number of steps between black and white.
+    Posterize {
+        n: f32,
+    },
+    /// A matte of the luma between two cuts (see [`extract_px`]).
+    Extract {
+        lo: f32,
+        hi: f32,
+        soft: f32,
+        invert: bool,
+    },
+    /// The luma mapped between two colours and mixed with the picture by `amount`.
+    Tint {
+        black: [f32; 3],
+        white: [f32; 3],
+        amount: f32,
+    },
 }
 
 impl Resolved {
@@ -671,6 +1032,23 @@ impl Resolved {
                 luminosity,
             } => hue_degrees(add_to_hue) % 360.0 == 0.0 && saturation == 1.0 && luminosity == 1.0,
             Resolved::LinearBlur { ratio, .. } => ratio <= 0.0,
+            Resolved::ColorBalance {
+                shadows,
+                mids,
+                highlights,
+                ..
+            } => shadows
+                .iter()
+                .chain(&mids)
+                .chain(&highlights)
+                .all(|v| *v == 0.0),
+            Resolved::Levels { ib, iw, ob, ow, g } => {
+                ib == 0.0 && iw == 1.0 && ob == 0.0 && ow == 1.0 && g == 1.0
+            }
+            Resolved::Gamma { g } => g == 1.0,
+            Resolved::Posterize { n } => n >= 255.0,
+            Resolved::Extract { .. } => false,
+            Resolved::Tint { amount, .. } => amount <= 0.0,
         }
     }
 }
@@ -1344,6 +1722,80 @@ fn linear_blur(work: &Work, angle: f32, ratio: f32) -> Work {
     }
 }
 
+/// Runs `op` on the straight (not premultiplied) colour of every pixel that has any alpha, and
+/// puts the clamped result back, premultiplied. Alpha is kept.
+fn map_straight(work: &mut Work, op: impl Fn([f32; 3]) -> [f32; 3]) {
+    for p in &mut work.px {
+        let a = p[3];
+        if a <= 1e-6 {
+            continue;
+        }
+        let c = op([p[0] / a, p[1] / a, p[2] / a]);
+        for k in 0..3 {
+            p[k] = c[k].clamp(0.0, 1.0) * a;
+        }
+    }
+}
+
+/// How much of each colour offset a pixel of luma `l` takes from the shadows, the midtones and the
+/// highlights (they add up to one).
+fn balance_weights(l: f32) -> (f32, f32, f32) {
+    let shadows = (1.0 - l) * (1.0 - l);
+    let highlights = l * l;
+    (shadows, (1.0 - shadows - highlights).max(0.0), highlights)
+}
+
+/// Offsets of the colour balance per zone are `value * BALANCE_SCALE`.
+pub const BALANCE_SCALE: f32 = 0.25;
+
+/// Colour balance of one straight pixel (see the project note on the source of these formulas).
+pub fn color_balance_px(
+    c: [f32; 3],
+    shadows: [f32; 3],
+    mids: [f32; 3],
+    highlights: [f32; 3],
+    preserve: bool,
+) -> [f32; 3] {
+    let l = LUMA[0] * c[0] + LUMA[1] * c[1] + LUMA[2] * c[2];
+    let (ws, wm, wh) = balance_weights(l);
+    let mut out = [0.0; 3];
+    for k in 0..3 {
+        out[k] = c[k] + shadows[k] * ws + mids[k] * wm + highlights[k] * wh;
+    }
+    if preserve {
+        let l2 = LUMA[0] * out[0] + LUMA[1] * out[1] + LUMA[2] * out[2];
+        let d = l - l2;
+        out = out.map(|v| v + d);
+    }
+    out
+}
+
+/// The levels curve on one channel: input black/white, gamma exponent, output black/white.
+pub fn levels_px(v: f32, ib: f32, iw: f32, ob: f32, ow: f32, g: f32) -> f32 {
+    ob + ((v - ib) / (iw - ib)).clamp(0.0, 1.0).powf(g) * (ow - ob)
+}
+
+/// Grey that the extract effect gives a pixel of luma `l`: `1` inside `lo..hi`, `0` outside, with a
+/// `soft` wide ramp at each cut when it is not zero.
+pub fn extract_px(l: f32, lo: f32, hi: f32, soft: f32, invert: bool) -> f32 {
+    let inside = if soft <= 0.0 {
+        f32::from(l > lo && l < hi)
+    } else {
+        ((l - lo) / soft)
+            .clamp(0.0, 1.0)
+            .min(((hi - l) / soft).clamp(0.0, 1.0))
+    };
+    if invert {
+        1.0 - inside
+    } else {
+        inside
+    }
+}
+
+fn luma_of(c: [f32; 3]) -> f32 {
+    LUMA[0] * c[0] + LUMA[1] * c[1] + LUMA[2] * c[2]
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -1383,6 +1835,38 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             luminosity,
         } => hsl_adjust(work, add_to_hue, saturation, luminosity),
         Resolved::LinearBlur { angle, ratio } => *work = linear_blur(work, angle, ratio),
+        Resolved::ColorBalance {
+            shadows,
+            mids,
+            highlights,
+            preserve,
+        } => map_straight(work, |c| {
+            color_balance_px(c, shadows, mids, highlights, preserve)
+        }),
+        Resolved::Levels { ib, iw, ob, ow, g } => {
+            map_straight(work, |c| c.map(|v| levels_px(v, ib, iw, ob, ow, g)))
+        }
+        Resolved::Gamma { g } => map_straight(work, |c| c.map(|v| v.max(0.0).powf(g))),
+        Resolved::Posterize { n } => map_straight(work, |c| c.map(|v| (v * n).round() / n)),
+        Resolved::Extract {
+            lo,
+            hi,
+            soft,
+            invert,
+        } => map_straight(work, |c| [extract_px(luma_of(c), lo, hi, soft, invert); 3]),
+        Resolved::Tint {
+            black,
+            white,
+            amount,
+        } => map_straight(work, |c| {
+            let l = luma_of(c);
+            let mut out = [0.0; 3];
+            for k in 0..3 {
+                let target = black[k] + (white[k] - black[k]) * l;
+                out[k] = c[k] + (target - c[k]) * amount;
+            }
+            out
+        }),
     }
 }
 
@@ -1726,6 +2210,101 @@ mod tests {
         );
         assert!(at(&along, 50) >= 253 && at(&along, 48) <= 2);
         assert!(resolve_chain(&[VideoEffect::new(LINEAR_BLUR).with("ratio", 0.0)]).is_empty());
+    }
+
+    #[test]
+    fn the_colour_tools_do_what_their_formulas_say() {
+        let px = |rgb: [u8; 3], fx: VideoEffect| {
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![rgb[0], rgb[1], rgb[2], 255],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            [f.rgba[0], f.rgba[1], f.rgba[2]]
+        };
+        // Colour balance: red in the highlights lifts the bright pixel, hardly the dark one
+        let balance = || VideoEffect::new(COLOR_BALANCE).with("hi_r", 1.0);
+        let bright = px([200, 200, 200], balance());
+        let dark = px([20, 20, 20], balance());
+        assert!(bright[0] > 200 && bright[1] == 200, "{bright:?}");
+        assert!(dark[0] <= 21, "{dark:?}");
+        // Preserving the luminosity keeps the brightness while the colour moves
+        let kept = px(
+            [128, 128, 128],
+            VideoEffect::new(COLOR_BALANCE)
+                .with("mid_r", 1.0)
+                .with("preserve", 1.0),
+        );
+        let luma =
+            0.2126 * f32::from(kept[0]) + 0.7152 * f32::from(kept[1]) + 0.0722 * f32::from(kept[2]);
+        assert!((luma - 128.0).abs() < 1.5 && kept[0] > kept[2], "{kept:?}");
+        // Levels: a white point at 128 sends 128 to white, the output range squeezes the result
+        assert_eq!(
+            px(
+                [128, 96, 0],
+                VideoEffect::new(LEVELS).with("in_white", 128.0)
+            ),
+            [255, 191, 0]
+        );
+        assert_eq!(
+            px(
+                [255, 0, 128],
+                VideoEffect::new(LEVELS).with("out_white", 100.0)
+            ),
+            [100, 0, 50]
+        );
+        // Gamma 20 (an exponent of 2) turns a half grey into a quarter
+        assert_eq!(
+            px(
+                [128, 128, 128],
+                VideoEffect::new(GAMMA_CORRECTION).with("gamma", 20.0)
+            )[0],
+            64
+        );
+        // Posterize to two levels leaves black and white only
+        let two = px(
+            [100, 200, 130],
+            VideoEffect::new(POSTERIZE).with("levels", 2.0),
+        );
+        assert_eq!(two, [0, 255, 255]);
+        // Extract keeps what is between the two cuts and drops the rest
+        let extract = || {
+            VideoEffect::new(EXTRACT)
+                .with("black", 100.0)
+                .with("white", 200.0)
+        };
+        assert_eq!(px([150, 150, 150], extract()), [255, 255, 255]);
+        assert_eq!(px([50, 50, 50], extract()), [0, 0, 0]);
+        assert_eq!(
+            px([150, 150, 150], extract().with("invert", 1.0)),
+            [0, 0, 0]
+        );
+        // Tint maps black and white to the two colours
+        let tint = |rgb| {
+            px(
+                rgb,
+                VideoEffect::new(TINT)
+                    .with("white_g", 0.0)
+                    .with("white_b", 0.0),
+            )
+        };
+        assert_eq!(tint([255, 255, 255]), [255, 0, 0]);
+        assert_eq!(tint([0, 0, 0]), [0, 0, 0]);
+        assert_eq!(
+            px([10, 20, 30], VideoEffect::new(TINT).with("amount", 0.0)),
+            [10, 20, 30]
+        );
+        // Neutral settings are skipped
+        for neutral in [COLOR_BALANCE, LEVELS] {
+            assert!(
+                resolve_chain(&[VideoEffect::new(neutral)]).is_empty(),
+                "{neutral}"
+            );
+        }
+        assert!(resolve_chain(&[VideoEffect::new(GAMMA_CORRECTION)]).is_empty());
+        assert!(resolve_chain(&[VideoEffect::new(POSTERIZE).with("levels", 256.0)]).is_empty());
+        assert!(resolve_chain(&[VideoEffect::new(TINT).with("amount", 0.0)]).is_empty());
     }
 
     #[test]

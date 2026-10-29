@@ -36,7 +36,13 @@
 | `crates/neoveg_engine/src/captions.rs` | `captions/src/srt.rs`, `captions/src/vtt.rs` e funções de relógio e de decodificação de `captions/src/lib.rs` | Leitura e escrita de legendas SubRip (`.srt`) e WebVTT (`.vtt`) tolerantes a arquivos reais |
 | `crates/neoveg_audio/src/dsp/effects/mod.rs` | trecho de `audio-dsp/src/effects/mod.rs` | Registro dos efeitos (só os 7 que o Neoveg oferece) e seus testes de consistência |
 
-Cada arquivo mantém, no topo, o aviso de origem e de copyright.
+## O que foi adaptado (reescrito)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos efeitos de cor Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair e Matiz, reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
+
+Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
 
 ## Alterações feitas pelo Neoveg
 

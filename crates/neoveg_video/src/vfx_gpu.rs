@@ -33,6 +33,10 @@ struct Params {
     f: f32,
     g: f32,
     h: f32,
+    i: f32,
+    j: f32,
+    k: f32,
+    l: f32,
 }
 
 impl Params {
@@ -50,6 +54,10 @@ impl Params {
             f: 0.0,
             g: 0.0,
             h: 0.0,
+            i: 0.0,
+            j: 0.0,
+            k: 0.0,
+            l: 0.0,
         }
     }
 }
@@ -68,6 +76,10 @@ struct Params {
     f: f32,
     g: f32,
     h: f32,
+    i: f32,
+    j: f32,
+    k: f32,
+    l: f32,
 };
 
 @group(0) @binding(0) var<uniform> p: Params;
@@ -390,6 +402,98 @@ fn linear_blur(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[id.y * p.width + id.x] = acc / 33.0;
 }
 
+fn straight_color(s: vec4<f32>, c: vec3<f32>) -> vec4<f32> {
+    let o = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0)) * s.w;
+    return vec4<f32>(o.x, o.y, o.z, s.w);
+}
+
+fn luma_straight(c: vec3<f32>) -> f32 {
+    return c.x * 0.2126 + c.y * 0.7152 + c.z * 0.0722;
+}
+
+// a/b/c = shadows, d/e/f = midtones, g/h/i = highlights, j = preserve the luminosity
+@compute @workgroup_size(8, 8, 1)
+fn color_balance(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let l = luma_straight(c);
+    let ws = (1.0 - l) * (1.0 - l);
+    let wh = l * l;
+    let wm = max(1.0 - ws - wh, 0.0);
+    var o = c + vec3<f32>(p.a, p.b, p.c) * ws + vec3<f32>(p.d, p.e, p.f) * wm + vec3<f32>(p.g, p.h, p.i) * wh;
+    if (p.j >= 0.5) {
+        o = o + vec3<f32>(l - luma_straight(o));
+    }
+    dst[i] = straight_color(s, o);
+}
+
+// a/b = input black and white, c/d = output black and white, e = gamma exponent
+@compute @workgroup_size(8, 8, 1)
+fn levels(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let t = clamp((s.xyz / s.w - vec3<f32>(p.a)) / (p.b - p.a), vec3<f32>(0.0), vec3<f32>(1.0));
+    dst[i] = straight_color(s, vec3<f32>(p.c) + pow(t, vec3<f32>(p.e)) * (p.d - p.c));
+}
+
+// a = exponent
+@compute @workgroup_size(8, 8, 1)
+fn gamma_correction(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    dst[i] = straight_color(s, pow(max(s.xyz / s.w, vec3<f32>(0.0)), vec3<f32>(p.a)));
+}
+
+// a = number of steps
+@compute @workgroup_size(8, 8, 1)
+fn posterize(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let v = s.xyz / s.w * p.a;
+    dst[i] = straight_color(s, vec3<f32>(floor(v.x + 0.5), floor(v.y + 0.5), floor(v.z + 0.5)) / p.a);
+}
+
+// a = low cut, b = high cut, c = softness, d = invert
+@compute @workgroup_size(8, 8, 1)
+fn extract(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let l = luma_straight(s.xyz / s.w);
+    var inside = 0.0;
+    if (p.c <= 0.0) {
+        if (l > p.a && l < p.b) { inside = 1.0; }
+    } else {
+        inside = min(clamp((l - p.a) / p.c, 0.0, 1.0), clamp((p.b - l) / p.c, 0.0, 1.0));
+    }
+    if (p.d >= 0.5) { inside = 1.0 - inside; }
+    dst[i] = straight_color(s, vec3<f32>(inside));
+}
+
+// a/b/c = colour for black, d/e/f = colour for white, g = amount
+@compute @workgroup_size(8, 8, 1)
+fn tint(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let l = luma_straight(c);
+    let black = vec3<f32>(p.a, p.b, p.c);
+    let white = vec3<f32>(p.d, p.e, p.f);
+    dst[i] = straight_color(s, c + (black + (white - black) * l - c) * p.g);
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -560,6 +664,12 @@ pub struct VfxGpu {
     median: wgpu::ComputePipeline,
     hsl_adjust: wgpu::ComputePipeline,
     linear_blur: wgpu::ComputePipeline,
+    color_balance: wgpu::ComputePipeline,
+    levels: wgpu::ComputePipeline,
+    gamma_correction: wgpu::ComputePipeline,
+    posterize: wgpu::ComputePipeline,
+    extract: wgpu::ComputePipeline,
+    tint: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -601,6 +711,12 @@ enum Pass {
     Median,
     HslAdjust,
     LinearBlur,
+    ColorBalance,
+    Levels,
+    Gamma,
+    Posterize,
+    Extract,
+    Tint,
     TransMask,
     TransSlide,
     TransGrow,
@@ -674,6 +790,12 @@ impl VfxGpu {
             median: make("median"),
             hsl_adjust: make("hsl_adjust"),
             linear_blur: make("linear_blur"),
+            color_balance: make("color_balance"),
+            levels: make("levels"),
+            gamma_correction: make("gamma_correction"),
+            posterize: make("posterize"),
+            extract: make("extract"),
+            tint: make("tint"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -705,6 +827,12 @@ impl VfxGpu {
             Pass::Median => &self.median,
             Pass::HslAdjust => &self.hsl_adjust,
             Pass::LinearBlur => &self.linear_blur,
+            Pass::ColorBalance => &self.color_balance,
+            Pass::Levels => &self.levels,
+            Pass::Gamma => &self.gamma_correction,
+            Pass::Posterize => &self.posterize,
+            Pass::Extract => &self.extract,
+            Pass::Tint => &self.tint,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -1107,6 +1235,67 @@ impl VfxGpu {
                     run(&mut encoder, Pass::LinearBlur, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::ColorBalance {
+                    shadows,
+                    mids,
+                    highlights,
+                    preserve,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c) = (shadows[0], shadows[1], shadows[2]);
+                    (p.d, p.e, p.f) = (mids[0], mids[1], mids[2]);
+                    (p.g, p.h, p.i) = (highlights[0], highlights[1], highlights[2]);
+                    p.j = f32::from(preserve);
+                    run(&mut encoder, Pass::ColorBalance, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Levels { ib, iw, ob, ow, g } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d, p.e) = (ib, iw, ob, ow, g);
+                    run(&mut encoder, Pass::Levels, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Gamma { g } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = g;
+                    run(&mut encoder, Pass::Gamma, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Posterize { n } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = n;
+                    run(&mut encoder, Pass::Posterize, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Extract {
+                    lo,
+                    hi,
+                    soft,
+                    invert,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (lo, hi, soft, f32::from(invert));
+                    run(&mut encoder, Pass::Extract, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Tint {
+                    black,
+                    white,
+                    amount,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c) = (black[0], black[1], black[2]);
+                    (p.d, p.e, p.f) = (white[0], white[1], white[2]);
+                    p.g = amount;
+                    run(&mut encoder, Pass::Tint, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -1259,6 +1448,34 @@ mod tests {
             VideoEffect::new(LINEAR_BLUR)
                 .with("angle", 37.0)
                 .with("ratio", 0.8),
+            VideoEffect::new(crate::vfx::COLOR_BALANCE)
+                .with("shadow_b", 0.6)
+                .with("mid_r", -0.4)
+                .with("hi_g", 0.8)
+                .with("preserve", 1.0),
+            VideoEffect::new(crate::vfx::COLOR_BALANCE).with("hi_r", 1.0),
+            VideoEffect::new(crate::vfx::LEVELS)
+                .with("in_black", 20.0)
+                .with("in_white", 200.0)
+                .with("gamma", 150.0)
+                .with("out_black", 10.0)
+                .with("out_white", 240.0),
+            VideoEffect::new(crate::vfx::GAMMA_CORRECTION).with("gamma", 17.0),
+            VideoEffect::new(crate::vfx::POSTERIZE).with("levels", 5.0),
+            VideoEffect::new(crate::vfx::EXTRACT)
+                .with("black", 60.0)
+                .with("white", 190.0),
+            VideoEffect::new(crate::vfx::EXTRACT)
+                .with("black", 60.0)
+                .with("white", 190.0)
+                .with("softness", 40.0)
+                .with("invert", 1.0),
+            VideoEffect::new(crate::vfx::TINT)
+                .with("white_g", 0.4)
+                .with("white_b", 0.1),
+            VideoEffect::new(crate::vfx::TINT)
+                .with("black_b", 0.3)
+                .with("amount", 0.6),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
