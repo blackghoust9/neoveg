@@ -75,6 +75,15 @@ pub const GAMMA_CORRECTION: &str = "gamma_correction";
 pub const POSTERIZE: &str = "posterize";
 pub const EXTRACT: &str = "extract";
 pub const TINT: &str = "tint";
+pub const CHANNEL_MIX: &str = "channel_mix";
+pub const ASC_CDL: &str = "asc_cdl";
+pub const LEAVE_COLOR: &str = "leave_color";
+pub const CHANGE_TO_COLOR: &str = "change_to_color";
+pub const COLOR_PASS: &str = "color_pass";
+pub const ALPHA_ADJUST: &str = "alpha_adjust";
+pub const HORIZONTAL_FLIP: &str = "horizontal_flip";
+pub const VERTICAL_FLIP: &str = "vertical_flip";
+pub const OFFSET: &str = "offset";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -705,6 +714,450 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: CHANNEL_MIX,
+        label: "Misturador de canais",
+        params: &[
+            ParamSpec {
+                id: "rr",
+                label: "Vermelho com vermelho",
+                min: -2.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "rg",
+                label: "Vermelho com verde",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "rb",
+                label: "Vermelho com azul",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "rc",
+                label: "Vermelho com constante",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "gr",
+                label: "Verde com vermelho",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "gg",
+                label: "Verde com verde",
+                min: -2.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "gb",
+                label: "Verde com azul",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "gc",
+                label: "Verde com constante",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "br",
+                label: "Azul com vermelho",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "bg",
+                label: "Azul com verde",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "bb",
+                label: "Azul com azul",
+                min: -2.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "bc",
+                label: "Azul com constante",
+                min: -2.0,
+                max: 2.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "monochrome",
+                label: "Monocromático (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: ASC_CDL,
+        label: "ASC CDL",
+        params: &[
+            ParamSpec {
+                id: "r_slope",
+                label: "Inclinação, vermelho",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "g_slope",
+                label: "Inclinação, verde",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "b_slope",
+                label: "Inclinação, azul",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "r_offset",
+                label: "Deslocamento, vermelho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "g_offset",
+                label: "Deslocamento, verde",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "b_offset",
+                label: "Deslocamento, azul",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "r_power",
+                label: "Potência, vermelho",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "g_power",
+                label: "Potência, verde",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "b_power",
+                label: "Potência, azul",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "saturation",
+                label: "Saturação",
+                min: 0.0,
+                max: 10.0,
+                default: 1.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: LEAVE_COLOR,
+        label: "Manter cor",
+        params: &[
+            ParamSpec {
+                id: "amount",
+                label: "Quantidade a descolorir",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "key_r",
+                label: "Cor a manter, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "key_g",
+                label: "Cor a manter, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "key_b",
+                label: "Cor a manter, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "tolerance",
+                label: "Tolerância",
+                min: 0.0,
+                max: 1.0,
+                default: 0.15,
+                percent: true,
+            },
+            ParamSpec {
+                id: "softness",
+                label: "Suavidade da borda",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: CHANGE_TO_COLOR,
+        label: "Trocar por cor",
+        params: &[
+            ParamSpec {
+                id: "from_r",
+                label: "De, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "from_g",
+                label: "De, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "from_b",
+                label: "De, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "to_r",
+                label: "Para, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "to_g",
+                label: "Para, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "to_b",
+                label: "Para, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hue_tol",
+                label: "Tolerância de matiz",
+                min: 0.0,
+                max: 1.0,
+                default: 0.05,
+                percent: true,
+            },
+            ParamSpec {
+                id: "softness",
+                label: "Suavidade",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: COLOR_PASS,
+        label: "Passar cor",
+        params: &[
+            ParamSpec {
+                id: "key_r",
+                label: "Cor, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "key_g",
+                label: "Cor, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "key_b",
+                label: "Cor, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "similarity",
+                label: "Semelhança",
+                min: 0.0,
+                max: 1.0,
+                default: 0.1,
+                percent: true,
+            },
+            ParamSpec {
+                id: "reverse",
+                label: "Inverter (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: ALPHA_ADJUST,
+        label: "Ajuste de alfa",
+        params: &[
+            ParamSpec {
+                id: "opacity",
+                label: "Opacidade",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "ignore",
+                label: "Ignorar o alfa (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "invert",
+                label: "Inverter o alfa (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "mask_only",
+                label: "Só a máscara (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: HORIZONTAL_FLIP,
+        label: "Espelhar na horizontal",
+        params: &[],
+    },
+    EffectSpec {
+        id: VERTICAL_FLIP,
+        label: "Espelhar na vertical",
+        params: &[],
+    },
+    EffectSpec {
+        id: OFFSET,
+        label: "Deslocar",
+        params: &[
+            ParamSpec {
+                id: "shift_x",
+                label: "Centro para, horizontal",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shift_y",
+                label: "Centro para, vertical",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "blend",
+                label: "Mistura com o original",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -878,6 +1331,72 @@ impl VideoEffect {
                 ],
                 amount: self.value(spec, "amount"),
             },
+            CHANNEL_MIX => {
+                let g = |id: &str| self.value(spec, id);
+                let mut m = [
+                    [g("rr"), g("rg"), g("rb"), g("rc")],
+                    [g("gr"), g("gg"), g("gb"), g("gc")],
+                    [g("br"), g("bg"), g("bb"), g("bc")],
+                ];
+                if g("monochrome") >= 0.5 {
+                    m = [m[0]; 3];
+                }
+                Resolved::ChannelMix { m }
+            }
+            ASC_CDL => {
+                let g = |id: &str| self.value(spec, id);
+                Resolved::AscCdl {
+                    slope: [g("r_slope"), g("g_slope"), g("b_slope")],
+                    offset: [g("r_offset"), g("g_offset"), g("b_offset")],
+                    power: [g("r_power"), g("g_power"), g("b_power")],
+                    sat: g("saturation"),
+                }
+            }
+            LEAVE_COLOR => Resolved::LeaveColor {
+                amount: self.value(spec, "amount"),
+                key_hue: hue_fraction([
+                    self.value(spec, "key_r"),
+                    self.value(spec, "key_g"),
+                    self.value(spec, "key_b"),
+                ]),
+                tol: self.value(spec, "tolerance"),
+                soft: self.value(spec, "softness") + 1e-4,
+            },
+            CHANGE_TO_COLOR => Resolved::ChangeToColor {
+                from_hue: hue_fraction([
+                    self.value(spec, "from_r"),
+                    self.value(spec, "from_g"),
+                    self.value(spec, "from_b"),
+                ]),
+                to_hue: hue_fraction([
+                    self.value(spec, "to_r"),
+                    self.value(spec, "to_g"),
+                    self.value(spec, "to_b"),
+                ]),
+                tol: self.value(spec, "hue_tol"),
+                soft: self.value(spec, "softness") * 0.3 + 1e-4,
+            },
+            COLOR_PASS => Resolved::ColorPass {
+                key: [
+                    self.value(spec, "key_r"),
+                    self.value(spec, "key_g"),
+                    self.value(spec, "key_b"),
+                ],
+                sim: self.value(spec, "similarity"),
+                reverse: self.value(spec, "reverse") >= 0.5,
+            },
+            ALPHA_ADJUST => Resolved::AlphaAdjust {
+                opacity: self.value(spec, "opacity"),
+                ignore: self.value(spec, "ignore") >= 0.5,
+                invert: self.value(spec, "invert") >= 0.5,
+                mask_only: self.value(spec, "mask_only") >= 0.5,
+            },
+            HORIZONTAL_FLIP => Resolved::HFlip,
+            VERTICAL_FLIP => Resolved::VFlip,
+            OFFSET => Resolved::Offset {
+                shift: [self.value(spec, "shift_x"), self.value(spec, "shift_y")],
+                blend: self.value(spec, "blend"),
+            },
             _ => return None,
         })
     }
@@ -1004,6 +1523,50 @@ pub enum Resolved {
         white: [f32; 3],
         amount: f32,
     },
+    /// Rows `[red, green, blue, constant]` for each output channel.
+    ChannelMix {
+        m: [[f32; 4]; 3],
+    },
+    /// See [`cdl_px`].
+    AscCdl {
+        slope: [f32; 3],
+        offset: [f32; 3],
+        power: [f32; 3],
+        sat: f32,
+    },
+    /// See [`leave_color_px`]; hues and `tol` are fractions of the colour circle.
+    LeaveColor {
+        amount: f32,
+        key_hue: f32,
+        tol: f32,
+        soft: f32,
+    },
+    /// See [`change_to_color_px`].
+    ChangeToColor {
+        from_hue: f32,
+        to_hue: f32,
+        tol: f32,
+        soft: f32,
+    },
+    /// Colours within `sim` of `key` stay (or, reversed, are the ones that go grey).
+    ColorPass {
+        key: [f32; 3],
+        sim: f32,
+        reverse: bool,
+    },
+    AlphaAdjust {
+        opacity: f32,
+        ignore: bool,
+        invert: bool,
+        mask_only: bool,
+    },
+    HFlip,
+    VFlip,
+    /// See [`offset_pixels`].
+    Offset {
+        shift: [f32; 2],
+        blend: f32,
+    },
 }
 
 impl Resolved {
@@ -1049,6 +1612,32 @@ impl Resolved {
             Resolved::Posterize { n } => n >= 255.0,
             Resolved::Extract { .. } => false,
             Resolved::Tint { amount, .. } => amount <= 0.0,
+            Resolved::ChannelMix { m } => {
+                m == [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                ]
+            }
+            Resolved::AscCdl {
+                slope,
+                offset,
+                power,
+                sat,
+            } => slope == [1.0; 3] && offset == [0.0; 3] && power == [1.0; 3] && sat == 1.0,
+            Resolved::LeaveColor { amount, .. } => amount <= 0.0,
+            Resolved::ChangeToColor {
+                from_hue, to_hue, ..
+            } => from_hue == to_hue,
+            Resolved::ColorPass { .. } => false,
+            Resolved::AlphaAdjust {
+                opacity,
+                ignore,
+                invert,
+                mask_only,
+            } => opacity == 1.0 && !ignore && !invert && !mask_only,
+            Resolved::HFlip | Resolved::VFlip => false,
+            Resolved::Offset { shift, blend } => shift == [0.5, 0.5] || blend >= 1.0,
         }
     }
 }
@@ -1796,6 +2385,136 @@ fn luma_of(c: [f32; 3]) -> f32 {
     LUMA[0] * c[0] + LUMA[1] * c[1] + LUMA[2] * c[2]
 }
 
+/// The hue of a straight colour as a fraction of the circle (`0.0..1.0`).
+fn hue_fraction(c: [f32; 3]) -> f32 {
+    rgb_to_hsl(c)[0] / 360.0
+}
+
+/// Distance between two hues on the circle (`0.0..=0.5`).
+fn hue_distance(a: f32, b: f32) -> f32 {
+    let d = (a - b).abs();
+    d.min(1.0 - d)
+}
+
+/// The ASC CDL of one straight colour: slope and offset, a power curve, then saturation around the
+/// luma.
+pub fn cdl_px(
+    c: [f32; 3],
+    slope: [f32; 3],
+    offset: [f32; 3],
+    power: [f32; 3],
+    sat: f32,
+) -> [f32; 3] {
+    let mut v = [0.0; 3];
+    for k in 0..3 {
+        v[k] = (c[k] * slope[k] + offset[k])
+            .clamp(0.0, 1.0)
+            .powf(power[k].max(0.0));
+    }
+    let l = luma_of(v);
+    v.map(|q| (l + sat * (q - l)).clamp(0.0, 1.0))
+}
+
+/// Leave Color: the colours away from the key hue lose `amount` of their colour.
+pub fn leave_color_px(c: [f32; 3], amount: f32, key_hue: f32, tol: f32, soft: f32) -> [f32; 3] {
+    let d = hue_distance(hue_fraction(c), key_hue) * 2.0;
+    let keep = 1.0 - ((d - tol) / soft).clamp(0.0, 1.0);
+    let l = luma_of(c);
+    let k = amount * (1.0 - keep);
+    c.map(|v| v + (l - v) * k)
+}
+
+/// Change to Color: hues near `from_hue` move toward `to_hue`.
+pub fn change_to_color_px(
+    c: [f32; 3],
+    from_hue: f32,
+    to_hue: f32,
+    tol: f32,
+    soft: f32,
+) -> [f32; 3] {
+    let mut hsl = rgb_to_hsl(c);
+    let h = hsl[0] / 360.0;
+    let w = 1.0 - ((hue_distance(h, from_hue) - tol) / soft).clamp(0.0, 1.0);
+    hsl[0] = (h + (to_hue - from_hue) * w).rem_euclid(1.0) * 360.0;
+    hsl_to_rgb(hsl)
+}
+
+fn alpha_adjust(work: &mut Work, opacity: f32, ignore: bool, invert: bool, mask_only: bool) {
+    for p in &mut work.px {
+        let a0 = p[3];
+        let straight = if a0 > 1e-6 {
+            [p[0] / a0, p[1] / a0, p[2] / a0]
+        } else {
+            [0.0; 3]
+        };
+        let mut a = if ignore { 1.0 } else { a0 };
+        if invert {
+            a = 1.0 - a;
+        }
+        a = (a * opacity).clamp(0.0, 1.0);
+        *p = if mask_only {
+            [a, a, a, 1.0]
+        } else {
+            [straight[0] * a, straight[1] * a, straight[2] * a, a]
+        };
+    }
+}
+
+fn flip(work: &Work, horizontal: bool) -> Work {
+    let (w, h) = (work.width, work.height);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (sx, sy) = if horizontal {
+                (w - 1 - x, y)
+            } else {
+                (x, h - 1 - y)
+            };
+            px.push(work.px[sy * w + sx]);
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
+/// How far the picture shifts so that its centre lands on `shift` (fractions of the frame, lower-left
+/// origin), wrapped into one frame: `(dx, dy)` in pixels, `y` down.
+pub fn offset_pixels(shift: [f32; 2], width: u32, height: u32) -> (f32, f32) {
+    let (w, h) = (width.max(1) as f32, height.max(1) as f32);
+    (
+        ((shift[0] - 0.5) * w).rem_euclid(w),
+        (((1.0 - shift[1]) - 0.5) * h).rem_euclid(h),
+    )
+}
+
+/// The picture wrapped around by `(dx, dy)` pixels and mixed with the original by `blend`.
+fn offset(work: &Work, dx: f32, dy: f32, blend: f32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (wf, hf) = (w as f32, h as f32);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let u = (x as f32 + 0.5 - dx).rem_euclid(wf).clamp(0.5, wf - 0.5);
+            let v = (y as f32 + 0.5 - dy).rem_euclid(hf).clamp(0.5, hf - 0.5);
+            let shifted = sample_work(work, u, v);
+            let original = work.px[y * w + x];
+            let mut out = [0.0; 4];
+            for c in 0..4 {
+                out[c] = shifted[c] + (original[c] - shifted[c]) * blend;
+            }
+            px.push(out);
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -1835,6 +2554,48 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             luminosity,
         } => hsl_adjust(work, add_to_hue, saturation, luminosity),
         Resolved::LinearBlur { angle, ratio } => *work = linear_blur(work, angle, ratio),
+        Resolved::ChannelMix { m } => map_straight(work, |c| {
+            [0, 1, 2].map(|k| m[k][0] * c[0] + m[k][1] * c[1] + m[k][2] * c[2] + m[k][3])
+        }),
+        Resolved::AscCdl {
+            slope,
+            offset,
+            power,
+            sat,
+        } => map_straight(work, |c| cdl_px(c, slope, offset, power, sat)),
+        Resolved::LeaveColor {
+            amount,
+            key_hue,
+            tol,
+            soft,
+        } => map_straight(work, |c| leave_color_px(c, amount, key_hue, tol, soft)),
+        Resolved::ChangeToColor {
+            from_hue,
+            to_hue,
+            tol,
+            soft,
+        } => map_straight(work, |c| change_to_color_px(c, from_hue, to_hue, tol, soft)),
+        Resolved::ColorPass { key, sim, reverse } => map_straight(work, |c| {
+            let d = ((c[0] - key[0]).powi(2) + (c[1] - key[1]).powi(2) + (c[2] - key[2]).powi(2))
+                .sqrt();
+            if (d <= sim * 1.2) != reverse {
+                c
+            } else {
+                [luma_of(c); 3]
+            }
+        }),
+        Resolved::AlphaAdjust {
+            opacity,
+            ignore,
+            invert,
+            mask_only,
+        } => alpha_adjust(work, opacity, ignore, invert, mask_only),
+        Resolved::HFlip => *work = flip(work, true),
+        Resolved::VFlip => *work = flip(work, false),
+        Resolved::Offset { shift, blend } => {
+            let (dx, dy) = offset_pixels(shift, work.width as u32, work.height as u32);
+            *work = offset(work, dx, dy, blend);
+        }
         Resolved::ColorBalance {
             shadows,
             mids,
@@ -2305,6 +3066,115 @@ mod tests {
         assert!(resolve_chain(&[VideoEffect::new(GAMMA_CORRECTION)]).is_empty());
         assert!(resolve_chain(&[VideoEffect::new(POSTERIZE).with("levels", 256.0)]).is_empty());
         assert!(resolve_chain(&[VideoEffect::new(TINT).with("amount", 0.0)]).is_empty());
+    }
+
+    #[test]
+    fn the_second_batch_of_colour_and_image_tools_does_what_it_says() {
+        let px = |rgb: [u8; 3], fx: VideoEffect| {
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![rgb[0], rgb[1], rgb[2], 255],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            [f.rgba[0], f.rgba[1], f.rgba[2]]
+        };
+        // Channel mix: swapping red and blue; monochrome copies the red row to every channel
+        let swap = VideoEffect::new(CHANNEL_MIX)
+            .with("rr", 0.0)
+            .with("rb", 1.0)
+            .with("bb", 0.0)
+            .with("br", 1.0);
+        assert_eq!(px([10, 20, 30], swap), [30, 20, 10]);
+        let mono = VideoEffect::new(CHANNEL_MIX).with("monochrome", 1.0);
+        assert_eq!(px([10, 20, 30], mono), [10, 10, 10]);
+        assert!(resolve_chain(&[VideoEffect::new(CHANNEL_MIX)]).is_empty());
+        // ASC CDL: a slope of 2 doubles, an offset adds, saturation 0 is grey
+        assert_eq!(
+            px([50, 50, 50], VideoEffect::new(ASC_CDL).with("r_slope", 2.0))[0],
+            100
+        );
+        let grey = px(
+            [200, 100, 50],
+            VideoEffect::new(ASC_CDL).with("saturation", 0.0),
+        );
+        assert!(grey[0] == grey[1] && grey[1] == grey[2]);
+        assert!(resolve_chain(&[VideoEffect::new(ASC_CDL)]).is_empty());
+        // Leave colour: red stays, blue loses its colour
+        let leave = || VideoEffect::new(LEAVE_COLOR).with("amount", 1.0);
+        assert_eq!(px([255, 0, 0], leave()), [255, 0, 0]);
+        let blue = px([0, 0, 255], leave());
+        assert!(blue[0] == blue[1] && blue[1] == blue[2], "{blue:?}");
+        assert!(resolve_chain(&[VideoEffect::new(LEAVE_COLOR)]).is_empty());
+        // Change to colour: red becomes blue, green is left alone
+        let change = || VideoEffect::new(CHANGE_TO_COLOR);
+        let turned = px([255, 0, 0], change());
+        assert!(turned[2] > 240 && turned[0] < 15, "{turned:?}");
+        assert_eq!(px([0, 255, 0], change()), [0, 255, 0]);
+        // Colour pass: the key colour stays, everything else turns grey; reverse swaps them
+        let pass = || VideoEffect::new(COLOR_PASS).with("similarity", 0.2);
+        assert_eq!(px([255, 0, 0], pass()), [255, 0, 0]);
+        let other = px([0, 0, 255], pass());
+        assert!(other[0] == other[1] && other[1] == other[2]);
+        assert_eq!(
+            px([255, 0, 0], pass().with("reverse", 1.0))[1],
+            px([255, 0, 0], pass().with("reverse", 1.0))[0]
+        );
+        // Alpha adjust: half opacity, inverted alpha, and the matte alone
+        let rgba = |fx: VideoEffect| {
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![200, 100, 50, 200],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            f.rgba
+        };
+        assert_eq!(
+            rgba(VideoEffect::new(ALPHA_ADJUST).with("opacity", 0.5)),
+            [200, 100, 50, 100]
+        );
+        assert_eq!(
+            rgba(VideoEffect::new(ALPHA_ADJUST).with("invert", 1.0))[3],
+            55
+        );
+        assert_eq!(
+            rgba(VideoEffect::new(ALPHA_ADJUST).with("ignore", 1.0))[3],
+            255
+        );
+        assert_eq!(
+            rgba(VideoEffect::new(ALPHA_ADJUST).with("mask_only", 1.0)),
+            [200, 200, 200, 255]
+        );
+        assert!(resolve_chain(&[VideoEffect::new(ALPHA_ADJUST)]).is_empty());
+        // Flips and offset on a 4 by 2 picture whose red channel is the column
+        let mut wide = FrameBuffer {
+            width: 4,
+            height: 2,
+            rgba: vec![0; 4 * 2 * 4],
+        };
+        for y in 0..2 {
+            for x in 0..4 {
+                let i = (y * 4 + x) * 4;
+                wide.rgba[i] = (x * 10 + y) as u8;
+                wide.rgba[i + 3] = 255;
+            }
+        }
+        let red = |f: &FrameBuffer| f.rgba.chunks(4).map(|p| p[0]).collect::<Vec<_>>();
+        let mut h = wide.clone();
+        apply_chain_cpu(&mut h, &[VideoEffect::new(HORIZONTAL_FLIP)]);
+        assert_eq!(red(&h), [30, 20, 10, 0, 31, 21, 11, 1]);
+        let mut v = wide.clone();
+        apply_chain_cpu(&mut v, &[VideoEffect::new(VERTICAL_FLIP)]);
+        assert_eq!(red(&v), [1, 11, 21, 31, 0, 10, 20, 30]);
+        // The centre moved a quarter of the width to the right: the picture wraps by one column
+        let mut shifted = wide.clone();
+        apply_chain_cpu(
+            &mut shifted,
+            &[VideoEffect::new(OFFSET).with("shift_x", 0.75)],
+        );
+        assert_eq!(red(&shifted), [30, 0, 10, 20, 31, 1, 11, 21]);
+        assert_eq!(offset_pixels([0.5, 0.5], 100, 50), (0.0, 0.0));
     }
 
     #[test]

@@ -14,8 +14,8 @@ use wgpu::util::DeviceExt;
 use crate::frame::FrameBuffer;
 use crate::transitions as tr;
 use crate::vfx::{
-    contrast_gain, gaussian_kernel, hue_degrees, linear_blur_line, median_radius, pixelate_block,
-    range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS,
+    contrast_gain, gaussian_kernel, hue_degrees, linear_blur_line, median_radius, offset_pixels,
+    pixelate_block, range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS,
 };
 
 #[repr(C)]
@@ -494,6 +494,139 @@ fn tint(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[i] = straight_color(s, c + (black + (white - black) * l - c) * p.g);
 }
 
+fn hue_frac(c: vec3<f32>) -> f32 {
+    return rgb_to_hsl(c).x / 360.0;
+}
+
+fn hue_dist(a: f32, b: f32) -> f32 {
+    let d = abs(a - b);
+    return min(d, 1.0 - d);
+}
+
+// a..d = red row, e..h = green row, i..l = blue row (red, green, blue, constant)
+@compute @workgroup_size(8, 8, 1)
+fn channel_mix(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let o = vec3<f32>(
+        p.a * c.x + p.b * c.y + p.c * c.z + p.d,
+        p.e * c.x + p.f * c.y + p.g * c.z + p.h,
+        p.i * c.x + p.j * c.y + p.k * c.z + p.l
+    );
+    dst[i] = straight_color(s, o);
+}
+
+// a/b/c = slope, d/e/f = offset, g/h/i = power, j = saturation
+@compute @workgroup_size(8, 8, 1)
+fn asc_cdl(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let t = clamp(c * vec3<f32>(p.a, p.b, p.c) + vec3<f32>(p.d, p.e, p.f), vec3<f32>(0.0), vec3<f32>(1.0));
+    let v = pow(t, max(vec3<f32>(p.g, p.h, p.i), vec3<f32>(0.0)));
+    let l = luma_straight(v);
+    dst[i] = straight_color(s, vec3<f32>(l) + (v - vec3<f32>(l)) * p.j);
+}
+
+// a = amount, b = key hue, c = tolerance, d = softness
+@compute @workgroup_size(8, 8, 1)
+fn leave_color(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let d = hue_dist(hue_frac(c), p.b) * 2.0;
+    let keep = 1.0 - clamp((d - p.c) / p.d, 0.0, 1.0);
+    let l = luma_straight(c);
+    let k = p.a * (1.0 - keep);
+    dst[i] = straight_color(s, c + (vec3<f32>(l) - c) * k);
+}
+
+// a = from hue, b = to hue, c = tolerance, d = softness
+@compute @workgroup_size(8, 8, 1)
+fn change_to_color(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    var hsl = rgb_to_hsl(s.xyz / s.w);
+    let h = hsl.x / 360.0;
+    let w = 1.0 - clamp((hue_dist(h, p.a) - p.c) / p.d, 0.0, 1.0);
+    let moved = h + (p.b - p.a) * w;
+    hsl.x = (moved - floor(moved)) * 360.0;
+    dst[i] = straight_color(s, hsl_to_rgb(hsl));
+}
+
+// a/b/c = key colour, d = similarity (already by 1.0), e = reverse
+@compute @workgroup_size(8, 8, 1)
+fn color_pass(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let d = length(c - vec3<f32>(p.a, p.b, p.c));
+    let near = d <= p.d * 1.2;
+    let keep = near != (p.e >= 0.5);
+    if (keep) {
+        dst[i] = straight_color(s, c);
+    } else {
+        dst[i] = straight_color(s, vec3<f32>(luma_straight(c)));
+    }
+}
+
+// a = opacity, b = ignore the alpha, c = invert it, d = the matte alone
+@compute @workgroup_size(8, 8, 1)
+fn alpha_adjust(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    var c = vec3<f32>(0.0);
+    if (s.w > 0.000001) { c = s.xyz / s.w; }
+    var a = s.w;
+    if (p.b >= 0.5) { a = 1.0; }
+    if (p.c >= 0.5) { a = 1.0 - a; }
+    a = clamp(a * p.a, 0.0, 1.0);
+    if (p.d >= 0.5) {
+        dst[i] = vec4<f32>(a, a, a, 1.0);
+    } else {
+        dst[i] = vec4<f32>(c.x * a, c.y * a, c.z * a, a);
+    }
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn hflip(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    dst[id.y * p.width + id.x] = src[id.y * p.width + (p.width - 1u - id.x)];
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn vflip(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    dst[id.y * p.width + id.x] = src[(p.height - 1u - id.y) * p.width + id.x];
+}
+
+// a/b = shift in pixels (y down), c = mix with the original
+@compute @workgroup_size(8, 8, 1)
+fn offset_fx(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let u = f32(id.x) + 0.5 - p.a;
+    let v = f32(id.y) + 0.5 - p.b;
+    let uw = clamp(u - w * floor(u / w), 0.5, w - 0.5);
+    let vw = clamp(v - h * floor(v / h), 0.5, h - 0.5);
+    let shifted = sample_bilinear(uw, vw);
+    let i = id.y * p.width + id.x;
+    dst[i] = shifted + (src[i] - shifted) * p.c;
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -670,6 +803,15 @@ pub struct VfxGpu {
     posterize: wgpu::ComputePipeline,
     extract: wgpu::ComputePipeline,
     tint: wgpu::ComputePipeline,
+    channel_mix: wgpu::ComputePipeline,
+    asc_cdl: wgpu::ComputePipeline,
+    leave_color: wgpu::ComputePipeline,
+    change_to_color: wgpu::ComputePipeline,
+    color_pass: wgpu::ComputePipeline,
+    alpha_adjust: wgpu::ComputePipeline,
+    hflip: wgpu::ComputePipeline,
+    vflip: wgpu::ComputePipeline,
+    offset_fx: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -717,6 +859,15 @@ enum Pass {
     Posterize,
     Extract,
     Tint,
+    ChannelMix,
+    AscCdl,
+    LeaveColor,
+    ChangeToColor,
+    ColorKeep,
+    AlphaAdjust,
+    HFlip,
+    VFlip,
+    OffsetFx,
     TransMask,
     TransSlide,
     TransGrow,
@@ -796,6 +947,15 @@ impl VfxGpu {
             posterize: make("posterize"),
             extract: make("extract"),
             tint: make("tint"),
+            channel_mix: make("channel_mix"),
+            asc_cdl: make("asc_cdl"),
+            leave_color: make("leave_color"),
+            change_to_color: make("change_to_color"),
+            color_pass: make("color_pass"),
+            alpha_adjust: make("alpha_adjust"),
+            hflip: make("hflip"),
+            vflip: make("vflip"),
+            offset_fx: make("offset_fx"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -833,6 +993,15 @@ impl VfxGpu {
             Pass::Posterize => &self.posterize,
             Pass::Extract => &self.extract,
             Pass::Tint => &self.tint,
+            Pass::ChannelMix => &self.channel_mix,
+            Pass::AscCdl => &self.asc_cdl,
+            Pass::LeaveColor => &self.leave_color,
+            Pass::ChangeToColor => &self.change_to_color,
+            Pass::ColorKeep => &self.color_pass,
+            Pass::AlphaAdjust => &self.alpha_adjust,
+            Pass::HFlip => &self.hflip,
+            Pass::VFlip => &self.vflip,
+            Pass::OffsetFx => &self.offset_fx,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -1296,6 +1465,97 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Tint, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::ChannelMix { m } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (m[0][0], m[0][1], m[0][2], m[0][3]);
+                    (p.e, p.f, p.g, p.h) = (m[1][0], m[1][1], m[1][2], m[1][3]);
+                    (p.i, p.j, p.k, p.l) = (m[2][0], m[2][1], m[2][2], m[2][3]);
+                    run(&mut encoder, Pass::ChannelMix, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::AscCdl {
+                    slope,
+                    offset,
+                    power,
+                    sat,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c) = (slope[0], slope[1], slope[2]);
+                    (p.d, p.e, p.f) = (offset[0], offset[1], offset[2]);
+                    (p.g, p.h, p.i) = (power[0], power[1], power[2]);
+                    p.j = sat;
+                    run(&mut encoder, Pass::AscCdl, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::LeaveColor {
+                    amount,
+                    key_hue,
+                    tol,
+                    soft,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (amount, key_hue, tol, soft);
+                    run(&mut encoder, Pass::LeaveColor, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::ChangeToColor {
+                    from_hue,
+                    to_hue,
+                    tol,
+                    soft,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (from_hue, to_hue, tol, soft);
+                    run(&mut encoder, Pass::ChangeToColor, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::ColorPass { key, sim, reverse } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (key[0], key[1], key[2], sim);
+                    p.e = f32::from(reverse);
+                    run(&mut encoder, Pass::ColorKeep, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::AlphaAdjust {
+                    opacity,
+                    ignore,
+                    invert,
+                    mask_only,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (
+                        opacity,
+                        f32::from(ignore),
+                        f32::from(invert),
+                        f32::from(mask_only),
+                    );
+                    run(&mut encoder, Pass::AlphaAdjust, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::HFlip | Resolved::VFlip => {
+                    let dst = (cur + 1) % 3;
+                    let pass = if matches!(effect, Resolved::HFlip) {
+                        Pass::HFlip
+                    } else {
+                        Pass::VFlip
+                    };
+                    run(&mut encoder, pass, Params::new(w, h), cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::Offset { shift, blend } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b) = offset_pixels(shift, w, h);
+                    p.c = blend;
+                    run(&mut encoder, Pass::OffsetFx, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -1476,6 +1736,44 @@ mod tests {
             VideoEffect::new(crate::vfx::TINT)
                 .with("black_b", 0.3)
                 .with("amount", 0.6),
+            VideoEffect::new(crate::vfx::CHANNEL_MIX)
+                .with("rr", 0.5)
+                .with("rg", 0.6)
+                .with("gb", -0.8)
+                .with("bc", 0.3),
+            VideoEffect::new(crate::vfx::CHANNEL_MIX)
+                .with("rb", 1.2)
+                .with("monochrome", 1.0),
+            VideoEffect::new(crate::vfx::ASC_CDL)
+                .with("r_slope", 1.4)
+                .with("g_offset", -0.1)
+                .with("b_power", 1.8)
+                .with("saturation", 0.7),
+            VideoEffect::new(crate::vfx::LEAVE_COLOR)
+                .with("amount", 0.9)
+                .with("key_g", 0.7)
+                .with("tolerance", 0.1)
+                .with("softness", 0.2),
+            VideoEffect::new(crate::vfx::CHANGE_TO_COLOR)
+                .with("hue_tol", 0.1)
+                .with("softness", 0.4),
+            VideoEffect::new(crate::vfx::COLOR_PASS).with("similarity", 0.5),
+            VideoEffect::new(crate::vfx::COLOR_PASS)
+                .with("similarity", 0.5)
+                .with("reverse", 1.0),
+            VideoEffect::new(crate::vfx::ALPHA_ADJUST)
+                .with("opacity", 0.6)
+                .with("invert", 1.0),
+            VideoEffect::new(crate::vfx::ALPHA_ADJUST).with("mask_only", 1.0),
+            VideoEffect::new(crate::vfx::ALPHA_ADJUST).with("ignore", 1.0),
+            VideoEffect::new(crate::vfx::HORIZONTAL_FLIP),
+            VideoEffect::new(crate::vfx::VERTICAL_FLIP),
+            VideoEffect::new(crate::vfx::OFFSET)
+                .with("shift_x", 0.8)
+                .with("shift_y", 0.3),
+            VideoEffect::new(crate::vfx::OFFSET)
+                .with("shift_x", 0.2)
+                .with("blend", 0.4),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();

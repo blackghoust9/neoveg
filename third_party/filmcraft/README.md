@@ -40,7 +40,7 @@
 
 | Arquivo no Neoveg | Origem | Função |
 | :--- | :--- | :--- |
-| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos efeitos de cor Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair e Matiz, reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
+| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos efeitos Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair, Matiz, Misturador de canais, ASC CDL, Manter cor, Trocar por cor, Passar cor, Ajuste de alfa, Espelhar na horizontal e na vertical e Deslocar, reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
 
 Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
 
