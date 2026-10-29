@@ -92,6 +92,8 @@ impl RenderDialogState {
             .is_some_and(|s| !s.finished)
     }
 
+    // the dialog takes the project facts it shows as plain arguments
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         &mut self,
         ctx: &egui::Context,
