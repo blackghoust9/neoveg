@@ -145,6 +145,7 @@ A única dependência **obrigatória** é a toolchain oficial do Rust. Não são
 | `cargo-llvm-cov` | 0.9+ | Opcional | `cargo llvm-cov --workspace` | `cargo install cargo-llvm-cov --locked` |
 | FFmpeg **compartilhado** com `include/` e `lib/` | **7.1.x** (não 8/9) | Só para `--features ffmpeg` | Decodificação de vídeo (`ffmpeg-next` 7.1) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` |
 | LLVM / `libclang` | **19.x** (22+ quebra a `ffmpeg-sys-next` 7.1.3) | Só para `--features ffmpeg` | `bindgen` gera as ligações do FFmpeg | `winget install --id LLVM.LLVM --exact --version 19.1.7` |
+| `poppler` (`pdftoppm`) | qualquer | Opcional | Ver as páginas dos manuais como imagem (figuras e diagramas): sem ele só o texto dos PDFs é lido, com `pypdf`. As páginas renderizadas ficam fora do repositório (AGENTS.md, seções 28 e 37) | `winget install --id oschwartz10612.Poppler --exact` |
 
 Variáveis de ambiente para o build com FFmpeg (Windows, escopo do usuário; abra um terminal novo depois de defini-las):
 
