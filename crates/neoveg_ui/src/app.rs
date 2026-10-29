@@ -230,6 +230,11 @@ enum LoadMsg {
     },
     /// The background search for a missing media came to an end.
     Relink { id: u64, outcome: Outcome },
+    /// A found file was copied next to the project (or the copy failed).
+    Copied {
+        id: u64,
+        result: Result<PathBuf, String>,
+    },
     Failed {
         path: PathBuf,
         error: String,
@@ -250,6 +255,49 @@ struct MissingMedia {
     rejected: Vec<Rejected>,
     /// The search is still running.
     searching: bool,
+    /// *Ignorar e deixar offline*: the window does not ask about it again, and the events stay marked.
+    ignored: bool,
+}
+
+/// A media file that was found outside the project's folder: it can be copied there.
+struct FoundMedia {
+    id: u64,
+    name: String,
+    path: PathBuf,
+    copying: bool,
+}
+
+/// A search of the whole machine for the missing media, running on a worker thread.
+#[derive(Default)]
+struct DeepSearch {
+    /// Set by the *Parar* button; the walk ends at the next folder.
+    cancel: std::sync::atomic::AtomicBool,
+    /// Folders entered so far.
+    folders: std::sync::atomic::AtomicU64,
+    /// The walk and the checks of what it found are over.
+    done: std::sync::atomic::AtomicBool,
+    /// A folder the walk is in now, for the progress line (updated every few folders).
+    current: std::sync::Mutex<String>,
+}
+
+/// The places a search of everything starts from: every drive on Windows, the root of the file
+/// system elsewhere.
+fn search_roots() -> Vec<PathBuf> {
+    if cfg!(windows) {
+        ('A'..='Z')
+            .map(|letter| PathBuf::from(format!("{letter}:\\")))
+            .filter(|root| root.exists())
+            .collect()
+    } else {
+        vec![PathBuf::from("/")]
+    }
+}
+
+/// A media file the project points to that exists but could not be read, waiting for a choice.
+struct MediaError {
+    id: u64,
+    path: String,
+    error: String,
 }
 
 /// A file that could not be imported, waiting for the user to choose whether to convert it.
@@ -452,6 +500,15 @@ struct AppState {
     /// Media the open project points to that is not on disk.
     missing: Vec<MissingMedia>,
     missing_open: bool,
+    /// The search of the whole machine, while it runs.
+    deep_search: Option<Arc<DeepSearch>>,
+    /// Found media that lives outside the project's folder, offered for copying there.
+    found: Vec<FoundMedia>,
+    found_open: bool,
+    /// Files of the project that could not be read, asked about one at a time.
+    media_errors: std::collections::VecDeque<MediaError>,
+    /// *Ignorar todos os erros seguintes*: from now on an unreadable file is left offline without asking.
+    ignore_media_errors: bool,
     /// The *convert this media?* question after a failed import.
     convert_offer: Option<ConvertOffer>,
     /// Text of the open "go to time" box.
@@ -1357,6 +1414,11 @@ impl AppState {
             attributes_dialog: None,
             missing: Vec::new(),
             missing_open: false,
+            deep_search: None,
+            found: Vec::new(),
+            found_open: false,
+            media_errors: std::collections::VecDeque::new(),
+            ignore_media_errors: false,
             convert_offer: None,
             goto_dialog: None,
             insert_time_dialog: None,
@@ -2388,6 +2450,7 @@ impl AppState {
         while let Ok(msg) = self.loader_rx.try_recv() {
             match msg {
                 LoadMsg::Relink { id, outcome } => self.apply_relink(id, outcome),
+                LoadMsg::Copied { id, result } => self.apply_copy(id, result),
                 LoadMsg::Failed {
                     path,
                     error,
@@ -2396,6 +2459,10 @@ impl AppState {
                 } => {
                     tracing::error!("[ERROR] import failed: {} ({error})", path.display());
                     self.status = format!("Falha ao importar: {error}");
+                    // A file of the project that exists but cannot be read: ask what to do with it
+                    if let Some(id) = existing_id {
+                        self.media_file_failed(id, &path, error.clone());
+                    }
                     // A fresh import of a file that exists may be converted; a reload of a project's
                     // media, or the result of a conversion, may not
                     // (and not a video in a build that cannot decode video: that would fail again)
@@ -2545,9 +2612,12 @@ impl AppState {
                 old_path: m.path.clone(),
                 rejected: Vec::new(),
                 searching: true,
+                ignored: false,
             })
             .collect();
         self.missing_open = false;
+        self.media_errors.clear();
+        self.ignore_media_errors = false;
         let still_missing = missing.clone();
         if !missing.is_empty() {
             let wanted: Vec<MediaRef> = self
@@ -2626,6 +2696,7 @@ impl AppState {
                         (relink::Match::Fuzzy, _) => "nome parecido, conferida",
                     };
                     self.status = format!("Mídia religada a {} ({how})", path.display());
+                    self.offer_copy(id, &path);
                 }
             }
             Outcome::Unresolved { rejected } => {
@@ -2636,13 +2707,66 @@ impl AppState {
             }
         }
         // The window opens once the searches are done and something is still missing
-        if !self.missing.is_empty() && self.missing.iter().all(|m| !m.searching) {
+        let waiting = self.missing.iter().filter(|m| !m.ignored).count();
+        if waiting > 0 && self.missing.iter().all(|m| !m.searching) {
             self.missing_open = true;
-            self.status = format!(
-                "{} mídia(s) ausente(s): veja a janela Mídia ausente",
-                self.missing.len()
-            );
+            self.status = format!("{waiting} mídia(s) ausente(s): veja a janela Mídia ausente");
         }
+    }
+
+    /// A file of the project could not be read: it is left offline at once when the user said to ignore
+    /// such errors, and queued for the *Erro de arquivo de mídia* window otherwise.
+    fn media_file_failed(&mut self, id: u64, path: &std::path::Path, error: String) {
+        if self.ignore_media_errors {
+            self.leave_offline(id, path, &error);
+        } else if !self.media_errors.iter().any(|e| e.id == id) {
+            self.media_errors.push_back(MediaError {
+                id,
+                path: path.to_string_lossy().into_owned(),
+                error,
+            });
+        }
+    }
+
+    /// *Ignorar e deixar offline*: the media stays in the list, marked as ignored, with the reason.
+    fn leave_offline(&mut self, id: u64, path: &std::path::Path, reason: &str) {
+        let rejected = Rejected {
+            path: path.to_path_buf(),
+            reason: reason.to_owned(),
+        };
+        match self.missing.iter_mut().find(|m| m.id == id) {
+            Some(m) => {
+                m.ignored = true;
+                m.searching = false;
+                if m.rejected.iter().all(|r| r.path != rejected.path) {
+                    m.rejected.push(rejected);
+                }
+            }
+            None => self.missing.push(MissingMedia {
+                id,
+                name: file_name_of(&path.to_string_lossy()),
+                old_path: path.to_string_lossy().into_owned(),
+                rejected: vec![rejected],
+                searching: false,
+                ignored: true,
+            }),
+        }
+    }
+
+    /// Replaces the file a media entry points to by one the user picked, in every event that uses it.
+    fn replace_media_file(&mut self, id: u64, ctx: &egui::Context) -> bool {
+        let Some(path) = rfd::FileDialog::new().pick_file() else {
+            return false;
+        };
+        if relink::relink_to(&mut self.project.media_pool, id, &path) {
+            self.missing.retain(|m| m.id != id);
+            self.forced_dirty = true;
+            self.spawn_media(path.clone(), Some(id), ctx);
+            self.status = format!("Mídia trocada por {}", path.display());
+            self.offer_copy(id, &path);
+            return true;
+        }
+        false
     }
 
     /// Records what a reloaded file is like when the project did not know it, and warns when it is not
@@ -2678,7 +2802,128 @@ impl AppState {
             self.forced_dirty = true;
             self.spawn_media(path.clone(), Some(id), ctx);
             self.status = format!("Mídia religada a {}", path.display());
+            self.offer_copy(id, &path);
         }
+    }
+
+    /// The folder of the saved project (`None` while it has no file).
+    fn project_dir(&self) -> Option<PathBuf> {
+        self.project_path
+            .as_deref()
+            .and_then(std::path::Path::parent)
+            .map(PathBuf::from)
+    }
+
+    /// A media was found outside the project's folder: list it so it can be copied there.
+    fn offer_copy(&mut self, id: u64, path: &std::path::Path) {
+        let Some(dir) = self.project_dir() else {
+            return;
+        };
+        if relink::is_in_folder(path, &dir) {
+            return;
+        }
+        self.found.retain(|f| f.id != id);
+        self.found.push(FoundMedia {
+            id,
+            name: file_name_of(&path.to_string_lossy()),
+            path: path.to_path_buf(),
+            copying: false,
+        });
+        self.found_open = true;
+    }
+
+    /// Copies the found files `ids` into the project's folder, one worker thread each.
+    fn start_copy(&mut self, ids: Vec<u64>, ctx: &egui::Context) {
+        let Some(dir) = self.project_dir() else {
+            self.status = "Salve o projeto primeiro: a cópia vai para a pasta dele".into();
+            return;
+        };
+        for found in self.found.iter_mut().filter(|f| ids.contains(&f.id)) {
+            if found.copying {
+                continue;
+            }
+            found.copying = true;
+            let (tx, ctx, dir) = (self.loader_tx.clone(), ctx.clone(), dir.clone());
+            let (id, source) = (found.id, found.path.clone());
+            std::thread::spawn(move || {
+                let result = relink::copy_into(&source, &dir);
+                let _ = tx.send(LoadMsg::Copied { id, result });
+                ctx.request_repaint();
+            });
+        }
+    }
+
+    /// A copy finished: the media points at the copy, which loads in place of the original.
+    fn apply_copy(&mut self, id: u64, result: Result<PathBuf, String>) {
+        match result {
+            Ok(copy) => {
+                self.found.retain(|f| f.id != id);
+                if relink::relink_to(&mut self.project.media_pool, id, &copy) {
+                    self.forced_dirty = true;
+                    if let Some(ctx) = self.tabs.ctx.clone() {
+                        self.spawn_media(copy.clone(), Some(id), &ctx);
+                    }
+                    self.status = format!("Mídia copiada para {}", copy.display());
+                }
+            }
+            Err(e) => {
+                if let Some(f) = self.found.iter_mut().find(|f| f.id == id) {
+                    f.copying = false;
+                }
+                tracing::error!("[ERROR] copy of found media failed: {e}");
+                self.status = format!("Falha ao copiar a mídia: {e}");
+            }
+        }
+    }
+
+    /// *Buscar em todos os lugares*: one walk of every drive for all the media that is still missing, on a
+    /// worker thread that can be stopped. What it finds goes through the same check as any other search.
+    fn search_missing_everywhere(&mut self, ctx: &egui::Context) {
+        let wanted: Vec<MediaRef> = self
+            .project
+            .media_pool
+            .iter()
+            .filter(|m| self.missing.iter().any(|x| x.id == m.id))
+            .cloned()
+            .collect();
+        if wanted.is_empty() {
+            return;
+        }
+        for m in &mut self.missing {
+            m.searching = true;
+        }
+        let search = Arc::new(DeepSearch::default());
+        self.deep_search = Some(Arc::clone(&search));
+        self.status = "Procurando a mídia ausente em todos os lugares…".into();
+        let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let roots = search_roots();
+            let mut found = relink::search_tree(
+                &roots,
+                &wanted,
+                &|| search.cancel.load(Ordering::Relaxed),
+                &mut |dir| {
+                    let n = search.folders.fetch_add(1, Ordering::Relaxed) + 1;
+                    if n % 200 == 0 {
+                        if let Ok(mut current) = search.current.lock() {
+                            *current = dir.display().to_string();
+                        }
+                        ctx.request_repaint();
+                    }
+                },
+            );
+            for media in wanted {
+                let candidates = found.remove(&media.id).unwrap_or_default();
+                let outcome =
+                    relink::resolve_candidates(&media, candidates, &mut |p| probe_candidate(p));
+                let _ = tx.send(LoadMsg::Relink {
+                    id: media.id,
+                    outcome,
+                });
+            }
+            search.done.store(true, Ordering::Relaxed);
+            ctx.request_repaint();
+        });
     }
 
     /// *Buscar em uma pasta…*: the search runs again for what is still missing, in a folder the user picks.
@@ -5868,6 +6113,8 @@ impl NeovegApp {
         layout_dialogs(ctx, &mut self.state);
         convert_offer_window(ctx, &mut self.state);
         missing_media_window(ctx, &mut self.state);
+        media_error_window(ctx, &mut self.state);
+        found_media_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
@@ -7246,6 +7493,10 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
     let mut keep_open = true;
     let mut locate = None;
     let mut search = false;
+    let mut ignore = None;
+    let mut ignore_all = false;
+    let mut everywhere = false;
+    let mut stop = false;
     let searching = state.missing.iter().any(|m| m.searching);
     crate::dialogs::dialog(ctx, "Mídia ausente")
         .collapsible(false)
@@ -7259,8 +7510,15 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
                         ui.strong(&m.name);
                         if m.searching {
                             ui.weak("procurando…");
-                        } else if ui.button("Localizar…").clicked() {
-                            locate = Some(m.id);
+                        } else {
+                            if ui.button("Localizar…").clicked() {
+                                locate = Some(m.id);
+                            }
+                            if m.ignored {
+                                ui.weak("deixada offline");
+                            } else if ui.button("Ignorar e deixar offline").clicked() {
+                                ignore = Some(m.id);
+                            }
                         }
                     });
                     ui.weak(&m.old_path);
@@ -7274,12 +7532,49 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
                     ui.separator();
                 }
             });
+            if let Some(deep) = &state.deep_search {
+                if deep.done.load(Ordering::Relaxed) {
+                    ui.weak(format!(
+                        "Busca em todos os lugares terminada: {} pastas.",
+                        deep.folders.load(Ordering::Relaxed)
+                    ));
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(format!(
+                            "Procurando em todos os lugares: {} pastas",
+                            deep.folders.load(Ordering::Relaxed)
+                        ));
+                        if ui.button("Parar").clicked() {
+                            stop = true;
+                        }
+                    });
+                    if let Ok(current) = deep.current.lock() {
+                        ui.weak(current.as_str());
+                    }
+                }
+            }
             ui.horizontal(|ui| {
                 if ui
                     .add_enabled(!searching, egui::Button::new("Buscar em uma pasta…"))
                     .clicked()
                 {
                     search = true;
+                }
+                if ui
+                    .add_enabled(!searching, egui::Button::new("Buscar em todos os lugares"))
+                    .clicked()
+                {
+                    everywhere = true;
+                }
+                if ui
+                    .add_enabled(
+                        state.missing.iter().any(|m| !m.ignored),
+                        egui::Button::new("Ignorar todas"),
+                    )
+                    .clicked()
+                {
+                    ignore_all = true;
                 }
             });
         });
@@ -7289,7 +7584,148 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
     if search {
         state.search_missing_in_folder(ctx);
     }
-    state.missing_open = keep_open && !state.missing.is_empty();
+    if everywhere {
+        state.search_missing_everywhere(ctx);
+    }
+    if stop {
+        if let Some(deep) = &state.deep_search {
+            deep.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+    if let Some(id) = ignore {
+        if let Some(m) = state.missing.iter_mut().find(|m| m.id == id) {
+            m.ignored = true;
+        }
+    }
+    if ignore_all {
+        for m in &mut state.missing {
+            m.ignored = true;
+        }
+        state.missing_open = false;
+        state.status =
+            "Mídia ausente deixada offline; Arquivo > Mídia ausente… abre a lista".into();
+    } else {
+        state.missing_open = keep_open
+            && !state.missing.is_empty()
+            && (state.missing.iter().any(|m| !m.ignored) || ignore.is_none());
+    }
+}
+
+/// "Mídia encontrada": media that was found outside the project's folder, with the choice of copying it
+/// next to the project. The original stays where it is; the project then points at the copy.
+fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.found_open {
+        return;
+    }
+    if state.found.is_empty() {
+        state.found_open = false;
+        return;
+    }
+    let dir = state.project_dir();
+    let mut keep_open = true;
+    let mut copy: Option<Vec<u64>> = None;
+    crate::dialogs::dialog(ctx, "Mídia encontrada")
+        .collapsible(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.label("Estes arquivos foram encontrados fora da pasta do projeto.");
+            match &dir {
+                Some(dir) => {
+                    ui.weak(format!(
+                        "Copiar para {} deixa o projeto junto da mídia. O original não é apagado.",
+                        dir.display()
+                    ));
+                }
+                None => {
+                    ui.weak("Salve o projeto para escolher a pasta da cópia.");
+                }
+            }
+            ui.separator();
+            egui::ScrollArea::vertical()
+                .max_height(260.0)
+                .show(ui, |ui| {
+                    for f in &state.found {
+                        ui.horizontal(|ui| {
+                            ui.strong(&f.name);
+                            if f.copying {
+                                ui.spinner();
+                                ui.weak("copiando…");
+                            } else if ui
+                                .add_enabled(
+                                    dir.is_some(),
+                                    egui::Button::new("Copiar para a pasta do projeto"),
+                                )
+                                .clicked()
+                            {
+                                copy = Some(vec![f.id]);
+                            }
+                        });
+                        ui.weak(f.path.display().to_string());
+                    }
+                });
+            ui.separator();
+            ui.horizontal(|ui| {
+                let idle = state.found.iter().any(|f| !f.copying);
+                if ui
+                    .add_enabled(
+                        dir.is_some() && idle,
+                        egui::Button::new("Copiar todas para a pasta do projeto"),
+                    )
+                    .clicked()
+                {
+                    copy = Some(state.found.iter().map(|f| f.id).collect());
+                }
+            });
+        });
+    if let Some(ids) = copy {
+        state.start_copy(ids, ctx);
+    }
+    state.found_open = keep_open && !state.found.is_empty();
+}
+
+/// "Erro de arquivo de mídia": a file of the project exists but could not be read. One question at a
+/// time: pick another file for it, leave it offline, or leave offline this and every later error.
+fn media_error_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(error) = state.media_errors.front() else {
+        return;
+    };
+    let (id, path, text) = (error.id, error.path.clone(), error.error.clone());
+    let mut replace = false;
+    let mut ignore = false;
+    let mut ignore_all = false;
+    crate::dialogs::dialog(ctx, "Erro de arquivo de mídia")
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            ui.label(format!("Não foi possível ler {}.", file_name_of(&path)));
+            ui.weak(&path);
+            ui.weak(&text);
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Escolher outro arquivo…").clicked() {
+                    replace = true;
+                }
+                if ui.button("Ignorar").clicked() {
+                    ignore = true;
+                }
+                if ui.button("Ignorar todos os erros seguintes").clicked() {
+                    ignore_all = true;
+                }
+            });
+        });
+    if replace {
+        if state.replace_media_file(id, ctx) {
+            state.media_errors.pop_front();
+        }
+    } else if ignore {
+        state.media_errors.pop_front();
+        state.leave_offline(id, std::path::Path::new(&path), &text);
+    } else if ignore_all {
+        state.ignore_media_errors = true;
+        while let Some(e) = state.media_errors.pop_front() {
+            state.leave_offline(e.id, std::path::Path::new(&e.path), &e.error);
+        }
+    }
 }
 
 /// "Converter mídia": the question after an import that failed because the file is not compatible.
@@ -13258,6 +13694,145 @@ mod tests {
         s.note_loaded(7, Some(1), None, 1.0);
         assert!(s.status.contains("confira"), "{}", s.status);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_ignored_media_stays_offline_and_does_not_bring_the_window_back() {
+        let (mut s, dir) = open_with_missing("ignore", 5.0, 1);
+        assert!(s.missing_open, "something is waiting");
+        s.missing_open = false;
+        // Leave it offline: it stays in the list (the events stay marked) but nobody waits for it
+        s.leave_offline(7, &dir.join("voz.wav"), "deixada offline");
+        assert_eq!(s.missing.len(), 1);
+        assert!(s.missing[0].ignored && !s.missing[0].searching);
+        // A later search that finds nothing does not open the window again
+        s.apply_relink(
+            7,
+            Outcome::Unresolved {
+                rejected: Vec::new(),
+            },
+        );
+        assert!(!s.missing_open);
+        // Finding it later still relinks it and takes it off the list
+        s.apply_relink(
+            7,
+            Outcome::Relinked {
+                path: dir.join("voz.wav"),
+                how: relink::Match::Exact,
+                verified: true,
+            },
+        );
+        assert!(s.missing.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_of_the_project_that_cannot_be_read_is_asked_about_once_and_can_be_ignored_for_good() {
+        let mut s = AppState::new();
+        let path = std::path::Path::new("C:\\midia\\quebrada.wav");
+        // A failed reload of a project's media (an existing id) queues the question once
+        s.loader_tx
+            .send(LoadMsg::Failed {
+                path: path.to_path_buf(),
+                error: "formato inválido".into(),
+                existing_id: Some(4),
+                converted: false,
+            })
+            .unwrap();
+        s.poll_loader();
+        s.media_file_failed(4, path, "outra vez".into());
+        assert_eq!(s.media_errors.len(), 1, "one question per file");
+        assert_eq!(s.media_errors[0].id, 4);
+        assert!(
+            s.convert_offer.is_none(),
+            "a reload is not offered a conversion"
+        );
+        // After "ignore all", the next unreadable files go offline without a question
+        s.ignore_media_errors = true;
+        s.media_file_failed(
+            5,
+            std::path::Path::new("C:\\midia\\outra.wav"),
+            "ilegível".into(),
+        );
+        assert_eq!(s.media_errors.len(), 1);
+        let offline = s.missing.iter().find(|m| m.id == 5).unwrap();
+        assert!(offline.ignored);
+        assert_eq!(offline.rejected[0].reason, "ilegível");
+        // Leaving the first one offline too
+        s.leave_offline(4, path, "formato inválido");
+        assert_eq!(s.missing.len(), 2);
+        // Opening another project starts clean
+        s.media_errors.clear();
+        s.ignore_media_errors = false;
+    }
+
+    #[test]
+    fn a_found_media_outside_the_project_folder_can_be_copied_next_to_the_project() {
+        let base = std::env::temp_dir().join(format!("neoveg_copy_found_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (project_dir, elsewhere) = (base.join("projeto"), base.join("antigo"));
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        write_wav(&elsewhere.join("voz.wav"), 1);
+        write_wav(&project_dir.join("ja_aqui.wav"), 1);
+        let mut s = AppState::new();
+        s.project.media_pool.push(MediaRef {
+            subproject: false,
+            format: None,
+            id: 7,
+            path: "C:\\perdido\\voz.wav".into(),
+            duration_seconds: 1.0,
+        });
+        // An unsaved project has no folder to copy to: nothing is offered
+        s.offer_copy(7, &elsewhere.join("voz.wav"));
+        assert!(s.found.is_empty() && !s.found_open);
+        s.project_path = Some(project_dir.join("p.neoveg"));
+        // A file already in the project's folder is not offered either
+        s.offer_copy(7, &project_dir.join("ja_aqui.wav"));
+        assert!(s.found.is_empty());
+        // A relink to a file elsewhere offers the copy
+        s.missing.push(MissingMedia {
+            id: 7,
+            name: "voz.wav".into(),
+            old_path: "C:\\perdido\\voz.wav".into(),
+            rejected: Vec::new(),
+            searching: true,
+            ignored: false,
+        });
+        s.apply_relink(
+            7,
+            Outcome::Relinked {
+                path: elsewhere.join("voz.wav"),
+                how: relink::Match::Exact,
+                verified: true,
+            },
+        );
+        assert!(s.found_open);
+        assert_eq!(s.found.len(), 1);
+        assert_eq!(s.found[0].path, elsewhere.join("voz.wav"));
+        // Copy it: the project then points at the copy, the original stays
+        let ctx = egui::Context::default();
+        s.start_copy(vec![7], &ctx);
+        assert!(s.found[0].copying);
+        for _ in 0..300 {
+            s.poll_loader();
+            if s.found.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(s.found.is_empty(), "{}", s.status);
+        assert_eq!(
+            std::path::Path::new(&s.project.media_pool[0].path),
+            project_dir.join("voz.wav")
+        );
+        assert!(project_dir.join("voz.wav").is_file());
+        assert!(
+            elsewhere.join("voz.wav").is_file(),
+            "the original is not deleted"
+        );
+        assert!(s.is_dirty());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
