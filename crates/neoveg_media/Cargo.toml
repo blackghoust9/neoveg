@@ -1,0 +1,14 @@
+[package]
+name = "neoveg_media"
+version.workspace = true
+# The code uses let chains, which need the 2024 edition (the rest of the workspace is on 2021)
+edition = "2024"
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "Neoveg media containers: bit-level I/O and a clean-room ISO BMFF (MP4/MOV) demuxer and muxer (adapted from craft-media)"
+
+[dependencies]
+thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"

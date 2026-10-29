@@ -1,0 +1,17 @@
+[package]
+name = "neoveg_aac"
+version.workspace = true
+# The code uses let chains, which need the 2024 edition (the rest of the workspace is on 2021)
+edition = "2024"
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "Neoveg AAC-LC encoder and decoder in pure Rust, ISO/IEC 14496-3 (adapted from FilmCraft)"
+
+[features]
+default = []
+rayon = ["dep:rayon"]
+
+[dependencies]
+neoveg_media = { path = "../neoveg_media" }
+thiserror = "2"
+rayon = { version = "1", optional = true }

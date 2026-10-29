@@ -51,6 +51,16 @@
 
 Alterações: o crate usa a edição 2024 (o código usa `let` encadeado), a lista de fontes opcionais `craft-fonts` ficou vazia (não há `build.rs`) e o caminho das fontes embutidas mudou. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
 
+## Codificadores e contêineres (copiados)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_h264/src/` | `crates/h264enc/src/` (`filmcraft-h264enc`, commit `8d925e9`) | Codificador H.264/AVC em Rust puro, escrito a partir da especificação pública: Baseline, Main e High, CABAC e CAVLC, quadros B, desbloqueio, controle de taxa (QP constante, qualidade constante, ABR com VBV e VBR em duas passagens) |
+| `crates/neoveg_aac/src/` | `crates/aac/src/` (`filmcraft-aac`) | Codificador e decodificador AAC-LC (ISO/IEC 14496-3) em Rust puro |
+| `crates/neoveg_media/src/` | `crates/media/src/` do repositório `storytold/craft-libs` (`craft-media`, commit `1b5582a`): `bitstream.rs` e `isobmff/` | Leitura e escrita de bits (Exp-Golomb, NAL) e leitura e escrita de MP4 e MOV (progressivo, com `faststart`, e fragmentado) |
+
+Alterações: os três crates usam a edição 2024; `filmcraft_bitstream` virou `neoveg_media::bitstream`; o `matroska` do `craft-media` não foi copiado; os testes de integração com o `ffmpeg` como oráculo (pastas `tests/`) não foram copiados. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
+
 Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
 
 ## Alterações feitas pelo Neoveg
