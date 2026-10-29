@@ -64,7 +64,7 @@ ROWS: List[Row] = [
     ("edit.desfazer", A_EDIT, "Desfazer e refazer", r"^Edit > (Undo|Redo)$", "feito", "`edit.undo`, `edit.redo` (um gesto, um passo)", "-"),
     ("edit.historico", A_EDIT, "Desfazer tudo e limpar o histórico", r"^Edit > (Undo All|Clear Edit)", "previsto", "o histórico existe; faltam os dois comandos", "P3"),
     ("edit.area_transf", A_EDIT, "Recortar, copiar, colar, colar inserindo e colar repetido", r"^Edit > (Cut|Copy|Paste|Paste Repeat\.\.\.|Paste Insert)$", "feito", "`edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_insert`, `edit.paste_repeat`", "-"),
-    ("edit.colar_atributos", A_EDIT, "Colar atributos do evento, completo e seletivo", r"^Edit > (Selectively )?Paste Event Attributes", "previsto", "roteiro (README)", "P2"),
+    ("edit.colar_atributos", A_EDIT, "Colar atributos do evento, completo e seletivo", r"^Edit > (Selectively )?Paste Event Attributes", "feito", "`edit.paste_attributes`, `edit.paste_attributes_selective` (manual v21 p.369-370); falta a taxa de subamostragem e os botões no cabeçalho do evento", "P2"),
     ("edit.excluir", A_EDIT, "Excluir eventos ou faixas", r"^Edit > Delete$", "feito", "`edit.delete` e `edit.ripple_delete`", "-"),
     ("edit.aparar", A_EDIT, "Aparar à seleção, início ou fim ao cursor", r"^Edit > Trim", "feito", "`edit.trim`, `edit.trim_start`, `edit.trim_end`", "-"),
     ("edit.dividir", A_EDIT, "Dividir no cursor", r"^Edit > Split$", "feito", "`edit.split`", "-"),

@@ -138,7 +138,7 @@
     {
       "id": "edit.colar_atributos",
       "area": "Editar",
-      "estado": "previsto",
+      "estado": "feito",
       "prioridade": "P2",
       "comandos": 2
     },

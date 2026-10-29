@@ -190,6 +190,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditPaste, &["Ctrl+V", "Shift+Insert"]),
     (Command::EditPasteInsert, &["Ctrl+Shift+V"]),
     (Command::EditPasteRepeat, &["Ctrl+B"]),
+    (Command::EditPasteAttributes, &["Ctrl+Alt+V"]),
+    (Command::EditPasteAttributesSelective, &["Ctrl+Alt+Shift+V"]),
     (Command::EditTrimToSelection, &["Ctrl+T"]),
     (Command::EditTrimStart, &["Alt+["]),
     (Command::EditTrimEnd, &["Alt+]"]),

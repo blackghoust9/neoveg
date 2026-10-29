@@ -15,16 +15,16 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
-| Editar | 100 | 100 | 18 | 56 | 26 | 0 | 46 % |
+| Editar | 100 | 100 | 20 | 56 | 24 | 0 | 48 % |
 | Inserir | 32 | 30 | 16 | 5 | 9 | 2 | 62 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 38 | 18 | 5 | 47 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
-| **Total** | **872** | **762** | | | | | **38 %** |
+| **Total** | **872** | **762** | | | | | **39 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 35 feitas, 33 parciais, 43 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 33 parciais, 42 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -34,7 +34,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | :--- | :--- | :--- | ---: | :--- |
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
-| P2 | Colar atributos do evento, completo e seletivo | Editar | 2 | previsto |
 | P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
 | P2 | Redimensionar eventos de ajuste ao projeto | Editar | 2 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
@@ -101,7 +100,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Desfazer e refazer | 2 | feito | `edit.undo`, `edit.redo` (um gesto, um passo) | - |
 | Desfazer tudo e limpar o histórico | 2 | previsto | o histórico existe; faltam os dois comandos | P3 |
 | Recortar, copiar, colar, colar inserindo e colar repetido | 5 | feito | `edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_insert`, `edit.paste_repeat` | - |
-| Colar atributos do evento, completo e seletivo | 2 | previsto | roteiro (README) | P2 |
+| Colar atributos do evento, completo e seletivo | 2 | feito | `edit.paste_attributes`, `edit.paste_attributes_selective` (manual v21 p.369-370); falta a taxa de subamostragem e os botões no cabeçalho do evento | P2 |
 | Excluir eventos ou faixas | 1 | feito | `edit.delete` e `edit.ripple_delete` | - |
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |

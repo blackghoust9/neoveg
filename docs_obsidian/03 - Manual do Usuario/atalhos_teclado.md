@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (114 comandos, 111 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (117 comandos, 114 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -37,6 +37,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Colar | `Ctrl+V` / `Shift+Insert` | `edit.paste` | implementado |
 | Colar inserindo | `Ctrl+Shift+V` | `edit.paste_insert` | implementado |
 | Repetir colar… | `Ctrl+B` | `edit.paste_repeat` | implementado |
+| Colar atributos do evento | `Ctrl+Alt+V` | `edit.paste_attributes` | implementado |
+| Colar atributos do evento seletivamente… | `Ctrl+Alt+Shift+V` | `edit.paste_attributes_selective` | implementado |
 | Aparar à seleção | `Ctrl+T` | `edit.trim` | implementado |
 | Aparar o início ao cursor | `Alt+[` | `edit.trim_start` | implementado |
 | Aparar o fim ao cursor | — | `edit.trim_end` | implementado |
@@ -162,4 +164,5 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Scopes de vídeo | `Ctrl+Alt+2` | `view.video_scopes` | implementado |
 | Efeitos de áudio | `Ctrl+Alt+9` | `view.audio_effects` | implementado |
 | Efeitos de vídeo | `Ctrl+Alt+8` | `view.video_effects` | implementado |
+| Transições | `Ctrl+Alt+6` | `view.transitions` | implementado |
 <!-- auto:end -->

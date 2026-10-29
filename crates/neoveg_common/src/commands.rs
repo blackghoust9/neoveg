@@ -110,6 +110,8 @@ commands! {
     EditPaste => ("edit.paste", "Colar", Edit, true),
     EditPasteInsert => ("edit.paste_insert", "Colar inserindo", Edit, true),
     EditPasteRepeat => ("edit.paste_repeat", "Repetir colar…", Edit, true),
+    EditPasteAttributes => ("edit.paste_attributes", "Colar atributos do evento", Edit, true),
+    EditPasteAttributesSelective => ("edit.paste_attributes_selective", "Colar atributos do evento seletivamente…", Edit, true),
     EditTrimToSelection => ("edit.trim", "Aparar à seleção", Edit, true),
     EditTrimStart => ("edit.trim_start", "Aparar o início ao cursor", Edit, true),
     EditTrimEnd => ("edit.trim_end", "Aparar o fim ao cursor", Edit, true),

@@ -37,6 +37,7 @@ use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo, ProjectSettings};
 use neoveg_common::theme::{self, Theme};
 use neoveg_common::timecode::{is_drop_frame_rate, seconds_to_timecode};
+use neoveg_engine::attributes::{self, Attributes};
 use neoveg_engine::autosave::{self, RecoveryEntry};
 use neoveg_engine::captions;
 use neoveg_engine::crossfade::{find_crossfades, Crossfade};
@@ -363,6 +364,8 @@ struct AppState {
     range_anchor: Option<f64>,
     clipboard: Option<Clipboard>,
     repeat_dialog: Option<RepeatDialog>,
+    /// The attributes picked in the *Colar atributos seletivamente* dialog.
+    attributes_dialog: Option<Attributes>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
@@ -1252,6 +1255,7 @@ impl AppState {
             range_anchor: None,
             clipboard: None,
             repeat_dialog: None,
+            attributes_dialog: None,
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
@@ -1557,6 +1561,36 @@ impl AppState {
         let base = self.paste_base_track();
         let result = ops::paste(&mut self.timeline, &clip, self.playhead, base, mode);
         self.report_paste(result);
+    }
+
+    /// *Colar atributos do evento*: the first event on the clipboard lends its attributes to the
+    /// selected events (one undo step).
+    fn paste_attributes(&mut self, set: Attributes) {
+        let Some(source) = self
+            .clipboard
+            .as_ref()
+            .and_then(|c| c.items.first())
+            .map(|item| item.event.clone())
+        else {
+            self.status = "A área de transferência está vazia".into();
+            return;
+        };
+        let targets = self.selection.refs();
+        if targets.is_empty() {
+            self.status = "Selecione os eventos que vão receber os atributos".into();
+            return;
+        }
+        match attributes::paste_command(&self.timeline, &source, &targets, set) {
+            Some((command, count)) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.last_frame_key = None;
+                    self.last_composite_key = None;
+                    self.restart_audio_if_playing();
+                    self.status = format!("Atributos colados em {count} evento(s)");
+                }
+            }
+            None => self.status = "Nada para colar: os atributos já são os mesmos".into(),
+        }
     }
 
     fn paste_repeated(&mut self, count: usize, spacing: RepeatSpacing) {
@@ -2003,6 +2037,9 @@ impl AppState {
             | Command::EditSelectNone => has_events || has_range,
             Command::EditPaste | Command::EditPasteInsert | Command::EditPasteRepeat => {
                 self.clipboard.is_some()
+            }
+            Command::EditPasteAttributes | Command::EditPasteAttributesSelective => {
+                self.clipboard.is_some() && has_events
             }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
@@ -4846,6 +4883,14 @@ impl AppState {
             }
             Command::EditPaste => self.paste_clipboard(PasteMode::Overlay),
             Command::EditPasteInsert => self.paste_clipboard(PasteMode::Insert),
+            Command::EditPasteAttributes => self.paste_attributes(Attributes::ALL),
+            Command::EditPasteAttributesSelective => {
+                if self.clipboard.is_some() {
+                    self.attributes_dialog = Some(Attributes::ALL);
+                } else {
+                    self.status = "A área de transferência está vazia".into();
+                }
+            }
             Command::EditPasteRepeat => {
                 if self.clipboard.is_some() {
                     self.repeat_dialog = Some(RepeatDialog {
@@ -5371,6 +5416,7 @@ impl NeovegApp {
         preferences_window(ctx, &mut self.state);
         keymap_window(ctx, &mut self.state);
         repeat_paste_window(ctx, &mut self.state);
+        paste_attributes_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
@@ -5588,6 +5634,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditPaste,
                 Command::EditPasteInsert,
                 Command::EditPasteRepeat,
+                Command::EditPasteAttributes,
+                Command::EditPasteAttributesSelective,
                 Command::EditDelete,
             ] {
                 command_item(state, ui, command);
@@ -6622,6 +6670,48 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
         state.paste_repeated(dialog.count as usize, spacing);
     } else if keep_open {
         state.repeat_dialog = Some(dialog);
+    }
+}
+
+/// "Colar atributos do evento seletivamente": one check box per attribute.
+fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(mut set) = state.attributes_dialog.take() else {
+        return;
+    };
+    let mut keep_open = true;
+    let mut confirmed = false;
+    crate::dialogs::dialog(ctx, "Colar atributos do evento")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.checkbox(&mut set.switches, "Interruptores do evento");
+            ui.checkbox(&mut set.pitch, "Tom do evento de áudio");
+            ui.checkbox(&mut set.rate, "Velocidade de reprodução do vídeo");
+            ui.checkbox(&mut set.effects, "Efeitos de vídeo do evento");
+            ui.checkbox(&mut set.pan_crop, "Pan/Crop do evento");
+            ui.checkbox(&mut set.velocity, "Envelope de velocidade");
+            ui.checkbox(&mut set.transitions, "Transições de entrada e saída");
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(!set.is_empty(), egui::Button::new("Colar"))
+                    .clicked()
+                {
+                    confirmed = true;
+                }
+                if ui.button("Marcar tudo").clicked() {
+                    set = Attributes::ALL;
+                }
+                if ui.button("Limpar").clicked() {
+                    set = Attributes::NONE;
+                }
+            });
+        });
+    if confirmed {
+        state.paste_attributes(set);
+    } else if keep_open {
+        state.attributes_dialog = Some(set);
     }
 }
 
@@ -8044,6 +8134,8 @@ fn event_context_menu(
     for command in [
         Command::EditCut,
         Command::EditCopy,
+        Command::EditPasteAttributes,
+        Command::EditPasteAttributesSelective,
         Command::EditDelete,
         Command::EditGroup,
         Command::EditUngroup,
@@ -11985,6 +12077,58 @@ mod tests {
                 .duration,
             60.0
         );
+    }
+
+    #[test]
+    fn pasting_attributes_copies_them_onto_the_selected_events_in_one_undo_step() {
+        let (mut s, track, ev) = state_with_clip();
+        // A second event on the same track, with attributes to lend
+        let other = s.timeline.alloc_id();
+        let source = TrackEvent {
+            id: other,
+            media_id: Some(1),
+            start: 10.0,
+            duration: 2.0,
+            muted: true,
+            looping: true,
+            ..TrackEvent::default()
+        };
+        assert!(s.history.execute(
+            &mut s.timeline,
+            EditCommand::AddEvent {
+                track_id: track,
+                event: source
+            }
+        ));
+        // Nothing on the clipboard: it says so and changes nothing
+        s.selection.select_only((track, ev));
+        let revision = s.history.revision();
+        s.paste_attributes(Attributes::ALL);
+        assert_eq!(s.history.revision(), revision);
+        assert!(s.status.contains("vazia"));
+        // Copy the source, paste its attributes onto the first event
+        s.selection.select_only((track, other));
+        run(&mut s, Command::EditCopy);
+        s.selection.select_only((track, ev));
+        assert!(s.command_enabled(Command::EditPasteAttributes));
+        run(&mut s, Command::EditPasteAttributes);
+        let first = |s: &AppState| {
+            s.timeline
+                .track(track)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == ev)
+                .unwrap()
+                .clone()
+        };
+        assert!(first(&s).muted && first(&s).looping);
+        assert_eq!(first(&s).start, 2.0, "position stays");
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(!first(&s).muted);
+        // The selective command opens the dialog
+        run(&mut s, Command::EditPasteAttributesSelective);
+        assert_eq!(s.attributes_dialog, Some(Attributes::ALL));
     }
 
     #[test]
