@@ -639,6 +639,7 @@ mod tests {
             path: "/m/a.wav".into(),
             duration_seconds: 30.0,
             subproject: false,
+            format: None,
         });
         let (t1, e1) = add_event(&mut s, 2.0, 3.0);
         let (t2, e2) = add_event(&mut s, 4.0, 2.0);
@@ -690,6 +691,7 @@ mod tests {
             path: "/m/a.wav".into(),
             duration_seconds: 30.0,
             subproject: false,
+            format: None,
         });
         assert!(
             s.flattened().is_none(),

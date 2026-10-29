@@ -251,11 +251,13 @@ mod tests {
             waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
             stereo: Arc::new(samples),
             sample_rate: 100,
+            channels: 2,
             duration: 2.0,
         };
         s.media.insert(1, media);
         s.project.media_pool.push(MediaRef {
             subproject: false,
+            format: None,
             id: 1,
             path: "x.wav".into(),
             duration_seconds: 2.0,
@@ -412,6 +414,7 @@ mod tests {
                 waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
                 stereo: Arc::new(samples),
                 sample_rate: 100,
+                channels: 2,
                 duration: 1.0,
             },
         );

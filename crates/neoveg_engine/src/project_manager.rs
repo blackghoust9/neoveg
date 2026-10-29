@@ -386,6 +386,7 @@ impl ProjectManager {
             path: dest.display().to_string(),
             duration_seconds: duration,
             subproject: true,
+            format: None,
         };
         Ok(SubProjectCreated {
             id,
@@ -537,6 +538,7 @@ fn flatten_level(
                                     path: source.path.clone(),
                                     duration_seconds: source.duration_seconds,
                                     subproject: false,
+                                    format: None,
                                 });
                             }
                             copy.media_id = Some(id);
@@ -604,12 +606,14 @@ mod tests {
                 path: "/m/a.mp4".into(),
                 duration_seconds: 30.0,
                 subproject: false,
+                format: None,
             },
             MediaRef {
                 id: 2,
                 path: "/m/b.mp4".into(),
                 duration_seconds: 30.0,
                 subproject: false,
+                format: None,
             },
         ];
         (tl, info, refs)
@@ -725,6 +729,7 @@ mod tests {
                 path: s.display().to_string(),
                 duration_seconds: 5.0,
                 subproject: true,
+                format: None,
             });
         }
         project_file::save(path, &info, &Timeline::new()).unwrap();
@@ -795,12 +800,14 @@ mod tests {
                 path: "/m/five.mp4".into(),
                 duration_seconds: 10.0,
                 subproject: false,
+                format: None,
             },
             MediaRef {
                 id: 6,
                 path: "/m/six.mp4".into(),
                 duration_seconds: 5.0,
                 subproject: false,
+                format: None,
             },
         ];
         // Parent: shows the child from 4 s to 13 s at 20 s on its timeline
@@ -815,6 +822,7 @@ mod tests {
             path: "child.neoveg".into(),
             duration_seconds: 14.0,
             subproject: true,
+            format: None,
         }];
         let mut loads = 0;
         let flat = flatten_subprojects(&parent, &pool, &mut |p| {
@@ -868,6 +876,7 @@ mod tests {
             path: "/m/nine.wav".into(),
             duration_seconds: 5.0,
             subproject: false,
+            format: None,
         }];
 
         let mut child = Timeline::new();
@@ -881,6 +890,7 @@ mod tests {
             path: "grand.neoveg".into(),
             duration_seconds: 5.0,
             subproject: true,
+            format: None,
         }];
 
         let mut parent = Timeline::new();
@@ -893,6 +903,7 @@ mod tests {
             path: "child.neoveg".into(),
             duration_seconds: 15.0,
             subproject: true,
+            format: None,
         }];
 
         let flat = flatten_subprojects(&parent, &pool, &mut |p| {
@@ -925,6 +936,7 @@ mod tests {
             path: "me.neoveg".into(),
             duration_seconds: 5.0,
             subproject: true,
+            format: None,
         }];
         let flat = flatten_subprojects(&selfish, &selfish_info.media_pool, &mut |_| {
             Some((selfish_info.clone(), selfish.clone()))

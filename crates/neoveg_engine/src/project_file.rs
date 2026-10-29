@@ -175,6 +175,7 @@ mod tests {
         let media_id = tl.alloc_id();
         info.media_pool.push(MediaRef {
             subproject: false,
+            format: None,
             id: media_id,
             path: "C:/nada/a.wav".into(),
             duration_seconds: 4.0,

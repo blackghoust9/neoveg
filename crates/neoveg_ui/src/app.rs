@@ -55,7 +55,7 @@ use neoveg_engine::ops::{self, Clipboard, PasteMode, RepeatSpacing, Scope};
 use neoveg_engine::otio;
 use neoveg_engine::pan_crop as pcrop;
 use neoveg_engine::project_file;
-use neoveg_engine::relink::relink_missing;
+use neoveg_engine::relink::{self, Outcome, Rejected};
 use neoveg_engine::ripple::RippleScope;
 use neoveg_engine::switches::{self, Switch, SwitchState};
 use neoveg_engine::timeline::TIME_EPSILON;
@@ -210,6 +210,8 @@ struct LoadedMedia {
     waveform: Arc<WaveformSource>,
     stereo: Arc<Vec<f32>>,
     sample_rate: u32,
+    /// Sound channels of the file (the waveform and the mixer use a stereo copy).
+    channels: u16,
     duration: f64,
 }
 
@@ -226,6 +228,8 @@ enum LoadMsg {
         audio: Option<LoadedMedia>,
         existing_id: Option<u64>,
     },
+    /// The background search for a missing media came to an end.
+    Relink { id: u64, outcome: Outcome },
     Failed {
         path: PathBuf,
         error: String,
@@ -233,6 +237,19 @@ enum LoadMsg {
         /// The file is already the result of a conversion: do not offer another one.
         converted: bool,
     },
+}
+
+/// A media file the project points to that is not on disk, as the *Mídia ausente* window shows it.
+struct MissingMedia {
+    id: u64,
+    /// Name of the file, for the list.
+    name: String,
+    /// Where the project expected it.
+    old_path: String,
+    /// Candidates that were looked at and why they were not taken.
+    rejected: Vec<Rejected>,
+    /// The search is still running.
+    searching: bool,
 }
 
 /// A file that could not be imported, waiting for the user to choose whether to convert it.
@@ -432,6 +449,9 @@ struct AppState {
     repeat_dialog: Option<RepeatDialog>,
     /// The attributes picked in the *Colar atributos seletivamente* dialog.
     attributes_dialog: Option<Attributes>,
+    /// Media the open project points to that is not on disk.
+    missing: Vec<MissingMedia>,
+    missing_open: bool,
     /// The *convert this media?* question after a failed import.
     convert_offer: Option<ConvertOffer>,
     /// Text of the open "go to time" box.
@@ -1335,6 +1355,8 @@ impl AppState {
             clipboard: None,
             repeat_dialog: None,
             attributes_dialog: None,
+            missing: Vec::new(),
+            missing_open: false,
             convert_offer: None,
             goto_dialog: None,
             insert_time_dialog: None,
@@ -2244,6 +2266,7 @@ impl AppState {
             let media_id = self.timeline.alloc_id();
             self.project.media_pool.push(MediaRef {
                 subproject: false,
+                format: None,
                 id: media_id,
                 path: slide.path.clone(),
                 duration_seconds: info.duration,
@@ -2364,6 +2387,7 @@ impl AppState {
     fn poll_loader(&mut self) {
         while let Ok(msg) = self.loader_rx.try_recv() {
             match msg {
+                LoadMsg::Relink { id, outcome } => self.apply_relink(id, outcome),
                 LoadMsg::Failed {
                     path,
                     error,
@@ -2385,6 +2409,7 @@ impl AppState {
                     media,
                     existing_id: Some(id),
                 } => {
+                    self.note_loaded(id, Some(media.channels), None, media.duration);
                     self.media.insert(id, media);
                 }
                 LoadMsg::Loaded {
@@ -2397,10 +2422,17 @@ impl AppState {
                     audio,
                     existing_id: Some(id),
                 } => {
-                    let _ = path;
+                    let fps = is_video_path(&path).then_some(info.fps);
+                    let duration = info.duration;
+                    let channels = audio.as_ref().map(|a| a.channels);
                     self.video_info.insert(id, info);
                     if let Some(audio) = audio {
                         self.media.insert(id, audio);
+                    }
+                    if is_video_path(&path) {
+                        self.note_loaded(id, channels, fps, duration);
+                    } else {
+                        self.note_loaded(id, channels, None, f64::NAN);
                     }
                     self.last_frame_key = None;
                 }
@@ -2490,7 +2522,8 @@ impl AppState {
         self.scroll_seconds = 0.0;
         self.scroll_y = 0.0;
 
-        // Missing media: relink by exact then fuzzy name in the project folder and the old folders
+        // Missing media: searched for by exact then fuzzy name in the project folder and the old folders,
+        // each candidate checked against what the project recorded, on a worker thread
         let missing = project_file::find_missing(&self.project);
         let mut dirs: Vec<PathBuf> = file.parent().map(PathBuf::from).into_iter().collect();
         if let Some(parent) = associate.as_deref().and_then(std::path::Path::parent) {
@@ -2503,8 +2536,29 @@ impl AppState {
                 }
             }
         }
-        let relinked = relink_missing(&mut self.project.media_pool, &missing, &dirs);
-        let still_missing = project_file::find_missing(&self.project);
+        self.missing = missing
+            .iter()
+            .filter_map(|id| self.project.media_pool.iter().find(|m| m.id == *id))
+            .map(|m| MissingMedia {
+                id: m.id,
+                name: file_name_of(&m.path),
+                old_path: m.path.clone(),
+                rejected: Vec::new(),
+                searching: true,
+            })
+            .collect();
+        self.missing_open = false;
+        let still_missing = missing.clone();
+        if !missing.is_empty() {
+            let wanted: Vec<MediaRef> = self
+                .project
+                .media_pool
+                .iter()
+                .filter(|m| missing.contains(&m.id))
+                .cloned()
+                .collect();
+            self.start_relink_search(wanted, dirs, ctx);
+        }
 
         let to_load: Vec<(u64, PathBuf)> = self
             .project
@@ -2518,11 +2572,11 @@ impl AppState {
         }
 
         self.status = if still_missing.is_empty() {
-            format!("Projeto aberto ({relinked} mídia(s) religada(s))")
+            "Projeto aberto".into()
         } else {
             tracing::warn!("[WARN] {} media file(s) missing", still_missing.len());
             format!(
-                "Projeto aberto com {} mídia(s) ausente(s)",
+                "Projeto aberto: procurando {} mídia(s) ausente(s)…",
                 still_missing.len()
             )
         };
@@ -2533,6 +2587,116 @@ impl AppState {
         self.format_chosen = true;
         self.mark_clean();
         true
+    }
+
+    /// Looks for the media in `wanted` in `dirs` on a worker thread, checking each candidate against what
+    /// the project recorded; one `LoadMsg::Relink` comes back per media.
+    fn start_relink_search(&self, wanted: Vec<MediaRef>, dirs: Vec<PathBuf>, ctx: &egui::Context) {
+        let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            for media in wanted {
+                let outcome = relink::resolve(&media, &dirs, &mut |p| probe_candidate(p));
+                let _ = tx.send(LoadMsg::Relink {
+                    id: media.id,
+                    outcome,
+                });
+                ctx.request_repaint();
+            }
+        });
+    }
+
+    /// Takes the result of a search: a relink points the entry at the file and loads it, otherwise the
+    /// media stays in the *Mídia ausente* list with the candidates that were turned down.
+    fn apply_relink(&mut self, id: u64, outcome: Outcome) {
+        match outcome {
+            Outcome::Relinked {
+                path,
+                how,
+                verified,
+            } => {
+                if relink::relink_to(&mut self.project.media_pool, id, &path) {
+                    self.missing.retain(|m| m.id != id);
+                    self.forced_dirty = true;
+                    if let Some(ctx) = self.tabs.ctx.clone() {
+                        self.spawn_media(path.clone(), Some(id), &ctx);
+                    }
+                    let how = match (how, verified) {
+                        (relink::Match::Exact, true) => "nome igual, conferida",
+                        (relink::Match::Exact, false) => "nome igual, não conferida",
+                        (relink::Match::Fuzzy, _) => "nome parecido, conferida",
+                    };
+                    self.status = format!("Mídia religada a {} ({how})", path.display());
+                }
+            }
+            Outcome::Unresolved { rejected } => {
+                if let Some(m) = self.missing.iter_mut().find(|m| m.id == id) {
+                    m.rejected = rejected;
+                    m.searching = false;
+                }
+            }
+        }
+        // The window opens once the searches are done and something is still missing
+        if !self.missing.is_empty() && self.missing.iter().all(|m| !m.searching) {
+            self.missing_open = true;
+            self.status = format!(
+                "{} mídia(s) ausente(s): veja a janela Mídia ausente",
+                self.missing.len()
+            );
+        }
+    }
+
+    /// Records what a reloaded file is like when the project did not know it, and warns when it is not
+    /// as long as the project recorded (a replacement chosen by hand, for instance).
+    fn note_loaded(&mut self, id: u64, channels: Option<u16>, fps: Option<f64>, duration: f64) {
+        let Some(entry) = self.project.media_pool.iter_mut().find(|m| m.id == id) else {
+            return;
+        };
+        if entry.format.is_none() && (channels.is_some() || fps.is_some()) {
+            entry.format = Some(neoveg_common::project::MediaFormat { channels, fps });
+        }
+        if entry.duration_seconds > 0.0
+            && duration.is_finite()
+            && (duration - entry.duration_seconds).abs()
+                > relink::duration_tolerance(entry.duration_seconds)
+        {
+            self.status = format!(
+                "{} tem {duration:.2} s, e o projeto guardou {:.2} s: confira os eventos",
+                file_name_of(&entry.path),
+                entry.duration_seconds
+            );
+        }
+    }
+
+    /// *Localizar…*: the user picks the file for one missing media. It is taken as chosen, then checked
+    /// for length when it loads.
+    fn locate_missing(&mut self, id: u64, ctx: &egui::Context) {
+        let Some(path) = rfd::FileDialog::new().pick_file() else {
+            return;
+        };
+        if relink::relink_to(&mut self.project.media_pool, id, &path) {
+            self.missing.retain(|m| m.id != id);
+            self.forced_dirty = true;
+            self.spawn_media(path.clone(), Some(id), ctx);
+            self.status = format!("Mídia religada a {}", path.display());
+        }
+    }
+
+    /// *Buscar em uma pasta…*: the search runs again for what is still missing, in a folder the user picks.
+    fn search_missing_in_folder(&mut self, ctx: &egui::Context) {
+        let Some(folder) = rfd::FileDialog::new().pick_folder() else {
+            return;
+        };
+        let wanted: Vec<MediaRef> = self
+            .project
+            .media_pool
+            .iter()
+            .filter(|m| self.missing.iter().any(|x| x.id == m.id))
+            .cloned()
+            .collect();
+        for m in &mut self.missing {
+            m.searching = true;
+        }
+        self.start_relink_search(wanted, vec![folder], ctx);
     }
 
     fn recover_entry(&mut self, entry: &RecoveryEntry, ctx: &egui::Context) {
@@ -3601,6 +3765,11 @@ impl AppState {
             .unwrap_or_default();
         self.project.media_pool.push(MediaRef {
             subproject: false,
+            // A picture has no frame rate worth checking, and a still has no real length
+            format: Some(neoveg_common::project::MediaFormat {
+                channels: audio.as_ref().map(|a| a.channels),
+                fps: is_video_path(&path).then_some(info.fps),
+            }),
             id: media_id,
             path: path.to_string_lossy().into_owned(),
             duration_seconds: info.duration,
@@ -4004,6 +4173,10 @@ impl AppState {
         let media_id = self.timeline.alloc_id();
         self.project.media_pool.push(MediaRef {
             subproject: false,
+            format: Some(neoveg_common::project::MediaFormat {
+                channels: Some(media.channels),
+                fps: None,
+            }),
             id: media_id,
             path: media.path.to_string_lossy().into_owned(),
             duration_seconds: media.duration,
@@ -5694,6 +5867,7 @@ impl NeovegApp {
         paste_attributes_window(ctx, &mut self.state);
         layout_dialogs(ctx, &mut self.state);
         convert_offer_window(ctx, &mut self.state);
+        missing_media_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
         grade_window(ctx, &mut self.state);
@@ -5747,6 +5921,7 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
         waveform: Arc::new(waveform),
         stereo: Arc::new(stereo),
         sample_rate: audio.sample_rate,
+        channels: audio.channels,
         duration: audio.duration_seconds(),
     })
 }
@@ -5797,6 +5972,16 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
 
             // Import and export, one submenu each
             let has_events = state.timeline.tracks.iter().any(|t| !t.events.is_empty());
+            if ui
+                .add_enabled(
+                    !state.missing.is_empty(),
+                    egui::Button::new("Mídia ausente…"),
+                )
+                .clicked()
+            {
+                state.missing_open = true;
+                ui.close_menu();
+            }
             ui.menu_button("Importar", |ui| {
                 if ui.button("Mídia…").clicked() {
                     let ctx = ui.ctx().clone();
@@ -7019,6 +7204,92 @@ fn repeat_paste_window(ctx: &egui::Context, state: &mut AppState) {
     } else if keep_open {
         state.repeat_dialog = Some(dialog);
     }
+}
+
+/// The last part of a path, whichever separator it uses.
+fn file_name_of(path: &str) -> String {
+    path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned()
+}
+
+/// What a candidate for a missing media is like: its duration, its sound channels and its frame
+/// rate, read the way an import reads it (slow for long files, so only on a worker thread). `None`
+/// when the file cannot be read.
+fn probe_candidate(path: &std::path::Path) -> Option<relink::Probed> {
+    if is_visual_media_path(path) {
+        let info = probe(path).ok()?;
+        let video = is_video_path(path);
+        return Some(relink::Probed {
+            // A still has no length of its own, so there is nothing to compare
+            duration_seconds: if video { info.duration } else { f64::NAN },
+            channels: None,
+            fps: video.then_some(info.fps),
+        });
+    }
+    let audio = decode_file(path).ok()?;
+    Some(relink::Probed {
+        duration_seconds: audio.duration_seconds(),
+        channels: Some(audio.channels),
+        fps: None,
+    })
+}
+
+/// "Mídia ausente": the media the project points to that is not on disk, what was looked at for
+/// each, and the ways to find it: *Localizar…* for one file, *Buscar em uma pasta…* for all.
+fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.missing_open {
+        return;
+    }
+    if state.missing.is_empty() {
+        state.missing_open = false;
+        return;
+    }
+    let mut keep_open = true;
+    let mut locate = None;
+    let mut search = false;
+    let searching = state.missing.iter().any(|m| m.searching);
+    crate::dialogs::dialog(ctx, "Mídia ausente")
+        .collapsible(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.label("O projeto aponta para arquivos que não estão mais no lugar. Os eventos continuam na linha do tempo.");
+            ui.separator();
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for m in &state.missing {
+                    ui.horizontal(|ui| {
+                        ui.strong(&m.name);
+                        if m.searching {
+                            ui.weak("procurando…");
+                        } else if ui.button("Localizar…").clicked() {
+                            locate = Some(m.id);
+                        }
+                    });
+                    ui.weak(&m.old_path);
+                    for r in &m.rejected {
+                        ui.weak(format!(
+                            "  recusado: {} ({})",
+                            file_name_of(&r.path.to_string_lossy()),
+                            r.reason
+                        ));
+                    }
+                    ui.separator();
+                }
+            });
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(!searching, egui::Button::new("Buscar em uma pasta…"))
+                    .clicked()
+                {
+                    search = true;
+                }
+            });
+        });
+    if let Some(id) = locate {
+        state.locate_missing(id, ctx);
+    }
+    if search {
+        state.search_missing_in_folder(ctx);
+    }
+    state.missing_open = keep_open && !state.missing.is_empty();
 }
 
 /// "Converter mídia": the question after an import that failed because the file is not compatible.
@@ -9760,6 +10031,19 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 FontId::proportional(10.0),
                 Color32::from_gray(225),
             );
+            // The media this event plays is not on disk (manual v21 p.143: the event says so)
+            if ev
+                .media_id
+                .is_some_and(|m| state.missing.iter().any(|x| x.id == m))
+            {
+                lane_painter.text(
+                    ev_rect.center() + vec2(0.0, EVENT_HEADER_HEIGHT / 2.0),
+                    Align2::CENTER_CENTER,
+                    "MÍDIA OFFLINE",
+                    FontId::proportional(10.0),
+                    Color32::from_rgb(0xE7, 0x4C, 0x3C),
+                );
+            }
             if let Some(edge) = state
                 .trim_edge
                 .filter(|e| e.event == ev.id && e.track == track.id)
@@ -10244,6 +10528,7 @@ mod tests {
         let track_id = s.selected_track.unwrap();
         s.project.media_pool.push(MediaRef {
             subproject: false,
+            format: None,
             id: 1,
             path: "x.wav".into(),
             duration_seconds: 10.0,
@@ -10517,6 +10802,7 @@ mod tests {
         for (id, path) in [(1, "cor.neoveggen"), (2, "foto.png"), (3, "filme.mp4")] {
             s.project.media_pool.push(MediaRef {
                 subproject: false,
+                format: None,
                 id,
                 path: path.into(),
                 duration_seconds: 4.0,
@@ -10565,6 +10851,7 @@ mod tests {
             waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
             stereo: Arc::new(samples),
             sample_rate: 100,
+            channels: 2,
             duration: 10.0,
         };
         media.duration = 10.0;
@@ -11660,6 +11947,7 @@ mod tests {
             waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
             stereo: Arc::new(samples),
             sample_rate: 100,
+            channels: 2,
             duration: 10.0,
         }
     }
@@ -12549,12 +12837,14 @@ mod tests {
         vec![
             MediaRef {
                 subproject: false,
+                format: None,
                 id: 1,
                 path: r"C:\media\Entrevista 01.mp4".into(),
                 duration_seconds: 60.0,
             },
             MediaRef {
                 subproject: false,
+                format: None,
                 id: 2,
                 path: "/home/u/cobertura.mov".into(),
                 duration_seconds: 12.0,
@@ -12867,6 +13157,107 @@ mod tests {
         assert_eq!(s.selection.primary(), Some((video, event.id)));
         assert!(s.history.undo(&mut s.timeline));
         assert!(s.timeline.track(video).unwrap().events.is_empty());
+    }
+
+    /// A mono 16-bit WAV of `seconds` at 8 kHz (silence), written by hand.
+    fn write_wav(path: &std::path::Path, seconds: u32) {
+        let samples = 8000 * seconds;
+        let data_len = samples * 2;
+        let mut bytes = Vec::new();
+        bytes.extend(b"RIFF");
+        bytes.extend((36 + data_len).to_le_bytes());
+        bytes.extend(b"WAVEfmt ");
+        bytes.extend(16u32.to_le_bytes());
+        bytes.extend(1u16.to_le_bytes());
+        bytes.extend(1u16.to_le_bytes());
+        bytes.extend(8000u32.to_le_bytes());
+        bytes.extend(16000u32.to_le_bytes());
+        bytes.extend(2u16.to_le_bytes());
+        bytes.extend(16u16.to_le_bytes());
+        bytes.extend(b"data");
+        bytes.extend(data_len.to_le_bytes());
+        bytes.extend(std::iter::repeat_n(0u8, data_len as usize));
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    /// Opens a project whose only media is missing and lets the background search finish.
+    fn open_with_missing(
+        tag: &str,
+        recorded_seconds: f64,
+        found_seconds: u32,
+    ) -> (AppState, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("neoveg_missing_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        write_wav(&dir.join("voz.wav"), found_seconds);
+        let mut saved = AppState::new();
+        saved.project.media_pool.push(MediaRef {
+            subproject: false,
+            format: Some(neoveg_common::project::MediaFormat {
+                channels: Some(1),
+                fps: None,
+            }),
+            id: 7,
+            path: "C:\\antigo\\voz.wav".into(),
+            duration_seconds: recorded_seconds,
+        });
+        let file = dir.join("p.neoveg");
+        project_file::save(&file, &saved.project, &saved.timeline).unwrap();
+        let mut s = AppState::new();
+        let ctx = egui::Context::default();
+        assert!(s.load_project_file(&file, Some(file.clone()), &ctx));
+        assert_eq!(
+            s.missing.len(),
+            1,
+            "the media is not where the project says"
+        );
+        // The search runs on a worker thread: poll until it reports
+        for _ in 0..200 {
+            s.poll_loader();
+            if s.missing.iter().all(|m| !m.searching) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        (s, dir)
+    }
+
+    #[test]
+    fn missing_media_is_found_in_the_project_folder_when_it_matches_what_was_recorded() {
+        let (s, dir) = open_with_missing("fits", 1.0, 1);
+        assert!(s.missing.is_empty(), "relinked: {:?}", s.status);
+        assert_eq!(
+            std::path::Path::new(&s.project.media_pool[0].path),
+            dir.join("voz.wav")
+        );
+        assert!(s.is_dirty(), "the project changed");
+        assert!(!s.missing_open);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_with_another_length_is_turned_down_and_listed_in_the_missing_media_window() {
+        let (mut s, dir) = open_with_missing("wrong", 5.0, 1);
+        assert_eq!(s.missing.len(), 1);
+        assert!(s.missing_open, "the window opens when something is left");
+        let m = &s.missing[0];
+        assert_eq!(m.name, "voz.wav");
+        assert_eq!(m.rejected.len(), 1);
+        assert!(
+            m.rejected[0].reason.contains("duração"),
+            "{}",
+            m.rejected[0].reason
+        );
+        assert!(
+            s.project.media_pool[0].path.contains("antigo"),
+            "the entry still points where it did"
+        );
+        // Choosing it by hand points the entry there; the load then warns about the length
+        let chosen = dir.join("voz.wav");
+        assert!(relink::relink_to(&mut s.project.media_pool, 7, &chosen));
+        s.note_loaded(7, Some(1), None, 1.0);
+        assert!(s.status.contains("confira"), "{}", s.status);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

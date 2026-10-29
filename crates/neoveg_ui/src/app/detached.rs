@@ -365,6 +365,7 @@ mod trimmer_tests {
         let mut state = AppState::new();
         state.project.media_pool.push(MediaRef {
             subproject: false,
+            format: None,
             id: 5,
             path: "C:/clips/take.wav".into(),
             duration_seconds: 10.0,

@@ -112,6 +112,20 @@ pub struct MediaRef {
     /// `true` when `path` is another `.neoveg` project played as one clip (a nested sequence).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub subproject: bool,
+    /// What the file was like when it was loaded, so a replacement found later can be checked
+    /// against it (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<MediaFormat>,
+}
+
+/// The traits of a media file that a replacement has to keep: the number of sound channels and the
+/// frame rate of the picture (the duration is `MediaRef::duration_seconds`).
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct MediaFormat {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channels: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<f64>,
 }
 
 /// Where a media pool entry comes from.
@@ -228,6 +242,7 @@ mod tests {
         assert_eq!(old.source(), MediaSource::File("a.wav".into()));
         let sub = MediaRef {
             subproject: true,
+            format: None,
             ..old.clone()
         };
         assert!(sub.source().is_subproject());
@@ -275,5 +290,36 @@ mod tests {
         assert_eq!(n.rgb(), NOTE_COLORS[NOTE_COLORS.len() - 1].1);
         n.color = 1;
         assert_eq!(n.rgb(), NOTE_COLORS[1].1);
+    }
+
+    #[test]
+    fn the_recorded_format_of_a_media_file_round_trips_and_old_projects_have_none() {
+        let old: MediaRef =
+            serde_json::from_str(r#"{"id":1,"path":"a.wav","duration_seconds":2.5}"#).unwrap();
+        assert!(old.format.is_none());
+        assert!(
+            !serde_json::to_string(&old).unwrap().contains("format"),
+            "nothing recorded, nothing written"
+        );
+        let with = MediaRef {
+            format: Some(MediaFormat {
+                channels: Some(2),
+                fps: Some(29.97),
+            }),
+            ..old
+        };
+        let back: MediaRef = serde_json::from_str(&serde_json::to_string(&with).unwrap()).unwrap();
+        assert_eq!(back, with);
+        let channels_only: MediaRef = serde_json::from_str(
+            r#"{"id":1,"path":"a.wav","duration_seconds":2.5,"format":{"channels":1}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            channels_only.format,
+            Some(MediaFormat {
+                channels: Some(1),
+                fps: None
+            })
+        );
     }
 }
