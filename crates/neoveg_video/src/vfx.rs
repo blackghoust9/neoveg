@@ -62,6 +62,8 @@ pub const SEPIA: &str = "sepia";
 pub const SWIRL: &str = "swirl";
 pub const RADIAL_BLUR: &str = "radial_blur";
 pub const MEDIAN: &str = "median";
+pub const HSL_ADJUST: &str = "hsl_adjust";
+pub const LINEAR_BLUR: &str = "linear_blur";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -384,6 +386,58 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: HSL_ADJUST,
+        label: "Ajuste HSL",
+        params: &[
+            ParamSpec {
+                id: "add_to_hue",
+                label: "Somar ao matiz",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "saturation",
+                label: "Saturação",
+                min: 0.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "luminosity",
+                label: "Luminosidade",
+                min: 0.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: LINEAR_BLUR,
+        label: "Desfoque linear",
+        params: &[
+            ParamSpec {
+                id: "angle",
+                label: "Ângulo",
+                min: 0.0,
+                max: 180.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "ratio",
+                label: "Razão",
+                min: 0.0,
+                max: 1.0,
+                default: 0.1,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -491,6 +545,15 @@ impl VideoEffect {
                 h_range: self.value(spec, "h_range"),
                 v_range: self.value(spec, "v_range"),
             },
+            HSL_ADJUST => Resolved::HslAdjust {
+                add_to_hue: self.value(spec, "add_to_hue"),
+                saturation: self.value(spec, "saturation"),
+                luminosity: self.value(spec, "luminosity"),
+            },
+            LINEAR_BLUR => Resolved::LinearBlur {
+                angle: self.value(spec, "angle"),
+                ratio: self.value(spec, "ratio"),
+            },
             _ => return None,
         })
     }
@@ -569,6 +632,17 @@ pub enum Resolved {
         h_range: f32,
         v_range: f32,
     },
+    /// See [`hsl_adjust_px`]; `add_to_hue` is a fraction of the colour circle.
+    HslAdjust {
+        add_to_hue: f32,
+        saturation: f32,
+        luminosity: f32,
+    },
+    /// See [`linear_blur`].
+    LinearBlur {
+        angle: f32,
+        ratio: f32,
+    },
 }
 
 impl Resolved {
@@ -591,6 +665,12 @@ impl Resolved {
             Resolved::Swirl { ratio, .. } => ratio == 0.0,
             Resolved::RadialBlur { level, .. } => level <= 0.0,
             Resolved::Median { h_range, v_range } => h_range <= 0.0 && v_range <= 0.0,
+            Resolved::HslAdjust {
+                add_to_hue,
+                saturation,
+                luminosity,
+            } => hue_degrees(add_to_hue) % 360.0 == 0.0 && saturation == 1.0 && luminosity == 1.0,
+            Resolved::LinearBlur { ratio, .. } => ratio <= 0.0,
         }
     }
 }
@@ -1149,6 +1229,121 @@ fn median(work: &Work, rx: u32, ry: u32) -> Work {
     }
 }
 
+/// The hue offset in degrees of the "add to hue" slider: `0.0` and `1.0` both leave the colours as
+/// they are.
+pub fn hue_degrees(add_to_hue: f32) -> f32 {
+    add_to_hue * 360.0
+}
+
+/// Hue, saturation and luminosity (HSL) of straight colour `c`: hue in degrees.
+fn rgb_to_hsl(c: [f32; 3]) -> [f32; 3] {
+    let mx = c[0].max(c[1]).max(c[2]);
+    let mn = c[0].min(c[1]).min(c[2]);
+    let l = (mx + mn) / 2.0;
+    let d = mx - mn;
+    if d < 1e-6 {
+        return [0.0, 0.0, l];
+    }
+    let s = d / (1.0 - (2.0 * l - 1.0).abs()).max(1e-6);
+    let h = if mx == c[0] {
+        ((c[1] - c[2]) / d).rem_euclid(6.0)
+    } else if mx == c[1] {
+        (c[2] - c[0]) / d + 2.0
+    } else {
+        (c[0] - c[1]) / d + 4.0
+    };
+    [h * 60.0, s, l]
+}
+
+fn hsl_to_rgb(hsl: [f32; 3]) -> [f32; 3] {
+    let (h, s, l) = (hsl[0].rem_euclid(360.0), hsl[1], hsl[2]);
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let hp = h / 60.0;
+    let x = c * (1.0 - (hp.rem_euclid(2.0) - 1.0).abs());
+    let (r, g, b) = match hp as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = l - c / 2.0;
+    [r + m, g + m, b + m]
+}
+
+/// The HSL adjustment of one premultiplied pixel: the hue turns by `hue` degrees, the saturation
+/// and the luminosity are multiplied.
+pub fn hsl_adjust_px(p: [f32; 4], hue: f32, saturation: f32, luminosity: f32) -> [f32; 4] {
+    let a = p[3];
+    if a <= 1e-6 {
+        return p;
+    }
+    let mut hsl = rgb_to_hsl([p[0] / a, p[1] / a, p[2] / a]);
+    hsl[0] += hue;
+    hsl[1] = (hsl[1] * saturation).clamp(0.0, 1.0);
+    hsl[2] = (hsl[2] * luminosity).clamp(0.0, 1.0);
+    let rgb = hsl_to_rgb(hsl);
+    [
+        rgb[0].clamp(0.0, 1.0) * a,
+        rgb[1].clamp(0.0, 1.0) * a,
+        rgb[2].clamp(0.0, 1.0) * a,
+        a,
+    ]
+}
+
+fn hsl_adjust(work: &mut Work, add_to_hue: f32, saturation: f32, luminosity: f32) {
+    let hue = hue_degrees(add_to_hue);
+    for p in &mut work.px {
+        *p = hsl_adjust_px(*p, hue, saturation, luminosity);
+    }
+}
+
+/// Taps on each side of the centre of a linear blur.
+pub const LINEAR_TAPS: u32 = 16;
+
+/// The longest half length of a linear blur (ratio `1.0`) as a fraction of the frame height.
+pub const LINEAR_REACH: f32 = 0.05;
+
+/// The unit vector of a linear blur at `angle` degrees (counterclockwise from the right, `y` down on
+/// the screen) and its half length in pixels.
+pub fn linear_blur_line(angle: f32, ratio: f32, height: u32) -> (f32, f32, f32) {
+    let (sin, cos) = angle.to_radians().sin_cos();
+    (cos, -sin, ratio * LINEAR_REACH * height as f32)
+}
+
+/// Blurs along a line: the mean of `2 * LINEAR_TAPS + 1` taps spread over the half length on each
+/// side of the pixel, the taps outside the picture taking the edge.
+fn linear_blur(work: &Work, angle: f32, ratio: f32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let (dx, dy, half) = linear_blur_line(angle, ratio, h as u32);
+    let (max_x, max_y) = (w as f32 - 0.5, h as f32 - 0.5);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (qx, qy) = (x as f32 + 0.5, y as f32 + 0.5);
+            let mut acc = [0.0f32; 4];
+            for k in 0..=(2 * LINEAR_TAPS) {
+                let t = (k as f32 - LINEAR_TAPS as f32) / LINEAR_TAPS as f32 * half;
+                let s = sample_work(
+                    work,
+                    (qx + dx * t).clamp(0.5, max_x),
+                    (qy + dy * t).clamp(0.5, max_y),
+                );
+                for c in 0..4 {
+                    acc[c] += s[c];
+                }
+            }
+            px.push(acc.map(|v| v / (2 * LINEAR_TAPS + 1) as f32));
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -1182,6 +1377,12 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             let h = work.height as u32;
             *work = median(work, median_radius(h_range, h), median_radius(v_range, h));
         }
+        Resolved::HslAdjust {
+            add_to_hue,
+            saturation,
+            luminosity,
+        } => hsl_adjust(work, add_to_hue, saturation, luminosity),
+        Resolved::LinearBlur { angle, ratio } => *work = linear_blur(work, angle, ratio),
     }
 }
 
@@ -1466,6 +1667,65 @@ mod tests {
             .with("h_range", 0.0)
             .with("v_range", 0.0)])
         .is_empty());
+    }
+
+    #[test]
+    fn hsl_turns_the_hue_scales_the_saturation_and_the_linear_blur_follows_its_angle() {
+        let red = |extra: &[(&str, f32)]| {
+            let mut fx = VideoEffect::new(HSL_ADJUST);
+            for (k, v) in extra {
+                fx = fx.with(k, *v);
+            }
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![255, 0, 0, 200],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            f.rgba
+        };
+        let green = red(&[("add_to_hue", 1.0 / 3.0)]);
+        assert!(
+            green[0] <= 1 && green[1] >= 254 && green[2] <= 1,
+            "{green:?}"
+        );
+        assert_eq!(green[3], 200, "alpha stays");
+        let grey = red(&[("saturation", 0.0)]);
+        assert!(grey[0] == grey[1] && grey[1] == grey[2], "{grey:?}");
+        assert_eq!(red(&[("luminosity", 0.0)])[..3], [0, 0, 0]);
+        assert!(resolve_chain(&[VideoEffect::new(HSL_ADJUST)]).is_empty());
+        assert!(resolve_chain(&[VideoEffect::new(HSL_ADJUST).with("add_to_hue", 1.0)]).is_empty());
+        // A thin vertical line: a horizontal blur spreads it, a vertical one leaves it alone
+        let mut line = FrameBuffer {
+            width: 100,
+            height: 100,
+            rgba: [0u8, 0, 0, 255].repeat(100 * 100),
+        };
+        for y in 0..100 {
+            let i = (y * 100 + 50) * 4;
+            line.rgba[i..i + 3].copy_from_slice(&[255, 255, 255]);
+        }
+        let at = |f: &FrameBuffer, x: usize| f.rgba[(40 * 100 + x) * 4];
+        let mut across = line.clone();
+        apply_chain_cpu(
+            &mut across,
+            &[VideoEffect::new(LINEAR_BLUR).with("ratio", 1.0)],
+        );
+        assert!(
+            at(&across, 50) < 200 && at(&across, 48) > 10,
+            "{} {}",
+            at(&across, 50),
+            at(&across, 48)
+        );
+        let mut along = line.clone();
+        apply_chain_cpu(
+            &mut along,
+            &[VideoEffect::new(LINEAR_BLUR)
+                .with("ratio", 1.0)
+                .with("angle", 90.0)],
+        );
+        assert!(at(&along, 50) >= 253 && at(&along, 48) <= 2);
+        assert!(resolve_chain(&[VideoEffect::new(LINEAR_BLUR).with("ratio", 0.0)]).is_empty());
     }
 
     #[test]

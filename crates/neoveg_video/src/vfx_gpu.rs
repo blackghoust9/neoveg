@@ -14,8 +14,8 @@ use wgpu::util::DeviceExt;
 use crate::frame::FrameBuffer;
 use crate::transitions as tr;
 use crate::vfx::{
-    contrast_gain, gaussian_kernel, median_radius, pixelate_block, range_pixels, vignette_corner,
-    Resolved, Work, UNSHARP_RADIUS,
+    contrast_gain, gaussian_kernel, hue_degrees, linear_blur_line, median_radius, pixelate_block,
+    range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS,
 };
 
 #[repr(C)]
@@ -321,6 +321,75 @@ fn median(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[id.y * p.width + id.x] = out;
 }
 
+fn rgb_to_hsl(c: vec3<f32>) -> vec3<f32> {
+    let mx = max(max(c.x, c.y), c.z);
+    let mn = min(min(c.x, c.y), c.z);
+    let l = (mx + mn) / 2.0;
+    let d = mx - mn;
+    if (d < 0.000001) { return vec3<f32>(0.0, 0.0, l); }
+    let s = d / max(1.0 - abs(2.0 * l - 1.0), 0.000001);
+    var h = 0.0;
+    if (mx == c.x) {
+        let q = (c.y - c.z) / d;
+        h = q - 6.0 * floor(q / 6.0);
+    } else if (mx == c.y) {
+        h = (c.z - c.x) / d + 2.0;
+    } else {
+        h = (c.x - c.y) / d + 4.0;
+    }
+    return vec3<f32>(h * 60.0, s, l);
+}
+
+fn hsl_to_rgb(hsl: vec3<f32>) -> vec3<f32> {
+    let h = hsl.x - 360.0 * floor(hsl.x / 360.0);
+    let c = (1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y;
+    let hp = h / 60.0;
+    let x = c * (1.0 - abs((hp - 2.0 * floor(hp / 2.0)) - 1.0));
+    var rgb = vec3<f32>(c, 0.0, x);
+    let sector = u32(hp);
+    if (sector == 0u) { rgb = vec3<f32>(c, x, 0.0); }
+    else if (sector == 1u) { rgb = vec3<f32>(x, c, 0.0); }
+    else if (sector == 2u) { rgb = vec3<f32>(0.0, c, x); }
+    else if (sector == 3u) { rgb = vec3<f32>(0.0, x, c); }
+    else if (sector == 4u) { rgb = vec3<f32>(x, 0.0, c); }
+    let m = hsl.z - c / 2.0;
+    return rgb + vec3<f32>(m);
+}
+
+// a = hue offset in degrees, b = saturation, c = luminosity
+@compute @workgroup_size(8, 8, 1)
+fn hsl_adjust(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) {
+        dst[i] = s;
+        return;
+    }
+    var hsl = rgb_to_hsl(s.xyz / s.w);
+    hsl.x = hsl.x + p.a;
+    hsl.y = clamp(hsl.y * p.b, 0.0, 1.0);
+    hsl.z = clamp(hsl.z * p.c, 0.0, 1.0);
+    let rgb = clamp(hsl_to_rgb(hsl), vec3<f32>(0.0), vec3<f32>(1.0)) * s.w;
+    dst[i] = vec4<f32>(rgb.x, rgb.y, rgb.z, s.w);
+}
+
+// a/b = unit vector of the line (y down), c = half length in pixels; 33 taps
+@compute @workgroup_size(8, 8, 1)
+fn linear_blur(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let qx = f32(id.x) + 0.5;
+    let qy = f32(id.y) + 0.5;
+    let max_x = f32(p.width) - 0.5;
+    let max_y = f32(p.height) - 0.5;
+    var acc = vec4<f32>(0.0);
+    for (var k = 0; k <= 32; k = k + 1) {
+        let t = (f32(k) - 16.0) / 16.0 * p.c;
+        acc = acc + sample_bilinear(clamp(qx + p.a * t, 0.5, max_x), clamp(qy + p.b * t, 0.5, max_y));
+    }
+    dst[id.y * p.width + id.x] = acc / 33.0;
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -463,6 +532,8 @@ pub struct VfxGpu {
     swirl: wgpu::ComputePipeline,
     radial_blur: wgpu::ComputePipeline,
     median: wgpu::ComputePipeline,
+    hsl_adjust: wgpu::ComputePipeline,
+    linear_blur: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -501,6 +572,8 @@ enum Pass {
     Swirl,
     RadialBlur,
     Median,
+    HslAdjust,
+    LinearBlur,
     TransMask,
     TransSlide,
     TransGrow,
@@ -571,6 +644,8 @@ impl VfxGpu {
             swirl: make("swirl"),
             radial_blur: make("radial_blur"),
             median: make("median"),
+            hsl_adjust: make("hsl_adjust"),
+            linear_blur: make("linear_blur"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -599,6 +674,8 @@ impl VfxGpu {
             Pass::Swirl => &self.swirl,
             Pass::RadialBlur => &self.radial_blur,
             Pass::Median => &self.median,
+            Pass::HslAdjust => &self.hsl_adjust,
+            Pass::LinearBlur => &self.linear_blur,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -965,6 +1042,26 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Median, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::HslAdjust {
+                    add_to_hue,
+                    saturation,
+                    luminosity,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = hue_degrees(add_to_hue);
+                    p.b = saturation;
+                    p.c = luminosity;
+                    run(&mut encoder, Pass::HslAdjust, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::LinearBlur { angle, ratio } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c) = linear_blur_line(angle, ratio, h);
+                    run(&mut encoder, Pass::LinearBlur, p, cur, dst, None, None);
+                    cur = dst;
+                }
             }
         }
 
@@ -1009,8 +1106,8 @@ mod tests {
     use crate::generators::smpte_color_bars;
     use crate::vfx::{
         apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
-        GAUSSIAN_BLUR, INVERT, MEDIAN, MIRROR, PIXELATE, RADIAL_BLUR, SEPIA, SHARPEN, SWIRL,
-        UNSHARP_MASK, VIGNETTE,
+        GAUSSIAN_BLUR, HSL_ADJUST, INVERT, LINEAR_BLUR, MEDIAN, MIRROR, PIXELATE, RADIAL_BLUR,
+        SEPIA, SHARPEN, SWIRL, UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -1108,6 +1205,15 @@ mod tests {
             VideoEffect::new(MEDIAN)
                 .with("h_range", 0.004)
                 .with("v_range", 0.001),
+            VideoEffect::new(HSL_ADJUST).with("add_to_hue", 0.1),
+            VideoEffect::new(HSL_ADJUST)
+                .with("add_to_hue", 0.62)
+                .with("saturation", 1.4)
+                .with("luminosity", 0.8),
+            VideoEffect::new(LINEAR_BLUR),
+            VideoEffect::new(LINEAR_BLUR)
+                .with("angle", 37.0)
+                .with("ratio", 0.8),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();
