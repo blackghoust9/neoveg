@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (118 comandos, 115 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (120 comandos, 117 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -157,6 +157,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Ação | Atalho | Id | Estado |
 | :--- | :--- | :--- | :--- |
 | Foco na linha do tempo | `Alt+0` | `view.focus_timeline` | implementado |
+| Carregar layout (depois, um número de 1 a 9) | `Alt+D` | `view.layout_load` | implementado |
+| Salvar layout (depois, um número de 1 a 9) | `Ctrl+Alt+D` | `view.layout_save` | implementado |
 | Mídia do projeto | `Alt+5` | `view.project_media` | implementado |
 | Trimmer | `Alt+2` | `view.trimmer` | implementado |
 | Barramento master | `Alt+3` | `view.master_bus` | implementado |

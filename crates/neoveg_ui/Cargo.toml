@@ -22,7 +22,9 @@ neoveg_video.workspace = true
 neoveg_engine.workspace = true
 tracing.workspace = true
 eframe = { version = "0.29", default-features = false, features = ["wgpu", "default_fonts", "x11", "wayland"] }
-egui_dock = "0.14"
+egui_dock = { version = "0.14", features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true
 egui_extras = { version = "0.29", default-features = false, features = ["svg", "image"] }
 rfd = "0.15"
 # Offscreen screenshots (`neoveg --screenshots`): block on wgpu futures and write PNG files

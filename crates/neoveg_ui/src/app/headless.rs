@@ -203,10 +203,11 @@ fn new_context() -> egui::Context {
 }
 
 /// An application as it is after the startup screen, with nothing read from the user's machine.
-fn headless_app(state: AppState, dock: DockState<Tab>) -> NeovegApp {
+fn headless_app(mut state: AppState, dock: DockState<Tab>) -> NeovegApp {
+    // The screenshots read nothing of the user's, saved layouts included
+    state.layouts_dir = None;
     NeovegApp {
         dock,
-        layouts: Default::default(),
         state,
         splash: None,
         gpu: "renderização fora da tela".into(),

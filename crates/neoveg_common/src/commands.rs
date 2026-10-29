@@ -212,6 +212,8 @@ commands! {
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewLayoutLoad => ("view.layout_load", "Carregar layout (depois, um número de 1 a 9)", View, true),
+    ViewLayoutSave => ("view.layout_save", "Salvar layout (depois, um número de 1 a 9)", View, true),
     ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, true),
     ViewTrimmer => ("view.trimmer", "Trimmer", View, true),
     ViewMasterBus => ("view.master_bus", "Barramento master", View, true),

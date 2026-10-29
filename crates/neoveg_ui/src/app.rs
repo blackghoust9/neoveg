@@ -131,8 +131,8 @@ fn preview_texture_options(quality: usize) -> egui::TextureOptions {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Tab {
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub(crate) enum Tab {
     Preview,
     Timeline,
     Media,
@@ -172,14 +172,35 @@ enum TrimmerAdd {
 }
 
 /// What a window command asks of the dock.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 enum WindowAction {
     /// Show the window (bring it to the front, or put it back when it was closed); when it is
     /// already in front, close it.
     Toggle(Tab),
-    SaveLayout(usize),
-    RecallLayout(usize),
     DefaultLayout,
+    /// Load the saved layout in this file.
+    LoadLayout(PathBuf),
+    /// Load the selected layout again, undoing changes made since.
+    ReloadLayout,
+    /// Save the dock as a layout with this name and shortcut number.
+    SaveLayout {
+        name: String,
+        slot: Option<u8>,
+    },
+    /// Save the dock over the selected layout.
+    SaveCurrentLayout,
+    /// `Alt+D`, then a number: load the layout that has it.
+    RecallSlot(u8),
+    /// `Ctrl+Alt+D`, then a number: save the dock under that number.
+    SaveSlot(u8),
+    DeleteLayout(PathBuf),
+    SetLayoutSlot(PathBuf, Option<u8>),
+}
+
+/// The *Salvar layout como* dialog.
+struct LayoutDialog {
+    name: String,
+    slot: Option<u8>,
 }
 
 /// Decoded audio kept in memory for waveform drawing and playback.
@@ -565,6 +586,17 @@ struct AppState {
     trimmer_drag_from: Option<f64>,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
+    /// Where the saved window layouts live (`None` reads and writes nothing).
+    layouts_dir: Option<PathBuf>,
+    /// The saved layouts, read from `layouts_dir` when first needed and after each change.
+    layouts: Vec<crate::layouts::SavedLayout>,
+    layouts_loaded: bool,
+    /// The layout the dock was loaded from or saved as (marked in the menu).
+    current_layout: Option<PathBuf>,
+    layout_dialog: Option<LayoutDialog>,
+    organize_layouts: bool,
+    /// `Alt+D` (load) or `Ctrl+Alt+D` (save) was pressed: the next number picks the layout, until this time.
+    layout_chord: Option<(bool, f64)>,
     /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
     auto_ripple: bool,
     /// Edge selected by the keyboard trim mode (`[` / `]`); `←` / `→` then nudge it a frame.
@@ -1402,6 +1434,13 @@ impl AppState {
             trimmer_overwrite: false,
             trimmer_drag_from: None,
             window_request: None,
+            layouts_dir: crate::layouts::dir(),
+            layouts: Vec::new(),
+            layouts_loaded: false,
+            current_layout: None,
+            layout_dialog: None,
+            organize_layouts: false,
+            layout_chord: None,
             auto_ripple: false,
             trim_edge: None,
             ripple_scope: Default::default(),
@@ -4831,11 +4870,61 @@ impl AppState {
         ctx.request_repaint();
     }
 
+    /// Re-reads the saved layouts from the folder.
+    fn refresh_layouts(&mut self) {
+        self.layouts = self
+            .layouts_dir
+            .as_deref()
+            .map(crate::layouts::list)
+            .unwrap_or_default();
+        self.layouts_loaded = true;
+    }
+
+    /// Reads the saved layouts the first time they are needed.
+    fn ensure_layouts(&mut self) {
+        if !self.layouts_loaded {
+            self.refresh_layouts();
+        }
+    }
+
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         if ctx.wants_keyboard_input() || self.capture_for.is_some() {
             return;
         }
         let now = ctx.input(|i| i.time);
+        // `Alt+D` / `Ctrl+Alt+D` then a number (not the keypad's): the number picks the layout
+        if let Some((save, until)) = self.layout_chord.take() {
+            if now <= until {
+                const DIGITS: [egui::Key; 9] = [
+                    egui::Key::Num1,
+                    egui::Key::Num2,
+                    egui::Key::Num3,
+                    egui::Key::Num4,
+                    egui::Key::Num5,
+                    egui::Key::Num6,
+                    egui::Key::Num7,
+                    egui::Key::Num8,
+                    egui::Key::Num9,
+                ];
+                let digit = ctx.input_mut(|i| {
+                    DIGITS
+                        .iter()
+                        .position(|k| i.consume_key(egui::Modifiers::NONE, *k))
+                });
+                match digit {
+                    Some(index) => {
+                        let slot = index as u8 + 1;
+                        self.window_request = Some(if save {
+                            WindowAction::SaveSlot(slot)
+                        } else {
+                            WindowAction::RecallSlot(slot)
+                        });
+                        return;
+                    }
+                    None => self.layout_chord = Some((save, until)),
+                }
+            }
+        }
         // Esc leaves the keyboard trim mode before it can mean anything else
         if self.trim_edge.is_some()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
@@ -4890,6 +4979,15 @@ impl AppState {
             Command::RippleAll => self.ripple_key(RippleScope::AllTracksAndMarks),
             Command::ViewFocusTimeline => {
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
+            }
+            Command::ViewLayoutLoad | Command::ViewLayoutSave => {
+                let save = command == Command::ViewLayoutSave;
+                self.layout_chord = Some((save, now + 3.0));
+                self.status = if save {
+                    "Salvar layout: aperte um número de 1 a 9".into()
+                } else {
+                    "Carregar layout: aperte um número de 1 a 9".into()
+                };
             }
             Command::ViewProjectMedia => {
                 self.media_tab = 0;
@@ -5136,8 +5234,6 @@ struct MarkDrag {
 
 pub struct NeovegApp {
     dock: DockState<Tab>,
-    /// Layouts saved with the Exibir menu (session only).
-    layouts: [Option<DockState<Tab>>; 10],
     state: AppState,
     /// The startup screen, until it has faded out.
     splash: Option<Splash>,
@@ -5332,7 +5428,37 @@ impl NeovegApp {
         }
     }
 
-    /// Carries out a window command: show / hide a window, or save / recall a layout.
+    /// Puts the dock of the saved layout at `path` on screen.
+    fn load_layout(&mut self, path: &std::path::Path) {
+        self.state.ensure_layouts();
+        let Some(found) = self.state.layouts.iter().find(|l| l.path == path) else {
+            self.state.status = "Esse layout não existe mais".into();
+            return;
+        };
+        let (layout, name) = (found.file.dock.clone(), found.file.name.clone());
+        self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
+        self.dock = layout;
+        self.state.current_layout = Some(path.to_path_buf());
+        self.state.status = format!("Layout {name} carregado");
+    }
+
+    /// Saves the dock as the layout `name` (with the shortcut number `slot`).
+    fn save_layout(&mut self, name: &str, slot: Option<u8>) {
+        let Some(dir) = self.state.layouts_dir.clone() else {
+            self.state.status = "Não há pasta para guardar o layout".into();
+            return;
+        };
+        match crate::layouts::save(&dir, name, slot, &self.dock) {
+            Ok(path) => {
+                self.state.current_layout = Some(path);
+                self.state.status = format!("Layout {name} salvo");
+            }
+            Err(e) => self.state.status = format!("Não foi possível salvar o layout: {e}"),
+        }
+        self.state.refresh_layouts();
+    }
+
+    /// Carries out a window command: show / hide a window, or save / load a layout.
     fn apply_window_action(&mut self, action: WindowAction) {
         match action {
             WindowAction::Toggle(tab) if self.detached.iter().any(|d| d.tab == tab) => {
@@ -5351,20 +5477,57 @@ impl NeovegApp {
                     WindowChange::Raised => return,
                 };
             }
-            WindowAction::SaveLayout(slot) => {
-                if let Some(entry) = self.layouts.get_mut(slot) {
-                    *entry = Some(self.dock.clone());
-                    self.state.status = format!("Layout {slot} salvo");
+            WindowAction::LoadLayout(path) => self.load_layout(&path),
+            WindowAction::ReloadLayout => match self.state.current_layout.clone() {
+                Some(path) => self.load_layout(&path),
+                None => self.state.status = "Nenhum layout selecionado".into(),
+            },
+            WindowAction::SaveLayout { name, slot } => self.save_layout(&name, slot),
+            WindowAction::SaveCurrentLayout => {
+                self.state.ensure_layouts();
+                let current = self.state.current_layout.clone();
+                let found = self
+                    .state
+                    .layouts
+                    .iter()
+                    .find(|l| Some(&l.path) == current.as_ref())
+                    .map(|l| (l.file.name.clone(), l.file.slot));
+                match found {
+                    Some((name, slot)) => self.save_layout(&name, slot),
+                    None => self.state.status = "Nenhum layout selecionado".into(),
                 }
             }
-            WindowAction::RecallLayout(slot) => match self.layouts.get(slot).cloned().flatten() {
-                Some(layout) => {
-                    self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
-                    self.dock = layout;
-                    self.state.status = format!("Layout {slot} restaurado");
+            WindowAction::RecallSlot(slot) => {
+                self.state.ensure_layouts();
+                match crate::layouts::by_slot(&self.state.layouts, slot).map(|l| l.path.clone()) {
+                    Some(path) => self.load_layout(&path),
+                    None => self.state.status = format!("Nenhum layout no atalho {slot}"),
                 }
-                None => self.state.status = format!("O layout {slot} ainda não foi salvo"),
-            },
+            }
+            WindowAction::SaveSlot(slot) => {
+                self.state.ensure_layouts();
+                let name = crate::layouts::by_slot(&self.state.layouts, slot)
+                    .map_or_else(|| format!("Layout {slot}"), |l| l.file.name.clone());
+                self.save_layout(&name, Some(slot));
+            }
+            WindowAction::DeleteLayout(path) => {
+                match crate::layouts::remove(&path) {
+                    Ok(()) => self.state.status = "Layout excluído".into(),
+                    Err(e) => self.state.status = e,
+                }
+                if self.state.current_layout.as_ref() == Some(&path) {
+                    self.state.current_layout = None;
+                }
+                self.state.refresh_layouts();
+            }
+            WindowAction::SetLayoutSlot(path, slot) => {
+                if let Some(dir) = self.state.layouts_dir.clone() {
+                    if let Err(e) = crate::layouts::set_slot(&dir, &path, slot) {
+                        self.state.status = e;
+                    }
+                }
+                self.state.refresh_layouts();
+            }
             WindowAction::DefaultLayout => {
                 self.dock = default_dock();
                 let dock = &self.dock;
@@ -5387,7 +5550,6 @@ impl NeovegApp {
         );
         Self {
             dock: default_dock(),
-            layouts: Default::default(),
             state: AppState::new(),
             splash: Some(Splash::new(&STARTUP_STEPS, &gpu)),
             gpu,
@@ -5525,6 +5687,7 @@ impl NeovegApp {
         keymap_window(ctx, &mut self.state);
         repeat_paste_window(ctx, &mut self.state);
         paste_attributes_window(ctx, &mut self.state);
+        layout_dialogs(ctx, &mut self.state);
         convert_offer_window(ctx, &mut self.state);
         goto_window(ctx, &mut self.state);
         metronome_window(ctx, &mut self.state);
@@ -5975,23 +6138,60 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.separator();
             ui.menu_button("Layouts", |ui| {
+                state.ensure_layouts();
                 if ui.button("Layout padrão").clicked() {
                     state.window_request = Some(WindowAction::DefaultLayout);
                     ui.close_menu();
                 }
                 ui.separator();
-                for slot in 1..=9 {
-                    if ui.button(format!("Restaurar layout {slot}")).clicked() {
-                        state.window_request = Some(WindowAction::RecallLayout(slot));
+                let items: Vec<(PathBuf, String, Option<u8>)> = state
+                    .layouts
+                    .iter()
+                    .map(|l| (l.path.clone(), l.file.name.clone(), l.file.slot))
+                    .collect();
+                for (path, name, slot) in items {
+                    let label = match slot {
+                        Some(n) => format!("{name}  (Alt+D, {n})"),
+                        None => name,
+                    };
+                    let current = state.current_layout.as_ref() == Some(&path);
+                    if ui.radio(current, label).clicked() {
+                        state.window_request = Some(WindowAction::LoadLayout(path));
                         ui.close_menu();
                     }
                 }
+                if state.layouts.is_empty() {
+                    ui.weak("Nenhum layout salvo");
+                }
                 ui.separator();
-                for slot in 1..=9 {
-                    if ui.button(format!("Salvar layout {slot}")).clicked() {
-                        state.window_request = Some(WindowAction::SaveLayout(slot));
-                        ui.close_menu();
-                    }
+                let has_current = state.current_layout.is_some();
+                if ui
+                    .add_enabled(
+                        has_current,
+                        egui::Button::new("Recarregar layout selecionado"),
+                    )
+                    .clicked()
+                {
+                    state.window_request = Some(WindowAction::ReloadLayout);
+                    ui.close_menu();
+                }
+                if ui
+                    .add_enabled(has_current, egui::Button::new("Salvar layout atual"))
+                    .clicked()
+                {
+                    state.window_request = Some(WindowAction::SaveCurrentLayout);
+                    ui.close_menu();
+                }
+                if ui.button("Salvar layout como…").clicked() {
+                    state.layout_dialog = Some(LayoutDialog {
+                        name: String::new(),
+                        slot: None,
+                    });
+                    ui.close_menu();
+                }
+                if ui.button("Organizar layouts…").clicked() {
+                    state.organize_layouts = true;
+                    ui.close_menu();
                 }
             });
         });
@@ -6854,6 +7054,108 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
     } else if keep_open && !cancel {
         state.convert_offer = Some(offer);
     }
+}
+
+/// The two layout windows: *Salvar layout como* (a name and a shortcut number) and *Organizar layouts*
+/// (the saved ones, with their shortcut numbers, to load or delete).
+fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
+    if let Some(mut dialog) = state.layout_dialog.take() {
+        let mut keep_open = true;
+        let mut save = false;
+        let mut cancel = false;
+        crate::dialogs::dialog(ctx, "Salvar layout como")
+            .collapsible(false)
+            .resizable(false)
+            .open(&mut keep_open)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Nome");
+                    ui.text_edit_singleline(&mut dialog.name);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Atalho");
+                    slot_combo(ui, "layout_save_slot", &mut dialog.slot);
+                });
+                if let Some(dir) = &state.layouts_dir {
+                    ui.weak(format!("Pasta: {}", dir.display()));
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(!dialog.name.trim().is_empty(), egui::Button::new("Salvar"))
+                        .clicked()
+                    {
+                        save = true;
+                    }
+                    if ui.button("Cancelar").clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+        if save {
+            state.window_request = Some(WindowAction::SaveLayout {
+                name: dialog.name.trim().to_owned(),
+                slot: dialog.slot,
+            });
+        } else if keep_open && !cancel {
+            state.layout_dialog = Some(dialog);
+        }
+    }
+    if state.organize_layouts {
+        state.ensure_layouts();
+        let mut keep_open = true;
+        let mut request = None;
+        let rows: Vec<(PathBuf, String, Option<u8>)> = state
+            .layouts
+            .iter()
+            .map(|l| (l.path.clone(), l.file.name.clone(), l.file.slot))
+            .collect();
+        crate::dialogs::dialog(ctx, "Organizar layouts")
+            .collapsible(false)
+            .open(&mut keep_open)
+            .show(ctx, |ui| {
+                if let Some(dir) = &state.layouts_dir {
+                    ui.weak(format!("Pasta: {}", dir.display()));
+                }
+                if rows.is_empty() {
+                    ui.label(
+                        "Nenhum layout salvo ainda. Use Exibir > Layouts > Salvar layout como.",
+                    );
+                }
+                for (i, (path, name, slot)) in rows.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(name);
+                        let mut chosen = *slot;
+                        slot_combo(ui, &format!("layout_slot_{i}"), &mut chosen);
+                        if chosen != *slot {
+                            request = Some(WindowAction::SetLayoutSlot(path.clone(), chosen));
+                        }
+                        if ui.button("Carregar").clicked() {
+                            request = Some(WindowAction::LoadLayout(path.clone()));
+                        }
+                        if ui.button("Excluir").clicked() {
+                            request = Some(WindowAction::DeleteLayout(path.clone()));
+                        }
+                    });
+                }
+            });
+        if request.is_some() {
+            state.window_request = request;
+        }
+        state.organize_layouts = keep_open;
+    }
+}
+
+/// A drop-down with *Nenhum* and the numbers 1 to 9 for the layout shortcut.
+fn slot_combo(ui: &mut egui::Ui, id: &str, slot: &mut Option<u8>) {
+    let text = slot.map_or_else(|| "Nenhum".to_owned(), |n| n.to_string());
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(text)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(slot, None, "Nenhum");
+            for n in crate::layouts::SLOTS {
+                ui.selectable_value(slot, Some(n), n.to_string());
+            }
+        });
 }
 
 /// "Colar atributos do evento seletivamente": one check box per attribute.

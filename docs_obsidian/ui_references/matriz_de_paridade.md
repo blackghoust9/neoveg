@@ -188,7 +188,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Função | Comandos | Estado | No Neoveg | Prio. |
 | :--- | ---: | :--- | :--- | :--- |
 | Barra de ferramentas e barra de status | 2 | feito | barra e status | - |
-| Layouts de janela: organizar, salvar, recarregar, padrão e os dez salvos | 25 | parcial | layouts 1 a 9 e padrão na sessão; sem disco nem organizar | P2 |
+| Layouts de janela: organizar, salvar, recarregar, padrão e os dez salvos | 25 | parcial | layouts nomeados em disco com atalho 1 a 9 (`Alt+D`, `Ctrl+Alt+D`), recarregar e organizar (manual v21 p.87-88); faltam as janelas destacadas e a pasta à escolha | P2 |
 | Foco na linha do tempo | 1 | feito | `view.focus_timeline` | - |
 | Janelas: Trimmer, master, visualização, mídia, notas, escopos, detalhes de edição, loudness | 8 | feito | `view.*` e janelas do cofre | - |
 | Janelas de efeitos de vídeo e de geradores | 2 | feito | aba Efeitos de Vídeo; diálogo de geradores | - |

@@ -377,7 +377,8 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [ ] Predefinições (presets) de cada efeito de áudio e importação de presets.
 
 **Janelas e projeto**
-- [ ] Layouts nomeados persistidos no disco, com organizar e layouts por tarefa (mixagem, cor, texto), incluindo as janelas destacadas.
+- [x] Layouts de janela nomeados e salvos em disco (`.neoveglayout`, pasta de dados do usuário): Exibir > Layouts lista os salvos com marca no atual, *Salvar layout como…* (nome e atalho de 1 a 9), *Salvar layout atual*, *Recarregar layout selecionado* e *Organizar layouts…* (trocar o atalho, carregar, excluir). `Alt+D` e depois um número carrega, `Ctrl+Alt+D` e depois um número salva.
+- [ ] Layouts: guardar também as janelas destacadas e a pasta de layouts à escolha.
 - [ ] Painel de compositores (modos de mistura), junto do modelo de composição.
 - [ ] Diálogo de propriedades da mídia: timecode do arquivo ou personalizado, taxa de quadros substituta, ordem dos campos, proporção do pixel, canal alfa e cor de fundo.
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.

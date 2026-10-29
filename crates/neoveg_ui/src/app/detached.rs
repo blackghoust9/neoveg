@@ -222,13 +222,89 @@ mod tests {
     fn app() -> NeovegApp {
         NeovegApp {
             dock: default_dock(),
-            layouts: Default::default(),
             state: AppState::new(),
             splash: None,
             gpu: String::new(),
             detached: Vec::new(),
             detached_restored: true,
         }
+    }
+
+    #[test]
+    fn saved_layouts_are_saved_loaded_by_number_reloaded_and_deleted() {
+        let dir = std::env::temp_dir().join(format!("neoveg_app_layouts_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut app = app();
+        app.state.layouts_dir = Some(dir.clone());
+        // Nothing saved: recalling a number says so and leaves the dock alone
+        app.apply_window_action(WindowAction::RecallSlot(3));
+        assert!(app.state.status.contains("Nenhum layout no atalho 3"));
+        // Save the default arrangement as "Edição" on number 3
+        let saved = default_dock();
+        app.apply_window_action(WindowAction::SaveLayout {
+            name: "Edição".into(),
+            slot: Some(3),
+        });
+        assert!(app.state.current_layout.is_some());
+        assert_eq!(app.state.layouts.len(), 1);
+        // Rearrange the dock, then recall by number: the saved arrangement is back
+        app.dock = DockState::new(vec![Tab::Preview]);
+        assert!(app.dock.find_tab(&Tab::Timeline).is_none());
+        app.apply_window_action(WindowAction::RecallSlot(3));
+        assert_eq!(
+            app.dock.find_tab(&Tab::Timeline).is_some(),
+            saved.find_tab(&Tab::Timeline).is_some()
+        );
+        assert!(app.dock.find_tab(&Tab::Timeline).is_some());
+        // Changes since the load are undone by reloading the selected layout
+        app.dock = DockState::new(vec![Tab::Preview]);
+        app.apply_window_action(WindowAction::ReloadLayout);
+        assert!(app.dock.find_tab(&Tab::Timeline).is_some());
+        // Save over the selected one keeps its name and number
+        app.dock = DockState::new(vec![Tab::Preview, Tab::Timeline]);
+        app.apply_window_action(WindowAction::SaveCurrentLayout);
+        assert_eq!(app.state.layouts.len(), 1);
+        assert_eq!(app.state.layouts[0].file.slot, Some(3));
+        assert!(app.state.layouts[0]
+            .file
+            .dock
+            .find_tab(&Tab::Media)
+            .is_none());
+        // Ctrl+Alt+D then 5 saves "Layout 5"; the shortcut can move and the layout can go
+        app.apply_window_action(WindowAction::SaveSlot(5));
+        assert!(app
+            .state
+            .layouts
+            .iter()
+            .any(|l| l.file.name == "Layout 5" && l.file.slot == Some(5)));
+        let first = app
+            .state
+            .layouts
+            .iter()
+            .find(|l| l.file.slot == Some(3))
+            .unwrap()
+            .path
+            .clone();
+        app.apply_window_action(WindowAction::SetLayoutSlot(first.clone(), Some(5)));
+        assert_eq!(
+            app.state
+                .layouts
+                .iter()
+                .filter(|l| l.file.slot == Some(5))
+                .count(),
+            1
+        );
+        app.apply_window_action(WindowAction::DeleteLayout(first));
+        assert_eq!(app.state.layouts.len(), 1);
+        assert!(
+            app.state.current_layout.is_some(),
+            "the saved Layout 5 stays selected"
+        );
+        // The chord: Alt+D, then a number key within the time
+        let ctx = egui::Context::default();
+        app.state.run_command(Command::ViewLayoutLoad, &ctx, 10.0);
+        assert!(app.state.layout_chord.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

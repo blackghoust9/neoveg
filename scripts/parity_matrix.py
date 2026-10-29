@@ -136,7 +136,7 @@ ROWS: List[Row] = [
     ("opc.preferencias", A_OPC, "Preferências e exportar ou importar preferências", r"^Options > (Preferences|Export Preferences|Import Preferences)", "parcial", "preferências feitas; exportar e importar não", "P3"),
     # ---------------------------------------------------------------- Exibir
     ("exi.barras", A_EXI, "Barra de ferramentas e barra de status", r"^View > (Toolbar|Status Bar)", "feito", "barra e status", "-"),
-    ("exi.layouts", A_EXI, "Layouts de janela: organizar, salvar, recarregar, padrão e os dez salvos", r"^View > Window Layouts", "parcial", "layouts 1 a 9 e padrão na sessão; sem disco nem organizar", "P2"),
+    ("exi.layouts", A_EXI, "Layouts de janela: organizar, salvar, recarregar, padrão e os dez salvos", r"^View > Window Layouts", "parcial", "layouts nomeados em disco com atalho 1 a 9 (`Alt+D`, `Ctrl+Alt+D`), recarregar e organizar (manual v21 p.87-88); faltam as janelas destacadas e a pasta à escolha", "P2"),
     ("exi.foco", A_EXI, "Foco na linha do tempo", r"^View > Focus", "feito", "`view.focus_timeline`", "-"),
     ("exi.janelas_ok", A_EXI, "Janelas: Trimmer, master, visualização, mídia, notas, escopos, detalhes de edição, loudness", r"^View > Window > (Trimmer|Master Bus|Video Preview|Project Media|Project Notes|Video Scopes|Edit Details|Loudness)", "feito", "`view.*` e janelas do cofre", "-"),
     ("exi.janela_fx", A_EXI, "Janelas de efeitos de vídeo e de geradores", r"^View > Window > (Video FX|Media Generators)", "feito", "aba Efeitos de Vídeo; diálogo de geradores", "-"),

@@ -285,6 +285,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::TrackPanEnvelope, &["P"]),
     (Command::TrackToggleEnvelopes, &["Ctrl+Shift+E"]),
     (Command::ViewFocusTimeline, &["Alt+0"]),
+    (Command::ViewLayoutLoad, &["Alt+D"]),
+    (Command::ViewLayoutSave, &["Ctrl+Alt+D"]),
     (Command::ViewTrimmer, &["Alt+2"]),
     (Command::ViewMasterBus, &["Alt+3"]),
     (Command::ViewPreview, &["Alt+4"]),
