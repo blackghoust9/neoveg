@@ -532,7 +532,12 @@ impl Work {
     pub fn write_to(&self, frame: &mut FrameBuffer) {
         for (dst, p) in frame.rgba.as_chunks_mut::<4>().0.iter_mut().zip(&self.px) {
             let a = p[3].clamp(0.0, 1.0);
-            let inv = if a > 1e-6 { 1.0 / a } else { 0.0 };
+            // Under half a level of alpha the pixel is empty (the same cut as the transitions)
+            if a * 255.0 < 0.5 {
+                *dst = [0, 0, 0, 0];
+                continue;
+            }
+            let inv = 1.0 / a;
             for c in 0..3 {
                 dst[c] = ((p[c] * inv).clamp(0.0, 1.0) * 255.0).round() as u8;
             }

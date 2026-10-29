@@ -12,6 +12,7 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
 use crate::frame::FrameBuffer;
+use crate::transitions as tr;
 use crate::vfx::{
     contrast_gain, gaussian_kernel, pixelate_block, range_pixels, vignette_corner, Resolved, Work,
     UNSHARP_RADIUS,
@@ -229,6 +230,79 @@ fn mirror(@builtin(global_invocation_id) id: vec3<u32>) {
         dst[i] = sample_bilinear(rr.x, h - rr.y);
     }
 }
+
+// Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
+// d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
+// 4 barn door, 5 blinds)
+fn reveal(s: f32, progress: f32, soft: f32) -> f32 {
+    let sf = max(soft, 0.002);
+    let t = clamp((progress * (1.0 + sf) - s) / sf, 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+fn along(u: f32, v: f32, aspect: f32, degrees: f32) -> f32 {
+    let r = radians(degrees);
+    let sn = sin(r);
+    let cs = cos(r);
+    let c0 = 0.0;
+    let c1 = aspect * cs;
+    let c2 = sn;
+    let c3 = aspect * cs + sn;
+    let lo = min(min(c0, c1), min(c2, c3));
+    let hi = max(max(c0, c1), max(c2, c3));
+    if (hi - lo < 0.000001) { return 0.0; }
+    return clamp((u * aspect * cs + v * sn - lo) / (hi - lo), 0.0, 1.0);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn trans_mask(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let u = (f32(id.x) + 0.5) / f32(p.width);
+    let v = (f32(id.y) + 0.5) / f32(p.height);
+    let aspect = p.b;
+    var m = p.a;
+    if (p.half == 1u) {
+        m = reveal(along(u, v, aspect, p.c), p.a, p.d);
+    } else if (p.half == 2u) {
+        let dx = (u - 0.5) * aspect;
+        let dy = v - 0.5;
+        let turn = atan2(dx, -dy) / 6.283185307179586;
+        let q = turn - p.c / 360.0;
+        m = reveal(q - floor(q), p.a, p.d);
+    } else if (p.half == 3u) {
+        let r = length(vec2<f32>((u - 0.5) * aspect, v - 0.5)) / length(vec2<f32>(aspect / 2.0, 0.5));
+        m = reveal(r, p.a, p.d);
+    } else if (p.half == 4u) {
+        m = reveal(abs(along(u, v, aspect, p.c) - 0.5) * 2.0, p.a, p.d);
+    } else if (p.half == 5u) {
+        m = reveal(fract(along(u, v, aspect, p.c) * p.e), p.a, p.d);
+    }
+    let i = id.y * p.width + id.x;
+    dst[i] = src[i] * m;
+}
+
+// c = cosine and d = sine of the angle (computed on the CPU: a GPU cosine of 0 is not exactly 1,
+// and at the edge of the frame that leaks a sliver of the picture)
+@compute @workgroup_size(8, 8, 1)
+fn trans_slide(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let ox = -p.c * (1.0 - p.a) * f32(p.width);
+    let oy = -p.d * (1.0 - p.a) * f32(p.height);
+    dst[id.y * p.width + id.x] = sample_bilinear(f32(id.x) + 0.5 - ox, f32(id.y) + 0.5 - oy);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn trans_grow(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    if (p.a <= 0.001) {
+        dst[i] = vec4<f32>(0.0);
+        return;
+    }
+    let cx = f32(p.width) / 2.0;
+    let cy = f32(p.height) / 2.0;
+    dst[i] = sample_bilinear(cx + (f32(id.x) + 0.5 - cx) / p.a, cy + (f32(id.y) + 0.5 - cy) / p.a);
+}
 "#;
 
 /// The compute pipelines of the effect chain, built once per device.
@@ -246,6 +320,9 @@ pub struct VfxGpu {
     brightness_contrast: wgpu::ComputePipeline,
     pixelate: wgpu::ComputePipeline,
     mirror: wgpu::ComputePipeline,
+    trans_mask: wgpu::ComputePipeline,
+    trans_slide: wgpu::ComputePipeline,
+    trans_grow: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -274,6 +351,16 @@ enum Pass {
     BrightnessContrast,
     Pixelate,
     Mirror,
+    TransMask,
+    TransSlide,
+    TransGrow,
+}
+
+/// One step of a GPU run: an effect, or a transition at a progress.
+#[derive(Clone, Copy)]
+enum Op {
+    Effect(Resolved),
+    Transition(tr::Resolved, f32),
 }
 
 impl VfxGpu {
@@ -327,6 +414,9 @@ impl VfxGpu {
             brightness_contrast: make("brightness_contrast"),
             pixelate: make("pixelate"),
             mirror: make("mirror"),
+            trans_mask: make("trans_mask"),
+            trans_slide: make("trans_slide"),
+            trans_grow: make("trans_grow"),
             device,
             queue,
             bgl,
@@ -345,13 +435,40 @@ impl VfxGpu {
             Pass::BrightnessContrast => &self.brightness_contrast,
             Pass::Pixelate => &self.pixelate,
             Pass::Mirror => &self.mirror,
+            Pass::TransMask => &self.trans_mask,
+            Pass::TransSlide => &self.trans_slide,
+            Pass::TransGrow => &self.trans_grow,
         }
     }
 
     /// Runs the resolved chain on `frame` and returns the result. `Err` when the picture does not
     /// fit the device's limits or the read-back fails; the caller then uses the CPU.
     pub fn process(&self, frame: &FrameBuffer, chain: &[Resolved]) -> Result<FrameBuffer, String> {
-        if chain.is_empty() {
+        let ops: Vec<Op> = chain.iter().map(|e| Op::Effect(*e)).collect();
+        self.process_ops(frame, &ops)
+    }
+
+    /// The layer as it looks at `progress` of the transition `t` (the same picture as
+    /// [`tr::apply`]). `Err` as for [`VfxGpu::process`].
+    pub fn process_transition(
+        &self,
+        frame: &FrameBuffer,
+        t: &tr::Resolved,
+        progress: f32,
+    ) -> Result<FrameBuffer, String> {
+        let progress = if progress.is_finite() {
+            progress.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        if progress >= 1.0 {
+            return Ok(frame.clone());
+        }
+        self.process_ops(frame, &[Op::Transition(*t, progress)])
+    }
+
+    fn process_ops(&self, frame: &FrameBuffer, ops: &[Op]) -> Result<FrameBuffer, String> {
+        if ops.is_empty() {
             return Ok(frame.clone());
         }
         let (w, h) = (frame.width, frame.height);
@@ -464,8 +581,52 @@ impl VfxGpu {
             cpass.dispatch_workgroups(w.div_ceil(8), h.div_ceil(8), 1);
         };
 
-        for effect in chain {
-            match *effect {
+        for op in ops {
+            let effect = match *op {
+                Op::Effect(e) => e,
+                Op::Transition(t, progress) => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = progress;
+                    p.b = w as f32 / h as f32;
+                    let pass = match t {
+                        tr::Resolved::Slide { angle } => {
+                            (p.d, p.c) = angle.to_radians().sin_cos();
+                            Pass::TransSlide
+                        }
+                        tr::Resolved::Grow => Pass::TransGrow,
+                        tr::Resolved::Dissolve => Pass::TransMask,
+                        tr::Resolved::LinearWipe { angle, softness } => {
+                            (p.half, p.c, p.d) = (1, angle, softness);
+                            Pass::TransMask
+                        }
+                        tr::Resolved::ClockWipe { start, softness } => {
+                            (p.half, p.c, p.d) = (2, start, softness);
+                            Pass::TransMask
+                        }
+                        tr::Resolved::Iris { softness } => {
+                            (p.half, p.d) = (3, softness);
+                            Pass::TransMask
+                        }
+                        tr::Resolved::BarnDoor { angle, softness } => {
+                            (p.half, p.c, p.d) = (4, angle, softness);
+                            Pass::TransMask
+                        }
+                        tr::Resolved::Blinds {
+                            count,
+                            angle,
+                            softness,
+                        } => {
+                            (p.half, p.c, p.d, p.e) = (5, angle, softness, count);
+                            Pass::TransMask
+                        }
+                    };
+                    run(&mut encoder, pass, p, cur, dst, None, None);
+                    cur = dst;
+                    continue;
+                }
+            };
+            match effect {
                 Resolved::GaussianBlur { h_range, v_range } => {
                     for (range, pass) in [(h_range, Pass::BlurH), (v_range, Pass::BlurV)] {
                         if let Some(k) = gaussian_kernel(range_pixels(range, h)) {
@@ -713,6 +874,37 @@ mod tests {
             let diff = max_difference(&cpu, &on_gpu);
             assert!(diff <= 2, "{}: difference {diff}", chain[0].kind);
         }
+    }
+
+    #[test]
+    fn every_transition_matches_the_cpu_on_a_picture_with_transparency() {
+        let Some(gpu) = gpu() else {
+            eprintln!("no graphics adapter: GPU transition parity test skipped");
+            return;
+        };
+        let mut original = smpte_color_bars(160, 90);
+        for (i, p) in original.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            if (i % 160) < 30 {
+                p[3] = 120;
+            }
+        }
+        for spec in tr::transitions() {
+            let t = tr::resolve(spec.id, &std::collections::BTreeMap::new()).expect("resolves");
+            for progress in [0.0, 0.2, 0.55, 0.9] {
+                let cpu = tr::apply(&original, &t, progress);
+                let on_gpu = gpu
+                    .process_transition(&original, &t, progress)
+                    .expect("gpu transition");
+                let diff = max_difference(&cpu, &on_gpu);
+                assert!(diff <= 3, "{} at {progress}: difference {diff}", spec.id);
+            }
+        }
+        // The end of a transition is the layer untouched
+        let t = tr::resolve(tr::IRIS, &std::collections::BTreeMap::new()).unwrap();
+        assert_eq!(
+            gpu.process_transition(&original, &t, 1.0).unwrap(),
+            original
+        );
     }
 
     #[test]

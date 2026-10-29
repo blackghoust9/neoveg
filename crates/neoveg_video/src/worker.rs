@@ -334,10 +334,44 @@ impl WorkerState {
         let mut frame = frame;
         for t in &clip.transitions {
             if let Some(resolved) = transitions::resolve(&t.kind, &t.params) {
-                frame = Arc::new(transitions::apply(&frame, &resolved, t.progress));
+                frame = self.apply_transition(frame, &resolved, t.progress);
             }
         }
         frame
+    }
+
+    /// The GPU effect runner, built on first use; `None` without an adapter.
+    fn vfx_gpu(&mut self) -> Option<&VfxGpu> {
+        if self.vfx_gpu.is_none() {
+            self.vfx_gpu = self.ensure_gpu().map(|g| {
+                let (device, queue) = g.device_queue();
+                VfxGpu::new(device, queue)
+            });
+        }
+        self.vfx_gpu.as_ref()
+    }
+
+    /// Applies a transition to a layer: on the GPU when there is an adapter and the picture is big
+    /// enough to be worth the transfer, on the CPU otherwise or when the GPU refuses the picture.
+    /// A transition at its end returns the same `Arc`.
+    fn apply_transition(
+        &mut self,
+        frame: Arc<FrameBuffer>,
+        t: &transitions::Resolved,
+        progress: f32,
+    ) -> Arc<FrameBuffer> {
+        if progress.is_finite() && progress >= 1.0 || frame.width == 0 || frame.height == 0 {
+            return frame;
+        }
+        if frame.width * frame.height >= 64 * 64 {
+            if let Some(gpu) = self.vfx_gpu() {
+                match gpu.process_transition(&frame, t, progress) {
+                    Ok(done) => return Arc::new(done),
+                    Err(e) => tracing::debug!("[DEBUG] transition on the CPU: {e}"),
+                }
+            }
+        }
+        Arc::new(transitions::apply(&frame, t, progress))
     }
 
     /// Runs an effect chain on `frame`: on the GPU when there is an adapter and the picture is big
@@ -354,13 +388,7 @@ impl WorkerState {
             return frame;
         }
         if frame.width * frame.height >= 64 * 64 {
-            if self.vfx_gpu.is_none() {
-                self.vfx_gpu = self.ensure_gpu().map(|g| {
-                    let (device, queue) = g.device_queue();
-                    VfxGpu::new(device, queue)
-                });
-            }
-            if let Some(gpu) = &self.vfx_gpu {
+            if let Some(gpu) = self.vfx_gpu() {
                 match gpu.process(&frame, &resolved) {
                     Ok(done) => return Arc::new(done),
                     Err(e) => tracing::debug!("[DEBUG] video effects on the CPU: {e}"),
