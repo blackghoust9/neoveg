@@ -6592,11 +6592,23 @@ impl NeovegApp {
         }
         let has_loop_region = self.state.loop_region.is_some();
         let duration = self.state.timeline.duration();
-        if let Some(request) =
-            self.state
-                .render_dialog
-                .show(ctx, width, height, fps, has_loop_region, duration)
-        {
+        let style_before = self.state.project.settings.caption_style.clone();
+        let mut style = style_before.clone();
+        let launch = self.state.render_dialog.show(
+            ctx,
+            width,
+            height,
+            fps,
+            has_loop_region,
+            duration,
+            &mut style,
+        );
+        if style != style_before {
+            // The style is part of the project, but not an edit that can be undone
+            self.state.project.settings.caption_style = style;
+            self.state.forced_dirty = true;
+        }
+        if let Some(request) = launch {
             self.state.start_render(request, ctx);
         }
     }

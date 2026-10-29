@@ -54,6 +54,75 @@ pub struct ProjectSettings {
     pub audio_bit_depth: u32,
     #[serde(default)]
     pub master_bus: MasterBusMode,
+    /// How the captions look when they are burned into a rendered movie.
+    #[serde(default)]
+    pub caption_style: CaptionStyle,
+}
+
+/// How the captions are drawn into the picture when a movie is rendered. Sizes are fractions of the
+/// frame height (or width) so the same style suits any resolution.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CaptionStyle {
+    pub family: String,
+    pub style: String,
+    /// Font size as a fraction of the frame height.
+    pub size: f32,
+    pub text_rgba: [u8; 4],
+    pub outline_rgba: [u8; 4],
+    /// Outline width as a fraction of the frame height.
+    pub outline: f32,
+    /// Distance from the bottom edge to the last line, as a fraction of the frame height.
+    pub margin: f32,
+    /// Width of the text box as a fraction of the frame width; longer lines wrap.
+    pub box_width: f32,
+}
+
+impl Default for CaptionStyle {
+    fn default() -> Self {
+        Self {
+            family: "Inter".into(),
+            style: "Bold".into(),
+            size: 0.055,
+            text_rgba: [255, 255, 255, 255],
+            outline_rgba: [0, 0, 0, 255],
+            outline: 0.006,
+            margin: 0.07,
+            box_width: 0.86,
+        }
+    }
+}
+
+impl CaptionStyle {
+    /// The style with every value inside what makes sense (a hand-edited project may hold any).
+    pub fn sanitized(&self) -> Self {
+        let clamp = |v: f32, lo: f32, hi: f32, default: f32| {
+            if v.is_finite() {
+                v.clamp(lo, hi)
+            } else {
+                default
+            }
+        };
+        let defaults = Self::default();
+        Self {
+            family: if self.family.trim().is_empty() {
+                defaults.family
+            } else {
+                self.family.clone()
+            },
+            style: if self.style.trim().is_empty() {
+                defaults.style
+            } else {
+                self.style.clone()
+            },
+            size: clamp(self.size, 0.02, 0.15, 0.055),
+            text_rgba: self.text_rgba,
+            outline_rgba: self.outline_rgba,
+            outline: clamp(self.outline, 0.0, 0.03, 0.006),
+            margin: clamp(self.margin, 0.0, 0.4, 0.07),
+            box_width: clamp(self.box_width, 0.3, 1.0, 0.86),
+        }
+    }
 }
 
 fn default_pixel_aspect() -> f64 {
@@ -99,6 +168,7 @@ impl Default for ProjectSettings {
             resample_mode: ResampleMode::default(),
             audio_bit_depth: 24,
             master_bus: MasterBusMode::default(),
+            caption_style: CaptionStyle::default(),
         }
     }
 }

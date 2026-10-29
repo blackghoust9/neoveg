@@ -41,6 +41,23 @@ impl Default for SubtitleStyle {
     }
 }
 
+impl From<&neoveg_common::project::CaptionStyle> for SubtitleStyle {
+    /// The style of the project, with every value brought into range.
+    fn from(style: &neoveg_common::project::CaptionStyle) -> Self {
+        let s = style.sanitized();
+        Self {
+            family: s.family,
+            style: s.style,
+            size: s.size,
+            text_rgba: s.text_rgba,
+            outline_rgba: s.outline_rgba,
+            outline: s.outline,
+            margin: s.margin,
+            box_width: s.box_width,
+        }
+    }
+}
+
 /// Draws `color` over the straight-alpha pixel `dst`, `coverage` (`0..=1`) of the way.
 fn blend(dst: &mut [u8], color: [u8; 4], coverage: f32) {
     let sa = (f32::from(color[3]) / 255.0 * coverage).clamp(0.0, 1.0);
@@ -155,6 +172,66 @@ mod tests {
         let mut same = blank.clone();
         burn_subtitle(&mut same, "  \n ", &SubtitleStyle::default());
         assert_eq!(same, blank);
+    }
+
+    #[test]
+    fn the_project_style_becomes_the_burn_style_and_a_different_style_looks_different() {
+        use neoveg_common::project::CaptionStyle;
+        // The default of the project is the default of the burn
+        assert_eq!(
+            SubtitleStyle::from(&CaptionStyle::default()),
+            SubtitleStyle::default()
+        );
+        // Hostile values are brought into range
+        let wild = CaptionStyle {
+            size: f32::NAN,
+            outline: 9.0,
+            margin: -3.0,
+            box_width: 0.0,
+            family: "  ".into(),
+            ..CaptionStyle::default()
+        };
+        let s = SubtitleStyle::from(&wild);
+        assert_eq!(
+            (s.size, s.outline, s.margin, s.box_width),
+            (0.055, 0.03, 0.0, 0.3)
+        );
+        assert_eq!(s.family, "Inter");
+        // Colour, size and place all change the picture
+        let draw = |style: &CaptionStyle| {
+            let mut f = FrameBuffer::solid(640, 360, [0, 0, 0, 255]);
+            burn_subtitle(&mut f, "Legenda", &SubtitleStyle::from(style));
+            f
+        };
+        let base = draw(&CaptionStyle::default());
+        let yellow = CaptionStyle {
+            text_rgba: [255, 220, 0, 255],
+            ..CaptionStyle::default()
+        };
+        let big = CaptionStyle {
+            size: 0.1,
+            ..CaptionStyle::default()
+        };
+        let high = CaptionStyle {
+            margin: 0.4,
+            ..CaptionStyle::default()
+        };
+        let mono = CaptionStyle {
+            family: "JetBrains Mono".into(),
+            style: "Regular".into(),
+            ..CaptionStyle::default()
+        };
+        for other in [yellow.clone(), big, high, mono] {
+            assert_ne!(draw(&other), base);
+        }
+        // The yellow text has no blue in it
+        let yellow_frame = draw(&yellow);
+        assert!(yellow_frame
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .any(|p| p[0] > 200 && p[1] > 150 && p[2] < 60));
     }
 
     #[test]

@@ -7,6 +7,8 @@ use std::time::{Duration, Instant};
 
 use eframe::egui;
 use neoveg_audio::readout::LoudnessSnapshot;
+use neoveg_common::project::CaptionStyle;
+use neoveg_video::frame::FrameBuffer;
 use neoveg_video::render::{RenderEngine, RenderFormat};
 
 #[derive(Debug, Clone)]
@@ -54,6 +56,11 @@ pub struct RenderDialogState {
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
     pub active_job: Option<ActiveRenderJob>,
+    /// Families and their styles, read from the text engine when the style controls first open.
+    font_list: Vec<(String, Vec<String>)>,
+    /// The style the preview was drawn for, and the picture.
+    preview_for: Option<CaptionStyle>,
+    preview: Option<egui::TextureHandle>,
 }
 
 impl Default for RenderDialogState {
@@ -70,6 +77,9 @@ impl Default for RenderDialogState {
             loop_region_only: false,
             save_loudness_log: true,
             active_job: None,
+            font_list: Vec::new(),
+            preview_for: None,
+            preview: None,
         }
     }
 }
@@ -90,6 +100,7 @@ impl RenderDialogState {
         project_fps: f64,
         has_loop_region: bool,
         timeline_duration: f64,
+        caption_style: &mut CaptionStyle,
     ) -> Option<RenderLaunchRequest> {
         if !self.open {
             return None;
@@ -208,6 +219,13 @@ impl RenderDialogState {
                             &mut self.burn_captions,
                             "Queimar as legendas do projeto no vídeo",
                         );
+                        if self.burn_captions {
+                            egui::CollapsingHeader::new("Estilo das legendas")
+                                .default_open(false)
+                                .show(ui, |ui| {
+                                    self.caption_style_ui(ui, caption_style);
+                                });
+                        }
                     }
 
                     ui.add_enabled(
@@ -324,5 +342,140 @@ impl RenderDialogState {
 
         self.open = open && !close_requested;
         launch
+    }
+}
+
+impl RenderDialogState {
+    /// The controls of the caption style, and a preview of what they give.
+    fn caption_style_ui(&mut self, ui: &mut egui::Ui, style: &mut CaptionStyle) {
+        if self.font_list.is_empty() {
+            self.font_list = neoveg_text::fonts::families();
+        }
+        ui.horizontal(|ui| {
+            ui.label("Fonte:");
+            let mut family_pick: Option<String> = None;
+            egui::ComboBox::from_id_salt("caption_font_family")
+                .selected_text(style.family.clone())
+                .show_ui(ui, |ui| {
+                    for (family, _) in &self.font_list {
+                        if ui
+                            .selectable_label(style.family == *family, family)
+                            .clicked()
+                        {
+                            family_pick = Some(family.clone());
+                        }
+                    }
+                });
+            if let Some(family) = family_pick {
+                style.family = family;
+                let styles = self
+                    .font_list
+                    .iter()
+                    .find(|(f, _)| *f == style.family)
+                    .map(|(_, s)| s.clone())
+                    .unwrap_or_default();
+                if !styles.contains(&style.style) {
+                    style.style = styles
+                        .iter()
+                        .find(|s| s.as_str() == "Bold")
+                        .or(styles.first())
+                        .cloned()
+                        .unwrap_or_else(|| "Regular".into());
+                }
+            }
+            let styles = self
+                .font_list
+                .iter()
+                .find(|(f, _)| *f == style.family)
+                .map(|(_, s)| s.clone())
+                .unwrap_or_default();
+            egui::ComboBox::from_id_salt("caption_font_style")
+                .selected_text(style.style.clone())
+                .show_ui(ui, |ui| {
+                    for s in &styles {
+                        ui.selectable_value(&mut style.style, s.clone(), s);
+                    }
+                });
+            if ui
+                .button("Fontes do sistema")
+                .on_hover_text(
+                    "Procura as fontes instaladas no computador (pode levar um instante)",
+                )
+                .clicked()
+            {
+                neoveg_text::fonts::scan_system();
+                self.font_list = neoveg_text::fonts::families();
+            }
+        });
+        let mut size = style.size * 100.0;
+        if ui
+            .add(egui::Slider::new(&mut size, 2.0..=15.0).text("Tamanho (% da altura)"))
+            .changed()
+        {
+            style.size = size / 100.0;
+        }
+        let mut outline = style.outline * 100.0;
+        if ui
+            .add(egui::Slider::new(&mut outline, 0.0..=3.0).text("Contorno (% da altura)"))
+            .changed()
+        {
+            style.outline = outline / 100.0;
+        }
+        let mut margin = style.margin * 100.0;
+        if ui
+            .add(egui::Slider::new(&mut margin, 0.0..=40.0).text("Distância da base (% da altura)"))
+            .changed()
+        {
+            style.margin = margin / 100.0;
+        }
+        let mut width = style.box_width * 100.0;
+        if ui
+            .add(
+                egui::Slider::new(&mut width, 30.0..=100.0).text("Largura do texto (% da largura)"),
+            )
+            .changed()
+        {
+            style.box_width = width / 100.0;
+        }
+        ui.horizontal(|ui| {
+            for (label, rgba) in [
+                ("Texto:", &mut style.text_rgba),
+                ("Contorno:", &mut style.outline_rgba),
+            ] {
+                ui.label(label);
+                let mut color =
+                    egui::Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    *rgba = color.to_srgba_unmultiplied();
+                }
+            }
+            if ui.button("Restaurar o padrão").clicked() {
+                *style = CaptionStyle::default();
+            }
+        });
+        // A preview: the text on a dark picture, redrawn when the style changes
+        if self.preview_for.as_ref() != Some(&*style) {
+            let mut frame = FrameBuffer::solid(320, 180, [24, 32, 48, 255]);
+            neoveg_video::burn::burn_subtitle(
+                &mut frame,
+                "Exemplo de legenda\nem duas linhas",
+                &neoveg_video::burn::SubtitleStyle::from(&*style),
+            );
+            let image = egui::ColorImage::from_rgba_unmultiplied([320, 180], &frame.rgba);
+            match &mut self.preview {
+                Some(texture) => texture.set(image, egui::TextureOptions::LINEAR),
+                None => {
+                    self.preview = Some(ui.ctx().load_texture(
+                        "caption_style_preview",
+                        image,
+                        egui::TextureOptions::LINEAR,
+                    ));
+                }
+            }
+            self.preview_for = Some(style.clone());
+        }
+        if let Some(texture) = &self.preview {
+            ui.image((texture.id(), egui::vec2(320.0, 180.0)));
+        }
     }
 }

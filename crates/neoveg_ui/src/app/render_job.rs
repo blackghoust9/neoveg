@@ -45,6 +45,8 @@ pub(super) struct RenderPlan {
     pub title: String,
     /// The captions of the project, burned into the picture when the request asks for it.
     pub captions: Vec<neoveg_engine::captions::Caption>,
+    /// How the captions look when they are burned in.
+    pub caption_style: neoveg_common::project::CaptionStyle,
 }
 
 /// Draws the captions showing at `time` into `frame`.
@@ -157,7 +159,7 @@ fn run(
     let resolve = |id: u64| plan.sources.get(&id).cloned();
     let mut renderer = OfflineFrameRenderer::new();
     let black = FrameBuffer::solid(request.width, request.height, [0, 0, 0, 255]);
-    let subtitle_style = neoveg_video::burn::SubtitleStyle::default();
+    let subtitle_style = neoveg_video::burn::SubtitleStyle::from(&plan.caption_style);
     let spec = VideoEncodeSpec {
         format: request.format,
         width: request.width,
@@ -226,6 +228,7 @@ impl AppState {
             range,
             title,
             captions: self.timeline.captions.clone(),
+            caption_style: self.project.settings.caption_style.clone(),
         };
         self.status = format!("Renderizando {}…", plan.title);
         self.render_dialog.active_job = Some(spawn(plan, ctx.clone()));
