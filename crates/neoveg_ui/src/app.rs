@@ -6645,14 +6645,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             // New and open
             command_item(state, ui, Command::FileNew);
             if ui
-                .button(state.with_hint("Abrir…", Command::FileOpen))
+                .button(state.with_hint(tr("Abrir…"), Command::FileOpen))
                 .clicked()
             {
                 let ctx = ui.ctx().clone();
                 state.open_project(&ctx);
                 ui.close_menu();
             }
-            if ui.button("Abrir em nova aba…").clicked() {
+            if ui.button(tr("Abrir em nova aba…")).clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Projeto Neoveg", &[project_file::EXTENSION])
                     .pick_file()
@@ -6667,14 +6667,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
 
             // Save
             if ui
-                .button(state.with_hint("Salvar", Command::FileSave))
+                .button(state.with_hint(tr("Salvar"), Command::FileSave))
                 .clicked()
             {
                 state.save_project(false);
                 ui.close_menu();
             }
             if ui
-                .button(state.with_hint("Salvar como…", Command::FileSaveAs))
+                .button(state.with_hint(tr("Salvar como…"), Command::FileSaveAs))
                 .clicked()
             {
                 state.save_project(true);
@@ -6688,7 +6688,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui
                 .add_enabled(
                     !state.missing.is_empty(),
-                    egui::Button::new("Mídia ausente…"),
+                    egui::Button::new(tr("Mídia ausente…")),
                 )
                 .clicked()
             {
@@ -6696,13 +6696,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             ui.menu_button(tr("Importar"), |ui| {
-                if ui.button("Mídia…").clicked() {
+                if ui.button(tr("Mídia…")).clicked() {
                     let ctx = ui.ctx().clone();
                     state.import_media(&ctx);
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button("Lista de edição EDL (CMX 3600)…").clicked() {
+                if ui.button(tr("Lista de edição EDL (CMX 3600)…")).clicked() {
                     state.import_edl();
                     ui.close_menu();
                 }
@@ -6723,13 +6723,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button("Legendas (SRT, WebVTT)…").clicked() {
+                if ui.button(tr("Legendas (SRT, WebVTT)…")).clicked() {
                     state.import_captions();
                     ui.close_menu();
                 }
             });
             ui.menu_button(tr("Exportar"), |ui| {
-                if ui.button("Renderizar como… (Make Movie)").clicked() {
+                if ui.button(tr("Renderizar como… (Make Movie)")).clicked() {
                     state.render_dialog.open = true;
                     ui.close_menu();
                 }
@@ -6737,7 +6737,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 if ui
                     .add_enabled(
                         state.selected_track.is_some(),
-                        egui::Button::new("Lista de edição EDL da faixa selecionada…"),
+                        egui::Button::new(tr("Lista de edição EDL da faixa selecionada…")),
                     )
                     .clicked()
                 {
@@ -6779,7 +6779,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 if ui
                     .add_enabled(
                         !state.timeline.captions.is_empty(),
-                        egui::Button::new("Legendas (SRT, WebVTT)…"),
+                        egui::Button::new(tr("Legendas (SRT, WebVTT)…")),
                     )
                     .clicked()
                 {
@@ -6791,7 +6791,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
 
             command_item(state, ui, Command::FileProperties);
             ui.separator();
-            if ui.button("Sair").clicked() {
+            if ui.button(tr("Sair")).clicked() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         });
@@ -6799,7 +6799,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui
                 .add_enabled(
                     state.history.can_undo(),
-                    egui::Button::new(state.with_hint("Desfazer", Command::EditUndo)),
+                    egui::Button::new(state.with_hint(tr("Desfazer"), Command::EditUndo)),
                 )
                 .clicked()
             {
@@ -6809,7 +6809,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             if ui
                 .add_enabled(
                     state.history.can_redo(),
-                    egui::Button::new(state.with_hint("Refazer", Command::EditRedo)),
+                    egui::Button::new(state.with_hint(tr("Refazer"), Command::EditRedo)),
                 )
                 .clicked()
             {
@@ -6888,7 +6888,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 (Command::OptionsQuantizeToFrames, state.quantize_frames),
             ] {
                 let mut checked = on;
-                let label = state.with_hint(command.label(), command);
+                let label = state.with_hint(tr(command.label()), command);
                 if ui.checkbox(&mut checked, label).changed() {
                     let ctx = ui.ctx().clone();
                     let now = ctx.input(|i| i.time);
@@ -6896,11 +6896,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 }
             }
             ui.separator();
-            if ui.button("Preferências…").clicked() {
+            if ui.button(tr("Preferências…")).clicked() {
                 state.show_preferences = true;
                 ui.close_menu();
             }
-            if ui.button("Personalizar teclado…").clicked() {
+            if ui.button(tr("Personalizar teclado…")).clicked() {
                 state.show_keymap = true;
                 ui.close_menu();
             }
@@ -7199,7 +7199,7 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
     let current = switches::state(&state.timeline, &refs, switch);
     let enabled = state.command_enabled(command);
     let mut on = current == SwitchState::On;
-    let label = state.with_hint(command.label(), command);
+    let label = state.with_hint(tr(command.label()), command);
     let label = if current == SwitchState::Mixed {
         format!("{label} (parcial)")
     } else {
@@ -7384,7 +7384,7 @@ fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool, alt: bool
 
 fn command_item(state: &mut AppState, ui: &mut egui::Ui, command: Command) {
     let enabled = state.command_enabled(command);
-    let label = state.with_hint(command.label(), command);
+    let label = state.with_hint(tr(command.label()), command);
     if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
