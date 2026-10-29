@@ -435,6 +435,12 @@ fn trans_mask(@builtin(global_invocation_id) id: vec3<u32>) {
         m = reveal(abs(along(u, v, aspect, p.c) - 0.5) * 2.0, p.a, p.d);
     } else if (p.half == 5u) {
         m = reveal(fract(along(u, v, aspect, p.c) * p.e), p.a, p.d);
+    } else if (p.half == 6u) {
+        let cx = p.c;
+        let cy = p.e;
+        let ex = max(cx, 1.0 - cx) * aspect;
+        let ey = max(cy, 1.0 - cy);
+        m = reveal(max(abs(u - cx) * aspect / ex, abs(v - cy) / ey), p.a, p.d);
     }
     let i = id.y * p.width + id.x;
     dst[i] = src[i] * m;
@@ -448,6 +454,26 @@ fn trans_slide(@builtin(global_invocation_id) id: vec3<u32>) {
     let ox = -p.c * (1.0 - p.a) * f32(p.width);
     let oy = -p.d * (1.0 - p.a) * f32(p.height);
     dst[id.y * p.width + id.x] = sample_bilinear(f32(id.x) + 0.5 - ox, f32(id.y) + 0.5 - oy);
+}
+
+// a = progress, b/c = centre in pixels (y down), d/e = distance from the centre to the far edge
+@compute @workgroup_size(8, 8, 1)
+fn trans_split(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let px = f32(id.x) + 0.5;
+    let py = f32(id.y) + 0.5;
+    var sx = -1.0;
+    if (px >= p.b) { sx = 1.0; }
+    var sy = -1.0;
+    if (py >= p.c) { sy = 1.0; }
+    let qx = px - sx * (1.0 - p.a) * p.d;
+    let qy = py - sy * (1.0 - p.a) * p.e;
+    let i = id.y * p.width + id.x;
+    if ((qx >= p.b) != (sx > 0.0) || (qy >= p.c) != (sy > 0.0)) {
+        dst[i] = vec4<f32>(0.0);
+    } else {
+        dst[i] = sample_bilinear(qx, qy);
+    }
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -540,6 +566,7 @@ pub struct VfxGpu {
     trans_squeeze: wgpu::ComputePipeline,
     trans_spiral: wgpu::ComputePipeline,
     trans_flash: wgpu::ComputePipeline,
+    trans_split: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -580,6 +607,7 @@ enum Pass {
     TransSqueeze,
     TransSpiral,
     TransFlash,
+    TransSplit,
 }
 
 /// One step of a GPU run: an effect, or a transition at a progress.
@@ -652,6 +680,7 @@ impl VfxGpu {
             trans_squeeze: make("trans_squeeze"),
             trans_spiral: make("trans_spiral"),
             trans_flash: make("trans_flash"),
+            trans_split: make("trans_split"),
             device,
             queue,
             bgl,
@@ -682,6 +711,7 @@ impl VfxGpu {
             Pass::TransSqueeze => &self.trans_squeeze,
             Pass::TransSpiral => &self.trans_spiral,
             Pass::TransFlash => &self.trans_flash,
+            Pass::TransSplit => &self.trans_split,
         }
     }
 
@@ -839,6 +869,21 @@ impl VfxGpu {
                             Pass::TransSlide
                         }
                         tr::Resolved::Grow => Pass::TransGrow,
+                        tr::Resolved::Split {
+                            center,
+                            push,
+                            softness,
+                        } => {
+                            if push {
+                                let (cx, cy) = (center[0] * w as f32, (1.0 - center[1]) * h as f32);
+                                (p.b, p.c) = (cx, cy);
+                                (p.d, p.e) = (cx.max(w as f32 - cx), cy.max(h as f32 - cy));
+                                Pass::TransSplit
+                            } else {
+                                (p.half, p.c, p.d, p.e) = (6, center[0], softness, 1.0 - center[1]);
+                                Pass::TransMask
+                            }
+                        }
                         tr::Resolved::Squeeze { angle } => {
                             p.half = tr::squeeze_edge(angle);
                             Pass::TransSqueeze
@@ -1247,6 +1292,39 @@ mod tests {
                     .expect("gpu transition");
                 let diff = max_difference(&cpu, &on_gpu);
                 assert!(diff <= 3, "{} at {progress}: difference {diff}", spec.id);
+            }
+        }
+        // Values away from the defaults, the second mode of the split included
+        let extras: [(&str, &[(&str, f32)]); 6] = [
+            (
+                tr::SPLIT,
+                &[("mode", 1.0), ("center_x", 0.3), ("center_y", 0.7)],
+            ),
+            (
+                tr::SPLIT,
+                &[("center_x", 0.8), ("center_y", 0.2), ("softness", 0.3)],
+            ),
+            (tr::SQUEEZE, &[("angle", 90.0)]),
+            (tr::SQUEEZE, &[("angle", 200.0)]),
+            (
+                tr::SPIRAL,
+                &[("turns", 2.0), ("zoom", 0.3), ("clockwise", 0.0)],
+            ),
+            (tr::FLASH, &[("red", 0.2), ("blue", 0.6)]),
+        ];
+        for (id, values) in extras {
+            let params = values.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect();
+            let t = tr::resolve(id, &params).expect("resolves");
+            for progress in [0.3, 0.7] {
+                let cpu = tr::apply(&original, &t, progress);
+                let on_gpu = gpu
+                    .process_transition(&original, &t, progress)
+                    .expect("gpu transition");
+                let diff = max_difference(&cpu, &on_gpu);
+                assert!(
+                    diff <= 3,
+                    "{id} {values:?} at {progress}: difference {diff}"
+                );
             }
         }
         // The end of a transition is the layer untouched

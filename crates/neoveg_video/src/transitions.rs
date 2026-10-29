@@ -27,6 +27,7 @@ pub const GROW: &str = "grow";
 pub const SQUEEZE: &str = "squeeze";
 pub const SPIRAL: &str = "spiral";
 pub const FLASH: &str = "flash";
+pub const SPLIT: &str = "split";
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -189,6 +190,40 @@ pub fn transitions() -> &'static [EffectSpec] {
                     },
                 ]),
             },
+            EffectSpec {
+                id: SPLIT,
+                label: "Dividir",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "center_x",
+                        label: "Centro horizontal",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.5,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "center_y",
+                        label: "Centro vertical",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.5,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "mode",
+                        label: "Modo (0 cortina, 1 empurrar)",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        default: 0.05,
+                        ..SOFTNESS
+                    },
+                ]),
+            },
         ]
     })
 }
@@ -261,6 +296,13 @@ pub enum Resolved {
     Flash {
         color: [f32; 3],
     },
+    /// The picture opens from `center` (fractions of the frame, lower-left origin): as a
+    /// rectangular wipe, or, with `push`, as four quarters that slide in from the corners.
+    Split {
+        center: [f32; 2],
+        push: bool,
+        softness: f32,
+    },
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -308,6 +350,11 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
         FLASH => Resolved::Flash {
             color: [v("red"), v("green"), v("blue")],
         },
+        SPLIT => Resolved::Split {
+            center: [v("center_x"), v("center_y")],
+            push: v("mode") >= 0.5,
+            softness: v("softness"),
+        },
         _ => return None,
     })
 }
@@ -329,6 +376,11 @@ pub fn spiral_transform(turns: f32, zoom: f32, clockwise: bool, progress: f32) -
 /// How strong the flash is at `progress`: nothing at either end, full in the middle.
 pub fn flash_strength(progress: f32) -> f32 {
     1.0 - (2.0 * progress - 1.0).abs()
+}
+
+/// Distance from `center` to the farther edge of a frame `size` long (pixels).
+pub fn split_extent(center: f32, size: f32) -> f32 {
+    center.max(size - center)
 }
 
 /// Opacity of a point whose place in the reveal order is `s` (`0.0` is revealed first, `1.0`
@@ -395,7 +447,16 @@ fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
         | Resolved::Grow
         | Resolved::Squeeze { .. }
         | Resolved::Spiral { .. }
-        | Resolved::Flash { .. } => 1.0,
+        | Resolved::Flash { .. }
+        | Resolved::Split { push: true, .. } => 1.0,
+        Resolved::Split {
+            center, softness, ..
+        } => {
+            let (cx, cy) = (center[0], 1.0 - center[1]);
+            let (ex, ey) = (cx.max(1.0 - cx) * aspect, cy.max(1.0 - cy));
+            let s = (((u - cx).abs() * aspect) / ex).max((v - cy).abs() / ey);
+            reveal(s, progress, softness)
+        }
     }
 }
 
@@ -467,6 +528,27 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
                 )
             })
         }
+        Resolved::Split {
+            center, push: true, ..
+        } => {
+            let (cx, cy) = (center[0] * w, (1.0 - center[1]) * h);
+            let (ex, ey) = (split_extent(cx, w), split_extent(cy, h));
+            let (off_x, off_y) = ((1.0 - progress) * ex, (1.0 - progress) * ey);
+            render(layer.width, layer.height, |x, y| {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                let (sx, sy) = (
+                    if px >= cx { 1.0 } else { -1.0 },
+                    if py >= cy { 1.0 } else { -1.0 },
+                );
+                // The quadrant moved outward; this pixel shows what was `off` closer to the centre
+                let (qx, qy) = (px - sx * off_x, py - sy * off_y);
+                if (qx >= cx) != (sx > 0.0) || (qy >= cy) != (sy > 0.0) {
+                    [0.0; 4]
+                } else {
+                    sample(layer, qx, qy)
+                }
+            })
+        }
         Resolved::Flash { color } => {
             let f = flash_strength(progress);
             render(layer.width, layer.height, |x, y| {
@@ -492,6 +574,54 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn split_opens_from_the_centre_and_pushes_the_quarters_in_from_the_corners() {
+        let layer = crate::generators::smpte_color_bars(80, 40);
+        let alpha = |f: &FrameBuffer, x: usize, y: usize| f.rgba[(y * 80 + x) * 4 + 3];
+        let wipe = resolve(SPLIT, &BTreeMap::new()).unwrap();
+        assert_eq!(apply(&layer, &wipe, 1.0), layer);
+        assert!(apply(&layer, &wipe, 0.0)
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p[3] == 0));
+        let half = apply(&layer, &wipe, 0.5);
+        assert_eq!(
+            (
+                alpha(&half, 40, 20),
+                alpha(&half, 0, 0),
+                alpha(&half, 79, 39)
+            ),
+            (255, 0, 0)
+        );
+        let push = resolve(SPLIT, &BTreeMap::from([("mode".to_owned(), 1.0)])).unwrap();
+        assert_eq!(apply(&layer, &push, 1.0), layer);
+        assert!(apply(&layer, &push, 0.0)
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p[3] == 0));
+        let half = apply(&layer, &push, 0.5);
+        assert_eq!(
+            (
+                alpha(&half, 40, 20),
+                alpha(&half, 0, 0),
+                alpha(&half, 79, 39)
+            ),
+            (0, 255, 255)
+        );
+        // The centre can move: the farthest corner is the one that is reached last
+        let off = resolve(
+            SPLIT,
+            &BTreeMap::from([("center_x".to_owned(), 0.0), ("center_y".to_owned(), 1.0)]),
+        )
+        .unwrap();
+        let half = apply(&layer, &off, 0.5);
+        assert_eq!((alpha(&half, 0, 0), alpha(&half, 79, 39)), (255, 0));
+    }
 
     #[test]
     fn squeeze_spiral_and_flash_start_empty_end_whole_and_do_what_they_say() {
@@ -567,7 +697,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 11);
+        assert_eq!(transitions().len(), 12);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {
