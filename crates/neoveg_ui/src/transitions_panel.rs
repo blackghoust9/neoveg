@@ -59,6 +59,7 @@ pub fn to_request(setting: Option<&TrackEffect>, progress: f32) -> Option<Transi
         kind: t.kind.clone(),
         params: t.params.clone(),
         progress,
+        entering: false,
     })
 }
 

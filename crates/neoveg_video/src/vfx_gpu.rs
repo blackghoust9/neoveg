@@ -627,6 +627,70 @@ fn offset_fx(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[i] = shifted + (src[i] - shifted) * p.c;
 }
 
+fn gradient_value(pattern: u32, u: f32, v: f32, aspect: f32) -> f32 {
+    if (pattern == 0u) { return u; }
+    if (pattern == 1u) { return v; }
+    if (pattern == 2u) { return (u * aspect + v) / (aspect + 1.0); }
+    let rad = length(vec2<f32>((u - 0.5) * aspect, v - 0.5)) / length(vec2<f32>(aspect / 2.0, 0.5));
+    if (pattern == 3u) { return rad; }
+    if (pattern == 4u) { return 1.0 - rad; }
+    if (pattern == 5u) {
+        let turn = atan2((u - 0.5) * aspect, -(v - 0.5)) / 6.283185307179586;
+        return turn - floor(turn);
+    }
+    return (abs(u - 0.5) * aspect + abs(v - 0.5)) / (aspect / 2.0 + 0.5);
+}
+
+// The clip before (binding 4), sampled like `sample_bilinear` samples the clip it reveals
+fn sample_aux(x: f32, y: f32) -> vec4<f32> {
+    let fx = x - 0.5;
+    let fy = y - 0.5;
+    let x0 = floor(fx);
+    let y0 = floor(fy);
+    let tx = fx - x0;
+    let ty = fy - y0;
+    var acc = vec4<f32>(0.0);
+    for (var j = 0; j < 2; j = j + 1) {
+        for (var i = 0; i < 2; i = i + 1) {
+            let px = i32(x0) + i;
+            let py = i32(y0) + j;
+            if (px < 0 || py < 0 || px >= i32(p.width) || py >= i32(p.height)) { continue; }
+            var wx = 1.0 - tx;
+            if (i == 1) { wx = tx; }
+            var wy = 1.0 - ty;
+            if (j == 1) { wy = ty; }
+            acc = acc + wx * wy * aux[u32(py) * p.width + u32(px)];
+        }
+    }
+    return acc;
+}
+
+fn over(top: vec4<f32>, bottom: vec4<f32>) -> vec4<f32> {
+    return top + bottom * (1.0 - top.w);
+}
+
+// Distance from the side a transition enters from and the position across it
+fn edge_travel(edge: u32, x: f32, y: f32, w: f32, h: f32) -> vec2<f32> {
+    if (edge == 0u) { return vec2<f32>(x, y); }
+    if (edge == 1u) { return vec2<f32>(y, x); }
+    if (edge == 2u) { return vec2<f32>(w - x, y); }
+    return vec2<f32>(h - y, x);
+}
+
+fn edge_point(edge: u32, s: f32, lat: f32, w: f32, h: f32) -> vec2<f32> {
+    if (edge == 0u) { return vec2<f32>(s, lat); }
+    if (edge == 1u) { return vec2<f32>(lat, s); }
+    if (edge == 2u) { return vec2<f32>(w - s, lat); }
+    return vec2<f32>(lat, h - s);
+}
+
+fn edge_dir(edge: u32) -> vec2<f32> {
+    if (edge == 1u) { return vec2<f32>(0.0, 1.0); }
+    if (edge == 2u) { return vec2<f32>(-1.0, 0.0); }
+    if (edge == 3u) { return vec2<f32>(0.0, -1.0); }
+    return vec2<f32>(1.0, 0.0);
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -678,6 +742,10 @@ fn trans_mask(@builtin(global_invocation_id) id: vec3<u32>) {
         let ex = max(cx, 1.0 - cx) * aspect;
         let ey = max(cy, 1.0 - cy);
         m = reveal(max(abs(u - cx) * aspect / ex, abs(v - cy) / ey), p.a, p.d);
+    } else if (p.half == 7u) {
+        var g = gradient_value(u32(p.c + 0.5), u, v, aspect);
+        if (p.e >= 0.5) { g = 1.0 - g; }
+        m = reveal(g, p.a, p.d);
     }
     let i = id.y * p.width + id.x;
     dst[i] = src[i] * m;
@@ -774,6 +842,95 @@ fn trans_flash(@builtin(global_invocation_id) id: vec3<u32>) {
     let flash = vec4<f32>(p.c * p.b, p.d * p.b, p.e * p.b, p.b);
     dst[i] = flash + src[i] * (p.a * (1.0 - p.b));
 }
+
+// Push. a = progress, half = edge, b = border thickness in pixels, c = border feather, d/e/f =
+// border colour, g = push the clip before off (1) or let the new one slide over it (0)
+@compute @workgroup_size(8, 8, 1)
+fn trans_push(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let px = f32(id.x) + 0.5;
+    let py = f32(id.y) + 0.5;
+    let edge = p.half;
+    var e = h;
+    if (edge % 2u == 0u) { e = w; }
+    let d = edge_dir(edge);
+    let lead = p.a * e;
+    let entering = (1.0 - p.a) * e;
+    let inc = sample_bilinear(px + d.x * entering, py + d.y * entering);
+    var prev = sample_aux(px, py);
+    if (p.g >= 0.5) { prev = sample_aux(px - d.x * lead, py - d.y * lead); }
+    var below = prev;
+    let s = edge_travel(edge, px, py, w, h).x;
+    if (p.b > 0.0 && p.a > 0.0 && s >= lead && s < lead + p.b) {
+        let ramp = p.c * p.b;
+        var a = 1.0;
+        if (ramp > 0.0) { a = clamp((lead + p.b - s) / ramp, 0.0, 1.0); }
+        below = over(vec4<f32>(p.d * a, p.e * a, p.f * a, a), prev);
+    }
+    dst[id.y * p.width + id.x] = over(inc, below);
+}
+
+// Page roll. half = edge, b = where the front of the roll is, c = the radius it has by now
+@compute @workgroup_size(8, 8, 1)
+fn trans_roll(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let px = f32(id.x) + 0.5;
+    let py = f32(id.y) + 0.5;
+    let st = edge_travel(p.half, px, py, w, h);
+    let inc = sample_bilinear(px, py);
+    var plain = vec4<f32>(0.0);
+    if (st.x >= p.b) { plain = sample_aux(px, py); }
+    var shown = plain;
+    if (p.c > 0.0 && abs(st.x - p.b) <= p.c) {
+        let u = clamp((p.b - st.x) / p.c, -1.0, 1.0);
+        let arc = p.c * (3.141592653589793 - asin(u));
+        let source = p.b - arc;
+        if (source >= 0.0) {
+            let at = edge_point(p.half, source, st.y, w, h);
+            let o = sample_aux(at.x, at.y);
+            let k = 0.35 + 0.65 * sqrt(1.0 - u * u);
+            shown = over(vec4<f32>(o.x * k, o.y * k, o.z * k, o.w), plain);
+        }
+    }
+    if (p.h >= 0.5) {
+        dst[id.y * p.width + id.x] = inc * (1.0 - shown.w);
+    } else {
+        dst[id.y * p.width + id.x] = over(shown, inc);
+    }
+}
+
+// Page peel. half = edge, b = where the fold is
+@compute @workgroup_size(8, 8, 1)
+fn trans_peel(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let px = f32(id.x) + 0.5;
+    let py = f32(id.y) + 0.5;
+    let st = edge_travel(p.half, px, py, w, h);
+    let inc = sample_bilinear(px, py);
+    let i = id.y * p.width + id.x;
+    if (st.x < p.b) {
+        dst[i] = inc;
+        return;
+    }
+    let plain = sample_aux(px, py);
+    var shown = plain;
+    if (st.x <= 2.0 * p.b) {
+        let at = edge_point(p.half, 2.0 * p.b - st.x, st.y, w, h);
+        let o = sample_aux(at.x, at.y);
+        shown = over(vec4<f32>(o.x * 0.6, o.y * 0.6, o.z * 0.6, o.w), plain);
+    }
+    if (p.h >= 0.5) {
+        dst[i] = inc * (1.0 - shown.w);
+    } else {
+        dst[i] = over(shown, inc);
+    }
+}
 "#;
 
 /// The compute pipelines of the effect chain, built once per device.
@@ -819,6 +976,9 @@ pub struct VfxGpu {
     trans_spiral: wgpu::ComputePipeline,
     trans_flash: wgpu::ComputePipeline,
     trans_split: wgpu::ComputePipeline,
+    trans_push: wgpu::ComputePipeline,
+    trans_roll: wgpu::ComputePipeline,
+    trans_peel: wgpu::ComputePipeline,
 }
 
 fn storage_entry(binding: u32, read_only: bool) -> wgpu::BindGroupLayoutEntry {
@@ -875,6 +1035,9 @@ enum Pass {
     TransSpiral,
     TransFlash,
     TransSplit,
+    TransPush,
+    TransRoll,
+    TransPeel,
 }
 
 /// One step of a GPU run: an effect, or a transition at a progress.
@@ -963,6 +1126,9 @@ impl VfxGpu {
             trans_spiral: make("trans_spiral"),
             trans_flash: make("trans_flash"),
             trans_split: make("trans_split"),
+            trans_push: make("trans_push"),
+            trans_roll: make("trans_roll"),
+            trans_peel: make("trans_peel"),
             device,
             queue,
             bgl,
@@ -1009,6 +1175,9 @@ impl VfxGpu {
             Pass::TransSpiral => &self.trans_spiral,
             Pass::TransFlash => &self.trans_flash,
             Pass::TransSplit => &self.trans_split,
+            Pass::TransPush => &self.trans_push,
+            Pass::TransRoll => &self.trans_roll,
+            Pass::TransPeel => &self.trans_peel,
         }
     }
 
@@ -1016,7 +1185,7 @@ impl VfxGpu {
     /// fit the device's limits or the read-back fails; the caller then uses the CPU.
     pub fn process(&self, frame: &FrameBuffer, chain: &[Resolved]) -> Result<FrameBuffer, String> {
         let ops: Vec<Op> = chain.iter().map(|e| Op::Effect(*e)).collect();
-        self.process_ops(frame, &ops)
+        self.process_ops(frame, &ops, None)
     }
 
     /// The layer as it looks at `progress` of the transition `t` (the same picture as
@@ -1035,10 +1204,35 @@ impl VfxGpu {
         if progress >= 1.0 {
             return Ok(frame.clone());
         }
-        self.process_ops(frame, &[Op::Transition(*t, progress)])
+        self.process_ops(frame, &[Op::Transition(*t, progress)], None)
     }
 
-    fn process_ops(&self, frame: &FrameBuffer, ops: &[Op]) -> Result<FrameBuffer, String> {
+    /// Like [`VfxGpu::process_transition`] for a transition that sees the clip before the one it
+    /// reveals: `outgoing` (`None` when there is none) and `incoming` have the size of the canvas.
+    pub fn process_transition2(
+        &self,
+        outgoing: Option<&FrameBuffer>,
+        incoming: &FrameBuffer,
+        t: &tr::Resolved,
+        progress: f32,
+    ) -> Result<FrameBuffer, String> {
+        let progress = if progress.is_finite() {
+            progress.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        if progress >= 1.0 {
+            return Ok(incoming.clone());
+        }
+        self.process_ops(incoming, &[Op::Transition(*t, progress)], outgoing)
+    }
+
+    fn process_ops(
+        &self,
+        frame: &FrameBuffer,
+        ops: &[Op],
+        second: Option<&FrameBuffer>,
+    ) -> Result<FrameBuffer, String> {
         if ops.is_empty() {
             return Ok(frame.clone());
         }
@@ -1073,7 +1267,52 @@ impl VfxGpu {
                 mapped_at_creation: false,
             })
         };
-        let bufs = [first, make_empty("vfx_b"), make_empty("vfx_c")];
+        let mut bufs = vec![first, make_empty("vfx_b"), make_empty("vfx_c")];
+        // The clip before, for the transitions that draw it (nothing when there is none)
+        let two_layer = ops.iter().any(|op| {
+            matches!(
+                op,
+                Op::Transition(
+                    tr::Resolved::Push { .. }
+                        | tr::Resolved::PageRoll { .. }
+                        | tr::Resolved::PagePeel { .. },
+                    _
+                )
+            )
+        });
+        let sheet = ops.iter().any(|op| {
+            matches!(
+                op,
+                Op::Transition(
+                    tr::Resolved::PageRoll { .. } | tr::Resolved::PagePeel { .. },
+                    _
+                )
+            )
+        });
+        if two_layer {
+            bufs.push(match second.filter(|s| s.width == w && s.height == h) {
+                Some(s) => self
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("vfx_outgoing"),
+                        contents: bytemuck::cast_slice(&Work::from_frame(s).px),
+                        usage,
+                    }),
+                // With no clip before, a roll or a peel uses an opaque sheet (see `apply2`)
+                None if sheet => {
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("vfx_sheet"),
+                            contents: bytemuck::cast_slice(&vec![
+                                [0.0f32, 0.0, 0.0, 1.0];
+                                (w * h) as usize
+                            ]),
+                            usage,
+                        })
+                }
+                None => make_empty("vfx_outgoing"),
+            });
+        }
         // Never bound for reading and writing in the same pass, so a tiny buffer stands in for an
         // input a pass does not use.
         let dummy = self
@@ -1181,6 +1420,45 @@ impl VfxGpu {
                                 Pass::TransMask
                             }
                         }
+                        tr::Resolved::GradientWipe {
+                            pattern,
+                            softness,
+                            invert,
+                        } => {
+                            (p.half, p.c, p.d, p.e) =
+                                (7, pattern as f32, softness, f32::from(invert));
+                            Pass::TransMask
+                        }
+                        tr::Resolved::Push {
+                            angle,
+                            push_off,
+                            border,
+                            feather,
+                            color,
+                        } => {
+                            p.half = tr::squeeze_edge(angle);
+                            p.b = border * h as f32;
+                            p.c = feather;
+                            (p.d, p.e, p.f) = (color[0], color[1], color[2]);
+                            p.g = f32::from(push_off);
+                            Pass::TransPush
+                        }
+                        tr::Resolved::PageRoll { angle, radius } => {
+                            let edge = tr::squeeze_edge(angle);
+                            let e = (if edge.is_multiple_of(2) { w } else { h }) as f32;
+                            (p.b, p.c) = tr::roll_front(e, radius * e, progress);
+                            p.half = edge;
+                            p.h = f32::from(second.is_none());
+                            Pass::TransRoll
+                        }
+                        tr::Resolved::PagePeel { angle } => {
+                            let edge = tr::squeeze_edge(angle);
+                            let e = (if edge.is_multiple_of(2) { w } else { h }) as f32;
+                            p.b = progress * e;
+                            p.half = edge;
+                            p.h = f32::from(second.is_none());
+                            Pass::TransPeel
+                        }
                         tr::Resolved::Squeeze { angle } => {
                             p.half = tr::squeeze_edge(angle);
                             Pass::TransSqueeze
@@ -1225,7 +1503,9 @@ impl VfxGpu {
                             Pass::TransMask
                         }
                     };
-                    run(&mut encoder, pass, p, cur, dst, None, None);
+                    let aux = matches!(pass, Pass::TransPush | Pass::TransRoll | Pass::TransPeel)
+                        .then_some(3);
+                    run(&mut encoder, pass, p, cur, dst, None, aux);
                     cur = dst;
                     continue;
                 }
@@ -1876,6 +2156,68 @@ mod tests {
             .expect("gpu chain");
         assert_ne!(cpu, original);
         assert!(max_difference(&cpu, &on_gpu) <= 1);
+    }
+
+    /// A smooth picture (no hard edges, so the two sides can differ by rounding only).
+    fn smooth_picture(w: u32, h: u32, flip: bool) -> FrameBuffer {
+        let mut f = FrameBuffer {
+            width: w,
+            height: h,
+            rgba: vec![0; (w * h * 4) as usize],
+        };
+        for y in 0..h {
+            for x in 0..w {
+                let r = (x * 255 / (w - 1)) as u8;
+                let g = (y * 255 / (h - 1)) as u8;
+                let i = ((y * w + x) * 4) as usize;
+                f.rgba[i] = if flip { 255 - r } else { r };
+                f.rgba[i + 1] = g;
+                f.rgba[i + 2] = if flip { 255 - g } else { 128 };
+                f.rgba[i + 3] = if x < 12 { 200 } else { 255 };
+            }
+        }
+        f
+    }
+
+    #[test]
+    fn the_transitions_that_see_the_clip_before_match_the_cpu_on_every_side() {
+        let Some(gpu) = gpu() else {
+            eprintln!("no graphics adapter: GPU two-layer transition test skipped");
+            return;
+        };
+        let outgoing = smooth_picture(160, 90, true);
+        let incoming = smooth_picture(160, 90, false);
+        let mut cases: Vec<(&str, Vec<(&str, f32)>)> = Vec::new();
+        for angle in [0.0, 90.0, 180.0, 270.0] {
+            cases.push((tr::PUSH, vec![("angle", angle)]));
+            cases.push((
+                tr::PUSH,
+                vec![
+                    ("angle", angle),
+                    ("push_off", 0.0),
+                    ("border", 0.1),
+                    ("border_feather", 0.5),
+                    ("border_g", 0.2),
+                ],
+            ));
+            cases.push((tr::PAGE_ROLL, vec![("angle", angle), ("radius", 0.1)]));
+            cases.push((tr::PAGE_PEEL, vec![("angle", angle)]));
+        }
+        for (kind, values) in cases {
+            let params = values.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect();
+            let t = tr::resolve(kind, &params).expect("resolves");
+            for progress in [0.2, 0.5, 0.8] {
+                let cpu = tr::apply2(Some(&outgoing), &incoming, &t, progress);
+                let on_gpu = gpu
+                    .process_transition2(Some(&outgoing), &incoming, &t, progress)
+                    .expect("gpu transition");
+                let diff = max_difference(&cpu, &on_gpu);
+                assert!(
+                    diff <= 3,
+                    "{kind} {values:?} at {progress}: difference {diff}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -124,18 +124,21 @@ pub(super) fn clip_look(
         return (0.0, Vec::new());
     }
     let mut list = Vec::new();
-    let mut part = |gain: f64, setting: &Option<neoveg_engine::TrackEffect>| -> f32 {
-        if gain < 1.0 {
-            if let Some(request) =
-                crate::transitions_panel::to_request(setting.as_ref(), gain as f32)
-            {
-                list.push(request);
-                return 1.0;
+    let mut part =
+        |gain: f64, setting: &Option<neoveg_engine::TrackEffect>, entering: bool| -> f32 {
+            if gain < 1.0 {
+                if let Some(mut request) =
+                    crate::transitions_panel::to_request(setting.as_ref(), gain as f32)
+                {
+                    request.entering = entering;
+                    list.push(request);
+                    return 1.0;
+                }
             }
-        }
-        gain as f32
-    };
-    let opacity = part(gain_in, &event.transition_in) * part(gain_out, &event.transition_out);
+            gain as f32
+        };
+    let opacity =
+        part(gain_in, &event.transition_in, true) * part(gain_out, &event.transition_out, false);
     (opacity, list)
 }
 

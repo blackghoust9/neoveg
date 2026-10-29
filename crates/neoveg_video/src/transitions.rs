@@ -28,6 +28,10 @@ pub const SQUEEZE: &str = "squeeze";
 pub const SPIRAL: &str = "spiral";
 pub const FLASH: &str = "flash";
 pub const SPLIT: &str = "split";
+pub const PUSH: &str = "push";
+pub const PAGE_ROLL: &str = "page_roll";
+pub const PAGE_PEEL: &str = "page_peel";
+pub const GRADIENT_WIPE: &str = "gradient_wipe";
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -224,6 +228,132 @@ pub fn transitions() -> &'static [EffectSpec] {
                     },
                 ]),
             },
+            EffectSpec {
+                id: PUSH,
+                label: "Empurrar",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "angle",
+                        label: "Direção de entrada",
+                        min: 0.0,
+                        max: 360.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "push_off",
+                        label: "Empurrar o anterior (0 ou 1)",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "border",
+                        label: "Tamanho da borda",
+                        min: 0.0,
+                        max: 0.2,
+                        default: 0.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "border_feather",
+                        label: "Suavidade da borda",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "border_r",
+                        label: "Borda, vermelho",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "border_g",
+                        label: "Borda, verde",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "border_b",
+                        label: "Borda, azul",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 1.0,
+                        percent: true,
+                    },
+                ]),
+            },
+            EffectSpec {
+                id: PAGE_ROLL,
+                label: "Rolar página",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "angle",
+                        label: "Lado de onde enrola",
+                        min: 0.0,
+                        max: 360.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "radius",
+                        label: "Raio do rolo",
+                        min: 0.02,
+                        max: 0.3,
+                        default: 0.08,
+                        percent: true,
+                    },
+                ]),
+            },
+            EffectSpec {
+                id: PAGE_PEEL,
+                label: "Descolar página",
+                params: leak(vec![ParamSpec {
+                    id: "angle",
+                    label: "Lado de onde descola",
+                    min: 0.0,
+                    max: 360.0,
+                    default: 0.0,
+                    percent: false,
+                }]),
+            },
+            EffectSpec {
+                id: GRADIENT_WIPE,
+                label: "Cortina de gradiente",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "pattern",
+                        label: "Padrão (0 a 6)",
+                        min: 0.0,
+                        max: 6.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "softness",
+                        label: "Suavidade (desfoque do gradiente)",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.1,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "invert",
+                        label: "Inverter (0 ou 1)",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                ]),
+            },
         ]
     })
 }
@@ -240,6 +370,9 @@ pub struct TransitionRequest {
     pub kind: String,
     pub params: BTreeMap<String, f32>,
     pub progress: f32,
+    /// `true` for the transition that reveals the event (its fade-in or the overlap with the clip
+    /// before it), `false` for the one that hides it.
+    pub entering: bool,
 }
 
 impl TransitionRequest {
@@ -247,6 +380,7 @@ impl TransitionRequest {
     pub fn hash_into(&self, h: &mut impl Hasher) {
         self.kind.hash(h);
         self.progress.to_bits().hash(h);
+        self.entering.hash(h);
         for (k, v) in &self.params {
             k.hash(h);
             v.to_bits().hash(h);
@@ -303,6 +437,32 @@ pub enum Resolved {
         push: bool,
         softness: f32,
     },
+    /// The clip before is pushed off by the one that enters from `angle` (see [`squeeze_edge`]);
+    /// with `push_off` false it stays and the new one slides over it. The border (a fraction of the
+    /// frame height) lies at the leading edge.
+    Push {
+        angle: f32,
+        push_off: bool,
+        border: f32,
+        feather: f32,
+        color: [f32; 3],
+    },
+    /// The clip before rolls up from `angle` and shows the one under it; `radius` is a fraction of
+    /// the frame along the way.
+    PageRoll {
+        angle: f32,
+        radius: f32,
+    },
+    /// The clip before is peeled back from `angle` and folded over itself.
+    PagePeel {
+        angle: f32,
+    },
+    /// A wipe that follows a built-in gradient (see [`gradient_value`]).
+    GradientWipe {
+        pattern: u32,
+        softness: f32,
+        invert: bool,
+    },
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -355,6 +515,23 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
             push: v("mode") >= 0.5,
             softness: v("softness"),
         },
+        PUSH => Resolved::Push {
+            angle: v("angle"),
+            push_off: v("push_off") >= 0.5,
+            border: v("border"),
+            feather: v("border_feather"),
+            color: [v("border_r"), v("border_g"), v("border_b")],
+        },
+        PAGE_ROLL => Resolved::PageRoll {
+            angle: v("angle"),
+            radius: v("radius"),
+        },
+        PAGE_PEEL => Resolved::PagePeel { angle: v("angle") },
+        GRADIENT_WIPE => Resolved::GradientWipe {
+            pattern: v("pattern").round() as u32,
+            softness: v("softness"),
+            invert: v("invert") >= 0.5,
+        },
         _ => return None,
     })
 }
@@ -381,6 +558,210 @@ pub fn flash_strength(progress: f32) -> f32 {
 /// Distance from `center` to the farther edge of a frame `size` long (pixels).
 pub fn split_extent(center: f32, size: f32) -> f32 {
     center.max(size - center)
+}
+
+/// `true` for the transitions that draw the clip before the one they reveal (the outgoing layer).
+/// With no clip before, they run on the incoming layer alone, as if the outgoing one were empty.
+pub fn needs_outgoing(kind: &str) -> bool {
+    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL)
+}
+
+/// Where a point is along the way of a transition that enters from `edge` (see [`squeeze_edge`]):
+/// the distance from that side and the position across it.
+fn travel(edge: u32, x: f32, y: f32, w: f32, h: f32) -> (f32, f32) {
+    match edge {
+        0 => (x, y),
+        1 => (y, x),
+        2 => (w - x, y),
+        _ => (h - y, x),
+    }
+}
+
+/// The point of the frame at distance `s` from `edge` and `lat` across (the opposite of [`travel`]).
+fn point_at(edge: u32, s: f32, lat: f32, w: f32, h: f32) -> (f32, f32) {
+    match edge {
+        0 => (s, lat),
+        1 => (lat, s),
+        2 => (w - s, lat),
+        _ => (lat, h - s),
+    }
+}
+
+/// Length of the frame along the way of a transition that enters from `edge`.
+fn extent(edge: u32, w: f32, h: f32) -> f32 {
+    if edge.is_multiple_of(2) {
+        w
+    } else {
+        h
+    }
+}
+
+/// `top` drawn over `bottom` (premultiplied, `0..=255`).
+fn over(top: [f32; 4], bottom: [f32; 4]) -> [f32; 4] {
+    let keep = 1.0 - top[3] / 255.0;
+    [
+        top[0] + bottom[0] * keep,
+        top[1] + bottom[1] * keep,
+        top[2] + bottom[2] * keep,
+        top[3] + bottom[3] * keep,
+    ]
+}
+
+fn shade(p: [f32; 4], k: f32) -> [f32; 4] {
+    [p[0] * k, p[1] * k, p[2] * k, p[3]]
+}
+
+/// How far the front of a page roll has gone for a roll of radius `r` over a frame `e` long, and
+/// the radius the roll has by then (it grows from nothing until it is round).
+pub fn roll_front(e: f32, r: f32, progress: f32) -> (f32, f32) {
+    let total = e + (1.5 * std::f32::consts::PI + 1.0) * r;
+    let front = progress * total;
+    (front, r.min(front / (1.5 * std::f32::consts::PI)))
+}
+
+/// The value `0..1` a point `(u, v)` (`0..1` over the frame) has in the gradient `pattern`: the
+/// transition reveals the low values first.
+pub fn gradient_value(pattern: u32, u: f32, v: f32, aspect: f32) -> f32 {
+    match pattern {
+        0 => u,
+        1 => v,
+        2 => (u * aspect + v) / (aspect + 1.0),
+        3 => ((u - 0.5) * aspect).hypot(v - 0.5) / (aspect / 2.0).hypot(0.5),
+        4 => 1.0 - gradient_value(3, u, v, aspect),
+        5 => {
+            let turn = ((u - 0.5) * aspect).atan2(-(v - 0.5)) / std::f32::consts::TAU;
+            turn - turn.floor()
+        }
+        _ => (((u - 0.5).abs() * aspect) + (v - 0.5).abs()) / (aspect / 2.0 + 0.5),
+    }
+}
+
+/// The picture at `progress` of a transition that sees both layers: `outgoing` is the clip before
+/// (`None` when there is none), `incoming` the clip it reveals. Both have the size of the canvas.
+pub fn apply2(
+    outgoing: Option<&FrameBuffer>,
+    incoming: &FrameBuffer,
+    t: &Resolved,
+    progress: f32,
+) -> FrameBuffer {
+    let progress = if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let (width, height) = (incoming.width, incoming.height);
+    if width == 0 || height == 0 || progress >= 1.0 {
+        return incoming.clone();
+    }
+    let outgoing = outgoing.filter(|o| o.width == width && o.height == height);
+    // A roll or a peel with no clip before still uncovers the picture the way a page would: the
+    // page is taken as an opaque sheet and only what it leaves free shows
+    let ghost_page =
+        outgoing.is_none() && matches!(t, Resolved::PageRoll { .. } | Resolved::PagePeel { .. });
+    let sheet = FrameBuffer::solid(width, height, [0, 0, 0, 255]);
+    let outgoing = if ghost_page { Some(&sheet) } else { outgoing };
+    let out_at = |x: f32, y: f32| outgoing.map_or([0.0; 4], |o| sample(o, x, y));
+    let finish = |page: [f32; 4], inc: [f32; 4]| {
+        if ghost_page {
+            inc.map(|v| v * (1.0 - page[3] / 255.0))
+        } else {
+            over(page, inc)
+        }
+    };
+    let (w, h) = (width as f32, height as f32);
+    match *t {
+        Resolved::Push {
+            angle,
+            push_off,
+            border,
+            feather,
+            color,
+        } => {
+            let edge = squeeze_edge(angle);
+            let e = extent(edge, w, h);
+            let (dx, dy) = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)][edge as usize];
+            let lead = progress * e;
+            let thick = border * h;
+            render(width, height, |x, y| {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                let entering = (1.0 - progress) * e;
+                let inc = sample(incoming, px + dx * entering, py + dy * entering);
+                let out = if push_off {
+                    out_at(px - dx * lead, py - dy * lead)
+                } else {
+                    out_at(px, py)
+                };
+                let mut below = out;
+                let (s, _) = travel(edge, px, py, w, h);
+                if thick > 0.0 && progress > 0.0 && s >= lead && s < lead + thick {
+                    let ramp = feather * thick;
+                    let a = if ramp <= 0.0 {
+                        1.0
+                    } else {
+                        ((lead + thick - s) / ramp).clamp(0.0, 1.0)
+                    };
+                    let strip = [
+                        color[0] * 255.0 * a,
+                        color[1] * 255.0 * a,
+                        color[2] * 255.0 * a,
+                        255.0 * a,
+                    ];
+                    below = over(strip, out);
+                }
+                over(inc, below)
+            })
+        }
+        Resolved::PageRoll { angle, radius } => {
+            let edge = squeeze_edge(angle);
+            let e = extent(edge, w, h);
+            let (front, r) = roll_front(e, radius * e, progress);
+            render(width, height, |x, y| {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                let (s, lat) = travel(edge, px, py, w, h);
+                let inc = sample(incoming, px, py);
+                let flat = if s >= front { out_at(px, py) } else { [0.0; 4] };
+                let page = if r > 0.0 && (s - front).abs() <= r {
+                    let u = ((front - s) / r).clamp(-1.0, 1.0);
+                    let arc = r * (std::f32::consts::PI - u.asin());
+                    let source = front - arc;
+                    if source >= 0.0 {
+                        let (sx, sy) = point_at(edge, source, lat, w, h);
+                        over(
+                            shade(out_at(sx, sy), 0.35 + 0.65 * (1.0 - u * u).sqrt()),
+                            flat,
+                        )
+                    } else {
+                        flat
+                    }
+                } else {
+                    flat
+                };
+                finish(page, inc)
+            })
+        }
+        Resolved::PagePeel { angle } => {
+            let edge = squeeze_edge(angle);
+            let e = extent(edge, w, h);
+            let front = progress * e;
+            render(width, height, |x, y| {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                let (s, lat) = travel(edge, px, py, w, h);
+                let inc = sample(incoming, px, py);
+                if s < front {
+                    return inc;
+                }
+                let flat = out_at(px, py);
+                let page = if s <= 2.0 * front {
+                    let (sx, sy) = point_at(edge, 2.0 * front - s, lat, w, h);
+                    over(shade(out_at(sx, sy), 0.6), flat)
+                } else {
+                    flat
+                };
+                finish(page, inc)
+            })
+        }
+        _ => apply(incoming, t, progress),
+    }
 }
 
 /// Opacity of a point whose place in the reveal order is `s` (`0.0` is revealed first, `1.0`
@@ -448,7 +829,18 @@ fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
         | Resolved::Squeeze { .. }
         | Resolved::Spiral { .. }
         | Resolved::Flash { .. }
-        | Resolved::Split { push: true, .. } => 1.0,
+        | Resolved::Split { push: true, .. }
+        | Resolved::Push { .. }
+        | Resolved::PageRoll { .. }
+        | Resolved::PagePeel { .. } => 1.0,
+        Resolved::GradientWipe {
+            pattern,
+            softness,
+            invert,
+        } => {
+            let g = gradient_value(pattern, u, v, aspect);
+            reveal(if invert { 1.0 - g } else { g }, progress, softness)
+        }
         Resolved::Split {
             center, softness, ..
         } => {
@@ -472,6 +864,13 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
     }
     if progress >= 1.0 {
         return layer.clone();
+    }
+    if matches!(
+        t,
+        Resolved::Push { .. } | Resolved::PageRoll { .. } | Resolved::PagePeel { .. }
+    ) {
+        // No clip before: the outgoing layer is empty
+        return apply2(None, layer, t, progress);
     }
     let (w, h) = (layer.width as f32, layer.height as f32);
     let aspect = w / h;
@@ -574,6 +973,109 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_transitions_that_see_the_outgoing_layer_move_both_pictures() {
+        // Outgoing: solid red. Incoming: solid blue. 80 by 40 pixels
+        let out = FrameBuffer::solid(80, 40, [255, 0, 0, 255]);
+        let inc = FrameBuffer::solid(80, 40, [0, 0, 255, 255]);
+        let at = |f: &FrameBuffer, x: usize, y: usize| {
+            let i = (y * 80 + x) * 4;
+            [f.rgba[i], f.rgba[i + 1], f.rgba[i + 2], f.rgba[i + 3]]
+        };
+        let none = BTreeMap::new();
+        for kind in [PUSH, PAGE_ROLL, PAGE_PEEL] {
+            assert!(needs_outgoing(kind));
+            let t = resolve(kind, &none).unwrap();
+            // The end is the incoming layer, the start is the outgoing one, untouched
+            assert_eq!(apply2(Some(&out), &inc, &t, 1.0), inc, "{kind} ends");
+            assert_eq!(apply2(Some(&out), &inc, &t, 0.0), out, "{kind} starts");
+        }
+        assert!(!needs_outgoing(SLIDE) && !needs_outgoing(GRADIENT_WIPE));
+        // Push from the left at a half: the incoming fills the left half, the outgoing was pushed
+        // to the right half
+        let push = resolve(PUSH, &none).unwrap();
+        let half = apply2(Some(&out), &inc, &push, 0.5);
+        assert_eq!(
+            (at(&half, 10, 20), at(&half, 70, 20)),
+            ([0, 0, 255, 255], [255, 0, 0, 255])
+        );
+        // Without push-off the outgoing stays where it was and the incoming slides over it
+        let over_it = resolve(PUSH, &BTreeMap::from([("push_off".to_owned(), 0.0)])).unwrap();
+        let half = apply2(Some(&out), &inc, &over_it, 0.5);
+        assert_eq!(
+            (at(&half, 10, 20), at(&half, 70, 20)),
+            ([0, 0, 255, 255], [255, 0, 0, 255])
+        );
+        // A border: a green strip at the leading edge
+        let bordered = resolve(
+            PUSH,
+            &BTreeMap::from([
+                ("border".to_owned(), 0.25),
+                ("border_r".to_owned(), 0.0),
+                ("border_b".to_owned(), 0.0),
+            ]),
+        )
+        .unwrap();
+        let half = apply2(Some(&out), &inc, &bordered, 0.5);
+        assert_eq!(at(&half, 45, 20), [0, 255, 0, 255], "inside the strip");
+        assert_eq!(at(&half, 70, 20), [255, 0, 0, 255], "beyond it");
+        // Without an outgoing layer the push is a slide in: nothing on the far side
+        let alone = apply2(None, &inc, &push, 0.5);
+        assert_eq!((at(&alone, 10, 20)[3], at(&alone, 70, 20)[3]), (255, 0));
+        // The page roll: the incoming shows where the page has gone, the flat page stays beyond
+        let roll = resolve(PAGE_ROLL, &none).unwrap();
+        let mid = apply2(Some(&out), &inc, &roll, 0.5);
+        assert_eq!(at(&mid, 2, 20), [0, 0, 255, 255]);
+        assert_eq!(at(&mid, 78, 20), [255, 0, 0, 255]);
+        // The peel: the incoming on the side that was peeled, the flap (darker red) next to it
+        let peel = resolve(PAGE_PEEL, &none).unwrap();
+        let mid = apply2(Some(&out), &inc, &peel, 0.25);
+        assert_eq!(at(&mid, 5, 20), [0, 0, 255, 255]);
+        let flap = at(&mid, 30, 20);
+        assert!(flap[0] > 100 && flap[0] < 255 && flap[2] == 0, "{flap:?}");
+        assert_eq!(at(&mid, 70, 20), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn the_gradient_wipe_reveals_by_the_pattern_and_can_be_inverted() {
+        let layer = FrameBuffer::solid(80, 40, [255, 255, 255, 255]);
+        let alpha = |f: &FrameBuffer, x: usize, y: usize| f.rgba[(y * 80 + x) * 4 + 3];
+        let wipe = |pattern: f32, invert: f32| {
+            resolve(
+                GRADIENT_WIPE,
+                &BTreeMap::from([
+                    ("pattern".to_owned(), pattern),
+                    ("invert".to_owned(), invert),
+                    ("softness".to_owned(), 0.0),
+                ]),
+            )
+            .unwrap()
+        };
+        // Pattern 0 is left to right
+        let half = apply(&layer, &wipe(0.0, 0.0), 0.5);
+        assert_eq!((alpha(&half, 10, 20), alpha(&half, 70, 20)), (255, 0));
+        let half = apply(&layer, &wipe(0.0, 1.0), 0.5);
+        assert_eq!((alpha(&half, 10, 20), alpha(&half, 70, 20)), (0, 255));
+        // The radial pattern opens from the centre
+        let half = apply(&layer, &wipe(3.0, 0.0), 0.5);
+        assert_eq!((alpha(&half, 40, 20), alpha(&half, 1, 1)), (255, 0));
+        // Every pattern is a value between 0 and 1 and the ends are empty and whole
+        for pattern in 0..7 {
+            for (u, v) in [(0.0, 0.0), (0.5, 0.5), (1.0, 1.0), (0.2, 0.9)] {
+                let g = gradient_value(pattern, u, v, 2.0);
+                assert!((0.0..=1.0).contains(&g), "{pattern} at {u},{v}: {g}");
+            }
+            let t = wipe(pattern as f32, 0.0);
+            assert_eq!(apply(&layer, &t, 1.0), layer);
+            assert!(apply(&layer, &t, 0.0)
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| p[3] == 0));
+        }
+    }
 
     #[test]
     fn split_opens_from_the_centre_and_pushes_the_quarters_in_from_the_corners() {
@@ -697,7 +1199,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 12);
+        assert_eq!(transitions().len(), 16);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {
@@ -892,6 +1394,7 @@ mod tests {
             kind: IRIS.into(),
             params: BTreeMap::new(),
             progress: 0.5,
+            entering: true,
         };
         let mut other = base.clone();
         other.progress = 0.51;

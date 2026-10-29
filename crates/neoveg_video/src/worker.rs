@@ -340,6 +340,36 @@ impl WorkerState {
         frame
     }
 
+    /// Draws a transition that sees both layers: the clip before (`outgoing`, at its own opacity)
+    /// and the one it reveals (`incoming`), both fitted to the canvas.
+    fn apply_transition_pair(
+        &mut self,
+        outgoing: &Arc<FrameBuffer>,
+        out_opacity: f32,
+        incoming: &Arc<FrameBuffer>,
+        (canvas_w, canvas_h): (u32, u32),
+        t: &transitions::Resolved,
+        progress: f32,
+    ) -> Arc<FrameBuffer> {
+        let mut out =
+            crate::composite::fit_layer_to_canvas(outgoing, canvas_w, canvas_h).into_owned();
+        if out_opacity < 1.0 {
+            for px in out.rgba.as_chunks_mut::<4>().0 {
+                px[3] = (f32::from(px[3]) * out_opacity.clamp(0.0, 1.0)).round() as u8;
+            }
+        }
+        let inc = crate::composite::fit_layer_to_canvas(incoming, canvas_w, canvas_h);
+        if canvas_w * canvas_h >= 64 * 64 {
+            if let Some(gpu) = self.vfx_gpu() {
+                match gpu.process_transition2(Some(&out), &inc, t, progress) {
+                    Ok(done) => return Arc::new(done),
+                    Err(e) => tracing::debug!("[DEBUG] transition on the CPU: {e}"),
+                }
+            }
+        }
+        Arc::new(transitions::apply2(Some(&out), &inc, t, progress))
+    }
+
     /// The GPU effect runner, built on first use; `None` without an adapter.
     fn vfx_gpu(&mut self) -> Option<&VfxGpu> {
         if self.vfx_gpu.is_none() {
@@ -778,8 +808,11 @@ fn decode_clip_stack(
     // Multiple overlapping clips on the same track (crossfade) or partial event fade-in/out:
     // composite onto a transparent track buffer so lower tracks remain visible outside/under fades.
     let mut layers = Vec::with_capacity(clips.len());
+    // The picture and the opacity of the clip drawn last: the outgoing layer of a transition
+    let mut before: Option<(Arc<FrameBuffer>, f32)> = None;
     for clip in clips {
         if clip.event_opacity <= 0.0 {
+            before = None;
             continue;
         }
         let raw = decode_clip_raw(state, clip, max_width)?;
@@ -790,12 +823,43 @@ fn decode_clip_stack(
         } else {
             raw
         };
+        // A transition that sees the clip before takes both pictures and draws one
+        let pair = clip
+            .transitions
+            .iter()
+            .position(|t| t.entering && transitions::needs_outgoing(&t.kind));
+        if let (Some(index), Some((outgoing, out_opacity))) = (pair, before.take()) {
+            let request = &clip.transitions[index];
+            if let Some(resolved) = transitions::resolve(&request.kind, &request.params) {
+                let mut rest = clip.clone();
+                rest.transitions.remove(index);
+                let incoming = state.finish_clip(frame, &rest);
+                let merged = state.apply_transition_pair(
+                    &outgoing,
+                    out_opacity,
+                    &incoming,
+                    (canvas_w, canvas_h),
+                    &resolved,
+                    request.progress,
+                );
+                // The clip before is part of the picture now
+                layers.pop();
+                layers.push(CompositeNode::Layer(DecodedLayer {
+                    frame: Arc::clone(&merged),
+                    mode: CompositeMode::SourceAlpha,
+                    opacity: clip.event_opacity.clamp(0.0, 1.0),
+                }));
+                before = Some((merged, clip.event_opacity));
+                continue;
+            }
+        }
         let frame = state.finish_clip(frame, clip);
         layers.push(CompositeNode::Layer(DecodedLayer {
-            frame,
+            frame: Arc::clone(&frame),
             mode: CompositeMode::SourceAlpha,
             opacity: clip.event_opacity.clamp(0.0, 1.0),
         }));
+        before = Some((frame, clip.event_opacity));
     }
     if layers.is_empty() {
         return Ok(None);
@@ -1643,6 +1707,45 @@ mod tests {
     }
 
     #[test]
+    fn a_push_between_two_clips_of_a_track_pushes_the_first_one_off() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_push_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (red, blue) = (dir.join("red.png"), dir.join("blue.png"));
+        write_png(&red, 128, 96, [255, 0, 0, 255]);
+        write_png(&blue, 128, 96, [0, 0, 255, 255]);
+        let mut request = effect_request(&red, Vec::new(), Vec::new());
+        if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
+            let mut later = clips[0].clone();
+            later.path = blue.clone();
+            later.media_id = 2;
+            later.transitions.push(TransitionRequest {
+                kind: transitions::PUSH.into(),
+                params: std::collections::BTreeMap::new(),
+                progress: 0.5,
+                entering: true,
+            });
+            clips.push(later);
+        }
+        let mut renderer = OfflineFrameRenderer::new();
+        let frame = renderer.render_frame(&request).unwrap();
+        // Half way: the second clip came in from the left and pushed the first to the right
+        assert_eq!(frame.pixel(20, 48), [0, 0, 255, 255]);
+        assert_eq!(frame.pixel(110, 48), [255, 0, 0, 255]);
+        // The outgoing clip really moved: with push-off it is gone from the left half even where
+        // the incoming one has a gap, which the stacked clips (no pairing) would show
+        if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
+            clips[1].transitions[0]
+                .params
+                .insert("angle".to_owned(), 180.0);
+        }
+        let from_right = renderer.render_frame(&request).unwrap();
+        assert_eq!(from_right.pixel(110, 48), [0, 0, 255, 255]);
+        assert_eq!(from_right.pixel(20, 48), [255, 0, 0, 255]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_clip_transition_reveals_the_picture_with_its_progress_and_follows_the_cache_key() {
         let dir = std::env::temp_dir().join(format!("neoveg_worker_tr_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -1657,6 +1760,7 @@ mod tests {
                     kind: transitions::LINEAR_WIPE.into(),
                     params: [("softness".to_owned(), 0.0)].into(),
                     progress,
+                    entering: true,
                 });
             }
             request
