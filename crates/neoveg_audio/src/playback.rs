@@ -344,6 +344,16 @@ impl AudioPlayer {
         self.live.set_track_mix(track, spec)
     }
 
+    /// Updates the fader, pan and phase of audio bus `bus` (its place in the project's list) live.
+    pub fn set_user_bus_mix(&self, bus: usize, spec: TrackMixSpec) -> bool {
+        self.live.set_user_bus_mix(bus, spec)
+    }
+
+    /// Updates the level of the `send`-th send of `track` (a linear gain) live.
+    pub fn set_send_gain(&self, track: usize, send: usize, gain: f32) -> bool {
+        self.live.set_send_gain(track, send, gain)
+    }
+
     /// Updates a parameter of an active effect (`track = None` for master) live during playback.
     pub fn set_effect_param(
         &self,

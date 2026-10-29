@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs_obsidian/03 - Manual do Usuario/guia_de_inicio.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "guia_de_inicio"
+              "title": "README"
             }
           }
         ]
@@ -83,7 +83,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "1f608df3435f8120",
@@ -188,19 +189,20 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "9d3d018ff6dec082",
+  "active": "fa75fcd388e043ea",
   "lastOpenFiles": [
-    "target/debug/deps/neoveg.8jsgt1onka830e7kh0xo99caj.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.3s9tjrr16tw0wf97ytupk14sh.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.8dbn36a3ejha20bj17qfdjrse.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.8hwr555ksibowvole7q56a0yw.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.abtowlaxnvcsgcqo4wil5bhlc.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.6jb1b9owhnsn63rzqazcf1cmz.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.3y8st3wpntybar51spyguq0n5.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.cy4i5t7ia5mqd3flrky8127w6.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.785zyetbhn06q18y28ic0s42i.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.boyf21dk57kbogw39wx4yof7y.10x9atw.rcgu.o",
-    "target/debug/deps/neoveg.cm4n83glbggkojeqebv2vbq7z.10x9atw.rcgu.o",
+    "state/inuse.9540.lock",
+    "target/debug/deps/neoveg.pdb",
+    "target/debug/deps/neoveg.exe",
+    "target/debug/deps/rustceCqQhU/linker-arguments",
+    "target/debug/deps/rustceCqQhU/symbols.o",
+    "target/debug/deps/rustceCqQhU",
+    "target/debug/incremental/neoveg-3c7uxma73vvp8/s-hno06erhjt-04318g0-2jnd1va2tbzmofl3f7bqmvbye/14s1qbhghnxp0j412eltv0xdi.o",
+    "target/debug/incremental/neoveg-3c7uxma73vvp8/s-hno06erhjt-04318g0-2jnd1va2tbzmofl3f7bqmvbye/f1lrqpcdzv1rsyjjuvxa5qonc.o",
+    "target/debug/incremental/neoveg-3c7uxma73vvp8/s-hno06erhjt-04318g0-2jnd1va2tbzmofl3f7bqmvbye/e8iv13iobr7bpx22a5wjlyx66.o",
+    "target/debug/incremental/neoveg-3c7uxma73vvp8/s-hno06erhjt-04318g0-2jnd1va2tbzmofl3f7bqmvbye/work-products.bin",
+    "target/debug/incremental/neoveg-3c7uxma73vvp8/s-hno06erhjt-04318g0-2jnd1va2tbzmofl3f7bqmvbye/query-cache.bin",
+    "docs_obsidian/03 - Manual do Usuario/guia_de_inicio.md",
     "VegasScan/README.md",
     "VegasScan/27_StringTable_V22.md",
     "VegasScan/26_StringTable_V14.md",
@@ -224,7 +226,6 @@
     "VegasScan/08_Events.md",
     "VegasScan/07_Tracks.md",
     "VegasScan/06_Timeline.md",
-    "VegasScan/05_Controls.md",
-    "VegasScan/04_Windows.md"
+    "VegasScan/05_Controls.md"
   ]
 }

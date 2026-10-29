@@ -144,6 +144,7 @@ commands! {
     InsertAudioTrack => ("insert.audio_track", "Inserir faixa de áudio", Insert, true),
     InsertVideoTrack => ("insert.video_track", "Inserir faixa de vídeo", Insert, true),
     InsertAdjustmentEvent => ("insert.adjustment_event", "Inserir evento de ajuste", Insert, true),
+    InsertAudioBus => ("insert.audio_bus", "Inserir barramento de áudio", Insert, true),
     InsertMarker => ("insert.marker", "Inserir marcador", Insert, true),
     InsertTime => ("insert.time", "Inserir tempo…", Insert, true),
     InsertRegion => ("insert.region", "Inserir região", Insert, true),

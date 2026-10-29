@@ -12,7 +12,8 @@ use neoveg_audio::clap_host::{self, ClapParamInfo, ClapPluginInfo};
 use neoveg_audio::dsp::effects::{self, EffectInfo};
 use neoveg_audio::dsp::{ParamSpec, Unit};
 use neoveg_audio::fxmixer::{
-    AutomationCurve, AutomationKey, DuckSpec, EffectSpec, FxPlan, ParamAutomationSpec, TrackMixSpec,
+    AutomationCurve, AutomationKey, BusSpec, DuckSpec, EffectSpec, FxPlan, ParamAutomationSpec,
+    RouteSpec, SendSpec, TrackMixSpec,
 };
 use neoveg_common::fade::FadeCurve;
 use neoveg_engine::effects::DuckParam;
@@ -100,6 +101,10 @@ struct Draft {
 pub struct FxPanelState {
     /// Edit the master bus instead of the selected track.
     pub master: bool,
+    /// Edit the chain of this audio bus instead of the selected track's.
+    pub bus: Option<neoveg_engine::BusId>,
+    /// The fader and pan of a bus being dragged, so the sound follows before the project changes.
+    pub bus_mix_draft: Option<(neoveg_engine::BusId, f32, f32)>,
     draft: Option<Draft>,
     clap_scan_rx: Option<mpsc::Receiver<usize>>,
     clap_file_rx: Option<mpsc::Receiver<Result<Vec<ClapPluginInfo>, String>>>,
@@ -433,6 +438,57 @@ pub fn fx_plan(timeline: &Timeline) -> FxPlan {
             })
             .collect(),
         param_envelopes,
+        buses: timeline
+            .buses
+            .iter()
+            .map(|b| BusSpec {
+                chain: spec_chain(&b.effects),
+                mix: TrackMixSpec {
+                    // A muted bus is silent; its place in the routing stays
+                    gain: if b.mix.muted { 0.0 } else { b.mix.gain() },
+                    pan: b.mix.pan,
+                    invert: b.mix.invert_phase,
+                },
+                output: bus_index(timeline, b.output),
+            })
+            .collect(),
+        routes: timeline
+            .tracks
+            .iter()
+            .map(|t| RouteSpec {
+                output: bus_index(timeline, t.output),
+                sends: t
+                    .sends
+                    .iter()
+                    .filter_map(|s| {
+                        let bus = timeline.buses.iter().position(|b| b.id == s.bus)?;
+                        Some(SendSpec {
+                            bus,
+                            gain: send_gain(s.level_db),
+                            post: s.post_volume,
+                            link_pan: s.link_pan,
+                        })
+                    })
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
+/// The index of the bus `output` points at (`None` for the master, or for a bus that is gone).
+fn bus_index(timeline: &Timeline, output: neoveg_engine::BusOutput) -> Option<usize> {
+    match output {
+        neoveg_engine::BusOutput::Master => None,
+        neoveg_engine::BusOutput::Bus(id) => timeline.buses.iter().position(|b| b.id == id),
+    }
+}
+
+/// Linear level of a send of `db` dB (silent at the bottom of the range).
+pub fn send_gain(db: f32) -> f32 {
+    if db <= neoveg_engine::buses::MIN_SEND_DB {
+        0.0
+    } else {
+        10f32.powf(db / 20.0)
     }
 }
 
@@ -1234,5 +1290,66 @@ mod tests {
             plan.tracks[0][0].kind,
             "clap:C:/CLAP/Test.clap::com.vendor.test"
         );
+    }
+
+    #[test]
+    fn the_plan_has_the_buses_the_routes_and_the_sends_of_the_project() {
+        use neoveg_engine::{buses, BusOutput, EditCommand, History, TrackKind, TrackSend};
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let mut tracks = Vec::new();
+        for _ in 0..3 {
+            let t = tl.new_track(TrackKind::Audio);
+            tracks.push(t.id);
+            assert!(h.execute(&mut tl, EditCommand::AddTrack { track: t }));
+        }
+        for id in [500, 501] {
+            let cmd = buses::add_bus(&tl, id).unwrap();
+            assert!(h.execute(&mut tl, cmd));
+        }
+        // Bus A goes to B and is muted; B has an effect; track 0 goes to A with a send to B at -6 dB
+        let mut a = tl.buses[0].clone();
+        a.output = BusOutput::Bus(501);
+        a.mix.muted = true;
+        let cmd = buses::set_bus(&tl, a).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        let mut b = tl.buses[1].clone();
+        b.effects = vec![TrackEffect::new("gain")];
+        let cmd = buses::set_bus(&tl, b).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        let send = TrackSend {
+            bus: 501,
+            level_db: -6.0,
+            post_volume: true,
+            link_pan: true,
+        };
+        let cmd = buses::set_track_route(&tl, tracks[0], BusOutput::Bus(500), vec![send]).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        let plan = fx_plan(&tl);
+        assert_eq!(plan.buses.len(), 2);
+        assert_eq!(plan.buses[0].output, Some(1), "A goes to B");
+        assert_eq!(plan.buses[0].mix.gain, 0.0, "a muted bus is silent");
+        assert_eq!(plan.buses[1].output, None);
+        assert_eq!(plan.buses[1].chain.len(), 1);
+        assert_eq!(plan.routes.len(), 3);
+        assert_eq!(plan.routes[0].output, Some(0));
+        let s = plan.routes[0].sends[0];
+        assert_eq!(s.bus, 1);
+        assert!(
+            (s.gain - 0.501_187).abs() < 1e-4,
+            "-6 dB is about 0.501: {}",
+            s.gain
+        );
+        assert!(s.post && s.link_pan);
+        assert!(plan.routes[1].is_default() && plan.routes[2].is_default());
+        assert!(!plan.is_empty());
+        // A bus that is gone reads as the master, and the bottom of the range is silence
+        tl.buses.remove(1);
+        let broken = fx_plan(&tl);
+        assert_eq!(broken.buses[0].output, None);
+        assert!(broken.routes[0].sends.is_empty());
+        assert_eq!(send_gain(-60.0), 0.0);
+        assert!((send_gain(0.0) - 1.0).abs() < 1e-6);
+        assert!(fx_plan(&Timeline::new()).is_empty());
     }
 }

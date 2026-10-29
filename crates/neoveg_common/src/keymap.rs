@@ -226,6 +226,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::InsertAudioTrack, &["Ctrl+Q"]),
     (Command::InsertVideoTrack, &["Ctrl+Shift+Q"]),
     (Command::InsertAdjustmentEvent, &["Ctrl+Alt+J"]),
+    (Command::InsertAudioBus, &["Ctrl+Alt+B"]),
     (Command::InsertMarker, &["M"]),
     (Command::InsertRegion, &["R"]),
     (Command::InsertCommandMarker, &["C"]),

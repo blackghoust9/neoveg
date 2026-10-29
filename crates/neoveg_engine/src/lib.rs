@@ -3,6 +3,7 @@
 pub mod adjustment;
 pub mod attributes;
 pub mod autosave;
+pub mod buses;
 pub mod captions;
 pub mod command;
 pub mod crossfade;
@@ -42,6 +43,6 @@ pub use envelope::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEnvelope
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{
-    EventGeometry, EventId, GroupId, ResampleMode, Timeline, Track, TrackDucking, TrackEffect,
-    TrackEvent, TrackId, TrackKind, TrackMix,
+    AudioBus, BusId, BusOutput, EventGeometry, EventId, GroupId, ResampleMode, Timeline, Track,
+    TrackDucking, TrackEffect, TrackEvent, TrackId, TrackKind, TrackMix, TrackSend,
 };

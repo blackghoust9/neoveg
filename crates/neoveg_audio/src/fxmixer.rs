@@ -131,6 +131,83 @@ impl TrackMixSpec {
     }
 }
 
+/// A send from a track to a user bus.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SendSpec {
+    /// Index into [`FxPlan::buses`].
+    pub bus: usize,
+    /// Linear level of the send.
+    pub gain: f32,
+    /// Taken after the track's fader instead of before it.
+    pub post: bool,
+    /// Keeps the pan of the track; otherwise the send is a centred stereo signal.
+    pub link_pan: bool,
+}
+
+/// Where one track goes: the master (`None`) or a user bus, and its sends.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RouteSpec {
+    pub output: Option<usize>,
+    pub sends: Vec<SendSpec>,
+}
+
+impl RouteSpec {
+    /// `true` for a track that goes straight to the master with no sends.
+    pub fn is_default(&self) -> bool {
+        self.output.is_none() && self.sends.is_empty()
+    }
+}
+
+/// A user bus: it takes what tracks and other buses send it, runs its effects and its fader and
+/// goes to the master (`None`) or to another bus.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct BusSpec {
+    pub chain: Vec<EffectSpec>,
+    pub mix: TrackMixSpec,
+    pub output: Option<usize>,
+}
+
+/// The processing order of the user buses: every bus after the buses that go to it. A bus in a loop
+/// has its output ignored (it goes to the master), so a damaged plan cannot hang the mixer.
+fn bus_order(buses: &[BusSpec]) -> (Vec<usize>, Vec<Option<usize>>) {
+    let n = buses.len();
+    // The output of each bus, with loops and bad indices cut
+    let mut target: Vec<Option<usize>> =
+        buses.iter().map(|b| b.output.filter(|&t| t < n)).collect();
+    for start in 0..n {
+        let mut seen = vec![false; n];
+        let mut at = start;
+        while let Some(next) = target[at] {
+            if seen[at] {
+                target[start] = None;
+                break;
+            }
+            seen[at] = true;
+            at = next;
+            if at == start {
+                target[start] = None;
+                break;
+            }
+        }
+    }
+    let mut feeders = vec![0usize; n];
+    for t in target.iter().flatten() {
+        feeders[*t] += 1;
+    }
+    let mut order = Vec::with_capacity(n);
+    let mut ready: Vec<usize> = (0..n).filter(|&i| feeders[i] == 0).collect();
+    while let Some(i) = ready.pop() {
+        order.push(i);
+        if let Some(t) = target[i] {
+            feeders[t] -= 1;
+            if feeders[t] == 0 {
+                ready.push(t);
+            }
+        }
+    }
+    (order, target)
+}
+
 /// The effect chains of a project: one per track (indexed like `MixClip::track`) and the master's,
 /// plus the auto-ducking of the tracks that have it.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -148,6 +225,10 @@ pub struct FxPlan {
     pub track_pan_envelopes: Vec<Option<AutomationCurve>>,
     /// Effect parameter automation curves for track and master chains.
     pub param_envelopes: Vec<ParamAutomationSpec>,
+    /// The user buses (submixes).
+    pub buses: Vec<BusSpec>,
+    /// Where each track goes and its sends, indexed like `tracks`; may be shorter.
+    pub routes: Vec<RouteSpec>,
 }
 
 impl FxPlan {
@@ -168,6 +249,8 @@ impl FxPlan {
                 .iter()
                 .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
             && self.param_envelopes.iter().all(|p| p.curve.is_empty())
+            && self.buses.is_empty()
+            && self.routes.iter().all(RouteSpec::is_default)
     }
 }
 
@@ -237,6 +320,20 @@ struct LiveBusSlot {
     dirty: AtomicBool,
 }
 
+struct LiveUserBusSlot {
+    bus: usize,
+    gain_l: AtomicU32,
+    gain_r: AtomicU32,
+    dirty: AtomicBool,
+}
+
+struct LiveSendSlot {
+    track: usize,
+    send: usize,
+    gain: AtomicU32,
+    dirty: AtomicBool,
+}
+
 struct LiveParamSlot {
     /// `Some(track)` for a track chain, `None` for the master chain.
     track: Option<usize>,
@@ -255,6 +352,8 @@ pub struct LiveControls {
     any_dirty: AtomicBool,
     pan_law: PanLaw,
     buses: Vec<LiveBusSlot>,
+    user_buses: Vec<LiveUserBusSlot>,
+    sends: Vec<LiveSendSlot>,
     params: Vec<LiveParamSlot>,
 }
 
@@ -267,6 +366,34 @@ impl LiveControls {
         let (gl, gr) = spec.gains(self.pan_law);
         slot.gain_l.store(gl.to_bits(), Ordering::Relaxed);
         slot.gain_r.store(gr.to_bits(), Ordering::Relaxed);
+        slot.dirty.store(true, Ordering::Relaxed);
+        self.any_dirty.store(true, Ordering::Relaxed);
+        true
+    }
+
+    /// Updates the fader, pan and phase of user bus `bus` (an index into [`FxPlan::buses`]).
+    pub fn set_user_bus_mix(&self, bus: usize, spec: TrackMixSpec) -> bool {
+        let Some(slot) = self.user_buses.iter().find(|s| s.bus == bus) else {
+            return false;
+        };
+        let (gl, gr) = spec.gains(self.pan_law);
+        slot.gain_l.store(gl.to_bits(), Ordering::Relaxed);
+        slot.gain_r.store(gr.to_bits(), Ordering::Relaxed);
+        slot.dirty.store(true, Ordering::Relaxed);
+        self.any_dirty.store(true, Ordering::Relaxed);
+        true
+    }
+
+    /// Updates the level of the `send`-th send of `track` (linear gain).
+    pub fn set_send_gain(&self, track: usize, send: usize, gain: f32) -> bool {
+        let Some(slot) = self
+            .sends
+            .iter()
+            .find(|s| s.track == track && s.send == send)
+        else {
+            return false;
+        };
+        slot.gain.store(gain.max(0.0).to_bits(), Ordering::Relaxed);
         slot.dirty.store(true, Ordering::Relaxed);
         self.any_dirty.store(true, Ordering::Relaxed);
         true
@@ -338,7 +465,42 @@ struct ParamAutoSlot {
     curve: AutomationCurve,
 }
 
+/// A send of a track's bus, as the mixer mixes it.
+struct InternalSend {
+    /// User bus it adds to.
+    bus: usize,
+    /// Level (linear).
+    gain: f32,
+    post: bool,
+    /// Left and right multipliers of a pre-fader send: the pan of the track, or the centre.
+    pan: (f32, f32),
+}
+
+/// Where the sound of a track's bus goes.
+#[derive(Default)]
+struct InternalRoute {
+    /// A user bus, or `None` for the master.
+    target: Option<usize>,
+    sends: Vec<InternalSend>,
+}
+
+/// A user bus inside the mixer.
+struct UserBus {
+    chain: Vec<Box<dyn AudioEffect>>,
+    /// Left and right multipliers after the effects (fader, pan, phase).
+    gain: (f32, f32),
+    /// Where it goes: another user bus (processed later) or the master.
+    target: Option<usize>,
+    l: Vec<f32>,
+    r: Vec<f32>,
+}
+
 pub struct BlockMixer {
+    /// Where the sound of every bus of the tracks goes (entry 0, the dry bus, goes to the master).
+    routes: Vec<InternalRoute>,
+    /// The user buses and the order they are processed in.
+    ubuses: Vec<UserBus>,
+    ubus_order: Vec<usize>,
     clips: Vec<MixClip>,
     /// Bus of every clip (0 is the dry bus).
     clip_bus: Vec<usize>,
@@ -421,6 +583,9 @@ impl BlockMixer {
             .max(max_param_track)
             .max(max_clip_track);
         let mut bus_of_track = Vec::with_capacity(track_count);
+        let mut routes: Vec<InternalRoute> = vec![InternalRoute::default()];
+        let mut live_sends: Vec<LiveSendSlot> = Vec::new();
+        let (ubus_order, ubus_target) = bus_order(&plan.buses);
         let mut live_buses = Vec::new();
         let mut live_params = Vec::new();
         for t in 0..track_count {
@@ -467,6 +632,16 @@ impl BlockMixer {
                 .iter()
                 .any(|p| p.track == Some(t) && !p.curve.is_empty());
             let mix = plan.mix.get(t).copied().unwrap_or_default();
+            let route = plan.routes.get(t).cloned().unwrap_or_default();
+            // A bus that does not exist is read as the master
+            let route_output = route.output.filter(|&b| b < plan.buses.len());
+            let route_sends: Vec<SendSpec> = route
+                .sends
+                .iter()
+                .filter(|s| s.bus < plan.buses.len())
+                .copied()
+                .collect();
+            let default_route = route_output.is_none() && route_sends.is_empty();
             let has_clips = clips.iter().any(|c| c.track == t);
             let plain = chain.is_empty()
                 && curve.is_none()
@@ -474,7 +649,8 @@ impl BlockMixer {
                 && !is_rt_controller
                 && vol_curve.is_none()
                 && pan_curve.is_none()
-                && !has_param_auto;
+                && !has_param_auto
+                && default_route;
             if (!live_mode && plain && mix.is_neutral()) || (live_mode && !has_clips && plain) {
                 bus_of_track.push(0);
             } else {
@@ -527,6 +703,30 @@ impl BlockMixer {
                 ducks.push(curve);
                 bus_mix.push((gl, gr));
                 bus_mix_auto.push(mix_auto);
+                let centre = plan.pan_law.gains(0.0);
+                let own_pan = plan.pan_law.gains(mix.pan);
+                if live_mode {
+                    for (send_index, send) in route_sends.iter().enumerate() {
+                        live_sends.push(LiveSendSlot {
+                            track: t,
+                            send: send_index,
+                            gain: AtomicU32::new(send.gain.to_bits()),
+                            dirty: AtomicBool::new(false),
+                        });
+                    }
+                }
+                routes.push(InternalRoute {
+                    target: route_output,
+                    sends: route_sends
+                        .iter()
+                        .map(|send| InternalSend {
+                            bus: send.bus,
+                            gain: send.gain,
+                            post: send.post,
+                            pan: if send.link_pan { own_pan } else { centre },
+                        })
+                        .collect(),
+                });
             }
         }
         let mut realtime_ducks = Vec::new();
@@ -591,7 +791,41 @@ impl BlockMixer {
             .collect();
         let latency =
             |chain: &[Box<dyn AudioEffect>]| chain.iter().map(|e| e.latency()).sum::<usize>();
-        let bus_latency: Vec<usize> = chains.iter().map(|c| latency(c)).collect();
+        let mut live_user_buses = Vec::new();
+        let ubuses: Vec<UserBus> = plan
+            .buses
+            .iter()
+            .enumerate()
+            .map(|(i, spec)| {
+                let (gl, gr) = spec.mix.gains(plan.pan_law);
+                if live_mode {
+                    live_user_buses.push(LiveUserBusSlot {
+                        bus: i,
+                        gain_l: AtomicU32::new(gl.to_bits()),
+                        gain_r: AtomicU32::new(gr.to_bits()),
+                        dirty: AtomicBool::new(false),
+                    });
+                }
+                UserBus {
+                    chain: build_chain(&spec.chain, sample_rate),
+                    gain: (gl, gr),
+                    target: ubus_target[i],
+                    l: vec![0.0; MAX_BLOCK],
+                    r: vec![0.0; MAX_BLOCK],
+                }
+            })
+            .collect();
+        // Latency from a user bus to the master: its own effects plus the buses it goes through
+        let mut route_latency = vec![0usize; ubuses.len()];
+        for &i in ubus_order.iter().rev() {
+            route_latency[i] =
+                latency(&ubuses[i].chain) + ubuses[i].target.map_or(0, |t| route_latency[t]);
+        }
+        let bus_latency: Vec<usize> = chains
+            .iter()
+            .zip(&routes)
+            .map(|(c, r)| latency(c) + r.target.map_or(0, |t| route_latency[t]))
+            .collect();
         let slowest = bus_latency.iter().copied().max().unwrap_or(0);
         let delays = bus_latency
             .iter()
@@ -631,6 +865,8 @@ impl BlockMixer {
                 any_dirty: AtomicBool::new(false),
                 pan_law: plan.pan_law,
                 buses: live_buses,
+                user_buses: live_user_buses,
+                sends: live_sends,
                 params: live_params,
             })
         });
@@ -659,9 +895,22 @@ impl BlockMixer {
                 block_t1: 0.0,
                 block_has_time: false,
                 live: live.clone(),
+                routes,
+                ubuses,
+                ubus_order,
             },
             live,
         )
+    }
+
+    /// The internal bus that holds the sends of `track`, if it has any.
+    fn send_owner(&self, track: usize) -> Option<usize> {
+        self.live
+            .as_ref()?
+            .buses
+            .iter()
+            .find(|s| s.track == track)
+            .map(|s| s.bus)
     }
 
     /// End of the last clip, seconds.
@@ -699,6 +948,10 @@ impl BlockMixer {
         for bus in self.bus_l.iter_mut().chain(self.bus_r.iter_mut()) {
             bus[..n].fill(0.0);
         }
+        for ubus in &mut self.ubuses {
+            ubus.l[..n].fill(0.0);
+            ubus.r[..n].fill(0.0);
+        }
         let Some(live) = &self.live else {
             return;
         };
@@ -711,6 +964,26 @@ impl BlockMixer {
                 let gr = f32::from_bits(slot.gain_r.load(Ordering::Relaxed));
                 if let Some(entry) = self.bus_mix.get_mut(slot.bus) {
                     *entry = (gl, gr);
+                }
+            }
+        }
+        for slot in &live.user_buses {
+            if slot.dirty.swap(false, Ordering::Relaxed) {
+                let gl = f32::from_bits(slot.gain_l.load(Ordering::Relaxed));
+                let gr = f32::from_bits(slot.gain_r.load(Ordering::Relaxed));
+                if let Some(ubus) = self.ubuses.get_mut(slot.bus) {
+                    ubus.gain = (gl, gr);
+                }
+            }
+        }
+        for slot in &live.sends {
+            if slot.dirty.swap(false, Ordering::Relaxed) {
+                let gain = f32::from_bits(slot.gain.load(Ordering::Relaxed));
+                // The track's bus is the one that has this track's sends
+                if let Some(bus) = self.send_owner(slot.track) {
+                    if let Some(send) = self.routes[bus].sends.get_mut(slot.send) {
+                        send.gain = gain;
+                    }
                 }
             }
         }
@@ -779,6 +1052,14 @@ impl BlockMixer {
                 effect.process(&mut [&mut *l, &mut *r]);
             }
             self.delays[bus].process(l, r);
+            // Pre-fader sends: a copy of the sound after the effects, whatever the fader says
+            for send in self.routes[bus].sends.iter().filter(|s| !s.post) {
+                let ubus = &mut self.ubuses[send.bus];
+                for i in 0..n {
+                    ubus.l[i] += l[i] * send.gain * send.pan.0;
+                    ubus.r[i] += r[i] * send.gain * send.pan.1;
+                }
+            }
             if let Some(auto_mix) = self
                 .bus_mix_auto
                 .get(bus)
@@ -802,6 +1083,14 @@ impl BlockMixer {
                     }
                 }
             }
+            // Post-fader sends follow the fader (and the pan already in the sound)
+            for send in self.routes[bus].sends.iter().filter(|s| s.post) {
+                let ubus = &mut self.ubuses[send.bus];
+                for i in 0..n {
+                    ubus.l[i] += l[i] * send.gain;
+                    ubus.r[i] += r[i] * send.gain;
+                }
+            }
         }
         for slot in &mut self.realtime_ducks {
             for i in 0..n {
@@ -815,13 +1104,57 @@ impl BlockMixer {
                 self.bus_r[slot.target_bus][i] *= g;
             }
         }
-        self.out_l[..n].copy_from_slice(&self.bus_l[0][..n]);
-        self.out_r[..n].copy_from_slice(&self.bus_r[0][..n]);
-        for bus in 1..self.chains.len() {
-            for i in 0..n {
-                self.out_l[i] += self.bus_l[bus][i];
-                self.out_r[i] += self.bus_r[bus][i];
+        self.out_l[..n].fill(0.0);
+        self.out_r[..n].fill(0.0);
+        // The buses of the tracks go to the master or to a user bus
+        for bus in 0..self.chains.len() {
+            match self.routes[bus].target {
+                None => {
+                    for i in 0..n {
+                        self.out_l[i] += self.bus_l[bus][i];
+                        self.out_r[i] += self.bus_r[bus][i];
+                    }
+                }
+                Some(j) => {
+                    let ubus = &mut self.ubuses[j];
+                    for i in 0..n {
+                        ubus.l[i] += self.bus_l[bus][i];
+                        ubus.r[i] += self.bus_r[bus][i];
+                    }
+                }
             }
+        }
+        // The user buses, each after the ones that feed it
+        for oi in 0..self.ubus_order.len() {
+            let j = self.ubus_order[oi];
+            let (mut l, mut r) = (
+                std::mem::take(&mut self.ubuses[j].l),
+                std::mem::take(&mut self.ubuses[j].r),
+            );
+            for effect in self.ubuses[j].chain.iter_mut() {
+                effect.process(&mut [&mut l[..n], &mut r[..n]]);
+            }
+            let (gl, gr) = self.ubuses[j].gain;
+            for i in 0..n {
+                l[i] *= gl;
+                r[i] *= gr;
+            }
+            match self.ubuses[j].target {
+                None => {
+                    for i in 0..n {
+                        self.out_l[i] += l[i];
+                        self.out_r[i] += r[i];
+                    }
+                }
+                Some(k) => {
+                    for i in 0..n {
+                        self.ubuses[k].l[i] += l[i];
+                        self.ubuses[k].r[i] += r[i];
+                    }
+                }
+            }
+            self.ubuses[j].l = l;
+            self.ubuses[j].r = r;
         }
         for effect in self.master.iter_mut() {
             effect.process(&mut [&mut self.out_l[..n], &mut self.out_r[..n]]);
@@ -1455,5 +1788,202 @@ mod tests {
 
         // Live parameter update works on the dynamic CLAP parameter ID `"1"`.
         assert!(live.set_param(Some(0), 0, "1", 3.0));
+    }
+
+    // ---- buses and sends ---------------------------------------------------------------------
+
+    fn fader(gain: f32) -> TrackMixSpec {
+        TrackMixSpec {
+            gain,
+            ..Default::default()
+        }
+    }
+
+    fn bus(gain: f32, output: Option<usize>) -> BusSpec {
+        BusSpec {
+            chain: Vec::new(),
+            mix: fader(gain),
+            output,
+        }
+    }
+
+    fn to(output: Option<usize>, sends: Vec<SendSpec>) -> RouteSpec {
+        RouteSpec { output, sends }
+    }
+
+    fn level(plan: FxPlan, clips: Vec<MixClip>) -> f32 {
+        let mut mixer = BlockMixer::new(clips, &plan, RATE as f32);
+        let (l, r) = render(&mut mixer, 2400, 512);
+        // Settled value: both channels agree and are constant after the start
+        assert!((l[2000] - r[2000]).abs() < 1e-6);
+        l[2000]
+    }
+
+    #[test]
+    fn a_track_sent_to_a_bus_is_heard_through_the_fader_of_the_bus() {
+        let plan = FxPlan {
+            buses: vec![bus(0.5, None)],
+            routes: vec![to(Some(0), vec![])],
+            ..Default::default()
+        };
+        assert!((level(plan, vec![constant(0, 0.4, 0.5)]) - 0.2).abs() < 1e-6);
+        // Without the route it is the plain track
+        assert!((level(FxPlan::default(), vec![constant(0, 0.4, 0.5)]) - 0.4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn two_tracks_on_one_bus_share_its_fader_and_a_track_off_it_does_not() {
+        let plan = FxPlan {
+            buses: vec![bus(0.5, None)],
+            routes: vec![
+                to(Some(0), vec![]),
+                to(Some(0), vec![]),
+                RouteSpec::default(),
+            ],
+            ..Default::default()
+        };
+        let clips = vec![
+            constant(0, 0.2, 0.5),
+            constant(1, 0.2, 0.5),
+            constant(2, 0.1, 0.5),
+        ];
+        // (0.2 + 0.2) * 0.5 + 0.1
+        assert!((level(plan, clips) - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_bus_can_go_through_another_bus_to_the_master() {
+        // Bus 0 goes to bus 1, which goes to the master; each takes half
+        let plan = FxPlan {
+            buses: vec![bus(0.5, Some(1)), bus(0.5, None)],
+            routes: vec![to(Some(0), vec![])],
+            ..Default::default()
+        };
+        assert!((level(plan, vec![constant(0, 0.8, 0.5)]) - 0.2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_pre_fader_send_ignores_the_fader_and_a_post_fader_send_follows_it() {
+        let send = |post| SendSpec {
+            bus: 0,
+            gain: 1.0,
+            post,
+            link_pan: false,
+        };
+        // The track's own fader is down to 0.25 and it goes to the master; the bus is at unity
+        let make = |post| FxPlan {
+            mix: vec![fader(0.25)],
+            buses: vec![bus(1.0, None)],
+            routes: vec![to(None, vec![send(post)])],
+            ..Default::default()
+        };
+        // Main path 0.25 * 0.8 = 0.2, plus the send: pre 0.8, post 0.25 * 0.8 = 0.2
+        let clips = || vec![constant(0, 0.8, 0.5)];
+        assert!((level(make(false), clips()) - (0.2 + 0.8)).abs() < 1e-6);
+        assert!((level(make(true), clips()) - (0.2 + 0.2)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_send_carries_its_own_level_and_a_track_can_go_only_to_the_bus() {
+        let plan = FxPlan {
+            buses: vec![bus(1.0, None)],
+            routes: vec![to(
+                Some(0),
+                vec![SendSpec {
+                    bus: 0,
+                    gain: 0.5,
+                    post: false,
+                    link_pan: false,
+                }],
+            )],
+            ..Default::default()
+        };
+        // Output to the bus (0.6) and the send at half level into the same bus (0.3)
+        assert!((level(plan, vec![constant(0, 0.6, 0.5)]) - 0.9).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_loop_of_buses_in_a_damaged_plan_cannot_hang_the_mixer_and_a_missing_bus_is_the_master() {
+        let looped = FxPlan {
+            buses: vec![bus(1.0, Some(1)), bus(1.0, Some(0))],
+            routes: vec![to(Some(0), vec![])],
+            ..Default::default()
+        };
+        let v = level(looped, vec![constant(0, 0.5, 0.5)]);
+        assert!(v.is_finite() && v > 0.0, "the sound still comes out: {v}");
+        // A route to a bus that is not in the plan reads as the master
+        let missing = FxPlan {
+            routes: vec![to(
+                Some(7),
+                vec![SendSpec {
+                    bus: 9,
+                    gain: 1.0,
+                    post: false,
+                    link_pan: false,
+                }],
+            )],
+            ..Default::default()
+        };
+        assert!((level(missing, vec![constant(0, 0.5, 0.5)]) - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_effects_of_a_bus_work_on_what_it_sums_and_its_latency_is_compensated() {
+        use crate::dsp::effects::create_effect;
+        let limiter_latency = create_effect("limiter", RATE as f32, 2).map_or(0, |e| e.latency());
+        if limiter_latency == 0 {
+            return;
+        }
+        let through_bus = FxPlan {
+            buses: vec![BusSpec {
+                chain: vec![spec("limiter", &[])],
+                mix: fader(1.0),
+                output: None,
+            }],
+            routes: vec![to(Some(0), vec![]), RouteSpec::default()],
+            ..Default::default()
+        };
+        let mixer = BlockMixer::new(
+            vec![constant(0, 0.2, 0.5), constant(1, 0.2, 0.5)],
+            &through_bus,
+            RATE as f32,
+        );
+        // The mix lags by the limiter's latency, and the track that skips the bus is delayed to match
+        assert_eq!(mixer.lead_frames(), limiter_latency);
+        let direct = BlockMixer::new(
+            vec![constant(0, 0.2, 0.5), constant(1, 0.2, 0.5)],
+            &FxPlan::default(),
+            RATE as f32,
+        );
+        assert_eq!(direct.lead_frames(), 0);
+    }
+
+    #[test]
+    fn live_controls_change_a_bus_fader_and_a_send_level_during_playback() {
+        let plan = FxPlan {
+            buses: vec![bus(1.0, None)],
+            routes: vec![to(
+                None,
+                vec![SendSpec {
+                    bus: 0,
+                    gain: 1.0,
+                    post: false,
+                    link_pan: false,
+                }],
+            )],
+            ..Default::default()
+        };
+        let (mut mixer, live) =
+            BlockMixer::with_live_controls(vec![constant(0, 0.5, 0.5)], &plan, RATE as f32);
+        // Main 0.5 plus the send 0.5
+        let (l, _) = render(&mut mixer, 1200, 512);
+        assert!((l[1000] - 1.0).abs() < 1e-6);
+        assert!(live.set_user_bus_mix(0, fader(0.5)));
+        assert!(live.set_send_gain(0, 0, 0.5));
+        assert!(!live.set_user_bus_mix(5, fader(1.0)), "no such bus");
+        assert!(!live.set_send_gain(0, 3, 1.0), "no such send");
+        let (l, _) = render(&mut mixer, 1200, 512);
+        // Main 0.5 plus the send 0.5 * 0.5 (level) * 0.5 (bus fader)
+        assert!((l[1000] - 0.625).abs() < 1e-6, "{}", l[1000]);
     }
 }

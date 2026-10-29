@@ -4,8 +4,8 @@ use crate::captions::Caption;
 use crate::envelope::TrackEnvelope;
 use crate::markers::Marks;
 use crate::timeline::{
-    EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect, TrackEvent, TrackId,
-    TrackMix, TIME_EPSILON,
+    AudioBus, BusId, BusOutput, EventGeometry, EventId, Timeline, Track, TrackDucking, TrackEffect,
+    TrackEvent, TrackId, TrackMix, TrackSend, TIME_EPSILON,
 };
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::fade::FadeCurve;
@@ -17,6 +17,8 @@ use neoveg_common::pan_crop::PanCrop;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FxTarget {
     Track(TrackId),
+    /// An audio bus (its effect chain).
+    Bus(BusId),
     Master,
 }
 
@@ -42,6 +44,48 @@ pub struct TrackChange {
     pub track_id: TrackId,
     pub before: Vec<TrackEvent>,
     pub after: Vec<TrackEvent>,
+}
+
+/// Where an audio track sends its sound: its output and its sends.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Route {
+    pub output: BusOutput,
+    pub sends: Vec<TrackSend>,
+}
+
+/// One change of routing, kept both ways so it can be undone.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RouteChange {
+    Track {
+        id: TrackId,
+        before: Route,
+        after: Route,
+    },
+    Bus {
+        id: BusId,
+        before: BusOutput,
+        after: BusOutput,
+    },
+}
+
+impl RouteChange {
+    fn apply(&self, tl: &mut Timeline, forward: bool) {
+        match self {
+            RouteChange::Track { id, before, after } => {
+                let route = if forward { after } else { before };
+                if let Some(t) = tl.track_mut(*id) {
+                    t.output = route.output;
+                    t.sends = route.sends.clone();
+                }
+            }
+            RouteChange::Bus { id, before, after } => {
+                let output = if forward { after } else { before };
+                if let Some(b) = tl.buses.iter_mut().find(|b| b.id == *id) {
+                    b.output = *output;
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -184,6 +228,27 @@ pub enum EditCommand {
         before: Option<TrackDucking>,
         after: Option<TrackDucking>,
     },
+    /// A new audio bus at `index` of the list.
+    AddBus {
+        bus: AudioBus,
+        index: usize,
+    },
+    /// Removes the audio bus; what pointed at it is rerouted by `routes` (`after` applies, `before`
+    /// restores).
+    RemoveBus {
+        bus: AudioBus,
+        index: usize,
+        routes: Vec<RouteChange>,
+    },
+    /// Any change to one bus: its name, fader, effects or output.
+    SetBus {
+        before: AudioBus,
+        after: AudioBus,
+    },
+    /// Changes of where tracks and buses send their sound (outputs and sends), as one undo step.
+    SetRouting {
+        changes: Vec<RouteChange>,
+    },
     /// Any change to automation envelopes on a track or on the master bus: one undo step.
     SetEnvelopes {
         target: FxTarget,
@@ -291,6 +356,37 @@ impl EditCommand {
             } => set_track_mix(tl, *track_id, *after),
             Self::SetPanLaw { after, .. } => {
                 tl.pan_law = *after;
+                true
+            }
+            Self::AddBus { bus, index } => {
+                if tl.buses.iter().any(|b| b.id == bus.id) {
+                    return false;
+                }
+                let at = (*index).min(tl.buses.len());
+                tl.buses.insert(at, bus.clone());
+                true
+            }
+            Self::RemoveBus { bus, routes, .. } => {
+                let Some(at) = tl.buses.iter().position(|b| b.id == bus.id) else {
+                    return false;
+                };
+                tl.buses.remove(at);
+                for change in routes {
+                    change.apply(tl, true);
+                }
+                true
+            }
+            Self::SetBus { after, .. } => match tl.buses.iter_mut().find(|b| b.id == after.id) {
+                Some(slot) => {
+                    *slot = after.clone();
+                    true
+                }
+                None => false,
+            },
+            Self::SetRouting { changes } => {
+                for change in changes {
+                    change.apply(tl, true);
+                }
                 true
             }
             Self::SetVideoGrade { after, .. } => {
@@ -459,6 +555,26 @@ impl EditCommand {
                 set_track_mix(tl, *track_id, *before);
             }
             Self::SetPanLaw { before, .. } => tl.pan_law = *before,
+            Self::AddBus { bus, .. } => tl.buses.retain(|b| b.id != bus.id),
+            Self::RemoveBus {
+                bus, index, routes, ..
+            } => {
+                let at = (*index).min(tl.buses.len());
+                tl.buses.insert(at, bus.clone());
+                for change in routes {
+                    change.apply(tl, false);
+                }
+            }
+            Self::SetBus { before, .. } => {
+                if let Some(slot) = tl.buses.iter_mut().find(|b| b.id == before.id) {
+                    *slot = before.clone();
+                }
+            }
+            Self::SetRouting { changes } => {
+                for change in changes.iter().rev() {
+                    change.apply(tl, false);
+                }
+            }
             Self::SetVideoGrade { before, .. } => tl.video_grade = before.sanitized(),
             Self::SetChromaKey { before, .. } => tl.chroma_key = before.sanitized(),
             Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
@@ -557,6 +673,8 @@ fn set_ducking(tl: &mut Timeline, track_id: TrackId, ducking: &Option<TrackDucki
 
 fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope]) -> bool {
     match target {
+        // A bus has no automation envelopes
+        FxTarget::Bus(_) => false,
         FxTarget::Master => {
             tl.master_envelopes = envelopes.to_vec();
             true
@@ -663,6 +781,13 @@ fn set_video_effects(tl: &mut Timeline, target: VideoFxTarget, chain: &[TrackEff
 
 fn set_effects(tl: &mut Timeline, target: FxTarget, chain: &[TrackEffect]) -> bool {
     match target {
+        FxTarget::Bus(id) => match tl.buses.iter_mut().find(|b| b.id == id) {
+            Some(b) => {
+                b.effects = chain.to_vec();
+                true
+            }
+            None => false,
+        },
         FxTarget::Master => {
             tl.master_effects = chain.to_vec();
             true

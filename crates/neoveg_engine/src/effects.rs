@@ -15,6 +15,11 @@ pub fn chain(timeline: &Timeline, target: FxTarget) -> Option<&[TrackEffect]> {
     match target {
         FxTarget::Master => Some(&timeline.master_effects),
         FxTarget::Track(id) => timeline.track(id).map(|t| t.effects.as_slice()),
+        FxTarget::Bus(id) => timeline
+            .buses
+            .iter()
+            .find(|b| b.id == id)
+            .map(|b| b.effects.as_slice()),
     }
 }
 

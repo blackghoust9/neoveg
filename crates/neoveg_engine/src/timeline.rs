@@ -314,6 +314,59 @@ fn default_fade_s() -> f32 {
 }
 
 /// The mixer controls of a track: mute, solo, fader, pan and phase invert.
+/// Id of an audio bus (from the same counter as track and event ids).
+pub type BusId = u64;
+
+/// Where a track or a bus sends its sound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum BusOutput {
+    /// The master bus.
+    #[default]
+    Master,
+    /// Another audio bus.
+    Bus(BusId),
+}
+
+impl BusOutput {
+    pub fn is_master(&self) -> bool {
+        *self == BusOutput::Master
+    }
+}
+
+/// A send from a track to a bus: a copy of the track's sound, at `level_db`, added to the bus.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TrackSend {
+    pub bus: BusId,
+    /// Level of the send in dB (`-60` and below is silence, `0` unity).
+    pub level_db: f32,
+    /// Taken after the track's fader (follows it) instead of before it (independent of it, which is
+    /// what a cue mix needs; the default).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub post_volume: bool,
+    /// The send keeps the pan of the track instead of a centred stereo signal.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub link_pan: bool,
+}
+
+/// An audio bus: a channel that tracks (and other buses) send their sound to, with its own effects
+/// and fader, before it goes on to the master bus or another bus (manual v21 p.869-873).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioBus {
+    pub id: BusId,
+    /// A name chosen by the user; empty keeps the default one, the letter of its place (A, B, ...).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// Fader, pan, mute and phase of the bus, after its effects.
+    #[serde(default)]
+    pub mix: TrackMix,
+    /// Where the bus goes.
+    #[serde(default, skip_serializing_if = "BusOutput::is_master")]
+    pub output: BusOutput,
+    /// Effect chain of the bus (up to the same limit as a track's).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<TrackEffect>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TrackMix {
@@ -444,6 +497,12 @@ pub struct Track {
     /// seconds (older projects leave the layer where it is).
     #[serde(default, skip_serializing_if = "PanCrop::is_default")]
     pub motion: PanCrop,
+    /// Where an audio track sends its sound: the master bus, or an audio bus (older projects: master).
+    #[serde(default, skip_serializing_if = "BusOutput::is_master")]
+    pub output: BusOutput,
+    /// Sends of an audio track to buses, besides its output (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sends: Vec<TrackSend>,
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -503,6 +562,9 @@ pub struct Timeline {
     /// Automation envelopes for master bus effect parameters (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub master_envelopes: Vec<TrackEnvelope>,
+    /// Audio buses, in the order of their letters (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buses: Vec<AudioBus>,
     /// How the pan controls of the tracks turn into left / right gains.
     #[serde(default, skip_serializing_if = "is_default_law")]
     pub pan_law: PanLaw,
@@ -578,6 +640,8 @@ impl Timeline {
             video_effects: Vec::new(),
             fade_color: [0, 0, 0],
             motion: PanCrop::default(),
+            output: BusOutput::Master,
+            sends: Vec::new(),
         }
     }
 

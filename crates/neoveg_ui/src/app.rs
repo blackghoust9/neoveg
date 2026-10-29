@@ -1734,6 +1734,198 @@ impl AppState {
         self.report_paste(result);
     }
 
+    /// *Inserir barramento de áudio*: the next bus (up to 26), shown in the effects panel.
+    fn add_audio_bus(&mut self) {
+        let id = self.timeline.alloc_id();
+        let Some(command) = neoveg_engine::buses::add_bus(&self.timeline, id) else {
+            self.status = "O projeto já tem os 26 barramentos".into();
+            return;
+        };
+        if self.history.execute(&mut self.timeline, command) {
+            self.fx.master = false;
+            self.fx.bus = Some(id);
+            self.restart_audio_if_playing();
+            self.status = format!(
+                "{} inserido: escolha-o como saída de uma faixa ou use um send",
+                neoveg_engine::buses::label(&self.timeline, id)
+            );
+        }
+    }
+
+    /// Runs what the user did on a bus strip. Faders and pan follow live; the rest is one undo step.
+    fn apply_bus_actions(&mut self, actions: Vec<crate::buses_panel::BusAction>) {
+        use crate::buses_panel::BusAction;
+        for action in actions {
+            let command = match action {
+                BusAction::Draft(id, db, pan) => {
+                    self.fx.bus_mix_draft = Some((id, db, pan));
+                    self.push_bus_mix_live(id, db, pan);
+                    None
+                }
+                BusAction::Mix(id, db, pan) => {
+                    self.fx.bus_mix_draft = None;
+                    self.timeline
+                        .buses
+                        .iter()
+                        .find(|b| b.id == id)
+                        .and_then(|b| {
+                            let mut after = b.clone();
+                            after.mix.volume_db = db;
+                            after.mix.pan = pan;
+                            neoveg_engine::buses::set_bus(&self.timeline, after)
+                        })
+                }
+                BusAction::Rename(id, name) => self
+                    .timeline
+                    .buses
+                    .iter()
+                    .find(|b| b.id == id)
+                    .and_then(|b| {
+                        let mut after = b.clone();
+                        after.name = name;
+                        neoveg_engine::buses::set_bus(&self.timeline, after)
+                    }),
+                BusAction::Mute(id, on) => self
+                    .timeline
+                    .buses
+                    .iter()
+                    .find(|b| b.id == id)
+                    .and_then(|b| {
+                        let mut after = b.clone();
+                        after.mix.muted = on;
+                        neoveg_engine::buses::set_bus(&self.timeline, after)
+                    }),
+                BusAction::Phase(id, on) => self
+                    .timeline
+                    .buses
+                    .iter()
+                    .find(|b| b.id == id)
+                    .and_then(|b| {
+                        let mut after = b.clone();
+                        after.mix.invert_phase = on;
+                        neoveg_engine::buses::set_bus(&self.timeline, after)
+                    }),
+                BusAction::Output(id, output) => self
+                    .timeline
+                    .buses
+                    .iter()
+                    .find(|b| b.id == id)
+                    .and_then(|b| {
+                        let mut after = b.clone();
+                        after.output = output;
+                        neoveg_engine::buses::set_bus(&self.timeline, after)
+                    }),
+                BusAction::Remove(id) => {
+                    if self.fx.bus == Some(id) {
+                        self.fx.bus = None;
+                    }
+                    neoveg_engine::buses::remove_bus(&self.timeline, id)
+                }
+            };
+            if let Some(command) = command {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.mixing_changed();
+                }
+            }
+        }
+    }
+
+    /// Runs what the user did on the routing of audio track `track_id`.
+    fn apply_route_actions(
+        &mut self,
+        track_id: TrackId,
+        actions: Vec<crate::buses_panel::RouteAction>,
+    ) {
+        use crate::buses_panel::RouteAction;
+        for action in actions {
+            let Some(track) = self.timeline.track(track_id).cloned() else {
+                return;
+            };
+            let (mut output, mut sends) = (track.output, track.sends.clone());
+            match action {
+                RouteAction::Output(to) => output = to,
+                RouteAction::AddSend(bus) => sends.push(crate::buses_panel::new_send(bus)),
+                RouteAction::RemoveSend(bus) => sends.retain(|s| s.bus != bus),
+                RouteAction::SendDraft(bus, db) => {
+                    self.push_send_live(track_id, bus, db);
+                    continue;
+                }
+                RouteAction::SendLevel(bus, db) => {
+                    if let Some(s) = sends.iter_mut().find(|s| s.bus == bus) {
+                        s.level_db = db;
+                    }
+                }
+                RouteAction::SendPost(bus, on) => {
+                    if let Some(s) = sends.iter_mut().find(|s| s.bus == bus) {
+                        s.post_volume = on;
+                    }
+                }
+                RouteAction::SendLinkPan(bus, on) => {
+                    if let Some(s) = sends.iter_mut().find(|s| s.bus == bus) {
+                        s.link_pan = on;
+                    }
+                }
+            }
+            if let Some(command) =
+                neoveg_engine::buses::set_track_route(&self.timeline, track_id, output, sends)
+            {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.mixing_changed();
+                }
+            }
+        }
+    }
+
+    /// The routing or a bus changed: the mixer is rebuilt at the cursor when playing.
+    fn mixing_changed(&mut self) {
+        self.restart_audio_if_playing();
+    }
+
+    /// Sends a bus fader / pan to the player while it is being dragged (`db`, `pan`).
+    fn push_bus_mix_live(&self, id: neoveg_engine::BusId, db: f32, pan: f32) {
+        let (Some(active), Some(index)) = (
+            &self.active_player,
+            self.timeline.buses.iter().position(|b| b.id == id),
+        ) else {
+            return;
+        };
+        let muted = self.timeline.buses[index].mix.muted;
+        let invert = self.timeline.buses[index].mix.invert_phase;
+        let mix = neoveg_engine::TrackMix {
+            volume_db: db,
+            pan,
+            ..Default::default()
+        };
+        active.player.set_user_bus_mix(
+            index,
+            neoveg_audio::fxmixer::TrackMixSpec {
+                gain: if muted { 0.0 } else { mix.gain() },
+                pan,
+                invert,
+            },
+        );
+    }
+
+    /// Sends the level of a send to the player while it is being dragged.
+    fn push_send_live(&self, track_id: TrackId, bus: neoveg_engine::BusId, db: f32) {
+        let Some(active) = &self.active_player else {
+            return;
+        };
+        let Some(track_index) = self.timeline.tracks.iter().position(|t| t.id == track_id) else {
+            return;
+        };
+        let Some(send_index) = self.timeline.tracks[track_index]
+            .sends
+            .iter()
+            .position(|s| s.bus == bus)
+        else {
+            return;
+        };
+        active
+            .player
+            .set_send_gain(track_index, send_index, crate::fx_panel::send_gain(db));
+    }
+
     /// *Inserir evento de ajuste*: an empty event on the selected video track at the cursor; the video
     /// tracks below it take its effects. It is selected so the effects panel shows its chain.
     fn insert_adjustment_event(&mut self) {
@@ -4638,6 +4830,16 @@ impl AppState {
         if self.fx.master {
             return Some((FxTarget::Master, "barramento master".into()));
         }
+        if let Some(id) = self
+            .fx
+            .bus
+            .filter(|id| self.timeline.buses.iter().any(|b| b.id == *id))
+        {
+            return Some((
+                FxTarget::Bus(id),
+                neoveg_engine::buses::label(&self.timeline, id),
+            ));
+        }
         let track = self.timeline.track(self.selected_track?)?;
         (track.kind == TrackKind::Audio).then(|| (FxTarget::Track(track.id), track.name.clone()))
     }
@@ -4942,7 +5144,7 @@ impl AppState {
                             fx::set_duck_param(&self.timeline, id, param, value)
                         }
                     },
-                    FxTarget::Master => None,
+                    FxTarget::Master | FxTarget::Bus(_) => None,
                 },
                 FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
                 FxAction::AddClap(kind) => fx::add_effect(&self.timeline, target, &kind),
@@ -5444,6 +5646,7 @@ impl AppState {
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
             Command::InsertAdjustmentEvent => self.insert_adjustment_event(),
+            Command::InsertAudioBus => self.add_audio_bus(),
             Command::CursorLeftByFrame if self.trim_edge.is_some() => {
                 self.nudge_trim_edge(-1.0, None)
             }
@@ -6429,6 +6632,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
+            command_item(state, ui, Command::InsertAudioBus);
             if ui.button("Inserir mídia gerada…").clicked() {
                 state.generator_dialog.open = true;
                 ui.close_menu();
@@ -8919,14 +9123,61 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
     }
 }
 
+/// Which chain the effects tab edits: the selected track's, one audio bus's or the master's.
+fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
+    ui.horizontal(|ui| {
+        let on_track = !state.fx.master && state.fx.bus.is_none();
+        if ui.selectable_label(on_track, "Faixa").clicked() {
+            state.fx.master = false;
+            state.fx.bus = None;
+        }
+        let current = state
+            .fx
+            .bus
+            .filter(|id| state.timeline.buses.iter().any(|b| b.id == *id));
+        let selected = current.map_or_else(
+            || "Barramento".to_owned(),
+            |id| neoveg_engine::buses::label(&state.timeline, id),
+        );
+        egui::ComboBox::from_id_salt("fx_bus_pick")
+            .selected_text(selected)
+            .width(120.0)
+            .show_ui(ui, |ui| {
+                let list: Vec<(neoveg_engine::BusId, String)> = state
+                    .timeline
+                    .buses
+                    .iter()
+                    .map(|b| (b.id, neoveg_engine::buses::label(&state.timeline, b.id)))
+                    .collect();
+                if list.is_empty() {
+                    ui.weak("Nenhum barramento");
+                }
+                for (id, label) in list {
+                    if ui.selectable_label(current == Some(id), label).clicked() {
+                        state.fx.master = false;
+                        state.fx.bus = Some(id);
+                    }
+                }
+            });
+        if ui.selectable_label(state.fx.master, "Master").clicked() {
+            state.fx.master = true;
+            state.fx.bus = None;
+        }
+        if ui
+            .button("+ Barramento")
+            .on_hover_text("Inserir barramento de áudio (Ctrl+Alt+B)")
+            .clicked()
+        {
+            state.add_audio_bus();
+        }
+    });
+}
+
 fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
+    fx_target_picker(state, ui);
     let (target, title) = match state.fx_target() {
         Some(found) => found,
         None => {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut state.fx.master, false, "Faixa");
-                ui.selectable_value(&mut state.fx.master, true, "Master");
-            });
             if let Some(video) = state
                 .selected_track
                 .and_then(|id| state.timeline.track(id).cloned())
@@ -8978,6 +9229,17 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
             }
             state.apply_mix_actions(id, mix_actions);
             ui.separator();
+            // Where the track goes and its sends
+            let route_actions = crate::buses_panel::route_ui(ui, &state.timeline, &track);
+            state.apply_route_actions(id, route_actions);
+            ui.separator();
+        }
+    }
+    if let FxTarget::Bus(id) = target {
+        if let Some(bus) = state.timeline.buses.iter().find(|b| b.id == id).cloned() {
+            let actions = crate::buses_panel::bus_strip(ui, &state.timeline, &bus);
+            state.apply_bus_actions(actions);
+            ui.separator();
         }
     }
     let chain = fx::chain(&state.timeline, target)
@@ -8985,7 +9247,7 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         .unwrap_or_default();
     let duck = match target {
         FxTarget::Track(id) => fx_panel::duck_view(&state.timeline, id),
-        FxTarget::Master => None,
+        FxTarget::Master | FxTarget::Bus(_) => None,
     };
     let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref());
     if let (Some(active), Some((fx_idx, param, val))) =
@@ -8993,8 +9255,9 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     {
         let track_idx = match target {
             FxTarget::Track(id) => state.timeline.tracks.iter().position(|t| t.id == id),
-            FxTarget::Master => None,
+            FxTarget::Master | FxTarget::Bus(_) => None,
         };
+        // A bus effect is not in the live table of the player: it is heard after the next restart
         if matches!(target, FxTarget::Master) || track_idx.is_some() {
             active
                 .player
@@ -13833,6 +14096,65 @@ mod tests {
         );
         assert!(s.is_dirty());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn buses_are_added_routed_renamed_and_removed_one_undo_step_each() {
+        use crate::buses_panel::{BusAction, RouteAction};
+        use neoveg_engine::{BusOutput, TrackKind};
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertAudioTrack);
+        let track = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Audio)
+            .unwrap()
+            .id;
+        // Ctrl+Alt+B (or the menu) adds a bus and shows it in the effects tab
+        run(&mut s, Command::InsertAudioBus);
+        run(&mut s, Command::InsertAudioBus);
+        assert_eq!(s.timeline.buses.len(), 2);
+        let (a, b) = (s.timeline.buses[0].id, s.timeline.buses[1].id);
+        assert_eq!(s.fx.bus, Some(b), "the new bus is the one edited");
+        assert_eq!(s.fx_target().map(|(t, _)| t), Some(FxTarget::Bus(b)));
+        // The track goes to A and sends to B
+        s.apply_route_actions(
+            track,
+            vec![
+                RouteAction::Output(BusOutput::Bus(a)),
+                RouteAction::AddSend(b),
+                RouteAction::SendLevel(b, -12.0),
+            ],
+        );
+        let t = s.timeline.track(track).unwrap();
+        assert_eq!(t.output, BusOutput::Bus(a));
+        assert_eq!(t.sends.len(), 1);
+        assert_eq!(t.sends[0].level_db, -12.0);
+        // Naming, the fader and a loop that is refused
+        s.apply_bus_actions(vec![
+            BusAction::Rename(a, "Vozes".into()),
+            BusAction::Mix(a, -3.0, 0.5),
+            BusAction::Output(a, BusOutput::Bus(b)),
+        ]);
+        assert_eq!(neoveg_engine::buses::label(&s.timeline, a), "Vozes");
+        assert_eq!(s.timeline.buses[0].mix.volume_db, -3.0);
+        assert_eq!(s.timeline.buses[0].output, BusOutput::Bus(b));
+        let before = s.history.revision();
+        s.apply_bus_actions(vec![BusAction::Output(b, BusOutput::Bus(a))]);
+        assert_eq!(s.history.revision(), before, "B -> A would close a loop");
+        // The effects of a bus are edited like those of a track
+        let chain_cmd = fx::add_effect(&s.timeline, FxTarget::Bus(b), "gain").unwrap();
+        assert!(s.history.execute(&mut s.timeline, chain_cmd));
+        assert_eq!(s.timeline.buses[1].effects.len(), 1);
+        // Removing B hands A (and the track's send) on; undo brings everything back
+        let snapshot = s.timeline.clone();
+        s.apply_bus_actions(vec![BusAction::Remove(b)]);
+        assert_eq!(s.timeline.buses.len(), 1);
+        assert_eq!(s.timeline.buses[0].output, BusOutput::Master);
+        assert!(s.timeline.track(track).unwrap().sends.is_empty());
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline, snapshot);
     }
 
     #[test]
