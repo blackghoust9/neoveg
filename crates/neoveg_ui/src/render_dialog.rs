@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use eframe::egui;
 use neoveg_audio::readout::LoudnessSnapshot;
-use neoveg_video::render::RenderFormat;
+use neoveg_video::render::{RenderEngine, RenderFormat};
 
 #[derive(Debug, Clone)]
 pub struct RenderJobStatus {
@@ -35,6 +35,7 @@ pub struct RenderLaunchRequest {
     pub height: u32,
     pub fps: f64,
     pub crf: u8,
+    pub engine: RenderEngine,
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
 }
@@ -46,6 +47,7 @@ pub struct RenderDialogState {
     pub width: u32,
     pub height: u32,
     pub crf: u8,
+    pub engine: RenderEngine,
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
     pub active_job: Option<ActiveRenderJob>,
@@ -60,6 +62,7 @@ impl Default for RenderDialogState {
             width: 1920,
             height: 1080,
             crf: 18,
+            engine: RenderEngine::Auto,
             loop_region_only: false,
             save_loudness_log: true,
             active_job: None,
@@ -121,18 +124,43 @@ impl RenderDialogState {
                     });
 
                     if self.format.has_video() {
-                        neoveg_video::render::probe_encoders_in_background();
-                        match neoveg_video::render::cached_encoder_for(self.format) {
-                            None => {
-                                ui.weak("Procurando codificadores do ffmpeg…");
-                                ui.ctx()
-                                    .request_repaint_after(std::time::Duration::from_millis(100));
-                            }
-                            Some(Ok(encoder)) => {
-                                ui.weak(format!("Codificador: {encoder}"));
-                            }
-                            Some(Err(why)) => {
-                                ui.colored_label(ui.visuals().warn_fg_color, why);
+                        ui.horizontal(|ui| {
+                            ui.label("Codificador:");
+                            egui::ComboBox::from_id_salt("render_engine_combo")
+                                .selected_text(self.engine.label())
+                                .width(380.0)
+                                .show_ui(ui, |ui| {
+                                    for candidate in RenderEngine::ALL {
+                                        ui.selectable_value(
+                                            &mut self.engine,
+                                            candidate,
+                                            candidate.label(),
+                                        );
+                                    }
+                                });
+                        });
+                        if !self.engine.can_write(self.format) {
+                            ui.colored_label(
+                                ui.visuals().warn_fg_color,
+                                "O codificador interno só escreve MP4 H.264 + AAC: escolha o FFmpeg para este formato.",
+                            );
+                        } else if self.engine.resolve(self.format) == RenderEngine::Internal {
+                            ui.weak("Codificador interno: H.264 + AAC em Rust, sem o FFmpeg.");
+                        } else {
+                            neoveg_video::render::probe_encoders_in_background();
+                            match neoveg_video::render::cached_encoder_for(self.format) {
+                                None => {
+                                    ui.weak("Procurando codificadores do ffmpeg…");
+                                    ui.ctx().request_repaint_after(
+                                        std::time::Duration::from_millis(100),
+                                    );
+                                }
+                                Some(Ok(encoder)) => {
+                                    ui.weak(format!("Codificador do FFmpeg: {encoder}"));
+                                }
+                                Some(Err(why)) => {
+                                    ui.colored_label(ui.visuals().warn_fg_color, why);
+                                }
                             }
                         }
                         ui.checkbox(
@@ -246,7 +274,9 @@ impl RenderDialogState {
                 }
 
                 ui.horizontal(|ui| {
-                    let can_start = !running && timeline_duration > 1e-3;
+                    let can_start = !running
+                        && timeline_duration > 1e-3
+                        && (!self.format.has_video() || self.engine.can_write(self.format));
                     if ui
                         .add_enabled(
                             can_start,
@@ -268,6 +298,7 @@ impl RenderDialogState {
                                 height: self.height.max(2) & !1,
                                 fps: project_fps,
                                 crf: self.crf,
+                                engine: self.engine,
                                 loop_region_only: self.loop_region_only && has_loop_region,
                                 save_loudness_log: self.save_loudness_log,
                             });

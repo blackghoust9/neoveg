@@ -12,6 +12,7 @@ pub mod info;
 pub mod lut;
 pub mod pan_crop;
 pub mod render;
+pub mod render_native;
 pub mod scopes;
 pub mod still;
 pub mod transitions;

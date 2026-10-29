@@ -18,7 +18,7 @@ use neoveg_audio::loudness_report::{
 use neoveg_audio::mixer::MixClip;
 use neoveg_engine::project_manager::Flattened;
 use neoveg_video::frame::FrameBuffer;
-use neoveg_video::render::{encode_video_with_ffmpeg, VideoEncodeSpec};
+use neoveg_video::render::{encode_video, VideoEncodeSpec};
 use neoveg_video::worker::OfflineFrameRenderer;
 
 use super::composite::{composite_request, FrameSettings, Source};
@@ -150,7 +150,8 @@ fn run(
         audio_wav: Some(&wav_path),
         output: &request.output_path,
     };
-    let result = encode_video_with_ffmpeg(
+    let result = encode_video(
+        request.engine,
         &spec,
         cancel,
         |done, _| {
@@ -286,6 +287,7 @@ mod tests {
                 height: 360,
                 fps: 25.0,
                 crf: 18,
+                engine: Default::default(),
                 loop_region_only: false,
                 save_loudness_log: true,
             },
@@ -372,6 +374,7 @@ mod tests {
                 height: 90,
                 fps: 25.0,
                 crf: 30,
+                engine: neoveg_video::render::RenderEngine::Ffmpeg,
                 loop_region_only: false,
                 save_loudness_log: false,
             },
@@ -391,6 +394,72 @@ mod tests {
         assert_eq!(status.current_frame, 25);
         let size = std::fs::metadata(&output).expect("the movie exists").len();
         assert!(size > 500, "the movie is {size} bytes");
+        // The temporary mixdown is removed
+        assert!(!dir.join("filme.mixagem.wav").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The same path with the built-in encoder: no `ffmpeg` is needed, and the file is an MP4.
+    #[test]
+    fn a_video_render_with_the_internal_encoder_needs_no_ffmpeg() {
+        let dir = std::env::temp_dir().join(format!("neoveg_render_native_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = AppState::new();
+        s.project_path = Some(dir.join("projeto.neoveg"));
+        let ctx = egui::Context::default();
+        s.insert_generated(
+            neoveg_video::generators::GeneratorSpec {
+                name: "cor".into(),
+                width: 160,
+                height: 90,
+                fps: 25.0,
+                duration: 1.0,
+                kind: neoveg_video::generators::GeneratorKind::SolidColor {
+                    rgba: [200, 40, 40, 255],
+                },
+            },
+            &ctx,
+        );
+        for _ in 0..300 {
+            s.poll_loader();
+            if s.timeline.tracks.iter().any(|t| !t.events.is_empty()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(s.timeline.tracks.iter().any(|t| !t.events.is_empty()));
+
+        let output = dir.join("filme.mp4");
+        s.start_render(
+            RenderLaunchRequest {
+                output_path: output.clone(),
+                format: neoveg_video::render::RenderFormat::Mp4H264,
+                width: 160,
+                height: 90,
+                fps: 25.0,
+                crf: 30,
+                engine: neoveg_video::render::RenderEngine::Internal,
+                loop_region_only: false,
+                save_loudness_log: false,
+            },
+            &ctx,
+        );
+        let job = s.render_dialog.active_job.as_ref().expect("a job started");
+        for _ in 0..3000 {
+            if job.status.lock().unwrap().finished {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let status = job.status.lock().unwrap().clone();
+        assert!(status.finished, "the render did not finish: {status:?}");
+        assert_eq!(status.error, None);
+        assert_eq!(status.total_frames, 25);
+        assert_eq!(status.current_frame, 25);
+        let size = std::fs::metadata(&output).expect("the movie exists").len();
+        assert!(size > 500, "the movie is {size} bytes");
+        assert_eq!(&std::fs::read(&output).unwrap()[4..8], b"ftyp");
         // The temporary mixdown is removed
         assert!(!dir.join("filme.mixagem.wav").exists());
         let _ = std::fs::remove_dir_all(dir);
@@ -441,6 +510,7 @@ mod tests {
                 height: 360,
                 fps: 25.0,
                 crf: 18,
+                engine: Default::default(),
                 loop_region_only: false,
                 save_loudness_log: false,
             },
@@ -473,6 +543,7 @@ mod tests {
                 height: 360,
                 fps: 25.0,
                 crf: 18,
+                engine: Default::default(),
                 loop_region_only: false,
                 save_loudness_log: false,
             },

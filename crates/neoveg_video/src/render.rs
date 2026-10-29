@@ -270,6 +270,63 @@ pub fn build_ffmpeg_encode_args(
     args
 }
 
+/// Which encoder writes the movie: the built-in one (H.264 + AAC in an MP4 file, no other program
+/// needed) or `ffmpeg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderEngine {
+    /// The built-in encoder where it can write the format, `ffmpeg` for the others.
+    #[default]
+    Auto,
+    /// The built-in encoder (`render_native`).
+    Internal,
+    /// An `ffmpeg` found on the `PATH`.
+    Ffmpeg,
+}
+
+impl RenderEngine {
+    pub const ALL: [Self; 3] = [Self::Auto, Self::Internal, Self::Ffmpeg];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "Automático (interno para MP4 H.264, FFmpeg para os outros)",
+            Self::Internal => "Interno (Rust, sem FFmpeg)",
+            Self::Ffmpeg => "FFmpeg",
+        }
+    }
+
+    /// The engine a render of `format` really uses: never [`RenderEngine::Auto`].
+    pub fn resolve(self, format: RenderFormat) -> Self {
+        match self {
+            Self::Auto if crate::render_native::supports(format) => Self::Internal,
+            Self::Auto => Self::Ffmpeg,
+            other => other,
+        }
+    }
+
+    /// `true` when this engine can write `format` (the internal one writes only MP4 H.264).
+    pub fn can_write(self, format: RenderFormat) -> bool {
+        !matches!(self.resolve(format), Self::Internal) || crate::render_native::supports(format)
+    }
+}
+
+/// Encodes the movie with the chosen engine; the arguments are those of
+/// [`encode_video_with_ffmpeg`].
+pub fn encode_video(
+    engine: RenderEngine,
+    spec: &VideoEncodeSpec<'_>,
+    cancel: &AtomicBool,
+    on_progress: impl FnMut(u64, u64),
+    produce_frame: impl FnMut(u64) -> Result<FrameBuffer, String>,
+) -> Result<(), String> {
+    match engine.resolve(spec.format) {
+        RenderEngine::Internal => {
+            crate::render_native::encode_video_native(spec, cancel, on_progress, produce_frame)
+        }
+        _ => encode_video_with_ffmpeg(spec, cancel, on_progress, produce_frame),
+    }
+}
+
 /// Encoding parameters passed to [`encode_video_with_ffmpeg`].
 pub struct VideoEncodeSpec<'a> {
     pub format: RenderFormat,
@@ -381,6 +438,27 @@ pub fn encode_video_with_ffmpeg(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_engine_choice_follows_the_format_and_refuses_what_it_cannot_write() {
+        assert_eq!(
+            RenderEngine::Auto.resolve(RenderFormat::Mp4H264),
+            RenderEngine::Internal
+        );
+        assert_eq!(
+            RenderEngine::Auto.resolve(RenderFormat::MovProRes),
+            RenderEngine::Ffmpeg
+        );
+        assert_eq!(
+            RenderEngine::Ffmpeg.resolve(RenderFormat::Mp4H264),
+            RenderEngine::Ffmpeg
+        );
+        assert!(RenderEngine::Auto.can_write(RenderFormat::WebmVp9));
+        assert!(RenderEngine::Ffmpeg.can_write(RenderFormat::WebmVp9));
+        assert!(RenderEngine::Internal.can_write(RenderFormat::Mp4H264));
+        assert!(!RenderEngine::Internal.can_write(RenderFormat::Mp4Hevc));
+        assert!(RenderEngine::ALL.iter().all(|e| !e.label().is_empty()));
+    }
 
     #[test]
     fn ffmpeg_args_enforce_even_dimensions_and_expected_codecs() {
