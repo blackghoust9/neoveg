@@ -43,6 +43,23 @@ pub(super) struct RenderPlan {
     /// Sample rate of the exported audio: the project's.
     pub sample_rate: u32,
     pub title: String,
+    /// The captions of the project, burned into the picture when the request asks for it.
+    pub captions: Vec<neoveg_engine::captions::Caption>,
+}
+
+/// Draws the captions showing at `time` into `frame`.
+pub(super) fn burn_captions(
+    frame: &mut FrameBuffer,
+    captions: &[neoveg_engine::captions::Caption],
+    time: f64,
+    style: &neoveg_video::burn::SubtitleStyle,
+) {
+    for caption in captions
+        .iter()
+        .filter(|c| time >= c.start - 1e-6 && time < c.end - 1e-6)
+    {
+        neoveg_video::burn::burn_subtitle(frame, &caption.text, style);
+    }
 }
 
 fn update(status: &Mutex<RenderJobStatus>, change: impl FnOnce(&mut RenderJobStatus)) {
@@ -140,6 +157,7 @@ fn run(
     let resolve = |id: u64| plan.sources.get(&id).cloned();
     let mut renderer = OfflineFrameRenderer::new();
     let black = FrameBuffer::solid(request.width, request.height, [0, 0, 0, 255]);
+    let subtitle_style = neoveg_video::burn::SubtitleStyle::default();
     let spec = VideoEncodeSpec {
         format: request.format,
         width: request.width,
@@ -158,14 +176,16 @@ fn run(
             update(status, |s| s.current_frame = done);
             ctx.request_repaint();
         },
-        |index| match composite_request(
-            &plan.timeline,
-            t0 + index as f64 / fps,
-            &settings,
-            &resolve,
-        ) {
-            Some(frame_request) => renderer.render_frame(&frame_request),
-            None => Ok(black.clone()),
+        |index| {
+            let time = t0 + index as f64 / fps;
+            let mut frame = match composite_request(&plan.timeline, time, &settings, &resolve) {
+                Some(frame_request) => renderer.render_frame(&frame_request)?,
+                None => black.clone(),
+            };
+            if request.burn_captions {
+                burn_captions(&mut frame, &plan.captions, time, &subtitle_style);
+            }
+            Ok(frame)
         },
     );
     let _ = std::fs::remove_file(&wav_path);
@@ -205,6 +225,7 @@ impl AppState {
             sources,
             range,
             title,
+            captions: self.timeline.captions.clone(),
         };
         self.status = format!("Renderizando {}…", plan.title);
         self.render_dialog.active_job = Some(spawn(plan, ctx.clone()));
@@ -288,6 +309,7 @@ mod tests {
                 fps: 25.0,
                 crf: 18,
                 engine: Default::default(),
+                burn_captions: false,
                 loop_region_only: false,
                 save_loudness_log: true,
             },
@@ -375,6 +397,7 @@ mod tests {
                 fps: 25.0,
                 crf: 30,
                 engine: neoveg_video::render::RenderEngine::Ffmpeg,
+                burn_captions: false,
                 loop_region_only: false,
                 save_loudness_log: false,
             },
@@ -440,6 +463,7 @@ mod tests {
                 fps: 25.0,
                 crf: 30,
                 engine: neoveg_video::render::RenderEngine::Internal,
+                burn_captions: false,
                 loop_region_only: false,
                 save_loudness_log: false,
             },
@@ -463,6 +487,29 @@ mod tests {
         // The temporary mixdown is removed
         assert!(!dir.join("filme.mixagem.wav").exists());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn captions_are_burned_only_while_they_show() {
+        use neoveg_engine::captions::Caption;
+        let captions = vec![Caption {
+            id: 1,
+            start: 1.0,
+            end: 2.0,
+            text: "Olá".into(),
+            speaker: None,
+        }];
+        let style = neoveg_video::burn::SubtitleStyle::default();
+        let blank = FrameBuffer::solid(320, 180, [0, 0, 0, 255]);
+        let mut before = blank.clone();
+        burn_captions(&mut before, &captions, 0.5, &style);
+        assert_eq!(before, blank);
+        let mut during = blank.clone();
+        burn_captions(&mut during, &captions, 1.5, &style);
+        assert_ne!(during, blank);
+        let mut after = blank.clone();
+        burn_captions(&mut after, &captions, 2.0, &style);
+        assert_eq!(after, blank, "a caption ends before its end time");
     }
 
     #[test]
@@ -511,6 +558,7 @@ mod tests {
                 fps: 25.0,
                 crf: 18,
                 engine: Default::default(),
+                burn_captions: false,
                 loop_region_only: false,
                 save_loudness_log: false,
             },
@@ -544,6 +592,7 @@ mod tests {
                 fps: 25.0,
                 crf: 18,
                 engine: Default::default(),
+                burn_captions: false,
                 loop_region_only: false,
                 save_loudness_log: false,
             },

@@ -437,7 +437,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Gradação de cor por evento, rodas de cor e OCIO
 - [x] Legendas SRT e WebVTT: aba **Legendas** no painel de mídia (editar texto e tempos, adicionar no cursor, apagar, ir para a legenda), texto sobre a prévia do vídeo, importar e exportar pelo menu Arquivo; leitura tolerante (BOM, UTF-16, Windows-1252, índices errados), adaptada do FilmCraft
 - [x] Títulos com o motor de texto do FilmCraft (`neoveg_text`, `MIT OR Apache-2.0`): fontes de verdade (Inter, JetBrains Mono e Noto Serif embutidas, mais as instaladas no sistema), composição com HarfBuzz (`harfrust`: kerning, ligaduras, acentos e escritas complexas), texto bidirecional, quebra de linha, bordas suaves, contorno e sombra, nas animações já existentes; o diálogo ganhou **Fonte** e **Estilo**. Manifestos antigos continuam abrindo.
-- [ ] Estilo das legendas e queima das legendas na exportação (o motor de texto já está no projeto), mais parágrafos com largura fixa, estilos por trecho e alinhamento no título
+- [x] **Queima das legendas na exportação**: a caixa *Queimar as legendas do projeto no vídeo* do diálogo de renderização desenha, quadro a quadro, as legendas que estão no ar (texto composto pelo motor `neoveg_text`, Inter Negrito a 5,5 % da altura, branco com contorno preto, centralizado perto da base, quebrando linhas dentro de 86 % da largura); vale para o codificador interno e para o FFmpeg.
+- [ ] Estilo editável das legendas (fonte, tamanho, cores, posição), mais parágrafos com largura fixa, estilos por trecho e alinhamento no título
 - [ ] Rastreamento de movimento, máscaras e *Smart Mask*
 
 **Projeto, mídia e saída**

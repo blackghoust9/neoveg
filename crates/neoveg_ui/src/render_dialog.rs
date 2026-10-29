@@ -36,6 +36,8 @@ pub struct RenderLaunchRequest {
     pub fps: f64,
     pub crf: u8,
     pub engine: RenderEngine,
+    /// Draw the captions of the project into the picture.
+    pub burn_captions: bool,
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
 }
@@ -48,6 +50,7 @@ pub struct RenderDialogState {
     pub height: u32,
     pub crf: u8,
     pub engine: RenderEngine,
+    pub burn_captions: bool,
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
     pub active_job: Option<ActiveRenderJob>,
@@ -63,6 +66,7 @@ impl Default for RenderDialogState {
             height: 1080,
             crf: 18,
             engine: RenderEngine::Auto,
+            burn_captions: false,
             loop_region_only: false,
             save_loudness_log: true,
             active_job: None,
@@ -200,6 +204,10 @@ impl RenderDialogState {
                                     .text("Qualidade CRF (menor = maior qualidade)"),
                             );
                         }
+                        ui.checkbox(
+                            &mut self.burn_captions,
+                            "Queimar as legendas do projeto no vídeo",
+                        );
                     }
 
                     ui.add_enabled(
@@ -299,6 +307,7 @@ impl RenderDialogState {
                                 fps: project_fps,
                                 crf: self.crf,
                                 engine: self.engine,
+                                burn_captions: self.burn_captions && self.format.has_video(),
                                 loop_region_only: self.loop_region_only && has_loop_region,
                                 save_loudness_log: self.save_loudness_log,
                             });
