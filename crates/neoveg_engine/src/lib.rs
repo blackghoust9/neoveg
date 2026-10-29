@@ -1,5 +1,6 @@
 //! Editing engine: timeline model and undoable edit commands.
 
+pub mod adjustment;
 pub mod attributes;
 pub mod autosave;
 pub mod captions;

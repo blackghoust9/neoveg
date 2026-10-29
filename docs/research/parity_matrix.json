@@ -334,7 +334,7 @@
     {
       "id": "ins.evento_vazio",
       "area": "Inserir",
-      "estado": "previsto",
+      "estado": "parcial",
       "prioridade": "P2",
       "comandos": 3
     },

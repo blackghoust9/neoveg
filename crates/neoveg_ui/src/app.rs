@@ -1611,6 +1611,32 @@ impl AppState {
         self.report_paste(result);
     }
 
+    /// *Inserir evento de ajuste*: an empty event on the selected video track at the cursor; the video
+    /// tracks below it take its effects. It is selected so the effects panel shows its chain.
+    fn insert_adjustment_event(&mut self) {
+        let Some(track_id) = self.selected_track.filter(|id| {
+            self.timeline
+                .track(*id)
+                .is_some_and(|t| t.kind == TrackKind::Video)
+        }) else {
+            self.status = "Selecione uma faixa de vídeo (de preferência uma nova, no topo)".into();
+            return;
+        };
+        let id = self.timeline.alloc_id();
+        let Some(command) =
+            neoveg_engine::adjustment::insert_command(&self.timeline, track_id, self.playhead, id)
+        else {
+            return;
+        };
+        if self.history.execute(&mut self.timeline, command) {
+            self.selection.select_only((track_id, id));
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+            self.status =
+                "Evento de ajuste inserido: aplique efeitos na aba Efeitos de Vídeo".into();
+        }
+    }
+
     /// *Colar atributos do evento*: the first event on the clipboard lends its attributes to the
     /// selected events (one undo step).
     fn paste_attributes(&mut self, set: Attributes) {
@@ -2089,6 +2115,10 @@ impl AppState {
             Command::EditPasteAttributes | Command::EditPasteAttributesSelective => {
                 self.clipboard.is_some() && has_events
             }
+            Command::InsertAdjustmentEvent => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some_and(|t| t.kind == TrackKind::Video),
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
             Command::EditSwitchMute
@@ -4892,6 +4922,7 @@ impl AppState {
             Command::EditSplit => self.split_at_playhead(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
+            Command::InsertAdjustmentEvent => self.insert_adjustment_event(),
             Command::CursorLeftByFrame if self.trim_edge.is_some() => {
                 self.nudge_trim_edge(-1.0, None)
             }
@@ -5797,6 +5828,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         ui.menu_button("Faixas", |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
+            command_item(state, ui, Command::InsertAdjustmentEvent);
             if ui.button("Inserir mídia gerada…").clicked() {
                 state.generator_dialog.open = true;
                 ui.close_menu();
@@ -7798,7 +7830,14 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         });
     state.apply_vfx_actions(target, actions);
     if let VideoFxTarget::Event { track_id, event_id } = target {
-        velocity_section(state, ui, track_id, event_id);
+        let adjustment = state
+            .timeline
+            .track(track_id)
+            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+            .is_some_and(|e| e.adjustment);
+        if !adjustment {
+            velocity_section(state, ui, track_id, event_id);
+        }
     }
 }
 
@@ -9336,6 +9375,21 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
             let selected = state.selection.contains((track.id, ev.id));
             lane_painter.rect_filled(ev_rect, Rounding::ZERO, base);
+            if ev.adjustment {
+                // Diagonal hatching marks an adjustment event, drawn only over the visible part
+                let shown = ev_rect.intersect(lane_painter.clip_rect());
+                let hatch = lane_painter.with_clip_rect(shown);
+                let step = 10.0;
+                let h = ev_rect.height();
+                let mut x = (shown.left() - h).max(ev_rect.left() - h);
+                while x < shown.right() {
+                    hatch.line_segment(
+                        [pos2(x, ev_rect.bottom()), pos2(x + h, ev_rect.top())],
+                        Stroke::new(1.0_f32, Color32::from_white_alpha(40)),
+                    );
+                    x += step;
+                }
+            }
             lane_painter.rect_filled(
                 Rect::from_min_size(ev_rect.min, vec2(ev_rect.width(), EVENT_HEADER_HEIGHT)),
                 Rounding::ZERO,
@@ -12442,6 +12496,37 @@ mod tests {
         send(&mut s, std::path::Path::new("nao_existe.xyz"), None, false);
         assert!(s.convert_offer.is_none());
         let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn inserting_an_adjustment_event_needs_a_video_track_and_selects_the_new_event() {
+        let mut s = AppState::new();
+        // No track: it says what to do and changes nothing
+        let revision = s.history.revision();
+        assert!(!s.command_enabled(Command::InsertAdjustmentEvent));
+        run(&mut s, Command::InsertAdjustmentEvent);
+        assert_eq!(s.history.revision(), revision);
+        assert!(s.status.contains("faixa de vídeo"));
+        // An audio track is not enough
+        run(&mut s, Command::InsertAudioTrack);
+        assert!(!s.command_enabled(Command::InsertAdjustmentEvent));
+        run(&mut s, Command::InsertVideoTrack);
+        let video = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .unwrap()
+            .id;
+        s.selected_track = Some(video);
+        s.playhead = 3.0;
+        assert!(s.command_enabled(Command::InsertAdjustmentEvent));
+        run(&mut s, Command::InsertAdjustmentEvent);
+        let event = s.timeline.track(video).unwrap().events[0].clone();
+        assert!(event.adjustment && event.start == 3.0);
+        assert_eq!(s.selection.primary(), Some((video, event.id)));
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(s.timeline.track(video).unwrap().events.is_empty());
     }
 
     #[test]

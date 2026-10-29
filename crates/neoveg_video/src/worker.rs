@@ -92,6 +92,12 @@ pub enum TrackCompositeNode {
         /// Where the layer of the track sits in the frame (`None` leaves it where it is), run last.
         motion: Option<PanCropFrame>,
     },
+    /// An adjustment event: the effects run on everything composited below this node (the
+    /// nodes before it in the list) and the result is mixed back with `opacity`.
+    Adjust {
+        effects: Vec<VideoEffect>,
+        opacity: f32,
+    },
     Group {
         children: Vec<TrackCompositeNode>,
         parent_clips: Vec<VideoClipRequest>,
@@ -594,6 +600,11 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
                 }
             }
         }
+        TrackCompositeNode::Adjust { effects, opacity } => {
+            2u8.hash(h);
+            vfx::hash_chain(effects, h);
+            hash_f32(h, *opacity);
+        }
         TrackCompositeNode::Group {
             children,
             parent_clips,
@@ -764,6 +775,8 @@ fn build_decoded_tree(
                     }));
                 }
             }
+            // An adjustment is applied by `composite_with_adjustments`, which cuts the list there
+            TrackCompositeNode::Adjust { .. } => {}
             TrackCompositeNode::Group {
                 children,
                 parent_clips,
@@ -806,6 +819,94 @@ fn uses_non_trivial_blend(nodes: &[CompositeNode]) -> bool {
         })
 }
 
+/// Composites a decoded tree on black, on the GPU when it pays off and on the CPU otherwise.
+fn composite_tree(
+    state: &mut WorkerState,
+    tree: &[CompositeNode],
+    out_w: u32,
+    out_h: u32,
+) -> FrameBuffer {
+    if tree.is_empty() {
+        FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])
+    } else if uses_non_trivial_blend(tree) && (out_w * out_h) >= 64 * 64 {
+        if let Some(gpu) = state.ensure_gpu() {
+            gpu.composite_nodes_gpu(out_w, out_h, [0, 0, 0, 255], tree)
+                .unwrap_or_else(|_| composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], tree))
+        } else {
+            composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], tree)
+        }
+    } else {
+        composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], tree)
+    }
+}
+
+/// `a` mixed toward `b` by `t` (`0` is `a`, `1` is `b`); frames of different sizes give `b`.
+pub fn mix_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuffer {
+    let t = t.clamp(0.0, 1.0);
+    if t <= 0.0 {
+        return a.clone();
+    }
+    if t >= 1.0 || a.width != b.width || a.height != b.height {
+        return b.clone();
+    }
+    let mut out = a.clone();
+    for (o, (x, y)) in out.rgba.iter_mut().zip(a.rgba.iter().zip(b.rgba.iter())) {
+        *o = (f32::from(*x) + (f32::from(*y) - f32::from(*x)) * t).round() as u8;
+    }
+    out
+}
+
+/// A composite whose list holds adjustment nodes: everything before an adjustment is composited
+/// (on top of what the earlier adjustments left), the effects run on that picture and it is mixed
+/// back with the adjustment's opacity; what follows is composited over the result.
+fn composite_with_adjustments(
+    state: &mut WorkerState,
+    req: &CompositeFrameRequest,
+    out_w: u32,
+    out_h: u32,
+) -> Result<FrameBuffer, String> {
+    let mut base: Option<Arc<FrameBuffer>> = None;
+    let mut start = 0;
+    let segment = |state: &mut WorkerState,
+                   nodes: &[TrackCompositeNode],
+                   base: Option<Arc<FrameBuffer>>|
+     -> Result<Option<FrameBuffer>, String> {
+        let mut tree = Vec::new();
+        if let Some(frame) = base {
+            tree.push(CompositeNode::Layer(DecodedLayer {
+                frame,
+                mode: CompositeMode::SourceAlpha,
+                opacity: 1.0,
+            }));
+        }
+        tree.extend(build_decoded_tree(
+            state,
+            nodes,
+            out_w,
+            out_h,
+            req.max_width,
+            &req.chroma_key,
+        )?);
+        Ok((!tree.is_empty()).then(|| composite_tree(state, &tree, out_w, out_h)))
+    };
+    for (i, node) in req.nodes.iter().enumerate() {
+        let TrackCompositeNode::Adjust { effects, opacity } = node else {
+            continue;
+        };
+        let below = segment(state, &req.nodes[start..i], base.take())?;
+        start = i + 1;
+        base = below.map(|frame| {
+            if effects.is_empty() || *opacity <= 0.0 {
+                return Arc::new(frame);
+            }
+            let adjusted = state.apply_effects(Arc::new(frame.clone()), effects);
+            Arc::new(mix_frames(&frame, &adjusted, *opacity))
+        });
+    }
+    Ok(segment(state, &req.nodes[start..], base)?
+        .unwrap_or_else(|| FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])))
+}
+
 fn handle_composite(
     state: &mut WorkerState,
     req: &CompositeFrameRequest,
@@ -820,28 +921,22 @@ fn handle_composite(
         return Ok((*cached).clone());
     }
 
-    let decoded_tree = build_decoded_tree(
-        state,
-        &req.nodes,
-        out_w,
-        out_h,
-        req.max_width,
-        &req.chroma_key,
-    )?;
-
-    let composited = if decoded_tree.is_empty() {
-        FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])
-    } else if uses_non_trivial_blend(&decoded_tree) && (out_w * out_h) >= 64 * 64 {
-        if let Some(gpu) = state.ensure_gpu() {
-            gpu.composite_nodes_gpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
-                .unwrap_or_else(|_| {
-                    composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
-                })
-        } else {
-            composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
-        }
+    let composited = if req
+        .nodes
+        .iter()
+        .any(|n| matches!(n, TrackCompositeNode::Adjust { .. }))
+    {
+        composite_with_adjustments(state, req, out_w, out_h)?
     } else {
-        composite_nodes_cpu(out_w, out_h, [0, 0, 0, 255], &decoded_tree)
+        let decoded_tree = build_decoded_tree(
+            state,
+            &req.nodes,
+            out_w,
+            out_h,
+            req.max_width,
+            &req.chroma_key,
+        )?;
+        composite_tree(state, &decoded_tree, out_w, out_h)
     };
 
     let composited = if req.project_effects.is_empty() {
@@ -862,6 +957,7 @@ fn handle_composite(
 fn collect_prefetch_clips<'a>(node: &'a TrackCompositeNode, out: &mut Vec<&'a VideoClipRequest>) {
     match node {
         TrackCompositeNode::Track { clips, .. } => out.extend(clips.iter()),
+        TrackCompositeNode::Adjust { .. } => {}
         TrackCompositeNode::Group {
             children,
             parent_clips,
@@ -1053,6 +1149,107 @@ mod tests {
             chroma_key: ChromaKey::default(),
             project_effects: Vec::new(),
         }
+    }
+
+    #[test]
+    fn mixing_frames_goes_from_the_first_to_the_second() {
+        let a = FrameBuffer::solid(2, 2, [0, 0, 0, 255]);
+        let b = FrameBuffer::solid(2, 2, [200, 100, 50, 255]);
+        assert_eq!(mix_frames(&a, &b, 0.0), a);
+        assert_eq!(mix_frames(&a, &b, 1.0), b);
+        assert_eq!(mix_frames(&a, &b, 0.5).pixel(0, 0), [100, 50, 25, 255]);
+        let other = FrameBuffer::solid(3, 3, [9, 9, 9, 255]);
+        assert_eq!(
+            mix_frames(&a, &other, 0.5),
+            other,
+            "sizes differ: the second"
+        );
+    }
+
+    #[test]
+    fn an_adjustment_runs_its_effects_on_what_is_below_it_and_not_on_what_is_above() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_adj_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let below = dir.join("below.png");
+        let above = dir.join("above.png");
+        write_png(&below, 128, 96, [200, 200, 200, 255]);
+        write_png(&above, 128, 96, [100, 150, 250, 255]);
+        let clip = |path: &Path| VideoClipRequest {
+            media_id: 1,
+            path: path.to_path_buf(),
+            seconds: 0.0,
+            source_fps: 25.0,
+            playback_rate: 1.0,
+            event_opacity: 1.0,
+            apply_chroma: false,
+            effects: Vec::new(),
+            pan_crop: None,
+            transitions: Vec::new(),
+        };
+        let track = |path: &Path, sized: bool| TrackCompositeNode::Track {
+            clips: vec![clip(path)],
+            mode: CompositeMode::SourceAlpha,
+            level: 1.0,
+            effects: Vec::new(),
+            fade_color: [0, 0, 0],
+            fade_amount: 0.0,
+            // The upper layer covers only the right half, so its left half shows what is below
+            motion: sized.then_some(PanCropFrame {
+                x_center: 0.75,
+                width: 0.5,
+                ..PanCropFrame::FULL
+            }),
+        };
+        let request = |opacity: f32, with_adjust: bool| {
+            let mut nodes = vec![track(&below, false)];
+            if with_adjust {
+                nodes.push(TrackCompositeNode::Adjust {
+                    effects: vec![VideoEffect::new("vignette")],
+                    opacity,
+                });
+            }
+            nodes.push(track(&above, true));
+            CompositeFrameRequest {
+                timeline_seconds: 0.0,
+                fps: 25.0,
+                playing: false,
+                shuttle_speed: 1.0,
+                canvas_width: 128,
+                canvas_height: 96,
+                max_width: 0,
+                nodes,
+                lut: None,
+                grade: Grade::default(),
+                chroma_key: ChromaKey::default(),
+                project_effects: Vec::new(),
+            }
+        };
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        let render = |req: CompositeFrameRequest| {
+            worker.request_composite(req);
+            worker
+                .composite_rx
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap()
+                .result
+                .unwrap()
+        };
+        let plain = render(request(1.0, false));
+        let full = render(request(1.0, true));
+        let half = render(request(0.5, true));
+        let none = render(request(0.0, true));
+        // The corner of the lower layer (left half, visible) is darkened by the vignette
+        let corner = |f: &FrameBuffer| f.pixel(2, 2)[0];
+        assert!(
+            corner(&full) < corner(&plain),
+            "the effect reached the layer below"
+        );
+        assert!(corner(&half) < corner(&plain) && corner(&half) > corner(&full));
+        assert_eq!(corner(&none), corner(&plain), "opacity 0 is no effect");
+        // The upper layer (right half) is above the adjustment: untouched
+        assert_eq!(full.pixel(125, 2), plain.pixel(125, 2));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

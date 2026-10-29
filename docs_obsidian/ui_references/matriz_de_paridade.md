@@ -16,7 +16,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 20 | 56 | 24 | 0 | 48 % |
-| Inserir | 32 | 30 | 16 | 5 | 9 | 2 | 62 % |
+| Inserir | 32 | 30 | 16 | 8 | 6 | 2 | 67 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 38 | 18 | 5 | 47 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **39 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 33 parciais, 42 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 34 parciais, 41 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -43,7 +43,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
 | P2 | Inserir faixa de ajuste | Inserir | 1 | previsto |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | previsto |
-| P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | previsto |
+| P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | parcial |
 | P2 | Inserir transição de áudio | Inserir | 1 | parcial |
 | P2 | Efeitos de áudio do evento e da faixa, aplicar fora de tempo real | Ferramentas | 4 | parcial |
 | P2 | Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave | Ferramentas | 1 | parcial |
@@ -105,7 +105,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |
 | Divisão inteligente, curar evento dividido e fechar lacunas | 3 | previsto | roteiro (README) | P2 |
-| Redimensionar eventos de ajuste ao projeto | 2 | previsto | eventos de ajuste são `previsto` | P2 |
+| Redimensionar eventos de ajuste ao projeto | 2 | previsto | o evento de ajuste existe; falta redimensioná-lo ao projeto | P2 |
 | Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar | 20 | parcial | a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução | P3 |
 | Escopo do ripple pós-edição | 4 | parcial | 3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento | P3 |
 | Selecionar tudo, depois do cursor e bordas do evento | 4 | parcial | tudo e bordas (aparo por teclado) feitos; depois do cursor não | P3 |
@@ -133,7 +133,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | previsto | roteiro (barramentos e envios) | P2 |
 | Inserir legendas de arquivo e de regiões | 2 | parcial | de arquivo (SRT, WebVTT) feito; de regiões não | P3 |
-| Inserir fluxo ausente, evento vazio e evento de ajuste | 3 | previsto | roteiro (README) | P2 |
+| Inserir fluxo ausente, evento vazio e evento de ajuste | 3 | parcial | `insert.adjustment_event` (manual v21 p.281-284) feito; faltam o fluxo ausente e o evento vazio | P2 |
 | Inserir texto, mídia gerada e apresentação de slides | 3 | feito | Faixas > Inserir mídia gerada, janela de slideshow | - |
 | Inserir transição de áudio | 1 | parcial | crossfade automático e curvas de fade; sem janela de transições | P2 |
 | Inserir tempo, marcador e região | 3 | feito | `insert.time`, `insert.marker`, `insert.region` | - |

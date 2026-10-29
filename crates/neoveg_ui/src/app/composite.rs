@@ -245,6 +245,26 @@ pub(super) fn composite_request(
             .filter(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
             .collect();
         active.sort_by(|a, b| a.start.total_cmp(&b.start));
+        // Adjustment events of this track act on the tracks below it, so they go before its own layer
+        for e in active.iter().filter(|e| e.adjustment) {
+            let cross_in = crossfades
+                .iter()
+                .filter(|c| c.later == e.id)
+                .map(Crossfade::length)
+                .fold(0.0, f64::max);
+            let (opacity, _) = clip_look(e, time, cross_in);
+            nodes.push(TrackCompositeNode::Adjust {
+                effects: effects_for(
+                    &e.video_effects,
+                    VideoFxTarget::Event {
+                        track_id: track.id,
+                        event_id: e.id,
+                    },
+                    settings.fx_draft.as_ref(),
+                ),
+                opacity: opacity * track_state.level,
+            });
+        }
         let clips: Vec<VideoClipRequest> = active
             .into_iter()
             .filter_map(|e| {
@@ -309,7 +329,11 @@ pub(super) fn composite_request(
             });
         }
     }
-    if nodes.is_empty() {
+    // Adjustments with no picture under them show nothing
+    if nodes
+        .iter()
+        .all(|n| matches!(n, TrackCompositeNode::Adjust { .. }))
+    {
         return None;
     }
     Some(CompositeFrameRequest {
@@ -354,7 +378,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
-            let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled);
+            let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled) || e.adjustment;
             let envelope_on = track
                 .envelopes
                 .iter()
@@ -422,6 +446,7 @@ mod tests {
                     .map(|c| (c.media_id, c.event_opacity))
                     .collect(),
                 TrackCompositeNode::Group { .. } => panic!("no groups here"),
+                TrackCompositeNode::Adjust { .. } => panic!("no adjustments here"),
             })
             .collect()
     }
@@ -651,6 +676,7 @@ mod tests {
                     ..
                 } => (*level, *fade_color, *fade_amount),
                 TrackCompositeNode::Group { .. } => panic!("no groups here"),
+                TrackCompositeNode::Adjust { .. } => panic!("no adjustments here"),
             })
         };
         let (level, color, amount) = node(&tl, 2.0).unwrap();
@@ -977,5 +1003,71 @@ mod tests {
             2.0,
             "another event's draft is not ours"
         );
+    }
+
+    #[test]
+    fn an_adjustment_event_becomes_a_node_before_its_own_track_and_acts_on_the_tracks_below() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        // Track order: the first is the top layer. Top: an adjustment and a clip; bottom: a clip.
+        let mut top = tl.new_track(TrackKind::Video);
+        let mut bottom = tl.new_track(TrackKind::Video);
+        let adjust_id = tl.alloc_id();
+        top.events.push(TrackEvent {
+            id: adjust_id,
+            name: "Evento de ajuste".into(),
+            start: 1.0,
+            duration: 4.0,
+            fade_in: 2.0,
+            adjustment: true,
+            video_effects: vec![TrackEffect::new("vignette")],
+            ..TrackEvent::default()
+        });
+        let overlay = event(&mut tl, 2, 0.0, 10.0);
+        top.events.push(overlay);
+        let base = event(&mut tl, 1, 0.0, 10.0);
+        bottom.events.push(base);
+        tl.tracks.push(top);
+        tl.tracks.push(bottom);
+        assert!(
+            has_effects(&tl, 2.0),
+            "an adjustment sends the preview through the composite path"
+        );
+        let request = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        let kinds: Vec<&str> = request
+            .nodes
+            .iter()
+            .map(|n| match n {
+                TrackCompositeNode::Track { .. } => "track",
+                TrackCompositeNode::Adjust { .. } => "adjust",
+                TrackCompositeNode::Group { .. } => "group",
+            })
+            .collect();
+        // Bottom up: the lower track, then the adjustment, then the track that holds it
+        assert_eq!(kinds, ["track", "adjust", "track"]);
+        let TrackCompositeNode::Adjust { effects, opacity } = &request.nodes[1] else {
+            panic!("an adjustment node");
+        };
+        assert_eq!(effects.len(), 1);
+        assert!(
+            (opacity - 0.5).abs() < 1e-5,
+            "half way through its 2 s fade-in"
+        );
+        // The adjustment is the only thing there and nothing is under it: black
+        let mut alone = Timeline::new();
+        let mut t = alone.new_track(TrackKind::Video);
+        t.events.push(TrackEvent {
+            id: 9,
+            start: 0.0,
+            duration: 4.0,
+            adjustment: true,
+            ..TrackEvent::default()
+        });
+        alone.tracks.push(t);
+        assert!(composite_request(&alone, 1.0, &settings(), &resolve).is_none());
+        // Mute switches it off
+        tl.tracks[0].events[0].muted = true;
+        let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        assert_eq!(muted.nodes.len(), 2);
     }
 }

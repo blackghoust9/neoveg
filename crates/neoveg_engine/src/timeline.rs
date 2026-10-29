@@ -127,6 +127,10 @@ pub struct TrackEvent {
     /// change. Older projects play at the event's `playback_rate`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub velocity: Option<TrackEnvelope>,
+    /// An adjustment event: it has no media, and its effect chain runs on the picture of the video
+    /// tracks below it for as long as it lasts (see `neoveg_engine::adjustment`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub adjustment: bool,
 }
 
 impl Default for TrackEvent {
@@ -157,6 +161,7 @@ impl Default for TrackEvent {
             transition_in: None,
             transition_out: None,
             velocity: None,
+            adjustment: false,
         }
     }
 }

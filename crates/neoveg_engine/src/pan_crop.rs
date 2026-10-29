@@ -19,7 +19,7 @@ pub fn get(timeline: &Timeline, track_id: TrackId, event_id: EventId) -> Option<
     track
         .events
         .iter()
-        .find(|e| e.id == event_id)
+        .find(|e| e.id == event_id && !e.adjustment)
         .map(|e| &e.pan_crop)
 }
 

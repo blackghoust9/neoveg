@@ -174,6 +174,10 @@ pub fn get(
         return None;
     }
     let event = track.events.iter().find(|e| e.id == event_id)?;
+    // An adjustment event has no picture of its own to speed up or reverse
+    if event.adjustment {
+        return None;
+    }
     Some(event.velocity.as_ref())
 }
 

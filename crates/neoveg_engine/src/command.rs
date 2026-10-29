@@ -394,6 +394,7 @@ impl EditCommand {
                     transition_in: None,
                     transition_out: left.transition_out.clone(),
                     velocity: crate::velocity::from_offset(left.velocity.as_ref(), left_duration),
+                    adjustment: left.adjustment,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
