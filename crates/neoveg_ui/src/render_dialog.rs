@@ -146,14 +146,14 @@ impl RenderDialogState {
                         ui.horizontal(|ui| {
                             ui.label(tr("Codificador:"));
                             egui::ComboBox::from_id_salt("render_engine_combo")
-                                .selected_text(self.engine.label())
+                                .selected_text(tr(self.engine.label()))
                                 .width(380.0)
                                 .show_ui(ui, |ui| {
                                     for candidate in RenderEngine::ALL {
                                         ui.selectable_value(
                                             &mut self.engine,
                                             candidate,
-                                            candidate.label(),
+                                            tr(candidate.label()),
                                         );
                                     }
                                 });
@@ -236,7 +236,7 @@ impl RenderDialogState {
                         has_loop_region,
                         egui::Checkbox::new(
                             &mut self.loop_region_only,
-                            "Renderizar apenas a região de loop / seleção de tempo",
+                            tr("Renderizar apenas a região de loop / seleção de tempo"),
                         ),
                     );
                     if !has_loop_region {

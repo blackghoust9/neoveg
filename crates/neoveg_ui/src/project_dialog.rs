@@ -382,10 +382,10 @@ impl ProjectDialogState {
             ResampleMode::label,
         );
         ui.separator();
-        ui.weak(
+        ui.weak(tr(
             "Já valem no programa: resolução, taxa de quadros e taxa de amostragem. As demais \
              opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.",
-        );
+        ));
     }
 
     fn audio_tab(&mut self, ui: &mut egui::Ui) {
@@ -427,10 +427,10 @@ impl ProjectDialogState {
             );
         });
         ui.separator();
-        ui.weak(
+        ui.weak(tr(
             "A taxa de amostragem vale na exportação. A profundidade de bits e o barramento \
              surround ficam gravados no projeto; hoje o mixer trabalha em estéreo.",
-        );
+        ));
     }
 }
 
@@ -444,18 +444,18 @@ fn bits_label(bits: u32) -> String {
 /// A labelled drop-down over a fixed list of options.
 fn combo<T: Copy + PartialEq>(
     ui: &mut egui::Ui,
-    label: &str,
+    label: &'static str,
     value: &mut T,
     all: &[T],
     name: fn(T) -> &'static str,
 ) {
     ui.horizontal(|ui| {
-        ui.label(format!("{label}:"));
+        ui.label(format!("{}:", tr(label)));
         egui::ComboBox::from_id_salt(label)
-            .selected_text(name(*value))
+            .selected_text(tr(name(*value)))
             .show_ui(ui, |ui| {
                 for option in all {
-                    ui.selectable_value(value, *option, name(*option));
+                    ui.selectable_value(value, *option, tr(name(*option)));
                 }
             });
     });

@@ -23,7 +23,7 @@ const START_TIME: f64 = 0.2;
 const FRAME_STEP: f64 = 0.02;
 
 /// File names written by [`run`].
-pub const OUTPUTS: [&str; 12] = [
+pub const OUTPUTS: [&str; 14] = [
     "ui_main_layout.png",
     "ui_timeline_events.png",
     "ui_multi_project_tabs.png",
@@ -36,6 +36,8 @@ pub const OUTPUTS: [&str; 12] = [
     "ui_track_motion.png",
     "ui_transitions.png",
     "ui_velocity.png",
+    "ui_preferences.png",
+    "ui_render_dialog.png",
 ];
 
 /// Renders every screenshot into `dir` (created if needed).
@@ -189,6 +191,22 @@ pub fn run(dir: &Path) -> Result<(), String> {
         let mut app = headless_app(state, effects_dock());
         let image = gpu.capture(&ctx, [1600, 900], |ctx| app.show(ctx))?;
         save(&image, &dir.join(OUTPUTS[11]))?;
+
+        // 13. The preferences window
+        let ctx = new_context();
+        let mut state = demo_project();
+        state.show_preferences = true;
+        let mut app = headless_app(state, default_dock());
+        let image = gpu.capture(&ctx, [1280, 760], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[12]))?;
+
+        // 14. The render window
+        let ctx = new_context();
+        let mut state = demo_project();
+        state.render_dialog.open = true;
+        let mut app = headless_app(state, default_dock());
+        let image = gpu.capture(&ctx, [1280, 860], |ctx| app.show(ctx))?;
+        save(&image, &dir.join(OUTPUTS[13]))?;
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&scratch);
@@ -206,6 +224,10 @@ fn new_context() -> egui::Context {
 fn headless_app(mut state: AppState, dock: DockState<Tab>) -> NeovegApp {
     // The screenshots read nothing of the user's, saved layouts included
     state.layouts_dir = None;
+    // `NEOVEG_SCREENSHOT_LANG=en-US` renders the interface in that language (default: the preference)
+    if let Ok(tag) = std::env::var("NEOVEG_SCREENSHOT_LANG") {
+        state.prefs.language = tag;
+    }
     NeovegApp {
         dock,
         state,

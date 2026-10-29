@@ -9057,7 +9057,7 @@ impl TabViewer for Viewer<'_> {
     type Tab = Tab;
 
     fn title(&mut self, tab: &mut Tab) -> egui::WidgetText {
-        tab.title().into()
+        tr(tab.title()).into()
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Tab) {
@@ -9186,14 +9186,14 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 /// Classic NLE compact footer tabs: flat 22 px headers in a strip at the bottom of the panel.
-fn footer_tabs(ui: &mut egui::Ui, id: &str, labels: &[&str], selected: &mut usize) {
+fn footer_tabs(ui: &mut egui::Ui, id: &str, labels: &[&'static str], selected: &mut usize) {
     egui::TopBottomPanel::bottom(egui::Id::new(id))
         .exact_height(22.0)
         .show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 for (i, label) in labels.iter().enumerate() {
-                    let text = egui::RichText::new(*label).size(11.0);
+                    let text = egui::RichText::new(tr(label)).size(11.0);
                     if ui
                         .add(
                             egui::Button::new(text)
