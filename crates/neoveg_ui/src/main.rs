@@ -8,6 +8,7 @@ mod details_window;
 mod dialogs;
 mod dock;
 mod envelope_canvas;
+mod event_header;
 mod frame_grid;
 mod fx_panel;
 mod generator_dialog;

@@ -320,7 +320,7 @@
     {
       "id": "ins.barramentos",
       "area": "Inserir",
-      "estado": "previsto",
+      "estado": "parcial",
       "prioridade": "P2",
       "comandos": 3
     },
@@ -670,7 +670,7 @@
     {
       "id": "exi.mixer",
       "area": "Exibir",
-      "estado": "previsto",
+      "estado": "parcial",
       "prioridade": "P2",
       "comandos": 3
     },

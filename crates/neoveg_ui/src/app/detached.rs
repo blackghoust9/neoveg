@@ -308,6 +308,24 @@ mod tests {
     }
 
     #[test]
+    fn show_brings_a_window_forward_or_back_and_never_closes_it() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        let _ = &ctx;
+        // In the dock: Show keeps it there (Toggle would close it when it is in front)
+        assert!(app.dock.find_tab(&Tab::VideoFx).is_some());
+        app.apply_window_action(WindowAction::Show(Tab::VideoFx));
+        app.apply_window_action(WindowAction::Show(Tab::VideoFx));
+        assert!(app.dock.find_tab(&Tab::VideoFx).is_some());
+        // Closed: Show puts it back
+        let found = app.dock.find_tab(&Tab::VideoFx).unwrap();
+        app.dock.remove_tab(found);
+        assert!(app.dock.find_tab(&Tab::VideoFx).is_none());
+        app.apply_window_action(WindowAction::Show(Tab::VideoFx));
+        assert!(app.dock.find_tab(&Tab::VideoFx).is_some());
+    }
+
+    #[test]
     fn a_floating_dock_window_becomes_a_native_window_and_redocks() {
         let ctx = egui::Context::default();
         let mut app = app();

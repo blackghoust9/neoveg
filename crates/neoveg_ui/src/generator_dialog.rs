@@ -35,6 +35,8 @@ impl GeneratorTab {
 
 pub struct GeneratorDialogState {
     pub open: bool,
+    /// The media pool entry being edited and the spec it had (`None` when a new one is made).
+    pub editing: Option<(u64, GeneratorSpec)>,
     pub tab: GeneratorTab,
     pub duration_seconds: f64,
     // Solid color
@@ -63,6 +65,7 @@ impl Default for GeneratorDialogState {
     fn default() -> Self {
         Self {
             open: false,
+            editing: None,
             tab: GeneratorTab::TitleText,
             duration_seconds: 5.0,
             solid_rgba: [28, 110, 216, 255],
@@ -96,6 +99,60 @@ fn edit_rgba(ui: &mut egui::Ui, label: &str, rgba: &mut [u8; 4]) {
 }
 
 impl GeneratorDialogState {
+    /// Opens the dialog on an existing generated media, with its values in the controls. Applying it
+    /// gives back a spec of the same size and rate for the media `media_id`.
+    pub fn edit(&mut self, media_id: u64, spec: &GeneratorSpec) {
+        self.duration_seconds = spec.duration;
+        match &spec.kind {
+            GeneratorKind::SolidColor { rgba } => {
+                self.tab = GeneratorTab::SolidColor;
+                self.solid_rgba = *rgba;
+            }
+            GeneratorKind::TestPattern { variant } => {
+                self.tab = GeneratorTab::TestPattern;
+                self.pattern = *variant;
+            }
+            GeneratorKind::Gradient {
+                shape,
+                start_rgba,
+                end_rgba,
+                angle_deg,
+            } => {
+                self.tab = GeneratorTab::Gradient;
+                self.gradient_shape = *shape;
+                self.grad_start = *start_rgba;
+                self.grad_end = *end_rgba;
+                self.grad_angle_deg = *angle_deg;
+            }
+            GeneratorKind::TitleText {
+                text,
+                scale,
+                text_rgba,
+                bg_rgba,
+                outline_rgba,
+                outline_px,
+                shadow_rgba,
+                shadow_offset,
+                align_y,
+                animation,
+            } => {
+                self.tab = GeneratorTab::TitleText;
+                self.title_text = text.clone();
+                self.title_scale = *scale;
+                self.title_rgba = *text_rgba;
+                self.title_bg_rgba = *bg_rgba;
+                self.title_outline_rgba = *outline_rgba;
+                self.title_outline_px = *outline_px;
+                self.title_shadow_rgba = *shadow_rgba;
+                self.title_shadow_offset = *shadow_offset;
+                self.title_align_y = *align_y;
+                self.title_animation = *animation;
+            }
+        }
+        self.editing = Some((media_id, spec.clone()));
+        self.open = true;
+    }
+
     pub fn build_spec(&self, width: u32, height: u32, fps: f64) -> GeneratorSpec {
         let (name, kind) = match self.tab {
             GeneratorTab::SolidColor => (
@@ -174,14 +231,24 @@ impl GeneratorDialogState {
         let mut confirmed = false;
         let mut cancelled = false;
 
-        crate::dialogs::dialog(ctx, "Geradores de Mídia")
+        let editing = self.editing.is_some();
+        let title = if editing {
+            "Editar mídia gerada"
+        } else {
+            "Geradores de Mídia"
+        };
+        crate::dialogs::dialog(ctx, title)
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
             .default_width(480.0)
             .show(ctx, |ui| {
+                // The kind of a media that exists does not change, only its values
                 ui.horizontal_wrapped(|ui| {
                     for candidate in GeneratorTab::ALL {
+                        if editing && candidate != self.tab {
+                            continue;
+                        }
                         ui.selectable_value(&mut self.tab, candidate, candidate.label());
                     }
                 });
@@ -289,7 +356,12 @@ impl GeneratorDialogState {
 
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button("Inserir na timeline").clicked() {
+                    let label = if editing {
+                        "Aplicar"
+                    } else {
+                        "Inserir na timeline"
+                    };
+                    if ui.button(label).clicked() {
                         confirmed = true;
                     }
                     if ui.button("Cancelar").clicked() {
@@ -299,6 +371,14 @@ impl GeneratorDialogState {
             });
 
         self.open = open && !confirmed && !cancelled;
-        confirmed.then(|| self.build_spec(project_width, project_height, project_fps))
+        if !self.open && !confirmed {
+            self.editing = None;
+        }
+        // Editing keeps the size and the rate the media was made with
+        let (width, height, fps) = match &self.editing {
+            Some((_, spec)) => (spec.width, spec.height, spec.fps),
+            None => (project_width, project_height, project_fps),
+        };
+        confirmed.then(|| self.build_spec(width, height, fps))
     }
 }

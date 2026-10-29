@@ -76,6 +76,7 @@ use tabs::{close_tab_window, project_tab_bar, Tabs};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
+use crate::event_header;
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
@@ -177,6 +178,8 @@ enum WindowAction {
     /// Show the window (bring it to the front, or put it back when it was closed); when it is
     /// already in front, close it.
     Toggle(Tab),
+    /// Bring the window to the front (open it when it was closed), never close it.
+    Show(Tab),
     DefaultLayout,
     /// Load the saved layout in this file.
     LoadLayout(PathBuf),
@@ -663,6 +666,9 @@ struct AppState {
     trimmer_drag_from: Option<f64>,
     /// A window command the dock must carry out (the dock lives outside `AppState`).
     window_request: Option<WindowAction>,
+    /// A click to hand to the timeline on the next frame, as if the right button had been pressed
+    /// there: the menu button of an event header opens the context menu this way.
+    pending_context_click: Option<Pos2>,
     /// Where the saved window layouts live (`None` reads and writes nothing).
     layouts_dir: Option<PathBuf>,
     /// The saved layouts, read from `layouts_dir` when first needed and after each change.
@@ -1518,6 +1524,7 @@ impl AppState {
             trimmer_overwrite: false,
             trimmer_drag_from: None,
             window_request: None,
+            pending_context_click: None,
             layouts_dir: crate::layouts::dir(),
             layouts: Vec::new(),
             layouts_loaded: false,
@@ -1732,6 +1739,110 @@ impl AppState {
         let base = self.paste_base_track();
         let result = ops::paste(&mut self.timeline, &clip, self.playhead, base, mode);
         self.report_paste(result);
+    }
+
+    /// `true` when the media the event plays is a generated one (a `.neoveggen` manifest).
+    fn is_generated_event(&self, ev: &TrackEvent) -> bool {
+        ev.media_id
+            .and_then(|id| self.project.media_pool.iter().find(|m| m.id == id))
+            .is_some_and(|m| {
+                neoveg_video::generators::is_generator_manifest_path(std::path::Path::new(&m.path))
+            })
+    }
+
+    /// The header button of an event was clicked: it selects the event and does what the button says.
+    fn header_button_clicked(
+        &mut self,
+        track_id: TrackId,
+        event_id: EventId,
+        button: event_header::HeaderButton,
+        center: Pos2,
+    ) {
+        use event_header::HeaderButton;
+        self.selected_track = Some(track_id);
+        if !self.selection.contains((track_id, event_id)) {
+            self.click_select((track_id, event_id));
+        }
+        let video = self
+            .timeline
+            .track(track_id)
+            .is_some_and(|t| t.kind == TrackKind::Video);
+        match button {
+            HeaderButton::Menu => self.pending_context_click = Some(center),
+            HeaderButton::PanCrop => self.open_pan_crop(track_id, event_id),
+            HeaderButton::Fx if video => {
+                self.vfx.scope = VfxScope::Event;
+                self.window_request = Some(WindowAction::Show(Tab::VideoFx));
+            }
+            HeaderButton::Fx => {
+                self.fx.master = false;
+                self.fx.bus = None;
+                self.window_request = Some(WindowAction::Show(Tab::AudioFx));
+            }
+            HeaderButton::GeneratedMedia => self.edit_generated_media(track_id, event_id),
+        }
+    }
+
+    /// Opens the generator dialog on the generated media the event plays.
+    fn edit_generated_media(&mut self, track_id: TrackId, event_id: EventId) {
+        let media_id = self
+            .timeline
+            .track(track_id)
+            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+            .and_then(|e| e.media_id);
+        let Some((id, path)) = media_id.and_then(|id| {
+            self.project
+                .media_pool
+                .iter()
+                .find(|m| m.id == id)
+                .map(|m| (id, PathBuf::from(&m.path)))
+        }) else {
+            return;
+        };
+        match neoveg_video::generators::GeneratorSpec::load_manifest(&path) {
+            Ok(spec) => self.generator_dialog.edit(id, &spec),
+            Err(e) => self.status = format!("Não foi possível abrir a mídia gerada: {e}"),
+        }
+    }
+
+    /// The edited spec of a generated media: written as a new manifest (the render cache is keyed by the
+    /// file, so a new name cannot show an old picture), and the media entry points at it from now on.
+    fn apply_generated_edit(
+        &mut self,
+        media_id: u64,
+        spec: neoveg_video::generators::GeneratorSpec,
+        ctx: &egui::Context,
+    ) {
+        let Some(old) = self
+            .project
+            .media_pool
+            .iter()
+            .find(|m| m.id == media_id)
+            .map(|m| PathBuf::from(&m.path))
+        else {
+            return;
+        };
+        let dir = old
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        let stem: String = spec
+            .name
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let path = dir.join(format!("{stem}_{}.neoveggen", autosave::unix_now()));
+        match spec.save_manifest(&path) {
+            Ok(()) => {
+                relink::relink_to(&mut self.project.media_pool, media_id, &path);
+                self.forced_dirty = true;
+                self.last_frame_key = None;
+                self.last_composite_key = None;
+                self.spawn_media(path, Some(media_id), ctx);
+                self.status = format!("Mídia gerada {} atualizada", spec.name);
+            }
+            Err(e) => self.status = format!("Não foi possível gravar a mídia gerada: {e}"),
+        }
     }
 
     /// *Inserir barramento de áudio*: the next bus (up to 26), shown in the effects panel.
@@ -6096,6 +6207,21 @@ impl NeovegApp {
                     );
                 }
             }
+            WindowAction::Show(tab) => {
+                if self.detached.iter().any(|d| d.tab == tab) {
+                    if let Some(ctx) = self.state.tabs.ctx.clone() {
+                        ctx.send_viewport_cmd_to(
+                            detached::viewport_id(tab),
+                            egui::ViewportCommand::Focus,
+                        );
+                    }
+                } else {
+                    match self.dock.find_tab(&tab) {
+                        Some(found) => self.dock.set_active_tab(found),
+                        None => self.dock.push_to_focused_leaf(tab),
+                    }
+                }
+            }
             WindowAction::Toggle(tab) => {
                 self.state.status = match toggle_window(&mut self.dock, tab) {
                     WindowChange::Closed => format!("{} fechada", tab.title()),
@@ -6188,6 +6314,22 @@ impl NeovegApp {
 impl eframe::App for NeovegApp {
     fn on_exit(&mut self) {
         self.sync_detached_prefs(true);
+    }
+
+    /// A press and release of the right button where the menu button of an event header asked for it.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if let Some(pos) = self.state.pending_context_click.take() {
+            let modifiers = egui::Modifiers::NONE;
+            raw_input.events.push(egui::Event::PointerMoved(pos));
+            for pressed in [true, false] {
+                raw_input.events.push(egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Secondary,
+                    pressed,
+                    modifiers,
+                });
+            }
+        }
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -6339,8 +6481,13 @@ impl NeovegApp {
         }
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
+        let editing = self.state.generator_dialog.editing.clone();
         if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
-            self.state.insert_generated(spec, ctx);
+            match editing {
+                Some((media_id, _)) => self.state.apply_generated_edit(media_id, spec, ctx),
+                None => self.state.insert_generated(spec, ctx),
+            }
+            self.state.generator_dialog.editing = None;
         }
         let has_loop_region = self.state.loop_region.is_some();
         let duration = self.state.timeline.duration();
@@ -8512,6 +8659,12 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut open = state.show_inspector;
     let mut change = None;
+    // What the controls asked for: applied after the window is drawn
+    let mut target: Option<(TrackId, EventId)> = None;
+    let mut rename: Option<String> = None;
+    let mut switch: Option<(Switch, bool)> = None;
+    let mut resample: Option<neoveg_engine::ResampleMode> = None;
+    let mut header: Option<event_header::HeaderButton> = None;
     crate::dialogs::tool_window(ctx, "Inspetor")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -8535,14 +8688,82 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 ui.label("Nenhum evento selecionado");
                 return;
             };
-            ui.label(format!("Evento: {name}"));
-            ui.label(format!("Início: {:.3} s", g.start));
-            ui.label(format!("Duração: {:.3} s", g.duration));
+            target = Some((track_id, event_id));
+            let kind = state
+                .timeline
+                .track(track_id)
+                .map_or(TrackKind::Audio, |t| t.kind);
+            let ev = state
+                .timeline
+                .track(track_id)
+                .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+                .cloned();
+            let Some(ev) = ev else {
+                return;
+            };
+            let generated = state.is_generated_event(&ev);
+            let mut new_name = name.clone();
+            ui.horizontal(|ui| {
+                ui.label("Nome");
+                let response = ui.text_edit_singleline(&mut new_name);
+                if response.lost_focus() && new_name.trim() != name {
+                    rename = Some(new_name.clone());
+                }
+            });
+            let what = if ev.adjustment {
+                "Evento de ajuste (sem mídia: os efeitos valem para as faixas abaixo)"
+            } else if generated {
+                "Mídia gerada"
+            } else if kind == TrackKind::Video {
+                "Evento de vídeo"
+            } else {
+                "Evento de áudio"
+            };
+            ui.weak(what);
+            if let Some(media) = ev
+                .media_id
+                .and_then(|id| state.project.media_pool.iter().find(|m| m.id == id))
+            {
+                ui.weak(&media.path);
+                ui.weak(format!("Duração da mídia: {:.3} s", media.duration_seconds));
+            }
             ui.label(format!("Corte de entrada: {:.3} s", g.trim_in));
             ui.separator();
 
             let mut new = g;
             let fps_min_len = 1.0 / state.project.settings.fps.max(1.0);
+            // Where it starts and how long it lasts: both go through the same rules as the mouse
+            let source_len = state.source_len(track_id, event_id);
+            ui.horizontal(|ui| {
+                ui.label("Início");
+                let mut start = g.start;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut start)
+                            .range(0.0..=100_000.0)
+                            .speed(0.04)
+                            .fixed_decimals(3)
+                            .suffix(" s"),
+                    )
+                    .changed()
+                {
+                    new = edit::move_to(new, start);
+                }
+                ui.label("Duração");
+                let mut length = g.duration;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut length)
+                            .range(fps_min_len..=100_000.0)
+                            .speed(0.04)
+                            .fixed_decimals(3)
+                            .suffix(" s"),
+                    )
+                    .changed()
+                {
+                    new = edit::trim_right(new, new.start + length, fps_min_len, source_len);
+                }
+            });
             ui.horizontal(|ui| {
                 ui.label("Velocidade");
                 let mut rate = edit::clamp_playback_rate(new.playback_rate);
@@ -8607,12 +8828,82 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             } else if new.fade_out != g.fade_out {
                 new = edit::set_fade_out(new, new.fade_out);
             }
+            ui.separator();
+            // Switches (the ones that make sense for the kind of event)
+            ui.horizontal_wrapped(|ui| {
+                for (label, which, audio_only) in [
+                    ("Mudo", Switch::Mute, false),
+                    ("Travado", Switch::Lock, false),
+                    ("Laço", Switch::Loop, false),
+                    ("Inverter fase", Switch::InvertPhase, true),
+                    ("Normalizar", Switch::Normalize, true),
+                ] {
+                    if audio_only && kind != TrackKind::Audio {
+                        continue;
+                    }
+                    let mut on = which.is_on(&ev);
+                    if ui.checkbox(&mut on, label).changed() {
+                        switch = Some((which, on));
+                    }
+                }
+            });
+            if kind == TrackKind::Video && !ev.adjustment {
+                ui.horizontal(|ui| {
+                    ui.label("Reamostragem");
+                    egui::ComboBox::from_id_salt("inspector_resample")
+                        .selected_text(ev.resample.label())
+                        .show_ui(ui, |ui| {
+                            for mode in neoveg_engine::ResampleMode::ALL {
+                                if ui
+                                    .selectable_label(ev.resample == mode, mode.label())
+                                    .clicked()
+                                {
+                                    resample = Some(mode);
+                                }
+                            }
+                        });
+                });
+            }
+            ui.separator();
+            ui.horizontal_wrapped(|ui| {
+                if kind == TrackKind::Video && !ev.adjustment && ui.button("Pan/Crop…").clicked()
+                {
+                    header = Some(event_header::HeaderButton::PanCrop);
+                }
+                if ui.button("Efeitos…").clicked() {
+                    header = Some(event_header::HeaderButton::Fx);
+                }
+                if generated && ui.button("Editar mídia gerada…").clicked() {
+                    header = Some(event_header::HeaderButton::GeneratedMedia);
+                }
+            });
             if new != g {
                 change = Some((track_id, event_id, new));
             }
         });
     if let Some((track_id, event_id, new)) = change {
         state.apply_geometry(track_id, event_id, new);
+    }
+    if let Some((track_id, event_id)) = target {
+        let command = if let Some(name) = rename {
+            neoveg_engine::switches::rename_event(&state.timeline, (track_id, event_id), &name)
+        } else if let Some((which, on)) = switch {
+            neoveg_engine::switches::set(&state.timeline, &[(track_id, event_id)], which, on)
+        } else if let Some(mode) = resample {
+            neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
+        } else {
+            None
+        };
+        if let Some(command) = command {
+            if state.history.execute(&mut state.timeline, command) {
+                state.last_frame_key = None;
+                state.last_composite_key = None;
+                state.restart_audio_if_playing();
+            }
+        }
+        if let Some(button) = header {
+            state.header_button_clicked(track_id, event_id, button, Pos2::ZERO);
+        }
     }
     state.show_inspector = open;
 }
@@ -9404,6 +9695,41 @@ fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) 
     )
 }
 
+/// The header button of an event under `p`, with the event and the button's rectangle.
+fn header_button_at(
+    state: &AppState,
+    lanes: Rect,
+    lane_top: f32,
+    p: Pos2,
+) -> Option<(TrackId, EventId, event_header::HeaderButton, Rect)> {
+    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    if row < 0.0 || p.x < lanes.left() || p.x > lanes.right() {
+        return None;
+    }
+    let track = state.timeline.tracks.get(row as usize)?;
+    let row_y = lane_top + row * TRACK_HEIGHT;
+    let to_px = |t: f64| {
+        (lanes.left() + ((t - state.scroll_seconds) * state.pixels_per_second) as f32).clamp(
+            lanes.left() - OFFSCREEN_CLAMP_PX,
+            lanes.right() + OFFSCREEN_CLAMP_PX,
+        )
+    };
+    track.events.iter().rev().find_map(|ev| {
+        let (x0, x1) = (to_px(ev.start), to_px(ev.end()));
+        if p.x < x0 || p.x > x1 {
+            return None;
+        }
+        let ev_rect =
+            Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
+        let buttons =
+            event_header::buttons_for(track.kind, state.is_generated_event(ev), ev.adjustment);
+        let placed = event_header::layout(ev_rect, &buttons, EVENT_HEADER_HEIGHT);
+        let button = event_header::hit(&placed, p)?;
+        let rect = placed.iter().find(|(b, _)| *b == button)?.1;
+        Some((track.id, ev.id, button, rect))
+    })
+}
+
 /// Event under `p` and what a drag from there would do.
 fn hit_event(
     state: &AppState,
@@ -10072,8 +10398,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         }
     }
 
+    // ---- the buttons of an event header act on a click, without moving the cursor or a drag -----
+    let header_click = if response.clicked() {
+        response
+            .interact_pointer_pos()
+            .and_then(|p| header_button_at(state, lanes, lane_top, p))
+    } else {
+        None
+    };
+    if let Some((track_id, event_id, button, rect)) = header_click {
+        state.header_button_clicked(track_id, event_id, button, rect.center());
+    }
+
     // ---- clicks: ruler scrubs the playhead, lanes and headers select tracks/events -------------
-    if response.clicked() || response.dragged() {
+    if header_click.is_none() && (response.clicked() || response.dragged()) {
         if let Some(p) = response.interact_pointer_pos() {
             let in_ruler = p.y < rect.top() + RULER_HEIGHT;
             let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
@@ -10135,7 +10473,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // ---- dragging events: move, trim left/right, change track ------------------------------------
     if response.drag_started() {
         let press = ui.input(|i| i.pointer.press_origin());
-        if let Some(p) = press.filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom) {
+        if let Some(p) = press.filter(|p| {
+            p.x >= lanes.left()
+                && p.y >= ruler_bottom
+                && header_button_at(state, lanes, lane_top, *p).is_none()
+        }) {
             let t = x_to_time(state, lanes.left(), p.x);
             let env_node = envelope_canvas::hit_test(
                 &state.timeline.tracks,
@@ -10399,7 +10741,19 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         .hover_pos()
         .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
     {
-        match hit_event(state, lanes.left(), lane_top, p).map(|h| h.2) {
+        let header_hover = header_button_at(state, lanes, lane_top, p);
+        if let Some((track_id, _, button, _)) = header_hover {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            let video = state
+                .timeline
+                .track(track_id)
+                .is_some_and(|t| t.kind == TrackKind::Video);
+            response.clone().on_hover_text(button.tooltip(video));
+        }
+        match hit_event(state, lanes.left(), lane_top, p)
+            .map(|h| h.2)
+            .filter(|_| header_hover.is_none())
+        {
             Some(
                 DragMode::TrimLeft
                 | DragMode::TrimRight
@@ -10723,13 +11077,67 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     20.0 * ev.normalize_gain.log10()
                 ));
             }
-            lane_painter.text(
+            // The header: the name up to the first button, then the buttons
+            let buttons =
+                event_header::buttons_for(track.kind, state.is_generated_event(ev), ev.adjustment);
+            let placed = event_header::layout(ev_rect, &buttons, EVENT_HEADER_HEIGHT);
+            let name_right = event_header::name_limit(ev_rect, &placed).max(ev_rect.left());
+            let title_painter = lane_painter.with_clip_rect(
+                Rect::from_min_max(
+                    ev_rect.min,
+                    pos2(name_right, ev_rect.top() + EVENT_HEADER_HEIGHT + 1.0),
+                )
+                .intersect(lane_painter.clip_rect()),
+            );
+            title_painter.text(
                 ev_rect.min + vec2(4.0, 1.0),
                 Align2::LEFT_TOP,
                 &title,
                 FontId::proportional(10.0),
                 Color32::from_gray(225),
             );
+            let hover = ui.input(|i| i.pointer.hover_pos());
+            for (button, rect) in &placed {
+                // Only a button that is wholly in view is drawn (and answers)
+                if rect.left() < lanes.left() || rect.right() > lanes.right() {
+                    continue;
+                }
+                let over = hover.is_some_and(|p| rect.expand(1.0).contains(p));
+                if over {
+                    lane_painter.rect_filled(*rect, Rounding::ZERO, Color32::from_white_alpha(50));
+                }
+                let color = Color32::from_gray(if over { 255 } else { 215 });
+                match button {
+                    event_header::HeaderButton::Fx => {
+                        icons::paint_svg(ui, icons::SvgIcon::EventFx, rect.shrink(1.0), color);
+                    }
+                    event_header::HeaderButton::PanCrop => {
+                        icons::paint_svg(ui, icons::SvgIcon::PanCrop, rect.shrink(1.0), color);
+                    }
+                    event_header::HeaderButton::Menu => {
+                        for line in 0..3 {
+                            let y = rect.top() + 3.0 + line as f32 * 3.0;
+                            lane_painter.line_segment(
+                                [pos2(rect.left() + 2.0, y), pos2(rect.right() - 2.0, y)],
+                                Stroke::new(1.0_f32, color),
+                            );
+                        }
+                    }
+                    event_header::HeaderButton::GeneratedMedia => {
+                        let c = rect.center();
+                        lane_painter.add(egui::Shape::convex_polygon(
+                            vec![
+                                pos2(c.x, c.y - 5.0),
+                                pos2(c.x + 5.0, c.y),
+                                pos2(c.x, c.y + 5.0),
+                                pos2(c.x - 5.0, c.y),
+                            ],
+                            color,
+                            Stroke::NONE,
+                        ));
+                    }
+                }
+            }
             // The media this event plays is not on disk (manual v21 p.143: the event says so)
             if ev
                 .media_id
@@ -14155,6 +14563,189 @@ mod tests {
         assert!(s.timeline.track(track).unwrap().sends.is_empty());
         assert!(s.history.undo(&mut s.timeline));
         assert_eq!(s.timeline, snapshot);
+    }
+
+    /// A project with a video track (a generated clip and a plain one) and an audio track.
+    fn header_project(
+        tag: &str,
+    ) -> (
+        AppState,
+        TrackId,
+        TrackId,
+        EventId,
+        EventId,
+        EventId,
+        PathBuf,
+    ) {
+        let dir = std::env::temp_dir().join(format!("neoveg_header_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manifest = dir.join("cor.neoveggen");
+        let spec = neoveg_video::generators::GeneratorSpec {
+            name: "Cor".into(),
+            width: 64,
+            height: 36,
+            fps: 25.0,
+            duration: 5.0,
+            kind: neoveg_video::generators::GeneratorKind::SolidColor {
+                rgba: [10, 20, 30, 255],
+            },
+        };
+        spec.save_manifest(&manifest).unwrap();
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertVideoTrack);
+        run(&mut s, Command::InsertAudioTrack);
+        let video = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Video)
+            .unwrap()
+            .id;
+        let audio = s
+            .timeline
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Audio)
+            .unwrap()
+            .id;
+        for (id, path) in [
+            (1, manifest.to_string_lossy().into_owned()),
+            (2, "clip.mp4".into()),
+        ] {
+            s.project.media_pool.push(MediaRef {
+                subproject: false,
+                format: None,
+                id,
+                path,
+                duration_seconds: 5.0,
+            });
+        }
+        let mut ids = Vec::new();
+        for (track, media, start) in [(video, 1, 0.0), (video, 2, 6.0), (audio, 2, 0.0)] {
+            let id = s.timeline.alloc_id();
+            let event = TrackEvent {
+                id,
+                media_id: Some(media),
+                name: "ev".into(),
+                start,
+                duration: 5.0,
+                ..TrackEvent::default()
+            };
+            assert!(s.history.execute(
+                &mut s.timeline,
+                EditCommand::AddEvent {
+                    track_id: track,
+                    event
+                }
+            ));
+            ids.push(id);
+        }
+        s.pixels_per_second = 100.0;
+        s.scroll_seconds = 0.0;
+        (s, video, audio, ids[0], ids[1], ids[2], dir)
+    }
+
+    #[test]
+    fn the_header_buttons_are_found_where_they_are_drawn_and_nowhere_else() {
+        use event_header::HeaderButton;
+        let (s, video, _audio, generated, plain, _sound, dir) = header_project("found");
+        let lanes = Rect::from_min_size(pos2(100.0, 50.0), vec2(1200.0, 400.0));
+        let lane_top = 60.0;
+        let row_rect = |ev_start: f64, row: f32| {
+            let x0 = lanes.left() + (ev_start * 100.0) as f32;
+            Rect::from_min_max(
+                pos2(x0, lane_top + row * TRACK_HEIGHT + 2.0),
+                pos2(
+                    x0 + 500.0,
+                    lane_top + row * TRACK_HEIGHT + TRACK_HEIGHT - 2.0,
+                ),
+            )
+        };
+        // The generated clip has all four, the plain video clip three
+        let buttons = event_header::buttons_for(TrackKind::Video, true, false);
+        let placed = event_header::layout(row_rect(0.0, 0.0), &buttons, EVENT_HEADER_HEIGHT);
+        assert_eq!(placed.len(), 4);
+        for (button, rect) in &placed {
+            let found = header_button_at(&s, lanes, lane_top, rect.center()).unwrap();
+            assert_eq!((found.0, found.1, found.2), (video, generated, *button));
+        }
+        let plain_buttons = event_header::buttons_for(TrackKind::Video, false, false);
+        let plain_placed =
+            event_header::layout(row_rect(6.0, 0.0), &plain_buttons, EVENT_HEADER_HEIGHT);
+        let first = header_button_at(&s, lanes, lane_top, plain_placed[0].1.center()).unwrap();
+        assert_eq!((first.1, first.2), (plain, HeaderButton::PanCrop));
+        // The body of the event and the empty lane are not buttons
+        assert!(header_button_at(&s, lanes, lane_top, pos2(200.0, 100.0)).is_none());
+        assert!(header_button_at(&s, lanes, lane_top, pos2(1100.0, 100.0)).is_none());
+        // The audio event (the second row) has only FX and the menu
+        let sound = event_header::buttons_for(TrackKind::Audio, false, false);
+        let sound_placed = event_header::layout(row_rect(0.0, 1.0), &sound, EVENT_HEADER_HEIGHT);
+        assert_eq!(sound_placed.len(), 2);
+        let hit = header_button_at(&s, lanes, lane_top, sound_placed[0].1.center()).unwrap();
+        assert_eq!(hit.2, HeaderButton::Fx);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn each_header_button_selects_the_event_and_does_its_job() {
+        use event_header::HeaderButton;
+        let (mut s, video, audio, generated, plain, sound, dir) = header_project("jobs");
+        let at = pos2(300.0, 70.0);
+        // FX of a video event: the video effects tab, on the Event scope
+        s.header_button_clicked(video, plain, HeaderButton::Fx, at);
+        assert_eq!(s.selection.primary(), Some((video, plain)));
+        assert_eq!(s.vfx.scope, VfxScope::Event);
+        assert_eq!(s.window_request, Some(WindowAction::Show(Tab::VideoFx)));
+        // FX of an audio event: the effects of its track
+        s.fx.master = true;
+        s.header_button_clicked(audio, sound, HeaderButton::Fx, at);
+        assert_eq!(s.selected_track, Some(audio));
+        assert!(!s.fx.master && s.fx.bus.is_none());
+        assert_eq!(s.window_request, Some(WindowAction::Show(Tab::AudioFx)));
+        // The menu asks for a right click where the button is
+        s.header_button_clicked(video, plain, HeaderButton::Menu, at);
+        assert_eq!(s.pending_context_click, Some(at));
+        // Generated media opens the dialog on its values
+        s.header_button_clicked(video, generated, HeaderButton::GeneratedMedia, at);
+        assert!(s.generator_dialog.open);
+        assert_eq!(s.generator_dialog.editing.as_ref().map(|e| e.0), Some(1));
+        assert_eq!(s.generator_dialog.solid_rgba, [10, 20, 30, 255]);
+        // Applying it writes a new manifest, repoints the media and leaves the old file
+        let old = s.project.media_pool[0].path.clone();
+        let (_, spec) = s.generator_dialog.editing.clone().unwrap();
+        let mut edited = spec.clone();
+        edited.kind = neoveg_video::generators::GeneratorKind::SolidColor {
+            rgba: [200, 0, 0, 255],
+        };
+        s.apply_generated_edit(1, edited, &egui::Context::default());
+        let new = s.project.media_pool[0].path.clone();
+        assert_ne!(new, old);
+        assert!(
+            std::path::Path::new(&old).is_file(),
+            "the old manifest stays"
+        );
+        let saved =
+            neoveg_video::generators::GeneratorSpec::load_manifest(std::path::Path::new(&new))
+                .unwrap();
+        assert_eq!(
+            saved.kind,
+            neoveg_video::generators::GeneratorKind::SolidColor {
+                rgba: [200, 0, 0, 255]
+            }
+        );
+        assert!(s.is_dirty());
+        // A video event that is not generated has no such button
+        assert!(!s.is_generated_event(
+            s.timeline
+                .track(video)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == plain)
+                .unwrap()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

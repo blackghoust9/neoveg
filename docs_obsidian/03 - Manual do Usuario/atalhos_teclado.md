@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (120 comandos, 117 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (121 comandos, 118 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -74,6 +74,7 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Inserir faixa de áudio | `Ctrl+Q` | `insert.audio_track` | implementado |
 | Inserir faixa de vídeo | `Ctrl+Shift+Q` | `insert.video_track` | implementado |
 | Inserir evento de ajuste | `Ctrl+Alt+J` | `insert.adjustment_event` | implementado |
+| Inserir barramento de áudio | `Ctrl+Alt+B` | `insert.audio_bus` | implementado |
 | Inserir marcador | `M` | `insert.marker` | implementado |
 | Inserir tempo… | `Ctrl+Alt+T` | `insert.time` | implementado |
 | Inserir região | `R` | `insert.region` | implementado |

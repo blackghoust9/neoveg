@@ -232,6 +232,33 @@ pub fn set_normalize(timeline: &Timeline, gains: &[(EventRef, f32)]) -> Option<E
     (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
 }
 
+/// Longest name an event can be given.
+pub const MAX_NAME_CHARS: usize = 120;
+
+/// Renames `event` (one undo step). The name is trimmed and cut at [`MAX_NAME_CHARS`]; an empty name,
+/// the same name or a locked event give `None`.
+pub fn rename_event(timeline: &Timeline, event: EventRef, name: &str) -> Option<EditCommand> {
+    let name: String = name.trim().chars().take(MAX_NAME_CHARS).collect();
+    if name.is_empty() {
+        return None;
+    }
+    let (track_id, event_id) = event;
+    let track = timeline.track(track_id)?;
+    let current = track.events.iter().find(|e| e.id == event_id)?;
+    if current.locked || current.name == name {
+        return None;
+    }
+    let mut after = track.events.clone();
+    after.iter_mut().find(|e| e.id == event_id)?.name = name;
+    Some(EditCommand::ReplaceEvents {
+        changes: vec![TrackChange {
+            track_id,
+            before: track.events.clone(),
+            after,
+        }],
+    })
+}
+
 /// The Resample Mode the selected video events share, or `None` when there is none or they differ.
 pub fn resample_of(
     timeline: &Timeline,
@@ -598,5 +625,54 @@ mod tests {
         let back: TrackEvent =
             serde_json::from_str(&serde_json::to_string(&blended).unwrap()).unwrap();
         assert_eq!(back.resample, ResampleMode::Disabled);
+    }
+
+    #[test]
+    fn an_event_is_renamed_in_one_undo_step_unless_locked_or_the_name_is_empty() {
+        use crate::command::History;
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let track = tl.new_track(TrackKind::Video);
+        let tid = track.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track }));
+        let id = tl.alloc_id();
+        let event = TrackEvent {
+            id,
+            name: "Plano 1".into(),
+            duration: 2.0,
+            ..TrackEvent::default()
+        };
+        assert!(h.execute(
+            &mut tl,
+            EditCommand::AddEvent {
+                track_id: tid,
+                event
+            }
+        ));
+        let cmd = rename_event(&tl, (tid, id), "  Abertura  ").unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(tl.track(tid).unwrap().events[0].name, "Abertura");
+        assert!(h.undo(&mut tl));
+        assert_eq!(tl.track(tid).unwrap().events[0].name, "Plano 1");
+        assert!(
+            rename_event(&tl, (tid, id), "   ").is_none(),
+            "no empty name"
+        );
+        assert!(
+            rename_event(&tl, (tid, id), "Plano 1").is_none(),
+            "nothing changes"
+        );
+        let long = "x".repeat(MAX_NAME_CHARS + 30);
+        let Some(EditCommand::ReplaceEvents { changes }) = rename_event(&tl, (tid, id), &long)
+        else {
+            panic!("a rename");
+        };
+        assert_eq!(changes[0].after[0].name.chars().count(), MAX_NAME_CHARS);
+        tl.track_mut(tid).unwrap().events[0].locked = true;
+        assert!(
+            rename_event(&tl, (tid, id), "Outro").is_none(),
+            "a locked event is frozen"
+        );
+        assert!(rename_event(&tl, (tid, 999), "Outro").is_none());
     }
 }
