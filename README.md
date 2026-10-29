@@ -435,7 +435,8 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Biblioteca de ícones SVG (`crates/neoveg_ui/assets/icons`): pan/crop, FX do evento, ímã de alinhamento, auto ripple, dividir e reproduzir / pausar / parar, com `currentColor` e estilo plano e quadrado
 - [ ] Gradação de cor por evento, rodas de cor e OCIO
 - [x] Legendas SRT e WebVTT: aba **Legendas** no painel de mídia (editar texto e tempos, adicionar no cursor, apagar, ir para a legenda), texto sobre a prévia do vídeo, importar e exportar pelo menu Arquivo; leitura tolerante (BOM, UTF-16, Windows-1252, índices errados), adaptada do FilmCraft
-- [ ] Geradores e Titler/Texto com animação, estilo das legendas e queima das legendas na exportação
+- [x] Títulos com o motor de texto do FilmCraft (`neoveg_text`, `MIT OR Apache-2.0`): fontes de verdade (Inter, JetBrains Mono e Noto Serif embutidas, mais as instaladas no sistema), composição com HarfBuzz (`harfrust`: kerning, ligaduras, acentos e escritas complexas), texto bidirecional, quebra de linha, bordas suaves, contorno e sombra, nas animações já existentes; o diálogo ganhou **Fonte** e **Estilo**. Manifestos antigos continuam abrindo.
+- [ ] Estilo das legendas e queima das legendas na exportação (o motor de texto já está no projeto), mais parágrafos com largura fixa, estilos por trecho e alinhamento no título
 - [ ] Rastreamento de movimento, máscaras e *Smart Mask*
 
 **Projeto, mídia e saída**

@@ -59,6 +59,10 @@ pub struct GeneratorDialogState {
     pub title_shadow_offset: [i32; 2],
     pub title_align_y: f32,
     pub title_animation: TitleAnimation,
+    pub title_font: String,
+    pub title_font_style: String,
+    /// Families and their styles, read from the text engine when the controls first need them.
+    font_list: Vec<(String, Vec<String>)>,
 }
 
 impl Default for GeneratorDialogState {
@@ -84,6 +88,9 @@ impl Default for GeneratorDialogState {
             title_shadow_offset: [4, 4],
             title_align_y: 0.5,
             title_animation: TitleAnimation::Static,
+            title_font: "Inter".into(),
+            title_font_style: "Bold".into(),
+            font_list: Vec::new(),
         }
     }
 }
@@ -135,8 +142,12 @@ impl GeneratorDialogState {
                 shadow_offset,
                 align_y,
                 animation,
+                font,
+                font_style,
             } => {
                 self.tab = GeneratorTab::TitleText;
+                self.title_font = font.clone();
+                self.title_font_style = font_style.clone();
                 self.title_text = text.clone();
                 self.title_scale = *scale;
                 self.title_rgba = *text_rgba;
@@ -197,6 +208,8 @@ impl GeneratorDialogState {
                         shadow_offset: self.title_shadow_offset,
                         align_y: self.title_align_y.clamp(0.05, 0.95),
                         animation: self.title_animation,
+                        font: self.title_font.clone(),
+                        font_style: self.title_font_style.clone(),
                     },
                 )
             }
@@ -303,6 +316,69 @@ impl GeneratorDialogState {
                                 .desired_rows(3)
                                 .desired_width(f32::INFINITY),
                         );
+                        ui.horizontal(|ui| {
+                            ui.label("Fonte:");
+                            if self.font_list.is_empty() {
+                                self.font_list = neoveg_text::fonts::families();
+                            }
+                            let mut family_pick: Option<String> = None;
+                            egui::ComboBox::from_id_salt("gen_title_font")
+                                .selected_text(self.title_font.clone())
+                                .show_ui(ui, |ui| {
+                                    for (family, _) in &self.font_list {
+                                        if ui
+                                            .selectable_label(self.title_font == *family, family)
+                                            .clicked()
+                                        {
+                                            family_pick = Some(family.clone());
+                                        }
+                                    }
+                                });
+                            let styles: Vec<String> = self
+                                .font_list
+                                .iter()
+                                .find(|(family, _)| *family == self.title_font)
+                                .map(|(_, styles)| styles.clone())
+                                .unwrap_or_default();
+                            if let Some(family) = family_pick {
+                                self.title_font = family;
+                                let next = self
+                                    .font_list
+                                    .iter()
+                                    .find(|(f, _)| *f == self.title_font)
+                                    .map(|(_, styles)| styles.clone())
+                                    .unwrap_or_default();
+                                if !next.contains(&self.title_font_style) {
+                                    self.title_font_style = next
+                                        .iter()
+                                        .find(|s| s.as_str() == "Bold")
+                                        .or(next.first())
+                                        .cloned()
+                                        .unwrap_or_else(|| "Regular".into());
+                                }
+                            }
+                            egui::ComboBox::from_id_salt("gen_title_font_style")
+                                .selected_text(self.title_font_style.clone())
+                                .show_ui(ui, |ui| {
+                                    for style in &styles {
+                                        ui.selectable_value(
+                                            &mut self.title_font_style,
+                                            style.clone(),
+                                            style,
+                                        );
+                                    }
+                                });
+                            if ui
+                                .button("Fontes do sistema")
+                                .on_hover_text(
+                                    "Procura as fontes instaladas no computador (pode levar um instante)",
+                                )
+                                .clicked()
+                            {
+                                neoveg_text::fonts::scan_system();
+                                self.font_list = neoveg_text::fonts::families();
+                            }
+                        });
                         ui.horizontal(|ui| {
                             ui.label("Animação:");
                             egui::ComboBox::from_id_salt("gen_title_anim")

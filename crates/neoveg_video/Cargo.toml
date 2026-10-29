@@ -13,6 +13,7 @@ ffmpeg = ["dep:ffmpeg-next"]
 
 [dependencies]
 neoveg_common.workspace = true
+neoveg_text.workspace = true
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true

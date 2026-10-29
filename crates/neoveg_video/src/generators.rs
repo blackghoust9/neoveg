@@ -140,7 +140,21 @@ pub enum GeneratorKind {
         /// Normalized vertical anchor (`0.5` = centered, `0.82` = lower-third).
         align_y: f32,
         animation: TitleAnimation,
+        /// Font family and style: the bundled Inter, JetBrains Mono and Noto Serif, or a font
+        /// installed on the system.
+        #[serde(default = "default_title_font")]
+        font: String,
+        #[serde(default = "default_title_style")]
+        font_style: String,
     },
+}
+
+fn default_title_font() -> String {
+    "Inter".into()
+}
+
+fn default_title_style() -> String {
+    "Bold".into()
 }
 
 impl GeneratorKind {
@@ -169,6 +183,8 @@ impl GeneratorKind {
             shadow_offset: [4, 4],
             align_y: 0.5,
             animation: TitleAnimation::Static,
+            font: default_title_font(),
+            font_style: default_title_style(),
         }
     }
 }
@@ -247,6 +263,8 @@ impl GeneratorSpec {
                 shadow_offset,
                 align_y,
                 animation,
+                font,
+                font_style,
             } => {
                 let eff_scale = ((*scale as f32 * scale_ratio).round() as u32).max(1);
                 let eff_outline = ((*outline_px as f32 * scale_ratio).round() as u32)
@@ -260,6 +278,7 @@ impl GeneratorSpec {
                     h,
                     text,
                     eff_scale,
+                    (font, font_style),
                     *text_rgba,
                     *bg_rgba,
                     *outline_rgba,
@@ -402,182 +421,13 @@ fn blend_over_px(dst: &mut [u8], src: [u8; 4], alpha_mul: f32) {
     dst[3] = (out_a.clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8;
 }
 
-/// Compact 5x7 uppercase/ASCII + accent bitmap font with clean legibility at arbitrary integer
-/// scale factors.
-fn glyph_5x7(ch: char) -> ([u8; 7], u8) {
-    // Fold common Portuguese accented letters to base glyph + optional accent mark row bitmask.
-    let (base, accent_kind): (char, u8) = match ch {
-        'á' | 'Á' => ('A', 1),
-        'à' | 'À' => ('A', 2),
-        'â' | 'Â' => ('A', 3),
-        'ã' | 'Ã' => ('A', 4),
-        'é' | 'É' => ('E', 1),
-        'ê' | 'Ê' => ('E', 3),
-        'í' | 'Í' => ('I', 1),
-        'ó' | 'Ó' => ('O', 1),
-        'ô' | 'Ô' => ('O', 3),
-        'õ' | 'Õ' => ('O', 4),
-        'ú' | 'Ú' => ('U', 1),
-        'ç' | 'Ç' => ('C', 5),
-        other => (other.to_ascii_uppercase(), 0),
-    };
-
-    let rows = match base {
-        'A' => [
-            0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001,
-        ],
-        'B' => [
-            0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110,
-        ],
-        'C' => [
-            0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110,
-        ],
-        'D' => [
-            0b11100, 0b10010, 0b10001, 0b10001, 0b10001, 0b10010, 0b11100,
-        ],
-        'E' => [
-            0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111,
-        ],
-        'F' => [
-            0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000,
-        ],
-        'G' => [
-            0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110,
-        ],
-        'H' => [
-            0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001,
-        ],
-        'I' => [
-            0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110,
-        ],
-        'J' => [
-            0b00111, 0b00010, 0b00010, 0b00010, 0b10010, 0b10010, 0b01100,
-        ],
-        'K' => [
-            0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001,
-        ],
-        'L' => [
-            0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111,
-        ],
-        'M' => [
-            0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001,
-        ],
-        'N' => [
-            0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001,
-        ],
-        'O' => [
-            0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110,
-        ],
-        'P' => [
-            0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000,
-        ],
-        'Q' => [
-            0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101,
-        ],
-        'R' => [
-            0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001,
-        ],
-        'S' => [
-            0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110,
-        ],
-        'T' => [
-            0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100,
-        ],
-        'U' => [
-            0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110,
-        ],
-        'V' => [
-            0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100,
-        ],
-        'W' => [
-            0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001,
-        ],
-        'X' => [
-            0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001,
-        ],
-        'Y' => [
-            0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100,
-        ],
-        'Z' => [
-            0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111,
-        ],
-        '0' => [
-            0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110,
-        ],
-        '1' => [
-            0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110,
-        ],
-        '2' => [
-            0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111,
-        ],
-        '3' => [
-            0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110,
-        ],
-        '4' => [
-            0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010,
-        ],
-        '5' => [
-            0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110,
-        ],
-        '6' => [
-            0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110,
-        ],
-        '7' => [
-            0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000,
-        ],
-        '8' => [
-            0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110,
-        ],
-        '9' => [
-            0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100,
-        ],
-        ':' => [
-            0b00000, 0b00100, 0b00100, 0b00000, 0b00100, 0b00100, 0b00000,
-        ],
-        '.' => [
-            0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00100,
-        ],
-        ',' => [
-            0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00100, 0b01000,
-        ],
-        '-' => [
-            0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000,
-        ],
-        '_' => [
-            0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111,
-        ],
-        '!' => [
-            0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000, 0b00100,
-        ],
-        '?' => [
-            0b01110, 0b10001, 0b00001, 0b00110, 0b00100, 0b00000, 0b00100,
-        ],
-        '/' => [
-            0b00001, 0b00010, 0b00100, 0b00100, 0b01000, 0b10000, 0b00000,
-        ],
-        '(' => [
-            0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010,
-        ],
-        ')' => [
-            0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000,
-        ],
-        '+' => [
-            0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000,
-        ],
-        ' ' => [0; 7],
-        _ => [
-            0b11111, 0b10001, 0b00001, 0b00110, 0b00000, 0b00100, 0b00000,
-        ],
-    };
-    (rows, accent_kind)
-}
-
 #[allow(clippy::too_many_arguments)]
 fn render_title_text(
     w: u32,
     h: u32,
     text: &str,
     scale: u32,
+    font: (&str, &str),
     text_rgba: [u8; 4],
     bg_rgba: [u8; 4],
     outline_rgba: [u8; 4],
@@ -589,6 +439,10 @@ fn render_title_text(
     seconds: f64,
     duration: f64,
 ) -> FrameBuffer {
+    use neoveg_text::layout::{Align, ParagraphStyle, TextStyle};
+    use neoveg_text::mask::{stroke, StrokeKind};
+    use neoveg_text::raster::Mask;
+
     let mut frame = FrameBuffer::solid(w, h, bg_rgba);
     let progress = (seconds.max(0.0) / duration.max(0.1)).clamp(0.0, 1.0) as f32;
     let alpha_mul = match animation {
@@ -604,15 +458,25 @@ fn render_title_text(
         _ => all_chars.len(),
     };
     let visible_str: String = all_chars[..visible_chars].iter().collect();
-    let lines: Vec<&str> = visible_str.split('\n').collect();
-    if lines.is_empty() || visible_str.trim().is_empty() {
+    if visible_str.trim().is_empty() {
         return frame;
     }
 
-    let s = scale.max(1) as i32;
-    let char_adv = 6 * s;
-    let line_h = 10 * s;
-    let total_h = lines.len() as i32 * line_h;
+    // The text engine (FilmCraft) shapes, kerns and breaks the lines with real fonts. The size keeps
+    // the meaning the old bitmap scale had: a line is ten steps of the scale tall.
+    let style = TextStyle {
+        family: font.0.into(),
+        style: font.1.into(),
+        size: scale.max(1) as f32 * 10.0,
+        ..TextStyle::default()
+    };
+    let para = ParagraphStyle {
+        align: Align::Center,
+        ..ParagraphStyle::default()
+    };
+    let laid = neoveg_text::layout(&visible_str, &style, &para);
+    let [_, top, _, bottom] = laid.bounds;
+    let total_h = (bottom - top).ceil().max(1.0) as i32;
 
     let base_y = match animation {
         TitleAnimation::SlideUp => {
@@ -630,120 +494,53 @@ fn render_title_text(
         _ => (h as f32 * align_y.clamp(0.05, 0.95)) as i32 - total_h / 2,
     };
 
-    // Build a binary mask of the rendered text glyphs at output resolution so outline dilation and
-    // drop shadow run cleanly without overlapping stroke artifacts.
-    let mut glyph_mask = vec![false; (w * h) as usize];
-    for (line_idx, line) in lines.iter().enumerate() {
-        let chars: Vec<char> = line.chars().collect();
-        let line_w = (chars.len() as i32 * char_adv - s).max(0);
-        let start_x = (w as i32 - line_w) / 2;
-        let top_y = base_y + line_idx as i32 * line_h;
+    // The glyphs go on a mask with room around them for the outline; the origin of a centred point
+    // text is the middle of the first baseline.
+    let origin = neoveg_text::render::at(w as f32 / 2.0, base_y as f32 - top);
+    let (glyphs, gx, gy) = neoveg_text::render::rasterize(&laid, &origin);
+    let pad = outline_px as usize + 2;
+    let mut padded = Mask::new(glyphs.w + 2 * pad, glyphs.h + 2 * pad);
+    padded.add(&glyphs, pad as i32, pad as i32);
+    let (mx, my) = (gx - pad as i32, gy - pad as i32);
 
-        for (ci, &ch) in chars.iter().enumerate() {
-            let gx = start_x + ci as i32 * char_adv;
-            let (rows, accent) = glyph_5x7(ch);
-            for (ry, &bits) in rows.iter().enumerate() {
-                for rx in 0..5i32 {
-                    if (bits >> (4 - rx)) & 1 == 1 {
-                        fill_rect(
-                            &mut glyph_mask,
-                            w,
-                            h,
-                            gx + rx * s,
-                            top_y + ry as i32 * s,
-                            s,
-                            s,
-                        );
-                    }
-                }
-            }
-            match accent {
-                1 => fill_rect(&mut glyph_mask, w, h, gx + 2 * s, top_y - 2 * s, 2 * s, s),
-                2 => fill_rect(&mut glyph_mask, w, h, gx + s, top_y - 2 * s, 2 * s, s),
-                3 | 4 => fill_rect(&mut glyph_mask, w, h, gx + s, top_y - 2 * s, 3 * s, s),
-                5 => fill_rect(&mut glyph_mask, w, h, gx + 2 * s, top_y + 7 * s, s, 2 * s),
-                _ => {}
-            }
-        }
-    }
-
-    // 1. Drop shadow pass.
-    if shadow_rgba[3] > 0 && (shadow_offset[0] != 0 || shadow_offset[1] != 0) {
-        for y in 0..h as i32 {
-            let sy = y - shadow_offset[1];
-            if sy < 0 || sy >= h as i32 {
+    let blit = |frame: &mut FrameBuffer, mask: &Mask, ox: i32, oy: i32, color: [u8; 4]| {
+        for y in 0..mask.h {
+            let dy = oy + y as i32;
+            if dy < 0 || dy >= h as i32 {
                 continue;
             }
-            for x in 0..w as i32 {
-                let sx = x - shadow_offset[0];
-                if sx >= 0 && sx < w as i32 && glyph_mask[sy as usize * w as usize + sx as usize] {
-                    let dst_i = (y as usize * w as usize + x as usize) * 4;
-                    blend_over_px(&mut frame.rgba[dst_i..dst_i + 4], shadow_rgba, alpha_mul);
-                }
-            }
-        }
-    }
-
-    // 2. Outline pass.
-    let r_out = outline_px as i32;
-    if r_out > 0 && outline_rgba[3] > 0 {
-        for y in 0..h as i32 {
-            for x in 0..w as i32 {
-                if glyph_mask[y as usize * w as usize + x as usize] {
+            for x in 0..mask.w {
+                let coverage = mask.a[y * mask.w + x];
+                let dx = ox + x as i32;
+                if coverage <= 0.003 || dx < 0 || dx >= w as i32 {
                     continue;
                 }
-                let mut near = false;
-                'search: for dy in -r_out..=r_out {
-                    let ny = y + dy;
-                    if ny < 0 || ny >= h as i32 {
-                        continue;
-                    }
-                    for dx in -r_out..=r_out {
-                        if dx * dx + dy * dy > r_out * r_out + 1 {
-                            continue;
-                        }
-                        let nx = x + dx;
-                        if nx >= 0
-                            && nx < w as i32
-                            && glyph_mask[ny as usize * w as usize + nx as usize]
-                        {
-                            near = true;
-                            break 'search;
-                        }
-                    }
-                }
-                if near {
-                    let dst_i = (y as usize * w as usize + x as usize) * 4;
-                    blend_over_px(&mut frame.rgba[dst_i..dst_i + 4], outline_rgba, alpha_mul);
-                }
+                let i = (dy as usize * w as usize + dx as usize) * 4;
+                blend_over_px(
+                    &mut frame.rgba[i..i + 4],
+                    color,
+                    alpha_mul * coverage.min(1.0),
+                );
             }
         }
-    }
+    };
 
-    // 3. Foreground glyph fill pass.
-    for y in 0..h as usize {
-        for x in 0..w as usize {
-            if glyph_mask[y * w as usize + x] {
-                let dst_i = (y * w as usize + x) * 4;
-                blend_over_px(&mut frame.rgba[dst_i..dst_i + 4], text_rgba, alpha_mul);
-            }
-        }
+    // 1. Drop shadow, 2. outline, 3. the glyphs themselves.
+    if shadow_rgba[3] > 0 && (shadow_offset[0] != 0 || shadow_offset[1] != 0) {
+        blit(
+            &mut frame,
+            &padded,
+            mx + shadow_offset[0],
+            my + shadow_offset[1],
+            shadow_rgba,
+        );
     }
-
+    if outline_px > 0 && outline_rgba[3] > 0 {
+        let ring = stroke(&padded, outline_px as f32, StrokeKind::Outer);
+        blit(&mut frame, &ring, mx, my, outline_rgba);
+    }
+    blit(&mut frame, &padded, mx, my, text_rgba);
     frame
-}
-
-fn fill_rect(mask: &mut [bool], w: u32, h: u32, x0: i32, y0: i32, rw: i32, rh: i32) {
-    let x_start = x0.max(0) as u32;
-    let y_start = y0.max(0) as u32;
-    let x_end = (x0 + rw).max(0).min(w as i32) as u32;
-    let y_end = (y0 + rh).max(0).min(h as i32) as u32;
-    for y in y_start..y_end {
-        let row = y as usize * w as usize;
-        for x in x_start..x_end {
-            mask[row + x as usize] = true;
-        }
-    }
 }
 
 #[cfg(test)]
@@ -762,6 +559,77 @@ mod tests {
     fn solid_fills_every_pixel() {
         let f = FrameBuffer::solid(3, 2, [1, 2, 3, 4]);
         assert_eq!(f.pixel(2, 1), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn titles_are_set_in_real_fonts_with_smooth_edges_and_accents() {
+        let make = |text: &str, font: &str, style: &str| GeneratorSpec {
+            name: "Título".into(),
+            width: 400,
+            height: 160,
+            fps: 25.0,
+            duration: 4.0,
+            kind: GeneratorKind::TitleText {
+                text: text.into(),
+                scale: 6,
+                text_rgba: [255, 255, 255, 255],
+                bg_rgba: [0, 0, 0, 0],
+                outline_rgba: [0, 0, 0, 255],
+                outline_px: 0,
+                shadow_rgba: [0, 0, 0, 0],
+                shadow_offset: [0, 0],
+                align_y: 0.5,
+                animation: TitleAnimation::Static,
+                font: font.into(),
+                font_style: style.into(),
+            },
+        };
+        let lit = |f: &FrameBuffer| {
+            f.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| p[3] > 0)
+                .count()
+        };
+        let plain = make("Hello, Ação", "Inter", "Bold").render(0.0, 0);
+        assert!(lit(&plain) > 500, "the text is drawn");
+        // Anti-aliased edges: partly covered pixels, not only 0 and 255
+        assert!(plain
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .any(|p| p[3] > 20 && p[3] < 235));
+        // Another font, another picture; the accent and the cedilla are real glyphs
+        assert_ne!(
+            plain,
+            make("Hello, Ação", "JetBrains Mono", "Regular").render(0.0, 0)
+        );
+        assert_ne!(
+            make("Acao", "Inter", "Bold").render(0.0, 0),
+            make("Ação", "Inter", "Bold").render(0.0, 0)
+        );
+        // The text is centred on the picture
+        let centre = |f: &FrameBuffer| {
+            let (mut sum, mut n) = (0.0f64, 0.0f64);
+            for (i, p) in f.rgba.as_chunks::<4>().0.iter().enumerate() {
+                if p[3] > 0 {
+                    sum += (i % 400) as f64;
+                    n += 1.0;
+                }
+            }
+            sum / n
+        };
+        assert!((centre(&plain) - 200.0).abs() < 30.0, "{}", centre(&plain));
+        // Old manifests without a font still load (Inter Bold)
+        let json = serde_json::to_string(&make("x", "Inter", "Bold")).unwrap();
+        let old = json
+            .replace(",\"font\":\"Inter\"", "")
+            .replace(",\"font_style\":\"Bold\"", "");
+        assert!(!old.contains("font"));
+        let back: GeneratorSpec = serde_json::from_str(&old).unwrap();
+        assert_eq!(back, make("x", "Inter", "Bold"));
     }
 
     #[test]
@@ -803,6 +671,8 @@ mod tests {
                 shadow_offset: [3, 3],
                 align_y: 0.5,
                 animation: TitleAnimation::Typewriter,
+                font: "Inter".into(),
+                font_style: "Bold".into(),
             },
         };
         let path = dir.join("titulo.neoveggen");

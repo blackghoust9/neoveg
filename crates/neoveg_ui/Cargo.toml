@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 neoveg_common.workspace = true
+neoveg_text.workspace = true
 neoveg_audio.workspace = true
 neoveg_video.workspace = true
 neoveg_engine.workspace = true
