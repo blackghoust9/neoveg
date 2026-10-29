@@ -3,7 +3,6 @@
 use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Rounding, Shape, Stroke,
 };
-use neoveg_audio::clap_host;
 use neoveg_audio::dsp::effects;
 use neoveg_engine::{
     AutomationTarget, EnvelopePoint, EnvelopeShape, Track, TrackEffect, TrackEnvelope, TrackId,
@@ -60,8 +59,8 @@ pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, 
             {
                 return (spec.min, spec.max, spec.default);
             }
-            if clap_host::is_clap_kind(&fx.kind) {
-                if let Some(p) = clap_host::plugin_info(&fx.kind)
+            if crate::fx_panel::is_hosted_kind(&fx.kind) {
+                if let Some(p) = crate::fx_panel::hosted_info(&fx.kind)
                     .and_then(|info| info.params.into_iter().find(|p| p.id == *param_id))
                 {
                     return (p.min, p.max, p.default);
@@ -107,8 +106,8 @@ pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String 
                         .map_or(param_id.as_str(), |p| p.name);
                     return format!("{} · {pname}", info.name);
                 }
-                if clap_host::is_clap_kind(&fx.kind) {
-                    if let Some(cinfo) = clap_host::plugin_info(&fx.kind) {
+                if crate::fx_panel::is_hosted_kind(&fx.kind) {
+                    if let Some(cinfo) = crate::fx_panel::hosted_info(&fx.kind) {
                         let pname = cinfo
                             .params
                             .iter()

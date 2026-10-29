@@ -14,6 +14,7 @@ use crate::dsp::effects::{create_effect, effect_info};
 use crate::dsp::AudioEffect;
 use crate::duck::{analyze, DuckCurve, SidechainFollower};
 use crate::mixer::{plan_end, MixClip};
+use crate::vst3_host::{create_vst3_effect, is_vst3_kind};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::pan::PanLaw;
 
@@ -259,6 +260,8 @@ impl FxPlan {
 fn build(spec: &EffectSpec, sample_rate: f32) -> Option<Box<dyn AudioEffect>> {
     let mut effect = if is_clap_kind(&spec.kind) {
         create_clap_effect(&spec.kind, sample_rate)?
+    } else if is_vst3_kind(&spec.kind) {
+        create_vst3_effect(&spec.kind, sample_rate)?
     } else {
         create_effect(&spec.kind, sample_rate, 2)?
     };

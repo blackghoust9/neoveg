@@ -15,6 +15,7 @@ use neoveg_audio::fxmixer::{
     AutomationCurve, AutomationKey, BusSpec, DuckSpec, EffectSpec, FxPlan, ParamAutomationSpec,
     RouteSpec, SendSpec, TrackMixSpec,
 };
+use neoveg_audio::vst3_host::{self, Vst3PluginInfo};
 use neoveg_common::fade::FadeCurve;
 use neoveg_engine::effects::DuckParam;
 use neoveg_engine::{
@@ -67,6 +68,7 @@ pub enum FxAction {
     Add(&'static str),
     AddClap(String),
     BrowseClapFile,
+    BrowseVst3File,
     Remove(usize),
     Move {
         from: usize,
@@ -109,6 +111,9 @@ pub struct FxPanelState {
     clap_scan_rx: Option<mpsc::Receiver<usize>>,
     clap_file_rx: Option<mpsc::Receiver<Result<Vec<ClapPluginInfo>, String>>>,
     clap_status: Option<String>,
+    vst3_scan_rx: Option<mpsc::Receiver<usize>>,
+    vst3_file_rx: Option<mpsc::Receiver<Result<Vec<Vst3PluginInfo>, String>>>,
+    vst3_status: Option<String>,
 }
 
 impl FxPanelState {
@@ -142,6 +147,7 @@ impl FxPanelState {
                 let _ = tx.send(count);
             })
             .ok();
+        self.start_system_vst3_scan();
     }
 
     /// Starts scanning a single `.clap` bundle chosen by the user on a background worker thread.
@@ -208,6 +214,88 @@ impl FxPanelState {
             }
         }
     }
+
+    /// Starts scanning the standard VST3 folders on a background worker thread.
+    pub fn start_system_vst3_scan(&mut self) {
+        if self.vst3_scan_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = mpsc::channel();
+        self.vst3_scan_rx = Some(rx);
+        self.vst3_status = Some("Procurando plug-ins VST3 nas pastas do sistema…".into());
+        std::thread::Builder::new()
+            .name("neoveg-vst3-scan".into())
+            .spawn(move || {
+                let count = vst3_host::scan_system_plugins().len();
+                let _ = tx.send(count);
+            })
+            .ok();
+    }
+
+    /// Starts scanning one `.vst3` file chosen by the user on a background worker thread.
+    pub fn start_file_vst3_scan(&mut self, path: PathBuf) {
+        let (tx, rx) = mpsc::channel();
+        self.vst3_file_rx = Some(rx);
+        self.vst3_status = Some(format!("Carregando {}…", path.display()));
+        std::thread::Builder::new()
+            .name("neoveg-vst3-file".into())
+            .spawn(move || {
+                let res = vst3_host::scan_vst3_file(&path);
+                let _ = tx.send(res);
+            })
+            .ok();
+    }
+
+    fn poll_vst3_workers(&mut self, ctx: &egui::Context, actions: &mut Vec<FxAction>, full: bool) {
+        if let Some(rx) = &self.vst3_scan_rx {
+            match rx.try_recv() {
+                Ok(count) => {
+                    self.vst3_scan_rx = None;
+                    self.vst3_status = Some(if count == 0 {
+                        "Nenhum plug-in VST3 encontrado nas pastas padrão.".into()
+                    } else {
+                        format!("{count} plug-in(s) VST3 disponíveis.")
+                    });
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(80));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.vst3_scan_rx = None;
+                }
+            }
+        }
+        if let Some(rx) = &self.vst3_file_rx {
+            match rx.try_recv() {
+                Ok(Ok(found)) => {
+                    self.vst3_file_rx = None;
+                    if found.is_empty() {
+                        self.vst3_status =
+                            Some("O arquivo .vst3 não contém efeitos compatíveis.".into());
+                    } else {
+                        if !full {
+                            actions.push(FxAction::AddClap(found[0].kind.clone()));
+                        }
+                        self.vst3_status = Some(format!(
+                            "Plug-in VST3 carregado: {} ({} encontrado(s)).",
+                            found[0].name,
+                            found.len()
+                        ));
+                    }
+                }
+                Ok(Err(err)) => {
+                    self.vst3_file_rx = None;
+                    self.vst3_status = Some(format!("Erro ao carregar VST3: {err}"));
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(80));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.vst3_file_rx = None;
+                }
+            }
+        }
+    }
 }
 
 /// Human-readable pt-BR label for a parameter group prefix (`"b1"` → `"Banda 1"`).
@@ -249,6 +337,51 @@ pub fn effective_value(effect: &TrackEffect, spec: &ParamSpec) -> f32 {
         .params
         .get(spec.id)
         .map_or(spec.default, |v| spec.sanitize(*v))
+}
+
+/// A hosted plug-in (CLAP or VST3) as the panel shows it: every value is the same kind of number
+/// whatever the format (VST3 parameters are `0.0..=1.0`).
+pub struct HostedInfo {
+    pub name: String,
+    pub format: &'static str,
+    pub latency: u32,
+    pub params: Vec<ClapParamInfo>,
+}
+
+/// `true` for the kind of a CLAP or VST3 plug-in.
+pub fn is_hosted_kind(kind: &str) -> bool {
+    clap_host::is_clap_kind(kind) || vst3_host::is_vst3_kind(kind)
+}
+
+/// What the scans know about the plug-in of `kind` (probing its file once if it was not scanned).
+pub fn hosted_info(kind: &str) -> Option<HostedInfo> {
+    if clap_host::is_clap_kind(kind) {
+        return clap_host::plugin_info(kind).map(|p| HostedInfo {
+            name: p.name,
+            format: "CLAP",
+            latency: p.latency,
+            params: p.params,
+        });
+    }
+    vst3_host::plugin_info(kind).map(|p| HostedInfo {
+        name: p.name,
+        format: "VST3",
+        latency: p.latency,
+        params: p
+            .params
+            .into_iter()
+            .map(|q| ClapParamInfo {
+                id: q.id,
+                clap_id: q.vst_id,
+                name: q.name,
+                min: 0.0,
+                max: 1.0,
+                default: q.default,
+                stepped: q.stepped,
+                is_bypass: q.is_bypass,
+            })
+            .collect(),
+    })
 }
 
 /// Effective sanitized value of a dynamic CLAP parameter in `effect`.
@@ -536,6 +669,7 @@ pub fn fx_ui(
 
     let full = chain.len() >= neoveg_engine::effects::MAX_EFFECTS;
     panel.poll_clap_workers(ui.ctx(), &mut actions, full);
+    panel.poll_vst3_workers(ui.ctx(), &mut actions, full);
     let clap_plugins = clap_host::cached_plugins();
 
     ui.horizontal(|ui| {
@@ -569,15 +703,30 @@ pub fn fx_ui(
                             }
                         }
                     }
+                    let vst3_plugins = vst3_host::cached_plugins();
+                    if !vst3_plugins.is_empty() {
+                        ui.separator();
+                        ui.weak("Plug-ins VST3");
+                        for plugin in &vst3_plugins {
+                            let label = if plugin.vendor.is_empty() {
+                                plugin.name.clone()
+                            } else {
+                                format!("{} ({})", plugin.name, plugin.vendor)
+                            };
+                            if ui.selectable_label(false, label).clicked() {
+                                actions.push(FxAction::AddClap(plugin.kind.clone()));
+                            }
+                        }
+                    }
                 });
         });
 
-        let scanning = panel.clap_scan_rx.is_some();
+        let scanning = panel.clap_scan_rx.is_some() || panel.vst3_scan_rx.is_some();
         ui.add_enabled_ui(!scanning, |ui| {
             if icons::icon_button_sized(
                 ui,
                 Icon::Reset,
-                "Procurar plug-ins CLAP instalados nas pastas padrão do sistema",
+                "Procurar plug-ins CLAP e VST3 instalados nas pastas padrão do sistema",
                 false,
                 22.0,
             )
@@ -597,8 +746,22 @@ pub fn fx_ui(
         {
             actions.push(FxAction::BrowseClapFile);
         }
+        if icons::icon_button_sized(
+            ui,
+            Icon::Import,
+            "Carregar arquivo de plug-in de áudio VST3 (.vst3)…",
+            false,
+            22.0,
+        )
+        .clicked()
+        {
+            actions.push(FxAction::BrowseVst3File);
+        }
     });
     if let Some(status) = &panel.clap_status {
+        ui.weak(status);
+    }
+    if let Some(status) = &panel.vst3_status {
         ui.weak(status);
     }
     if chain.is_empty() {
@@ -699,10 +862,8 @@ fn effect_ui(
     effect: &TrackEffect,
     actions: &mut Vec<FxAction>,
 ) {
-    let is_clap = clap_host::is_clap_kind(&effect.kind);
-    let clap_info = is_clap
-        .then(|| clap_host::plugin_info(&effect.kind))
-        .flatten();
+    let is_clap = is_hosted_kind(&effect.kind);
+    let clap_info = is_clap.then(|| hosted_info(&effect.kind)).flatten();
     let info = (!is_clap)
         .then(|| effects::effect_info(&effect.kind))
         .flatten();
@@ -725,7 +886,7 @@ fn effect_ui(
         };
         ui.strong(name);
         if is_clap {
-            ui.weak("CLAP");
+            ui.weak(clap_info.as_ref().map_or("Plug-in", |ci| ci.format));
             if let Some(ci) = &clap_info {
                 if ci.latency > 0 {
                     ui.weak(format!("({} am.)", ci.latency));
@@ -763,7 +924,7 @@ fn effect_ui(
         let Some(ci) = clap_info else {
             ui.colored_label(
                 egui::Color32::from_rgb(231, 76, 60),
-                "Plug-in CLAP ausente neste sistema: ele é ignorado na reprodução.",
+                "Plug-in ausente neste sistema: ele é ignorado na reprodução.",
             );
             return;
         };
@@ -772,7 +933,7 @@ fn effect_ui(
         }
         ui.add_enabled_ui(!effect.bypass, |ui| {
             if ci.params.is_empty() {
-                ui.weak("Este plug-in CLAP não expõe parâmetros editáveis.");
+                ui.weak("Este plug-in não expõe parâmetros editáveis.");
             }
             for param in &ci.params {
                 clap_param_row(ui, panel, index, effect, param, actions);

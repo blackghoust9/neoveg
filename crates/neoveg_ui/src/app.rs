@@ -5259,6 +5259,15 @@ impl AppState {
                 },
                 FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
                 FxAction::AddClap(kind) => fx::add_effect(&self.timeline, target, &kind),
+                FxAction::BrowseVst3File => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Plug-in VST3", &["vst3"])
+                        .pick_file()
+                    {
+                        self.fx.start_file_vst3_scan(path);
+                    }
+                    None
+                }
                 FxAction::BrowseClapFile => {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("Plug-in CLAP", &["clap"])

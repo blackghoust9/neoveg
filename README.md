@@ -290,7 +290,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Marcadores (`M`), regiões e loop
 - [x] Volume, pan, mute e solo por faixa
 - [x] Barramentos de áudio e sends (manual v21 p.869-873): até 26 barramentos além do master (Faixas > Inserir barramento de áudio, `Ctrl+Alt+B`), cada um com nome, volume, pan, mudo, fase, cadeia de efeitos e saída para o master ou outro barramento (um laço é recusado); a faixa escolhe a saída e tem sends por barramento, antes do fader (padrão, independente dele) ou depois, com ou sem o pan da faixa; apagar um barramento passa o que ia para ele ao barramento anterior. Tudo em passos de desfazer, no formato do projeto com `#[serde(default)]`, e o mixer compensa a latência dos efeitos do barramento. Faltam as faixas de barramento na linha do tempo, envelopes de barramento, saída para dispositivos e as tiras na janela do mixer.
-- [ ] Plug-ins de áudio VST3 via crate Rust (hoje só CLAP)
+- [x] Plug-ins de áudio VST3 (`.vst3`) como efeitos das faixas e do master, pelo crate `vst3` (bindings das especificações públicas, `MIT OR Apache-2.0`, sem SDK para compilar): busca nas pastas do sistema e em `VST3_PATH`, carregar um arquivo, parâmetros normalizados com envelopes de automação, compensação de latência (PDC) e a mesma lista de efeitos do CLAP. Testado com o plug-in de ganho de exemplo do crate. Faltam a janela do editor do plug-in, eventos MIDI, salvar e restaurar o estado, mensagens entre componente e controlador, macOS e o processo isolado (linha abaixo).
 - [x] Transições na GPU (`wgpu`): as onze (dissolver, wipe linear, wipe de relógio, íris, porta, persiana, deslizar, crescer, espremer, espiral e flash) rodam em compute shader conferido por teste contra a referência da CPU, que continua como reserva.
 - [ ] Mais efeitos de vídeo e transições novas (Page Roll, Page Peel, Split, Gradient Wipe, bordas e difusão do Flash...); a composição, o Pan/Crop do evento, catorze efeitos e as onze transições já existem na GPU
 - [x] Geradores de mídia (cor sólida, padrões de teste, gradientes e títulos com contorno, sombra e animação) pela janela Faixas > Inserir mídia gerada
@@ -419,7 +419,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Nomes e rótulos dos parâmetros dos efeitos em pt-BR
 - [x] Desfazer e refazer com a reprodução em andamento (o áudio recomeça no cursor com a cadeia restaurada)
 - [x] Automação de parâmetros por envelopes editáveis na timeline (`V` volume, `P` pan, `Ctrl+Shift+E` mostrar/ocultar e parâmetros de efeitos), ducking em tempo real por sidechain pós-FX/pós-fader e hospedagem de plug-ins de áudio CLAP (`.clap`) via `clack-host` com compensação automática de latência (PDC)
-- [ ] Hospedagem de plug-ins VST3
+- [x] Hospedagem de plug-ins VST3 (efeitos, no processo do editor; veja o item de áudio acima)
 - [x] Metrônomo: clique por tempo com acento no primeiro tempo do compasso (andamento e compasso fazem parte do projeto), em Ferramentas → Metrônomo
 - [x] Navegação do cursor: `Ctrl+Home` / `Ctrl+End`, `Home` / `End`, `Ctrl+Alt+←/→` (bordas de eventos e de fades), `\` (centralizar) e `Ctrl+G` (ir para o tempo, em timecode, minutos:segundos, segundos ou quadros)
 - [x] Gravação de áudio do dispositivo de entrada padrão (`Ctrl+R` ou o botão vermelho da barra): callback sem alocação nem bloqueio, escrita em WAV float por thread própria, nível de entrada real na barra de status, e a tomada entra na linha do tempo no ponto onde a gravação começou

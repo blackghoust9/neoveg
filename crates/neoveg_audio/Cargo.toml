@@ -15,6 +15,8 @@ cpal = "0.15"
 nnnoiseless = { version = "0.5", default-features = false }
 clack-host = "0.2"
 clack-extensions = { version = "0.2", features = ["clack-host", "params", "latency", "audio-ports", "log"] }
+vst3 = "0.3"
+libloading = "0.8"
 candle-core = { version = "0.11", default-features = false }
 candle-nn = { version = "0.11", default-features = false }
 candle-transformers = { version = "0.11", default-features = false }

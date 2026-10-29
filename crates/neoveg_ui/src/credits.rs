@@ -102,6 +102,13 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/prokopyl/clack",
     },
     Credit {
+        name: "vst3 (vst3-rs)",
+        used_for: "Bindings Rust da API VST 3 para hospedar plug-ins de áudio VST3 nas cadeias de \n                   faixa e do master",
+        authors: "Micah Johnston and the vst3-rs contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/coupler-rs/vst3-rs",
+    },
+    Credit {
         name: "Candle (candle-core / candle-nn / candle-transformers)",
         used_for: "Transcrição automática de fala para legendas com modelos OpenAI Whisper \
                    (safetensors e GGUF) em Rust puro",
