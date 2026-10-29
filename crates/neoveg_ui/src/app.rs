@@ -6910,11 +6910,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertVideoTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
             command_item(state, ui, Command::InsertAudioBus);
-            if ui.button("Inserir mídia gerada…").clicked() {
+            if ui.button(tr("Inserir mídia gerada…")).clicked() {
                 state.generator_dialog.open = true;
                 ui.close_menu();
             }
-            if ui.button("Inserir apresentação de slides…").clicked() {
+            if ui.button(tr("Inserir apresentação de slides…")).clicked() {
                 state.slideshow.open = true;
                 ui.close_menu();
             }
@@ -6941,7 +6941,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .and_then(|id| state.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video);
             if ui
-                .add_enabled(video_track, egui::Button::new("Movimento da trilha…"))
+                .add_enabled(video_track, egui::Button::new(tr("Movimento da trilha…")))
                 .clicked()
             {
                 state.open_track_motion();
@@ -6963,7 +6963,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
         ui.menu_button(tr("Ferramentas"), |ui| {
-            if ui.button("Inspetor").clicked() {
+            if ui.button(tr("Inspetor")).clicked() {
                 state.show_inspector = true;
                 ui.close_menu();
             }
@@ -6974,7 +6974,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .primary()
                 .is_some_and(|(t, e)| pcrop::get(&state.timeline, t, e).is_some());
             if ui
-                .add_enabled(video_event, egui::Button::new("Pan/Crop do evento…"))
+                .add_enabled(video_event, egui::Button::new(tr("Pan/Crop do evento…")))
                 .clicked()
             {
                 state.open_pan_crop_for_selection();
@@ -6984,23 +6984,29 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .selected_track
                 .is_some_and(|id| tmotion::get(&state.timeline, id).is_some());
             if ui
-                .add_enabled(video_track, egui::Button::new("Movimento da trilha…"))
+                .add_enabled(video_track, egui::Button::new(tr("Movimento da trilha…")))
                 .clicked()
             {
                 state.open_track_motion();
                 ui.close_menu();
             }
-            if ui.button("Correção de cor…").clicked() {
+            if ui.button(tr("Correção de cor…")).clicked() {
                 state.show_grade = true;
                 ui.close_menu();
             }
-            if ui.button("Chaveamento de croma (Chroma Key)…").clicked() {
+            if ui
+                .button(tr("Chaveamento de croma (Chroma Key)…"))
+                .clicked()
+            {
                 state.show_chroma = true;
                 ui.close_menu();
             }
             ui.menu_button(tr("LUT de cor do vídeo"), |ui| {
                 let current = state.timeline.video_lut.clone();
-                if ui.selectable_label(current.is_none(), "Nenhuma").clicked() {
+                if ui
+                    .selectable_label(current.is_none(), tr("Nenhuma"))
+                    .clicked()
+                {
                     state.set_video_lut(None);
                     ui.close_menu();
                 }
@@ -7012,7 +7018,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     }
                 }
                 ui.separator();
-                if ui.button("Abrir arquivo .cube…").clicked() {
+                if ui.button(tr("Abrir arquivo .cube…")).clicked() {
                     if let Some(file) = rfd::FileDialog::new()
                         .add_filter("LUT de cor", &["cube"])
                         .pick_file()
@@ -7024,18 +7030,18 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             });
             ui.separator();
             // Audio tools
-            if ui.button("Metrônomo…").clicked() {
+            if ui.button(tr("Metrônomo…")).clicked() {
                 state.show_metronome = true;
                 ui.close_menu();
             }
         });
         ui.menu_button(tr("Exibir"), |ui| {
-            ui.checkbox(&mut state.show_bars, "Barras de cor SMPTE");
-            if ui.button("Notas do projeto…").clicked() {
+            ui.checkbox(&mut state.show_bars, tr("Barras de cor SMPTE"));
+            if ui.button(tr("Notas do projeto…")).clicked() {
                 state.notes.open = true;
                 ui.close_menu();
             }
-            if ui.button("Detalhes de edição…").clicked() {
+            if ui.button(tr("Detalhes de edição…")).clicked() {
                 state.show_details = true;
                 ui.close_menu();
             }
@@ -7057,7 +7063,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             ui.menu_button(tr("Layouts"), |ui| {
                 state.ensure_layouts();
-                if ui.button("Layout padrão").clicked() {
+                if ui.button(tr("Layout padrão")).clicked() {
                     state.window_request = Some(WindowAction::DefaultLayout);
                     ui.close_menu();
                 }
@@ -7086,7 +7092,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 if ui
                     .add_enabled(
                         has_current,
-                        egui::Button::new("Recarregar layout selecionado"),
+                        egui::Button::new(tr("Recarregar layout selecionado")),
                     )
                     .clicked()
                 {
@@ -7094,36 +7100,36 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
                 if ui
-                    .add_enabled(has_current, egui::Button::new("Salvar layout atual"))
+                    .add_enabled(has_current, egui::Button::new(tr("Salvar layout atual")))
                     .clicked()
                 {
                     state.window_request = Some(WindowAction::SaveCurrentLayout);
                     ui.close_menu();
                 }
-                if ui.button("Salvar layout como…").clicked() {
+                if ui.button(tr("Salvar layout como…")).clicked() {
                     state.layout_dialog = Some(LayoutDialog {
                         name: String::new(),
                         slot: None,
                     });
                     ui.close_menu();
                 }
-                if ui.button("Organizar layouts…").clicked() {
+                if ui.button(tr("Organizar layouts…")).clicked() {
                     state.organize_layouts = true;
                     ui.close_menu();
                 }
             });
         });
         ui.menu_button(tr("Ajuda"), |ui| {
-            if ui.button("Tela de boas-vindas…").clicked() {
+            if ui.button(tr("Tela de boas-vindas…")).clicked() {
                 let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
                 state.welcome.open_with(&defaults);
                 ui.close_menu();
             }
-            if ui.button("Visualizador de logs…").clicked() {
+            if ui.button(tr("Visualizador de logs…")).clicked() {
                 state.log_viewer.open = true;
                 ui.close_menu();
             }
-            if ui.button("Créditos e licenças…").clicked() {
+            if ui.button(tr("Créditos e licenças…")).clicked() {
                 state.show_credits = true;
                 ui.close_menu();
             }
