@@ -5,6 +5,7 @@
 //! `Difference`, `DifferenceSquared`, `Cut`) plus the three custom map modes
 //! (`DisplacementMap`, `HeightMap`, `BumpMap`).
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 /// Per-track video compositing mode. The higher track's mode governs how it blends over tracks
@@ -96,23 +97,23 @@ impl CompositeMode {
     /// Localized `pt-BR` label for UI menus and track headers.
     pub fn label(self) -> &'static str {
         match self {
-            Self::SourceAlpha => "Alfa da origem",
-            Self::Add => "Adicionar",
-            Self::Subtract => "Subtrair",
-            Self::Multiply => "Multiplicar (Máscara)",
-            Self::Screen => "Tela (Screen)",
-            Self::Overlay => "Sobrepor (Overlay)",
-            Self::HardLight => "Luz forte (Hard Light)",
-            Self::Dodge => "Subexposição (Dodge)",
-            Self::Burn => "Superexposição (Burn)",
-            Self::Darken => "Escurecer",
-            Self::Lighten => "Clarear",
-            Self::Difference => "Diferença",
-            Self::DifferenceSquared => "Diferença ao quadrado",
-            Self::Cut => "Recorte (Cut)",
-            Self::DisplacementMap => "Mapa de deslocamento",
-            Self::HeightMap => "Mapa de altura",
-            Self::BumpMap => "Mapa de relevo (Bump)",
+            Self::SourceAlpha => tr("Alfa da origem"),
+            Self::Add => tr("Adicionar"),
+            Self::Subtract => tr("Subtrair"),
+            Self::Multiply => tr("Multiplicar (Máscara)"),
+            Self::Screen => tr("Tela (Screen)"),
+            Self::Overlay => tr("Sobrepor (Overlay)"),
+            Self::HardLight => tr("Luz forte (Hard Light)"),
+            Self::Dodge => tr("Subexposição (Dodge)"),
+            Self::Burn => tr("Superexposição (Burn)"),
+            Self::Darken => tr("Escurecer"),
+            Self::Lighten => tr("Clarear"),
+            Self::Difference => tr("Diferença"),
+            Self::DifferenceSquared => tr("Diferença ao quadrado"),
+            Self::Cut => tr("Recorte (Cut)"),
+            Self::DisplacementMap => tr("Mapa de deslocamento"),
+            Self::HeightMap => tr("Mapa de altura"),
+            Self::BumpMap => tr("Mapa de relevo (Bump)"),
         }
     }
 

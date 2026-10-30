@@ -116,7 +116,7 @@ pub fn mixer_ui(
         if icons::icon_button(
             ui,
             Icon::Mute,
-            "Mudo (Z; Ctrl+clique = só esta faixa)",
+            tr("Mudo (Z; Ctrl+clique = só esta faixa)"),
             mix.muted,
         )
         .clicked()
@@ -130,7 +130,7 @@ pub fn mixer_ui(
         if icons::icon_button(
             ui,
             Icon::Solo,
-            "Solo (X; Ctrl+clique = só esta faixa)",
+            tr("Solo (X; Ctrl+clique = só esta faixa)"),
             mix.solo,
         )
         .clicked()
@@ -141,7 +141,7 @@ pub fn mixer_ui(
                 MixAction::Solo(!mix.solo)
             });
         }
-        if icons::icon_button(ui, Icon::Phase, "Inverter a fase", mix.invert_phase).clicked() {
+        if icons::icon_button(ui, Icon::Phase, tr("Inverter a fase"), mix.invert_phase).clicked() {
             out.push(MixAction::Phase(!mix.invert_phase));
         }
         ui.add_space(8.0);
@@ -184,7 +184,7 @@ pub fn mixer_ui(
         ui.monospace(format_db(volume));
     });
     ui.horizontal(|ui| {
-        ui.allocate_ui(vec2(52.0, 18.0), |ui| ui.label("Pan"));
+        ui.allocate_ui(vec2(52.0, 18.0), |ui| ui.label(tr("Pan")));
         fader(
             ui,
             state,

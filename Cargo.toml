@@ -50,3 +50,9 @@ debug = 0
 # in debug builds so `cargo test` stays fast
 [profile.dev.package.neoveg_audio]
 opt-level = 3
+
+# winit 0.30.13 with one change for Windows (third_party/winit/NEOVEG_PATCH.md): a window dragged
+# between monitors of different scale keeps its size and gets the scale at the drop, instead of
+# flipping between the two scales and shaking
+[patch.crates-io]
+winit = { path = "third_party/winit" }

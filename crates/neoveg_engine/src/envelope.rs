@@ -5,6 +5,7 @@
 //! evaluates them per audio block/sample with zero allocations inside the real-time callback.
 
 use neoveg_common::fade::FadeCurve;
+use neoveg_common::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 use crate::command::{EditCommand, FxTarget};
@@ -59,12 +60,12 @@ impl EnvelopeShape {
     /// Label in pt-BR.
     pub fn label(self) -> &'static str {
         match self {
-            EnvelopeShape::Linear => "Linear",
-            EnvelopeShape::Fast => "Rápida",
-            EnvelopeShape::Slow => "Lenta",
-            EnvelopeShape::Smooth => "Suave",
-            EnvelopeShape::Sharp => "Acentuada",
-            EnvelopeShape::Hold => "Degrau (manter)",
+            EnvelopeShape::Linear => tr("Linear"),
+            EnvelopeShape::Fast => tr("Rápida"),
+            EnvelopeShape::Slow => tr("Lenta"),
+            EnvelopeShape::Smooth => tr("Suave"),
+            EnvelopeShape::Sharp => tr("Acentuada"),
+            EnvelopeShape::Hold => tr("Degrau (manter)"),
         }
     }
 }
@@ -121,14 +122,14 @@ impl AutomationTarget {
     /// Human-readable short name in pt-BR.
     pub fn label(&self) -> String {
         match self {
-            AutomationTarget::Volume => "Volume".into(),
-            AutomationTarget::Pan => "Pan".into(),
-            AutomationTarget::VideoLevel => "Nível da faixa".into(),
-            AutomationTarget::VideoFade => "Esmaecer para cor".into(),
-            AutomationTarget::VideoMute => "Mudo da faixa".into(),
-            AutomationTarget::EventVelocity => "Velocidade do evento".into(),
-            AutomationTarget::EventVolume => "Volume do evento".into(),
-            AutomationTarget::EventTransitionProgress => "Progresso da transição".into(),
+            AutomationTarget::Volume => tr("Volume").into(),
+            AutomationTarget::Pan => tr("Pan").into(),
+            AutomationTarget::VideoLevel => tr("Nível da faixa").into(),
+            AutomationTarget::VideoFade => tr("Esmaecer para cor").into(),
+            AutomationTarget::VideoMute => tr("Mudo da faixa").into(),
+            AutomationTarget::EventVelocity => tr("Velocidade do evento").into(),
+            AutomationTarget::EventVolume => tr("Volume do evento").into(),
+            AutomationTarget::EventTransitionProgress => tr("Progresso da transição").into(),
             AutomationTarget::EffectParam {
                 effect_index,
                 param_id,

@@ -2,6 +2,7 @@
 //! grid), Linear/Radial Gradients, and Titles & Text (with outline, drop shadow, Portuguese Latin-1
 //! glyphs, and animation presets), persisted as `.neoveggen` JSON manifests.
 
+use neoveg_common::i18n::tr;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -56,9 +57,9 @@ impl TestPatternVariant {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::SmpteBars => "Barras SMPTE (75%)",
-            Self::Checkerboard => "Xadrez de transparência",
-            Self::CrosshairGrid => "Grade de alinhamento e mira",
+            Self::SmpteBars => tr("Barras SMPTE (75%)"),
+            Self::Checkerboard => tr("Xadrez de transparência"),
+            Self::CrosshairGrid => tr("Grade de alinhamento e mira"),
         }
     }
 }
@@ -76,8 +77,8 @@ impl GradientShape {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Linear => "Linear",
-            Self::Radial => "Radial",
+            Self::Linear => tr("Linear"),
+            Self::Radial => tr("Radial"),
         }
     }
 }
@@ -104,11 +105,11 @@ impl TitleAnimation {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Static => "Estático",
-            Self::FadeIn => "Surgir suave (Fade-In)",
-            Self::Typewriter => "Máquina de escrever",
-            Self::SlideUp => "Subir suave (Lower-Third)",
-            Self::CreditRoll => "Rolagem de créditos",
+            Self::Static => tr("Estático"),
+            Self::FadeIn => tr("Surgir suave (Fade-In)"),
+            Self::Typewriter => tr("Máquina de escrever"),
+            Self::SlideUp => tr("Subir suave (Lower-Third)"),
+            Self::CreditRoll => tr("Rolagem de créditos"),
         }
     }
 }

@@ -1,6 +1,7 @@
 //! Video & audio export (*Make Movie*): streams composited RGBA8 frames into `ffmpeg` along with
 //! an offline master WAV mixdown, reporting live frame progress and supporting cancellation.
 
+use neoveg_common::i18n::tr;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::Path;
@@ -39,7 +40,7 @@ impl RenderFormat {
             Self::Mp4Hevc => "MP4 — HEVC (H.265) + AAC",
             Self::MovProRes => "MOV — Apple ProRes 422 HQ + PCM",
             Self::WebmVp9 => "WebM — VP9 + Opus",
-            Self::WavPcm16 => "WAV — Somente Áudio PCM 16-bit",
+            Self::WavPcm16 => tr("WAV — Somente Áudio PCM 16-bit"),
         }
     }
 
@@ -291,8 +292,8 @@ impl RenderEngine {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Auto => "Automático (interno para MP4 H.264, FFmpeg para os outros)",
-            Self::Internal => "Interno (Rust, sem FFmpeg)",
+            Self::Auto => tr("Automático (interno para MP4 H.264, FFmpeg para os outros)"),
+            Self::Internal => tr("Interno (Rust, sem FFmpeg)"),
             Self::Ffmpeg => "FFmpeg",
         }
     }

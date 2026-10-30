@@ -26,7 +26,7 @@ impl LogLevelFilter {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::All => "Todos",
+            Self::All => tr("Todos"),
             Self::Info => "INFO+",
             Self::Warn => "WARN+",
             Self::Error => "ERROR / FATAL",

@@ -4,6 +4,7 @@ use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Rounding, Shape, Stroke,
 };
 use neoveg_audio::dsp::effects;
+use neoveg_common::i18n::tr;
 use neoveg_engine::{
     AutomationTarget, EnvelopePoint, EnvelopeShape, Track, TrackEffect, TrackEnvelope, TrackId,
 };
@@ -93,9 +94,9 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
 /// Human-readable pt-BR title of `target` (resolving effect parameter display names when known).
 pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String {
     match target {
-        AutomationTarget::Volume => "Volume".into(),
+        AutomationTarget::Volume => tr("Volume").into(),
         AutomationTarget::EventVolume | AutomationTarget::EventTransitionProgress => target.label(),
-        AutomationTarget::Pan => "Pan".into(),
+        AutomationTarget::Pan => tr("Pan").into(),
         AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
         | AutomationTarget::VideoMute

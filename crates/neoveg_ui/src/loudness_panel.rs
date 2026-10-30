@@ -7,6 +7,7 @@
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Rounding, Sense, Stroke};
 use neoveg_audio::readout::LoudnessSnapshot;
+use neoveg_common::i18n::{tr, tr_args};
 
 use crate::icons::{self, Icon};
 
@@ -158,7 +159,7 @@ fn loudness_content(
         if icons::icon_button(
             ui,
             Icon::Reset,
-            "Zerar a medição (ela também recomeça a cada reprodução)",
+            tr("Zerar a medição (ela também recomeça a cada reprodução)"),
             false,
         )
         .clicked()
@@ -264,18 +265,22 @@ fn loudness_content(
         ui.visuals().text_color()
     };
     ui.label(
-        egui::RichText::new(format!(
-            "TP {:>6} dBTP (máx. {:.0})",
-            format_lufs(shown.true_peak_dbtp),
-            target.true_peak_max
+        egui::RichText::new(tr_args(
+            "TP {} dBTP (máx. {})",
+            &[
+                &format!("{:>6}", format_lufs(shown.true_peak_dbtp)),
+                &format!("{:.0}", target.true_peak_max),
+            ],
         ))
         .monospace()
         .color(tp_color),
     );
-    ui.monospace(format!(
-        "Máx. M {:>6}   Máx. S {:>6}",
-        format_lufs(shown.max_momentary_lufs),
-        format_lufs(shown.max_short_term_lufs)
+    ui.monospace(tr_args(
+        "Máx. M {}   Máx. S {}",
+        &[
+            &format!("{:>6}", format_lufs(shown.max_momentary_lufs)),
+            &format!("{:>6}", format_lufs(shown.max_short_term_lufs)),
+        ],
     ));
     reset
 }

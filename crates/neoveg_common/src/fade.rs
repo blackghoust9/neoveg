@@ -3,6 +3,7 @@
 //! `gain(x)` maps fade progress `x` in `[0, 1]` to a gain in `[0, 1]`: a fade-in uses it directly, a
 //! fade-out evaluates it at the remaining fraction, so `gain(0) = 0` and `gain(1) = 1` for every curve.
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -43,11 +44,11 @@ impl FadeCurve {
     /// Menu label (pt-BR).
     pub fn label(self) -> &'static str {
         match self {
-            FadeCurve::Linear => "Linear",
-            FadeCurve::Fast => "Rápida",
-            FadeCurve::Slow => "Lenta",
-            FadeCurve::Smooth => "Suave",
-            FadeCurve::Sharp => "Acentuada",
+            FadeCurve::Linear => tr("Linear"),
+            FadeCurve::Fast => tr("Rápida"),
+            FadeCurve::Slow => tr("Lenta"),
+            FadeCurve::Smooth => tr("Suave"),
+            FadeCurve::Sharp => tr("Acentuada"),
         }
     }
 }

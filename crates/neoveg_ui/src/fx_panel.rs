@@ -6,6 +6,7 @@
 
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::tr_text;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -417,13 +418,16 @@ pub fn format_value(spec: &ParamSpec, value: f32) -> String {
         Unit::Semitones => format!("{value:+.1} st"),
         Unit::Bpm => format!("{value:.0} BPM"),
         Unit::Pan => format!("{value:+.0}"),
-        Unit::Toggle => if value >= 0.5 { "ligado" } else { "desligado" }.into(),
+        Unit::Toggle => if value >= 0.5 {
+            tr("ligado")
+        } else {
+            tr("desligado")
+        }
+        .into(),
         Unit::Choice => spec
             .choices
             .get(value.round().max(0.0) as usize)
-            .copied()
-            .unwrap_or("")
-            .into(),
+            .map_or(String::new(), |choice| tr_text(choice).into_owned()),
         Unit::None => format!("{value:.2}"),
     }
 }
@@ -684,7 +688,7 @@ pub fn fx_ui(
                             .into_iter()
                             .filter(|e| e.category == category)
                         {
-                            if ui.selectable_label(false, info.name).clicked() {
+                            if ui.selectable_label(false, tr_text(info.name)).clicked() {
                                 actions.push(FxAction::Add(info.id));
                             }
                         }
@@ -726,7 +730,7 @@ pub fn fx_ui(
             if icons::icon_button_sized(
                 ui,
                 Icon::Reset,
-                "Procurar plug-ins CLAP e VST3 instalados nas pastas padrão do sistema",
+                tr("Procurar plug-ins CLAP e VST3 instalados nas pastas padrão do sistema"),
                 false,
                 22.0,
             )
@@ -738,7 +742,7 @@ pub fn fx_ui(
         if icons::icon_button_sized(
             ui,
             Icon::Import,
-            "Carregar arquivo de plug-in de áudio CLAP (.clap)…",
+            tr("Carregar arquivo de plug-in de áudio CLAP (.clap)…"),
             false,
             22.0,
         )
@@ -749,7 +753,7 @@ pub fn fx_ui(
         if icons::icon_button_sized(
             ui,
             Icon::Import,
-            "Carregar arquivo de plug-in de áudio VST3 (.vst3)…",
+            tr("Carregar arquivo de plug-in de áudio VST3 (.vst3)…"),
             false,
             22.0,
         )
@@ -792,7 +796,7 @@ fn ducking_ui(
     if ui
         .checkbox(
             &mut on,
-            "Auto-ducking: abaixar esta faixa quando outras tiverem som",
+            tr("Auto-ducking: abaixar esta faixa quando outras tiverem som"),
         )
         .changed()
     {
@@ -805,7 +809,7 @@ fn ducking_ui(
     if ui
         .checkbox(
             &mut realtime,
-            "Sidechain em tempo real (pós-FX e pós-fader)",
+            tr("Sidechain em tempo real (pós-FX e pós-fader)"),
         )
         .changed()
     {
@@ -844,7 +848,10 @@ fn ducking_ui(
             DuckParam::FadeSeconds => duck.fade_s,
         };
         ui.horizontal(|ui| {
-            ui.add_sized([120.0, 18.0], egui::Label::new(spec.name).truncate());
+            ui.add_sized(
+                [120.0, 18.0],
+                egui::Label::new(tr_text(spec.name)).truncate(),
+            );
             let mut committed = Vec::new();
             slider(ui, panel, DUCK_INDEX, spec, current, &mut committed);
             for action in committed {
@@ -873,7 +880,7 @@ fn effect_ui(
         if icons::icon_button_sized(
             ui,
             Icon::Bypass,
-            "Ligar ou desligar o efeito (bypass)",
+            tr("Ligar ou desligar o efeito (bypass)"),
             !effect.bypass,
             22.0,
         )
@@ -886,7 +893,7 @@ fn effect_ui(
         } else {
             info.map_or(effect.kind.as_str(), |i| i.name)
         };
-        ui.strong(name);
+        ui.strong(tr_text(name));
         if is_clap {
             ui.weak(clap_info.as_ref().map_or("Plug-in", |ci| ci.format));
             if let Some(ci) = &clap_info {
@@ -896,12 +903,13 @@ fn effect_ui(
             }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if icons::icon_button_sized(ui, Icon::Remove, "Remover o efeito", false, 22.0).clicked()
+            if icons::icon_button_sized(ui, Icon::Remove, tr("Remover o efeito"), false, 22.0)
+                .clicked()
             {
                 actions.push(FxAction::Remove(index));
             }
             ui.add_enabled_ui(index + 1 < count, |ui| {
-                if icons::icon_button_sized(ui, Icon::MoveDown, "Mover para baixo", false, 22.0)
+                if icons::icon_button_sized(ui, Icon::MoveDown, tr("Mover para baixo"), false, 22.0)
                     .clicked()
                 {
                     actions.push(FxAction::Move {
@@ -911,7 +919,7 @@ fn effect_ui(
                 }
             });
             ui.add_enabled_ui(index > 0, |ui| {
-                if icons::icon_button_sized(ui, Icon::MoveUp, "Mover para cima", false, 22.0)
+                if icons::icon_button_sized(ui, Icon::MoveUp, tr("Mover para cima"), false, 22.0)
                     .clicked()
                 {
                     actions.push(FxAction::Move {
@@ -986,7 +994,10 @@ fn param_row(
 ) {
     let current = effective_value(effect, spec);
     ui.horizontal(|ui| {
-        ui.add_sized([120.0, 18.0], egui::Label::new(spec.name).truncate());
+        ui.add_sized(
+            [120.0, 18.0],
+            egui::Label::new(tr_text(spec.name)).truncate(),
+        );
         let response = match spec.unit {
             Unit::Toggle => {
                 let mut on = current >= 0.5;
@@ -1002,12 +1013,15 @@ fn param_row(
             }
             Unit::Choice => {
                 let selected = current.round().max(0.0) as usize;
-                let text = spec.choices.get(selected).copied().unwrap_or("");
+                let text = tr_text(spec.choices.get(selected).copied().unwrap_or(""));
                 egui::ComboBox::from_id_salt((index, &effect.kind, spec.id))
                     .selected_text(text)
                     .show_ui(ui, |ui| {
                         for (i, choice) in spec.choices.iter().enumerate() {
-                            if ui.selectable_label(i == selected, *choice).clicked() {
+                            if ui
+                                .selectable_label(i == selected, tr_text(choice))
+                                .clicked()
+                            {
                                 actions.push(FxAction::SetParam {
                                     index,
                                     param: spec.id.into(),

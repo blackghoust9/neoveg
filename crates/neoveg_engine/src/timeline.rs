@@ -3,6 +3,7 @@
 use crate::captions::Caption;
 use crate::envelope::TrackEnvelope;
 use crate::markers::{Marker, Region};
+use neoveg_common::i18n::tr;
 use std::collections::BTreeMap;
 
 use neoveg_common::channels::ChannelMode;
@@ -79,9 +80,9 @@ impl ResampleMode {
     /// Name for the menu, in pt-BR.
     pub fn label(self) -> &'static str {
         match self {
-            ResampleMode::Project => "Usar configuração do projeto",
-            ResampleMode::FrameBlend => "Mistura de quadros",
-            ResampleMode::Disabled => "Desativar reamostragem",
+            ResampleMode::Project => tr("Usar configuração do projeto"),
+            ResampleMode::FrameBlend => tr("Mistura de quadros"),
+            ResampleMode::Disabled => tr("Desativar reamostragem"),
         }
     }
 

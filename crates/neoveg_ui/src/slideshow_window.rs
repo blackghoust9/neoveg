@@ -138,8 +138,8 @@ impl SlideshowState {
                     for (label, order) in [
                         ("A a Z", SlideOrder::NameAscending),
                         ("Z a A", SlideOrder::NameDescending),
-                        ("Novo para antigo", SlideOrder::NewestFirst),
-                        ("Antigo para novo", SlideOrder::OldestFirst),
+                        (tr("Novo para antigo"), SlideOrder::NewestFirst),
+                        (tr("Antigo para novo"), SlideOrder::OldestFirst),
                     ] {
                         if ui.button(label).clicked() {
                             sort_slides(&mut self.slides, order);

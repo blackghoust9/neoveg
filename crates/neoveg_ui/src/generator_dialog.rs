@@ -27,10 +27,10 @@ impl GeneratorTab {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::SolidColor => "Cor sólida",
-            Self::TestPattern => "Padrão de teste",
-            Self::Gradient => "Gradiente",
-            Self::TitleText => "Títulos e texto",
+            Self::SolidColor => tr("Cor sólida"),
+            Self::TestPattern => tr("Padrão de teste"),
+            Self::Gradient => tr("Gradiente"),
+            Self::TitleText => tr("Títulos e texto"),
         }
     }
 }
@@ -169,7 +169,7 @@ impl GeneratorDialogState {
     pub fn build_spec(&self, width: u32, height: u32, fps: f64) -> GeneratorSpec {
         let (name, kind) = match self.tab {
             GeneratorTab::SolidColor => (
-                "Cor sólida".to_string(),
+                tr("Cor sólida").to_string(),
                 GeneratorKind::SolidColor {
                     rgba: self.solid_rgba,
                 },
@@ -248,9 +248,9 @@ impl GeneratorDialogState {
 
         let editing = self.editing.is_some();
         let title = if editing {
-            "Editar mídia gerada"
+            tr("Editar mídia gerada")
         } else {
-            "Geradores de Mídia"
+            tr("Geradores de Mídia")
         };
         crate::dialogs::dialog(ctx, title)
             .open(&mut open)
@@ -371,7 +371,7 @@ impl GeneratorDialogState {
                                     }
                                 });
                             if ui
-                                .button("Fontes do sistema")
+                                .button(tr("Fontes do sistema"))
                                 .on_hover_text(
                                     tr("Procura as fontes instaladas no computador (pode levar um instante)"),
                                 )
@@ -404,20 +404,20 @@ impl GeneratorDialogState {
                                 .text(tr("Posição vertical (0.5 = centro, 0.82 = terço inferior)")),
                         );
                         ui.horizontal(|ui| {
-                            edit_rgba(ui, "Texto:", &mut self.title_rgba);
-                            edit_rgba(ui, "Fundo:", &mut self.title_bg_rgba);
+                            edit_rgba(ui, tr("Texto:"), &mut self.title_rgba);
+                            edit_rgba(ui, tr("Fundo:"), &mut self.title_bg_rgba);
                         });
                         ui.horizontal(|ui| {
-                            edit_rgba(ui, "Contorno:", &mut self.title_outline_rgba);
+                            edit_rgba(ui, tr("Contorno:"), &mut self.title_outline_rgba);
                             ui.add(
                                 egui::DragValue::new(&mut self.title_outline_px)
                                     .range(0..=10)
-                                    .prefix("Espessura: ")
+                                    .prefix(tr("Espessura: "))
                                     .suffix(" px"),
                             );
                         });
                         ui.horizontal(|ui| {
-                            edit_rgba(ui, "Sombra:", &mut self.title_shadow_rgba);
+                            edit_rgba(ui, tr("Sombra:"), &mut self.title_shadow_rgba);
                             ui.add(
                                 egui::DragValue::new(&mut self.title_shadow_offset[0])
                                     .range(-24..=24)
@@ -435,9 +435,9 @@ impl GeneratorDialogState {
                 ui.separator();
                 ui.horizontal(|ui| {
                     let label = if editing {
-                        "Aplicar"
+                        tr("Aplicar")
                     } else {
-                        "Inserir na timeline"
+                        tr("Inserir na timeline")
                     };
                     if ui.button(label).clicked() {
                         confirmed = true;

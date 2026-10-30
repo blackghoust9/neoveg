@@ -25,6 +25,7 @@ Este diretório centraliza os cabeçalhos C/C++, submódulos, conectores de rend
 | **FilmCraft (`filmcraft-audio-dsp`)** | [`storytold/filmcraft`](https://github.com/storytold/filmcraft) | `MIT OR Apache-2.0` (usado sob a `MIT`) | `third_party/filmcraft/` (origem e licença) e `crates/neoveg_audio/src/dsp/` (código adaptado) | `neoveg_audio` (medidor de loudness BS.1770-4 / EBU R128 e efeitos de áudio por faixa e no master e análise de auto-ducking, dentro do callback de áudio) e painéis **Loudness** e **Efeitos de Áudio** em `neoveg_ui` |
 
 | **Flat Color Icons** | [`icons8/flat-color-icons`](https://github.com/icons8/flat-color-icons) | `MIT` (ou Good Boy License; usado sob a `MIT`) | `third_party/flat-color-icons/` (licença) e `crates/neoveg_ui/assets/icons_color/` (BMP derivados) | Ícones coloridos opcionais da interface (`neoveg_ui::icons`, preferência **Ícones coloridos**) |
+| **winit (com patch do Neoveg)** | [`rust-windowing/winit`](https://github.com/rust-windowing/winit) | `Apache-2.0` | `third_party/winit/` (cópia da 0.30.13 sem exemplos e testes; `NEOVEG_PATCH.md`) | Dependência do `eframe`/`egui-winit` trocada por `[patch.crates-io]`: no Windows, a janela arrastada entre monitores de escalas diferentes mantém o tamanho durante o arraste e recebe o tamanho lógico ao soltar (sem isso ela tremia) |
 
 ---
 

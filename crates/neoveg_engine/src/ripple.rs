@@ -4,6 +4,7 @@ use crate::command::{EditCommand, FxTarget};
 use crate::ops::{Draft, Outcome};
 use crate::selection::EventRef;
 use crate::timeline::{Timeline, TrackEvent, TrackId, TIME_EPSILON};
+use neoveg_common::i18n::tr;
 
 /// Removes the given events and moves every later event of the same track earlier by the length of
 /// the gaps that were opened before it (overlapping removals count once). One undo step.
@@ -77,9 +78,9 @@ impl RippleScope {
     /// Label shown in the default language (pt-BR).
     pub fn label(self) -> &'static str {
         match self {
-            RippleScope::AffectedTracks => "Faixas afetadas",
-            RippleScope::AffectedTracksAndMarks => "Faixas afetadas, marcadores e regiões",
-            RippleScope::AllTracksAndMarks => "Todas as faixas, marcadores e regiões",
+            RippleScope::AffectedTracks => tr("Faixas afetadas"),
+            RippleScope::AffectedTracksAndMarks => tr("Faixas afetadas, marcadores e regiões"),
+            RippleScope::AllTracksAndMarks => tr("Todas as faixas, marcadores e regiões"),
         }
     }
 }

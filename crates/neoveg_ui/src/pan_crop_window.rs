@@ -420,9 +420,9 @@ impl PanCropWindow {
 
         let track_mode = matches!(self.target, Some(EditTarget::Track(_)));
         let window_title = if track_mode {
-            "Movimento da trilha"
+            tr("Movimento da trilha")
         } else {
-            "Pan/Crop do evento"
+            tr("Pan/Crop do evento")
         };
         crate::dialogs::dialog(ctx, window_title)
             .open(&mut open)
@@ -462,7 +462,7 @@ impl PanCropWindow {
                     let mut stretch = working.stretch_to_fill;
                     if !track_mode
                         && ui
-                        .checkbox(&mut stretch, "Esticar para preencher o quadro")
+                        .checkbox(&mut stretch, tr("Esticar para preencher o quadro"))
                         .on_hover_text(tr("Ligado: a caixa vira o quadro (zoom). Desligado: a imagem mantém o tamanho e o que fica fora da caixa é cortado."))
                         .changed()
                     {
@@ -499,11 +499,11 @@ impl PanCropWindow {
                                 }
                             });
                         };
-                        field(ui, "Centro X", &mut f.x_center, -1.0..=2.0, " %", 100.0);
-                        field(ui, "Centro Y", &mut f.y_center, -1.0..=2.0, " %", 100.0);
-                        field(ui, "Largura", &mut f.width, 0.02..=4.0, " %", 100.0);
-                        field(ui, "Altura", &mut f.height, 0.02..=4.0, " %", 100.0);
-                        field(ui, "Rotação", &mut f.rotation_deg, -180.0..=180.0, " °", 1.0);
+                        field(ui, tr("Centro X"), &mut f.x_center, -1.0..=2.0, " %", 100.0);
+                        field(ui, tr("Centro Y"), &mut f.y_center, -1.0..=2.0, " %", 100.0);
+                        field(ui, tr("Largura"), &mut f.width, 0.02..=4.0, " %", 100.0);
+                        field(ui, tr("Altura"), &mut f.height, 0.02..=4.0, " %", 100.0);
+                        field(ui, tr("Rotação"), &mut f.rotation_deg, -180.0..=180.0, " °", 1.0);
                         // The last frame of a drag has no change, only the end of it: commit the draft
                         if changed || (finished && self.draft.is_some()) {
                             next = Some((with_frame(&working, view.time, f, tolerance), finished));
@@ -622,9 +622,9 @@ impl PanCropWindow {
                     canvas.center(),
                     egui::Align2::CENTER_CENTER,
                     if track_mode {
-                        "Quadro do projeto"
+                        tr("Quadro do projeto")
                     } else {
-                        "Sem imagem de origem neste instante"
+                        tr("Sem imagem de origem neste instante")
                     },
                     egui::FontId::proportional(13.0),
                     Color32::GRAY,

@@ -30,10 +30,10 @@ impl ScopeMode {
 
     pub fn label(self) -> &'static str {
         match self {
-            ScopeMode::Waveform => "Forma de onda",
-            ScopeMode::Parade => "Parada RGB",
-            ScopeMode::Histogram => "Histograma",
-            ScopeMode::Vectorscope => "Vectorscópio",
+            ScopeMode::Waveform => tr("Forma de onda"),
+            ScopeMode::Parade => tr("Parada RGB"),
+            ScopeMode::Histogram => tr("Histograma"),
+            ScopeMode::Vectorscope => tr("Vectorscópio"),
         }
     }
 }

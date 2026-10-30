@@ -4,6 +4,7 @@
 //! A "mono" mode puts the same signal on both sides (the track pan then places it, as for any mono
 //! event).
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 /// How an event uses the channels of its stereo media.
@@ -35,11 +36,11 @@ impl ChannelMode {
     /// Label in the default language (pt-BR).
     pub fn label(self) -> &'static str {
         match self {
-            ChannelMode::Both => "Ambos (estéreo normal)",
-            ChannelMode::Left => "Somente esquerdo",
-            ChannelMode::Right => "Somente direito",
-            ChannelMode::Combine => "Combinar (mono)",
-            ChannelMode::Swap => "Trocar esquerdo e direito",
+            ChannelMode::Both => tr("Ambos (estéreo normal)"),
+            ChannelMode::Left => tr("Somente esquerdo"),
+            ChannelMode::Right => tr("Somente direito"),
+            ChannelMode::Combine => tr("Combinar (mono)"),
+            ChannelMode::Swap => tr("Trocar esquerdo e direito"),
         }
     }
 

@@ -339,10 +339,10 @@ impl EditTool {
 
     fn label(self) -> &'static str {
         match self {
-            EditTool::Normal => "Normal: seleciona, move e apara",
-            EditTool::Slip => "Slip: desliza a mídia dentro do evento",
-            EditTool::Slide => "Slide: move o evento sem mover a mídia",
-            EditTool::Shuffle => "Embaralhar: reordena os eventos da faixa ao soltar",
+            EditTool::Normal => tr("Normal: seleciona, move e apara"),
+            EditTool::Slip => tr("Slip: desliza a mídia dentro do evento"),
+            EditTool::Slide => tr("Slide: move o evento sem mover a mídia"),
+            EditTool::Shuffle => tr("Embaralhar: reordena os eventos da faixa ao soltar"),
         }
     }
 
@@ -5375,7 +5375,7 @@ impl AppState {
                 Some((track_id, event_id, name, _)) => {
                     (VideoFxTarget::Event { track_id, event_id }, name, scopes)
                 }
-                None => (VideoFxTarget::Project, "Projeto".into(), scopes),
+                None => (VideoFxTarget::Project, tr("Projeto").into(), scopes),
             },
             VfxScope::Media => {
                 let id = media.unwrap_or_default();
@@ -5398,9 +5398,9 @@ impl AppState {
             }
             VfxScope::Track => match track {
                 Some(t) => (VideoFxTarget::Track(t.id), t.name.clone(), scopes),
-                None => (VideoFxTarget::Project, "Projeto".into(), scopes),
+                None => (VideoFxTarget::Project, tr("Projeto").into(), scopes),
             },
-            VfxScope::Project => (VideoFxTarget::Project, "Projeto inteiro".into(), scopes),
+            VfxScope::Project => (VideoFxTarget::Project, tr("Projeto inteiro").into(), scopes),
         }
     }
 
@@ -7095,6 +7095,8 @@ impl NeovegApp {
         if let Some(request) = launch {
             self.state.start_render(request, ctx);
         }
+        // A new language font, handed to egui after every window of this frame has been drawn
+        self.state.cjk_fonts.apply(ctx);
     }
 }
 
@@ -7174,12 +7176,26 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
     })
 }
 
+/// A menu of the menu bar whose entries scroll when they do not fit in the window (the Edit menu
+/// is taller than a small window, and the entries above the screen edge could not be reached).
+fn scrolling_menu(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
+    ui.menu_button(title, |ui| {
+        let room = (ui.ctx().screen_rect().height() - 56.0).max(160.0);
+        // The popup hands its content the room that was left the last time it was drawn: give it all
+        ui.set_max_height(room);
+        egui::ScrollArea::vertical()
+            .max_height(room)
+            .auto_shrink([true, true])
+            .show(ui, add_contents);
+    });
+}
+
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     // the interface language follows the preference, also right after the selector changes it
     neoveg_common::i18n::set_language(&state.prefs.language);
     state.cjk_fonts.update(ui.ctx(), &state.prefs.language);
     egui::menu::bar(ui, |ui| {
-        ui.menu_button(tr("Arquivo"), |ui| {
+        scrolling_menu(ui, tr("Arquivo"), |ui| {
             // New and open
             command_item(state, ui, Command::FileNew);
             command_item(state, ui, Command::FileClose);
@@ -7334,7 +7350,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         });
-        ui.menu_button(tr("Editar"), |ui| {
+        scrolling_menu(ui, tr("Editar"), |ui| {
             if ui
                 .add_enabled(
                     state.history.can_undo(),
@@ -7447,7 +7463,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
         });
-        ui.menu_button(tr("Faixas"), |ui| {
+        scrolling_menu(ui, tr("Faixas"), |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
@@ -7493,9 +7509,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.add_enabled_ui(video_track, |ui| {
                 ui.menu_button(tr("Envelopes de vídeo"), |ui| {
                     for (label, target, initial) in [
-                        ("Nível da faixa", AutomationTarget::VideoLevel, 1.0),
-                        ("Esmaecer para cor", AutomationTarget::VideoFade, 0.0),
-                        ("Mudo da faixa", AutomationTarget::VideoMute, 0.0),
+                        (tr("Nível da faixa"), AutomationTarget::VideoLevel, 1.0),
+                        (tr("Esmaecer para cor"), AutomationTarget::VideoFade, 0.0),
+                        (tr("Mudo da faixa"), AutomationTarget::VideoMute, 0.0),
                     ] {
                         if ui.button(label).clicked() {
                             state.toggle_video_envelope(target, initial);
@@ -7505,7 +7521,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 });
             });
         });
-        ui.menu_button(tr("Ferramentas"), |ui| {
+        scrolling_menu(ui, tr("Ferramentas"), |ui| {
             if ui.button(tr("Inspetor")).clicked() {
                 state.show_inspector = true;
                 ui.close_menu();
@@ -7578,7 +7594,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
         });
-        ui.menu_button(tr("Exibir"), |ui| {
+        scrolling_menu(ui, tr("Exibir"), |ui| {
             ui.checkbox(&mut state.show_bars, tr("Barras de cor SMPTE"));
             if ui.button(tr("Notas do projeto…")).clicked() {
                 state.notes.open = true;
@@ -7673,7 +7689,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 }
             });
         });
-        ui.menu_button(tr("Ajuda"), |ui| {
+        scrolling_menu(ui, tr("Ajuda"), |ui| {
             if ui.button(tr("Tela de boas-vindas…")).clicked() {
                 let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
                 state.welcome.open_with(&defaults);
@@ -8234,7 +8250,7 @@ fn chroma_key_window(ctx: &egui::Context, state: &mut AppState) {
                     |v| format!("{:.0} %", v * 100.0),
                 ),
                 (
-                    "Suavidade",
+                    tr("Suavidade"),
                     &mut key.smoothness,
                     0.0..=0.50,
                     def.smoothness,
@@ -9208,7 +9224,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                                 state.keymap_message.clear();
                             }
                             if ui
-                                .small_button("⋯")
+                                .small_button("…")
                                 .on_hover_text(tr("Atribuir uma sequência de teclas"))
                                 .clicked()
                             {
@@ -9221,7 +9237,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                                 && icons::icon_button_sized(
                                     ui,
                                     Icon::Reset,
-                                    "Restaurar o padrão deste comando",
+                                    tr("Restaurar o padrão deste comando"),
                                     false,
                                     20.0,
                                 )
@@ -10460,7 +10476,7 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
                     if icons::icon_button(
                         ui,
                         Icon::Mute,
-                        "Mudo na faixa de vídeo (Z; Ctrl+clique = só esta faixa)",
+                        tr("Mudo na faixa de vídeo (Z; Ctrl+clique = só esta faixa)"),
                         video.muted,
                     )
                     .clicked()
@@ -10967,7 +10983,7 @@ fn event_context_menu(
     }
     ui.separator();
     let fps_min_len = 1.0 / state.project.settings.fps.max(1.0);
-    ui.menu_button("Velocidade (Time-Stretch)", |ui| {
+    ui.menu_button(tr("Velocidade (Time-Stretch)"), |ui| {
         for &(rate, label) in &[
             (0.25, "0,25× (câmera lenta 4×)"),
             (0.50, "0,50× (metade)"),
@@ -10979,7 +10995,7 @@ fn event_context_menu(
             (4.00, "4,00×"),
         ] {
             let active = (g.playback_rate - rate).abs() < 1e-3;
-            if ui.selectable_label(active, label).clicked() {
+            if ui.selectable_label(active, tr(label)).clicked() {
                 state.apply_geometry(
                     track_id,
                     event_id,
@@ -10991,7 +11007,7 @@ fn event_context_menu(
         ui.separator();
         let mut preserve = g.preserve_pitch;
         if ui
-            .checkbox(&mut preserve, "Preservar tom (WSOLA)")
+            .checkbox(&mut preserve, tr("Preservar tom (WSOLA)"))
             .changed()
         {
             state.apply_geometry(
@@ -11186,7 +11202,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icons::icon_button(
             ui,
             Icon::Loop,
-            "Reprodução em laço (Q); Shift+Q define a região de laço",
+            tr("Reprodução em laço (Q); Shift+Q define a região de laço"),
             state.looping,
         )
         .clicked()
@@ -11196,7 +11212,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icons::icon_button(
             ui,
             Icon::Group,
-            "Agrupamento de eventos (G agrupa, U desagrupa, Ctrl+Shift+U ignora)",
+            tr("Agrupamento de eventos (G agrupa, U desagrupa, Ctrl+Shift+U ignora)"),
             !state.ignore_grouping,
         )
         .clicked()
@@ -11209,7 +11225,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icons::icon_button(
             ui,
             Icon::Lock,
-            "Bloquear ou desbloquear os eventos selecionados (Editar > Interruptores)",
+            tr("Bloquear ou desbloquear os eventos selecionados (Editar > Interruptores)"),
             all_locked,
         )
         .clicked()
@@ -11227,7 +11243,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icons::icon_button(
             ui,
             Icon::Snap,
-            "Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)",
+            tr("Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)"),
             state.snapping,
         )
         .clicked()
@@ -11238,7 +11254,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icons::icon_button(
             ui,
             Icon::Crossfade,
-            "Crossfade automático entre eventos sobrepostos",
+            tr("Crossfade automático entre eventos sobrepostos"),
             state.project.settings.auto_crossfade,
         )
         .clicked()
@@ -11831,13 +11847,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ],
             major,
         );
-        ruler_painter.text(
-            pos2(x + 3.0, rect.top() + 3.0),
-            Align2::LEFT_TOP,
+        let ink = ui.visuals().weak_text_color();
+        let galley = ruler_painter.layout_no_wrap(
             seconds_to_timecode(t, fps, drop_frame),
             FontId::monospace(10.0),
-            ui.visuals().weak_text_color(),
+            ink,
         );
+        // A label that would run past the right edge is left out instead of being cut in half
+        if x + 3.0 + galley.size().x <= lanes.right() {
+            ruler_painter.galley(pos2(x + 3.0, rect.top() + 3.0), galley, ink);
+        }
     }
 
     // Loop region: a bar along the top edge of the ruler, brighter while loop playback is on

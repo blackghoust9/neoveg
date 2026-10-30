@@ -119,7 +119,7 @@ pub fn bus_strip(ui: &mut egui::Ui, timeline: &Timeline, bus: &AudioBus) -> Vec<
         }
     });
     ui.horizontal(|ui| {
-        ui.allocate_ui(egui::vec2(52.0, 18.0), |ui| ui.label("Pan"));
+        ui.allocate_ui(egui::vec2(52.0, 18.0), |ui| ui.label(tr("Pan")));
         let (pan, dragging, ended) = draft_slider(ui, key.with("pan"), bus.mix.pan, -1.0..=1.0, "");
         let db = ui
             .data(|d| d.get_temp::<f32>(key.with("vol")))
@@ -219,7 +219,7 @@ pub fn route_ui(ui: &mut egui::Ui, timeline: &Timeline, track: &Track) -> Vec<Ro
                 out.push(RouteAction::SendPost(send.bus, !send.post_volume));
             }
             if ui
-                .selectable_label(send.link_pan, "Pan")
+                .selectable_label(send.link_pan, tr("Pan"))
                 .on_hover_text(tr("Segue o pan da faixa (desligado: estéreo centralizado)"))
                 .clicked()
             {

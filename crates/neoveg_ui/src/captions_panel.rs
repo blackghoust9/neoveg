@@ -332,13 +332,14 @@ pub fn captions_ui(
     }
 
     ui.horizontal(|ui| {
-        if icons::icon_button(ui, Icon::Add, "Adicionar uma legenda no cursor", false).clicked() {
+        if icons::icon_button(ui, Icon::Add, tr("Adicionar uma legenda no cursor"), false).clicked()
+        {
             actions.push(CaptionAction::Add);
         }
         if icons::icon_button(
             ui,
             Icon::Import,
-            "Importar legendas (SRT ou WebVTT)…",
+            tr("Importar legendas (SRT ou WebVTT)…"),
             false,
         )
         .clicked()
@@ -350,14 +351,15 @@ pub fn captions_ui(
             if icons::icon_button(
                 ui,
                 Icon::Export,
-                "Exportar legendas (SRT ou WebVTT)…",
+                tr("Exportar legendas (SRT ou WebVTT)…"),
                 false,
             )
             .clicked()
             {
                 actions.push(CaptionAction::Export);
             }
-            if icons::icon_button(ui, Icon::Remove, "Apagar todas as legendas", false).clicked() {
+            if icons::icon_button(ui, Icon::Remove, tr("Apagar todas as legendas"), false).clicked()
+            {
                 actions.push(CaptionAction::Clear);
             }
         });
@@ -370,7 +372,7 @@ pub fn captions_ui(
             if icons::icon_button(
                 ui,
                 Icon::Import,
-                "Selecionar pasta do modelo Whisper (config.json, tokenizer.json, model.safetensors/.gguf)…",
+                tr("Selecionar pasta do modelo Whisper (config.json, tokenizer.json, model.safetensors/.gguf)…"),
                 panel.whisper_model_dir.is_some(),
             )
             .clicked()
@@ -416,7 +418,7 @@ pub fn captions_ui(
                     .show_percentage()
                     .desired_width(105.0),
             );
-            if icons::icon_button(ui, Icon::Stop, "Cancelar transcrição Whisper", false).clicked()
+            if icons::icon_button(ui, Icon::Stop, tr("Cancelar transcrição Whisper"), false).clicked()
             {
                 panel.cancel_whisper();
             }
@@ -426,7 +428,7 @@ pub fn captions_ui(
                 if icons::icon_button(
                     ui,
                     Icon::Record,
-                    "Transcrever fala da linha do tempo com Whisper (Rust puro)",
+                    tr("Transcrever fala da linha do tempo com Whisper (Rust puro)"),
                     false,
                 )
                 .clicked()
@@ -482,7 +484,8 @@ fn caption_row(
 ) {
     let id = caption.id;
     ui.horizontal(|ui| {
-        if icons::icon_button_sized(ui, Icon::Play, "Ir para esta legenda", current, 22.0).clicked()
+        if icons::icon_button_sized(ui, Icon::Play, tr("Ir para esta legenda"), current, 22.0)
+            .clicked()
         {
             actions.push(CaptionAction::Seek(caption.start));
         }
@@ -516,7 +519,7 @@ fn caption_row(
             }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if icons::icon_button_sized(ui, Icon::Remove, "Apagar esta legenda", false, 22.0)
+            if icons::icon_button_sized(ui, Icon::Remove, tr("Apagar esta legenda"), false, 22.0)
                 .clicked()
             {
                 actions.push(CaptionAction::Remove(id));

@@ -15,7 +15,12 @@ use neoveg_common::window_layout::{SavedWindow, WindowGeometry};
 /// A panel that lives in its own window.
 pub(super) struct DetachedTab {
     pub tab: Tab,
+    /// Where the window is now, as the system reports it (saved in the preferences).
     pub geometry: WindowGeometry,
+    /// Where it was opened. The viewport builder is made from this and never changes: a builder
+    /// that follows `geometry` makes egui send the position of the previous frame back to the
+    /// window while it is dragged, and the window shakes.
+    pub opened_at: WindowGeometry,
     pub fullscreen: bool,
 }
 
@@ -105,6 +110,7 @@ impl NeovegApp {
             self.state.status = tr_args("{} em janela própria", &[&tab.title()]);
             self.detached.push(DetachedTab {
                 tab,
+                opened_at: geometry.clone(),
                 geometry,
                 fullscreen: false,
             });
@@ -157,7 +163,7 @@ impl NeovegApp {
         let mut windows = std::mem::take(&mut self.detached);
         let mut to_dock = Vec::new();
         for window in &mut windows {
-            let builder = dock::viewport_builder(&window.geometry, window.tab.title());
+            let builder = dock::viewport_builder(&window.opened_at, window.tab.title());
             let tab = window.tab;
             let id = window.viewport_id();
             let state = &mut self.state;
@@ -349,6 +355,21 @@ mod tests {
         assert!(app.detached.is_empty());
         assert!(app.dock.find_tab(&Tab::Scopes).is_some());
         assert!(app.state.prefs.detached_windows.is_empty());
+    }
+
+    #[test]
+    fn the_window_builder_stays_where_the_window_was_opened() {
+        let mut app = app();
+        app.detach(Tab::Scopes, WindowGeometry::default());
+        // The system moves the window: the saved geometry follows, the builder does not
+        app.detached[0].geometry.x += 500.0;
+        let window = &app.detached[0];
+        let builder = dock::viewport_builder(&window.opened_at, window.tab.title());
+        assert_eq!(
+            builder.position,
+            Some(egui::pos2(window.opened_at.x, window.opened_at.y))
+        );
+        assert_ne!(window.opened_at.x, window.geometry.x);
     }
 
     #[test]

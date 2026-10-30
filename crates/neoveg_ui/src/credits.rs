@@ -4,6 +4,7 @@
 //! (adapted source code, so its licence text must ship with Neoveg) in sync with them.
 
 use eframe::egui;
+use neoveg_common::i18n::{tr, tr_text};
 
 pub struct Credit {
     pub name: &'static str,
@@ -52,7 +53,7 @@ pub const CREDITS: &[Credit] = &[
     },
     Credit {
         name: "nnnoiseless (RNNoise)",
-        used_for: "Redução de ruído por rede neural (efeito RNNoise); o RNNoise original é de \n                   Jean-Marc Valin, Mozilla e Xiph.Org",
+        used_for: "Redução de ruído por rede neural (efeito RNNoise); o RNNoise original é de Jean-Marc Valin, Mozilla e Xiph.Org",
         authors: "Joe Neeman; RNNoise: Jean-Marc Valin, Mozilla Corporation, Xiph.Org Foundation",
         license: "BSD-3-Clause",
         url: "https://github.com/jneem/nnnoiseless",
@@ -103,7 +104,7 @@ pub const CREDITS: &[Credit] = &[
     },
     Credit {
         name: "vst3 (vst3-rs)",
-        used_for: "Bindings Rust da API VST 3 para hospedar plug-ins de áudio VST3 nas cadeias de \n                   faixa e do master",
+        used_for: "Bindings Rust da API VST 3 para hospedar plug-ins de áudio VST3 nas cadeias de faixa e do master",
         authors: "Micah Johnston and the vst3-rs contributors",
         license: "MIT OR Apache-2.0",
         url: "https://github.com/coupler-rs/vst3-rs",
@@ -155,22 +156,22 @@ pub const CREDITS: &[Credit] = &[
 
 /// Contents of the window.
 pub fn credits_ui(ui: &mut egui::Ui) {
-    ui.label(
+    ui.label(tr(
         "O Neoveg é distribuído sob a licença MIT. Ele usa e adapta o trabalho de terceiros \
          listado abaixo; as licenças completas estão em AUTHORS.md e em third_party/.",
-    );
+    ));
     ui.add_space(6.0);
     egui::ScrollArea::vertical().show(ui, |ui| {
         for credit in CREDITS {
             ui.separator();
             ui.horizontal(|ui| {
-                ui.strong(credit.name);
+                ui.strong(tr_text(credit.name));
                 ui.label(format!("· {}", credit.license));
             });
-            ui.label(credit.used_for);
+            ui.label(tr_text(credit.used_for));
             ui.horizontal(|ui| {
                 ui.weak(credit.authors);
-                ui.hyperlink_to("página do projeto", credit.url);
+                ui.hyperlink_to(tr("página do projeto"), credit.url);
             });
         }
     });

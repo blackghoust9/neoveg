@@ -8,6 +8,7 @@
 use eframe::egui::{self, Slider};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::tr_text;
 use neoveg_engine::TrackEffect;
 use neoveg_video::transitions::{self, TransitionRequest};
 use neoveg_video::vfx::ParamSpec;
@@ -99,8 +100,8 @@ impl TransitionsPanelState {
         ui.horizontal(|ui| {
             ui.strong(view.event_name);
             ui.separator();
-            ui.selectable_value(&mut self.outgoing, false, "Entrada");
-            ui.selectable_value(&mut self.outgoing, true, "Saída");
+            ui.selectable_value(&mut self.outgoing, false, tr("Entrada"));
+            ui.selectable_value(&mut self.outgoing, true, tr("Saída"));
         });
         if view.length > 0.0 {
             ui.weak(tr_args(
@@ -129,7 +130,7 @@ impl TransitionsPanelState {
             ui.horizontal_wrapped(|ui| {
                 for spec in transitions::transitions() {
                     let selected = spec.id == current_kind;
-                    if ui.selectable_label(selected, spec.label).clicked() && !selected {
+                    if ui.selectable_label(selected, tr_text(spec.label)).clicked() && !selected {
                         if spec.id == transitions::DISSOLVE {
                             actions.push(TransitionAction::Clear);
                         } else {
@@ -164,7 +165,10 @@ impl TransitionsPanelState {
     ) {
         let current = effective(effect, spec);
         ui.horizontal(|ui| {
-            ui.add_sized([130.0, 18.0], egui::Label::new(spec.label).truncate());
+            ui.add_sized(
+                [130.0, 18.0],
+                egui::Label::new(tr_text(spec.label)).truncate(),
+            );
             let dragging = self.draft.as_ref().filter(|d| d.param == spec.id);
             let mut value = dragging.map_or(current, |d| d.value);
             let response = ui.add(

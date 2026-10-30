@@ -7,6 +7,7 @@
 
 use eframe::egui::{self, Slider};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_text;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
 use neoveg_video::vfx::{self, ParamSpec, VideoEffect};
 
@@ -228,7 +229,7 @@ pub fn vfx_ui(
             .width(200.0)
             .show_ui(ui, |ui| {
                 for spec in vfx::EFFECTS {
-                    if ui.selectable_label(false, spec.label).clicked() {
+                    if ui.selectable_label(false, tr_text(spec.label)).clicked() {
                         actions.push(VfxAction::Add(spec.id));
                     }
                 }
@@ -294,7 +295,7 @@ fn effect_ui(
         if icons::icon_button_sized(
             ui,
             Icon::Bypass,
-            "Ligar ou desligar o efeito (bypass)",
+            tr("Ligar ou desligar o efeito (bypass)"),
             !effect.bypass,
             22.0,
         )
@@ -302,14 +303,15 @@ fn effect_ui(
         {
             actions.push(VfxAction::Bypass(index, !effect.bypass));
         }
-        ui.strong(spec.map_or(effect.kind.as_str(), |s| s.label));
+        ui.strong(tr_text(spec.map_or(effect.kind.as_str(), |s| s.label)));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if icons::icon_button_sized(ui, Icon::Remove, "Remover o efeito", false, 22.0).clicked()
+            if icons::icon_button_sized(ui, Icon::Remove, tr("Remover o efeito"), false, 22.0)
+                .clicked()
             {
                 actions.push(VfxAction::Remove(index));
             }
             ui.add_enabled_ui(index + 1 < count, |ui| {
-                if icons::icon_button_sized(ui, Icon::MoveDown, "Mover para baixo", false, 22.0)
+                if icons::icon_button_sized(ui, Icon::MoveDown, tr("Mover para baixo"), false, 22.0)
                     .clicked()
                 {
                     actions.push(VfxAction::Move {
@@ -319,7 +321,7 @@ fn effect_ui(
                 }
             });
             ui.add_enabled_ui(index > 0, |ui| {
-                if icons::icon_button_sized(ui, Icon::MoveUp, "Mover para cima", false, 22.0)
+                if icons::icon_button_sized(ui, Icon::MoveUp, tr("Mover para cima"), false, 22.0)
                     .clicked()
                 {
                     actions.push(VfxAction::Move {
@@ -360,7 +362,10 @@ fn param_row(
 ) {
     let current = effective_value(effect, spec);
     ui.horizontal(|ui| {
-        ui.add_sized([120.0, 18.0], egui::Label::new(spec.label).truncate());
+        ui.add_sized(
+            [120.0, 18.0],
+            egui::Label::new(tr_text(spec.label)).truncate(),
+        );
         // While a drag is in progress the slider follows the draft; the project changes on release
         let dragging = panel
             .draft

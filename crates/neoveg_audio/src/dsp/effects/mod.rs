@@ -34,6 +34,7 @@ pub use rnnoise::RnNoise;
 pub use time::{Delay, Reverb};
 
 use crate::dsp::{AudioEffect, ParamSpec};
+use neoveg_common::i18n::tr;
 
 /// Effect category (for menus and the effects panel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -61,13 +62,13 @@ impl Category {
     /// Label in the default language (pt-BR).
     pub fn label(self) -> &'static str {
         match self {
-            Category::Filter => "Filtros e equalização",
-            Category::Dynamics => "Dinâmica",
-            Category::Time => "Tempo e espaço",
-            Category::Restoration => "Restauração",
-            Category::Modulation => "Modulação",
-            Category::Pitch => "Altura (pitch)",
-            Category::Channel => "Canais e voz",
+            Category::Filter => tr("Filtros e equalização"),
+            Category::Dynamics => tr("Dinâmica"),
+            Category::Time => tr("Tempo e espaço"),
+            Category::Restoration => tr("Restauração"),
+            Category::Modulation => tr("Modulação"),
+            Category::Pitch => tr("Altura (pitch)"),
+            Category::Channel => tr("Canais e voz"),
         }
     }
 }

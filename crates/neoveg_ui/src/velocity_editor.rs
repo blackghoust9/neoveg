@@ -225,6 +225,7 @@ impl VelocityEditor {
                 ui.weak(tr("Sem envelope: o evento toca na velocidade normal (100 %). A duração do evento não muda."));
                 ui.horizontal_wrapped(|ui| {
                     for (label, speed) in PRESETS {
+                        let label = tr(label);
                         if ui.button(label).clicked() {
                             actions.push(VelocityAction::Commit(Some(constant(speed))));
                         }
@@ -264,6 +265,7 @@ impl VelocityEditor {
         ui.horizontal_wrapped(|ui| {
             ui.label(tr("Ponto selecionado:"));
             for (label, speed) in PRESETS {
+                let label = tr(label);
                 let on = self.selected.is_some();
                 if ui.add_enabled(on, egui::Button::new(label)).clicked() {
                     if let Some(i) = self.selected {
@@ -401,6 +403,7 @@ impl VelocityEditor {
             match hit_point(env, rect, view.duration, pos) {
                 Some(i) => {
                     for (label, speed) in PRESETS {
+                        let label = tr(label);
                         if ui.button(label).clicked() {
                             actions.push(VelocityAction::Commit(Some(with_point_speed(
                                 env, i, speed,

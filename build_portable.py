@@ -95,6 +95,8 @@ PAYLOAD_FILES = {
     "third_party/nnnoiseless/COPYING": "third_party/nnnoiseless/COPYING",
     "third_party/nnnoiseless/AUTHORS": "third_party/nnnoiseless/AUTHORS",
     "third_party/nnnoiseless/README.md": "third_party/nnnoiseless/README.md",
+    "third_party/winit/LICENSE": "third_party/winit/LICENSE",
+    "third_party/winit/NEOVEG_PATCH.md": "third_party/winit/NEOVEG_PATCH.md",
     # the fonts of `neoveg_text` are compiled into the executable; their licence text goes with it
     "crates/neoveg_text/fonts/OFL-Inter.txt": "third_party/fonts/OFL-Inter.txt",
     "crates/neoveg_text/fonts/OFL-JetBrainsMono.txt": "third_party/fonts/OFL-JetBrainsMono.txt",

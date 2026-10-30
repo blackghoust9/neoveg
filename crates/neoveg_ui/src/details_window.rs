@@ -79,7 +79,9 @@ pub fn show(
                         }
                     });
             });
-            ui.weak("Opções: M mudo, B bloqueado, L repetir, N normalizar, F fase invertida.");
+            ui.weak(tr(
+                "Opções: M mudo, B bloqueado, L repetir, N normalizar, F fase invertida.",
+            ));
         });
     actions
 }

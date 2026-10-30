@@ -405,7 +405,7 @@ impl RenderDialogState {
                     }
                 });
             if ui
-                .button("Fontes do sistema")
+                .button(tr("Fontes do sistema"))
                 .on_hover_text(tr(
                     "Procura as fontes instaladas no computador (pode levar um instante)",
                 ))
@@ -451,8 +451,8 @@ impl RenderDialogState {
         }
         ui.horizontal(|ui| {
             for (label, rgba) in [
-                ("Texto:", &mut style.text_rgba),
-                ("Contorno:", &mut style.outline_rgba),
+                (tr("Texto:"), &mut style.text_rgba),
+                (tr("Contorno:"), &mut style.outline_rgba),
             ] {
                 ui.label(label);
                 let mut color =

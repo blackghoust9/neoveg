@@ -1103,6 +1103,10 @@ fn icon_grid(ctx: &egui::Context) {
 }
 
 #[cfg(test)]
+#[path = "audit.rs"]
+mod audit;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

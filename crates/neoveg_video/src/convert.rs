@@ -5,6 +5,7 @@
 //! The pure parts (what to convert to, the output name, the command line) are plain functions with
 //! tests; only [`convert`] starts a process.
 
+use neoveg_common::i18n::tr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -31,8 +32,8 @@ impl Target {
     /// Short name for the dialog, in pt-BR.
     pub fn label(self) -> &'static str {
         match self {
-            Target::Video => "MP4 (H.264 + AAC)",
-            Target::Audio => "WAV (PCM 16 bits)",
+            Target::Video => tr("MP4 (H.264 + AAC)"),
+            Target::Audio => tr("WAV (PCM 16 bits)"),
         }
     }
 }
