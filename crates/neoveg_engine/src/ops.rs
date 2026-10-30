@@ -97,6 +97,14 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
         out.trim_in = trim_in;
         out.velocity = Some(shifted);
     }
+    // ... and the cut-off front of a volume envelope takes its share of the curve
+    if let Some(env) = ev
+        .volume_envelope
+        .as_ref()
+        .filter(|v| crate::event_volume::is_active(Some(v)))
+    {
+        out.volume_envelope = Some(crate::event_volume::shift_start(env, start - ev.start));
+    }
     if start > ev.start + TIME_EPSILON {
         out.fade_in = 0.0;
     }

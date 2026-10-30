@@ -99,6 +99,9 @@ pub enum AutomationTarget {
     /// Speed of a video event (`-1.0..=3.0`: `-100 %` reverse to `300 %`, `1.0` normal). Lives on
     /// the event (`TrackEvent::velocity`), in seconds from its start, not on a track.
     EventVelocity,
+    /// Level of an audio event in dB (`-60.0..=12.0`, `0.0` leaves it alone). Lives on the event
+    /// (`TrackEvent::volume_envelope`), in seconds from its start, not on a track.
+    EventVolume,
 }
 
 impl AutomationTarget {
@@ -121,6 +124,7 @@ impl AutomationTarget {
             AutomationTarget::VideoFade => "Esmaecer para cor".into(),
             AutomationTarget::VideoMute => "Mudo da faixa".into(),
             AutomationTarget::EventVelocity => "Velocidade do evento".into(),
+            AutomationTarget::EventVolume => "Volume do evento".into(),
             AutomationTarget::EffectParam {
                 effect_index,
                 param_id,
@@ -138,6 +142,10 @@ impl AutomationTarget {
             AutomationTarget::Pan => (-1.0, 1.0, 0.0),
             AutomationTarget::VideoLevel => (0.0, 1.0, 1.0),
             AutomationTarget::EventVelocity => (-1.0, 3.0, 1.0),
+            AutomationTarget::EventVolume => {
+                let (lo, hi) = TrackMix::VOLUME_RANGE_DB;
+                (lo, hi, 0.0)
+            }
             AutomationTarget::VideoFade | AutomationTarget::VideoMute => (0.0, 1.0, 0.0),
             AutomationTarget::EffectParam { .. } => (0.0, 1.0, 0.0),
         }

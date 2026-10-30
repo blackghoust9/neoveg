@@ -5045,6 +5045,7 @@ impl AppState {
                     cross_out_curve: out_curve,
                     track: track_index,
                     channels: e.channels,
+                    volume: mix_gain_curve(e.volume_envelope.as_ref()),
                     // Only an event at normal speed loops (its source is read directly)
                     loop_len: if e.looping && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
                     {
@@ -6653,6 +6654,32 @@ impl NeovegApp {
             self.state.start_render(request, ctx);
         }
     }
+}
+
+/// The volume envelope of an event as the mixer plays it; `None` when there is nothing to apply.
+fn mix_gain_curve(
+    envelope: Option<&neoveg_engine::envelope::TrackEnvelope>,
+) -> Option<Arc<neoveg_audio::mixer::GainCurve>> {
+    use neoveg_audio::mixer::{GainCurve, GainPoint};
+    use neoveg_engine::envelope::EnvelopeShape;
+    let env = envelope.filter(|e| neoveg_engine::event_volume::is_active(Some(e)))?;
+    let points = env
+        .points
+        .iter()
+        .map(|p| GainPoint {
+            time: p.time,
+            db: p.value,
+            curve: match p.shape {
+                EnvelopeShape::Linear => Some(FadeCurve::Linear),
+                EnvelopeShape::Fast => Some(FadeCurve::Fast),
+                EnvelopeShape::Slow => Some(FadeCurve::Slow),
+                EnvelopeShape::Smooth => Some(FadeCurve::Smooth),
+                EnvelopeShape::Sharp => Some(FadeCurve::Sharp),
+                EnvelopeShape::Hold => None,
+            },
+        })
+        .collect();
+    Some(Arc::new(GainCurve { points }))
 }
 
 /// Width, height and frame rate of a media file, or why they could not be read.
@@ -13282,6 +13309,34 @@ mod tests {
         assert!(clips
             .iter()
             .all(|c| c.cross_in == 0.0 && c.cross_out == 0.0));
+    }
+
+    #[test]
+    fn the_volume_envelope_of_an_event_reaches_the_clip_the_mixer_plays() {
+        let (mut s, track, event) = state_with_clip(); // event 2..6
+        add_event(&mut s, track, 8.0, 2.0);
+        s.media.insert(1, test_media());
+        assert!(s.build_clips().iter().all(|c| c.volume.is_none()));
+
+        // -20 dB at the start of the event, ramping to 0 dB after 2 s
+        let mut env = neoveg_engine::event_volume::new_envelope(-20.0);
+        env.points.push(neoveg_engine::envelope::EnvelopePoint {
+            time: 2.0,
+            value: 0.0,
+            shape: neoveg_engine::envelope::EnvelopeShape::Linear,
+        });
+        let cmd = neoveg_engine::event_volume::set(&s.timeline, track, event, Some(env)).unwrap();
+        assert!(s.history.execute(&mut s.timeline, cmd));
+        let clips = s.build_clips();
+        let first = clips.iter().find(|c| c.start == 2.0).unwrap();
+        let curve = first.volume.as_ref().expect("the first event has a curve");
+        assert!((curve.gain_at(0.0) - 0.1).abs() < 1e-5, "-20 dB");
+        assert!((curve.gain_at(2.0) - 1.0).abs() < 1e-6, "0 dB");
+        assert_eq!(clips.iter().filter(|c| c.volume.is_some()).count(), 1);
+
+        // Undo takes it away again
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(s.build_clips().iter().all(|c| c.volume.is_none()));
     }
 
     fn test_media() -> LoadedMedia {

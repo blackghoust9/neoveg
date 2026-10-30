@@ -1010,6 +1010,7 @@ mod tests {
             track: 0,
             loop_len: 0.0,
             channels: Default::default(),
+            volume: None,
         };
         let mono = mix_to_mono_16k(&[clip], 0.0, 1.0);
         assert_eq!(mono.len(), 16_000);

@@ -35,6 +35,62 @@ pub struct MixClip {
     pub loop_len: f64,
     /// Non-destructive channel conversion of the clip (Both = untouched).
     pub channels: neoveg_common::channels::ChannelMode,
+    /// Level of the clip over its own time (the volume envelope of the event); `None` leaves the
+    /// level alone.
+    pub volume: Option<Arc<GainCurve>>,
+}
+
+/// One keyframe of a [`GainCurve`]: `db` at `time` seconds from the start of the clip. `curve` shapes
+/// the stretch that leaves this keyframe towards the next one (`None` holds this level until then).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GainPoint {
+    pub time: f64,
+    pub db: f32,
+    pub curve: Option<FadeCurve>,
+}
+
+/// The level of a clip over time, in dB: keyframes in seconds from the clip start, the first level
+/// before the first keyframe and the last after the last one. `-60 dB` and below is silence.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GainCurve {
+    pub points: Vec<GainPoint>,
+}
+
+impl GainCurve {
+    /// Lowest level, dB: at or below it the clip is silent.
+    pub const SILENCE_DB: f32 = -60.0;
+
+    /// Linear gain `time` seconds from the clip start (`1.0` without keyframes).
+    pub fn gain_at(&self, time: f64) -> f32 {
+        let (Some(first), Some(last)) = (self.points.first(), self.points.last()) else {
+            return 1.0;
+        };
+        let db = if time <= first.time {
+            first.db
+        } else if time >= last.time {
+            last.db
+        } else {
+            let next = self.points.partition_point(|p| p.time <= time);
+            let (a, b) = (self.points[next - 1], self.points[next]);
+            let span = b.time - a.time;
+            if span <= 1e-9 {
+                b.db
+            } else {
+                // The curve that leaves `a` shapes the way to `b`; a hold stays until `b`
+                let u = a
+                    .curve
+                    .map_or(0.0, |c| c.gain((time - a.time) / span) as f32);
+                a.db + (b.db - a.db) * u
+            }
+        };
+        if !db.is_finite() {
+            1.0
+        } else if db <= Self::SILENCE_DB {
+            0.0
+        } else {
+            10f32.powf(db / 20.0)
+        }
+    }
 }
 
 /// Highest absolute sample of the stereo `samples` between `from` and `from + length` seconds.
@@ -79,6 +135,7 @@ impl MixClip {
             * ramp(self.fade_out_curve, self.fade_out, remaining.max(0.0))
             * ramp(self.cross_in_curve, self.cross_in, local)
             * ramp(self.cross_out_curve, self.cross_out, remaining.max(0.0))
+            * self.volume.as_ref().map_or(1.0, |v| v.gain_at(local))
     }
 
     /// Stereo sample at timeline time `t` (linear interpolation, silence outside the clip).
@@ -150,6 +207,63 @@ mod tests {
             gain: 1.0,
             ..Default::default()
         }
+    }
+
+    fn point(time: f64, db: f32, curve: Option<FadeCurve>) -> GainPoint {
+        GainPoint { time, db, curve }
+    }
+
+    #[test]
+    fn a_gain_curve_follows_its_keyframes_holds_the_ends_and_silences_at_minus_sixty() {
+        let ramp = GainCurve {
+            points: vec![
+                point(0.0, 0.0, Some(FadeCurve::Linear)),
+                point(2.0, -12.0, Some(FadeCurve::Linear)),
+            ],
+        };
+        assert_eq!(
+            GainCurve::default().gain_at(1.0),
+            1.0,
+            "no keyframes, no change"
+        );
+        assert_eq!(ramp.gain_at(-1.0), 1.0, "the first level holds before");
+        let half = ramp.gain_at(1.0); // -6 dB
+        assert!((half - 0.501_187_2).abs() < 1e-5, "{half}");
+        let end = ramp.gain_at(9.0); // -12 dB holds after
+        assert!((end - 0.251_188_64).abs() < 1e-5, "{end}");
+        let step = GainCurve {
+            points: vec![
+                point(0.0, 0.0, None),
+                point(1.0, -60.0, Some(FadeCurve::Linear)),
+            ],
+        };
+        assert_eq!(
+            step.gain_at(0.99),
+            1.0,
+            "a hold stays until the next keyframe"
+        );
+        assert_eq!(step.gain_at(1.0), 0.0, "-60 dB is silence");
+        let bad = GainCurve {
+            points: vec![point(0.0, f32::NAN, None)],
+        };
+        assert_eq!(bad.gain_at(0.5), 1.0);
+    }
+
+    #[test]
+    fn a_clip_with_a_volume_curve_plays_at_the_level_of_its_own_time() {
+        let mut c = clip(0.8, 5.0, 1.0);
+        c.volume = Some(Arc::new(GainCurve {
+            points: vec![
+                point(0.0, 0.0, Some(FadeCurve::Linear)),
+                point(1.0, -20.0, Some(FadeCurve::Linear)),
+            ],
+        }));
+        // The curve is in the time of the clip, not of the timeline
+        assert!((c.sample_at(5.0).0 - 0.8).abs() < 1e-6);
+        let mid = c.sample_at(5.5).0; // -10 dB
+        assert!((mid - 0.8 * 0.316_227_77).abs() < 1e-4, "{mid}");
+        c.volume = None;
+        assert!((c.sample_at(5.5).0 - 0.8).abs() < 1e-6);
     }
 
     #[test]

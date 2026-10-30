@@ -523,6 +523,14 @@ fn flatten_level(
                         copy.trim_in = trim_in;
                         copy.velocity = Some(shifted);
                     }
+                    if let Some(env) = ce
+                        .volume_envelope
+                        .as_ref()
+                        .filter(|v| crate::event_volume::is_active(Some(v)))
+                    {
+                        copy.volume_envelope =
+                            Some(crate::event_volume::shift_start(env, cut_front));
+                    }
                     copy.start = event.start + (s - window_start);
                     copy.duration = e - s;
                     copy.fade_in = if cut_front > 0.0 { 0.0 } else { copy.fade_in };

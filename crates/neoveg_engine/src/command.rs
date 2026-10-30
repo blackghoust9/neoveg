@@ -174,6 +174,14 @@ pub enum EditCommand {
         before: Option<TrackEnvelope>,
         after: Option<TrackEnvelope>,
     },
+    /// The volume envelope of an audio event (created, edited or removed): the envelope before and
+    /// after, so it is one exactly reversible undo step.
+    SetEventVolume {
+        track_id: TrackId,
+        event_id: EventId,
+        before: Option<TrackEnvelope>,
+        after: Option<TrackEnvelope>,
+    },
     /// The color a video track fades to.
     SetFadeColor {
         track_id: TrackId,
@@ -431,6 +439,12 @@ impl EditCommand {
                 after,
                 ..
             } => set_velocity(tl, *track_id, *event_id, after),
+            Self::SetEventVolume {
+                track_id,
+                event_id,
+                after,
+                ..
+            } => set_event_volume(tl, *track_id, *event_id, after),
             Self::SetFadeColor {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -490,6 +504,10 @@ impl EditCommand {
                     transition_in: None,
                     transition_out: left.transition_out.clone(),
                     velocity: crate::velocity::from_offset(left.velocity.as_ref(), left_duration),
+                    volume_envelope: crate::event_volume::from_offset(
+                        left.volume_envelope.as_ref(),
+                        left_duration,
+                    ),
                     adjustment: left.adjustment,
                     resample: left.resample,
                 };
@@ -616,6 +634,14 @@ impl EditCommand {
             } => {
                 set_velocity(tl, *track_id, *event_id, before);
             }
+            Self::SetEventVolume {
+                track_id,
+                event_id,
+                before,
+                ..
+            } => {
+                set_event_volume(tl, *track_id, *event_id, before);
+            }
             Self::SetFadeColor {
                 track_id, before, ..
             } => {
@@ -701,6 +727,24 @@ fn set_velocity(
     match event {
         Some(e) => {
             e.velocity = value.clone();
+            true
+        }
+        None => false,
+    }
+}
+
+fn set_event_volume(
+    tl: &mut Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+    value: &Option<TrackEnvelope>,
+) -> bool {
+    let event = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+    match event {
+        Some(e) => {
+            e.volume_envelope = value.clone();
             true
         }
         None => false,
@@ -858,6 +902,8 @@ impl History {
     pub fn execute(&mut self, timeline: &mut Timeline, command: EditCommand) -> bool {
         // A trim or slide of an event with a velocity envelope keeps the picture in place
         let command = crate::velocity::keep_picture(timeline, command);
+        // ... and one with a volume envelope keeps the level over the same sound
+        let command = crate::event_volume::keep_level(timeline, command);
         if !command.apply(timeline) {
             return false;
         }

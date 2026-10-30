@@ -42,6 +42,7 @@ pub struct EnvelopeHit {
 pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, f32, f32) {
     match target {
         AutomationTarget::Volume
+        | AutomationTarget::EventVolume
         | AutomationTarget::Pan
         | AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
@@ -74,7 +75,9 @@ pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, 
 /// Distinct color per automation target kind.
 pub fn target_color(target: &AutomationTarget) -> Color32 {
     match target {
-        AutomationTarget::Volume => Color32::from_rgb(0x34, 0x98, 0xDB),
+        AutomationTarget::Volume | AutomationTarget::EventVolume => {
+            Color32::from_rgb(0x34, 0x98, 0xDB)
+        }
         AutomationTarget::Pan => Color32::from_rgb(0xE6, 0x7E, 0x22),
         AutomationTarget::VideoLevel => Color32::from_rgb(0xF1, 0xC4, 0x0F),
         AutomationTarget::VideoFade => Color32::from_rgb(0xE9, 0x1E, 0x8C),
@@ -88,6 +91,7 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
 pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String {
     match target {
         AutomationTarget::Volume => "Volume".into(),
+        AutomationTarget::EventVolume => target.label(),
         AutomationTarget::Pan => "Pan".into(),
         AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
@@ -129,7 +133,7 @@ pub fn format_envelope_value(
     value: f32,
 ) -> String {
     match target {
-        AutomationTarget::Volume => {
+        AutomationTarget::Volume | AutomationTarget::EventVolume => {
             if value <= -60.0 {
                 "-∞ dB".into()
             } else {

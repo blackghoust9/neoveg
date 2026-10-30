@@ -168,6 +168,11 @@ pub struct TrackEvent {
     /// change. Older projects play at the event's `playback_rate`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub velocity: Option<TrackEnvelope>,
+    /// Level of an audio event over time, in dB, keyframes in seconds from the start of the event
+    /// (`0` leaves the sound alone). It comes on top of the event's gain and fades. Older projects
+    /// have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume_envelope: Option<TrackEnvelope>,
     /// An adjustment event: it has no media, and its effect chain runs on the picture of the video
     /// tracks below it for as long as it lasts (see `neoveg_engine::adjustment`).
     #[serde(default, skip_serializing_if = "is_false")]
@@ -205,6 +210,7 @@ impl Default for TrackEvent {
             transition_in: None,
             transition_out: None,
             velocity: None,
+            volume_envelope: None,
             adjustment: false,
             resample: ResampleMode::Project,
         }
