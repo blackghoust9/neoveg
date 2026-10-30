@@ -1,8 +1,10 @@
 //! SMPTE timecode math (non-drop and drop-frame), derived from integer frame indices only.
 
-/// 29.97 and 59.94 fps are drop-frame by default.
+/// 29.97 (30000/1001) and 59.94 (60000/1001) fps are drop-frame by default. 30 and 60 fps are not:
+/// the tolerance is a hundredth of a frame, enough for the rounded 29.97 and 59.94 that are typed or
+/// stored, and far from the whole-number rates a tolerance of 0.06 used to swallow.
 pub fn is_drop_frame_rate(fps: f64) -> bool {
-    (fps - 29.97).abs() < 0.06 || (fps - 59.94).abs() < 0.06
+    (fps - 30_000.0 / 1001.0).abs() < 0.01 || (fps - 60_000.0 / 1001.0).abs() < 0.01
 }
 
 /// Nominal (rounded) frame rate used for the HH:MM:SS:FF fields.
@@ -100,6 +102,25 @@ pub fn parse_timecode(text: &str, fps: f64) -> Option<(i64, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_29_97_and_59_94_are_drop_frame_and_30_and_60_are_not() {
+        for fps in [29.97, 30_000.0 / 1001.0, 59.94, 60_000.0 / 1001.0] {
+            assert!(is_drop_frame_rate(fps), "{fps}");
+        }
+        for fps in [
+            23.976, 24.0, 25.0, 29.9, 30.0, 48.0, 50.0, 59.0, 60.0, 120.0,
+        ] {
+            assert!(!is_drop_frame_rate(fps), "{fps}");
+        }
+        // A 30 fps project counts frames ;00 to ;29 in every second and never skips a number
+        assert_eq!(timecode_seconds_to_frame(60, 30.0), 1800);
+        assert_eq!(timecode_seconds_to_frame(3600, 30.0), 108_000);
+        assert_eq!(
+            frame_to_timecode(1800, 30.0, is_drop_frame_rate(30.0)),
+            "00:01:00:00"
+        );
+    }
 
     #[test]
     fn non_drop_formats_plainly() {
