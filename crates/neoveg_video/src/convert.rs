@@ -39,9 +39,10 @@ impl Target {
 }
 
 /// Extensions of files that hold sound only.
-const AUDIO_EXTENSIONS: [&str; 14] = [
-    "wav", "mp3", "flac", "ogg", "oga", "opus", "m4a", "aac", "wma", "aif", "aiff", "ac3", "amr",
-    "mka",
+const AUDIO_EXTENSIONS: [&str; 30] = [
+    "wav", "mp3", "flac", "ogg", "oga", "opus", "m4a", "aac", "wma", "aif", "aiff", "aifc", "ac3",
+    "eac3", "ec3", "amr", "awb", "mka", "mp2", "mp1", "mpa", "au", "snd", "w64", "caf", "wv",
+    "spx", "ape", "tta", "dts",
 ];
 
 /// What `path` should be converted to: sound files to WAV, everything else to MP4.
@@ -179,6 +180,10 @@ mod tests {
     fn sound_files_become_wav_and_everything_else_mp4() {
         assert_eq!(target_for(Path::new("a/voz.WMA")), Target::Audio);
         assert_eq!(target_for(Path::new("musica.opus")), Target::Audio);
+        // Sound formats the importer cannot decode itself must be converted to sound, not to video
+        for name in ["a.mp2", "a.eac3", "a.au", "a.w64", "a.caf", "a.wv", "a.amr"] {
+            assert_eq!(target_for(Path::new(name)), Target::Audio, "{name}");
+        }
         assert_eq!(target_for(Path::new("filme.mkv")), Target::Video);
         assert_eq!(target_for(Path::new("sem_extensao")), Target::Video);
         assert_eq!(Target::Video.extension(), "mp4");

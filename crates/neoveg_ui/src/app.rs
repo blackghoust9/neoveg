@@ -453,7 +453,7 @@ fn load_message(path: PathBuf, existing_id: Option<u64>, converted: bool) -> Loa
                 // A video without a usable audio track is still a valid video clip; images and
                 // generators have no sound to look for
                 audio: if is_video_path(&path) {
-                    load_audio(&path).ok()
+                    load_video_audio(&path)
                 } else {
                     None
                 },
@@ -7155,6 +7155,45 @@ fn mix_gain_curve(
 type MediaFormat = Result<(u32, u32, f64), String>;
 
 /// Decodes an audio file and builds its waveform source.
+/// The sound of a video file. Most containers (MP4, MOV, MKV) are read directly. For the others
+/// (AVI, WebM, WMV, FLV, MPEG, TS) the sound is often a codec the decoder does not have (MP3 in an
+/// AVI, Opus in a WebM, WMA in a WMV): then it is extracted with `ffmpeg` to a WAV in a cache folder,
+/// once, and read from there. The media still points to the video, so the project keeps the video's
+/// path. A video with no sound, or no `ffmpeg` to extract it, gives `None`: a silent clip.
+fn load_video_audio(path: &std::path::Path) -> Option<LoadedMedia> {
+    if let Ok(media) = load_audio(path) {
+        return Some(media);
+    }
+    let wav = audio_cache_path(path)?;
+    if !wav.exists() {
+        neoveg_video::convert::convert(path, &wav, neoveg_video::convert::Target::Audio).ok()?;
+    }
+    let mut media = load_audio(&wav).ok()?;
+    media.path = path.to_path_buf();
+    media.name = path.file_name()?.to_string_lossy().into_owned();
+    Some(media)
+}
+
+/// Where the extracted sound of `path` is kept: a WAV named after the file's path, size and
+/// modification time, so an edited file is extracted again.
+fn audio_cache_path(path: &std::path::Path) -> Option<PathBuf> {
+    use std::hash::{Hash, Hasher};
+    let meta = std::fs::metadata(path).ok()?;
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    (meta.len(), modified).hash(&mut hasher);
+    Some(
+        std::env::temp_dir()
+            .join("neoveg_audio_cache")
+            .join(format!("{:016x}.wav", hasher.finish())),
+    )
+}
+
 fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
     // Decoded block by block: a long file goes to a temporary file, and the waveform and the
     // mixer share the one copy
@@ -15402,6 +15441,191 @@ mod tests {
             broken.is_empty(),
             "não importam nem convertidos: {broken:?}"
         );
+    }
+
+    /// The sound of every format, measured: a 440 Hz tone is written in each container and codec the
+    /// local `ffmpeg` can make, imported the way the Import command does (converted first when the
+    /// program cannot read the file directly), and the samples that reach the mixer must be that tone,
+    /// at the level it had and for as long as it lasted. A format `ffmpeg` cannot write is listed as
+    /// not made. Skipped without `ffmpeg`; run with `--features ffmpeg` to include the video files.
+    #[test]
+    fn every_format_with_sound_plays_the_tone_that_was_put_in_it() {
+        use std::process::{Command, Stdio};
+        let dir = std::env::temp_dir().join(format!("neoveg_format_sound_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ffmpeg_ok = Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if !ffmpeg_ok {
+            eprintln!("skipped: ffmpeg is not installed");
+            return;
+        }
+        const SECONDS: f64 = 3.0;
+        // (file name, ffmpeg output arguments, has a picture)
+        let formats: &[(&str, &[&str], bool)] = &[
+            ("wav 16 bits", &["-c:a", "pcm_s16le"], false),
+            ("wav 8 bits", &["-c:a", "pcm_u8"], false),
+            ("wav 24 bits", &["-c:a", "pcm_s24le"], false),
+            ("wav 32 bits float", &["-c:a", "pcm_f32le"], false),
+            ("wav 64 bits float", &["-c:a", "pcm_f64le"], false),
+            ("wav adpcm", &["-c:a", "adpcm_ms"], false),
+            (
+                "wav mono 22 kHz",
+                &["-c:a", "pcm_s16le", "-ac", "1", "-ar", "22050"],
+                false,
+            ),
+            ("wav 96 kHz", &["-c:a", "pcm_s16le", "-ar", "96000"], false),
+            ("mp3", &["-c:a", "libmp3lame"], false),
+            ("mp2", &["-c:a", "mp2"], false),
+            ("flac", &["-c:a", "flac"], false),
+            (
+                "flac 24 bits",
+                &["-c:a", "flac", "-sample_fmt", "s32"],
+                false,
+            ),
+            ("ogg", &["-c:a", "libvorbis"], false),
+            ("oga", &["-c:a", "libvorbis"], false),
+            ("opus", &["-c:a", "libopus"], false),
+            ("m4a", &["-c:a", "aac"], false),
+            ("aac", &["-c:a", "aac"], false),
+            ("wma", &["-c:a", "wmav2"], false),
+            ("aiff", &["-c:a", "pcm_s16be"], false),
+            ("aif", &["-c:a", "pcm_s24be"], false),
+            ("ac3", &["-c:a", "ac3"], false),
+            ("eac3", &["-c:a", "eac3"], false),
+            ("mka", &["-c:a", "libvorbis"], false),
+            ("au", &["-c:a", "pcm_s16be"], false),
+            ("caf", &["-c:a", "pcm_s16le"], false),
+            ("w64", &["-c:a", "pcm_s16le"], false),
+            (
+                "amr",
+                &["-c:a", "libopencore_amrnb", "-ar", "8000", "-ac", "1"],
+                false,
+            ),
+            ("mp4", &["-c:v", "mpeg4", "-c:a", "aac"], true),
+            ("m4v", &["-c:v", "mpeg4", "-c:a", "aac"], true),
+            ("mov", &["-c:v", "mpeg4", "-c:a", "pcm_s16le"], true),
+            ("mkv", &["-c:v", "mpeg4", "-c:a", "flac"], true),
+            ("avi", &["-c:v", "mpeg4", "-c:a", "libmp3lame"], true),
+            ("webm", &["-c:v", "libvpx", "-c:a", "libopus"], true),
+            ("wmv", &["-c:v", "wmv2", "-c:a", "wmav2"], true),
+            (
+                "flv",
+                &["-c:v", "flv", "-c:a", "libmp3lame", "-ar", "44100"],
+                true,
+            ),
+            ("mpg", &["-c:v", "mpeg2video", "-c:a", "mp2"], true),
+            ("ts", &["-c:v", "mpeg2video", "-c:a", "mp2"], true),
+            (
+                "3gp",
+                &[
+                    "-c:v", "h263", "-s", "176x144", "-c:a", "aac", "-ar", "8000", "-ac", "1",
+                ],
+                true,
+            ),
+            ("mxf", &["-c:v", "mpeg2video", "-c:a", "pcm_s16le"], true),
+        ];
+        // ffmpeg's sine peaks at 1/8 of full scale; doubled it peaks at 0.25, an RMS of 0.177
+        let source = format!("sine=frequency=440:duration={SECONDS}");
+        let picture = format!("testsrc=size=320x240:rate=10:duration={SECONDS}");
+        let mut table = Vec::new();
+        let mut wrong = Vec::new();
+        let mut not_made = Vec::new();
+        for (label, args, with_picture) in formats {
+            let extension = label.split(' ').next().unwrap();
+            let out = dir.join(format!("{}.{extension}", label.replace(' ', "_")));
+            let mut cmd = Command::new("ffmpeg");
+            cmd.args(["-hide_banner", "-y"]);
+            if *with_picture {
+                cmd.args(["-f", "lavfi", "-i", &picture]);
+            }
+            cmd.args(["-f", "lavfi", "-i", &source, "-af", "volume=2.0"]);
+            cmd.args(*args).arg("-shortest").arg(&out);
+            let made = cmd
+                .stdin(Stdio::null())
+                .output()
+                .is_ok_and(|o| o.status.success())
+                && out.metadata().is_ok_and(|m| m.len() > 0);
+            if !made {
+                not_made.push(*label);
+                continue;
+            }
+            if *with_picture && !neoveg_video::info::video_decoding_enabled() {
+                table.push(format!(
+                    "{label:18} vídeo: este build não decodifica contêiner de vídeo"
+                ));
+                continue;
+            }
+            // The import: directly, or after the conversion the program offers
+            let mut route = "direto";
+            let mut message = load_message(out.clone(), None, false);
+            if matches!(message, LoadMsg::Failed { .. }) {
+                let target = neoveg_video::convert::target_for(&out);
+                let copy =
+                    neoveg_video::convert::output_path(&out, &dir.join("conv"), target, |p| {
+                        p.exists()
+                    });
+                route = "convertido";
+                message = match neoveg_video::convert::convert(&out, &copy, target) {
+                    Ok(()) => load_message(copy, None, true),
+                    Err(e) => LoadMsg::Failed {
+                        path: out.clone(),
+                        error: e,
+                        existing_id: None,
+                        converted: true,
+                    },
+                };
+            }
+            let media = match message {
+                LoadMsg::Loaded { media, .. } => Some(media),
+                LoadMsg::VideoLoaded { audio, .. } => audio,
+                _ => None,
+            };
+            let Some(media) = media else {
+                table.push(format!("{label:18} {route:10} SEM SOM"));
+                wrong.push(format!("{label}: sem som"));
+                continue;
+            };
+            // Measured in the middle second of the left channel, away from the encoder's ends
+            let rate = media.sample_rate as usize;
+            let frames = media.stereo.frames();
+            let from = rate / 2;
+            let window = rate.min(frames.saturating_sub(from));
+            let left: Vec<f32> = (from..from + window)
+                .map(|i| media.stereo.frame(i).0)
+                .collect();
+            let crossings = left
+                .windows(2)
+                .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+                .count();
+            let hz = crossings as f64 / 2.0 / (window as f64 / rate as f64);
+            let rms = (left.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>()
+                / left.len().max(1) as f64)
+                .sqrt();
+            let seconds = media.duration;
+            let ok = (hz - 440.0).abs() < 8.0
+                && (if *label == "amr" { 0.09 } else { 0.13 }..0.23).contains(&rms)
+                && (SECONDS - 0.35..SECONDS + 0.35).contains(&seconds);
+            table.push(format!(
+                "{label:18} {route:10} {hz:6.1} Hz  RMS {rms:.3}  {seconds:.2} s  {rate} Hz  {} canais  {}",
+                media.channels,
+                if ok { "ok" } else { "ERRADO" }
+            ));
+            if !ok {
+                wrong.push(format!("{label}: {hz:.1} Hz, RMS {rms:.3}, {seconds:.2} s"));
+            }
+        }
+        for line in &table {
+            println!("{line}");
+        }
+        println!("não gerados por este ffmpeg: {not_made:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(table.len() >= 10, "ffmpeg made only {} files", table.len());
+        assert!(wrong.is_empty(), "formatos com som errado: {wrong:?}");
     }
 
     #[test]

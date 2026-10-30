@@ -145,3 +145,6 @@ G:/*
 /results.md
 /results_assets/
 /VegasScan/
+
+# log do instalador do LLVM/FFmpeg
+scripts/install_llvm_ffmpeg.log
