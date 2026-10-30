@@ -483,6 +483,8 @@ struct AppState {
     timeline: Timeline,
     history: History,
     prefs: Preferences,
+    /// System font for Japanese and Chinese, loaded when one of them is the language.
+    cjk_fonts: crate::fonts::CjkFonts,
     keymap: KeyMap,
     media: HashMap<u64, LoadedMedia>,
     /// Cached WSOLA / varispeed slices keyed by `(media_id, trim_bits, dur_bits, rate_bits, preserve_pitch)`.
@@ -1495,6 +1497,7 @@ impl AppState {
             timeline: Timeline::new(),
             history: History::new(),
             prefs,
+            cjk_fonts: Default::default(),
             keymap,
             media: HashMap::new(),
             stretch_cache: std::cell::RefCell::new(HashMap::new()),
@@ -6666,6 +6669,7 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     // the interface language follows the preference, also right after the selector changes it
     neoveg_common::i18n::set_language(&state.prefs.language);
+    state.cjk_fonts.update(ui.ctx(), &state.prefs.language);
     egui::menu::bar(ui, |ui| {
         ui.menu_button(tr("Arquivo"), |ui| {
             // New and open

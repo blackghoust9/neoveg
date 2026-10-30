@@ -22,9 +22,9 @@ pub const LANGUAGES: [&str; 8] = [
     "pt-BR", "en-US", "de-DE", "es-ES", "fr-FR", "zh-CN", "ja-JP", "ru-RU",
 ];
 
-/// The embedded catalogs. Portuguese is the source text and has none; Japanese and Chinese wait for a
-/// font with those glyphs (the default egui fonts draw them as empty boxes).
-const EMBEDDED: [(&str, &str); 5] = [
+/// The embedded catalogs. Portuguese is the source text and has none. Japanese and Chinese need a font
+/// with ideographs, which the interface takes from the operating system (`neoveg_ui::fonts`).
+const EMBEDDED: [(&str, &str); 7] = [
     (
         "en-US",
         include_str!("../../../assets/i18n/strings/en-US.json"),
@@ -44,6 +44,14 @@ const EMBEDDED: [(&str, &str); 5] = [
     (
         "ru-RU",
         include_str!("../../../assets/i18n/strings/ru-RU.json"),
+    ),
+    (
+        "ja-JP",
+        include_str!("../../../assets/i18n/strings/ja-JP.json"),
+    ),
+    (
+        "zh-CN",
+        include_str!("../../../assets/i18n/strings/zh-CN.json"),
     ),
 ];
 
@@ -233,10 +241,11 @@ mod tests {
         set_language("klingon");
         assert_eq!(language(), "pt-BR");
         assert_eq!(tr("Arquivo"), "Arquivo");
-        // Japanese has no catalog yet: the text stays Portuguese
         set_language("ja-JP");
         assert_eq!(language(), "ja-JP");
-        assert_eq!(tr("Arquivo"), "Arquivo");
+        assert_eq!(tr("Arquivo"), "ファイル");
+        set_language("zh-CN");
+        assert_eq!(tr("Arquivo"), "文件");
         set_language("pt-BR");
     }
 

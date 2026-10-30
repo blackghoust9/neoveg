@@ -241,6 +241,9 @@ fn new_context() -> egui::Context {
     let ctx = egui::Context::default();
     ui_theme::apply(&ctx, &Theme::default());
     icons::install(&ctx);
+    if let Ok(tag) = std::env::var("NEOVEG_SCREENSHOT_LANG") {
+        crate::fonts::install_blocking(&ctx, &tag);
+    }
     ctx
 }
 
