@@ -173,6 +173,11 @@ pub struct TrackEvent {
     /// have none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_envelope: Option<TrackEnvelope>,
+    /// How far the transition of a video event has gone over time, keyframes in seconds from the start
+    /// of the event: it takes the place of the gain of the fade the transition sits on. Older projects
+    /// have none (the fade decides).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transition_progress: Option<TrackEnvelope>,
     /// An adjustment event: it has no media, and its effect chain runs on the picture of the video
     /// tracks below it for as long as it lasts (see `neoveg_engine::adjustment`).
     #[serde(default, skip_serializing_if = "is_false")]
@@ -211,6 +216,7 @@ impl Default for TrackEvent {
             transition_out: None,
             velocity: None,
             volume_envelope: None,
+            transition_progress: None,
             adjustment: false,
             resample: ResampleMode::Project,
         }

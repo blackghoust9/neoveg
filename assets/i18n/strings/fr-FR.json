@@ -782,5 +782,7 @@
   "Não colocados ({})": "Non placés ({})",
   "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "Importez dans le projet les médias manquants, puis importez de nouveau le fichier.",
   "Avisos da leitura ({})": "Avertissements de lecture ({})",
-  "Copiar relatório": "Copier le rapport"
+  "Copiar relatório": "Copier le rapport",
+  "Progresso da transição": "Progression de la transition",
+  "Criar envelope de progresso": "Créer une enveloppe de progression"
 }

@@ -119,7 +119,24 @@ pub(super) fn clip_look(
     time: f64,
     cross_in: f64,
 ) -> (f32, Vec<neoveg_video::transitions::TransitionRequest>) {
-    let (gain_in, gain_out) = (in_ramp(event, time, cross_in), out_ramp(event, time));
+    let (mut gain_in, mut gain_out) = (in_ramp(event, time, cross_in), out_ramp(event, time));
+    // A progress curve takes the place of the fade for the transition it drives: the one that
+    // comes in when the event has it, else the one that goes out
+    if let Some(curve) = event
+        .transition_progress
+        .as_ref()
+        .filter(|c| neoveg_engine::transition_progress::is_active(Some(c)))
+    {
+        let progress = f64::from(neoveg_engine::transition_progress::progress_at(
+            curve,
+            time - event.start,
+        ));
+        if event.transition_in.is_some() {
+            gain_in = progress;
+        } else if event.transition_out.is_some() {
+            gain_out = progress;
+        }
+    }
     if gain_in <= 0.0 || gain_out <= 0.0 {
         return (0.0, Vec::new());
     }
@@ -868,6 +885,76 @@ mod tests {
         e.transition_in = Some(TrackEffect::new("dissolve"));
         let (opacity, list) = clip_look(&e, 10.5, 1.0);
         assert!((opacity - 0.5).abs() < 1e-5 && list.is_empty());
+    }
+
+    #[test]
+    fn a_progress_curve_takes_the_place_of_the_fade_for_the_transition_it_drives() {
+        use neoveg_engine::envelope::{EnvelopePoint, EnvelopeShape};
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut e = event(&mut tl, 1, 10.0, 8.0);
+        e.fade_in = 2.0;
+        e.fade_out = 2.0;
+        e.transition_in = Some(TrackEffect::new("iris"));
+        e.transition_out = Some(TrackEffect::new("clock_wipe"));
+        // Without a curve the fade decides: half way at the middle of the fade-in
+        let (_, list) = clip_look(&e, 11.0, 0.0);
+        assert!((list[0].progress - 0.5).abs() < 1e-5);
+        // The curve holds the transition at a quarter from 0.5 s to 5 s, whatever the fade says
+        let mut curve = neoveg_engine::transition_progress::new_envelope(1.0);
+        curve.points = vec![
+            EnvelopePoint {
+                time: 0.0,
+                value: 0.25,
+                shape: EnvelopeShape::Hold,
+            },
+            EnvelopePoint {
+                time: 5.0,
+                value: 1.0,
+                shape: EnvelopeShape::Linear,
+            },
+        ];
+        e.transition_progress = Some(curve);
+        let (opacity, list) = clip_look(&e, 11.0, 0.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!((list.len(), list[0].kind.as_str()), (1, "iris"));
+        assert!(
+            (list[0].progress - 0.25).abs() < 1e-5,
+            "{}",
+            list[0].progress
+        );
+        assert!(list[0].entering);
+        // Past the fade the curve still draws the transition: the progress is not the fade's
+        let (_, list) = clip_look(&e, 14.0, 0.0);
+        assert_eq!(list[0].kind.as_str(), "iris");
+        assert!(list[0].progress < 1.0);
+        // The transition out keeps following its own fade while the one in has the curve
+        let (_, list) = clip_look(&e, 17.0, 0.0);
+        assert!(list
+            .iter()
+            .any(|r| r.kind == "clock_wipe" && r.progress == 0.5));
+        // A curve at nothing hides the clip, a disabled one hands the transition back to the fade
+        let mut hidden = e.clone();
+        hidden.transition_progress = Some({
+            let mut c = neoveg_engine::transition_progress::new_envelope(1.0);
+            c.points.truncate(1);
+            c
+        });
+        assert_eq!(clip_look(&hidden, 12.0, 0.0), (0.0, Vec::new()));
+        e.transition_progress.as_mut().unwrap().enabled = false;
+        let (_, list) = clip_look(&e, 11.0, 0.0);
+        assert!((list[0].progress - 0.5).abs() < 1e-5);
+        // Without a transition in, the curve drives the one out
+        e.transition_in = None;
+        e.transition_progress.as_mut().unwrap().enabled = true;
+        let (opacity, list) = clip_look(&e, 11.0, 0.0);
+        assert!(
+            (opacity - 0.5).abs() < 1e-5,
+            "the fade-in stays a plain opacity"
+        );
+        assert_eq!((list.len(), list[0].kind.as_str()), (1, "clock_wipe"));
+        assert!((list[0].progress - 0.25).abs() < 1e-5);
+        assert!(!list[0].entering);
     }
 
     #[test]

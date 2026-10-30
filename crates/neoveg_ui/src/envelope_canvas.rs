@@ -47,6 +47,7 @@ pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, 
         | AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
         | AutomationTarget::VideoMute
+        | AutomationTarget::EventTransitionProgress
         | AutomationTarget::EventVelocity => target.default_bounds(),
         AutomationTarget::EffectParam {
             effect_index,
@@ -82,7 +83,9 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
         AutomationTarget::VideoLevel => Color32::from_rgb(0xF1, 0xC4, 0x0F),
         AutomationTarget::VideoFade => Color32::from_rgb(0xE9, 0x1E, 0x8C),
         AutomationTarget::VideoMute => Color32::from_rgb(0xE7, 0x4C, 0x3C),
-        AutomationTarget::EventVelocity => Color32::from_rgb(0xF1, 0xC4, 0x0F),
+        AutomationTarget::EventVelocity | AutomationTarget::EventTransitionProgress => {
+            Color32::from_rgb(0xF1, 0xC4, 0x0F)
+        }
         AutomationTarget::EffectParam { .. } => Color32::from_rgb(0x2E, 0xCC, 0x71),
     }
 }
@@ -91,7 +94,7 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
 pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String {
     match target {
         AutomationTarget::Volume => "Volume".into(),
-        AutomationTarget::EventVolume => target.label(),
+        AutomationTarget::EventVolume | AutomationTarget::EventTransitionProgress => target.label(),
         AutomationTarget::Pan => "Pan".into(),
         AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
@@ -151,6 +154,7 @@ pub fn format_envelope_value(
         }
         AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
+        | AutomationTarget::EventTransitionProgress
         | AutomationTarget::EventVelocity => format!("{:.0} %", value * 100.0),
         AutomationTarget::VideoMute => {
             if value >= 0.5 {

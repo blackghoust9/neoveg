@@ -9475,6 +9475,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
     let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
+    let mut progress: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut header: Option<event_header::HeaderButton> = None;
     let playhead = state.playhead;
     crate::dialogs::tool_window(ctx, tr("Inspetor"))
@@ -9695,6 +9696,29 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                     ev.volume_envelope.as_ref(),
                     playhead - ev.start,
                     ev.duration,
+                    0.0,
+                    &crate::event_volume_panel::VOLUME,
+                );
+            }
+            if kind == TrackKind::Video
+                && !ev.adjustment
+                && (ev.transition_in.is_some() || ev.transition_out.is_some())
+            {
+                ui.separator();
+                // A new curve starts as the fade it replaces: the one the transition sits on
+                let fade = if ev.transition_in.is_some() {
+                    ev.fade_in
+                } else {
+                    ev.fade_out
+                };
+                progress = crate::event_volume_panel::show(
+                    ui,
+                    egui::Id::new(("inspector_transition_progress", track_id, event_id)),
+                    ev.transition_progress.as_ref(),
+                    playhead - ev.start,
+                    ev.duration,
+                    fade,
+                    &crate::event_volume_panel::PROGRESS,
                 );
             }
             ui.separator();
@@ -9728,6 +9752,8 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
         } else if let Some(envelope) = volume {
             neoveg_engine::event_volume::set(&state.timeline, track_id, event_id, envelope)
+        } else if let Some(envelope) = progress {
+            neoveg_engine::transition_progress::set(&state.timeline, track_id, event_id, envelope)
         } else {
             None
         };

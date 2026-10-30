@@ -2039,3 +2039,41 @@ Implementation Guidelines for Neoveg:
     preview; they can share the split preview widget.
 Sources: VEGAS_Pro_18_EN.pdf p. 431 (see also pp. 142 and 147); manual_vegaspro21_en.pdf (View menu, shortcut table).
 Research Date: 2026-10-30
+
+
+----------------------------------------------------------------------
+54. Feature Name: Transition Progress Envelope (Hold, Reverse and Repeat a Transition)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, "Adding a transition progress envelope", p. 500, and "Transition Progress
+   with animation", pp. 501 on, marked "new since VEGAS Pro 20".)
+  - Normally a transition progresses from 0 to 100 % in a linear fashion over its length. A transition progress
+    envelope gives "complete control over a transition: you can hold, reverse, and repeat individual
+    transitions". [OFFICIAL]
+  - Right-click a transition, choose Insert/Remove Envelope > Transition Progress; the envelope is added to the
+    transition, and points and curves are edited as with any envelope (the example: the transition starts,
+    goes to 50 %, reverses, then finishes). [OFFICIAL]
+  - The animated version opens a keyframe timeline from the transition's properties button in the video event
+    FX window (a Transition Progress button), with a Curves mode that has Bezier tools for the rate of change
+    between points. [OFFICIAL]
+  - It is defined for a transition on a crossfade of two overlapping clips; the manual does not describe an
+    envelope on a fade-in or fade-out transition of a single clip. [NOT DOCUMENTED]
+Visual/Technical Rules:
+  - Progress 0.0 = the layer is not there, 1.0 = whole and untouched (the same meaning Neoveg's transitions
+    already use); the envelope replaces the linear ramp.
+Implementation Guidelines for Neoveg:
+  - Implemented on 2026-10-30: `TrackEvent::transition_progress` (a curve in seconds from the start of the
+    event, `AutomationTarget::EventTransitionProgress`, 0 to 1), the module `neoveg_engine::transition_progress`
+    (progress_at, cut and trim of the front, `SetTransitionProgress` as one undo step, `keep_progress` for the
+    trim of the left edge), `composite::clip_look` (the curve takes the place of the gain of the fade for the
+    transition it drives), and the Inspector section "Progresso da transição" for video events that have a
+    transition (a list of points with shapes; a new curve starts as the fade it replaces).
+  - Neoveg choices: the curve belongs to the event, not to the transition; it drives the transition in when the
+    event has one, otherwise the transition out, and the other keeps following its fade. This covers the
+    overlap of two clips too, because the overlap gain is part of the fade-in the curve replaces. Pasting the
+    transitions of an event (Colar atributos) brings the curve with them; a split gives each half its part.
+  - Still open: a graphical editor for the curve (the list of points is the editor for now), the Bezier curve
+    tools of the animated version, and a drag draft that shows the preview while a value is dragged (the
+    preview changes when the value is committed).
+Sources: manual_vegaspro21_en.pdf pp. 500-501.
+Research Date: 2026-10-30

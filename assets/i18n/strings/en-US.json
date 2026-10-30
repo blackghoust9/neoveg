@@ -782,5 +782,7 @@
   "Não colocados ({})": "Not placed ({})",
   "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "Import the missing media into the project and import the file again.",
   "Avisos da leitura ({})": "Reading warnings ({})",
-  "Copiar relatório": "Copy report"
+  "Copiar relatório": "Copy report",
+  "Progresso da transição": "Transition progress",
+  "Criar envelope de progresso": "Create progress envelope"
 }

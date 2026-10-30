@@ -182,6 +182,14 @@ pub enum EditCommand {
         before: Option<TrackEnvelope>,
         after: Option<TrackEnvelope>,
     },
+    /// The transition progress curve of a video event (created, edited or removed): the curve before
+    /// and after, so it is one exactly reversible undo step.
+    SetTransitionProgress {
+        track_id: TrackId,
+        event_id: EventId,
+        before: Option<TrackEnvelope>,
+        after: Option<TrackEnvelope>,
+    },
     /// A color a video track fades to: the top one (`bottom` false) or the bottom one.
     SetFadeColor {
         track_id: TrackId,
@@ -446,6 +454,12 @@ impl EditCommand {
                 after,
                 ..
             } => set_event_volume(tl, *track_id, *event_id, after),
+            Self::SetTransitionProgress {
+                track_id,
+                event_id,
+                after,
+                ..
+            } => set_transition_progress(tl, *track_id, *event_id, after),
             Self::SetFadeColor {
                 track_id,
                 bottom,
@@ -514,6 +528,10 @@ impl EditCommand {
                     velocity: crate::velocity::from_offset(left.velocity.as_ref(), left_duration),
                     volume_envelope: crate::event_volume::from_offset(
                         left.volume_envelope.as_ref(),
+                        left_duration,
+                    ),
+                    transition_progress: crate::transition_progress::from_offset(
+                        left.transition_progress.as_ref(),
                         left_duration,
                     ),
                     adjustment: left.adjustment,
@@ -650,6 +668,14 @@ impl EditCommand {
             } => {
                 set_event_volume(tl, *track_id, *event_id, before);
             }
+            Self::SetTransitionProgress {
+                track_id,
+                event_id,
+                before,
+                ..
+            } => {
+                set_transition_progress(tl, *track_id, *event_id, before);
+            }
             Self::SetFadeColor {
                 track_id,
                 bottom,
@@ -760,6 +786,24 @@ fn set_event_volume(
     match event {
         Some(e) => {
             e.volume_envelope = value.clone();
+            true
+        }
+        None => false,
+    }
+}
+
+fn set_transition_progress(
+    tl: &mut Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+    value: &Option<TrackEnvelope>,
+) -> bool {
+    let event = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id));
+    match event {
+        Some(e) => {
+            e.transition_progress = value.clone();
             true
         }
         None => false,
@@ -919,6 +963,8 @@ impl History {
         let command = crate::velocity::keep_picture(timeline, command);
         // ... and one with a volume envelope keeps the level over the same sound
         let command = crate::event_volume::keep_level(timeline, command);
+        // ... and one with a transition progress curve keeps the progress over the same picture
+        let command = crate::transition_progress::keep_progress(timeline, command);
         if !command.apply(timeline) {
             return false;
         }

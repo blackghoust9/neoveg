@@ -105,6 +105,17 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     {
         out.volume_envelope = Some(crate::event_volume::shift_start(env, start - ev.start));
     }
+    // ... and so does the progress curve of a transition
+    if let Some(env) = ev
+        .transition_progress
+        .as_ref()
+        .filter(|p| crate::transition_progress::is_active(Some(p)))
+    {
+        out.transition_progress = Some(crate::transition_progress::shift_start(
+            env,
+            start - ev.start,
+        ));
+    }
     if start > ev.start + TIME_EPSILON {
         out.fade_in = 0.0;
     }

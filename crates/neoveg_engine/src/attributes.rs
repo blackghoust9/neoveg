@@ -107,6 +107,7 @@ pub fn apply(
         if set.transitions {
             target.transition_in = source.transition_in.clone();
             target.transition_out = source.transition_out.clone();
+            target.transition_progress = source.transition_progress.clone();
         }
     }
     *target != before

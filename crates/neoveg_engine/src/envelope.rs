@@ -102,6 +102,9 @@ pub enum AutomationTarget {
     /// Level of an audio event in dB (`-60.0..=12.0`, `0.0` leaves it alone). Lives on the event
     /// (`TrackEvent::volume_envelope`), in seconds from its start, not on a track.
     EventVolume,
+    /// How far the transition of a video event has gone, `0.0..=1.0` (`1.0`: whole picture, no
+    /// transition). Lives on the event (`TrackEvent::transition_progress`), in seconds from its start.
+    EventTransitionProgress,
 }
 
 impl AutomationTarget {
@@ -125,6 +128,7 @@ impl AutomationTarget {
             AutomationTarget::VideoMute => "Mudo da faixa".into(),
             AutomationTarget::EventVelocity => "Velocidade do evento".into(),
             AutomationTarget::EventVolume => "Volume do evento".into(),
+            AutomationTarget::EventTransitionProgress => "Progresso da transição".into(),
             AutomationTarget::EffectParam {
                 effect_index,
                 param_id,
@@ -142,6 +146,7 @@ impl AutomationTarget {
             AutomationTarget::Pan => (-1.0, 1.0, 0.0),
             AutomationTarget::VideoLevel => (0.0, 1.0, 1.0),
             AutomationTarget::EventVelocity => (-1.0, 3.0, 1.0),
+            AutomationTarget::EventTransitionProgress => (0.0, 1.0, 1.0),
             AutomationTarget::EventVolume => {
                 let (lo, hi) = TrackMix::VOLUME_RANGE_DB;
                 (lo, hi, 0.0)

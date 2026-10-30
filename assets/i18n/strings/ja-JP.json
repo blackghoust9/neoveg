@@ -782,5 +782,7 @@
   "Não colocados ({})": "配置されなかったもの（{}）",
   "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "足りないメディアをプロジェクトに取り込んでから、もう一度ファイルをインポートしてください。",
   "Avisos da leitura ({})": "読み込み時の警告（{}）",
-  "Copiar relatório": "レポートをコピー"
+  "Copiar relatório": "レポートをコピー",
+  "Progresso da transição": "トランジションの進行",
+  "Criar envelope de progresso": "進行エンベロープを作成"
 }
