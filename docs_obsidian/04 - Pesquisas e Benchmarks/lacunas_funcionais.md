@@ -24,6 +24,13 @@ Cruzamento entre o inventário funcional de uma varredura local do produto de re
 | Conexão com serviço online de clipes (nuvem) | Há apenas "Hub de mídia" como item genérico | Decisão de produto; provavelmente fora do escopo |
 | Sobreposição de quadros de borda de edição no evento | Aparece só numa lista de itens de menu da pesquisa | Detalhar quando houver o modo de edição expandida |
 
+### Decisões registradas (30/10/2026)
+As quatro funções agora têm entrada em `docs/research/nle_features_research.txt` (entradas 50 a 53), lidas nos manuais locais:
+- **Importar projeto de outro editor (50):** o que o manual lista como formatos de intercâmbio (XML de edição, FCPXML, EDL) **já existe**, e OTIO e AAF também. Os formatos de projeto proprietários **não serão adotados**: não há especificação pública e ler esses arquivos seria engenharia reversa (clean room, AGENTS.md §28). Pequena tarefa: relatório em janela do que ficou de fora numa importação.
+- **Esmaecer para cor (51):** **já implementado em parte** (`VideoFade` e `fade_color`, menu Faixas > Envelopes de vídeo). Falta a segunda cor e o envelope de -100 % a +100 %, como no manual, e os padrões nas preferências.
+- **Serviço online de clipes (52):** **fora do escopo** (conta, assinatura e licença de conteúdo; o Neoveg não faz chamadas de rede). Só voltaria como "provedor de mídia" configurado pelo usuário, com pesquisa própria.
+- **Quadros de borda do evento (53):** não é desenho sobre o evento, e sim uma **prévia dividida temporária** com o primeiro e o último quadro enquanto se faz slip, slip-trim ou slide. Pequena tarefa, a fazer junto do modo de edição expandida.
+
 ## 2. Registradas, ainda não implementadas — por prioridade sugerida
 **Alta (núcleo de edição e saída)**
 - Escopos de ripple, origens de snap e quantização, modos de aparo (shuffle, stretch, split-trim, rolling): Fases 2 e 3 do plano detalhado no README.
@@ -50,7 +57,7 @@ Hoje 15 comandos em `neoveg_common::commands` têm atalho e rótulo mas a interf
 ## 4. Pontos a conferir no próprio repositório
 - O README ainda marca "aplicar o idioma em toda a interface" como pendente, mas `Assets/i18n` já tem oito idiomas. Conferir e atualizar a caixa.
 - "Composição de várias faixas de vídeo" está concluída e "composição e Pan/Crop do evento" pendente; existe `composite.rs` em três crates. Conferir se a segunda linha trata só de Pan/Crop.
-- Os quatro itens da seção 1 precisam de entrada em `docs/research/nle_features_research.txt` (AGENTS.md §9.1) antes de virarem tarefa.
+- Os quatro itens da seção 1 já têm entrada em `docs/research/nle_features_research.txt` (50 a 53), como pede o AGENTS.md §9.1.
 
 ## Próximos passos sugeridos
 1. Decidir os quatro itens da seção 1.

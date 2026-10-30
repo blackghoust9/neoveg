@@ -1892,3 +1892,139 @@ Implementation Guidelines for Neoveg:
     locked event, the edges unaffected).
 Sources: VEGAS_Pro_18_EN.pdf pp. 15-17 and 147; Sony_Vegas_Pro_8_Manual.pdf keyboard tables.
 Research Date: 2026-10-27
+
+
+----------------------------------------------------------------------
+50. Feature Name: Importing a Project from Another Editor (Project Interchange)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, "Importing and exporting projects", p. 126; the same section exists in
+   VEGAS_Pro_18_EN.pdf. Found by the gap analysis in docs_obsidian/04 - Pesquisas e Benchmarks/lacunas_funcionais.md.)
+  - File > Import offers a project type: Premiere / After Effects (*.pproj), Final Cut Pro 7 / DaVinci Resolve
+    (*.xml), Final Cut Pro X (*.fcpxml) and an EDL text file (*.txt). A file dialog follows (folder list, recent
+    folders, file name, Open). [OFFICIAL]
+  - If elements of the project could not be imported, a report is displayed afterwards. [OFFICIAL]
+  - File > Export has the same four types, for use in the other programs. [OFFICIAL]
+  - The program's own project file (.veg) and its project archive (.vf) are opened with File > Open, not
+    imported; a .veg dropped on the timeline is added as a nested project. [OFFICIAL]
+  - The manual does not say which features survive (effects, speed, transitions, nested sequences) or how the
+    Premiere / After Effects project is read. [NOT DOCUMENTED]
+Visual/Technical Rules:
+  - One import type per format, each with its own file filter; a list of what was left out is shown at the end.
+Implementation Guidelines for Neoveg:
+  - Already implemented (not new work): Final Cut Pro 7 XML (`xmeml`), FCPXML, CMX 3600 EDL, OpenTimelineIO and
+    AAF, each in File > Import and File > Export (`neoveg_engine::{fcp7, fcpxml, edl, otio, aaf}`); each import is
+    one undo step and lists the clips whose media is not in the project.
+  - Decision (design, [NOT DOCUMENTED]): the formats the gap analysis calls "proprietary" are NOT adopted for now.
+    The Premiere / After Effects project and the reference program's own project/archive files have no public
+    specification; reading them would mean reverse engineering, which AGENTS.md section 28 (clean room) rules
+    out. Interchange with those programs goes through the open formats above (the three XML/EDL/AAF routes they
+    all read and write). Revisit only if an official or openly licensed specification appears.
+  - Small gap worth a task later: the manual shows a report of what could not be imported. Neoveg counts the
+    skipped clips in the status line and logs the warnings; a dialog listing them would match the behavior.
+Sources: manual_vegaspro21_en.pdf p. 126; VEGAS_Pro_18_EN.pdf (same section); README roadmap (interchange items).
+Research Date: 2026-10-30
+
+
+----------------------------------------------------------------------
+51. Feature Name: Track Fade to Color Envelope (Video)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf, "Applying fade-to-color automation and set fade colors", p. 241 (the index also
+   lists pp. 230 and 533), and manual_vegaspro21_en.pdf, "Using automation", pp. 1017-1018.)
+  - Fade to color automation "fades a track between two colors": to or from black, and on the top video track
+    it fades the whole project. [OFFICIAL]
+  - The color is chosen by moving the envelope towards the top or the bottom of the track; points (nodes)
+    automate the fade. [OFFICIAL]
+  - Insert > Video Envelopes > Track Fade to Color (or the track list shortcut menu, Insert/Remove Envelope)
+    adds the envelope at "No Color (0 %)" for the length of the track; choosing it again removes it. [OFFICIAL]
+  - In automation mode the track header shows a Fade slider: with automation Off it sets the level of the
+    whole track, in Read it follows the envelope, in Touch and Latch it edits the setting at the cursor. [OFFICIAL]
+  - The two colors are the track's TOP and BOTTOM fade colors, set from the track header shortcut menu
+    (Fade Colors > Top / Bottom, a color picker). Their defaults are the Track Fade Top and Track Fade Bottom
+    settings of Preferences > Video. [OFFICIAL]
+  - Hiding the envelope (View > Video Envelopes) only removes the line; the automation stays. [OFFICIAL]
+Visual/Technical Rules:
+  - Envelope value from the bottom color (-100 %) through no color (0 %) to the top color (+100 %), read as a
+    mix factor between the track's picture and the chosen color. [NOT DOCUMENTED: the manual does not give the
+    numbers; this reading is inferred from "no color (0 %)" and the top / bottom description]
+Implementation Guidelines for Neoveg:
+  - Already implemented in part (the gap analysis missed it): `AutomationTarget::VideoFade` ("Esmaecer para
+    cor", range 0 to 1, 0 leaves the picture alone), `Track::fade_color` (one color per track, default black),
+    `envelope::set_fade_color`, and the menu Faixas > Envelopes de vídeo; the compositor mixes the track layer
+    towards the color by the envelope value.
+  - Gap (small task): the reference has TWO colors per track chosen by the sign of the envelope, and defaults
+    in the preferences; Neoveg has one color and a 0 to 1 amount. To match, give the track a second color,
+    let the envelope range from -1 to 1 (negative towards the bottom color), and add the two defaults to the
+    preferences (`#[serde(default)]`, old projects keep black and the 0 to 1 behavior).
+  - Gap (small task): the automation modes of the Fade slider (Off / Read / Touch / Latch) follow the general
+    automation recording item of the roadmap, not this one.
+Sources: VEGAS_Pro_18_EN.pdf p. 241 (and 230, 533 from the index); manual_vegaspro21_en.pdf pp. 1017-1018.
+Research Date: 2026-10-30
+
+
+----------------------------------------------------------------------
+52. Feature Name: Online Stock Clip Service (Cloud Media Hub)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, "VEGAS Hub" and "Adding Stock Content", pp. 217-221.)
+  - A hub window gives access to the user's account profile, news, cloud file storage, a stock media browser,
+    tutorials, example projects, expansion packs and community add-ons. Cloud storage and the stock library need
+    a paid subscription. [OFFICIAL]
+  - Stock Media opens a content browser over a library of nearly a million royalty-free music tracks and video
+    clips; the user logs in first, searches, and downloads a chosen file format and resolution; a download quota
+    applies and the license (EULA) says what the footage may be used for. [OFFICIAL]
+  - "Add to Project Media" downloads the file into the Project Media list; "Insert on Timeline" does that and
+    also places it on the timeline. Files can be marked as favorites, kept for later or when the quota is used
+    up; downloaded files are found in a Hub Explorer window. [OFFICIAL]
+  - The v18 manual mentions an online service only once; the description above is from the v21 manual. [OFFICIAL]
+Visual/Technical Rules:
+  - A browser window with search, preview, format and resolution choice, favorites, and two actions
+    (add to media, insert on timeline).
+Implementation Guidelines for Neoveg:
+  - Decision (product, [NOT DOCUMENTED]): OUT OF SCOPE. The feature is a commercial service: it needs an
+    account, a subscription, the vendor's servers and a license for the clips, none of which a free offline
+    editor has. Neoveg also makes no network calls today. The README item "Hub de mídia" stays as a generic
+    placeholder only for the local parts (a window that lists the project's downloaded or recorded files).
+  - If a connection is ever wanted, it should be a plug-in style "media provider" the user configures with
+    their own service (a folder, an HTTP library they run, or a free license collection such as public-domain
+    archives), never a built-in account. That would be a new entry with its own research (licenses, privacy,
+    offline behavior) before any task.
+  - Nothing to implement now; do not turn this into a task without that decision.
+Sources: manual_vegaspro21_en.pdf pp. 217-221; VEGAS_Pro_18_EN.pdf (one mention).
+Research Date: 2026-10-30
+
+
+----------------------------------------------------------------------
+53. Feature Name: Video Event Edge Frames (Split-Screen Preview While Slipping and Sliding)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from VEGAS_Pro_18_EN.pdf, the paragraph on split-screen previews in the Video Preview section just before
+   "Showing affected and unprocessed video", p. 431, with cross references to "Adjusting an event's length" p. 142 and "Slipping and sliding events" p. 147;
+   manual_vegaspro21_en.pdf, View menu and the keyboard shortcut table.)
+  - The Video Preview window "temporarily enters split-screen preview mode" while the user performs an event
+    slip, an event slip-trim, an event slide, or a crossfade / transition slide. The split screen shows the
+    event's first and last frame as the edit changes. [OFFICIAL]
+  - View > Video Event Edge Frames turns this on or off; Ctrl+Shift+O toggles it (the shortcut table words it
+    as showing "the frame under the cursor or split-screen previews" during those edits). [OFFICIAL]
+  - It is a preview mode, not a drawing on the event in the timeline; the gap analysis called it an overlay
+    "on the event" because the menu list was terse. [OFFICIAL]
+  - The manual does not say how the two frames are laid out or whether the preview keeps playing. [NOT DOCUMENTED]
+Visual/Technical Rules:
+  - Two frames of the edited event side by side while the drag lasts: the first (the in point at the start of
+    the event on the timeline) and the last (the frame just before the event ends). When the drag ends the
+    preview returns to the normal single frame.
+Implementation Guidelines for Neoveg:
+  - Not implemented. Prerequisites that exist: slip and slide by mouse and keyboard (`edit::slip`, `edit::slide`,
+    the Slip / Slide tools), the frame worker that decodes any frame of a clip on request, and a preview window.
+  - Neoveg design (small task): a View toggle and the command `view.event_edge_frames` (Ctrl+Shift+O, a
+    preference remembered with `#[serde(default)]`, on by default as in the reference). While a slip, slide or
+    slip-trim drag is active, the preview asks the worker for the event's first and last source frames (trim_in
+    and trim_in + duration at the clip's speed, honoring a velocity envelope through `velocity::source_offset`)
+    and draws them left and right of the preview with the timecode of each. Two decodes per drag step: use the
+    existing source-frame cache so a drag that moves a frame at a time does not decode from scratch.
+  - Crossfade / transition slide has no Neoveg counterpart yet; add it with that edit.
+  - Ordering: do it with the expanded edit mode item (README plan, phase 2), which also needs the two-sided
+    preview; they can share the split preview widget.
+Sources: VEGAS_Pro_18_EN.pdf p. 431 (see also pp. 142 and 147); manual_vegaspro21_en.pdf (View menu, shortcut table).
+Research Date: 2026-10-30
