@@ -377,7 +377,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [x] Colar atributos do evento, completo (`Ctrl+Alt+V`) e seletivo (`Ctrl+Alt+Shift+V`, janela com uma caixa por atributo): interruptores, tom do áudio, velocidade de reprodução, efeitos de vídeo, Pan/Crop, envelope de velocidade e transições, num só passo de desfazer, no menu Editar e no menu do evento.
 - [x] Mídia incompatível: quando a importação falha, uma janela oferece converter uma cópia (som para WAV, vídeo para MP4 H.264 + AAC, com o `ffmpeg`) e importá-la; o original não muda. O seletor de arquivos tem o filtro de todos os arquivos. Testado com 12 formatos de áudio e 6 de imagem; os de vídeo só rodam numa compilação com `--features ffmpeg`.
 - [ ] Fechar lacunas e divisão inteligente (o manual a descreve com a transição de fluxo de deformação, que ainda não existe).
-- [ ] Exportar e importar preferências (o `preferences.json` já é serializável).
+- [x] Exportar e importar preferências (Preferências > Geral: `Preferences::import` recusa arquivo que não é de preferências e o importado vale na hora).
 
 **Áudio**
 - [ ] VST3 em processo isolado, reaproveitando o modelo de latência do `BlockMixer`, e gerenciador de plug-ins.
@@ -462,9 +462,9 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Edições em L-cut e J-cut, fades simultâneos de áudio e vídeo e sincronismo de eventos (*sync links*) (VP12/VP13)
 - [ ] Edição multicâmera (sincronizar, criar evento multicâmera, alternar câmeras) e *takes* como versões alternativas do evento (VP13)
 - [x] Salvar versão incremental (`Ctrl+Alt+S`: `nome_0001`, `nome_0002`…, continua no arquivo novo)
-- [ ] Exportar/importar preferências e trocar arquivos de mídia por pasta (VP18)
+- [ ] Exportar/importar preferências (**feito**: Preferências > Geral, `Preferences::import`) e trocar arquivos de mídia por pasta (VP18; falta)
 - [ ] Painel de rastreamento de movimento e Black Bar Fill, Denoiser, Flicker Control (VP18)
-- [ ] Eventos de ajuste (*adjustment events*): o efeito vale para os eventos de vídeo abaixo dele (VP21)
+- [x] Eventos de ajuste (*adjustment events*): o efeito vale para os eventos de vídeo abaixo dele (VP21; `neoveg_engine::adjustment`, conferido no código em 30/10)
 - [ ] Decodificação AV1/HEVC/AVC com aceleração de GPU e suporte a HEIC/HEIF (VP21)
 - [ ] Opções para ocultar ou não criar arquivos de picos de áudio (`.sfk` no VEGAS; equivalente no Neoveg) (VP21)
 
@@ -533,12 +533,12 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
 - [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução
-- [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), duplicar faixa, cor e altura de faixa, minimizar/maximizar
+- [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), cor e altura de faixa, minimizar/maximizar (**feito**: duplicar faixa, menu Faixas, `neoveg_engine::track_ops`)
 - [ ] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
-- [ ] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa"
+- [x] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa" (`buses.rs`: rota que faria laço é recusada; `TrackSend::post_volume` e `link_pan`; conferido no código em 30/10)
 - [ ] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
 - [x] Medidores de loudness (M, S, I, LRA, pico verdadeiro) em painel próprio **Loudness**, com alvos EBU R128, ATSC A/85, streaming e podcast: medidor BS.1770-4 adaptado do FilmCraft (`neoveg_audio::dsp`), alimentado no callback de áudio com as amostras que vão para a placa; créditos em **Ajuda → Créditos e licenças…**
-- [ ] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir)
+- [x] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir) (`loudness_report::{measure_mixer_offline, save_loudness_log, sidecar_loudness_path}`, usados pela renderização; conferido no código em 30/10)
 
 **Fase 8 — Automação e keyframes (entrada 14)**
 - [ ] Edição de envelopes: pontos, `Ctrl` fino, `Alt` só tempo, pincel livre, afinar pontos, inverter, tipo de curva por segmento
@@ -560,7 +560,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 11 — Menus, comandos e preferências (entradas 26 a 29)**
 - [ ] (núcleo pronto na Fase 13; falta ligar os menus de contexto, a barra de ferramentas e os tooltips) Tabela única de ações (`Command`: id pontuado, rótulo i18n, atalho, predicado de habilitação) usada pelo menu principal, menus de contexto, tooltips e pela janela "Personalizar teclado"; overrides em `preferences.json` (`keymap`)
-- [ ] Comandos baratos que cabem no motor atual: Fechar espaços (Close Gaps), Reunir evento (Event Heal), Divisão inteligente (Smart Split), Selecionar tudo após o cursor, Zoom na seleção, Desfazer tudo e Limpar histórico, Colar atributos (inteiro e seletivo)
+- [ ] Comandos baratos que cabem no motor atual: **feitos** Fechar espaços (`Editar > Fechar espaços na faixa`, `neoveg_engine::track_ops`) e Colar atributos (inteiro e seletivo); faltam Reunir evento (Event Heal), Divisão inteligente (Smart Split), Selecionar tudo após o cursor, Zoom na seleção, Desfazer tudo e Limpar histórico
 - [ ] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
 - [ ] Detectar cenas e dividir (filtro de cena do FFmpeg), Congelar quadro no cursor (envelope de velocidade), detecção de batidas e de andamento
 - [ ] Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade

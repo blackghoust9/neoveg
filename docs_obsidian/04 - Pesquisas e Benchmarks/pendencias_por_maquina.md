@@ -101,3 +101,5 @@ A conferência por busca no código mostra que estas caixas estão atrasadas em 
 | 487, 489, 491 | O texto diz "engine pronto" ou "feito", mas a caixa ficou aberta: separar o que falta (ligar menus e ferramentas) |
 
 Conferir a lista item a item continua pendente; esta tabela só cobre o que foi encontrado por busca.
+
+**Marcadas em 30/10/2026** (conferidas no código): eventos de ajuste, barramentos com sends pré/pós-fader e laço recusado, registro `_loud.txt` com medição offline, exportar e importar preferências, duplicar faixa e Fechar espaços (as duas últimas e a das preferências foram implementadas neste dia).
