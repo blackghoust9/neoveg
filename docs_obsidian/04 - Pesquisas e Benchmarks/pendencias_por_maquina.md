@@ -103,3 +103,25 @@ A conferência por busca no código mostra que estas caixas estão atrasadas em 
 Conferir a lista item a item continua pendente; esta tabela só cobre o que foi encontrado por busca.
 
 **Marcadas em 30/10/2026** (conferidas no código): eventos de ajuste, barramentos com sends pré/pós-fader e laço recusado, registro `_loud.txt` com medição offline, exportar e importar preferências, duplicar faixa e Fechar espaços (as duas últimas e a das preferências foram implementadas neste dia).
+
+## 5. Testes a rodar numa máquina com mais memória
+
+Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desde a última rodada completa de testes (`262b677`, que passou: 188 do `neoveg_audio`, 309 da interface) foram escritos 46 testes novos que **nunca rodaram**, e o código que eles cobrem mudou desde então. Rode **um crate por vez**, com `-j 1 -- --test-threads=1`, e o da interface em segundo plano.
+
+| Ordem | Comando | O que cobre (testes novos) |
+|---|---|---|
+| 1 | `cargo test -p neoveg_common` | mapas de teclado nomeados (4), sequências de atalhos (2), preferências (importar, cores do esmaecer: 2), orçamento de cache e de decodificadores (2) |
+| 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1) |
+| 3 | `cargo test -p neoveg_audio` | curva de ganho do mixer (2); o resto já passou |
+| 4 | `cargo test -p neoveg_video` | nada novo, mas o limite de decodificadores mexeu no worker |
+| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), e a suíte toda (309 antes) |
+| 6 | `NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot` (segundo plano) | as 18 capturas fora da tela, para ver se a interface nova desenha |
+
+**Por que o `neoveg_engine` inteiro:** o envelope de volume, o de progresso, a duplicação de faixa e o esmaecer mexeram no corte, no aparo, na cópia e no desfazer; os testes antigos de ripple e de seleção são os que mais podem revelar uma regressão.
+
+**Fora da lista comum:**
+- `cargo test -p neoveg_audio --test long_audio_memory -- --ignored --exact old_way_whole_file_three_copies` e depois `new_way_store_shared_with_the_waveform`, um de cada vez, observando a memória (já medidos: 621 MB contra 68 MB).
+- Com FFmpeg 7 de desenvolvimento e LLVM 19: `cargo test -p neoveg_video --features ffmpeg`, para o limite de decodificadores abertos, que nunca foi compilado.
+
+**O que ver com os olhos** (nenhum teste cobre): a janela do relatório de importação, as duas fileiras de cores do esmaecer, a prévia dividida durante o slip e o slide, o `Esc` que agora para a reprodução, a barra de mapas de teclado e a gravação de sequências, e as seções de volume e de progresso no Inspetor.
+
