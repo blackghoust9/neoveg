@@ -51,6 +51,25 @@ impl SystemInfo {
     }
 }
 
+/// Installed memory in bytes, `None` when the system does not say.
+pub fn total_memory_bytes() -> Option<u64> {
+    let mut system = System::new();
+    system.refresh_memory();
+    Some(system.total_memory()).filter(|&bytes| bytes > 0)
+}
+
+/// How much the picture caches may hold on a machine with `total` bytes of memory: the full budget
+/// from 16 GiB up, half of it from 8 GiB, a quarter below (and when the memory is unknown, half).
+pub fn scale_cache_budget(full: usize, total: Option<u64>) -> usize {
+    const GIB: u64 = 1 << 30;
+    match total {
+        Some(t) if t >= 16 * GIB => full,
+        Some(t) if t >= 8 * GIB => full / 2,
+        Some(_) => full / 4,
+        None => full / 2,
+    }
+}
+
 fn non_empty(text: String, fallback: &str) -> String {
     if text.trim().is_empty() {
         fallback.to_owned()
@@ -115,6 +134,16 @@ mod tests {
     use super::*;
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn the_picture_caches_shrink_on_small_machines() {
+        let full = 96 * 1024 * 1024;
+        assert_eq!(scale_cache_budget(full, Some(32 * GIB)), full);
+        assert_eq!(scale_cache_budget(full, Some(16 * GIB)), full);
+        assert_eq!(scale_cache_budget(full, Some(8 * GIB)), full / 2);
+        assert_eq!(scale_cache_budget(full, Some(4 * GIB)), full / 4);
+        assert_eq!(scale_cache_budget(full, None), full / 2);
+    }
 
     #[test]
     fn the_operating_system_gets_its_word_size() {

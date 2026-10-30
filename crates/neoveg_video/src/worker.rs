@@ -299,9 +299,12 @@ struct WorkerState {
 
 impl WorkerState {
     fn new() -> Self {
+        // Small machines get smaller caches: 96 + 48 MiB is a lot where 4 GiB is all there is
+        let total = neoveg_common::sys_info::total_memory_bytes();
+        let budget = |full: usize| neoveg_common::sys_info::scale_cache_budget(full, total);
         Self {
-            source_cache: LruFrameCache::new(96 * 1024 * 1024),
-            composite_cache: LruFrameCache::new(48 * 1024 * 1024),
+            source_cache: LruFrameCache::new(budget(96 * 1024 * 1024)),
+            composite_cache: LruFrameCache::new(budget(48 * 1024 * 1024)),
             gpu_compositor: None,
             gpu_probed: false,
             vfx_gpu: None,
