@@ -145,6 +145,15 @@ impl Preferences {
             .unwrap_or_default()
     }
 
+    /// Reads a preferences file someone exported. Unlike [`Preferences::load`] a file that is not
+    /// valid preferences is an error with the reason, so a wrong file never replaces the settings.
+    pub fn import(path: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| format!("não foi possível ler {}: {e}", path.display()))?;
+        serde_json::from_str(&text)
+            .map_err(|e| format!("{} não é um arquivo de preferências: {e}", path.display()))
+    }
+
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
@@ -157,6 +166,29 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_exported_file_imports_back_and_a_wrong_file_is_refused() {
+        let dir = std::env::temp_dir().join(format!("neoveg_prefs_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("exported.json");
+        let p = Preferences {
+            language: "en-US".into(),
+            autosave_minutes: 7,
+            ..Preferences::default()
+        };
+        p.save(&path).unwrap();
+        assert_eq!(Preferences::import(&path).unwrap(), p);
+        // Unknown or missing fields are fine (older and newer files), a different kind of file is not
+        std::fs::write(&path, r#"{"language":"de-DE","something_new":1}"#).unwrap();
+        assert_eq!(Preferences::import(&path).unwrap().language, "de-DE");
+        std::fs::write(&path, "not json").unwrap();
+        assert!(Preferences::import(&path)
+            .unwrap_err()
+            .contains("preferências"));
+        assert!(Preferences::import(&dir.join("missing.json")).is_err());
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn defaults_match_the_spec() {

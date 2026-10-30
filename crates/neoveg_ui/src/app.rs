@@ -1408,6 +1408,41 @@ impl AppState {
     }
 
     /// Startup step 1: the user's preferences and keyboard map.
+    /// Preferences > Export: the settings as a JSON file to take to another machine.
+    fn export_preferences(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Preferências do Neoveg (JSON)", &["json"])
+            .set_file_name("neoveg_preferencias.json")
+            .save_file()
+        else {
+            return;
+        };
+        self.status = match self.prefs.save(&path) {
+            Ok(()) => tr_args("Preferências exportadas: {}", &[&path.display()]),
+            Err(e) => tr_args("Não foi possível exportar as preferências: {}", &[&e]),
+        };
+    }
+
+    /// Preferences > Import: replaces the settings with an exported file (the shortcuts, the
+    /// language and the theme apply right away). A file that is not preferences changes nothing.
+    fn import_preferences(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Preferências do Neoveg (JSON)", &["json"])
+            .pick_file()
+        else {
+            return;
+        };
+        match Preferences::import(&path) {
+            Ok(imported) => {
+                save_prefs(&imported);
+                let detail = self.load_preferences();
+                self.theme_applied = None;
+                self.status = tr_args("Preferências importadas: {}", &[&detail]);
+            }
+            Err(e) => self.status = e,
+        }
+    }
+
     fn load_preferences(&mut self) -> String {
         let prefs = Preferences::default_path()
             .map(|p| Preferences::load(&p))
@@ -1652,6 +1687,41 @@ impl AppState {
     }
 
     // ---- editing -----------------------------------------------------------------------------
+
+    /// *Duplicar faixa*: a copy of the selected track with its events, selected afterwards.
+    fn duplicate_selected_track(&mut self) {
+        let Some(id) = self.selected_track else {
+            self.status = tr("Selecione uma faixa para duplicar").into();
+            return;
+        };
+        let Some((copy, command)) = neoveg_engine::track_ops::duplicate(&mut self.timeline, id)
+        else {
+            return;
+        };
+        if self.history.execute(&mut self.timeline, command) {
+            self.selected_track = Some(copy);
+            self.status = tr("Faixa duplicada").into();
+        }
+    }
+
+    /// *Fechar espaços na faixa*: the events of the selected track meet each other.
+    fn close_gaps_on_selected_track(&mut self) {
+        let Some(id) = self.selected_track else {
+            self.status = tr("Selecione uma faixa para fechar os espaços").into();
+            return;
+        };
+        match neoveg_engine::track_ops::close_gaps(&self.timeline, id) {
+            Some(command) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.status = tr("Espaços fechados na faixa").into();
+                    self.last_frame_key = None;
+                    self.last_composite_key = None;
+                    self.restart_audio_if_playing();
+                }
+            }
+            None => self.status = tr("Não há espaços para fechar nesta faixa").into(),
+        }
+    }
 
     fn add_track(&mut self, kind: TrackKind) {
         let track = self.timeline.new_track(kind);
@@ -5841,6 +5911,8 @@ impl AppState {
             Command::EditRedo => self.redo(),
             Command::EditDelete => self.delete_selection(),
             Command::EditRippleDelete => self.ripple_delete_selection(),
+            Command::EditCloseGaps => self.close_gaps_on_selected_track(),
+            Command::TrackDuplicate => self.duplicate_selected_track(),
             Command::OptionsAutoRipple => {
                 self.auto_ripple = !self.auto_ripple;
                 self.status = if self.auto_ripple {
@@ -6927,6 +6999,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             for command in [
                 Command::EditSplit,
+                Command::EditCloseGaps,
                 Command::EditTrimToSelection,
                 Command::EditTrimStart,
                 Command::EditTrimEnd,
@@ -6991,6 +7064,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             command_item(state, ui, Command::InsertTime);
+            command_item(state, ui, Command::TrackDuplicate);
             ui.separator();
             for command in [
                 Command::TrackMute,
@@ -8660,6 +8734,8 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
     let mut prefs = state.prefs.clone();
     let mut tab = state.prefs_tab;
     let mut reload = false;
+    let mut export_prefs = false;
+    let mut import_prefs = false;
     let mut note = std::mem::take(&mut state.theme_note);
     crate::dialogs::dialog(ctx, tr("Preferências"))
         .open(&mut open)
@@ -8705,6 +8781,11 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         ui.add(egui::DragValue::new(&mut prefs.recent_projects_max).range(0..=30));
                     });
                     prefs.trim_recent_projects();
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        export_prefs = ui.button(tr("Exportar preferências…")).clicked();
+                        import_prefs = ui.button(tr("Importar preferências…")).clicked();
+                    });
                 }
                 PrefsTab::Themes => {
                     for id in theme::BUILTIN_IDS {
@@ -8774,6 +8855,12 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
     }
     if reload {
         state.theme_applied = None;
+    }
+    if export_prefs {
+        state.export_preferences();
+    }
+    if import_prefs {
+        state.import_preferences();
     }
     state.prefs_tab = tab;
     state.theme_note = note;

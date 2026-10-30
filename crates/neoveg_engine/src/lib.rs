@@ -35,6 +35,7 @@ pub mod snapping;
 pub mod switches;
 pub mod timeline;
 pub mod track_motion;
+pub mod track_ops;
 pub mod transitions;
 pub mod trimmer;
 pub mod velocity;

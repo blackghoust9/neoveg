@@ -104,6 +104,7 @@ commands! {
     EditRedo => ("edit.redo", "Refazer", Edit, true),
     EditDelete => ("edit.delete", "Excluir seleção", Edit, true),
     EditRippleDelete => ("edit.ripple_delete", "Excluir e fechar o espaço (ripple)", Edit, true),
+    EditCloseGaps => ("edit.close_gaps", "Fechar espaços na faixa", Edit, true),
     EditSplit => ("edit.split", "Dividir no cursor", Edit, true),
     EditCut => ("edit.cut", "Recortar", Edit, true),
     EditCopy => ("edit.copy", "Copiar", Edit, true),
@@ -210,6 +211,7 @@ commands! {
     TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, true),
     TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, true),
     TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, true),
+    TrackDuplicate => ("track.duplicate", "Duplicar faixa", Track, true),
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
