@@ -9853,6 +9853,30 @@ impl Viewer<'_> {
     }
 }
 
+/// Where the preview picture is drawn: on whole screen pixels. A picture decoded for the window
+/// (Auto quality) has the size of the area up to a pixel or two (the decoder wants even sizes), and
+/// drawn into a rectangle with fractional edges it would be resampled and look soft: when the sizes
+/// match to within two pixels the picture keeps its own size, centred on the pixel grid; otherwise
+/// only the edges of `area` are moved to the grid. `texture` is the size of the picture in pixels.
+fn pixel_aligned_rect(area: Rect, texture: [usize; 2], pixels_per_point: f32) -> Rect {
+    let ppp = pixels_per_point.max(0.1);
+    let snap = |v: f32| (v * ppp).round() / ppp;
+    let (tw, th) = (texture[0] as f32, texture[1] as f32);
+    let (aw, ah) = (area.width() * ppp, area.height() * ppp);
+    if tw >= 1.0 && th >= 1.0 && (tw - aw).abs() <= 2.0 && (th - ah).abs() <= 2.0 {
+        let size = vec2(tw / ppp, th / ppp);
+        let min = pos2(
+            snap(area.center().x - size.x / 2.0),
+            snap(area.center().y - size.y / 2.0),
+        );
+        return Rect::from_min_size(min, size);
+    }
+    Rect::from_min_max(
+        pos2(snap(area.min.x), snap(area.min.y)),
+        pos2(snap(area.max.x), snap(area.max.y)),
+    )
+}
+
 fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         egui::ComboBox::from_id_salt("preview_quality")
@@ -9880,9 +9904,11 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     painter.rect_filled(frame_rect, Rounding::ZERO, Color32::BLACK);
     state.preview_pane_width = frame_rect.width();
     if let Some(texture) = &state.video_texture {
+        // On the pixel grid, so a picture decoded for the window is drawn pixel for pixel
+        let picture = pixel_aligned_rect(frame_rect, texture.size(), ui.ctx().pixels_per_point());
         painter.image(
             texture.id(),
-            frame_rect,
+            picture,
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
         );
@@ -13450,6 +13476,39 @@ mod tests {
         );
         assert!(s.frame_scopes.is_some(), "the scopes read the same picture");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_picture_decoded_for_the_window_is_drawn_pixel_for_pixel_on_the_pixel_grid() {
+        // 900 x 506 pixels decoded for an area of 900.4 x 506.3 points at 1:1, off the grid
+        let area = Rect::from_min_size(pos2(10.3, 20.6), vec2(900.4, 506.3));
+        let drawn = pixel_aligned_rect(area, [900, 506], 1.0);
+        assert_eq!(
+            (drawn.width(), drawn.height()),
+            (900.0, 506.0),
+            "its own size"
+        );
+        assert_eq!(
+            (drawn.min.x.fract(), drawn.min.y.fract()),
+            (0.0, 0.0),
+            "on the grid"
+        );
+        // The same at 150 %: the picture is 1350 x 759 pixels, so 900 x 506 points
+        let area = Rect::from_min_size(pos2(10.3, 20.6), vec2(900.4, 506.3));
+        let drawn = pixel_aligned_rect(area, [1350, 759], 1.5);
+        assert!((drawn.width() - 900.0).abs() < 1e-3 && (drawn.height() - 506.0).abs() < 1e-3);
+        let grid = drawn.min.x * 1.5;
+        assert!((grid - grid.round()).abs() < 1e-3, "on the 150 % grid");
+        // A reduced picture (Draft) keeps the whole area, only its edges move to the grid
+        let drawn = pixel_aligned_rect(area, [480, 270], 1.0);
+        assert_eq!((drawn.min.x, drawn.min.y), (10.0, 21.0));
+        assert_eq!((drawn.max.x, drawn.max.y), (911.0, 527.0));
+        // A picture more than two pixels off (a window just resized) is not forced to 1:1
+        let drawn = pixel_aligned_rect(area, [880, 495], 1.0);
+        assert!(drawn.width() > 890.0);
+        // A broken size cannot make a broken rectangle
+        let drawn = pixel_aligned_rect(area, [0, 0], 1.0);
+        assert!(drawn.width() > 0.0);
     }
 
     #[test]

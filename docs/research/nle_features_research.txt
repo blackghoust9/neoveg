@@ -2077,3 +2077,43 @@ Implementation Guidelines for Neoveg:
     preview changes when the value is committed).
 Sources: manual_vegaspro21_en.pdf pp. 500-501.
 Research Date: 2026-10-30
+
+
+----------------------------------------------------------------------
+55. Feature Name: Video Preview Quality (Auto, Full, Half, Quarter): Size Asked of the Decoder and How the Picture Is Shown
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, "Adjusting the preview quality and resolution", pp. 195-196; the same section
+   is in VEGAS_Pro_18_EN.pdf, p. 425; the proxy rule is in the paragraph on proxy files of the same chapter.)
+  - The Preview Quality button sets the quality and resolution of the preview only; it has no effect on the final
+    render. A lower resolution lets the preview reach a higher frame rate in complex projects. [OFFICIAL]
+  - Auto adjusts the frame size to fit the Video Preview window; Full processes frames at the project frame size;
+    Half at half of it; Quarter at one quarter (a 720x480 project: 360x240 and 180x120). [OFFICIAL]
+  - Draft and Preview use the proxy file when there is one; Good and Best use the original. Deinterlacing is
+    not done in Draft and Preview, and is done in Good and Best. [OFFICIAL]
+  - The Display indicator shows the scaled frame size when the setting is Auto. [OFFICIAL]
+  - The manual does not say how a frame processed below the window size is shown (smoothed or as pixels), nor
+    what Best does that Good does not. [NOT DOCUMENTED]
+Visual/Technical Rules:
+  - Auto asks for as many pixels as the picture covers on screen (points times the pixels per point); a size
+    above the source is never asked: the picture is not enlarged by the decoder.
+Implementation Guidelines for Neoveg:
+  - Checked on 2026-10-30 against the code: `AppState::preview_max_width` asks for project width times 1/4 (Draft),
+    1/2 (Preview), 1 (Good, Best) or, in Auto, the width in physical pixels of the picture area; the decoder
+    (`fit_size`) never goes above the source and scales with swscale's bilinear filter (its kernel widens when the
+    picture is reduced). So the size asked in Auto is right: a 900 pixel wide area gets a 900 pixel wide picture.
+  - Draft and Preview are shown with nearest-neighbor sampling (`preview_texture_options`), which shows the
+    reduced resolution honestly; smoothing would hide it. This is a Neoveg choice, because the manual is silent
+    ([NOT DOCUMENTED]); Auto, Good and Best are smoothed.
+  - Cause of the soft look in Auto (fixed the same day): the picture was drawn into a rectangle whose edges fall
+    between screen pixels (the area is centred in the window), so even a picture with exactly the pixels of the
+    area was resampled. `pixel_aligned_rect` now draws a picture whose size matches the area to within two
+    pixels (the decoder makes sizes even) at its own size on the pixel grid, 1:1, and moves the edges of any
+    other picture to the grid. A picture bigger than the area (Good, Best) is still reduced by the graphics card
+    without mipmaps, which can shimmer on fine detail; a smaller one (Draft, Preview, or a source smaller than
+    the area) is enlarged, as it must be.
+  - Open: Good and Best ask the same size today; the manual only says both use the original file and
+    deinterlace. A difference (for example Best resampling the picture to the area with a better filter) needs a
+    decision. Proxy files (Draft and Preview use them) are a separate roadmap item.
+Sources: manual_vegaspro21_en.pdf pp. 195-196 and its paragraph on proxy files; VEGAS_Pro_18_EN.pdf p. 425.
+Research Date: 2026-10-30
