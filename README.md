@@ -501,7 +501,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 4 — Envelopes, chaves e propriedades do evento (entrada 10)**
 - [ ] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor
-- [ ] Envelopes de evento: a velocidade (negativa = reverso, de -100 % a 300 %) está pronta; faltam volume (dB), fade, opacidade e progresso de transição
+- [ ] Envelopes de evento: a velocidade (negativa = reverso, de -100 % a 300 %) e o **volume em dB** (de -60 a +12, por evento de áudio: pontos com forma até o próximo, passo de desfazer, o corte e o aparo do início mantêm o nível sobre o mesmo som, vai junto na colagem de atributos e é editado no Inspetor) estão prontos; faltam fade, opacidade e progresso de transição, e o editor em gráfico do volume (hoje a lista de pontos). Os testes novos foram escritos mas ainda não rodaram
 - [x] Switches por evento: mudo, travar e inverter fase (Editar > Interruptores, `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I`, botão de cadeado na barra); um evento travado não se move, apara, divide, agrupa, corta nem apaga
 - [x] Switch Loop (`Ctrl+Alt+O`): estender o evento além do fim da mídia repete a fonte, do ponto de entrada até o fim, com marcas a cada repetição; só em velocidade normal
 - [x] Switch Normalize (`Ctrl+Alt+N`) e Recalcular normalização (`Ctrl+Alt+Shift+N`): o ganho leva o pico da parte tocada ao nível `normalize_peak_db` do projeto (0 dBFS por padrão)

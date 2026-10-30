@@ -27,6 +27,8 @@ pub struct Attributes {
     pub velocity: bool,
     /// Video: the transitions in and out.
     pub transitions: bool,
+    /// Audio: the volume envelope.
+    pub volume: bool,
 }
 
 impl Attributes {
@@ -39,6 +41,7 @@ impl Attributes {
         pan_crop: true,
         velocity: true,
         transitions: true,
+        volume: true,
     };
 
     /// None of them (the start of the *selective* dialog).
@@ -50,6 +53,7 @@ impl Attributes {
         pan_crop: false,
         velocity: false,
         transitions: false,
+        volume: false,
     };
 
     /// `true` when nothing is picked.
@@ -83,6 +87,9 @@ pub fn apply(
     }
     if set.pitch && !video {
         target.preserve_pitch = source.preserve_pitch;
+    }
+    if set.volume && !video {
+        target.volume_envelope = source.volume_envelope.clone();
     }
     if video {
         if set.rate {

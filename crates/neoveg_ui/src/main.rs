@@ -9,6 +9,7 @@ mod dialogs;
 mod dock;
 mod envelope_canvas;
 mod event_header;
+mod event_volume_panel;
 mod fonts;
 mod footer_tabs;
 mod frame_grid;

@@ -8458,6 +8458,7 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
             ui.checkbox(&mut set.effects, tr("Efeitos de vídeo do evento"));
             ui.checkbox(&mut set.pan_crop, tr("Pan/Crop do evento"));
             ui.checkbox(&mut set.velocity, tr("Envelope de velocidade"));
+            ui.checkbox(&mut set.volume, tr("Envelope de volume"));
             ui.checkbox(&mut set.transitions, tr("Transições de entrada e saída"));
             ui.separator();
             ui.horizontal(|ui| {
@@ -8884,7 +8885,9 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut rename: Option<String> = None;
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
+    let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut header: Option<event_header::HeaderButton> = None;
+    let playhead = state.playhead;
     crate::dialogs::tool_window(ctx, tr("Inspetor"))
         .open(&mut open)
         .show(ctx, |ui| {
@@ -9095,6 +9098,16 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                         });
                 });
             }
+            if kind == TrackKind::Audio {
+                ui.separator();
+                volume = crate::event_volume_panel::show(
+                    ui,
+                    egui::Id::new(("inspector_event_volume", track_id, event_id)),
+                    ev.volume_envelope.as_ref(),
+                    playhead - ev.start,
+                    ev.duration,
+                );
+            }
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 if kind == TrackKind::Video
@@ -9124,6 +9137,8 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             neoveg_engine::switches::set(&state.timeline, &[(track_id, event_id)], which, on)
         } else if let Some(mode) = resample {
             neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
+        } else if let Some(envelope) = volume {
+            neoveg_engine::event_volume::set(&state.timeline, track_id, event_id, envelope)
         } else {
             None
         };
