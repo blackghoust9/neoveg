@@ -195,6 +195,7 @@ cargo test --workspace --features neoveg_ui/ffmpeg  # inclui os testes de decodi
 python build_portable.py                            # QA + exe + pastas e arquivos portáteis em dist/ (só Python padrão)
 python build_portable.py build --ffmpeg --targets all  # com vídeo; alvos de outros sistemas exigem o target do Rust instalado
 python build_portable.py qa                         # só fmt + clippy + testes + build; grava coverage/qa/qa_report.json
+python scripts/test_build_portable.py             # testes do empacotamento (monta um pacote com um executável falso, sem compilar)
 ```
 
 Logs: `logs/neoveg.log` e `logs/crash.log` ao lado do executável.
@@ -314,7 +315,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 - [x] Barra de ferramentas principal sob o menu (novo, abrir, salvar, propriedades, renderizar, recortar, copiar, colar, excluir, desfazer, refazer, boas-vindas e preferências), com 99 ícones SVG autorais na biblioteca
 - [x] Abas no rodapé em todos os painéis: o `egui_dock` só põe a barra em cima (nenhuma versão dele posiciona embaixo), então ela fica escondida (altura 0) e cada grupo de janelas desenha a sua faixa de 22 px embaixo (`neoveg_ui::footer_tabs` e `app/dock_footer.rs`): fonte 11, setas e rolagem quando as abas não cabem (também pela roda do mouse), aba selecionada sempre à vista. Arrastar uma aba da faixa reordena, junta com outro grupo ou, soltando fora da área do dock, abre em janela própria; o clique direito tem "Abrir em janela própria". Falta: dividir a tela soltando a aba na borda de outro grupo (o `egui_dock` não deixa disparar esse arraste de fora) e conferir o arraste com o mouse em uso
 - [x] Visualizador de logs na interface (Ajuda > Visualizador de logs): filtro por nível, busca e cópia com confirmação `Copiado!`
-- [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem, e Linux e macOS x64/arm64 ficam para a fase do porte, com o ambiente Docker já pronto mas pausado)
+- [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem, e Linux e macOS x64/arm64 ficam para a fase do porte, com o ambiente Docker já pronto mas pausado. Pacote do Windows conferido em 31/10/2026: `python build_portable.py build --ffmpeg` gera o `.zip` e o `.exe`, que abre com um PATH mínimo, com as DLLs do FFmpeg, as tabelas de cor e as licenças dentro; falta a CI)
 - [x] Remover os diretórios legados (`desktop-host/`, `rust-core/`, `cpp-extensions/`, `python-backend/`), o `Dockerfile` e o `docker-compose.yml` da raiz (o ambiente Docker atual está em `docker/`)
 
 ### Próximos passos (registrados em 27/10/2026)

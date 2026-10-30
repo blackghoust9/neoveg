@@ -91,6 +91,10 @@ PAYLOAD_FILES = {
     "third_party/nnnoiseless/COPYING": "third_party/nnnoiseless/COPYING",
     "third_party/nnnoiseless/AUTHORS": "third_party/nnnoiseless/AUTHORS",
     "third_party/nnnoiseless/README.md": "third_party/nnnoiseless/README.md",
+    # the fonts of `neoveg_text` are compiled into the executable; their licence text goes with it
+    "crates/neoveg_text/fonts/OFL-Inter.txt": "third_party/fonts/OFL-Inter.txt",
+    "crates/neoveg_text/fonts/OFL-JetBrainsMono.txt": "third_party/fonts/OFL-JetBrainsMono.txt",
+    "crates/neoveg_text/fonts/OFL-NotoSerif.txt": "third_party/fonts/OFL-NotoSerif.txt",
 }
 
 PILLAR_LABELS = {
@@ -467,12 +471,25 @@ def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None) -> Path
 
 
 def copy_payload(root: Path) -> None:
+    missing = []
     for source, name in PAYLOAD_FILES.items():
         src = ROOT / source
         if src.is_file():
             dst = root / name
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
+        else:
+            missing.append(source)
+    if missing:
+        # a licence that silently drops out of a package is a release problem, so say it
+        log("WARN", "files missing from the package: " + ", ".join(missing))
+    # The bundled `.cube` colour tables: the program reads them from `assets/luts` beside the executable
+    luts = ROOT / "assets" / "luts"
+    if luts.is_dir():
+        target = root / "assets" / "luts"
+        target.mkdir(parents=True, exist_ok=True)
+        for item in luts.glob("*.cube"):
+            shutil.copy2(item, target / item.name)
     # The folder is `assets/` in Git but `Assets/` in AGENTS.md: accept both (Linux is case-sensitive)
     i18n = next((d for d in (ROOT / "assets" / "i18n", ROOT / "Assets" / "i18n") if d.is_dir()), None)
     if i18n is not None:
@@ -504,6 +521,25 @@ def copy_ffmpeg_runtime(rid: str, destination: Path) -> None:
                 shutil.copy2(lib, destination / lib.name)
                 count += 1
     log("INFO", f"{count} FFmpeg libraries copied for {rid}")
+
+
+def copy_ffmpeg_license(root: Path) -> None:
+    """Puts the licence text of the bundled FFmpeg build in `third_party/ffmpeg/` of the package.
+
+    Releases keep FFmpeg dynamically linked and must ship its licence (AGENTS.md section 8). The
+    shared builds carry it next to `bin/`.
+    """
+    ffmpeg_dir = os.environ.get("FFMPEG_DIR")
+    if not ffmpeg_dir:
+        return
+    for name in ("LICENSE.txt", "LICENSE", "COPYING.LGPLv3", "COPYING.LGPLv2.1"):
+        candidate = Path(ffmpeg_dir) / name
+        if candidate.is_file():
+            target = root / "third_party" / "ffmpeg"
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(candidate, target / "LICENSE.txt")
+            return
+    log("WARN", "FFmpeg is bundled but its licence text was not found next to FFMPEG_DIR")
 
 
 LINUX_LAUNCHER = """#!/bin/sh
@@ -552,6 +588,7 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool, macos_min:
         copy_payload(stage)
         if ffmpeg:
             copy_ffmpeg_runtime(rid, macos)
+            copy_ffmpeg_license(stage)
         return stage
     shutil.copy2(binary, stage / exe)
     copy_payload(stage)
@@ -562,6 +599,8 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool, macos_min:
             copy_ffmpeg_runtime(rid, stage / "lib")
     elif ffmpeg:
         copy_ffmpeg_runtime(rid, stage)
+    if ffmpeg and not rid.startswith("osx"):
+        copy_ffmpeg_license(stage)
     return stage
 
 
