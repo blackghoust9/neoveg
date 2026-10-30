@@ -772,5 +772,15 @@
   "Quadros de borda do evento ligados": "Randbilder des Ereignisses eingeschaltet",
   "Quadros de borda do evento desligados": "Randbilder des Ereignisses ausgeschaltet",
   "Esmaecer das faixas de vídeo novas, acima de 0 %:": "Ausblenden neuer Videospuren, über 0 %:",
-  "abaixo de 0 %:": "unter 0 %:"
+  "abaixo de 0 %:": "unter 0 %:",
+  "{} colocado(s)": "{} platziert",
+  "{} sem mídia no projeto": "{} ohne Medien im Projekt",
+  "Não colocados": "Nicht platziert",
+  "Avisos da leitura": "Hinweise beim Lesen",
+  "Relatório da importação ({})": "Importbericht ({})",
+  "{} colocado(s); {} não colocado(s); {} aviso(s)": "{} platziert; {} nicht platziert; {} Hinweis(e)",
+  "Não colocados ({})": "Nicht platziert ({})",
+  "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "Importieren Sie die fehlenden Medien ins Projekt und importieren Sie die Datei erneut.",
+  "Avisos da leitura ({})": "Hinweise beim Lesen ({})",
+  "Copiar relatório": "Bericht kopieren"
 }

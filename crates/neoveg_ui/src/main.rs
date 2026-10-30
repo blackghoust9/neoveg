@@ -17,6 +17,7 @@ mod frame_grid;
 mod fx_panel;
 mod generator_dialog;
 mod icons;
+mod import_report;
 mod layouts;
 mod log_viewer;
 mod loudness_panel;

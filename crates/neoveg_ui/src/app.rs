@@ -655,6 +655,8 @@ struct AppState {
     allow_close: bool,
     window_title: String,
     drag: Option<EventDrag>,
+    /// The report of the last import that left something out (a window until it is closed).
+    import_report: Option<crate::import_report::ImportReportView>,
     /// The first and last frame of the event being slipped or slid, shown in the preview.
     edge_frames: crate::edge_frames::EdgeFrames,
     /// What the preview shows in the two halves while it does: the captions' timecodes.
@@ -874,6 +876,23 @@ impl AppState {
         }
     }
 
+    /// Keeps the report of an import and opens its window when something was left out.
+    fn report_import(
+        &mut self,
+        format: &str,
+        added: usize,
+        skipped: Vec<String>,
+        warnings: &[String],
+    ) {
+        let report = crate::import_report::ImportReportView {
+            format: format.to_owned(),
+            added,
+            skipped,
+            warnings: warnings.to_vec(),
+        };
+        self.import_report = (!report.is_clean()).then_some(report);
+    }
+
     /// File > Import AAF: places the clips whose media is in the project, as one undo step.
     fn import_aaf(&mut self) {
         let Some(path) = rfd::FileDialog::new()
@@ -904,6 +923,7 @@ impl AppState {
         let pool = self.project.media_pool.clone();
         let imported =
             fcp7::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        let (added, skipped) = import_summary(&imported, || unplaced_clips(&doc.clips));
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
@@ -914,6 +934,7 @@ impl AppState {
             }
             None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
         };
+        self.report_import("AAF", added, skipped, &doc.warnings);
     }
 
     /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
@@ -975,6 +996,7 @@ impl AppState {
         let pool = self.project.media_pool.clone();
         let imported =
             fcp7::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        let (added, skipped) = import_summary(&imported, || unplaced_clips(&doc.clips));
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
@@ -985,6 +1007,7 @@ impl AppState {
             }
             None => "Nenhum clipe do XML tem mídia no projeto: importe as mídias antes".into(),
         };
+        self.report_import("XML", added, skipped, &doc.warnings);
     }
 
     /// File > Export FCPXML: Final Cut Pro `<fcpxml version="1.10">` with rational frame times.
@@ -1050,6 +1073,7 @@ impl AppState {
         let pool = self.project.media_pool.clone();
         let imported =
             fcpxml::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        let (added, skipped) = import_summary(&imported, || unplaced_clips(&doc.clips));
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
@@ -1061,6 +1085,7 @@ impl AppState {
             }
             None => "Nenhum clipe do FCPXML tem mídia no projeto: importe as mídias antes".into(),
         };
+        self.report_import("FCPXML", added, skipped, &doc.warnings);
     }
 
     /// File > Export OTIO: OpenTimelineIO `.otio` JSON (`Timeline.1`, `Stack.1`, `Track.1`, `Clip.1`, `Transition.1`).
@@ -1125,6 +1150,10 @@ impl AppState {
         let pool = self.project.media_pool.clone();
         let imported =
             otio::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
+        let (added, skipped) = import_summary(&imported, || {
+            let clips: Vec<_> = doc.clips.iter().map(|c| c.xml.clone()).collect();
+            unplaced_clips(&clips)
+        });
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
@@ -1136,6 +1165,7 @@ impl AppState {
             }
             None => "Nenhum clipe do OTIO tem mídia no projeto: importe as mídias antes".into(),
         };
+        self.report_import("OTIO", added, skipped, &doc.warnings);
     }
 
     // ---- edit decision lists -----------------------------------------------------------------
@@ -1223,6 +1253,22 @@ impl AppState {
         let pool = self.project.media_pool.clone();
         let imported =
             edl::import_into_timeline(&mut self.timeline, &doc, |e| match_edl_media(e, &pool));
+        let (added, skipped) = import_summary(&imported, || {
+            doc.events
+                .iter()
+                .map(|e| {
+                    let name = e
+                        .source_file
+                        .as_deref()
+                        .or(e.clip_name.as_deref())
+                        .unwrap_or(&e.reel);
+                    format!(
+                        "evento {} (\"{name}\"): mídia não encontrada no projeto",
+                        e.number
+                    )
+                })
+                .collect()
+        });
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
@@ -1241,6 +1287,7 @@ impl AppState {
             }
             None => "Nenhum evento da EDL tem mídia no projeto: importe as mídias antes".into(),
         };
+        self.report_import("EDL", added, skipped, &doc.warnings);
     }
 
     // ---- subtitles ----------------------------------------------------------------------------
@@ -1637,6 +1684,7 @@ impl AppState {
             video_info: HashMap::new(),
             frame_worker: None,
             video_texture: None,
+            import_report: None,
             edge_frames: crate::edge_frames::EdgeFrames::default(),
             edge_labels: [String::new(), String::new()],
             last_frame_key: None,
@@ -6944,6 +6992,7 @@ impl NeovegApp {
         sync_theme(ctx, &mut self.state);
         preferences_window(ctx, &mut self.state);
         keymap_window(ctx, &mut self.state);
+        crate::import_report::show(ctx, &mut self.state.import_report);
         repeat_paste_window(ctx, &mut self.state);
         paste_attributes_window(ctx, &mut self.state);
         layout_dialogs(ctx, &mut self.state);
@@ -7002,6 +7051,31 @@ impl NeovegApp {
             self.state.start_render(request, ctx);
         }
     }
+}
+
+/// What an import placed and what it could not: the report when something was placed, otherwise the
+/// clips the file holds (`unplaced`), because nothing was placed.
+fn import_summary(
+    imported: &Option<(EditCommand, neoveg_engine::edl::ImportReport)>,
+    unplaced: impl FnOnce() -> Vec<String>,
+) -> (usize, Vec<String>) {
+    match imported {
+        Some((_, report)) => (report.added, report.skipped.clone()),
+        None => (0, unplaced()),
+    }
+}
+
+/// One line for each clip of an exchange file that no media of the project matches.
+fn unplaced_clips(clips: &[neoveg_engine::fcp7::XmlClip]) -> Vec<String> {
+    clips
+        .iter()
+        .map(|c| {
+            format!(
+                "\"{}\": mídia não encontrada no projeto",
+                c.file_name.as_deref().unwrap_or(&c.name)
+            )
+        })
+        .collect()
 }
 
 /// The volume envelope of an event as the mixer plays it; `None` when there is nothing to apply.

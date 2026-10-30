@@ -772,5 +772,15 @@
   "Quadros de borda do evento ligados": "已开启事件边缘帧",
   "Quadros de borda do evento desligados": "已关闭事件边缘帧",
   "Esmaecer das faixas de vídeo novas, acima de 0 %:": "新视频轨道的渐变（高于 0 %）：",
-  "abaixo de 0 %:": "低于 0 %："
+  "abaixo de 0 %:": "低于 0 %：",
+  "{} colocado(s)": "已放置 {} 个",
+  "{} sem mídia no projeto": "{} 个在项目中没有素材",
+  "Não colocados": "未放置的项目",
+  "Avisos da leitura": "读取时的警告",
+  "Relatório da importação ({})": "导入报告（{}）",
+  "{} colocado(s); {} não colocado(s); {} aviso(s)": "已放置 {} 个；未放置 {} 个；警告 {} 条",
+  "Não colocados ({})": "未放置的项目（{}）",
+  "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "请先把缺少的素材导入项目，然后重新导入该文件。",
+  "Avisos da leitura ({})": "读取时的警告（{}）",
+  "Copiar relatório": "复制报告"
 }

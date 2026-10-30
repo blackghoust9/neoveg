@@ -772,5 +772,15 @@
   "Quadros de borda do evento ligados": "イベントの端のフレームをオンにしました",
   "Quadros de borda do evento desligados": "イベントの端のフレームをオフにしました",
   "Esmaecer das faixas de vídeo novas, acima de 0 %:": "新しいビデオトラックのフェード（0 % より上）:",
-  "abaixo de 0 %:": "0 % より下:"
+  "abaixo de 0 %:": "0 % より下:",
+  "{} colocado(s)": "{} 件を配置",
+  "{} sem mídia no projeto": "{} 件はプロジェクトにメディアがありません",
+  "Não colocados": "配置されなかったもの",
+  "Avisos da leitura": "読み込み時の警告",
+  "Relatório da importação ({})": "インポートレポート（{}）",
+  "{} colocado(s); {} não colocado(s); {} aviso(s)": "{} 件を配置、{} 件は未配置、警告 {} 件",
+  "Não colocados ({})": "配置されなかったもの（{}）",
+  "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "足りないメディアをプロジェクトに取り込んでから、もう一度ファイルをインポートしてください。",
+  "Avisos da leitura ({})": "読み込み時の警告（{}）",
+  "Copiar relatório": "レポートをコピー"
 }

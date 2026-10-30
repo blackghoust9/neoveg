@@ -1920,8 +1920,10 @@ Implementation Guidelines for Neoveg:
     specification; reading them would mean reverse engineering, which AGENTS.md section 28 (clean room) rules
     out. Interchange with those programs goes through the open formats above (the three XML/EDL/AAF routes they
     all read and write). Revisit only if an official or openly licensed specification appears.
-  - Small gap worth a task later: the manual shows a report of what could not be imported. Neoveg counts the
-    skipped clips in the status line and logs the warnings; a dialog listing them would match the behavior.
+  - Implemented on 2026-10-30: the report of what could not be imported. After an import of XML, FCPXML,
+    OpenTimelineIO, AAF or EDL that left something out, a window (`neoveg_ui::import_report`) lists the clips that
+    were not placed with the reason, and the warnings of the reader, with a button that copies the text. A clean
+    import opens no window. When nothing could be placed the list is built from the clips of the file.
 Sources: manual_vegaspro21_en.pdf p. 126; VEGAS_Pro_18_EN.pdf (same section); README roadmap (interchange items).
 Research Date: 2026-10-30
 

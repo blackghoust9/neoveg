@@ -772,5 +772,15 @@
   "Quadros de borda do evento ligados": "Fotogramas de borde del evento activados",
   "Quadros de borda do evento desligados": "Fotogramas de borde del evento desactivados",
   "Esmaecer das faixas de vídeo novas, acima de 0 %:": "Fundido de las pistas de vídeo nuevas, por encima de 0 %:",
-  "abaixo de 0 %:": "por debajo de 0 %:"
+  "abaixo de 0 %:": "por debajo de 0 %:",
+  "{} colocado(s)": "{} colocado(s)",
+  "{} sem mídia no projeto": "{} sin medio en el proyecto",
+  "Não colocados": "No colocados",
+  "Avisos da leitura": "Avisos de la lectura",
+  "Relatório da importação ({})": "Informe de la importación ({})",
+  "{} colocado(s); {} não colocado(s); {} aviso(s)": "{} colocado(s); {} no colocado(s); {} aviso(s)",
+  "Não colocados ({})": "No colocados ({})",
+  "Importe a mídia que falta para o projeto e importe o arquivo de novo.": "Importe al proyecto los medios que faltan y vuelva a importar el archivo.",
+  "Avisos da leitura ({})": "Avisos de la lectura ({})",
+  "Copiar relatório": "Copiar informe"
 }
