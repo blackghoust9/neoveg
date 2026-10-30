@@ -1,10 +1,15 @@
 name: Rust
 
+# O foco do projeto é o Windows 10/11: ele é o único sistema que precisa passar para a CI ficar verde e o
+# único que gera pacote. Linux e macOS rodam as mesmas verificações como acompanhamento do porte
+# (`experimental`), sem travar o resultado: quando o porte começar, basta trocar o valor na matriz.
+
 on:
   push:
     branches: ["main", "refactor/**"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,10 +18,17 @@ jobs:
   quality:
     name: Gates (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            experimental: false
+          - os: ubuntu-latest
+            experimental: true
+          - os: macos-latest
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
@@ -44,14 +56,36 @@ jobs:
       - name: tests
         run: cargo test --workspace --locked
 
+      # The packaging driver is Python (standard library only); its tests build a package from a fake exe
+      - name: packaging tests
+        if: runner.os == 'Windows'
+        run: python scripts/test_build_portable.py
+
+  coverage:
+    name: Coverage (windows-latest)
+    runs-on: windows-latest
+    # Informative: a drop in coverage does not stop a change
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: cargo llvm-cov
+        run: cargo llvm-cov --workspace --locked --summary-only
+
   package:
-    name: Portable package (${{ matrix.os }})
+    name: Portable package (windows-latest)
     needs: quality
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -59,21 +93,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: System libraries (Linux)
-        if: runner.os == 'Linux'
-        run: >
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends
-          pkg-config libasound2-dev libudev-dev libgl1-mesa-dev libx11-dev libxcursor-dev
-          libxrandr-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
-          libvulkan-dev
-
-      # The quality job already ran the gates for this commit
+      # The quality job already ran the gates for this commit. Without `--ffmpeg`: the runner has no FFmpeg,
+      # so this package has no video decoding (the local package, built with `--ffmpeg`, has).
       - name: Build and package
         run: python build_portable.py build --skip-qa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: neoveg-${{ runner.os }}
+          name: neoveg-Windows
           path: |
             dist/Neoveg_v*_Portable.*
             dist/neoveg_v*
