@@ -95,8 +95,8 @@ commands! {
     FileSaveIncremental => ("file.save_incremental", "Salvar versão (incremental)", File, true),
     FileNew => ("file.new", "Novo projeto (em uma nova aba)", File, true),
     FileCreateSubproject => ("file.create_subproject", "Criar sub-projeto a partir da seleção", File, true),
-    FileNewQuick => ("file.new_quick", "Novo projeto vazio (sem diálogo)", File, false),
-    FileClose => ("file.close", "Fechar projeto", File, false),
+    FileNewQuick => ("file.new_quick", "Novo projeto vazio (sem diálogo)", File, true),
+    FileClose => ("file.close", "Fechar projeto", File, true),
     FileProperties => ("file.properties", "Propriedades do projeto…", File, true),
 
     // ---- Editar
@@ -181,8 +181,8 @@ commands! {
 
     // ---- Reprodução
     TransportPlayToggle => ("transport.play_toggle", "Reproduzir / pausar", Transport, true),
-    TransportStop => ("transport.stop", "Parar", Transport, false),
-    TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, false),
+    TransportStop => ("transport.stop", "Parar", Transport, true),
+    TransportPlayFromStart => ("transport.play_from_start", "Reproduzir do início", Transport, true),
     TransportLoop => ("transport.loop", "Reprodução em laço", Transport, true),
     TransportShuttleReverse => ("transport.shuttle_reverse", "Voltar (J; de novo acelera)", Transport, true),
     TransportShuttlePause => ("transport.shuttle_pause", "Pausar (K)", Transport, true),

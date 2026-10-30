@@ -605,6 +605,9 @@ struct AppState {
     /// Command waiting for the next key press in the "Personalizar teclado" window.
     capture_for: Option<Command>,
     keymap_message: String,
+    /// Name typed for saving the keyboard map under, and the saved maps (`None`: read the folder).
+    keymap_set_name: String,
+    keymap_sets: Option<Vec<String>>,
     show_inspector: bool,
     /// The metronome clicks during playback.
     metronome_on: bool,
@@ -1609,6 +1612,8 @@ impl AppState {
             keymap_filter: String::new(),
             capture_for: None,
             keymap_message: String::new(),
+            keymap_set_name: String::new(),
+            keymap_sets: None,
             show_inspector: false,
             metronome_on: false,
             recorder: None,
@@ -5901,7 +5906,11 @@ impl AppState {
     /// Runs a command. Commands that are not implemented yet do nothing.
     fn run_command(&mut self, command: Command, ctx: &egui::Context, now: f64) {
         match command {
-            Command::FileNew => self.new_tab(),
+            Command::FileNew | Command::FileNewQuick => self.new_tab(),
+            Command::FileClose => {
+                let id = self.ensure_tab();
+                self.request_close_tab(id, ctx);
+            }
             Command::FileCreateSubproject => self.create_subproject_from_selection(),
             Command::FileOpen => self.open_project(ctx),
             Command::FileSave => self.save_project(false),
@@ -5995,6 +6004,19 @@ impl AppState {
             Command::EditTrimEdgePrevious => self.select_trim_edge(false),
             Command::EditTrimEdgeNext => self.select_trim_edge(true),
             Command::TransportPlayToggle => self.toggle_play(now),
+            Command::TransportStop => {
+                if self.playing {
+                    self.stop();
+                    self.status = "Reprodução parada".into();
+                }
+            }
+            Command::TransportPlayFromStart => {
+                if self.playing {
+                    self.stop();
+                }
+                self.playhead = 0.0;
+                self.toggle_play(now);
+            }
             Command::OptionsSnapping => {
                 self.snapping = !self.snapping;
                 self.status = if self.snapping {
@@ -6139,6 +6161,96 @@ impl AppState {
         match self.keymap.shortcuts_for(command).first() {
             Some(shortcut) => format!("{text}  {shortcut}"),
             None => text.to_string(),
+        }
+    }
+
+    /// Puts a loaded keyboard map in use (and in the preferences file).
+    fn apply_keymap_set(&mut self, set: &neoveg_common::keymap_sets::NamedKeymap) {
+        let (keymap, warnings) = KeyMap::from_overrides(&set.overrides);
+        for warning in &warnings {
+            tracing::warn!("[WARN] keymap {}: {warning}", set.name);
+        }
+        self.keymap = keymap;
+        self.persist_keymap();
+        self.keymap_set_name = set.name.clone();
+        self.keymap_message = if warnings.is_empty() {
+            tr_args("Mapa «{}» carregado", &[&set.name])
+        } else {
+            tr_args(
+                "Mapa «{}» carregado; {} item(ns) ignorado(s): {}",
+                &[&set.name, &warnings.len(), &warnings.join("; ")],
+            )
+        };
+    }
+
+    /// Keyboard maps: *Salvar como*, *Carregar*, *Excluir*, *Exportar* and *Importar*.
+    fn run_keymap_set_action(&mut self, action: KeymapSetAction) {
+        use neoveg_common::keymap_sets as sets;
+        let dir = sets::default_dir();
+        self.keymap_sets = None;
+        let Some(dir) = dir else {
+            self.keymap_message = tr("Não há pasta de configuração para guardar mapas").into();
+            return;
+        };
+        match action {
+            KeymapSetAction::SaveAs => {
+                let overrides = self.keymap.to_overrides();
+                self.keymap_message = match sets::save(&dir, &self.keymap_set_name, &overrides) {
+                    Ok(name) => {
+                        self.keymap_set_name = name.clone();
+                        tr_args("Mapa «{}» salvo", &[&name])
+                    }
+                    Err(e) => e,
+                };
+            }
+            KeymapSetAction::Load(name) => match sets::load(&dir, &name) {
+                Ok(set) => self.apply_keymap_set(&set),
+                Err(e) => self.keymap_message = e,
+            },
+            KeymapSetAction::Delete => {
+                let name = self.keymap_set_name.clone();
+                self.keymap_message = match sets::delete(&dir, &name) {
+                    Ok(()) => tr_args("Mapa «{}» excluído", &[&name]),
+                    Err(e) => e,
+                };
+            }
+            KeymapSetAction::Export => {
+                let name = sets::clean_name(&self.keymap_set_name)
+                    .unwrap_or_else(|| "meu-mapa".to_string());
+                let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Mapa de teclado do Neoveg (JSON)", &["json"])
+                    .set_file_name(format!("{name}.keymap.json"))
+                    .save_file()
+                else {
+                    return;
+                };
+                let set = sets::NamedKeymap {
+                    name,
+                    overrides: self.keymap.to_overrides(),
+                };
+                self.keymap_message = match sets::export(&path, &set) {
+                    Ok(()) => tr_args("Mapa exportado: {}", &[&path.display()]),
+                    Err(e) => e,
+                };
+            }
+            KeymapSetAction::Import => {
+                let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Mapa de teclado do Neoveg (JSON)", &["json"])
+                    .pick_file()
+                else {
+                    return;
+                };
+                match sets::import(&path) {
+                    Ok(set) => {
+                        // It is kept with the other maps too, so it can be loaded again later
+                        if let Err(e) = sets::save(&dir, &set.name, &set.overrides) {
+                            tracing::warn!("[WARN] cannot keep the imported map: {e}");
+                        }
+                        self.apply_keymap_set(&set);
+                    }
+                    Err(e) => self.keymap_message = e,
+                }
+            }
         }
     }
 
@@ -6788,6 +6900,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         ui.menu_button(tr("Arquivo"), |ui| {
             // New and open
             command_item(state, ui, Command::FileNew);
+            command_item(state, ui, Command::FileClose);
             if ui
                 .button(state.with_hint(tr("Abrir…"), Command::FileOpen))
                 .clicked()
@@ -8558,6 +8671,15 @@ fn paste_attributes_window(ctx: &egui::Context, state: &mut AppState) {
     }
 }
 
+/// What the keyboard-map buttons of the "Personalizar teclado" window ask for.
+enum KeymapSetAction {
+    SaveAs,
+    Load(String),
+    Delete,
+    Export,
+    Import,
+}
+
 /// "Personalizar teclado": lists every command, lets the user capture a new shortcut for it,
 /// remove shortcuts and restore the defaults. Changes are saved immediately.
 fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
@@ -8614,6 +8736,61 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                     state.keymap_message = "Atalhos padrão restaurados".into();
                 }
             });
+            // Named maps: the shortcuts kept under a name, to switch between and to hand over
+            if state.keymap_sets.is_none() {
+                state.keymap_sets = Some(
+                    neoveg_common::keymap_sets::default_dir()
+                        .map(|dir| neoveg_common::keymap_sets::list(&dir))
+                        .unwrap_or_default(),
+                );
+            }
+            let mut set_action: Option<KeymapSetAction> = None;
+            ui.horizontal(|ui| {
+                ui.label(tr("Mapa:"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.keymap_set_name)
+                        .desired_width(150.0)
+                        .hint_text(tr("nome do mapa")),
+                );
+                let names = state.keymap_sets.clone().unwrap_or_default();
+                egui::ComboBox::from_id_salt("keymap_sets")
+                    .selected_text(tr("Carregar"))
+                    .show_ui(ui, |ui| {
+                        if names.is_empty() {
+                            ui.label(tr("Nenhum mapa salvo"));
+                        }
+                        for name in &names {
+                            if ui
+                                .selectable_label(*name == state.keymap_set_name, name)
+                                .clicked()
+                            {
+                                set_action = Some(KeymapSetAction::Load(name.clone()));
+                            }
+                        }
+                    });
+                let named = !state.keymap_set_name.trim().is_empty();
+                if ui
+                    .add_enabled(named, egui::Button::new(tr("Salvar como")))
+                    .clicked()
+                {
+                    set_action = Some(KeymapSetAction::SaveAs);
+                }
+                if ui
+                    .add_enabled(named, egui::Button::new(tr("Excluir")))
+                    .clicked()
+                {
+                    set_action = Some(KeymapSetAction::Delete);
+                }
+                if ui.button(tr("Exportar…")).clicked() {
+                    set_action = Some(KeymapSetAction::Export);
+                }
+                if ui.button(tr("Importar…")).clicked() {
+                    set_action = Some(KeymapSetAction::Import);
+                }
+            });
+            if let Some(action) = set_action {
+                state.run_keymap_set_action(action);
+            }
             if let Some(target) = state.capture_for {
                 ui.colored_label(
                     Color32::from_rgb(0xF1, 0xC4, 0x0F),

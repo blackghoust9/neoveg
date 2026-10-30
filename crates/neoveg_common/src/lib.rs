@@ -8,6 +8,7 @@ pub mod fade;
 pub mod grade;
 pub mod i18n;
 pub mod keymap;
+pub mod keymap_sets;
 pub mod logging;
 pub mod pan;
 pub mod pan_crop;
