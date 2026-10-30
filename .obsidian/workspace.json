@@ -190,6 +190,7 @@
   },
   "active": "fa75fcd388e043ea",
   "lastOpenFiles": [
+    "target/debug/deps/neoveg-6c2f03fcf00be22b.d",
     "target/debug/incremental/neoveg-0jg85iq7axxrp/s-hnowy5fapo-12914k7-working/dep-graph.part.bin",
     "target/debug/incremental/neoveg-0jg85iq7axxrp/s-hnowy5fapo-12914k7-working",
     "target/debug/incremental/neoveg-0jg85iq7axxrp/s-hnowy5fapo-12914k7.lock",
@@ -200,7 +201,6 @@
     "target/debug/incremental/neoveg_audio-2jbru6tx7w8tu/s-hnowy3msrh-1runnpl-56ynw6e6v1ldrnd6zi3yi8va8",
     "target/debug/deps/rmeta7ouaq8/full.rmeta",
     "target/debug/deps/rmeta7ouaq8",
-    "target/debug/incremental/neoveg_audio-2jbru6tx7w8tu/s-hnowy3msrh-1runnpl-working/dep-graph.part.bin",
     "scan/zh-CN/ui_welcome_screen.png",
     "scan/zh-CN/ui_video_effects.png",
     "scan/zh-CN/ui_velocity.png",
