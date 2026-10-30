@@ -5,6 +5,7 @@
 //!
 //! This module is plain file handling with tests; the application decides when to call it.
 
+use neoveg_common::i18n::tr_args;
 use std::path::{Path, PathBuf};
 
 use egui_dock::DockState;
@@ -83,22 +84,22 @@ fn zero_unset_points(value: &mut serde_json::Value) {
 
 fn read(path: &Path) -> Result<LayoutFile, String> {
     let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("não foi possível ler {}: {e}", path.display()))?;
+        .map_err(|e| tr_args("não foi possível ler {}: {}", &[&path.display(), &e]))?;
     let mut value: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("layout inválido {}: {e}", path.display()))?;
+        .map_err(|e| tr_args("layout inválido {}: {}", &[&path.display(), &e]))?;
     zero_unset_points(&mut value);
     let file: LayoutFile = serde_json::from_value(value)
-        .map_err(|e| format!("layout inválido {}: {e}", path.display()))?;
+        .map_err(|e| tr_args("layout inválido {}: {}", &[&path.display(), &e]))?;
     if file.format_version > FORMAT_VERSION {
-        return Err(format!(
+        return Err(tr_args(
             "o layout {} foi gravado por uma versão mais nova do Neoveg",
-            path.display()
+            &[&path.display()],
         ));
     }
     if file.dock.iter_all_tabs().next().is_none() {
-        return Err(format!(
+        return Err(tr_args(
             "o layout {} não tem nenhuma janela",
-            path.display()
+            &[&path.display()],
         ));
     }
     Ok(file)
@@ -107,17 +108,21 @@ fn read(path: &Path) -> Result<LayoutFile, String> {
 /// Writes `file` to `path` atomically (a temporary file, then a rename).
 fn write(path: &Path, file: &LayoutFile) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("não foi possível criar a pasta {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            tr_args(
+                "não foi possível criar a pasta {}: {}",
+                &[&parent.display(), &e],
+            )
+        })?;
     }
     let json = serde_json::to_string_pretty(file)
-        .map_err(|e| format!("não foi possível gravar o layout: {e}"))?;
+        .map_err(|e| tr_args("não foi possível gravar o layout: {}", &[&e]))?;
     let temp = path.with_extension(format!("{EXTENSION}.tmp"));
     std::fs::write(&temp, json)
-        .map_err(|e| format!("não foi possível gravar {}: {e}", temp.display()))?;
+        .map_err(|e| tr_args("não foi possível gravar {}: {}", &[&temp.display(), &e]))?;
     std::fs::rename(&temp, path).map_err(|e| {
         let _ = std::fs::remove_file(&temp);
-        format!("não foi possível gravar {}: {e}", path.display())
+        tr_args("não foi possível gravar {}: {}", &[&path.display(), &e])
     })
 }
 
@@ -201,7 +206,7 @@ pub fn set_slot(dir: &Path, path: &Path, slot: Option<u8>) -> Result<(), String>
 /// Deletes the layout file.
 pub fn remove(path: &Path) -> Result<(), String> {
     std::fs::remove_file(path)
-        .map_err(|e| format!("não foi possível excluir {}: {e}", path.display()))
+        .map_err(|e| tr_args("não foi possível excluir {}: {}", &[&path.display(), &e]))
 }
 
 /// The layout that holds `slot`.

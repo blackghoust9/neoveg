@@ -5,6 +5,7 @@
 //! returns [`FxAction`]s and the application turns each one into one undoable command.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -155,7 +156,7 @@ impl FxPanelState {
     pub fn start_file_clap_scan(&mut self, path: PathBuf) {
         let (tx, rx) = mpsc::channel();
         self.clap_file_rx = Some(rx);
-        self.clap_status = Some(format!("Carregando {}…", path.display()));
+        self.clap_status = Some(tr_args("Carregando {}…", &[&path.display()]));
         std::thread::Builder::new()
             .name("neoveg-clap-file".into())
             .spawn(move || {
@@ -173,7 +174,7 @@ impl FxPanelState {
                     self.clap_status = Some(if count == 0 {
                         "Nenhum plug-in CLAP encontrado nas pastas padrão.".into()
                     } else {
-                        format!("{count} plug-in(s) CLAP disponíveis.")
+                        tr_args("{} plug-in(s) CLAP disponíveis.", &[&count])
                     });
                 }
                 Err(mpsc::TryRecvError::Empty) => {
@@ -195,16 +196,15 @@ impl FxPanelState {
                         if !full {
                             actions.push(FxAction::AddClap(found[0].kind.clone()));
                         }
-                        self.clap_status = Some(format!(
+                        self.clap_status = Some(tr_args(
                             "Plug-in CLAP carregado: {} ({} encontrado(s)).",
-                            found[0].name,
-                            found.len()
+                            &[&found[0].name, &found.len()],
                         ));
                     }
                 }
                 Ok(Err(err)) => {
                     self.clap_file_rx = None;
-                    self.clap_status = Some(format!("Erro ao carregar CLAP: {err}"));
+                    self.clap_status = Some(tr_args("Erro ao carregar CLAP: {}", &[&err]));
                 }
                 Err(mpsc::TryRecvError::Empty) => {
                     ctx.request_repaint_after(std::time::Duration::from_millis(80));
@@ -237,7 +237,7 @@ impl FxPanelState {
     pub fn start_file_vst3_scan(&mut self, path: PathBuf) {
         let (tx, rx) = mpsc::channel();
         self.vst3_file_rx = Some(rx);
-        self.vst3_status = Some(format!("Carregando {}…", path.display()));
+        self.vst3_status = Some(tr_args("Carregando {}…", &[&path.display()]));
         std::thread::Builder::new()
             .name("neoveg-vst3-file".into())
             .spawn(move || {
@@ -255,7 +255,7 @@ impl FxPanelState {
                     self.vst3_status = Some(if count == 0 {
                         "Nenhum plug-in VST3 encontrado nas pastas padrão.".into()
                     } else {
-                        format!("{count} plug-in(s) VST3 disponíveis.")
+                        tr_args("{} plug-in(s) VST3 disponíveis.", &[&count])
                     });
                 }
                 Err(mpsc::TryRecvError::Empty) => {
@@ -277,16 +277,15 @@ impl FxPanelState {
                         if !full {
                             actions.push(FxAction::AddClap(found[0].kind.clone()));
                         }
-                        self.vst3_status = Some(format!(
+                        self.vst3_status = Some(tr_args(
                             "Plug-in VST3 carregado: {} ({} encontrado(s)).",
-                            found[0].name,
-                            found.len()
+                            &[&found[0].name, &found.len()],
                         ));
                     }
                 }
                 Ok(Err(err)) => {
                     self.vst3_file_rx = None;
-                    self.vst3_status = Some(format!("Erro ao carregar VST3: {err}"));
+                    self.vst3_status = Some(tr_args("Erro ao carregar VST3: {}", &[&err]));
                 }
                 Err(mpsc::TryRecvError::Empty) => {
                     ctx.request_repaint_after(std::time::Duration::from_millis(80));
@@ -305,7 +304,7 @@ pub fn group_label(prefix: &str) -> String {
         .strip_prefix('b')
         .filter(|s| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()))
     {
-        return format!("Banda {num}");
+        return tr_args("Banda {}", &[&num]);
     }
     prefix.to_string()
 }

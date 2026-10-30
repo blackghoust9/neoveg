@@ -445,7 +445,7 @@ impl ProjectDialogState {
 fn bits_label(bits: u32) -> String {
     match bits {
         32 => "32 bits (ponto flutuante)".into(),
-        n => format!("{n} bits"),
+        n => tr_args("{} bits", &[&n]),
     }
 }
 

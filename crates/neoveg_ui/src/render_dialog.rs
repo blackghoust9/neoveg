@@ -321,7 +321,7 @@ impl RenderDialogState {
                         let ext = self.format.default_extension();
                         if let Some(path) = rfd::FileDialog::new()
                             .set_title("Renderizar projeto")
-                            .set_file_name(format!("render.{ext}"))
+                            .set_file_name(tr_args("render.{}", &[&ext]))
                             .add_filter(self.format.label(), &[ext])
                             .save_file()
                         {

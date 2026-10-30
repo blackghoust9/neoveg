@@ -9,6 +9,7 @@
 use super::*;
 use crate::dock;
 use egui_dock::Surface;
+use neoveg_common::i18n::tr_args;
 use neoveg_common::window_layout::{SavedWindow, WindowGeometry};
 
 /// A panel that lives in its own window.
@@ -101,7 +102,7 @@ impl NeovegApp {
 
     fn detach(&mut self, tab: Tab, geometry: WindowGeometry) {
         if self.detached.iter().all(|d| d.tab != tab) {
-            self.state.status = format!("{} em janela própria", tab.title());
+            self.state.status = tr_args("{} em janela própria", &[&tab.title()]);
             self.detached.push(DetachedTab {
                 tab,
                 geometry,
@@ -131,7 +132,7 @@ impl NeovegApp {
         if self.dock.find_tab(&tab).is_none() {
             self.dock.push_to_focused_leaf(tab);
         }
-        self.state.status = format!("{} voltou para a janela principal", tab.title());
+        self.state.status = tr_args("{} voltou para a janela principal", &[&tab.title()]);
         self.sync_detached_prefs(true);
     }
 

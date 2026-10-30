@@ -8,6 +8,7 @@ use eframe::egui::{
     TextureOptions,
 };
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_video::scopes::{ycbcr, Grid, Scopes, GRID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -113,7 +114,10 @@ fn draw_histogram(ui: &mut egui::Ui, scopes: &Scopes, rect: Rect) {
         painter.text(
             rect.right_top() + vec2(-4.0, 4.0),
             Align2::RIGHT_TOP,
-            format!("Estourado {:.1} %", scopes.clipped_fraction() * 100.0),
+            tr_args(
+                "Estourado {} %",
+                &[&format!("{:.1}", scopes.clipped_fraction() * 100.0)],
+            ),
             FontId::monospace(10.0),
             Color32::from_rgb(231, 76, 60),
         );

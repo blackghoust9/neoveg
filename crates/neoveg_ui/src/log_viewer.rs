@@ -3,6 +3,7 @@
 //! displays `Copiado!` for 2 seconds after copying.
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -213,7 +214,7 @@ impl LogViewerState {
 
                 ui.separator();
                 let path = log_dir.join(self.source.filename());
-                ui.weak(format!("Arquivo: {}", path.display()));
+                ui.weak(tr_args("Arquivo: {}", &[&path.display()]));
                 ui.add_space(4.0);
 
                 let lines = filter_log_lines(&self.cached_text, self.level, &self.search);

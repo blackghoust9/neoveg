@@ -3,6 +3,7 @@
 
 use eframe::egui::{self, Color32};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_video::generators::{
     GeneratorKind, GeneratorSpec, GradientShape, TestPatternVariant, TitleAnimation,
 };
@@ -180,7 +181,7 @@ impl GeneratorDialogState {
                 },
             ),
             GeneratorTab::Gradient => (
-                format!("Gradiente ({})", self.gradient_shape.label()),
+                tr_args("Gradiente ({})", &[&self.gradient_shape.label()]),
                 GeneratorKind::Gradient {
                     shape: self.gradient_shape,
                     start_rgba: self.grad_start,
@@ -197,7 +198,7 @@ impl GeneratorDialogState {
                     .trim();
                 let short: String = first_line.chars().take(24).collect();
                 (
-                    format!("Título: {short}"),
+                    tr_args("Título: {}", &[&short]),
                     GeneratorKind::TitleText {
                         text: self.title_text.clone(),
                         scale: self.title_scale.clamp(1, 20),

@@ -6,6 +6,7 @@
 //! mixdown. The audio-only format stops after the first step and needs no `ffmpeg`. The frames
 //! come from the same request builder as the preview, so the file shows what the preview showed.
 
+use neoveg_common::i18n::tr_args;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -230,7 +231,7 @@ impl AppState {
             captions: self.timeline.captions.clone(),
             caption_style: self.project.settings.caption_style.clone(),
         };
-        self.status = format!("Renderizando {}…", plan.title);
+        self.status = tr_args("Renderizando {}…", &[&plan.title]);
         self.render_dialog.active_job = Some(spawn(plan, ctx.clone()));
     }
 

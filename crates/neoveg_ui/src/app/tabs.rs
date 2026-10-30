@@ -205,7 +205,7 @@ impl AppState {
         if !self.restore_tab(id) {
             self.reload_media(ctx);
         }
-        self.status = format!("Projeto: {}", self.tab_title(id));
+        self.status = tr_args("Projeto: {}", &[&self.tab_title(id)]);
     }
 
     /// File > New: an empty project in a new tab.
@@ -256,7 +256,7 @@ impl AppState {
             return;
         }
         if !path.exists() {
-            self.status = format!("Arquivo não encontrado: {}", path.display());
+            self.status = tr_args("Arquivo não encontrado: {}", &[&path.display()]);
             return;
         }
         self.new_tab();
@@ -386,16 +386,13 @@ impl AppState {
                 self.project.media_pool.push(made.media);
                 if self.history.execute(&mut self.timeline, made.command) {
                     self.selection.clear();
-                    self.status = format!(
-                        "Sub-projeto criado ({:.1} s): clique duas vezes no evento para abrir em uma aba",
-                        made.duration
-                    );
+                    self.status = tr_args("Sub-projeto criado ({} s): clique duas vezes no evento para abrir em uma aba", &[&format!("{:.1}", made.duration)]);
                 }
                 self.tabs.bump();
             }
             Err(e) => {
                 tracing::warn!("[WARN] cannot create the sub-project: {e}");
-                self.status = format!("Não foi possível criar o sub-projeto: {e}");
+                self.status = tr_args("Não foi possível criar o sub-projeto: {}", &[&e]);
             }
         }
     }

@@ -8,6 +8,7 @@
 
 use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Stroke, TextureHandle};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_common::pan_crop::{PanCrop, PanCropFrame, KEY_TOLERANCE};
 use neoveg_engine::{EventId, TrackId};
 
@@ -815,7 +816,7 @@ impl PanCropWindow {
                     *next = Some((p, true));
                 }
             }
-            ui.weak(format!("{} quadro(s)-chave", working.keys.len()));
+            ui.weak(tr_args("{} quadro(s)-chave", &[&working.keys.len()]));
         });
         // The strip: the whole event, a diamond per key, a line at the cursor
         let (rect, _) =

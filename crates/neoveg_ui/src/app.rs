@@ -823,7 +823,7 @@ impl AppState {
         let (bytes, warnings) = match aaf::export(&self.timeline, &media, &project, false) {
             Ok(done) => done,
             Err(e) => {
-                self.status = format!("Não foi possível exportar o AAF: {e}");
+                self.status = tr_args("Não foi possível exportar o AAF: {}", &[&e]);
                 return;
             }
         };
@@ -840,19 +840,17 @@ impl AppState {
         match std::fs::write(&path, bytes) {
             Ok(()) => {
                 self.status = if warnings.is_empty() {
-                    format!("AAF exportado: {}", path.display())
+                    tr_args("AAF exportado: {}", &[&path.display()])
                 } else {
-                    format!(
+                    tr_args(
                         "AAF exportado: {} ({} aviso(s): {})",
-                        path.display(),
-                        warnings.len(),
-                        warnings.join("; ")
+                        &[&path.display(), &warnings.len(), &warnings.join("; ")],
                     )
                 };
             }
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar o AAF: {e}");
+                self.status = tr_args("Falha ao exportar o AAF: {}", &[&e]);
             }
         }
     }
@@ -869,7 +867,7 @@ impl AppState {
             Ok(bytes) => bytes,
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler o AAF: {e}");
+                self.status = tr_args("Não foi possível ler o AAF: {}", &[&e]);
                 return;
             }
         };
@@ -877,7 +875,7 @@ impl AppState {
             Ok(doc) => doc,
             Err(e) => {
                 tracing::warn!("[WARN] {}: {e}", path.display());
-                self.status = format!("Não foi possível abrir o AAF: {e}");
+                self.status = tr_args("Não foi possível abrir o AAF: {}", &[&e]);
                 return;
             }
         };
@@ -890,10 +888,9 @@ impl AppState {
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
-                format!(
+                tr_args(
                     "AAF importado: {} clipe(s); {} sem mídia no projeto",
-                    report.added,
-                    report.skipped.len()
+                    &[&report.added, &report.skipped.len()],
                 )
             }
             None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
@@ -921,10 +918,10 @@ impl AppState {
             return;
         };
         match std::fs::write(&path, text) {
-            Ok(()) => self.status = format!("XML exportado: {}", path.display()),
+            Ok(()) => self.status = tr_args("XML exportado: {}", &[&path.display()]),
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar o XML: {e}");
+                self.status = tr_args("Falha ao exportar o XML: {}", &[&e]);
             }
         }
     }
@@ -941,7 +938,7 @@ impl AppState {
             Ok(bytes) => captions::decode_text(&bytes),
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler o XML: {e}");
+                self.status = tr_args("Não foi possível ler o XML: {}", &[&e]);
                 return;
             }
         };
@@ -949,7 +946,7 @@ impl AppState {
             Ok(doc) => doc,
             Err(e) => {
                 tracing::warn!("[WARN] {}: {e}", path.display());
-                self.status = format!("Não foi possível abrir o XML: {e}");
+                self.status = tr_args("Não foi possível abrir o XML: {}", &[&e]);
                 return;
             }
         };
@@ -962,10 +959,9 @@ impl AppState {
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
-                format!(
+                tr_args(
                     "XML importado: {} clipe(s); {} sem mídia no projeto",
-                    report.added,
-                    report.skipped.len()
+                    &[&report.added, &report.skipped.len()],
                 )
             }
             None => "Nenhum clipe do XML tem mídia no projeto: importe as mídias antes".into(),
@@ -997,10 +993,10 @@ impl AppState {
             return;
         };
         match std::fs::write(&path, text) {
-            Ok(()) => self.status = format!("FCPXML exportado: {}", path.display()),
+            Ok(()) => self.status = tr_args("FCPXML exportado: {}", &[&path.display()]),
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar o FCPXML: {e}");
+                self.status = tr_args("Falha ao exportar o FCPXML: {}", &[&e]);
             }
         }
     }
@@ -1017,7 +1013,7 @@ impl AppState {
             Ok(bytes) => captions::decode_text(&bytes),
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler o FCPXML: {e}");
+                self.status = tr_args("Não foi possível ler o FCPXML: {}", &[&e]);
                 return;
             }
         };
@@ -1025,7 +1021,7 @@ impl AppState {
             Ok(doc) => doc,
             Err(e) => {
                 tracing::warn!("[WARN] {}: {e}", path.display());
-                self.status = format!("Não foi possível abrir o FCPXML: {e}");
+                self.status = tr_args("Não foi possível abrir o FCPXML: {}", &[&e]);
                 return;
             }
         };
@@ -1039,10 +1035,9 @@ impl AppState {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
                 self.last_frame_key = None;
-                format!(
+                tr_args(
                     "FCPXML importado: {} clipe(s); {} sem mídia no projeto",
-                    report.added,
-                    report.skipped.len()
+                    &[&report.added, &report.skipped.len()],
                 )
             }
             None => "Nenhum clipe do FCPXML tem mídia no projeto: importe as mídias antes".into(),
@@ -1073,10 +1068,10 @@ impl AppState {
             return;
         };
         match std::fs::write(&path, text) {
-            Ok(()) => self.status = format!("OTIO exportado: {}", path.display()),
+            Ok(()) => self.status = tr_args("OTIO exportado: {}", &[&path.display()]),
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar o OTIO: {e}");
+                self.status = tr_args("Falha ao exportar o OTIO: {}", &[&e]);
             }
         }
     }
@@ -1093,7 +1088,7 @@ impl AppState {
             Ok(bytes) => captions::decode_text(&bytes),
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler o OTIO: {e}");
+                self.status = tr_args("Não foi possível ler o OTIO: {}", &[&e]);
                 return;
             }
         };
@@ -1101,7 +1096,7 @@ impl AppState {
             Ok(doc) => doc,
             Err(e) => {
                 tracing::warn!("[WARN] {}: {e}", path.display());
-                self.status = format!("Não foi possível abrir o OTIO: {e}");
+                self.status = tr_args("Não foi possível abrir o OTIO: {}", &[&e]);
                 return;
             }
         };
@@ -1115,10 +1110,9 @@ impl AppState {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
                 self.last_frame_key = None;
-                format!(
+                tr_args(
                     "OTIO importado: {} clipe(s); {} sem mídia no projeto",
-                    report.added,
-                    report.skipped.len()
+                    &[&report.added, &report.skipped.len()],
                 )
             }
             None => "Nenhum clipe do OTIO tem mídia no projeto: importe as mídias antes".into(),
@@ -1173,10 +1167,10 @@ impl AppState {
             return;
         };
         match std::fs::write(&path, text) {
-            Ok(()) => self.status = format!("EDL exportada: {}", path.display()),
+            Ok(()) => self.status = tr_args("EDL exportada: {}", &[&path.display()]),
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar a EDL: {e}");
+                self.status = tr_args("Falha ao exportar a EDL: {}", &[&e]);
             }
         }
     }
@@ -1193,14 +1187,14 @@ impl AppState {
             Ok(bytes) => captions::decode_text(&bytes),
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler a EDL: {e}");
+                self.status = tr_args("Não foi possível ler a EDL: {}", &[&e]);
                 return;
             }
         };
         let doc = match edl::parse(&text, self.project.settings.fps) {
             Ok(doc) => doc,
             Err(e) => {
-                self.status = format!("Não foi possível abrir a EDL: {e}");
+                self.status = tr_args("Não foi possível abrir a EDL: {}", &[&e]);
                 return;
             }
         };
@@ -1213,15 +1207,17 @@ impl AppState {
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
-                format!(
+                tr_args(
                     "EDL importada: {} evento(s); {} sem mídia no projeto{}",
-                    report.added,
-                    report.skipped.len(),
-                    if doc.warnings.is_empty() {
-                        String::new()
-                    } else {
-                        format!("; {} aviso(s) no log", doc.warnings.len())
-                    }
+                    &[
+                        &report.added,
+                        &report.skipped.len(),
+                        &if doc.warnings.is_empty() {
+                            String::new()
+                        } else {
+                            format!("; {} aviso(s) no log", doc.warnings.len())
+                        },
+                    ],
                 )
             }
             None => "Nenhum evento da EDL tem mídia no projeto: importe as mídias antes".into(),
@@ -1242,7 +1238,7 @@ impl AppState {
             Ok(bytes) => bytes,
             Err(e) => {
                 tracing::error!("[ERROR] cannot read {}: {e}", path.display());
-                self.status = format!("Não foi possível ler as legendas: {e}");
+                self.status = tr_args("Não foi possível ler as legendas: {}", &[&e]);
                 return;
             }
         };
@@ -1256,14 +1252,17 @@ impl AppState {
                 match captions::import_document(&mut self.timeline, &doc, 0.0, false) {
                     Some(command) => {
                         self.history.execute(&mut self.timeline, command);
-                        self.status = format!(
-                            "{count} legendas importadas ({}){}",
-                            format.name(),
-                            if doc.warnings.is_empty() {
-                                String::new()
-                            } else {
-                                format!("; {} aviso(s) no log", doc.warnings.len())
-                            }
+                        self.status = tr_args(
+                            "{} legendas importadas ({}){}",
+                            &[
+                                &count,
+                                &format.name(),
+                                &if doc.warnings.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!("; {} aviso(s) no log", doc.warnings.len())
+                                },
+                            ],
                         );
                     }
                     None => self.status = "O arquivo não tem nenhuma legenda utilizável".into(),
@@ -1271,7 +1270,7 @@ impl AppState {
             }
             Err(e) => {
                 tracing::error!("[ERROR] {}: {e}", path.display());
-                self.status = format!("Não foi possível abrir as legendas: {e}");
+                self.status = tr_args("Não foi possível abrir as legendas: {}", &[&e]);
             }
         }
     }
@@ -1298,15 +1297,14 @@ impl AppState {
         let text = captions::write(&captions::export_document(&self.timeline), format);
         match std::fs::write(&path, text) {
             Ok(()) => {
-                self.status = format!(
+                self.status = tr_args(
                     "{} legendas exportadas ({})",
-                    self.timeline.captions.len(),
-                    format.name()
+                    &[&self.timeline.captions.len(), &format.name()],
                 )
             }
             Err(e) => {
                 tracing::error!("[ERROR] cannot write {}: {e}", path.display());
-                self.status = format!("Falha ao exportar as legendas: {e}");
+                self.status = tr_args("Falha ao exportar as legendas: {}", &[&e]);
             }
         }
     }
@@ -1347,7 +1345,7 @@ impl AppState {
                         .set_title("Selecionar pasta do modelo Whisper (config.json, tokenizer.json, model.safetensors/.gguf)")
                         .pick_folder()
                     {
-                        self.status = format!("Modelo Whisper selecionado: {}", dir.display());
+                        self.status = tr_args("Modelo Whisper selecionado: {}", &[&dir.display()]);
                         self.captions_panel.whisper_model_dir = Some(dir);
                         self.captions_panel.whisper_status = None;
                     }
@@ -1391,7 +1389,7 @@ impl AppState {
                     let count = doc.cues.len();
                     let cmd = captions::import_document(&mut self.timeline, &doc, 0.0, replace_all);
                     if cmd.is_some() {
-                        self.status = format!("Whisper: {count} legenda(s) adicionada(s).");
+                        self.status = tr_args("Whisper: {} legenda(s) adicionada(s).", &[&count]);
                     }
                     cmd
                 }
@@ -1412,9 +1410,9 @@ impl AppState {
             tracing::warn!("[WARN] keymap: {w}");
         }
         let overrides = prefs.keymap.len();
-        let detail = format!(
+        let detail = tr_args(
             "Idioma {}; {} atalhos personalizados; salvamento automático a cada {} min",
-            prefs.language, overrides, prefs.autosave_minutes
+            &[&prefs.language, &overrides, &prefs.autosave_minutes],
         );
         self.prefs = prefs;
         self.keymap = keymap;
@@ -1439,13 +1437,13 @@ impl AppState {
     /// Startup step 3: the sound card the audio will play on.
     fn probe_audio(&mut self) -> String {
         match neoveg_audio::playback::probe_output() {
-            Ok(info) => format!(
+            Ok(info) => tr_args(
                 "{} · {} Hz · {} canais",
-                info.device, info.sample_rate, info.channels
+                &[&info.device, &info.sample_rate, &info.channels],
             ),
             Err(e) => {
                 tracing::warn!("[WARN] audio output: {e}");
-                self.status = format!("Saída de áudio indisponível: {e}");
+                self.status = tr_args("Saída de áudio indisponível: {}", &[&e]);
                 "Sem saída de áudio: o projeto abre sem som".into()
             }
         }
@@ -1481,9 +1479,9 @@ impl AppState {
             "[WARN] {} unsaved project(s) found for recovery",
             self.pending_recovery.len()
         );
-        format!(
+        tr_args(
             "{} projeto(s) não salvo(s) encontrado(s)",
-            self.pending_recovery.len()
+            &[&self.pending_recovery.len()],
         )
     }
 
@@ -1722,7 +1720,7 @@ impl AppState {
     /// Chooses what ripple moves along with the edited tracks.
     fn set_ripple_scope(&mut self, scope: RippleScope) {
         self.ripple_scope = scope;
-        self.status = format!("Escopo do ripple: {}", scope.label());
+        self.status = tr_args("Escopo do ripple: {}", &[&scope.label()]);
     }
 
     /// Remembers the gap or overlap the edit that just ran left, for a manual ripple.
@@ -1742,7 +1740,7 @@ impl AppState {
         }
         let outcome = hint.outcome(&self.timeline, scope);
         if self.apply_outcome(outcome).is_some() {
-            self.status = format!("Ripple aplicado à última edição ({})", scope.label());
+            self.status = tr_args("Ripple aplicado à última edição ({})", &[&scope.label()]);
         }
     }
 
@@ -1787,7 +1785,7 @@ impl AppState {
         };
         match clip {
             Some(clip) => {
-                self.status = format!("{} evento(s) copiado(s)", clip.items.len());
+                self.status = tr_args("{} evento(s) copiado(s)", &[&clip.items.len()]);
                 self.clipboard = Some(clip);
                 true
             }
@@ -1815,11 +1813,11 @@ impl AppState {
         };
         if let Some(touched) = self.apply_outcome(Some(outcome)) {
             self.status = if skipped == 0 {
-                format!("{} evento(s) colado(s)", touched.len())
+                tr_args("{} evento(s) colado(s)", &[&touched.len()])
             } else {
-                format!(
-                    "{} evento(s) colado(s); {skipped} sem faixa do mesmo tipo",
-                    touched.len()
+                tr_args(
+                    "{} evento(s) colado(s); {} sem faixa do mesmo tipo",
+                    &[&touched.len(), &skipped],
                 )
             };
             self.selection.set(touched);
@@ -1896,7 +1894,7 @@ impl AppState {
         };
         match neoveg_video::generators::GeneratorSpec::load_manifest(&path) {
             Ok(spec) => self.generator_dialog.edit(id, &spec),
-            Err(e) => self.status = format!("Não foi possível abrir a mídia gerada: {e}"),
+            Err(e) => self.status = tr_args("Não foi possível abrir a mídia gerada: {}", &[&e]),
         }
     }
 
@@ -1934,9 +1932,9 @@ impl AppState {
                 self.last_frame_key = None;
                 self.last_composite_key = None;
                 self.spawn_media(path, Some(media_id), ctx);
-                self.status = format!("Mídia gerada {} atualizada", spec.name);
+                self.status = tr_args("Mídia gerada {} atualizada", &[&spec.name]);
             }
-            Err(e) => self.status = format!("Não foi possível gravar a mídia gerada: {e}"),
+            Err(e) => self.status = tr_args("Não foi possível gravar a mídia gerada: {}", &[&e]),
         }
     }
 
@@ -1951,9 +1949,9 @@ impl AppState {
             self.fx.master = false;
             self.fx.bus = Some(id);
             self.restart_audio_if_playing();
-            self.status = format!(
+            self.status = tr_args(
                 "{} inserido: escolha-o como saída de uma faixa ou use um send",
-                neoveg_engine::buses::label(&self.timeline, id)
+                &[&neoveg_engine::buses::label(&self.timeline, id)],
             );
         }
     }
@@ -2181,7 +2179,7 @@ impl AppState {
                     self.last_frame_key = None;
                     self.last_composite_key = None;
                     self.restart_audio_if_playing();
-                    self.status = format!("Atributos colados em {count} evento(s)");
+                    self.status = tr_args("Atributos colados em {} evento(s)", &[&count]);
                 }
             }
             None => self.status = "Nada para colar: os atributos já são os mesmos".into(),
@@ -2242,12 +2240,12 @@ impl AppState {
         self.trim_edge = Some(edge);
         self.selected_track = Some(edge.track);
         self.selection.select_only((edge.track, edge.event));
-        self.status = format!(
+        self.status = tr_args(
             "Aparo por teclado: {} do evento — ← / → movem um quadro (Esc sai)",
-            match edge.side {
+            &[&match edge.side {
                 neoveg_engine::keytrim::EdgeSide::Start => "início",
                 neoveg_engine::keytrim::EdgeSide::End => "fim",
-            }
+            }],
         );
     }
 
@@ -2515,7 +2513,7 @@ impl AppState {
                 self.playhead = marker.time;
                 self.blink_origin = now;
             }
-            None => self.status = format!("Não há marcador {n}"),
+            None => self.status = tr_args("Não há marcador {}", &[&n]),
         }
     }
 
@@ -2686,7 +2684,7 @@ impl AppState {
         else {
             return;
         };
-        self.status = format!("Importando {}…", path.display());
+        self.status = tr_args("Importando {}…", &[&path.display()]);
         self.spawn_media(path, None, ctx);
     }
 
@@ -2752,10 +2750,11 @@ impl AppState {
         }
         self.status = match (placed, skipped) {
             (0, _) => "Nenhuma imagem pôde ser lida: nada foi inserido".into(),
-            (n, 0) => format!("Apresentação de slides inserida: {n} imagens"),
-            (n, s) => {
-                format!("Apresentação de slides inserida: {n} imagens ({s} ilegíveis ignoradas)")
-            }
+            (n, 0) => tr_args("Apresentação de slides inserida: {} imagens", &[&n]),
+            (n, s) => tr_args(
+                "Apresentação de slides inserida: {} imagens ({} ilegíveis ignoradas)",
+                &[&n, &s],
+            ),
         };
     }
 
@@ -2788,12 +2787,12 @@ impl AppState {
         let path = dir.join(format!("{stem}_{}.neoveggen", autosave::unix_now()));
         match spec.save_manifest(&path) {
             Ok(()) => {
-                self.status = format!("Gerador {} criado", spec.name);
+                self.status = tr_args("Gerador {} criado", &[&spec.name]);
                 self.spawn_media(path, None, ctx);
             }
             Err(e) => {
                 tracing::error!("[ERROR] cannot save the generator: {e}");
-                self.status = format!("Não foi possível criar o gerador: {e}");
+                self.status = tr_args("Não foi possível criar o gerador: {}", &[&e]);
             }
         }
     }
@@ -2827,7 +2826,10 @@ impl AppState {
         };
         let target = neoveg_video::convert::target_for(&path);
         let output = neoveg_video::convert::output_path(&path, &dir, target, |p| p.exists());
-        self.status = format!("Convertendo {} para {}…", path.display(), target.label());
+        self.status = tr_args(
+            "Convertendo {} para {}…",
+            &[&path.display(), &target.label()],
+        );
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
         std::thread::spawn(move || {
             let msg = match neoveg_video::convert::convert(&path, &output, target) {
@@ -2856,7 +2858,7 @@ impl AppState {
                     converted,
                 } => {
                     tracing::error!("[ERROR] import failed: {} ({error})", path.display());
-                    self.status = format!("Falha ao importar: {error}");
+                    self.status = tr_args("Falha ao importar: {}", &[&error]);
                     // A file of the project that exists but cannot be read: ask what to do with it
                     if let Some(id) = existing_id {
                         self.media_file_failed(id, &path, error.clone());
@@ -2933,14 +2935,14 @@ impl AppState {
         match project_file::save(&path, &self.project, &self.timeline) {
             Ok(()) => {
                 tracing::info!("[INFO] project saved: {}", path.display());
-                self.status = format!("Projeto salvo: {}", path.display());
+                self.status = tr_args("Projeto salvo: {}", &[&path.display()]);
                 self.remember_recent(&path);
                 self.project_path = Some(path);
                 self.mark_clean();
             }
             Err(e) => {
                 tracing::error!("[ERROR] save failed: {e}");
-                self.status = format!("Falha ao salvar: {e}");
+                self.status = tr_args("Falha ao salvar: {}", &[&e]);
             }
         }
     }
@@ -2967,7 +2969,7 @@ impl AppState {
             Ok(loaded) => loaded,
             Err(e) => {
                 tracing::error!("[ERROR] open failed: {e}");
-                self.status = format!("Falha ao abrir: {e}");
+                self.status = tr_args("Falha ao abrir: {}", &[&e]);
                 return false;
             }
         };
@@ -3043,9 +3045,9 @@ impl AppState {
             "Projeto aberto".into()
         } else {
             tracing::warn!("[WARN] {} media file(s) missing", still_missing.len());
-            format!(
+            tr_args(
                 "Projeto aberto: procurando {} mídia(s) ausente(s)…",
-                still_missing.len()
+                &[&still_missing.len()],
             )
         };
         if let Some(path) = &associate {
@@ -3093,7 +3095,7 @@ impl AppState {
                         (relink::Match::Exact, false) => "nome igual, não conferida",
                         (relink::Match::Fuzzy, _) => "nome parecido, conferida",
                     };
-                    self.status = format!("Mídia religada a {} ({how})", path.display());
+                    self.status = tr_args("Mídia religada a {} ({})", &[&path.display(), &how]);
                     self.offer_copy(id, &path);
                 }
             }
@@ -3108,7 +3110,10 @@ impl AppState {
         let waiting = self.missing.iter().filter(|m| !m.ignored).count();
         if waiting > 0 && self.missing.iter().all(|m| !m.searching) {
             self.missing_open = true;
-            self.status = format!("{waiting} mídia(s) ausente(s): veja a janela Mídia ausente");
+            self.status = tr_args(
+                "{} mídia(s) ausente(s): veja a janela Mídia ausente",
+                &[&waiting],
+            );
         }
     }
 
@@ -3160,7 +3165,7 @@ impl AppState {
             self.missing.retain(|m| m.id != id);
             self.forced_dirty = true;
             self.spawn_media(path.clone(), Some(id), ctx);
-            self.status = format!("Mídia trocada por {}", path.display());
+            self.status = tr_args("Mídia trocada por {}", &[&path.display()]);
             self.offer_copy(id, &path);
             return true;
         }
@@ -3181,10 +3186,13 @@ impl AppState {
             && (duration - entry.duration_seconds).abs()
                 > relink::duration_tolerance(entry.duration_seconds)
         {
-            self.status = format!(
-                "{} tem {duration:.2} s, e o projeto guardou {:.2} s: confira os eventos",
-                file_name_of(&entry.path),
-                entry.duration_seconds
+            self.status = tr_args(
+                "{} tem {} s, e o projeto guardou {} s: confira os eventos",
+                &[
+                    &file_name_of(&entry.path),
+                    &format!("{:.2}", duration),
+                    &format!("{:.2}", entry.duration_seconds),
+                ],
             );
         }
     }
@@ -3199,7 +3207,7 @@ impl AppState {
             self.missing.retain(|m| m.id != id);
             self.forced_dirty = true;
             self.spawn_media(path.clone(), Some(id), ctx);
-            self.status = format!("Mídia religada a {}", path.display());
+            self.status = tr_args("Mídia religada a {}", &[&path.display()]);
             self.offer_copy(id, &path);
         }
     }
@@ -3261,7 +3269,7 @@ impl AppState {
                     if let Some(ctx) = self.tabs.ctx.clone() {
                         self.spawn_media(copy.clone(), Some(id), &ctx);
                     }
-                    self.status = format!("Mídia copiada para {}", copy.display());
+                    self.status = tr_args("Mídia copiada para {}", &[&copy.display()]);
                 }
             }
             Err(e) => {
@@ -3269,7 +3277,7 @@ impl AppState {
                     f.copying = false;
                 }
                 tracing::error!("[ERROR] copy of found media failed: {e}");
-                self.status = format!("Falha ao copiar a mídia: {e}");
+                self.status = tr_args("Falha ao copiar a mídia: {}", &[&e]);
             }
         }
     }
@@ -3935,7 +3943,7 @@ impl AppState {
         match groups::group_events(&mut self.timeline, &refs) {
             Some(outcome) => {
                 self.history.execute(&mut self.timeline, outcome.command);
-                self.status = format!("{} eventos agrupados", refs.len());
+                self.status = tr_args("{} eventos agrupados", &[&refs.len()]);
             }
             None => self.status = "Selecione dois ou mais eventos para agrupar".into(),
         }
@@ -3944,7 +3952,7 @@ impl AppState {
     /// Chooses the editing tool (`Ctrl+D` normal, `D` next, `Shift+D` previous).
     fn set_edit_tool(&mut self, tool: EditTool) {
         self.edit_tool = tool;
-        self.status = format!("Ferramenta de edição: {}", tool.label());
+        self.status = tr_args("Ferramenta de edição: {}", &[&tool.label()]);
     }
 
     /// `Shift+G`: selects every event of the groups the selected events belong to.
@@ -3955,7 +3963,7 @@ impl AppState {
             self.status = "Os eventos selecionados não pertencem a um grupo maior".into();
             return;
         }
-        self.status = format!("{} eventos do grupo selecionados", all.len());
+        self.status = tr_args("{} eventos do grupo selecionados", &[&all.len()]);
         self.selection.set(all);
     }
 
@@ -3987,7 +3995,7 @@ impl AppState {
         };
         let track = &self.timeline.tracks[next];
         self.selected_track = Some(track.id);
-        self.status = format!("Faixa {}: {}", next + 1, track.name);
+        self.status = tr_args("Faixa {}: {}", &[&(next + 1), &track.name]);
     }
 
     /// Insert > Time: opens `length` seconds of empty time at the cursor, on the tracks of the
@@ -4000,7 +4008,10 @@ impl AppState {
         match ops::insert_time(&mut self.timeline, self.playhead, length, tracks) {
             Some(outcome) => {
                 self.history.execute(&mut self.timeline, outcome.command);
-                self.status = format!("{length:.2} s de tempo inseridos no cursor");
+                self.status = tr_args(
+                    "{} s de tempo inseridos no cursor",
+                    &[&format!("{:.2}", length)],
+                );
             }
             None => self.status = "Informe um tempo maior que zero".into(),
         }
@@ -4033,7 +4044,7 @@ impl AppState {
     /// that the work in progress is never replaced.
     fn open_recent(&mut self, path: &std::path::Path, ctx: &egui::Context) {
         if !path.is_file() {
-            self.status = format!("Arquivo não encontrado: {}", path.display());
+            self.status = tr_args("Arquivo não encontrado: {}", &[&path.display()]);
             self.prefs.remove_recent_project(&path.to_string_lossy());
             self.persist_preferences();
             return;
@@ -4063,12 +4074,14 @@ impl AppState {
         self.forced_dirty = true;
         self.last_frame_key = None;
         self.last_composite_key = None;
-        self.status = format!(
-            "Projeto: {}x{} · {:.3} fps · {} Hz",
-            self.project.settings.width,
-            self.project.settings.height,
-            self.project.settings.fps,
-            self.project.settings.sample_rate
+        self.status = tr_args(
+            "Projeto: {}x{} · {} fps · {} Hz",
+            &[
+                &self.project.settings.width,
+                &self.project.settings.height,
+                &format!("{:.3}", self.project.settings.fps),
+                &self.project.settings.sample_rate,
+            ],
         );
     }
 
@@ -4090,7 +4103,7 @@ impl AppState {
                     self.prefs
                         .custom_templates
                         .retain(|t| t.name != template.name);
-                    self.status = format!("Modelo salvo: {}", template.name);
+                    self.status = tr_args("Modelo salvo: {}", &[&template.name]);
                     self.prefs.custom_templates.push(template);
                     self.persist_preferences();
                 }
@@ -4131,7 +4144,7 @@ impl AppState {
                 self.project_dialog.use_media(width, height, fps);
                 self.project_dialog.note.clear();
             }
-            Err(e) => self.project_dialog.note = format!("Não foi possível ler a mídia: {e}"),
+            Err(e) => self.project_dialog.note = tr_args("Não foi possível ler a mídia: {}", &[&e]),
         }
     }
 
@@ -4142,9 +4155,13 @@ impl AppState {
         self.format_chosen = true;
         self.last_frame_key = None;
         self.last_composite_key = None;
-        self.status = format!(
-            "Novo projeto: {}x{} · {:.3} fps",
-            self.project.settings.width, self.project.settings.height, self.project.settings.fps
+        self.status = tr_args(
+            "Novo projeto: {}x{} · {} fps",
+            &[
+                &self.project.settings.width,
+                &self.project.settings.height,
+                &format!("{:.3}", self.project.settings.fps),
+            ],
         );
     }
 
@@ -4164,13 +4181,13 @@ impl AppState {
                 if let Some(stem) = copy.file_stem() {
                     self.project.name = stem.to_string_lossy().into_owned();
                 }
-                self.status = format!("Versão salva: {}", copy.display());
+                self.status = tr_args("Versão salva: {}", &[&copy.display()]);
                 self.project_path = Some(copy);
                 self.mark_clean();
             }
             Err(e) => {
                 tracing::error!("[ERROR] incremental save failed: {e}");
-                self.status = format!("Falha ao salvar a cópia: {e}");
+                self.status = tr_args("Falha ao salvar a cópia: {}", &[&e]);
             }
         }
     }
@@ -4237,7 +4254,7 @@ impl AppState {
         match switches::set_channels(&self.timeline, &refs, mode) {
             Some(command) => {
                 self.history.execute(&mut self.timeline, command);
-                self.status = format!("Canais: {}", mode.label());
+                self.status = tr_args("Canais: {}", &[&mode.label()]);
             }
             None => {
                 self.status = "Nenhum evento de áudio desbloqueado mudou de canais".into();
@@ -4332,10 +4349,9 @@ impl AppState {
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
-        let title = format!(
+        let title = tr_args(
             "{}{} - Neoveg",
-            if self.is_dirty() { "*" } else { "" },
-            self.project.name
+            &[&if self.is_dirty() { "*" } else { "" }, &self.project.name],
         );
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -4470,7 +4486,7 @@ impl AppState {
         }
         self.video_info.insert(media_id, info);
         self.last_frame_key = None;
-        self.status = format!("Importado: {name}");
+        self.status = tr_args("Importado: {}", &[&name]);
     }
 
     /// Largest decoded width for the current preview quality (Draft 1/4, Preview 1/2, Good/Best full,
@@ -4526,7 +4542,7 @@ impl AppState {
             Ok(lut) => Some(Arc::new(lut)),
             Err(e) => {
                 tracing::warn!("[WARN] cannot use the LUT {path}: {e}");
-                self.status = format!("LUT inválida: {e}");
+                self.status = tr_args("LUT inválida: {}", &[&e]);
                 None
             }
         };
@@ -4731,7 +4747,7 @@ impl AppState {
                     }
                 }
             }
-            Err(e) => self.status = format!("Falha ao decodificar vídeo: {e}"),
+            Err(e) => self.status = tr_args("Falha ao decodificar vídeo: {}", &[&e]),
         }
     }
 
@@ -4752,7 +4768,7 @@ impl AppState {
             fps,
         ));
         self.media_tab = 1;
-        self.status = format!("{name} aberto no Trimmer");
+        self.status = tr_args("{} aberto no Trimmer", &[&name]);
     }
 
     /// What the Trimmer buttons ask for: put the selection on the timeline.
@@ -4808,7 +4824,7 @@ impl AppState {
         if !commands.is_empty() {
             self.history
                 .execute(&mut self.timeline, EditCommand::Batch(commands));
-            self.status = format!("{name} adicionado à linha do tempo");
+            self.status = tr_args("{} adicionado à linha do tempo", &[&name]);
         }
     }
 
@@ -4856,7 +4872,7 @@ impl AppState {
             fade_out: fade,
             ..Default::default()
         };
-        self.status = format!("Importado: {}", media.name);
+        self.status = tr_args("Importado: {}", &[&media.name]);
         self.media.insert(media_id, media);
         self.history.execute(
             &mut self.timeline,
@@ -4893,7 +4909,7 @@ impl AppState {
         if let Some(active) = &self.active_player {
             active.player.set_speed(speed);
         }
-        self.status = format!("Reprodução {speed:+.0}x");
+        self.status = tr_args("Reprodução {}x", &[&format!("{:+.0}", speed)]);
     }
 
     fn toggle_play(&mut self, now: f64) {
@@ -5097,7 +5113,7 @@ impl AppState {
                     .unwrap_or_else(|| "mídia".into());
                 (
                     VideoFxTarget::Media(id),
-                    format!("{name} (todos os eventos desta mídia)"),
+                    tr_args("{} (todos os eventos desta mídia)", &[&name]),
                     scopes,
                 )
             }
@@ -5220,9 +5236,13 @@ impl AppState {
         if self.history.execute(&mut self.timeline, command) {
             self.last_frame_key = None;
             self.last_composite_key = None;
-            self.status = format!(
+            self.status = tr_args(
                 "Quadro congelado em {}",
-                seconds_to_timecode(self.playhead, self.project.settings.fps, false)
+                &[&seconds_to_timecode(
+                    self.playhead,
+                    self.project.settings.fps,
+                    false,
+                )],
             );
         }
     }
@@ -5591,22 +5611,24 @@ impl AppState {
                         recording.overruns
                     );
                     self.playhead = self.record_start;
-                    self.status = format!(
-                        "Gravação de {:.1} s salva em {}{}",
-                        recording.seconds(),
-                        recording.path.display(),
-                        if recording.overruns > 0 {
-                            format!(" ({} trechos perdidos)", recording.overruns)
-                        } else {
-                            String::new()
-                        }
+                    self.status = tr_args(
+                        "Gravação de {} s salva em {}{}",
+                        &[
+                            &format!("{:.1}", recording.seconds()),
+                            &recording.path.display(),
+                            &if recording.overruns > 0 {
+                                format!(" ({} trechos perdidos)", recording.overruns)
+                            } else {
+                                String::new()
+                            },
+                        ],
                     );
                     self.spawn_media(recording.path, None, ctx);
                 }
                 Ok(_) => self.status = "Gravação vazia descartada".into(),
                 Err(e) => {
                     tracing::error!("[ERROR] recording failed: {e}");
-                    self.status = format!("Falha na gravação: {e}");
+                    self.status = tr_args("Falha na gravação: {}", &[&e]);
                 }
             }
             return;
@@ -5618,13 +5640,16 @@ impl AppState {
         let path = dir.join(format!("Gravacao_{}.wav", autosave::unix_now()));
         match Recorder::start(&path) {
             Ok(recorder) => {
-                self.status = format!("Gravando de {} (Ctrl+R para parar)", recorder.info().device);
+                self.status = tr_args(
+                    "Gravando de {} (Ctrl+R para parar)",
+                    &[&recorder.info().device],
+                );
                 self.record_start = self.playhead;
                 self.recorder = Some(recorder);
             }
             Err(e) => {
                 tracing::error!("[ERROR] cannot record: {e}");
-                self.status = format!("Não foi possível gravar: {e}");
+                self.status = tr_args("Não foi possível gravar: {}", &[&e]);
             }
         }
     }
@@ -5665,7 +5690,7 @@ impl AppState {
             }
             Err(e) => {
                 tracing::error!("[ERROR] audio output unavailable: {e}");
-                self.status = format!("Saída de áudio indisponível: {e}");
+                self.status = tr_args("Saída de áudio indisponível: {}", &[&e]);
                 None
             }
         }
@@ -5806,9 +5831,9 @@ impl AppState {
             Command::OptionsAutoRipple => {
                 self.auto_ripple = !self.auto_ripple;
                 self.status = if self.auto_ripple {
-                    format!(
+                    tr_args(
                         "Ripple automático ligado ({}): excluir fecha o espaço",
-                        self.ripple_scope.label()
+                        &[&self.ripple_scope.label()],
                     )
                 } else {
                     "Ripple automático desligado".into()
@@ -6280,7 +6305,7 @@ impl NeovegApp {
         self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
         self.dock = layout;
         self.state.current_layout = Some(path.to_path_buf());
-        self.state.status = format!("Layout {name} carregado");
+        self.state.status = tr_args("Layout {} carregado", &[&name]);
     }
 
     /// Saves the dock as the layout `name` (with the shortcut number `slot`).
@@ -6292,9 +6317,9 @@ impl NeovegApp {
         match crate::layouts::save(&dir, name, slot, &self.dock) {
             Ok(path) => {
                 self.state.current_layout = Some(path);
-                self.state.status = format!("Layout {name} salvo");
+                self.state.status = tr_args("Layout {} salvo", &[&name]);
             }
-            Err(e) => self.state.status = format!("Não foi possível salvar o layout: {e}"),
+            Err(e) => self.state.status = tr_args("Não foi possível salvar o layout: {}", &[&e]),
         }
         self.state.refresh_layouts();
     }
@@ -6328,8 +6353,8 @@ impl NeovegApp {
             }
             WindowAction::Toggle(tab) => {
                 self.state.status = match toggle_window(&mut self.dock, tab) {
-                    WindowChange::Closed => format!("{} fechada", tab.title()),
-                    WindowChange::Opened => format!("{} aberta", tab.title()),
+                    WindowChange::Closed => tr_args("{} fechada", &[&tab.title()]),
+                    WindowChange::Opened => tr_args("{} aberta", &[&tab.title()]),
                     WindowChange::Raised => return,
                 };
             }
@@ -6357,13 +6382,13 @@ impl NeovegApp {
                 self.state.ensure_layouts();
                 match crate::layouts::by_slot(&self.state.layouts, slot).map(|l| l.path.clone()) {
                     Some(path) => self.load_layout(&path),
-                    None => self.state.status = format!("Nenhum layout no atalho {slot}"),
+                    None => self.state.status = tr_args("Nenhum layout no atalho {}", &[&slot]),
                 }
             }
             WindowAction::SaveSlot(slot) => {
                 self.state.ensure_layouts();
                 let name = crate::layouts::by_slot(&self.state.layouts, slot)
-                    .map_or_else(|| format!("Layout {slot}"), |l| l.file.name.clone());
+                    .map_or_else(|| tr_args("Layout {}", &[&slot]), |l| l.file.name.clone());
                 self.save_layout(&name, Some(slot));
             }
             WindowAction::DeleteLayout(path) => {
@@ -6445,9 +6470,9 @@ impl eframe::App for NeovegApp {
                     0 => self.state.load_preferences(),
                     1 => self.gpu.clone(),
                     2 => self.state.probe_audio(),
-                    3 => format!(
+                    3 => tr_args(
                         "{} efeitos prontos",
-                        neoveg_audio::dsp::effects::warm_up(48_000.0)
+                        &[&neoveg_audio::dsp::effects::warm_up(48_000.0)],
                     ),
                     4 => self.state.start_frame_worker(ctx),
                     _ => self.state.find_recoveries(),
@@ -6480,10 +6505,9 @@ impl NeovegApp {
         }
         if let Some(recorder) = &self.state.recorder {
             let peak = recorder.take_peak();
-            self.state.status = format!(
-                "Gravando {:.1} s · nível {} dBFS (Ctrl+R para parar)",
-                recorder.seconds(),
-                fmt_db(peak)
+            self.state.status = tr_args(
+                "Gravando {} s · nível {} dBFS (Ctrl+R para parar)",
+                &[&format!("{:.1}", recorder.seconds()), &fmt_db(peak)],
             );
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
@@ -7209,7 +7233,7 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
     let mut on = current == SwitchState::On;
     let label = state.with_hint(tr(command.label()), command);
     let label = if current == SwitchState::Mixed {
-        format!("{label} (parcial)")
+        tr_args("{} (parcial)", &[&label])
     } else {
         label
     };
@@ -8022,28 +8046,18 @@ fn missing_media_window(ctx: &egui::Context, state: &mut AppState) {
                     });
                     ui.weak(&m.old_path);
                     for r in &m.rejected {
-                        ui.weak(format!(
-                            "  recusado: {} ({})",
-                            file_name_of(&r.path.to_string_lossy()),
-                            r.reason
-                        ));
+                        ui.weak(tr_args("  recusado: {} ({})", &[&file_name_of(&r.path.to_string_lossy()), &r.reason]));
                     }
                     ui.separator();
                 }
             });
             if let Some(deep) = &state.deep_search {
                 if deep.done.load(Ordering::Relaxed) {
-                    ui.weak(format!(
-                        "Busca em todos os lugares terminada: {} pastas.",
-                        deep.folders.load(Ordering::Relaxed)
-                    ));
+                    ui.weak(tr_args("Busca em todos os lugares terminada: {} pastas.", &[&deep.folders.load(Ordering::Relaxed)]));
                 } else {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(format!(
-                            "Procurando em todos os lugares: {} pastas",
-                            deep.folders.load(Ordering::Relaxed)
-                        ));
+                        ui.label(tr_args("Procurando em todos os lugares: {} pastas", &[&deep.folders.load(Ordering::Relaxed)]));
                         if ui.button(tr("Parar")).clicked() {
                             stop = true;
                         }
@@ -8132,9 +8146,9 @@ fn found_media_window(ctx: &egui::Context, state: &mut AppState) {
             ));
             match &dir {
                 Some(dir) => {
-                    ui.weak(format!(
+                    ui.weak(tr_args(
                         "Copiar para {} deixa o projeto junto da mídia. O original não é apagado.",
-                        dir.display()
+                        &[&dir.display()],
                     ));
                 }
                 None => {
@@ -8198,7 +8212,7 @@ fn media_error_window(ctx: &egui::Context, state: &mut AppState) {
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            ui.label(format!("Não foi possível ler {}.", file_name_of(&path)));
+            ui.label(tr_args("Não foi possível ler {}.", &[&file_name_of(&path)]));
             ui.weak(&path);
             ui.weak(&text);
             ui.separator();
@@ -8243,15 +8257,15 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
         .resizable(false)
         .open(&mut keep_open)
         .show(ctx, |ui| {
-            ui.label(format!(
+            ui.label(tr_args(
                 "O Neoveg não conseguiu abrir {}.",
-                offer.path.display()
+                &[&offer.path.display()],
             ));
             ui.weak(&offer.error);
             ui.separator();
-            ui.label(format!(
+            ui.label(tr_args(
                 "Converter uma cópia para {} e importá-la? O arquivo original não é alterado.",
-                target.label()
+                &[&target.label()],
             ));
             ui.horizontal(|ui| {
                 if ui.button(tr("Converter")).clicked() {
@@ -8290,7 +8304,7 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                     slot_combo(ui, "layout_save_slot", &mut dialog.slot);
                 });
                 if let Some(dir) = &state.layouts_dir {
-                    ui.weak(format!("Pasta: {}", dir.display()));
+                    ui.weak(tr_args("Pasta: {}", &[&dir.display()]));
                 }
                 ui.horizontal(|ui| {
                     if ui
@@ -8330,7 +8344,7 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
             .open(&mut keep_open)
             .show(ctx, |ui| {
                 if let Some(dir) = &state.layouts_dir {
-                    ui.weak(format!("Pasta: {}", dir.display()));
+                    ui.weak(tr_args("Pasta: {}", &[&dir.display()]));
                 }
                 if rows.is_empty() {
                     ui.label(tr(
@@ -8442,12 +8456,11 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                 state.keymap_message = "Atribuição cancelada".into();
             } else if let Some(shortcut) = from_egui(key, modifiers) {
                 state.keymap_message = match state.keymap.bind(target, shortcut.clone()) {
-                    Some(other) => format!(
-                        "{shortcut} saiu de «{}» e foi para «{}»",
-                        other.label(),
-                        target.label()
+                    Some(other) => tr_args(
+                        "{} saiu de «{}» e foi para «{}»",
+                        &[&shortcut, &other.label(), &target.label()],
                     ),
-                    None => format!("{shortcut} atribuído a «{}»", target.label()),
+                    None => tr_args("{} atribuído a «{}»", &[&shortcut, &target.label()]),
                 };
                 state.persist_keymap();
             } else {
@@ -8476,9 +8489,9 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
             if let Some(target) = state.capture_for {
                 ui.colored_label(
                     Color32::from_rgb(0xF1, 0xC4, 0x0F),
-                    format!(
+                    tr_args(
                         "Pressione a combinação para «{}» (Esc cancela)",
-                        target.label()
+                        &[&target.label()],
                     ),
                 );
             } else if !state.keymap_message.is_empty() {
@@ -8510,7 +8523,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                             let label = if command.implemented() {
                                 command.label().to_string()
                             } else {
-                                format!("{} (em breve)", command.label())
+                                tr_args("{} (em breve)", &[&command.label()])
                             };
                             ui.add_sized([230.0, 20.0], egui::Label::new(label).truncate());
                             for shortcut in state.keymap.shortcuts_for(command) {
@@ -9199,17 +9212,19 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     painter.text(
         rect.left_bottom() + vec2(6.0, -6.0),
         Align2::LEFT_BOTTOM,
-        format!(
+        tr_args(
             "{}x{} · prévia {}x{} · {}",
-            pw as u32,
-            ph as u32,
-            (pw * factor) as u32,
-            (ph * factor) as u32,
-            seconds_to_timecode(
-                state.playhead,
-                state.project.settings.fps,
-                state.drop_frame()
-            )
+            &[
+                &(pw as u32),
+                &(ph as u32),
+                &((pw * factor) as u32),
+                &((ph * factor) as u32),
+                &seconds_to_timecode(
+                    state.playhead,
+                    state.project.settings.fps,
+                    state.drop_frame(),
+                ),
+            ],
         ),
         FontId::monospace(11.0),
         Color32::from_gray(170),
@@ -11247,9 +11262,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 title.push_str(&format!(" [{tag}]"));
             }
             if ev.normalize {
-                title.push_str(&format!(
-                    " [norm {:+.1} dB]",
-                    20.0 * ev.normalize_gain.log10()
+                title.push_str(&tr_args(
+                    " [norm {} dB]",
+                    &[&format!("{:+.1}", 20.0 * ev.normalize_gain.log10())],
                 ));
             }
             // The header: the name up to the first button, then the buttons

@@ -7,6 +7,7 @@
 //! (`neoveg_engine::captions`).
 
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -178,7 +179,7 @@ impl CaptionsPanelState {
             });
 
         if let Err(e) = spawn_res {
-            let msg = format!("Falha ao iniciar thread Whisper: {e}");
+            let msg = tr_args("Falha ao iniciar thread Whisper: {}", &[&e]);
             self.whisper_status = Some(msg.clone());
             return Err(msg);
         }
@@ -209,9 +210,9 @@ impl CaptionsPanelState {
                     self.whisper_status = Some("Whisper concluído: nenhuma fala detectada.".into());
                     None
                 } else {
-                    self.whisper_status = Some(format!(
+                    self.whisper_status = Some(tr_args(
                         "Whisper: {} legenda(s) transcrita(s).",
-                        segments.len()
+                        &[&segments.len()],
                     ));
                     Some(CaptionAction::ApplyWhisper {
                         segments,
@@ -360,7 +361,7 @@ pub fn captions_ui(
                 actions.push(CaptionAction::Clear);
             }
         });
-        ui.weak(format!("{} legenda(s)", captions.len()));
+        ui.weak(tr_args("{} legenda(s)", &[&captions.len()]));
     });
 
     ui.horizontal_wrapped(|ui| {
@@ -439,7 +440,7 @@ pub fn captions_ui(
             .whisper_model_dir
             .as_deref()
             .and_then(|p| p.file_name().or_else(|| p.as_os_str().into()))
-            .map(|n| format!("Whisper: {}", n.to_string_lossy()))
+            .map(|n| tr_args("Whisper: {}", &[&n.to_string_lossy()]))
             .unwrap_or_else(|| "Whisper: selecione a pasta do modelo".into());
         ui.weak(model_hint);
     });

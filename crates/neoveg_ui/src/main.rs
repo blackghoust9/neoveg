@@ -35,6 +35,7 @@ mod waveform_paint;
 mod welcome;
 
 use eframe::egui;
+use neoveg_common::i18n::tr_args;
 
 /// `--screenshots <dir>`: renders the interface offscreen to PNG files and exits.
 fn screenshots_dir() -> Option<std::path::PathBuf> {
@@ -74,7 +75,10 @@ fn main() -> eframe::Result<()> {
             Ok(handle) => handle
                 .join()
                 .unwrap_or_else(|_| Err("a captura de tela terminou em pânico".into())),
-            Err(e) => Err(format!("não foi possível iniciar a captura de tela: {e}")),
+            Err(e) => Err(tr_args(
+                "não foi possível iniciar a captura de tela: {}",
+                &[&e],
+            )),
         };
         let code = match result {
             Ok(()) => 0,

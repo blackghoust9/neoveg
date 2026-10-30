@@ -9,6 +9,7 @@
 
 use eframe::egui;
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_engine::slideshow::{
     layout, move_selected, per_photo_for_total, sort_slides, total_length, Slide, SlideOrder,
     SlideshowSettings,
@@ -218,11 +219,13 @@ impl SlideshowState {
                             .speed(0.05),
                     );
                     let settings = self.settings(playhead);
-                    ui.weak(format!(
-                        "{} imagens · {:.1} s por imagem · {:.1} s no total",
-                        self.slides.len(),
-                        settings.per_photo,
-                        total_length(self.slides.len(), &settings)
+                    ui.weak(tr_args(
+                        "{} imagens · {} s por imagem · {} s no total",
+                        &[
+                            &self.slides.len(),
+                            &format!("{:.1}", settings.per_photo),
+                            &format!("{:.1}", total_length(self.slides.len(), &settings)),
+                        ],
                     ));
                 });
                 ui.horizontal(|ui| {

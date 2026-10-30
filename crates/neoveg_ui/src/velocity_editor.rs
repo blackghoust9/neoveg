@@ -9,6 +9,7 @@
 
 use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Sense, Shape, Stroke};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_engine::velocity::{self, MAX_SPEED, MIN_SPEED, PRESETS};
 use neoveg_engine::{EnvelopeShape, EventId, TrackEnvelope, TrackId};
 
@@ -336,10 +337,9 @@ impl VelocityEditor {
         // Readout: the speed and the place in the source at the cursor
         let speed_now = velocity::rate_at(Some(env), view.time) as f32;
         let offset = velocity::source_offset(Some(env), view.time);
-        ui.weak(format!(
-            "No cursor: velocidade {}, {:.2} s da origem tocados até aqui",
-            percent(speed_now),
-            offset
+        ui.weak(tr_args(
+            "No cursor: velocidade {}, {} s da origem tocados até aqui",
+            &[&percent(speed_now), &format!("{:.2}", offset)],
         ));
 
         // Mouse
@@ -410,7 +410,7 @@ impl VelocityEditor {
                     }
                     ui.separator();
                     for shape in EnvelopeShape::ALL {
-                        if ui.button(format!("Curva: {}", shape.label())).clicked() {
+                        if ui.button(tr_args("Curva: {}", &[&shape.label()])).clicked() {
                             let mut next = env.clone();
                             next.points[i].shape = shape;
                             actions.push(VelocityAction::Commit(Some(next)));

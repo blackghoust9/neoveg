@@ -7,6 +7,7 @@
 
 use eframe::egui::{self, Slider};
 use neoveg_common::i18n::tr;
+use neoveg_common::i18n::tr_args;
 use neoveg_engine::TrackEffect;
 use neoveg_video::transitions::{self, TransitionRequest};
 use neoveg_video::vfx::ParamSpec;
@@ -102,14 +103,16 @@ impl TransitionsPanelState {
             ui.selectable_value(&mut self.outgoing, true, "Saída");
         });
         if view.length > 0.0 {
-            ui.weak(format!(
-                "Dura {:.2} s: {}. Segue a curva do fade.",
-                view.length,
-                match (self.outgoing, view.overlaps) {
-                    (true, _) => "o fade de saída do evento",
-                    (false, true) => "a sobreposição com o evento anterior",
-                    (false, false) => "o fade de entrada do evento",
-                }
+            ui.weak(tr_args(
+                "Dura {} s: {}. Segue a curva do fade.",
+                &[
+                    &format!("{:.2}", view.length),
+                    &match (self.outgoing, view.overlaps) {
+                        (true, _) => "o fade de saída do evento",
+                        (false, true) => "a sobreposição com o evento anterior",
+                        (false, false) => "o fade de entrada do evento",
+                    },
+                ],
             ));
         } else {
             ui.colored_label(
