@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "Avisos de la lectura ({})",
   "Copiar relatório": "Copiar informe",
   "Progresso da transição": "Progreso de la transición",
-  "Criar envelope de progresso": "Crear envolvente de progreso"
+  "Criar envelope de progresso": "Crear envolvente de progreso",
+  "Rolar as faixas": "Desplazar las pistas",
+  "Rolar as faixas para cima": "Desplazar las pistas hacia arriba",
+  "Rolar as faixas para baixo": "Desplazar las pistas hacia abajo",
+  "Rolar as faixas uma página para cima": "Desplazar las pistas una página hacia arriba",
+  "Rolar as faixas uma página para baixo": "Desplazar las pistas una página hacia abajo"
 }

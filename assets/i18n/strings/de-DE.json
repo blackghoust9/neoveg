@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "Hinweise beim Lesen ({})",
   "Copiar relatório": "Bericht kopieren",
   "Progresso da transição": "Übergangsfortschritt",
-  "Criar envelope de progresso": "Fortschrittshüllkurve erstellen"
+  "Criar envelope de progresso": "Fortschrittshüllkurve erstellen",
+  "Rolar as faixas": "Spuren scrollen",
+  "Rolar as faixas para cima": "Spuren nach oben scrollen",
+  "Rolar as faixas para baixo": "Spuren nach unten scrollen",
+  "Rolar as faixas uma página para cima": "Spuren eine Seite nach oben scrollen",
+  "Rolar as faixas uma página para baixo": "Spuren eine Seite nach unten scrollen"
 }

@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "读取时的警告（{}）",
   "Copiar relatório": "复制报告",
   "Progresso da transição": "转场进度",
-  "Criar envelope de progresso": "创建进度包络"
+  "Criar envelope de progresso": "创建进度包络",
+  "Rolar as faixas": "滚动轨道",
+  "Rolar as faixas para cima": "向上滚动轨道",
+  "Rolar as faixas para baixo": "向下滚动轨道",
+  "Rolar as faixas uma página para cima": "向上滚动轨道一页",
+  "Rolar as faixas uma página para baixo": "向下滚动轨道一页"
 }

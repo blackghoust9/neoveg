@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "Avertissements de lecture ({})",
   "Copiar relatório": "Copier le rapport",
   "Progresso da transição": "Progression de la transition",
-  "Criar envelope de progresso": "Créer une enveloppe de progression"
+  "Criar envelope de progresso": "Créer une enveloppe de progression",
+  "Rolar as faixas": "Faire défiler les pistes",
+  "Rolar as faixas para cima": "Faire défiler les pistes vers le haut",
+  "Rolar as faixas para baixo": "Faire défiler les pistes vers le bas",
+  "Rolar as faixas uma página para cima": "Faire défiler les pistes d'une page vers le haut",
+  "Rolar as faixas uma página para baixo": "Faire défiler les pistes d'une page vers le bas"
 }

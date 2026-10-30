@@ -501,6 +501,10 @@ struct AppState {
     scroll_seconds: f64,
     /// Vertical scroll of the track rows, in points (0 = the first track touches the ruler).
     scroll_y: f32,
+    /// Height of the track rows' body at the last drawing (for the page steps).
+    lanes_body_height: f32,
+    /// The track and the event that were selected when the rows were last scrolled into view.
+    reveal_key: (Option<TrackId>, Option<EventRef>),
     selected_track: Option<TrackId>,
     selection: Selection,
     /// Range chosen by dragging on empty lane space or with `I` / `O`.
@@ -1608,6 +1612,8 @@ impl AppState {
             pixels_per_second: 100.0,
             scroll_seconds: 0.0,
             scroll_y: 0.0,
+            lanes_body_height: 300.0,
+            reveal_key: (None, None),
             selected_track: None,
             selection: Selection::new(),
             time_selection: None,
@@ -4133,6 +4139,41 @@ impl AppState {
     }
 
     /// `Alt+Shift+Up` / `Alt+Shift+Down`: moves the track focus one track up or down.
+    /// Brings the selected track back into view when the selection changed since the last time: a
+    /// track just inserted, a move of the track focus, an event picked from the keyboard or by an undo.
+    /// The track of the event wins when the event changed, else the selected track. Moves the rows as
+    /// little as possible, and not at all when the track is already in view.
+    fn reveal_selected_track(&mut self, body_height: f32) {
+        let key = (self.selected_track, self.selection.primary());
+        if key == self.reveal_key {
+            return;
+        }
+        let event_changed = key.1 != self.reveal_key.1;
+        self.reveal_key = key;
+        let target = if event_changed {
+            key.1.map(|(track, _)| track).or(key.0)
+        } else {
+            key.0
+        };
+        let Some(row) = target.and_then(|id| self.timeline.tracks.iter().position(|t| t.id == id))
+        else {
+            return;
+        };
+        self.scroll_y = timeline_scroll::reveal_row(self.scroll_y, row, TRACK_HEIGHT, body_height);
+    }
+
+    /// *Rolar as faixas*: moves the rows one row or one page, up (`direction` -1) or down (1).
+    fn scroll_tracks(&mut self, direction: f32, page: bool) {
+        let body = self.lanes_body_height;
+        let step = if page {
+            timeline_scroll::page_delta(TRACK_HEIGHT, body)
+        } else {
+            TRACK_HEIGHT
+        };
+        let max = timeline_scroll::max_scroll_y(self.timeline.tracks.len(), TRACK_HEIGHT, body);
+        self.scroll_y = timeline_scroll::scrolled(self.scroll_y, direction * step, max);
+    }
+
     fn move_track_focus(&mut self, delta: isize) {
         let count = self.timeline.tracks.len();
         if count == 0 {
@@ -6339,6 +6380,10 @@ impl AppState {
                     is_drop_frame_rate(self.project.settings.fps),
                 ));
             }
+            Command::ViewScrollTracksUp => self.scroll_tracks(-1.0, false),
+            Command::ViewScrollTracksDown => self.scroll_tracks(1.0, false),
+            Command::ViewScrollTracksPageUp => self.scroll_tracks(-1.0, true),
+            Command::ViewScrollTracksPageDown => self.scroll_tracks(1.0, true),
             Command::CursorPreviousMarker => self.jump_to_mark(false, now),
             Command::CursorNextMarker => self.jump_to_mark(true, now),
             Command::TrackMute
@@ -7559,6 +7604,16 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            ui.menu_button(tr("Rolar as faixas"), |ui| {
+                for command in [
+                    Command::ViewScrollTracksUp,
+                    Command::ViewScrollTracksDown,
+                    Command::ViewScrollTracksPageUp,
+                    Command::ViewScrollTracksPageDown,
+                ] {
+                    command_item(state, ui, command);
+                }
+            });
             ui.separator();
             ui.menu_button(tr("Layouts"), |ui| {
                 state.ensure_layouts();
@@ -11247,11 +11302,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // ---- markers and regions: grab in the strip at the bottom of the ruler ----------------------
     let ruler_bottom = rect.top() + RULER_HEIGHT;
     // The rows scroll under the ruler: every row position hangs from `lane_top`
-    let max_scroll_y = timeline_scroll::max_scroll_y(
-        state.timeline.tracks.len(),
-        TRACK_HEIGHT,
-        (rect.bottom() - ruler_bottom).max(1.0),
-    );
+    let body_height = (rect.bottom() - ruler_bottom).max(1.0);
+    state.lanes_body_height = body_height;
+    state.reveal_selected_track(body_height);
+    let max_scroll_y =
+        timeline_scroll::max_scroll_y(state.timeline.tracks.len(), TRACK_HEIGHT, body_height);
     state.scroll_y = state.scroll_y.clamp(0.0, max_scroll_y);
     let lane_top = ruler_bottom - state.scroll_y;
     let in_mark_strip = |p: Pos2| {
@@ -13534,6 +13589,52 @@ mod tests {
             egui::TextureOptions::LINEAR,
             "unknown level"
         );
+    }
+
+    #[test]
+    fn the_selected_track_comes_back_into_view_and_the_keyboard_scrolls_the_rows() {
+        let mut s = AppState::new();
+        for _ in 0..12 {
+            s.add_track(TrackKind::Audio); // each new track is the selected one
+        }
+        // 12 rows of 64 px in a 300 px body: the last one spans 704 to 768
+        s.reveal_selected_track(300.0);
+        assert_eq!(s.scroll_y, 768.0 - 300.0, "the inserted track is shown");
+        // Moving the focus to the first track scrolls back up
+        s.selected_track = Some(s.timeline.tracks[0].id);
+        s.reveal_selected_track(300.0);
+        assert_eq!(s.scroll_y, 0.0);
+        // A track already in view moves nothing
+        s.selected_track = Some(s.timeline.tracks[2].id);
+        s.reveal_selected_track(300.0);
+        assert_eq!(s.scroll_y, 0.0);
+        // The same selection again does not fight a scroll the user made on purpose
+        s.scroll_y = 400.0;
+        s.reveal_selected_track(300.0);
+        assert_eq!(s.scroll_y, 400.0);
+
+        // The keyboard: a row, a page, and the ends of the range (12 * 64 - 300 = 468)
+        s.lanes_body_height = 300.0;
+        s.scroll_y = 0.0;
+        run(&mut s, Command::ViewScrollTracksDown);
+        assert_eq!(s.scroll_y, 64.0);
+        run(&mut s, Command::ViewScrollTracksPageDown);
+        assert_eq!(s.scroll_y, 64.0 + 236.0);
+        run(&mut s, Command::ViewScrollTracksUp);
+        assert_eq!(s.scroll_y, 236.0);
+        for _ in 0..5 {
+            run(&mut s, Command::ViewScrollTracksPageDown);
+        }
+        assert_eq!(s.scroll_y, 468.0, "stops at the last row");
+        for _ in 0..5 {
+            run(&mut s, Command::ViewScrollTracksPageUp);
+        }
+        assert_eq!(s.scroll_y, 0.0, "stops at the first row");
+        // Few tracks: nothing to scroll
+        let mut small = AppState::new();
+        small.add_track(TrackKind::Audio);
+        run(&mut small, Command::ViewScrollTracksDown);
+        assert_eq!(small.scroll_y, 0.0);
     }
 
     #[test]

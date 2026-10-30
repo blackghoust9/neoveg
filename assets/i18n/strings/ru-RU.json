@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "Предупреждения при чтении ({})",
   "Copiar relatório": "Копировать отчёт",
   "Progresso da transição": "Ход перехода",
-  "Criar envelope de progresso": "Создать огибающую хода"
+  "Criar envelope de progresso": "Создать огибающую хода",
+  "Rolar as faixas": "Прокрутка дорожек",
+  "Rolar as faixas para cima": "Прокрутить дорожки вверх",
+  "Rolar as faixas para baixo": "Прокрутить дорожки вниз",
+  "Rolar as faixas uma página para cima": "Прокрутить дорожки на страницу вверх",
+  "Rolar as faixas uma página para baixo": "Прокрутить дорожки на страницу вниз"
 }

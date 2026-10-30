@@ -53,9 +53,76 @@ pub fn max_scroll_y(rows: usize, row_height: f32, body_height: f32) -> f32 {
     (rows as f32 * row_height - body_height).max(0.0)
 }
 
+/// The scroll offset that shows row number `row` completely, moving as little as possible: the
+/// same offset when the row is already in view, and the top of the row when it is taller than the
+/// body.
+pub fn reveal_row(scroll: f32, row: usize, row_height: f32, body_height: f32) -> f32 {
+    let top = row as f32 * row_height;
+    let bottom = top + row_height;
+    if row_height >= body_height || top < scroll {
+        top
+    } else if bottom > scroll + body_height {
+        bottom - body_height
+    } else {
+        scroll
+    }
+}
+
+/// `scroll` moved by `delta` and kept between zero and `max`.
+pub fn scrolled(scroll: f32, delta: f32, max: f32) -> f32 {
+    (scroll + delta).clamp(0.0, max.max(0.0))
+}
+
+/// How far a page of rows scrolls: the body less one row, so the row at the edge stays in view as
+/// a landmark (never less than one row).
+pub fn page_delta(row_height: f32, body_height: f32) -> f32 {
+    (body_height - row_height).max(row_height)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_row_out_of_view_scrolls_in_by_the_least_and_one_in_view_stays_put() {
+        // 64 px rows in a 300 px body
+        assert_eq!(reveal_row(0.0, 2, 64.0, 300.0), 0.0, "inside: no move");
+        assert_eq!(
+            reveal_row(0.0, 4, 64.0, 300.0),
+            20.0,
+            "ends at 320, 20 px below the body"
+        );
+        assert_eq!(
+            reveal_row(0.0, 5, 64.0, 300.0),
+            84.0,
+            "below: its bottom meets the bottom edge"
+        );
+        assert_eq!(
+            reveal_row(500.0, 3, 64.0, 300.0),
+            192.0,
+            "above: its top meets the top edge"
+        );
+        assert_eq!(
+            reveal_row(100.0, 3, 64.0, 300.0),
+            100.0,
+            "192 to 256 is inside 100 to 400"
+        );
+        // A body shorter than a row shows the top of the row
+        assert_eq!(reveal_row(0.0, 3, 64.0, 40.0), 192.0);
+    }
+
+    #[test]
+    fn steps_and_pages_stay_inside_the_scrollable_range() {
+        assert_eq!(scrolled(10.0, -64.0, 200.0), 0.0);
+        assert_eq!(scrolled(190.0, 64.0, 200.0), 200.0);
+        assert_eq!(
+            scrolled(50.0, 64.0, 0.0),
+            0.0,
+            "everything fits: nowhere to go"
+        );
+        assert_eq!(page_delta(64.0, 300.0), 236.0);
+        assert_eq!(page_delta(64.0, 30.0), 64.0, "never less than a row");
+    }
 
     #[test]
     fn the_bar_spans_the_project_with_room_and_never_less_than_the_view() {

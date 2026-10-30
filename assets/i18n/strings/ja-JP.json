@@ -784,5 +784,10 @@
   "Avisos da leitura ({})": "読み込み時の警告（{}）",
   "Copiar relatório": "レポートをコピー",
   "Progresso da transição": "トランジションの進行",
-  "Criar envelope de progresso": "進行エンベロープを作成"
+  "Criar envelope de progresso": "進行エンベロープを作成",
+  "Rolar as faixas": "トラックをスクロール",
+  "Rolar as faixas para cima": "トラックを上へスクロール",
+  "Rolar as faixas para baixo": "トラックを下へスクロール",
+  "Rolar as faixas uma página para cima": "トラックを1ページ上へスクロール",
+  "Rolar as faixas uma página para baixo": "トラックを1ページ下へスクロール"
 }
