@@ -280,6 +280,8 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 
 ### A fazer (em ordem de prioridade)
 
+> O que dá e o que não dá para fazer no PC de desenvolvimento atual (Intel Core i5-7500T, 7,9 GB de RAM, gráfico integrado Intel HD 630, SSD de 224 GB com 38 GB livres, Windows 10), com o motivo de cada caso: `docs_obsidian/04 - Pesquisas e Benchmarks/pendencias_por_maquina.md`.
+
 - [x] Importar imagens estáticas, sequências numeradas (`.neovegseq`) e geradores (`.neoveggen`) como mídia de vídeo (Arquivo > Importar mídia)
 - [x] Cache LRU de quadros decodificados e pré-busca de 1 a 2 quadros durante a reprodução, no worker de vídeo
 - [x] Composição de várias faixas de vídeo na prévia: a primeira faixa fica por cima, e a sobreposição de dois eventos da mesma faixa faz crossfade (o evento seguinte entra com fade); o mesmo pedido de quadro alimenta a exportação
