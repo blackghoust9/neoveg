@@ -28,15 +28,18 @@ use crate::timeline::{Timeline, TIME_EPSILON};
 pub enum Format {
     Srt,
     WebVtt,
+    /// Scenarist Closed Caption (CEA-608), see [`crate::caption_scc`].
+    Scc,
 }
 
 impl Format {
-    pub const ALL: [Format; 2] = [Format::Srt, Format::WebVtt];
+    pub const ALL: [Format; 3] = [Format::Srt, Format::WebVtt, Format::Scc];
 
     pub fn extension(self) -> &'static str {
         match self {
             Format::Srt => "srt",
             Format::WebVtt => "vtt",
+            Format::Scc => "scc",
         }
     }
 
@@ -44,6 +47,7 @@ impl Format {
         match self {
             Format::Srt => "SubRip (SRT)",
             Format::WebVtt => "WebVTT",
+            Format::Scc => "Scenarist Closed Caption (SCC)",
         }
     }
 
@@ -51,6 +55,7 @@ impl Format {
         match ext.trim_start_matches('.').to_ascii_lowercase().as_str() {
             "srt" | "subrip" => Some(Format::Srt),
             "vtt" | "webvtt" => Some(Format::WebVtt),
+            "scc" => Some(Format::Scc),
             _ => None,
         }
     }
@@ -181,6 +186,9 @@ pub fn detect(text: &str, extension: Option<&str>) -> Option<Format> {
     let head = text.trim_start_matches('\u{feff}').trim_start();
     if head.starts_with("WEBVTT") {
         return Some(Format::WebVtt);
+    }
+    if head.starts_with("Scenarist_SCC") {
+        return Some(Format::Scc);
     }
     let timing = head
         .lines()
@@ -493,10 +501,11 @@ pub fn parse_bytes(
     let text = decode_text(bytes);
     let format = format
         .or_else(|| detect(&text, extension))
-        .ok_or(Error::NotFormat("SRT ou WebVTT"))?;
+        .ok_or(Error::NotFormat("SRT, WebVTT ou SCC"))?;
     let doc = match format {
         Format::Srt => parse_srt(&text)?,
         Format::WebVtt => parse_vtt(&text)?,
+        Format::Scc => crate::caption_scc::parse_scc(&text)?,
     };
     Ok((format, doc))
 }
@@ -505,6 +514,7 @@ pub fn write(doc: &Document, format: Format) -> String {
     match format {
         Format::Srt => write_srt(doc),
         Format::WebVtt => write_vtt(doc),
+        Format::Scc => crate::caption_scc::write_scc(doc),
     }
 }
 

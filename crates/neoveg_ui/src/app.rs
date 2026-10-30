@@ -1235,7 +1235,7 @@ impl AppState {
     /// File > Import subtitles: adds the cues of an SRT or WebVTT file as one undo step.
     fn import_captions(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Legendas (SRT, WebVTT)", &["srt", "vtt"])
+            .add_filter("Legendas (SRT, WebVTT, SCC)", &["srt", "vtt", "scc"])
             .pick_file()
         else {
             return;
@@ -1281,7 +1281,7 @@ impl AppState {
         }
     }
 
-    /// File > Export subtitles: writes the captions as SRT or WebVTT, by the file's extension.
+    /// File > Export subtitles: writes the captions as SRT, WebVTT or SCC, by the file's extension.
     fn export_captions(&mut self) {
         if self.timeline.captions.is_empty() {
             self.status = "Não há legendas para exportar".into();
@@ -1290,6 +1290,7 @@ impl AppState {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("SubRip (SRT)", &["srt"])
             .add_filter("WebVTT", &["vtt"])
+            .add_filter("Scenarist Closed Caption (SCC)", &["scc"])
             .set_file_name(format!("{}.srt", self.project.name))
             .save_file()
         else {

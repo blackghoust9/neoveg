@@ -590,7 +590,7 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [ ] Trimmer, Track Motion, Surround Panner, Mixing Console e roda do mouse: tabelas da entrada 17 (conferir a roda e o Mixing Console no aplicativo)
 
 **Fase 14 — Funcionalidades que o Neoveg ainda não tem (inventário a partir dos manuais e do `results.md`)**
-- [ ] Legendas e closed caption: importar/exportar SRT, SCC, MCC, SMI, RT; comandos 608CC1–CC4 com `[BR]`; sincronizar legendas com `Ctrl+K`; sobreposição CC1–CC4 na prévia; legendas a partir de regiões ou de `.txt`/`.csv`
+- [ ] Legendas e closed caption: **SRT, WebVTT e SCC já importam e exportam** (Arquivo > Importar/Exportar legendas; o SCC é CEA-608 em `neoveg_engine::caption_scc`: lê pop-on, roll-up e paint-on com acentos, escreve pop-on no canal 1 a 29,97 quadros com drop-frame, em até 4 linhas de 32 caracteres; os testes foram escritos mas ainda não rodaram); faltam MCC, SMI e RT, os canais CC2–CC4 e o `[BR]`, sincronizar legendas com `Ctrl+K`, sobreposição CC1–CC4 na prévia e legendas a partir de regiões ou de `.txt`/`.csv`
 - [ ] Gerenciamento de cor: formato de pixel float de 32 bits, espaço de cor por mídia, transformações de visualização (ACES/OCIO), LUTs `.cube`, painel de gradação de cor, scopes
 - [ ] Áudio avançado: surround 5.1 com painel Surround Panner, leis de pan, buses/sends/inserts, FX atribuíveis, compensação de atraso de plug-ins, VST3, gravação com monitoração, normalização, esticar sem mudar o tom, formantes
 - [ ] 3D estereoscópico (modos lado a lado, anaglífico, linha alternada), plug-in de ajuste 3D e pareamento de subclipes

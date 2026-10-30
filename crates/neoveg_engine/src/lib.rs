@@ -5,6 +5,7 @@ pub mod adjustment;
 pub mod attributes;
 pub mod autosave;
 pub mod buses;
+pub mod caption_scc;
 pub mod captions;
 pub mod command;
 pub mod crossfade;
