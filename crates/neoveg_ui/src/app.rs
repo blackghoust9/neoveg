@@ -36,7 +36,7 @@ use neoveg_common::commands::{Category, Command};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::i18n::tr;
-use neoveg_common::keymap::{KeyMap, Shortcut};
+use neoveg_common::keymap::{format_sequence, KeyMap, Shortcut};
 use neoveg_common::paths::autosave_dir;
 use neoveg_common::preferences::Preferences;
 use neoveg_common::project::{MediaRef, ProjectInfo, ProjectSettings};
@@ -605,6 +605,12 @@ struct AppState {
     /// Command waiting for the next key press in the "Personalizar teclado" window.
     capture_for: Option<Command>,
     keymap_message: String,
+    /// Recording a sequence of shortcuts: the steps so far, when it ends, and whether it is on.
+    capture_steps: Vec<Shortcut>,
+    capture_deadline: f64,
+    capture_sequence: bool,
+    /// A sequence that has begun: its steps so far and the time it gives up.
+    seq_pending: Option<(Vec<Shortcut>, f64)>,
     /// Name typed for saving the keyboard map under, and the saved maps (`None`: read the folder).
     keymap_set_name: String,
     keymap_sets: Option<Vec<String>>,
@@ -1612,6 +1618,10 @@ impl AppState {
             keymap_filter: String::new(),
             capture_for: None,
             keymap_message: String::new(),
+            capture_steps: Vec::new(),
+            capture_deadline: 0.0,
+            capture_sequence: false,
+            seq_pending: None,
             keymap_set_name: String::new(),
             keymap_sets: None,
             show_inspector: false,
@@ -5886,6 +5896,51 @@ impl AppState {
             self.status = "Aparo por teclado encerrado".into();
             return;
         }
+        // Sequences of shortcuts (`Ctrl+K Ctrl+S`): the first step waits for the next one
+        if self.keymap.continues(&[]) {
+            if let Some((steps, until)) = self.seq_pending.take() {
+                if now <= until {
+                    let hit = ctx.input_mut(|i| {
+                        self.keymap
+                            .next_steps(&steps)
+                            .into_iter()
+                            .find(|step| to_egui(step).is_some_and(|(m, k)| i.consume_key(m, k)))
+                    });
+                    if let Some(step) = hit {
+                        let mut done = steps;
+                        done.push(step);
+                        if let Some(command) = self.keymap.command_for_sequence(&done) {
+                            self.run_command(command, ctx, now);
+                        } else if self.keymap.continues(&done) {
+                            self.status = format!("{} …", format_sequence(&done));
+                            self.seq_pending = Some((done, now + 1.5));
+                        }
+                        return;
+                    }
+                    let other_key = ctx.input(|i| {
+                        i.events
+                            .iter()
+                            .any(|e| matches!(e, egui::Event::Key { pressed: true, .. }))
+                    });
+                    if !other_key {
+                        self.seq_pending = Some((steps, until));
+                        return;
+                    }
+                    // Any other key drops the sequence and works as it always does
+                }
+            }
+            let start = ctx.input_mut(|i| {
+                self.keymap
+                    .next_steps(&[])
+                    .into_iter()
+                    .find(|step| to_egui(step).is_some_and(|(m, k)| i.consume_key(m, k)))
+            });
+            if let Some(step) = start {
+                self.status = format!("{step} …");
+                self.seq_pending = Some((vec![step], now + 1.5));
+                return;
+            }
+        }
         // Bindings with more modifiers are consumed first so Ctrl+Shift+Q is not read as Ctrl+Q
         let pressed: Vec<Command> = ctx.input_mut(|i| {
             self.keymap
@@ -6007,7 +6062,7 @@ impl AppState {
             Command::TransportStop => {
                 if self.playing {
                     self.stop();
-                    self.status = "Reprodução parada".into();
+                    self.status = tr("Reprodução parada").into();
                 }
             }
             Command::TransportPlayFromStart => {
@@ -6160,7 +6215,10 @@ impl AppState {
     fn with_hint(&self, text: &str, command: Command) -> String {
         match self.keymap.shortcuts_for(command).first() {
             Some(shortcut) => format!("{text}  {shortcut}"),
-            None => text.to_string(),
+            None => match self.keymap.sequences_for(command).first() {
+                Some(steps) => format!("{text}  {}", format_sequence(steps)),
+                None => text.to_string(),
+            },
         }
     }
 
@@ -7130,7 +7188,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::EditSelectNone);
             ui.separator();
             let mut auto = state.project.settings.auto_crossfade;
-            if ui.checkbox(&mut auto, tr("Crossfade automático")).changed() {
+            let crossfade_label =
+                state.with_hint(tr("Crossfade automático"), Command::OptionsAutoCrossfade);
+            if ui.checkbox(&mut auto, crossfade_label).changed() {
                 state.project.settings.auto_crossfade = auto;
                 state.forced_dirty = true;
             }
@@ -7511,7 +7571,7 @@ fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             for &(icon, command) in *group {
                 let enabled = state.command_enabled(command);
-                let tooltip = state.with_hint(command.label(), command);
+                let tooltip = state.with_hint(tr(command.label()), command);
                 let clicked = ui
                     .add_enabled_ui(enabled, |ui| icons::svg_button(ui, icon, &tooltip, false))
                     .inner
@@ -8680,6 +8740,47 @@ enum KeymapSetAction {
     Import,
 }
 
+/// The next step of a key sequence being recorded in the "Personalizar teclado" window: each key
+/// press adds a step, and 1.5 s without one ends the recording (two or more steps are a sequence).
+fn capture_sequence_step(state: &mut AppState, pressed: Option<(Key, egui::Modifiers)>, now: f64) {
+    let Some(target) = state.capture_for else {
+        return;
+    };
+    if let Some((key, modifiers)) = pressed {
+        if key == Key::Escape && !modifiers.any() {
+            state.capture_steps.clear();
+            state.capture_for = None;
+            state.capture_sequence = false;
+            state.keymap_message = "Atribuição cancelada".into();
+            return;
+        }
+        if let Some(shortcut) = from_egui(key, modifiers) {
+            state.capture_steps.push(shortcut);
+            state.capture_deadline = now + 1.5;
+        }
+    }
+    if state.capture_steps.is_empty() || now <= state.capture_deadline {
+        return;
+    }
+    let steps = std::mem::take(&mut state.capture_steps);
+    let text = format_sequence(&steps);
+    state.keymap_message = if steps.len() < 2 {
+        state.keymap.bind(target, steps[0].clone());
+        tr_args("{} atribuído a «{}»", &[&text, &tr(target.label())])
+    } else {
+        match state.keymap.bind_sequence(target, steps) {
+            Some(other) => tr_args(
+                "{} saiu de «{}» e foi para «{}»",
+                &[&text, &tr(other.label()), &tr(target.label())],
+            ),
+            None => tr_args("{} atribuído a «{}»", &[&text, &tr(target.label())]),
+        }
+    };
+    state.persist_keymap();
+    state.capture_for = None;
+    state.capture_sequence = false;
+}
+
 /// "Personalizar teclado": lists every command, lets the user capture a new shortcut for it,
 /// remove shortcuts and restore the defaults. Changes are saved immediately.
 fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
@@ -8689,6 +8790,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
     }
     // While a command waits for a key, the next key press becomes its shortcut
     if let Some(target) = state.capture_for {
+        let now = ctx.input(|i| i.time);
         let pressed = ctx.input(|i| {
             i.events.iter().find_map(|event| match event {
                 egui::Event::Key {
@@ -8701,16 +8803,18 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                 _ => None,
             })
         });
-        if let Some((key, modifiers)) = pressed {
+        if state.capture_sequence {
+            capture_sequence_step(state, pressed, now);
+        } else if let Some((key, modifiers)) = pressed {
             if key == Key::Escape && !modifiers.any() {
                 state.keymap_message = "Atribuição cancelada".into();
             } else if let Some(shortcut) = from_egui(key, modifiers) {
                 state.keymap_message = match state.keymap.bind(target, shortcut.clone()) {
                     Some(other) => tr_args(
                         "{} saiu de «{}» e foi para «{}»",
-                        &[&shortcut, &other.label(), &target.label()],
+                        &[&shortcut, &tr(other.label()), &tr(target.label())],
                     ),
-                    None => tr_args("{} atribuído a «{}»", &[&shortcut, &target.label()]),
+                    None => tr_args("{} atribuído a «{}»", &[&shortcut, &tr(target.label())]),
                 };
                 state.persist_keymap();
             } else {
@@ -8794,10 +8898,18 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
             if let Some(target) = state.capture_for {
                 ui.colored_label(
                     Color32::from_rgb(0xF1, 0xC4, 0x0F),
-                    tr_args(
-                        "Pressione a combinação para «{}» (Esc cancela)",
-                        &[&target.label()],
-                    ),
+                    if state.capture_sequence {
+                        let so_far = format_sequence(&state.capture_steps);
+                        tr_args(
+                            "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela",
+                            &[&tr(target.label()), &so_far],
+                        )
+                    } else {
+                        tr_args(
+                            "Pressione a combinação para «{}» (Esc cancela)",
+                            &[&tr(target.label())],
+                        )
+                    },
                 );
             } else if !state.keymap_message.is_empty() {
                 ui.label(state.keymap_message.clone());
@@ -8806,6 +8918,7 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
             let filter = state.keymap_filter.to_lowercase();
             let overridden = state.keymap.to_overrides();
             let mut remove: Option<Shortcut> = None;
+            let mut remove_sequence: Option<Vec<Shortcut>> = None;
             let mut reset: Option<Command> = None;
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for category in Category::ALL {
@@ -8816,19 +8929,20 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                         .filter(|c| {
                             filter.is_empty()
                                 || c.label().to_lowercase().contains(&filter)
+                                || tr(c.label()).to_lowercase().contains(&filter)
                                 || c.id().contains(&filter)
                         })
                         .collect();
                     if commands.is_empty() {
                         continue;
                     }
-                    ui.heading(category.label());
+                    ui.heading(tr(category.label()));
                     for command in commands {
                         ui.horizontal_wrapped(|ui| {
                             let label = if command.implemented() {
-                                command.label().to_string()
+                                tr(command.label()).to_string()
                             } else {
-                                tr_args("{} (em breve)", &[&command.label()])
+                                tr_args("{} (em breve)", &[&tr(command.label())])
                             };
                             ui.add_sized([230.0, 20.0], egui::Label::new(label).truncate());
                             for shortcut in state.keymap.shortcuts_for(command) {
@@ -8840,12 +8954,32 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
                                     remove = Some(shortcut);
                                 }
                             }
+                            for steps in state.keymap.sequences_for(command) {
+                                if ui
+                                    .small_button(format!("{} ×", format_sequence(&steps)))
+                                    .on_hover_text(tr("Remover esta sequência"))
+                                    .clicked()
+                                {
+                                    remove_sequence = Some(steps);
+                                }
+                            }
                             if ui
                                 .small_button("+")
                                 .on_hover_text(tr("Atribuir atalho"))
                                 .clicked()
                             {
                                 state.capture_for = Some(command);
+                                state.capture_sequence = false;
+                                state.keymap_message.clear();
+                            }
+                            if ui
+                                .small_button("⋯")
+                                .on_hover_text(tr("Atribuir uma sequência de teclas"))
+                                .clicked()
+                            {
+                                state.capture_for = Some(command);
+                                state.capture_sequence = true;
+                                state.capture_steps.clear();
                                 state.keymap_message.clear();
                             }
                             if overridden.contains_key(command.id())
@@ -8866,6 +9000,10 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
             });
             if let Some(shortcut) = remove {
                 state.keymap.unbind(&shortcut);
+                state.persist_keymap();
+            }
+            if let Some(steps) = remove_sequence {
+                state.keymap.unbind_sequence(&steps);
                 state.persist_keymap();
             }
             if let Some(command) = reset {
@@ -9996,7 +10134,9 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
         }
         if ui
             .button(tr("+ Barramento"))
-            .on_hover_text(tr("Inserir barramento de áudio (Ctrl+Alt+B)"))
+            .on_hover_text(
+                state.with_hint(tr("Inserir barramento de áudio"), Command::InsertAudioBus),
+            )
             .clicked()
         {
             state.add_audio_bus();
@@ -10682,7 +10822,11 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         let icon = |ui: &mut egui::Ui, which: Icon, tip: &str| {
             icons::icon_button(ui, which, tip, false).clicked()
         };
-        if icon(ui, Icon::GoToStart, "Ir para o início") {
+        let tip = state.with_hint(
+            tr(Command::CursorProjectStart.label()),
+            Command::CursorProjectStart,
+        );
+        if icon(ui, Icon::GoToStart, &tip) {
             state.playhead = 0.0;
             state.blink_origin = now;
         }
@@ -10691,42 +10835,51 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         } else {
             Icon::Play
         };
-        if icon(ui, play_icon, "Reproduzir / Pausar (Espaço)") {
+        let tip = state.with_hint(
+            tr(Command::TransportPlayToggle.label()),
+            Command::TransportPlayToggle,
+        );
+        if icon(ui, play_icon, &tip) {
             state.toggle_play(now);
         }
-        if icon(ui, Icon::Stop, "Parar") {
+        let tip = state.with_hint(tr(Command::TransportStop.label()), Command::TransportStop);
+        if icon(ui, Icon::Stop, &tip) {
             state.stop();
         }
-        if icons::icon_button(
-            ui,
-            Icon::Record,
-            "Gravar do dispositivo de entrada (Ctrl+R)",
-            state.recorder.is_some(),
-        )
-        .clicked()
-        {
+        let tip = state.with_hint(
+            tr("Gravar do dispositivo de entrada"),
+            Command::TransportRecord,
+        );
+        if icons::icon_button(ui, Icon::Record, &tip, state.recorder.is_some()).clicked() {
             let ctx = ui.ctx().clone();
             state.toggle_recording(&ctx);
         }
         ui.separator();
-        if icon(ui, Icon::Split, "Dividir no cursor (S)") {
+        let tip = state.with_hint(tr(Command::EditSplit.label()), Command::EditSplit);
+        if icon(ui, Icon::Split, &tip) {
             state.split_at_playhead();
         }
-        if icon(ui, Icon::Undo, "Desfazer (Ctrl+Z)") {
+        let tip = state.with_hint(tr(Command::EditUndo.label()), Command::EditUndo);
+        if icon(ui, Icon::Undo, &tip) {
             state.undo();
         }
-        if icon(ui, Icon::Redo, "Refazer (Ctrl+Y)") {
+        let tip = state.with_hint(tr(Command::EditRedo.label()), Command::EditRedo);
+        if icon(ui, Icon::Redo, &tip) {
             state.redo();
         }
         ui.separator();
-        if icon(ui, Icon::AddAudioTrack, "Inserir faixa de áudio (Ctrl+Q)") {
+        let tip = state.with_hint(
+            tr(Command::InsertAudioTrack.label()),
+            Command::InsertAudioTrack,
+        );
+        if icon(ui, Icon::AddAudioTrack, &tip) {
             state.add_track(TrackKind::Audio);
         }
-        if icon(
-            ui,
-            Icon::AddVideoTrack,
-            "Inserir faixa de vídeo (Ctrl+Shift+Q)",
-        ) {
+        let tip = state.with_hint(
+            tr(Command::InsertVideoTrack.label()),
+            Command::InsertVideoTrack,
+        );
+        if icon(ui, Icon::AddVideoTrack, &tip) {
             state.add_track(TrackKind::Video);
         }
         if icons::icon_button(

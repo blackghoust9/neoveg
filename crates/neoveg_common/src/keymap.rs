@@ -124,6 +124,29 @@ impl fmt::Display for Shortcut {
     }
 }
 
+/// Parses `Ctrl+K Ctrl+S`: two or more shortcuts separated by spaces.
+pub fn parse_sequence(text: &str) -> Result<Vec<Shortcut>, ParseShortcutError> {
+    let steps = text
+        .split_whitespace()
+        .map(str::parse)
+        .collect::<Result<Vec<Shortcut>, _>>()?;
+    if steps.len() < 2 {
+        return Err(ParseShortcutError(
+            "uma sequência precisa de pelo menos dois passos".into(),
+        ));
+    }
+    Ok(steps)
+}
+
+/// The text of a sequence: its steps separated by spaces.
+pub fn format_sequence(steps: &[Shortcut]) -> String {
+    steps
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Why a shortcut string was rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseShortcutError(pub String);
@@ -316,6 +339,8 @@ pub fn default_shortcuts(command: Command) -> Vec<Shortcut> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyMap {
     by_shortcut: BTreeMap<Shortcut, Command>,
+    /// Sequences of two or more shortcuts pressed one after the other (`Ctrl+K Ctrl+S`).
+    sequences: BTreeMap<Vec<Shortcut>, Command>,
 }
 
 impl Default for KeyMap {
@@ -334,7 +359,10 @@ impl KeyMap {
                 by_shortcut.insert(shortcut, *command);
             }
         }
-        Self { by_shortcut }
+        Self {
+            by_shortcut,
+            sequences: BTreeMap::new(),
+        }
     }
 
     /// Applies the user's overrides on top of the defaults.
@@ -352,6 +380,22 @@ impl KeyMap {
             };
             map.clear_command(command);
             for text in list {
+                // Several steps in one text (`Ctrl+K Ctrl+S`) are a sequence
+                if text.split_whitespace().count() > 1 {
+                    match parse_sequence(text) {
+                        Ok(steps) => {
+                            if let Some(displaced) = map.bind_sequence(command, steps) {
+                                warnings.push(format!(
+                                    "{text} saiu de «{}» e foi para «{}»",
+                                    displaced.label(),
+                                    command.label()
+                                ));
+                            }
+                        }
+                        Err(e) => warnings.push(format!("{id}: {e}")),
+                    }
+                    continue;
+                }
                 match text.parse::<Shortcut>() {
                     Ok(shortcut) => {
                         if let Some(displaced) = map.bind(command, shortcut.clone()) {
@@ -396,9 +440,61 @@ impl KeyMap {
         self.by_shortcut.remove(shortcut);
     }
 
-    /// Removes every shortcut of `command`.
+    /// Removes every shortcut and sequence of `command`.
     pub fn clear_command(&mut self, command: Command) {
         self.by_shortcut.retain(|_, c| *c != command);
+        self.sequences.retain(|_, c| *c != command);
+    }
+
+    /// Binds a sequence of two or more shortcuts to `command` (a shorter one is ignored). When
+    /// another command owned the sequence, it is returned.
+    pub fn bind_sequence(&mut self, command: Command, steps: Vec<Shortcut>) -> Option<Command> {
+        if steps.len() < 2 {
+            return None;
+        }
+        match self.sequences.insert(steps, command) {
+            Some(previous) if previous != command => Some(previous),
+            _ => None,
+        }
+    }
+
+    pub fn unbind_sequence(&mut self, steps: &[Shortcut]) {
+        self.sequences.remove(steps);
+    }
+
+    /// Every sequence of `command`, in a stable order.
+    pub fn sequences_for(&self, command: Command) -> Vec<Vec<Shortcut>> {
+        self.sequences
+            .iter()
+            .filter(|(_, c)| **c == command)
+            .map(|(steps, _)| steps.clone())
+            .collect()
+    }
+
+    /// The command a finished sequence runs.
+    pub fn command_for_sequence(&self, steps: &[Shortcut]) -> Option<Command> {
+        self.sequences.get(steps).copied()
+    }
+
+    /// `true` when some sequence goes on after `steps`.
+    pub fn continues(&self, steps: &[Shortcut]) -> bool {
+        self.sequences
+            .keys()
+            .any(|seq| seq.len() > steps.len() && seq.starts_with(steps))
+    }
+
+    /// The shortcuts that can come after `steps` (the first ones when `steps` is empty), without
+    /// repeats.
+    pub fn next_steps(&self, steps: &[Shortcut]) -> Vec<Shortcut> {
+        let mut next: Vec<Shortcut> = self
+            .sequences
+            .keys()
+            .filter(|seq| seq.len() > steps.len() && seq.starts_with(steps))
+            .map(|seq| seq[steps.len()].clone())
+            .collect();
+        next.sort_by_key(|s| std::cmp::Reverse(s.modifier_count()));
+        next.dedup();
+        next
     }
 
     /// Restores the default shortcuts of `command` (taking them from other commands if needed).
@@ -424,6 +520,11 @@ impl KeyMap {
                 .shortcuts_for(command)
                 .iter()
                 .map(ToString::to_string)
+                .chain(
+                    self.sequences_for(command)
+                        .iter()
+                        .map(|steps| format_sequence(steps)),
+                )
                 .collect();
             let mut default: Vec<String> = default_shortcuts(command)
                 .iter()
@@ -442,6 +543,85 @@ impl KeyMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn seq(text: &str) -> Vec<Shortcut> {
+        parse_sequence(text).unwrap()
+    }
+
+    #[test]
+    fn a_sequence_is_parsed_formatted_bound_and_followed_step_by_step() {
+        assert_eq!(format_sequence(&seq("Ctrl+K Ctrl+S")), "Ctrl+K Ctrl+S");
+        assert!(
+            parse_sequence("Ctrl+K").is_err(),
+            "one step is a plain shortcut"
+        );
+        assert!(parse_sequence("Ctrl+K Nada+Nada").is_err());
+        let mut map = KeyMap::defaults();
+        assert!(!map.continues(&[]), "no sequence by default");
+        assert_eq!(map.bind_sequence(Command::EditSplit, seq("Ctrl+K S")), None);
+        assert_eq!(
+            map.bind_sequence(Command::EditSplit, seq("Ctrl+K Ctrl+S")),
+            None
+        );
+        // A shorter text than two steps is ignored
+        assert_eq!(
+            map.bind_sequence(Command::EditSplit, seq("Ctrl+K S")[..1].to_vec()),
+            None
+        );
+        let first: Shortcut = "Ctrl+K".parse().unwrap();
+        assert!(map.continues(&[]));
+        assert!(map.continues(std::slice::from_ref(&first)));
+        assert_eq!(map.next_steps(&[]), vec![first.clone()], "no repeats");
+        assert_eq!(map.next_steps(std::slice::from_ref(&first)).len(), 2);
+        assert_eq!(
+            map.command_for_sequence(&seq("Ctrl+K S")),
+            Some(Command::EditSplit)
+        );
+        assert_eq!(map.command_for_sequence(std::slice::from_ref(&first)), None);
+        assert!(
+            !map.continues(&seq("Ctrl+K S")),
+            "a finished sequence goes no further"
+        );
+        // Another command takes it over
+        assert_eq!(
+            map.bind_sequence(Command::EditCut, seq("Ctrl+K S")),
+            Some(Command::EditSplit)
+        );
+        map.unbind_sequence(&seq("Ctrl+K S"));
+        assert_eq!(
+            map.sequences_for(Command::EditCut),
+            Vec::<Vec<Shortcut>>::new()
+        );
+    }
+
+    #[test]
+    fn sequences_survive_the_overrides_and_reset_with_the_command() {
+        let mut map = KeyMap::defaults();
+        map.bind_sequence(Command::EditSplit, seq("Ctrl+K S"));
+        let overrides = map.to_overrides();
+        let listed = &overrides["edit.split"];
+        assert!(listed.contains(&"Ctrl+K S".to_string()), "{listed:?}");
+        assert!(
+            listed.contains(&"S".to_string()),
+            "the single shortcut stays"
+        );
+        let (back, warnings) = KeyMap::from_overrides(&overrides);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(back, map);
+        // Restoring the command's defaults drops the sequence
+        let mut reset = back;
+        reset.reset_command(Command::EditSplit);
+        assert!(reset.sequences_for(Command::EditSplit).is_empty());
+        assert!(reset.to_overrides().is_empty());
+        // A bad step is reported and the rest is kept
+        let bad = BTreeMap::from([(
+            "edit.split".to_string(),
+            vec!["Ctrl+K Nada+Nada".to_string(), "S".to_string()],
+        )]);
+        let (map, warnings) = KeyMap::from_overrides(&bad);
+        assert_eq!(warnings.len(), 1);
+        assert!(map.sequences_for(Command::EditSplit).is_empty());
+    }
     use std::collections::HashSet;
 
     fn sc(text: &str) -> Shortcut {
