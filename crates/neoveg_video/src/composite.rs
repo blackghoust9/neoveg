@@ -620,7 +620,7 @@ impl GpuCompositor {
                 label: Some("neoveg_headless_compositor"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::downlevel_defaults(),
-                memory_hints: wgpu::MemoryHints::Performance,
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
             },
             None,
         ))

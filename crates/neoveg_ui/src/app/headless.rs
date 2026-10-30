@@ -296,7 +296,7 @@ impl Offscreen {
                 label: Some("neoveg-screenshots"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::downlevel_defaults(),
-                memory_hints: wgpu::MemoryHints::default(),
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
             },
             None,
         ))

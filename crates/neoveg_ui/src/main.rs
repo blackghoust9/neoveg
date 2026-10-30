@@ -106,6 +106,28 @@ fn main() -> eframe::Result<()> {
             .with_maximized(true)
             .with_min_inner_size([800.0, 500.0]),
         renderer: eframe::Renderer::Wgpu,
+        // The graphics memory is asked for in small blocks instead of the large ones the default
+        // keeps for speed, which matters on machines that share it with the system
+        wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
+            device_descriptor: std::sync::Arc::new(|adapter| {
+                use eframe::wgpu;
+                let base = if adapter.get_info().backend == wgpu::Backend::Gl {
+                    wgpu::Limits::downlevel_webgl2_defaults()
+                } else {
+                    wgpu::Limits::default()
+                };
+                wgpu::DeviceDescriptor {
+                    label: Some("neoveg wgpu device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits {
+                        max_texture_dimension_2d: 8192,
+                        ..base
+                    },
+                    memory_hints: wgpu::MemoryHints::MemoryUsage,
+                }
+            }),
+            ..Default::default()
+        },
         ..Default::default()
     };
 

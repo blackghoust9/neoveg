@@ -41,6 +41,11 @@ opt-level = 3
 lto = true
 codegen-units = 1
 
+# No debug information in dev and test builds: the symbols of wgpu, egui and the rest are what
+# makes linking the interface's test binary need gigabytes (a small machine ran out of memory)
+[profile.dev]
+debug = 0
+
 # Numeric audio code (loudness meter, mixer) is tested on seconds of signal: keep it optimised even
 # in debug builds so `cargo test` stays fast
 [profile.dev.package.neoveg_audio]

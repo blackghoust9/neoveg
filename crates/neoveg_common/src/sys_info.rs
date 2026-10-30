@@ -70,6 +70,18 @@ pub fn scale_cache_budget(full: usize, total: Option<u64>) -> usize {
     }
 }
 
+/// How many video decoders may stay open at once: 6 from 16 GiB up, 4 from 8 GiB, 2 below (and 4
+/// when the memory is unknown). Each one holds its own frame pool, which is large for 4K.
+pub fn max_open_decoders(total: Option<u64>) -> usize {
+    const GIB: u64 = 1 << 30;
+    match total {
+        Some(t) if t >= 16 * GIB => 6,
+        Some(t) if t >= 8 * GIB => 4,
+        Some(_) => 2,
+        None => 4,
+    }
+}
+
 fn non_empty(text: String, fallback: &str) -> String {
     if text.trim().is_empty() {
         fallback.to_owned()
@@ -143,6 +155,14 @@ mod tests {
         assert_eq!(scale_cache_budget(full, Some(8 * GIB)), full / 2);
         assert_eq!(scale_cache_budget(full, Some(4 * GIB)), full / 4);
         assert_eq!(scale_cache_budget(full, None), full / 2);
+    }
+
+    #[test]
+    fn small_machines_keep_fewer_decoders_open() {
+        assert_eq!(max_open_decoders(Some(32 * GIB)), 6);
+        assert_eq!(max_open_decoders(Some(8 * GIB)), 4);
+        assert_eq!(max_open_decoders(Some(4 * GIB)), 2);
+        assert_eq!(max_open_decoders(None), 4);
     }
 
     #[test]

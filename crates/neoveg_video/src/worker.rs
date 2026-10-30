@@ -295,6 +295,9 @@ struct WorkerState {
     vfx_gpu: Option<VfxGpu>,
     #[cfg(feature = "ffmpeg")]
     decoders: std::collections::HashMap<PathBuf, crate::decode::VideoDecoder>,
+    /// Decoders kept open at once, by the memory of the machine.
+    #[cfg(feature = "ffmpeg")]
+    max_open_decoders: usize,
 }
 
 impl WorkerState {
@@ -310,6 +313,8 @@ impl WorkerState {
             vfx_gpu: None,
             #[cfg(feature = "ffmpeg")]
             decoders: std::collections::HashMap::new(),
+            #[cfg(feature = "ffmpeg")]
+            max_open_decoders: neoveg_common::sys_info::max_open_decoders(total),
         }
     }
 
@@ -469,9 +474,8 @@ impl WorkerState {
         #[cfg(feature = "ffmpeg")]
         {
             use crate::decode::VideoDecoder;
-            const MAX_OPEN_DECODERS: usize = 6;
             if !self.decoders.contains_key(path) {
-                if self.decoders.len() >= MAX_OPEN_DECODERS {
+                if self.decoders.len() >= self.max_open_decoders {
                     self.decoders.clear();
                 }
                 self.decoders
