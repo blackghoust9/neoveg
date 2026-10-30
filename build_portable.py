@@ -432,10 +432,14 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
             {"label": PILLAR_LABELS[str(step["pillar"])], "status": "pass", "passed": 0, "total": 0},
         )
         entry["total"] += 1
-        if step["status"] == "pass":
+        # A step the run never reached (after a failure) has no status: it is "skipped", not a crash
+        status = step.get("status", "skipped")
+        if status == "pass":
             entry["passed"] += 1
-        else:
+        elif status == "fail":
             entry["status"] = "fail"
+        elif entry["status"] == "pass":
+            entry["status"] = "skipped"
     report = {  # type: ignore  # the report mixes str, int and list values; it is only written with json.dumps
         "generated_at": dt.datetime.now().astimezone().isoformat(),
         "platform": platform.system().lower(),
@@ -467,6 +471,8 @@ def cmd_qa(args: argparse.Namespace) -> int:
         if code != 0:
             failed = True
             break  # later steps would only repeat the failure
+    for step in steps:
+        step.setdefault("status", "skipped")  # not reached because an earlier step failed
     write_qa_report(steps, "fail" if failed else "pass")
     print(f"QA report: {QA_JSON.relative_to(ROOT)}")
     return 1 if failed else 0

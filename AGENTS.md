@@ -172,6 +172,8 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | :--- | :--- | :--- |
 | `Ctrl+Q` / `Ctrl+Shift+Q` | Insert audio / video track | implemented |
 | `Ctrl+N` / `Ctrl+Shift+N` | New project in a new tab / create a sub-project from the selected events | implemented |
+| `Ctrl+Alt+G` / `Ctrl+Shift+D` | Close the gaps of the selected track (its events meet each other) / duplicate the selected track | implemented |
+| `Ctrl+Alt+Q` | New empty project in a new tab with no dialog (the same result as `Ctrl+N`; a command with its own binding so a toolbar or a script can ask for it) | implemented |
 | `J` / `K` / `L` | Scrub: `L` plays forward and each further press goes faster (1x, 2x, 4x, 8x, 16x), `J` the same backwards (the other key turns around), `K` pauses | implemented |
 | `Ctrl+R` | Record from the default input device at the cursor; pressed again, stops and puts the take on the timeline | implemented |
 | `S` | Split at the cursor: the selected events, or the events under the cursor on every track when nothing is selected; with a time selection, at both of its edges | implemented |

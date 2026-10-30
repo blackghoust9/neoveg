@@ -22,6 +22,8 @@ pub const MAX_NAME: usize = 40;
 /// A keyboard map with its name.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct NamedKeymap {
+    /// A file without a name takes the name of the file when it is imported.
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub overrides: BTreeMap<String, Vec<String>>,

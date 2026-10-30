@@ -163,5 +163,37 @@ class CleanTarget(unittest.TestCase):
         self.assertTrue(build_portable.clean_target())
 
 
+class QaReport(unittest.TestCase):
+    """The QA report is written even when a step fails and the later ones never ran."""
+
+    def setUp(self) -> None:
+        self.case = SCRATCH / "qa_case"
+        self.case.mkdir(parents=True, exist_ok=True)
+        self.old = (build_portable.QA_JSON, build_portable.QA_JS)
+        build_portable.QA_JSON = self.case / "qa_report.json"
+        build_portable.QA_JS = self.case / "qa_report.js"
+
+    def tearDown(self) -> None:
+        build_portable.QA_JSON, build_portable.QA_JS = self.old
+        shutil.rmtree(self.case, ignore_errors=True)
+
+    def test_a_step_that_never_ran_is_reported_as_skipped_not_a_crash(self) -> None:
+        import json
+
+        steps = [
+            {"name": "rustfmt", "pillar": "Maintainability", "standard": "x", "status": "pass"},
+            {"name": "Testes", "pillar": "Reliability", "standard": "x", "status": "fail"},
+            {"name": "Build", "pillar": "Portability", "standard": "x"},  # no status: not reached
+        ]
+        build_portable.write_qa_report(steps, "fail")
+        report = json.loads(build_portable.QA_JSON.read_text(encoding="utf-8"))
+        self.assertEqual(report["outcome"], "fail")
+        self.assertEqual(report["pillars"]["Maintainability"]["status"], "pass")
+        self.assertEqual(report["pillars"]["Reliability"]["status"], "fail")
+        self.assertEqual(report["pillars"]["Portability"]["status"], "skipped")
+        self.assertEqual(report["pillars"]["Portability"]["passed"], 0)
+        self.assertTrue(build_portable.QA_JS.read_text(encoding="utf-8").startswith("window.NEOVEG_QA_REPORT"))
+
+
 if __name__ == "__main__":
     unittest.main()

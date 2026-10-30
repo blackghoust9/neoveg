@@ -13485,7 +13485,7 @@ mod tests {
         let rate = 48_000usize;
         let mut mix = vec![0.0f32; rate * 2];
         neoveg_audio::mixer::render(&clips, 0.5, 1.0 / rate as f64, &mut mix);
-        let left: Vec<f32> = mix.chunks_exact(2).map(|f| f[0]).collect();
+        let left: Vec<f32> = mix.iter().step_by(2).copied().collect();
         let level =
             (left.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / left.len() as f64).sqrt();
         let crossings = left
