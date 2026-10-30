@@ -146,7 +146,8 @@ impl AutomationTarget {
                 let (lo, hi) = TrackMix::VOLUME_RANGE_DB;
                 (lo, hi, 0.0)
             }
-            AutomationTarget::VideoFade | AutomationTarget::VideoMute => (0.0, 1.0, 0.0),
+            AutomationTarget::VideoFade => (-1.0, 1.0, 0.0),
+            AutomationTarget::VideoMute => (0.0, 1.0, 0.0),
             AutomationTarget::EffectParam { .. } => (0.0, 1.0, 0.0),
         }
     }
@@ -510,7 +511,8 @@ pub fn remove_keyframe(
 pub struct VideoTrackState {
     /// Composite level `0.0..=1.0` (`1.0` without an envelope).
     pub level: f32,
-    /// Fade to the track's color `0.0..=1.0` (`0.0` without an envelope).
+    /// Fade to a color of the track, `-1.0..=1.0` (`0.0` without an envelope): above zero towards the
+    /// top color, below zero towards the bottom one (see [`fade_mix`]).
     pub fade: f32,
     /// The mute envelope hides the track.
     pub muted: bool,
@@ -548,26 +550,125 @@ pub fn video_track_state(track: &crate::timeline::Track, time: f64) -> VideoTrac
     state
 }
 
-/// A command that sets the color a video track fades to, or `None` when it does not change or the
+/// The color and the amount (`0.0..=1.0`) of a fade of `fade` (`-1.0..=1.0`): the top color of the track
+/// for a positive value, the bottom one for a negative value, and the size of the value as the amount.
+pub fn fade_mix(track: &crate::timeline::Track, fade: f32) -> ([u8; 3], f32) {
+    let fade = if fade.is_finite() {
+        fade.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+    let color = if fade < 0.0 {
+        track.fade_color_bottom
+    } else {
+        track.fade_color
+    };
+    (color, fade.abs())
+}
+
+/// A command that sets the top color a video track fades to, or `None` when it does not change or the
 /// track is not a video track.
 pub fn set_fade_color(
     timeline: &Timeline,
     track_id: crate::timeline::TrackId,
     color: [u8; 3],
 ) -> Option<EditCommand> {
+    fade_color_command(timeline, track_id, color, false)
+}
+
+/// Like [`set_fade_color`], for the bottom color (the one the envelope reaches below zero).
+pub fn set_fade_color_bottom(
+    timeline: &Timeline,
+    track_id: crate::timeline::TrackId,
+    color: [u8; 3],
+) -> Option<EditCommand> {
+    fade_color_command(timeline, track_id, color, true)
+}
+
+fn fade_color_command(
+    timeline: &Timeline,
+    track_id: crate::timeline::TrackId,
+    color: [u8; 3],
+    bottom: bool,
+) -> Option<EditCommand> {
     let track = timeline.track(track_id)?;
-    (track.kind == TrackKind::Video && track.fade_color != color).then_some(
-        EditCommand::SetFadeColor {
-            track_id,
-            before: track.fade_color,
-            after: color,
-        },
-    )
+    let current = if bottom {
+        track.fade_color_bottom
+    } else {
+        track.fade_color
+    };
+    (track.kind == TrackKind::Video && current != color).then_some(EditCommand::SetFadeColor {
+        track_id,
+        bottom,
+        before: current,
+        after: color,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fade_below_zero_goes_to_the_bottom_color_and_above_zero_to_the_top_one() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        track.fade_color = [10, 20, 30];
+        track.fade_color_bottom = [200, 100, 50];
+        assert_eq!(fade_mix(&track, 0.5), ([10, 20, 30], 0.5));
+        assert_eq!(fade_mix(&track, -0.25), ([200, 100, 50], 0.25));
+        assert_eq!(fade_mix(&track, 0.0).1, 0.0);
+        assert_eq!(fade_mix(&track, 9.0), ([10, 20, 30], 1.0), "clamped");
+        assert_eq!(fade_mix(&track, f32::NAN).1, 0.0);
+        // The envelope may go from -1 to 1, and an envelope that stays at or above zero (every older
+        // project) keeps fading to the top color alone
+        assert_eq!(
+            AutomationTarget::VideoFade.default_bounds(),
+            (-1.0, 1.0, 0.0)
+        );
+        let mut fade = TrackEnvelope::new(AutomationTarget::VideoFade, -0.5);
+        fade.points.push(EnvelopePoint {
+            time: 2.0,
+            value: 0.5,
+            shape: EnvelopeShape::Linear,
+        });
+        track.envelopes.push(fade);
+        assert_eq!(video_track_state(&track, 0.0).fade, -0.5);
+        assert!((video_track_state(&track, 1.0).fade).abs() < 1e-6);
+        assert_eq!(video_track_state(&track, 2.0).fade, 0.5);
+    }
+
+    #[test]
+    fn the_bottom_color_has_its_own_undo_step_and_old_files_get_white_without_writing_it() {
+        let mut tl = Timeline::new();
+        let video = tl.new_track(TrackKind::Video);
+        let id = video.id;
+        tl.tracks.push(video);
+        assert!(
+            set_fade_color_bottom(&tl, id, [255, 255, 255]).is_none(),
+            "already white"
+        );
+        let cmd = set_fade_color_bottom(&tl, id, [1, 2, 3]).unwrap();
+        let mut history = crate::command::History::new();
+        assert!(history.execute(&mut tl, cmd));
+        assert_eq!(tl.track(id).unwrap().fade_color_bottom, [1, 2, 3]);
+        assert_eq!(
+            tl.track(id).unwrap().fade_color,
+            [0, 0, 0],
+            "the top color is untouched"
+        );
+        assert!(history.undo(&mut tl));
+        assert_eq!(tl.track(id).unwrap().fade_color_bottom, [255, 255, 255]);
+        let mut old = serde_json::to_value(tl.track(id).unwrap()).unwrap();
+        assert!(old.get("fade_color_bottom").is_none());
+        tl.track_mut(id).unwrap().fade_color_bottom = [9, 8, 7];
+        let saved = serde_json::to_string(tl.track(id).unwrap()).unwrap();
+        let back: crate::timeline::Track = serde_json::from_str(&saved).unwrap();
+        assert_eq!(back.fade_color_bottom, [9, 8, 7]);
+        old.as_object_mut().unwrap().remove("fade_color_bottom");
+        let loaded: crate::timeline::Track = serde_json::from_value(old).unwrap();
+        assert_eq!(loaded.fade_color_bottom, [255, 255, 255]);
+    }
 
     #[test]
     fn linear_smooth_and_hold_shapes_interpolate_accurately() {

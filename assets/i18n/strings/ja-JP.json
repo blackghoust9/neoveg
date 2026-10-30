@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "入力デバイスから録音",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "「{}」のキーを順に押してください（{}）— 1.5 秒止めると終了、Esc で取り消し",
   "Remover esta sequência": "このシーケンスを削除",
-  "Atribuir uma sequência de teclas": "キーシーケンスを割り当てる"
+  "Atribuir uma sequência de teclas": "キーシーケンスを割り当てる",
+  "Esmaecer para (acima de 0 %):": "フェード先（0 % より上）:",
+  "Esmaecer para (abaixo de 0 %):": "フェード先（0 % より下）:",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "この色はこのトラックの「色へフェード」エンベロープに使われます（トラック > ビデオエンベロープ）。正の値は1番目の色へ、負の値は2番目の色へ向かいます。"
 }

@@ -1953,10 +1953,15 @@ Implementation Guidelines for Neoveg:
     cor", range 0 to 1, 0 leaves the picture alone), `Track::fade_color` (one color per track, default black),
     `envelope::set_fade_color`, and the menu Faixas > Envelopes de vídeo; the compositor mixes the track layer
     towards the color by the envelope value.
-  - Gap (small task): the reference has TWO colors per track chosen by the sign of the envelope, and defaults
-    in the preferences; Neoveg has one color and a 0 to 1 amount. To match, give the track a second color,
-    let the envelope range from -1 to 1 (negative towards the bottom color), and add the two defaults to the
-    preferences (`#[serde(default)]`, old projects keep black and the 0 to 1 behavior).
+  - Implemented on 2026-10-30: the track has a second color (`Track::fade_color_bottom`, white by default and
+    not written while white), the envelope ranges from -1 to 1 (`AutomationTarget::VideoFade` bounds), and
+    `envelope::fade_mix` picks the color by the sign (positive: `fade_color`, the top one; negative: the bottom
+    one) and uses the size of the value as the amount. Old projects keep their behavior: their envelopes stay at
+    or above zero, so they still go to the one color they had. The video effects panel shows one swatch row per
+    color and each change is one undo step (`SetFadeColor { bottom, .. }`).
+  - Still open (small task): the default top and bottom colors of NEW tracks from the preferences (the Video tab
+    of the reference); Neoveg new tracks start with black on top and white at the bottom. The manual does not
+    give the default values. [NOT DOCUMENTED]
   - Gap (small task): the automation modes of the Fade slider (Off / Read / Touch / Latch) follow the general
     automation recording item of the roadmap, not this one.
 Sources: VEGAS_Pro_18_EN.pdf p. 241 (and 230, 533 from the index); manual_vegaspro21_en.pdf pp. 1017-1018.

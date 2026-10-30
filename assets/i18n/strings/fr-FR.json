@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "Enregistrer depuis le périphérique d'entrée",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "Appuyez sur les touches l'une après l'autre pour «{}» ({}) — 1,5 s de pause termine, Échap annule",
   "Remover esta sequência": "Supprimer cette séquence",
-  "Atribuir uma sequência de teclas": "Attribuer une séquence de touches"
+  "Atribuir uma sequência de teclas": "Attribuer une séquence de touches",
+  "Esmaecer para (acima de 0 %):": "Fondu vers (au-dessus de 0 %) :",
+  "Esmaecer para (abaixo de 0 %):": "Fondu vers (en dessous de 0 %) :",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Les couleurs s'appliquent à l'enveloppe « Fondu vers une couleur » de cette piste (Pistes > Enveloppes vidéo) : les valeurs positives vont vers la première couleur et les négatives vers la seconde."
 }

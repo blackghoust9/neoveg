@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "Запись с устройства ввода",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "Нажимайте клавиши по очереди для «{}» ({}) — пауза 1,5 с завершает ввод, Esc отменяет",
   "Remover esta sequência": "Удалить эту последовательность",
-  "Atribuir uma sequência de teclas": "Назначить последовательность клавиш"
+  "Atribuir uma sequência de teclas": "Назначить последовательность клавиш",
+  "Esmaecer para (acima de 0 %):": "Затухание в (выше 0 %):",
+  "Esmaecer para (abaixo de 0 %):": "Затухание в (ниже 0 %):",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Цвета используются огибающей «Затухание в цвет» этой дорожки (Дорожки > Огибающие видео): положительные значения ведут к первому цвету, отрицательные — ко второму."
 }

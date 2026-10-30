@@ -499,6 +499,10 @@ pub struct Track {
     /// Color a video track fades to with its fade-to-color envelope (older projects fade to black).
     #[serde(default, skip_serializing_if = "is_black")]
     pub fade_color: [u8; 3],
+    /// The color the fade envelope goes to below zero (the track's *bottom* color; `fade_color` is the
+    /// top one). Older projects have white, which they never reach: their envelopes stay at or above zero.
+    #[serde(default = "white", skip_serializing_if = "is_white")]
+    pub fade_color_bottom: [u8; 3],
     /// Where the layer of a video track sits in the project's frame, with keyframes in timeline
     /// seconds (older projects leave the layer where it is).
     #[serde(default, skip_serializing_if = "PanCrop::is_default")]
@@ -513,6 +517,14 @@ pub struct Track {
 
 fn is_black(color: &[u8; 3]) -> bool {
     *color == [0, 0, 0]
+}
+
+fn white() -> [u8; 3] {
+    [255, 255, 255]
+}
+
+fn is_white(color: &[u8; 3]) -> bool {
+    *color == [255, 255, 255]
 }
 
 fn is_neutral_grade(grade: &Grade) -> bool {
@@ -645,6 +657,7 @@ impl Timeline {
             envelopes: Vec::new(),
             video_effects: Vec::new(),
             fade_color: [0, 0, 0],
+            fade_color_bottom: [255, 255, 255],
             motion: PanCrop::default(),
             output: BusOutput::Master,
             sends: Vec::new(),

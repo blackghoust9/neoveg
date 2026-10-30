@@ -182,9 +182,10 @@ pub enum EditCommand {
         before: Option<TrackEnvelope>,
         after: Option<TrackEnvelope>,
     },
-    /// The color a video track fades to.
+    /// A color a video track fades to: the top one (`bottom` false) or the bottom one.
     SetFadeColor {
         track_id: TrackId,
+        bottom: bool,
         before: [u8; 3],
         after: [u8; 3],
     },
@@ -446,10 +447,17 @@ impl EditCommand {
                 ..
             } => set_event_volume(tl, *track_id, *event_id, after),
             Self::SetFadeColor {
-                track_id, after, ..
+                track_id,
+                bottom,
+                after,
+                ..
             } => match tl.track_mut(*track_id) {
                 Some(t) => {
-                    t.fade_color = *after;
+                    if *bottom {
+                        t.fade_color_bottom = *after;
+                    } else {
+                        t.fade_color = *after;
+                    }
                     true
                 }
                 None => false,
@@ -643,10 +651,17 @@ impl EditCommand {
                 set_event_volume(tl, *track_id, *event_id, before);
             }
             Self::SetFadeColor {
-                track_id, before, ..
+                track_id,
+                bottom,
+                before,
+                ..
             } => {
                 if let Some(t) = tl.track_mut(*track_id) {
-                    t.fade_color = *before;
+                    if *bottom {
+                        t.fade_color_bottom = *before;
+                    } else {
+                        t.fade_color = *before;
+                    }
                 }
             }
             Self::SetDucking {

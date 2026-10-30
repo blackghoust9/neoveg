@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "Record from the input device",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "Press the keys one after the other for «{}» ({}) — pause for 1.5 s to finish, Esc cancels",
   "Remover esta sequência": "Remove this sequence",
-  "Atribuir uma sequência de teclas": "Assign a key sequence"
+  "Atribuir uma sequência de teclas": "Assign a key sequence",
+  "Esmaecer para (acima de 0 %):": "Fade to (above 0 %):",
+  "Esmaecer para (abaixo de 0 %):": "Fade to (below 0 %):",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "The colors apply to this track's Fade to color envelope (Tracks > Video envelopes): positive values go to the first color and negative values to the second."
 }

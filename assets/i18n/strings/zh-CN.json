@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "从输入设备录音",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "请依次按键为“{}”设置（{}）——停顿 1.5 秒结束，按 Esc 取消",
   "Remover esta sequência": "删除此按键序列",
-  "Atribuir uma sequência de teclas": "分配按键序列"
+  "Atribuir uma sequência de teclas": "分配按键序列",
+  "Esmaecer para (acima de 0 %):": "渐变到（高于 0 %）：",
+  "Esmaecer para (abaixo de 0 %):": "渐变到（低于 0 %）：",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "这些颜色用于此轨道的“渐变到颜色”包络（轨道 > 视频包络）：正值趋向第一种颜色，负值趋向第二种颜色。"
 }

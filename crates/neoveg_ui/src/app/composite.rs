@@ -327,8 +327,8 @@ pub(super) fn composite_request(
                     VideoFxTarget::Track(track.id),
                     settings.fx_draft.as_ref(),
                 ),
-                fade_color: track.fade_color,
-                fade_amount: track_state.fade,
+                fade_color: neoveg_engine::envelope::fade_mix(track, track_state.fade).0,
+                fade_amount: neoveg_engine::envelope::fade_mix(track, track_state.fade).1,
                 motion: track_motion_frame(track, time, settings),
             });
         }

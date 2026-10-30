@@ -762,5 +762,8 @@
   "Gravar do dispositivo de entrada": "Vom Eingabegerät aufnehmen",
   "Pressione as teclas em sequência para «{}» ({}) — pare por 1,5 s para terminar, Esc cancela": "Drücken Sie die Tasten nacheinander für «{}» ({}) – 1,5 s Pause beendet die Eingabe, Esc bricht ab",
   "Remover esta sequência": "Diese Sequenz entfernen",
-  "Atribuir uma sequência de teclas": "Eine Tastenfolge zuweisen"
+  "Atribuir uma sequência de teclas": "Eine Tastenfolge zuweisen",
+  "Esmaecer para (acima de 0 %):": "Ausblenden zu (über 0 %):",
+  "Esmaecer para (abaixo de 0 %):": "Ausblenden zu (unter 0 %):",
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Die Farben gelten für die Hüllkurve „Zu Farbe ausblenden“ dieser Spur (Spuren > Videohüllkurven): positive Werte gehen zur ersten Farbe, negative zur zweiten."
 }

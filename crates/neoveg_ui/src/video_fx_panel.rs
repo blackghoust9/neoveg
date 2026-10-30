@@ -32,7 +32,11 @@ pub enum VfxAction {
         param: String,
     },
     /// The color the video track fades to (track chain only).
-    FadeColor([u8; 3]),
+    /// A color of the fade envelope: the bottom one when `bottom` is true.
+    FadeColor {
+        bottom: bool,
+        color: [u8; 3],
+    },
 }
 
 /// Colors offered for the fade to color of a video track.
@@ -199,7 +203,7 @@ pub fn vfx_ui(
     title: &str,
     chain: &[TrackEffect],
     scopes: VfxScopes,
-    fade_color: Option<[u8; 3]>,
+    fade_colors: Option<([u8; 3], [u8; 3])>,
 ) -> Vec<VfxAction> {
     let mut actions = Vec::new();
     panel.scope = scopes.resolve(panel.scope);
@@ -230,26 +234,37 @@ pub fn vfx_ui(
                 }
             });
     });
-    if let Some(current) = fade_color {
-        ui.horizontal(|ui| {
-            ui.label(tr("Esmaecer para:"));
-            for (name, rgb) in FADE_COLORS {
-                let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-                let stroke = if rgb == current {
-                    egui::Stroke::new(2.0_f32, ui.visuals().text_color())
-                } else {
-                    egui::Stroke::new(1.0_f32, ui.visuals().widgets.noninteractive.bg_stroke.color)
-                };
-                let button = egui::Button::new("")
-                    .fill(fill)
-                    .stroke(stroke)
-                    .min_size(egui::vec2(22.0, 18.0));
-                if ui.add(button).on_hover_text(name).clicked() && rgb != current {
-                    actions.push(VfxAction::FadeColor(rgb));
+    if let Some((top, bottom)) = fade_colors {
+        for (label, current, is_bottom) in [
+            (tr("Esmaecer para (acima de 0 %):"), top, false),
+            (tr("Esmaecer para (abaixo de 0 %):"), bottom, true),
+        ] {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                for (name, rgb) in FADE_COLORS {
+                    let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+                    let stroke = if rgb == current {
+                        egui::Stroke::new(2.0_f32, ui.visuals().text_color())
+                    } else {
+                        egui::Stroke::new(
+                            1.0_f32,
+                            ui.visuals().widgets.noninteractive.bg_stroke.color,
+                        )
+                    };
+                    let button = egui::Button::new("")
+                        .fill(fill)
+                        .stroke(stroke)
+                        .min_size(egui::vec2(22.0, 18.0));
+                    if ui.add(button).on_hover_text(name).clicked() && rgb != current {
+                        actions.push(VfxAction::FadeColor {
+                            bottom: is_bottom,
+                            color: rgb,
+                        });
+                    }
                 }
-            }
-        });
-        ui.weak(tr("A cor vale para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo)."));
+            });
+        }
+        ui.weak(tr("As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda."));
     }
     if chain.is_empty() {
         ui.weak(tr(

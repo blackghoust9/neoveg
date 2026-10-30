@@ -5437,7 +5437,10 @@ impl AppState {
                 VfxAction::ResetParam { index, param } => {
                     vfxe::reset_param(&self.timeline, target, index, &param)
                 }
-                VfxAction::FadeColor(color) => match target {
+                VfxAction::FadeColor { bottom, color } => match target {
+                    VideoFxTarget::Track(id) if bottom => {
+                        envelope::set_fade_color_bottom(&self.timeline, id, color)
+                    }
                     VideoFxTarget::Track(id) => envelope::set_fade_color(&self.timeline, id, color),
                     _ => None,
                 },
@@ -10034,7 +10037,10 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         .map(<[_]>::to_vec)
         .unwrap_or_default();
     let fade_color = match target {
-        VideoFxTarget::Track(id) => state.timeline.track(id).map(|t| t.fade_color),
+        VideoFxTarget::Track(id) => state
+            .timeline
+            .track(id)
+            .map(|t| (t.fade_color, t.fade_color_bottom)),
         _ => None,
     };
     let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes, fade_color);
