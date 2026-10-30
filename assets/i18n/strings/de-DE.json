@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "Eine Tastenfolge zuweisen",
   "Esmaecer para (acima de 0 %):": "Ausblenden zu (über 0 %):",
   "Esmaecer para (abaixo de 0 %):": "Ausblenden zu (unter 0 %):",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Die Farben gelten für die Hüllkurve „Zu Farbe ausblenden“ dieser Spur (Spuren > Videohüllkurven): positive Werte gehen zur ersten Farbe, negative zur zweiten."
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Die Farben gelten für die Hüllkurve „Zu Farbe ausblenden“ dieser Spur (Spuren > Videohüllkurven): positive Werte gehen zur ersten Farbe, negative zur zweiten.",
+  "Primeiro quadro": "Erstes Bild",
+  "Último quadro": "Letztes Bild",
+  "Quadros de borda do evento": "Randbilder des Ereignisses",
+  "Quadros de borda do evento ligados": "Randbilder des Ereignisses eingeschaltet",
+  "Quadros de borda do evento desligados": "Randbilder des Ereignisses ausgeschaltet"
 }

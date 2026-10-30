@@ -7,6 +7,7 @@ mod credits;
 mod details_window;
 mod dialogs;
 mod dock;
+mod edge_frames;
 mod envelope_canvas;
 mod event_header;
 mod event_volume_panel;

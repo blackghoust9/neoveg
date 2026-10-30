@@ -2020,7 +2020,10 @@ Visual/Technical Rules:
     the event on the timeline) and the last (the frame just before the event ends). When the drag ends the
     preview returns to the normal single frame.
 Implementation Guidelines for Neoveg:
-  - Not implemented. Prerequisites that exist: slip and slide by mouse and keyboard (`edit::slip`, `edit::slide`,
+  - Implemented on 2026-10-30 (see the Neoveg design below): `view.event_edge_frames` (Ctrl+Shift+O, View menu,
+    preference `show_event_edge_frames`, on by default), `velocity::edge_times` for the two source times, the
+    module `neoveg_ui::edge_frames` for the halves, and the frame worker's source-frame request for the pictures.
+    The crossfade / transition slide has no Neoveg counterpart yet. Prerequisites that existed: slip and slide by mouse and keyboard (`edit::slip`, `edit::slide`,
     the Slip / Slide tools), the frame worker that decodes any frame of a clip on request, and a preview window.
   - Neoveg design (small task): a View toggle and the command `view.event_edge_frames` (Ctrl+Shift+O, a
     preference remembered with `#[serde(default)]`, on by default as in the reference). While a slip, slide or

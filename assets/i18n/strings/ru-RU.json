@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "Назначить последовательность клавиш",
   "Esmaecer para (acima de 0 %):": "Затухание в (выше 0 %):",
   "Esmaecer para (abaixo de 0 %):": "Затухание в (ниже 0 %):",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Цвета используются огибающей «Затухание в цвет» этой дорожки (Дорожки > Огибающие видео): положительные значения ведут к первому цвету, отрицательные — ко второму."
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Цвета используются огибающей «Затухание в цвет» этой дорожки (Дорожки > Огибающие видео): положительные значения ведут к первому цвету, отрицательные — ко второму.",
+  "Primeiro quadro": "Первый кадр",
+  "Último quadro": "Последний кадр",
+  "Quadros de borda do evento": "Крайние кадры события",
+  "Quadros de borda do evento ligados": "Крайние кадры события включены",
+  "Quadros de borda do evento desligados": "Крайние кадры события выключены"
 }

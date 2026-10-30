@@ -655,6 +655,10 @@ struct AppState {
     allow_close: bool,
     window_title: String,
     drag: Option<EventDrag>,
+    /// The first and last frame of the event being slipped or slid, shown in the preview.
+    edge_frames: crate::edge_frames::EdgeFrames,
+    /// What the preview shows in the two halves while it does: the captions' timecodes.
+    edge_labels: [String; 2],
     env_drag: Option<EnvelopeDrag>,
     context_event: Option<(TrackId, EventId)>,
     context_envelope: Option<EnvelopeHit>,
@@ -1633,6 +1637,8 @@ impl AppState {
             video_info: HashMap::new(),
             frame_worker: None,
             video_texture: None,
+            edge_frames: crate::edge_frames::EdgeFrames::default(),
+            edge_labels: [String::new(), String::new()],
             last_frame_key: None,
             last_composite_key: None,
             lut_cache: None,
@@ -4796,12 +4802,93 @@ impl AppState {
         }
     }
 
+    /// While an event is slipped or slid (and the preference is on), asks the frame worker for the
+    /// first and last frame it would show, so the preview can draw them; clears them afterwards.
+    fn update_edge_frames(&mut self) {
+        let wanted = self.edge_frame_keys();
+        let Some((keys, labels)) = wanted else {
+            if self.edge_frames.visible() {
+                self.edge_frames.clear();
+            }
+            return;
+        };
+        self.edge_labels = labels;
+        let requests = self.edge_frames.want(keys);
+        if let Some(worker) = &self.frame_worker {
+            for (path, seconds) in requests {
+                worker.request_source(SourceRequest {
+                    path,
+                    seconds,
+                    max_width: crate::edge_frames::MAX_WIDTH,
+                });
+            }
+        }
+    }
+
+    /// The files, source times and captions of the two edge frames of the event being dragged, or
+    /// `None` when no slip or slide of a video event with a file is going on.
+    #[allow(clippy::type_complexity)]
+    fn edge_frame_keys(&self) -> Option<([(PathBuf, f64); 2], [String; 2])> {
+        if !self.prefs.show_event_edge_frames {
+            return None;
+        }
+        let drag = self.drag.as_ref()?;
+        if !matches!(drag.mode, DragMode::Slip | DragMode::Slide) {
+            return None;
+        }
+        let track = self.timeline.track(drag.track_id)?;
+        if track.kind != TrackKind::Video {
+            return None;
+        }
+        let event = track.events.iter().find(|e| e.id == drag.event_id)?;
+        let media_id = event.media_id?;
+        let item = self.project.media_pool.iter().find(|m| m.id == media_id)?;
+        let info = self.video_info.get(&media_id);
+        let fps = self.project.settings.fps.max(1.0);
+        let source_fps = info.map_or(fps, |i| i.fps).max(1.0);
+        let g = drag.current;
+        let rate = edit::clamp_playback_rate(g.playback_rate);
+        let loop_len = event
+            .looping
+            .then(|| edit::loop_length(info.map_or(0.0, |i| i.duration), g.trim_in));
+        let (first, last) = vel::edge_times(
+            event.velocity.as_ref(),
+            g.trim_in,
+            rate,
+            g.duration,
+            1.0 / fps,
+            loop_len,
+        );
+        // Whole source frames, and never past the last one of the file
+        let last_frame = info.map(|i| (i.duration * source_fps).ceil() - 1.0);
+        let snap = |seconds: f64| {
+            let frame = (seconds * source_fps).round().max(0.0);
+            let frame = last_frame.map_or(frame, |l| frame.min(l.max(0.0)));
+            frame / source_fps
+        };
+        let (first, last) = (snap(first), snap(last));
+        let path = PathBuf::from(&item.path);
+        let drop_frame = self.drop_frame();
+        let label = |seconds: f64| seconds_to_timecode(seconds, source_fps, drop_frame);
+        Some((
+            [(path.clone(), first), (path, last)],
+            [label(first), label(last)],
+        ))
+    }
+
     fn poll_frames(&mut self, ctx: &egui::Context) {
         let Some(worker) = &self.frame_worker else {
             return;
         };
         // The Pan/Crop editor's background picture
         while let Ok(reply) = worker.source_rx.try_recv() {
+            // A frame asked for the edge halves of the preview goes there, not to the Pan/Crop editor
+            if let Some(slot) = self.edge_frames.slot_for(&reply.path, reply.seconds) {
+                if let Ok(frame) = &reply.result {
+                    self.edge_frames.set(ctx, slot, frame);
+                }
+                continue;
+            }
             match reply.result {
                 Ok(frame) => self.pan_crop.set_source(ctx, &frame),
                 Err(e) => tracing::debug!("[DEBUG] Pan/Crop source frame: {e}"),
@@ -6024,6 +6111,15 @@ impl AppState {
             Command::ViewVideoScopes => {
                 self.window_request = Some(WindowAction::Toggle(Tab::Scopes))
             }
+            Command::ViewEventEdgeFrames => {
+                self.prefs.show_event_edge_frames = !self.prefs.show_event_edge_frames;
+                save_prefs(&self.prefs);
+                self.status = if self.prefs.show_event_edge_frames {
+                    tr("Quadros de borda do evento ligados").into()
+                } else {
+                    tr("Quadros de borda do evento desligados").into()
+                };
+            }
             Command::ViewAudioEffects => {
                 self.window_request = Some(WindowAction::Toggle(Tab::AudioFx))
             }
@@ -6787,6 +6883,7 @@ impl NeovegApp {
             self.state.apply_caption_actions(vec![whisper_done], now);
         }
         self.state.poll_frames(ctx);
+        self.state.update_edge_frames();
         self.state.request_preview_frame(ctx.pixels_per_point());
         self.state.selection.retain_existing(&self.state.timeline);
         self.state.handle_shortcuts(ctx);
@@ -7378,6 +7475,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewMasterBus,
                 Command::ViewLoudnessMeters,
                 Command::ViewVideoScopes,
+                Command::ViewEventEdgeFrames,
                 Command::ViewFocusTimeline,
             ] {
                 command_item(state, ui, command);
@@ -9703,6 +9801,11 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             Color32::WHITE,
         );
     }
+
+    // The first and last frame of an event being slipped or slid, side by side
+    state
+        .edge_frames
+        .paint(&painter, frame_rect, pw / ph.max(1.0), &state.edge_labels);
 
     // Subtitles showing at the cursor
     let showing = captions::active_at(&state.timeline, state.playhead);

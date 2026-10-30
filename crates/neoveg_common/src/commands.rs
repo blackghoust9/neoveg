@@ -223,6 +223,7 @@ commands! {
     ViewPreview => ("view.preview", "Prévia de vídeo", View, true),
     ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
     ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
+    ViewEventEdgeFrames => ("view.event_edge_frames", "Quadros de borda do evento", View, true),
     ViewAudioEffects => ("view.audio_effects", "Efeitos de áudio", View, true),
     ViewVideoEffects => ("view.video_effects", "Efeitos de vídeo", View, true),
     ViewTransitions => ("view.transitions", "Transições", View, true),

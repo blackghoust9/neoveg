@@ -491,7 +491,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Aparar por teclado: **feito** `[` / `]` escolhem a borda e `←` / `→` movem um quadro (a ferramenta de edição ativa escolhe aparar, slip ou slide; `Esc` sai; regras em `neoveg_engine::keytrim`); `Shift+←/→` estica e `Ctrl+Shift+←/→` faz o aparo adjacente; falta o passo de 1 pixel e a roda do mouse com `Ctrl+Shift`
 - [ ] Aparo adjacente (rolling) arrastando a borda entre dois eventos (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam já funciona, com regra `edit::roll` testada; falta o aparo por teclado e o corte em J/L); aparar a borda de um evento agrupado também apara os membros do grupo que têm a mesma borda e `Shift`+arrastar (ou Ignorar agrupamento) apara só aquele evento, os cortes em J e L (não vale com o Ripple automático ligado)
 - [ ] Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)
-- [ ] Modo de edição expandida: visão A/B, quadros não usados dos dois lados, pré-visualização dividida, saída por `Esc`
+- [ ] Modo de edição expandida: visão A/B, quadros não usados dos dois lados, pré-visualização dividida, saída por `Esc` (**feito à parte**: os quadros de borda do evento, `Exibir > Quadros de borda do evento`, `Ctrl+Shift+O`: durante um slip ou slide de evento de vídeo a prévia mostra o primeiro e o último quadro lado a lado e volta ao normal ao soltar o mouse; os testes ainda não rodaram)
 - [ ] Evento em repetição (switch Loop) ao esticar além da mídia; quadros ilegíveis em vermelho
 
 **Fase 3 — Snap e quantização (entrada 9)**

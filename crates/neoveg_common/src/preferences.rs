@@ -23,6 +23,8 @@ pub struct Preferences {
     pub still_image_seconds: f64,
     /// Show the welcome screen (recent projects, new project) when the program starts.
     pub show_welcome_on_startup: bool,
+    /// While an event is slipped or slid, the preview shows its first and last frame side by side.
+    pub show_event_edge_frames: bool,
     /// Draw the toolbar icons that have a colour version (BMP, Flat Color Icons) in colour.
     /// The High Contrast theme always uses the monochrome icons.
     pub color_icons: bool,
@@ -64,6 +66,7 @@ impl Default for Preferences {
             auto_fade_on_import: false,
             still_image_seconds: 5.0,
             show_welcome_on_startup: true,
+            show_event_edge_frames: true,
             color_icons: true,
             recent_projects: Vec::new(),
             recent_projects_max: 10,

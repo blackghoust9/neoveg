@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "Attribuer une séquence de touches",
   "Esmaecer para (acima de 0 %):": "Fondu vers (au-dessus de 0 %) :",
   "Esmaecer para (abaixo de 0 %):": "Fondu vers (en dessous de 0 %) :",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Les couleurs s'appliquent à l'enveloppe « Fondu vers une couleur » de cette piste (Pistes > Enveloppes vidéo) : les valeurs positives vont vers la première couleur et les négatives vers la seconde."
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "Les couleurs s'appliquent à l'enveloppe « Fondu vers une couleur » de cette piste (Pistes > Enveloppes vidéo) : les valeurs positives vont vers la première couleur et les négatives vers la seconde.",
+  "Primeiro quadro": "Première image",
+  "Último quadro": "Dernière image",
+  "Quadros de borda do evento": "Images de bord de l'événement",
+  "Quadros de borda do evento ligados": "Images de bord de l'événement activées",
+  "Quadros de borda do evento desligados": "Images de bord de l'événement désactivées"
 }

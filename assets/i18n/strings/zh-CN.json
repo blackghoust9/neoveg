@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "分配按键序列",
   "Esmaecer para (acima de 0 %):": "渐变到（高于 0 %）：",
   "Esmaecer para (abaixo de 0 %):": "渐变到（低于 0 %）：",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "这些颜色用于此轨道的“渐变到颜色”包络（轨道 > 视频包络）：正值趋向第一种颜色，负值趋向第二种颜色。"
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "这些颜色用于此轨道的“渐变到颜色”包络（轨道 > 视频包络）：正值趋向第一种颜色，负值趋向第二种颜色。",
+  "Primeiro quadro": "第一帧",
+  "Último quadro": "最后一帧",
+  "Quadros de borda do evento": "事件边缘帧",
+  "Quadros de borda do evento ligados": "已开启事件边缘帧",
+  "Quadros de borda do evento desligados": "已关闭事件边缘帧"
 }

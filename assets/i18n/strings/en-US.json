@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "Assign a key sequence",
   "Esmaecer para (acima de 0 %):": "Fade to (above 0 %):",
   "Esmaecer para (abaixo de 0 %):": "Fade to (below 0 %):",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "The colors apply to this track's Fade to color envelope (Tracks > Video envelopes): positive values go to the first color and negative values to the second."
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "The colors apply to this track's Fade to color envelope (Tracks > Video envelopes): positive values go to the first color and negative values to the second.",
+  "Primeiro quadro": "First frame",
+  "Último quadro": "Last frame",
+  "Quadros de borda do evento": "Event edge frames",
+  "Quadros de borda do evento ligados": "Event edge frames on",
+  "Quadros de borda do evento desligados": "Event edge frames off"
 }

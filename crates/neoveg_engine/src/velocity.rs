@@ -109,6 +109,26 @@ pub fn from_offset(envelope: Option<&TrackEnvelope>, offset: f64) -> Option<Trac
     Some(out)
 }
 
+/// The times in the source of the first and of the last frame an event shows: `trim_in`, and
+/// `trim_in` plus what the speed (`rate`, and the velocity `envelope` when there is one) plays
+/// during the event but its last frame (`frame` seconds long). `loop_len` is the part of the source
+/// a looping event repeats, `None` for an event that does not loop.
+pub fn edge_times(
+    envelope: Option<&TrackEnvelope>,
+    trim_in: f64,
+    rate: f64,
+    duration: f64,
+    frame: f64,
+    loop_len: Option<f64>,
+) -> (f64, f64) {
+    let local = (duration - frame).max(0.0);
+    let mut offset = rate * source_offset(envelope, local);
+    if let Some(len) = loop_len {
+        offset = crate::edit::wrap_loop(offset, len);
+    }
+    (trim_in, (trim_in + offset).max(0.0))
+}
+
 /// The envelope with a freeze frame at `time`: the speed up to there is kept, then it drops to `0`
 /// and stays there to the end of the event (the keyframes after the cursor are dropped).
 pub fn freeze_at(envelope: Option<&TrackEnvelope>, time: f64) -> TrackEnvelope {
@@ -328,6 +348,29 @@ mod tests {
     }
 
     const LIN: EnvelopeShape = EnvelopeShape::Linear;
+
+    #[test]
+    fn the_edge_frames_follow_the_speed_the_envelope_and_the_loop() {
+        // 10 s of an event at normal speed, 25 fps: the last frame starts 0.04 s before the end
+        let (first, last) = edge_times(None, 2.0, 1.0, 10.0, 0.04, None);
+        assert_eq!(first, 2.0);
+        assert!((last - 11.96).abs() < 1e-9, "{last}");
+        // At double speed the last frame is twice as far into the source
+        let (_, fast) = edge_times(None, 2.0, 2.0, 10.0, 0.04, None);
+        assert!((fast - (2.0 + 2.0 * 9.96)).abs() < 1e-9);
+        // A looping event shows a frame of the part it repeats
+        let (_, wrapped) = edge_times(None, 2.0, 1.0, 10.0, 0.04, Some(5.0));
+        assert!((wrapped - (2.0 + 4.96)).abs() < 1e-9, "{wrapped}");
+        // A freeze at 3 s stops the source there for the rest of the event
+        let freeze = freeze_at(None, 3.0);
+        let (_, frozen) = edge_times(Some(&freeze), 0.0, 1.0, 10.0, 0.04, None);
+        assert!((frozen - 3.0).abs() < 0.01, "{frozen}");
+        // An event shorter than a frame, and a source time that would be negative, stay inside
+        assert_eq!(edge_times(None, 1.0, 1.0, 0.01, 0.04, None), (1.0, 1.0));
+        let (_, backwards) =
+            edge_times(Some(&env(&[(0.0, -1.0, LIN)])), 1.0, 1.0, 10.0, 0.04, None);
+        assert_eq!(backwards, 0.0);
+    }
 
     #[test]
     fn without_an_envelope_the_event_plays_at_normal_speed() {

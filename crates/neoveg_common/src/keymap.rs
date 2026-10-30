@@ -317,6 +317,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewProjectMedia, &["Alt+5"]),
     (Command::ViewLoudnessMeters, &["Ctrl+Alt+7"]),
     (Command::ViewVideoScopes, &["Ctrl+Alt+2"]),
+    (Command::ViewEventEdgeFrames, &["Ctrl+Shift+O"]),
     (Command::ViewAudioEffects, &["Ctrl+Alt+9"]),
     (Command::ViewVideoEffects, &["Ctrl+Alt+8"]),
     (Command::ViewTransitions, &["Ctrl+Alt+6"]),

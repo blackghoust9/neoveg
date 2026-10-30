@@ -765,5 +765,10 @@
   "Atribuir uma sequência de teclas": "キーシーケンスを割り当てる",
   "Esmaecer para (acima de 0 %):": "フェード先（0 % より上）:",
   "Esmaecer para (abaixo de 0 %):": "フェード先（0 % より下）:",
-  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "この色はこのトラックの「色へフェード」エンベロープに使われます（トラック > ビデオエンベロープ）。正の値は1番目の色へ、負の値は2番目の色へ向かいます。"
+  "As cores valem para o envelope Esmaecer para cor desta faixa (Faixas > Envelopes de vídeo): valores positivos vão para a primeira cor e negativos para a segunda.": "この色はこのトラックの「色へフェード」エンベロープに使われます（トラック > ビデオエンベロープ）。正の値は1番目の色へ、負の値は2番目の色へ向かいます。",
+  "Primeiro quadro": "最初のフレーム",
+  "Último quadro": "最後のフレーム",
+  "Quadros de borda do evento": "イベントの端のフレーム",
+  "Quadros de borda do evento ligados": "イベントの端のフレームをオンにしました",
+  "Quadros de borda do evento desligados": "イベントの端のフレームをオフにしました"
 }
