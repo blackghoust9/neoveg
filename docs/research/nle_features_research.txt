@@ -1959,9 +1959,10 @@ Implementation Guidelines for Neoveg:
     one) and uses the size of the value as the amount. Old projects keep their behavior: their envelopes stay at
     or above zero, so they still go to the one color they had. The video effects panel shows one swatch row per
     color and each change is one undo step (`SetFadeColor { bottom, .. }`).
-  - Still open (small task): the default top and bottom colors of NEW tracks from the preferences (the Video tab
-    of the reference); Neoveg new tracks start with black on top and white at the bottom. The manual does not
-    give the default values. [NOT DOCUMENTED]
+  - Implemented on 2026-10-30: the default top and bottom colors of NEW video tracks are preferences
+    (`new_track_fade_top` black and `new_track_fade_bottom` white, Preferences > Geral; the reference keeps them in
+    the Video tab). The manual does not give its default values, so these two are a Neoveg choice. [NOT DOCUMENTED]
+    Tracks that other code creates (imports of exchange files) keep the engine's black and white.
   - Gap (small task): the automation modes of the Fade slider (Off / Read / Touch / Latch) follow the general
     automation recording item of the roadmap, not this one.
 Sources: VEGAS_Pro_18_EN.pdf p. 241 (and 230, 533 from the index); manual_vegaspro21_en.pdf pp. 1017-1018.

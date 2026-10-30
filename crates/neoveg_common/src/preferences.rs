@@ -25,6 +25,10 @@ pub struct Preferences {
     pub show_welcome_on_startup: bool,
     /// While an event is slipped or slid, the preview shows its first and last frame side by side.
     pub show_event_edge_frames: bool,
+    /// The two colors the fade envelope of a NEW video track goes to: above zero (top) and below zero
+    /// (bottom).
+    pub new_track_fade_top: [u8; 3],
+    pub new_track_fade_bottom: [u8; 3],
     /// Draw the toolbar icons that have a colour version (BMP, Flat Color Icons) in colour.
     /// The High Contrast theme always uses the monochrome icons.
     pub color_icons: bool,
@@ -67,6 +71,8 @@ impl Default for Preferences {
             still_image_seconds: 5.0,
             show_welcome_on_startup: true,
             show_event_edge_frames: true,
+            new_track_fade_top: [0, 0, 0],
+            new_track_fade_bottom: [255, 255, 255],
             color_icons: true,
             recent_projects: Vec::new(),
             recent_projects_max: 10,
@@ -191,6 +197,25 @@ mod tests {
             .contains("preferências"));
         assert!(Preferences::import(&dir.join("missing.json")).is_err());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_fade_colors_of_new_tracks_default_to_black_over_white_and_old_files_get_them() {
+        let p = Preferences::default();
+        assert_eq!(
+            (p.new_track_fade_top, p.new_track_fade_bottom),
+            ([0, 0, 0], [255, 255, 255])
+        );
+        let old: Preferences = serde_json::from_str(r#"{"language":"en-US"}"#).unwrap();
+        assert_eq!(old.new_track_fade_top, [0, 0, 0]);
+        let custom = Preferences {
+            new_track_fade_top: [10, 20, 30],
+            new_track_fade_bottom: [40, 50, 60],
+            ..Preferences::default()
+        };
+        let back: Preferences =
+            serde_json::from_str(&serde_json::to_string(&custom).unwrap()).unwrap();
+        assert_eq!(back, custom);
     }
 
     #[test]

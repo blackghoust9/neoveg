@@ -770,5 +770,7 @@
   "Último quadro": "Последний кадр",
   "Quadros de borda do evento": "Крайние кадры события",
   "Quadros de borda do evento ligados": "Крайние кадры события включены",
-  "Quadros de borda do evento desligados": "Крайние кадры события выключены"
+  "Quadros de borda do evento desligados": "Крайние кадры события выключены",
+  "Esmaecer das faixas de vídeo novas, acima de 0 %:": "Затухание новых видеодорожек, выше 0 %:",
+  "abaixo de 0 %:": "ниже 0 %:"
 }

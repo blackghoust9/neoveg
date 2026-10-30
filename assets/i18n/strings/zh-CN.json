@@ -770,5 +770,7 @@
   "Último quadro": "最后一帧",
   "Quadros de borda do evento": "事件边缘帧",
   "Quadros de borda do evento ligados": "已开启事件边缘帧",
-  "Quadros de borda do evento desligados": "已关闭事件边缘帧"
+  "Quadros de borda do evento desligados": "已关闭事件边缘帧",
+  "Esmaecer das faixas de vídeo novas, acima de 0 %:": "新视频轨道的渐变（高于 0 %）：",
+  "abaixo de 0 %:": "低于 0 %："
 }

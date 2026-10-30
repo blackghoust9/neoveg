@@ -770,5 +770,7 @@
   "Último quadro": "最後のフレーム",
   "Quadros de borda do evento": "イベントの端のフレーム",
   "Quadros de borda do evento ligados": "イベントの端のフレームをオンにしました",
-  "Quadros de borda do evento desligados": "イベントの端のフレームをオフにしました"
+  "Quadros de borda do evento desligados": "イベントの端のフレームをオフにしました",
+  "Esmaecer das faixas de vídeo novas, acima de 0 %:": "新しいビデオトラックのフェード（0 % より上）:",
+  "abaixo de 0 %:": "0 % より下:"
 }

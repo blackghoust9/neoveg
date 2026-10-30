@@ -770,5 +770,7 @@
   "Último quadro": "Last frame",
   "Quadros de borda do evento": "Event edge frames",
   "Quadros de borda do evento ligados": "Event edge frames on",
-  "Quadros de borda do evento desligados": "Event edge frames off"
+  "Quadros de borda do evento desligados": "Event edge frames off",
+  "Esmaecer das faixas de vídeo novas, acima de 0 %:": "Fade of new video tracks, above 0 %:",
+  "abaixo de 0 %:": "below 0 %:"
 }

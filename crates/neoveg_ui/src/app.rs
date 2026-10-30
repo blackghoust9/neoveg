@@ -1745,7 +1745,12 @@ impl AppState {
     }
 
     fn add_track(&mut self, kind: TrackKind) {
-        let track = self.timeline.new_track(kind);
+        let mut track = self.timeline.new_track(kind);
+        if kind == TrackKind::Video {
+            // The colors the fade envelope of a new video track goes to come from the preferences
+            track.fade_color = self.prefs.new_track_fade_top;
+            track.fade_color_bottom = self.prefs.new_track_fade_bottom;
+        }
         let id = track.id;
         if self
             .history
@@ -9197,6 +9202,12 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         ui.add(egui::DragValue::new(&mut prefs.recent_projects_max).range(0..=30));
                     });
                     prefs.trim_recent_projects();
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Esmaecer das faixas de vídeo novas, acima de 0 %:"));
+                        ui.color_edit_button_srgb(&mut prefs.new_track_fade_top);
+                        ui.label(tr("abaixo de 0 %:"));
+                        ui.color_edit_button_srgb(&mut prefs.new_track_fade_bottom);
+                    });
                     ui.separator();
                     ui.horizontal(|ui| {
                         export_prefs = ui.button(tr("Exportar preferências…")).clicked();
