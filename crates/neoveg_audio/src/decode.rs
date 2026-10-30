@@ -255,6 +255,83 @@ fn decode_into(path: &Path, sink: &mut dyn Sink) -> Result<(u32, u16), String> {
 mod tests {
     use super::*;
 
+    /// Makes `name` in a scratch folder with the `ffmpeg` tool: an MP4 with a picture and a 440 Hz
+    /// tone of two seconds as AAC. `None` when the tool is not installed (the test is skipped).
+    fn tone_mp4(name: &str) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        let dir = std::env::temp_dir().join(format!("neoveg_decode_{}_{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).ok()?;
+        let file = dir.join("tone.mp4");
+        let made = std::process::Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg("testsrc=duration=2:size=160x120:rate=25")
+            .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=2"])
+            .args(["-c:v", "mpeg4", "-c:a", "aac", "-shortest"])
+            .arg(&file)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if made {
+            Some((dir, file))
+        } else {
+            let _ = std::fs::remove_dir_all(&dir);
+            None
+        }
+    }
+
+    /// Frequency of a tone from its zero crossings, over `window` frames starting at `from`.
+    fn tone_hz(samples: &[f32], channels: usize, rate: u32, from: usize, window: usize) -> f64 {
+        let mono: Vec<f32> = samples
+            .chunks_exact(channels)
+            .skip(from)
+            .take(window)
+            .map(|f| f[0])
+            .collect();
+        let crossings = mono
+            .windows(2)
+            .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+            .count();
+        crossings as f64 / 2.0 / (mono.len() as f64 / f64::from(rate))
+    }
+
+    fn rms(samples: &[f32]) -> f64 {
+        (samples.iter().map(|s| f64::from(*s).powi(2)).sum::<f64>() / samples.len() as f64).sqrt()
+    }
+
+    /// The sound of a video file is the tone that was put in it, at its level and its length: not
+    /// silence, not noise, not another pitch.
+    #[test]
+    fn the_sound_of_an_mp4_is_the_tone_that_was_put_in_it() {
+        let Some((dir, file)) = tone_mp4("tone") else {
+            eprintln!("skipped: ffmpeg is not installed");
+            return;
+        };
+        let audio = decode_file(&file).expect("the AAC track of the MP4 decodes");
+        let _ = std::fs::remove_dir_all(&dir);
+        let channels = usize::from(audio.channels);
+        // About two seconds; AAC adds a little silence at the ends
+        assert!(
+            (1.8..2.3).contains(&audio.duration_seconds()),
+            "duration {}",
+            audio.duration_seconds()
+        );
+        // Measured in the middle second, away from the encoder's start and end
+        let rate = audio.sample_rate as usize;
+        let from = rate / 2;
+        let hz = tone_hz(&audio.samples, channels, audio.sample_rate, from, rate);
+        assert!((hz - 440.0).abs() < 8.0, "the pitch is {hz} Hz, not 440");
+        let middle: Vec<f32> = audio
+            .samples
+            .chunks_exact(channels)
+            .skip(from)
+            .take(rate)
+            .map(|f| f[0])
+            .collect();
+        // ffmpeg's sine is at 1/8 of full scale: an RMS near 0.088
+        let level = rms(&middle);
+        assert!((0.06..0.12).contains(&level), "the level is {level} (RMS)");
+    }
+
     #[test]
     fn mono_is_mirrored_to_stereo() {
         let audio = DecodedAudio {

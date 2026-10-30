@@ -111,5 +111,57 @@ class FfmpegLicence(unittest.TestCase):
         self.assertFalse((stage / "third_party").exists())
 
 
+class CleanTarget(unittest.TestCase):
+    """`clean_target` deletes the Cargo output after a build, and only when that is safe."""
+
+    def setUp(self) -> None:
+        self.case = SCRATCH / "clean_case"
+        if self.case.exists():
+            shutil.rmtree(self.case)
+        self.target = self.case / "target"
+        (self.target / "release").mkdir(parents=True)
+        (self.target / "release" / "neoveg.exe").write_bytes(b"x")
+        self.old = (build_portable.TARGET_DIR, build_portable.DIST)
+        build_portable.TARGET_DIR = self.target
+        build_portable.DIST = self.case / "dist"
+
+    def tearDown(self) -> None:
+        build_portable.TARGET_DIR, build_portable.DIST = self.old
+        shutil.rmtree(self.case, ignore_errors=True)
+
+    def test_a_target_inside_the_repository_is_deleted(self) -> None:
+        self.assertTrue(build_portable.clean_target())
+        self.assertFalse(self.target.exists())
+
+    def test_a_read_only_file_does_not_stop_the_deletion(self) -> None:
+        locked = self.target / "release" / "locked.pdb"
+        locked.write_bytes(b"x")
+        os.chmod(locked, 0o444)
+        self.assertTrue(build_portable.clean_target())
+        self.assertFalse(self.target.exists())
+
+    def test_a_target_outside_the_repository_is_left_alone(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as outside:
+            far = Path(outside) / "target"
+            far.mkdir()
+            (far / "keep.txt").write_text("x", encoding="utf-8")
+            build_portable.TARGET_DIR = far
+            self.assertFalse(build_portable.clean_target())
+            self.assertTrue((far / "keep.txt").is_file())
+
+    def test_packages_inside_the_target_are_never_deleted(self) -> None:
+        build_portable.DIST = self.target / "dist_check"
+        build_portable.DIST.mkdir()
+        (build_portable.DIST / "package.zip").write_bytes(b"x")
+        self.assertFalse(build_portable.clean_target())
+        self.assertTrue((build_portable.DIST / "package.zip").is_file())
+
+    def test_a_missing_target_is_fine(self) -> None:
+        shutil.rmtree(self.target)
+        self.assertTrue(build_portable.clean_target())
+
+
 if __name__ == "__main__":
     unittest.main()

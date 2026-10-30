@@ -96,7 +96,7 @@ jobs:
       # The quality job already ran the gates for this commit. Without `--ffmpeg`: the runner has no FFmpeg,
       # so this package has no video decoding (the local package, built with `--ffmpeg`, has).
       - name: Build and package
-        run: python build_portable.py build --skip-qa
+        run: python build_portable.py build --skip-qa --keep-target
 
       - uses: actions/upload-artifact@v4
         with:

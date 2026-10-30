@@ -6,8 +6,12 @@ Neoveg is a pure Rust workspace, so this script only orchestrates `cargo` and pa
     python build_portable.py                 # QA gates, release build and portable packages for this OS
     python build_portable.py build --ffmpeg  # same, with video decoding (needs FFMPEG_DIR / LIBCLANG_PATH)
     python build_portable.py build --targets all --skip-qa
+    python build_portable.py build --keep-target   # keep target/ afterwards (it is deleted by default)
     python build_portable.py qa              # fmt + clippy + tests + release build, writes the QA report
     python build_portable.py check           # verify the toolchain (and FFmpeg variables with --ffmpeg)
+
+After a successful build it deletes the Cargo `target/` folder of the repository (it reaches 10 GB or more),
+unless `--keep-target` is given; the next build compiles everything again.
 
 For every target it produces, under `dist/`:
 
@@ -358,6 +362,33 @@ def cmd_check(args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------------- QA
 
 
+def clean_target() -> bool:
+    """Deletes the Cargo output folder once the packages are written (it grows past 10 GB).
+
+    Only a folder inside the repository is touched (`CARGO_TARGET_DIR` may point anywhere), and never one
+    that holds the packages (`--dist target/...`). A file another program has open (an antivirus scan, a
+    debugger) is reported and the rest is still removed. Returns whether the folder is gone.
+    """
+    target = TARGET_DIR.resolve()
+    if not target.exists():
+        return True
+    repo = ROOT.resolve()
+    if repo not in target.parents:
+        log("WARN", f"target folder {target} is outside the repository: left alone")
+        return False
+    dist = DIST.resolve()
+    if dist == target or target in dist.parents:
+        log("WARN", f"the packages are inside {target}: target folder kept")
+        return False
+    log("INFO", f"deleting {target} (use --keep-target to keep it between builds)")
+    try:
+        force_rmtree(target)
+    except OSError as error:
+        log("WARN", f"could not delete everything in {target}: {error}")
+        return not target.exists()
+    return True
+
+
 def release_env(triple: str, macos_min: Optional[str] = None) -> Dict[str, str]:
     """Environment of the release build; QA and packaging share it so the second build is cached."""
     if "apple-darwin" in triple:
@@ -706,6 +737,9 @@ def cmd_build(args: argparse.Namespace) -> int:
         log("ERROR", f"failed targets: {', '.join(failures)}")
         return 1
     log("INFO", f"packages written to {DIST}")
+    # Only after a build that worked: after a failure the cache is what makes the next try fast
+    if not args.keep_target and manifest["packages"]:
+        clean_target()
     return 0
 
 
@@ -728,6 +762,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     build.add_argument("--skip-qa", action="store_true", help="skip fmt/clippy/tests (not for releases)")
     build.add_argument("--no-archive", action="store_true", help="only stage the folders and the exe")
     build.add_argument("--dist", default="", help="output folder (default: dist/ in the repository)")
+    build.add_argument("--keep-target", action="store_true",
+                       help="do not delete the Cargo target/ folder after a successful build (CI keeps its cache)")
     build.add_argument("--sync", action="store_true", help="mirror the workspace to the cloud folder afterwards (Windows)")
     qa = sub.add_parser("qa", help="run the quality gates and write the QA report")
     common(qa)

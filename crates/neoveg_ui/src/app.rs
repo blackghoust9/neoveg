@@ -13427,6 +13427,84 @@ mod tests {
         );
     }
 
+    /// The sound of an imported video, measured where playback gets it: the mixer plan. A clip made by
+    /// the `ffmpeg` tool with a 440 Hz tone is imported like the Import media command does, and the
+    /// mix of the first seconds must be that tone, at the right level, starting with the picture.
+    /// Needs the `ffmpeg` feature (without it a video file is refused on import, sound included) and
+    /// is skipped without the command-line tool.
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn the_sound_of_an_imported_video_reaches_the_mixer() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+        let dir = std::env::temp_dir().join(format!("neoveg_video_sound_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let clip = dir.join("clip.mp4");
+        let made = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg("testsrc=duration=2:size=160x120:rate=25")
+            .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=2"])
+            .args(["-c:v", "mpeg4", "-c:a", "aac", "-shortest"])
+            .arg(&clip)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !made {
+            let _ = std::fs::remove_dir_all(&dir);
+            eprintln!("skipped: ffmpeg is not installed");
+            return;
+        }
+        let ctx = egui::Context::default();
+        let mut s = AppState::new();
+        s.spawn_media(clip.clone(), None, &ctx);
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while s.media.is_empty() && Instant::now() < deadline {
+            s.poll_loader();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !s.media.is_empty(),
+            "the sound of the video was loaded; status: {}",
+            s.status
+        );
+
+        let clips = s.build_clips();
+        assert_eq!(clips.len(), 1, "one audible clip in the mix plan");
+        assert!(
+            clips[0].start.abs() < 1e-6,
+            "the sound starts with the picture"
+        );
+        assert!(
+            (1.8..2.3).contains(&clips[0].duration),
+            "the clip lasts about as long as the video, {}",
+            clips[0].duration
+        );
+
+        // The mix of a second in the middle of the clip, at the rate the device would ask for
+        let rate = 48_000usize;
+        let mut mix = vec![0.0f32; rate * 2];
+        neoveg_audio::mixer::render(&clips, 0.5, 1.0 / rate as f64, &mut mix);
+        let left: Vec<f32> = mix.chunks_exact(2).map(|f| f[0]).collect();
+        let level =
+            (left.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / left.len() as f64).sqrt();
+        let crossings = left
+            .windows(2)
+            .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+            .count();
+        let hz = crossings as f64 / 2.0;
+        assert!((hz - 440.0).abs() < 8.0, "the pitch is {hz} Hz, not 440");
+        assert!(
+            (0.06..0.12).contains(&level),
+            "the level is {level} (RMS): silence or too loud"
+        );
+        // And nothing plays after the end of the clip
+        let mut after = vec![0.0f32; 2 * 1000];
+        neoveg_audio::mixer::render(&clips, 2.6, 1.0 / rate as f64, &mut after);
+        assert!(after.iter().all(|v| *v == 0.0), "silent after the clip");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A real clip made by the `ffmpeg` tool goes through the whole path the user takes: import on
     /// the loader thread, the event on the video track, the frame request, the decoder thread and the
     /// texture of the preview. Skipped without the `ffmpeg` feature or the command-line tool.
