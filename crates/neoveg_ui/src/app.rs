@@ -22,10 +22,11 @@ use eframe::egui::{
     TextureHandle,
 };
 use egui_dock::{DockArea, DockState, Node, NodeIndex, Style, TabViewer};
-use neoveg_audio::decode::{decode_stereo, probe_audio};
+use neoveg_audio::decode::{decode_to_store, probe_audio};
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::metronome::{click_clips, Metronome};
 use neoveg_audio::mixer::MixClip;
+use neoveg_audio::pcm::PcmStore;
 use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::readout::LoudnessReadout;
 use neoveg_audio::record::Recorder;
@@ -216,7 +217,7 @@ struct LoadedMedia {
     path: PathBuf,
     name: String,
     waveform: Arc<WaveformSource>,
-    stereo: Arc<Vec<f32>>,
+    stereo: Arc<PcmStore>,
     sample_rate: u32,
     /// Sound channels of the file (the waveform and the mixer use a stereo copy).
     channels: u16,
@@ -491,7 +492,7 @@ struct AppState {
     keymap: KeyMap,
     media: HashMap<u64, LoadedMedia>,
     /// Cached WSOLA / varispeed slices keyed by `(media_id, trim_bits, dur_bits, rate_bits, preserve_pitch)`.
-    stretch_cache: std::cell::RefCell<HashMap<StretchCacheKey, Arc<Vec<f32>>>>,
+    stretch_cache: std::cell::RefCell<HashMap<StretchCacheKey, Arc<PcmStore>>>,
 
     playhead: f64,
     playing: bool,
@@ -6659,9 +6660,12 @@ type MediaFormat = Result<(u32, u32, f64), String>;
 
 /// Decodes an audio file and builds its waveform source.
 fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
-    // Only the stereo copy is kept: the file is never in memory twice
-    let audio = decode_stereo(path)?;
-    let waveform = WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &audio.samples)?;
+    // Decoded block by block: a long file goes to a temporary file, and the waveform and the
+    // mixer share the one copy
+    let audio = decode_to_store(path)?;
+    let duration = audio.duration_seconds();
+    let store = Arc::new(audio.store);
+    let waveform = WaveformSource::from_pcm(audio.sample_rate, Arc::clone(&store))?;
     Ok(LoadedMedia {
         name: path
             .file_name()
@@ -6671,8 +6675,8 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
         waveform: Arc::new(waveform),
         sample_rate: audio.sample_rate,
         channels: audio.channels,
-        duration: audio.samples.len() as f64 / 2.0 / f64::from(audio.sample_rate.max(1)),
-        stereo: Arc::new(audio.samples),
+        duration,
+        stereo: store,
     })
 }
 
@@ -12190,7 +12194,7 @@ mod tests {
             path: PathBuf::from("x.wav"),
             name: "x.wav".into(),
             waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
-            stereo: Arc::new(samples),
+            stereo: PcmStore::shared(samples),
             sample_rate: 100,
             channels: 2,
             duration: 10.0,
@@ -13101,7 +13105,7 @@ mod tests {
         let mut samples = vec![0.25_f32; 2_000];
         samples[1_400] = 0.5;
         let mut media = test_media();
-        media.stereo = Arc::new(samples);
+        media.stereo = PcmStore::shared(samples);
         s.media.insert(1, media);
         s.selection.set([(track, ev)]);
 
@@ -13286,7 +13290,7 @@ mod tests {
             path: PathBuf::from("x.wav"),
             name: "x.wav".into(),
             waveform: Arc::new(WaveformSource::from_interleaved_f32(100, 2, &samples).unwrap()),
-            stereo: Arc::new(samples),
+            stereo: PcmStore::shared(samples),
             sample_rate: 100,
             channels: 2,
             duration: 10.0,

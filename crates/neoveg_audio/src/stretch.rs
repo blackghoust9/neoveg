@@ -8,6 +8,8 @@
 use std::f64::consts::PI;
 use std::sync::Arc;
 
+use crate::pcm::PcmStore;
+
 /// Slowest supported playback rate (`0.25x` = 400% duration).
 pub const MIN_STRETCH_RATE: f64 = 0.25;
 /// Fastest supported playback rate (`4.0x` = 25% duration).
@@ -75,22 +77,22 @@ pub fn stretch_stereo(
 ///
 /// Slicing before stretching keeps editing responsive even on hour-long recordings.
 pub fn stretch_clip_slice(
-    samples: &[f32],
+    samples: &PcmStore,
     source_rate: u32,
     trim_in: f64,
     timeline_duration: f64,
     rate: f64,
     preserve_pitch: bool,
-) -> Arc<Vec<f32>> {
-    let total_frames = samples.len() / 2;
+) -> Arc<PcmStore> {
+    let total_frames = samples.frames();
     if total_frames == 0 || timeline_duration <= 0.0 || source_rate == 0 {
-        return Arc::new(Vec::new());
+        return PcmStore::shared(Vec::new());
     }
     let rate = clamp_rate(rate);
     let sr = f64::from(source_rate);
     let start_frame = ((trim_in.max(0.0) * sr).floor() as usize).min(total_frames);
     if start_frame >= total_frames {
-        return Arc::new(Vec::new());
+        return PcmStore::shared(Vec::new());
     }
     let needed_source_seconds = timeline_duration * rate;
     // Extra 50 ms tail gives the last WSOLA grain real lookahead samples when available.
@@ -103,14 +105,15 @@ pub fn stretch_clip_slice(
         .max(1)
         .min(total_frames - start_frame);
     let slice_end = (start_frame + source_frames + margin_frames).min(total_frames);
-    let slice = &samples[start_frame * 2..slice_end * 2];
+    // Only the played part is read, wherever the sound is kept
+    let slice = samples.to_vec(start_frame, slice_end - start_frame);
 
     let target_out_frames = ((source_frames as f64) / rate).round().max(1.0) as usize;
-    let mut stretched = stretch_stereo(slice, source_rate, rate, preserve_pitch);
+    let mut stretched = stretch_stereo(&slice, source_rate, rate, preserve_pitch);
     if stretched.len() > target_out_frames * 2 {
         stretched.truncate(target_out_frames * 2);
     }
-    Arc::new(stretched)
+    PcmStore::shared(stretched)
 }
 
 /// Linear stereo resampling (tape-speed varispeed or fallback for sub-window clips).
@@ -424,7 +427,8 @@ mod tests {
         let mut src = vec![0.0f32; sr * 2 * 2];
         src.extend(vec![0.6f32; sr * 2 * 2]);
         // Trim into the loud half at 2.0 s, stretch 1.0 s of source into 2.0 s on timeline (0.5x)
-        let out = stretch_clip_slice(&src, sr as u32, 2.0, 2.0, 0.5, true);
+        let out = stretch_clip_slice(&PcmStore::from_vec(src), sr as u32, 2.0, 2.0, 0.5, true)
+            .to_vec(0, usize::MAX);
         assert_eq!(out.len() / 2, sr * 2);
         assert!(out.iter().all(|&v| (v - 0.6).abs() < 1e-3));
     }

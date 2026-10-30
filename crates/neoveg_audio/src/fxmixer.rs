@@ -1179,14 +1179,14 @@ pub fn is_known_effect(kind: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use crate::pcm::PcmStore;
 
     const RATE: u32 = 48_000;
 
     /// `seconds` of a constant stereo value starting at 0 on `track`.
     fn constant(track: usize, value: f32, seconds: f64) -> MixClip {
         MixClip {
-            samples: Arc::new(vec![value; (RATE as f64 * seconds) as usize * 2]),
+            samples: PcmStore::shared(vec![value; (RATE as f64 * seconds) as usize * 2]),
             source_rate: RATE,
             start: 0.0,
             duration: seconds,
@@ -1746,7 +1746,7 @@ mod tests {
 
         let clips = vec![
             MixClip {
-                samples: Arc::new(pulse_pos),
+                samples: PcmStore::shared(pulse_pos),
                 source_rate: RATE,
                 start: 0.0,
                 duration: 256.0 / f64::from(RATE),
@@ -1755,7 +1755,7 @@ mod tests {
                 ..Default::default()
             },
             MixClip {
-                samples: Arc::new(pulse_neg),
+                samples: PcmStore::shared(pulse_neg),
                 source_rate: RATE,
                 start: 0.0,
                 duration: 256.0 / f64::from(RATE),

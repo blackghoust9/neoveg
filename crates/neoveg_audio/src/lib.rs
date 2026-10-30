@@ -11,6 +11,7 @@ pub mod loudness_report;
 pub mod meter;
 pub mod metronome;
 pub mod mixer;
+pub mod pcm;
 pub mod playback;
 pub mod readout;
 pub mod record;

@@ -344,7 +344,7 @@ mod tests {
     use super::*;
     use crate::fxmixer::FxPlan;
     use crate::mixer::MixClip;
-    use std::sync::Arc;
+    use crate::pcm::PcmStore;
 
     fn sine_clip(freq: f64, amp: f64, rate: u32, seconds: f64) -> MixClip {
         let frames = (f64::from(rate) * seconds) as usize;
@@ -356,7 +356,7 @@ mod tests {
             samples.push(v);
         }
         MixClip {
-            samples: Arc::new(samples),
+            samples: PcmStore::shared(samples),
             source_rate: rate,
             start: 0.0,
             duration: seconds,

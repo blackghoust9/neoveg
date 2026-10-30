@@ -11,6 +11,8 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
+use crate::pcm::{PcmStore, PcmWriter};
+
 /// Fully decoded audio, interleaved `f32`.
 #[derive(Debug, Clone)]
 pub struct DecodedAudio {
@@ -66,15 +68,81 @@ fn pick_audio_track(
     }
 }
 
-/// Decodes the first decodable audio track of `path` (the sound of a video file included).
-pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
-    decode_impl(path, false)
+/// Where decoded blocks go: `block` gets interleaved samples of `channels` channels.
+trait Sink {
+    /// The container's frame count, when it says.
+    fn start(&mut self, frames: Option<usize>);
+    fn block(&mut self, samples: &[f32], channels: usize) -> Result<(), String>;
 }
 
-/// Like [`decode_file`], but keeps only the interleaved stereo version (`channels` still tells how many
-/// the file had). It never holds the file twice, which matters for long recordings on small machines.
-pub fn decode_stereo(path: &Path) -> Result<DecodedAudio, String> {
-    decode_impl(path, true)
+/// Everything in memory, as the file has it.
+struct VecSink(Vec<f32>);
+
+impl Sink for VecSink {
+    fn start(&mut self, frames: Option<usize>) {
+        if let Some(frames) = frames {
+            // Beyond this a lying header would allocate gigabytes before a single packet
+            self.0.reserve_exact(frames.saturating_mul(2).min(1 << 28));
+        }
+    }
+
+    fn block(&mut self, samples: &[f32], _channels: usize) -> Result<(), String> {
+        self.0.extend_from_slice(samples);
+        Ok(())
+    }
+}
+
+impl Sink for PcmWriter {
+    fn start(&mut self, frames: Option<usize>) {
+        if let Some(frames) = frames {
+            self.reserve_frames(frames);
+        }
+    }
+
+    fn block(&mut self, samples: &[f32], channels: usize) -> Result<(), String> {
+        self.push(samples, channels)
+            .map_err(|e| format!("cannot keep the decoded sound: {e}"))
+    }
+}
+
+/// Decodes the first decodable audio track of `path` (the sound of a video file included).
+pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
+    let mut sink = VecSink(Vec::new());
+    let (sample_rate, channels) = decode_into(path, &mut sink)?;
+    Ok(DecodedAudio {
+        sample_rate,
+        channels,
+        samples: sink.0,
+    })
+}
+
+/// A decoded file kept as stereo in a [`PcmStore`]: in memory when it is short, in a temporary file
+/// when it is long, so a long recording never needs its length in memory.
+pub struct DecodedStore {
+    pub sample_rate: u32,
+    /// Channels the file had (the store is always stereo).
+    pub channels: u16,
+    pub store: PcmStore,
+}
+
+impl DecodedStore {
+    pub fn duration_seconds(&self) -> f64 {
+        self.store.frames() as f64 / f64::from(self.sample_rate.max(1))
+    }
+}
+
+/// Decodes `path` block by block into a [`PcmStore`] (see [`DecodedStore`]).
+pub fn decode_to_store(path: &Path) -> Result<DecodedStore, String> {
+    let mut writer = PcmWriter::new();
+    let (sample_rate, channels) = decode_into(path, &mut writer)?;
+    let store = writer
+        .finish()
+        .map_err(|e| format!("cannot keep the decoded sound: {e}"))?;
+    Ok(DecodedStore {
+        sample_rate,
+        channels,
+        store,
+    })
 }
 
 /// Length and channel count of the first audio track without decoding it, when the container says.
@@ -106,7 +174,8 @@ pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
     (rate > 0).then(|| (frames as f64 / f64::from(rate), channels))
 }
 
-fn decode_impl(path: &Path, stereo_only: bool) -> Result<DecodedAudio, String> {
+/// Decodes the first audio track of `path` into `sink`; returns the sample rate and channel count.
+fn decode_into(path: &Path, sink: &mut dyn Sink) -> Result<(u32, u16), String> {
     let file = File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -129,20 +198,18 @@ fn decode_impl(path: &Path, stereo_only: bool) -> Result<DecodedAudio, String> {
 
     let mut sample_rate = 0u32;
     let mut channels = 0u16;
-    let mut samples: Vec<f32> = Vec::new();
-    // The container usually knows the length: one allocation of the right size, not a doubling
-    // vector that peaks at twice the sound
-    let known = format
-        .tracks()
-        .iter()
-        .find(|t| t.id == track_id)
-        .and_then(|t| Some((t.codec_params.n_frames?, t.codec_params.channels?.count())));
-    if let Some((frames, ch)) = known {
-        let per_frame = if stereo_only { 2 } else { ch };
-        let wanted = (frames as usize).saturating_mul(per_frame);
-        // Beyond this a lying header would allocate gigabytes before a single packet
-        samples.reserve_exact(wanted.min(1 << 28));
-    }
+    let mut any = false;
+    // The container usually knows the length: the sink can size itself once
+    sink.start(
+        format
+            .tracks()
+            .iter()
+            .find(|t| t.id == track_id)
+            .and_then(|t| t.codec_params.n_frames)
+            .map(|n| n as usize),
+    );
+    // Reused for every packet, so decoding allocates once
+    let mut buf: Option<SampleBuffer<f32>> = None;
 
     loop {
         let packet = match format.next_packet() {
@@ -159,17 +226,16 @@ fn decode_impl(path: &Path, stereo_only: bool) -> Result<DecodedAudio, String> {
                 let spec = *decoded.spec();
                 sample_rate = spec.rate;
                 channels = spec.channels.count() as u16;
-                let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
+                let capacity = decoded.capacity() as u64;
+                let buf = match &mut buf {
+                    Some(b) if b.capacity() as u64 >= capacity * u64::from(channels) => b,
+                    slot => slot.insert(SampleBuffer::<f32>::new(capacity, spec)),
+                };
                 buf.copy_interleaved_ref(decoded);
-                if stereo_only {
-                    let ch = usize::from(channels.max(1));
-                    for frame in buf.samples().chunks_exact(ch) {
-                        samples.push(frame[0]);
-                        samples.push(if ch > 1 { frame[1] } else { frame[0] });
-                    }
-                } else {
-                    samples.extend_from_slice(buf.samples());
+                if !buf.samples().is_empty() {
+                    any = true;
                 }
+                sink.block(buf.samples(), usize::from(channels))?;
             }
             // A corrupt packet is skipped; the rest of the file is still usable
             Err(Error::DecodeError(e)) => {
@@ -179,15 +245,10 @@ fn decode_impl(path: &Path, stereo_only: bool) -> Result<DecodedAudio, String> {
         }
     }
 
-    if sample_rate == 0 || channels == 0 || samples.is_empty() {
+    if sample_rate == 0 || channels == 0 || !any {
         return Err(format!("{} contains no decodable audio", path.display()));
     }
-    samples.shrink_to_fit();
-    Ok(DecodedAudio {
-        sample_rate,
-        channels,
-        samples,
-    })
+    Ok((sample_rate, channels))
 }
 
 #[cfg(test)]
@@ -231,17 +292,21 @@ mod tests {
     }
 
     #[test]
-    fn stereo_decode_matches_the_full_decode_and_the_probe_needs_no_decoding() {
+    fn the_store_matches_the_full_decode_and_the_probe_needs_no_decoding() {
         let dir = std::env::temp_dir().join(format!("neoveg_decode_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         for channels in [1u16, 2, 3] {
             let path = dir.join(format!("c{channels}.wav"));
             write_wav(&path, channels, 400);
             let full = decode_file(&path).unwrap();
-            let stereo = decode_stereo(&path).unwrap();
-            assert_eq!(stereo.channels, channels);
-            assert_eq!(stereo.sample_rate, 8000);
-            assert_eq!(stereo.samples, full.to_stereo(), "{channels} channels");
+            let decoded = decode_to_store(&path).unwrap();
+            assert_eq!(decoded.channels, channels);
+            assert_eq!(decoded.sample_rate, 8000);
+            assert_eq!(
+                decoded.store.to_vec(0, usize::MAX),
+                full.to_stereo(),
+                "{channels} channels"
+            );
             let (seconds, found) = probe_audio(&path).unwrap();
             assert_eq!(found, channels);
             assert!((seconds - 400.0 / 8000.0).abs() < 1e-9, "{seconds}");

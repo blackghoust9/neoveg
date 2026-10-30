@@ -562,7 +562,7 @@ fn synthetic_media(name: &str, seconds: f64, freq: f64, pulse: f64, level: f32) 
             WaveformSource::from_interleaved_f32(RATE, 2, &samples)
                 .expect("a synthetic recording is valid"),
         ),
-        stereo: Arc::new(samples),
+        stereo: neoveg_audio::pcm::PcmStore::shared(samples),
         sample_rate: RATE,
         channels: 2,
         duration: seconds,

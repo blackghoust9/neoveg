@@ -4,11 +4,13 @@ use std::sync::Arc;
 
 use neoveg_common::fade::FadeCurve;
 
+use crate::pcm::PcmStore;
+
 /// One audio event prepared for playback.
 #[derive(Debug, Clone, Default)]
 pub struct MixClip {
     /// Interleaved stereo `f32` at `source_rate`.
-    pub samples: Arc<Vec<f32>>,
+    pub samples: Arc<PcmStore>,
     pub source_rate: u32,
     /// Timeline position (seconds) where the clip starts.
     pub start: f64,
@@ -35,16 +37,14 @@ pub struct MixClip {
     pub channels: neoveg_common::channels::ChannelMode,
 }
 
-/// Highest absolute sample of the interleaved stereo `samples` between `from` and `from +
-/// length` seconds. The window is clamped to the buffer; `0.0` for an empty window.
-pub fn peak_in_window(samples: &[f32], sample_rate: u32, from: f64, length: f64) -> f32 {
-    let frames = samples.len() / 2;
+/// Highest absolute sample of the stereo `samples` between `from` and `from + length` seconds.
+/// The window is clamped to the sound; `0.0` for an empty window.
+pub fn peak_in_window(samples: &PcmStore, sample_rate: u32, from: f64, length: f64) -> f32 {
+    let frames = samples.frames();
     let rate = f64::from(sample_rate);
     let start = ((from.max(0.0) * rate).floor() as usize).min(frames);
     let end = (((from + length).max(0.0) * rate).ceil() as usize).clamp(start, frames);
-    samples[start * 2..end * 2]
-        .iter()
-        .fold(0.0_f32, |peak, s| peak.max(s.abs()))
+    samples.peak(start, end)
 }
 
 /// Linear gain that brings a signal whose highest sample is `peak` to `target_db` dBFS. A silent
@@ -96,21 +96,17 @@ impl MixClip {
         if pos < 0.0 {
             return (0.0, 0.0);
         }
-        let total = self.samples.len() / 2;
         let i = pos.floor() as usize;
-        if i >= total {
+        if i >= self.samples.frames() {
             return (0.0, 0.0);
         }
-        let s = &self.samples;
-        let (l0, r0) = (s[i * 2], s[i * 2 + 1]);
-        let (l, r) = if i + 1 < total {
-            let f = (pos - i as f64) as f32;
-            (
-                l0 + (s[(i + 1) * 2] - l0) * f,
-                r0 + (s[(i + 1) * 2 + 1] - r0) * f,
-            )
-        } else {
-            (l0, r0)
+        let ((l0, r0), next) = self.samples.pair(i);
+        let (l, r) = match next {
+            Some((l1, r1)) => {
+                let f = (pos - i as f64) as f32;
+                (l0 + (l1 - l0) * f, r0 + (r1 - r0) * f)
+            }
+            None => (l0, r0),
         };
         let (l, r) = self.channels.apply(l, r);
         let g = self.envelope(local);
@@ -147,7 +143,7 @@ mod tests {
     fn clip(value: f32, start: f64, duration: f64) -> MixClip {
         // 1 second at 100 Hz of constant stereo value
         MixClip {
-            samples: Arc::new(vec![value; 200]),
+            samples: PcmStore::shared(vec![value; 200]),
             source_rate: 100,
             start,
             duration,
@@ -169,7 +165,7 @@ mod tests {
         // Source: a ramp of 100 stereo frames at 100 Hz (1 s); the clip lasts 2.5 s
         let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
         let mut c = MixClip {
-            samples: Arc::new(ramp),
+            samples: PcmStore::shared(ramp),
             source_rate: 100,
             duration: 2.5,
             gain: 1.0,
@@ -190,7 +186,7 @@ mod tests {
     fn the_loop_restarts_at_the_trimmed_in_point() {
         let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
         let c = MixClip {
-            samples: Arc::new(ramp),
+            samples: PcmStore::shared(ramp),
             source_rate: 100,
             duration: 3.0,
             trim_in: 0.5,
@@ -209,6 +205,7 @@ mod tests {
         let mut s = vec![0.1_f32; 200];
         s[100] = -0.8;
         s[180] = 0.95;
+        let s = PcmStore::from_vec(s);
         assert_eq!(peak_in_window(&s, 100, 0.0, 1.0), 0.95);
         assert_eq!(peak_in_window(&s, 100, 0.0, 0.8), 0.8);
         assert_eq!(peak_in_window(&s, 100, 0.0, 0.4), 0.1);
@@ -235,7 +232,7 @@ mod tests {
         // 1 s at 100 Hz: left 0.8, right 0.2
         let samples: Vec<f32> = (0..100).flat_map(|_| [0.8_f32, 0.2]).collect();
         let mut clip = MixClip {
-            samples: Arc::new(samples),
+            samples: PcmStore::shared(samples),
             source_rate: 100,
             duration: 1.0,
             gain: 1.0,
@@ -350,7 +347,7 @@ mod tests {
         let mut samples = vec![0.0f32; 200];
         samples[100..].fill(0.8); // second half of the source is loud
         let c = MixClip {
-            samples: Arc::new(samples),
+            samples: PcmStore::shared(samples),
             trim_in: 0.5,
             ..clip(0.0, 2.0, 0.5)
         };

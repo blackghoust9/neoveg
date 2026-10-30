@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use crate::mixer::MixClip;
+use crate::pcm::PcmStore;
 
 /// Most clicks prepared for one playback; the audio restarts at the cursor, so this is a horizon of
 /// about 33 minutes at 120 bpm.
@@ -72,8 +73,8 @@ pub fn click_clips(metronome: &Metronome, from: f64, to: f64, sample_rate: u32) 
     if to <= from || metronome.volume <= 0.0 {
         return Vec::new();
     }
-    let accent = Arc::new(click_samples(1600.0, sample_rate));
-    let normal = Arc::new(click_samples(1000.0, sample_rate));
+    let accent = PcmStore::shared(click_samples(1600.0, sample_rate));
+    let normal = PcmStore::shared(click_samples(1000.0, sample_rate));
     let step = metronome.beat_seconds();
     let mut clips = Vec::new();
     let mut beat = metronome.first_beat_at_or_after(from);

@@ -8,6 +8,10 @@
 //! - `query_columns` returns the **exact** min/max/RMS of every pixel column (no interpolation,
 //!   no resampled peaks), and `read_samples` returns the raw samples for sample-level zoom.
 
+use std::sync::Arc;
+
+use crate::pcm::PcmStore;
+
 /// Frames per summary block (Audacity uses 256-sample summaries for its first level).
 pub const SUMMARY_BLOCK_FRAMES: usize = 256;
 
@@ -63,12 +67,28 @@ impl ColumnAccumulator {
     }
 }
 
+/// Where the samples are: the bytes of a WAV payload, or the decoded stereo sound, which is
+/// shared with the mixer and may be on disk.
+enum Raw {
+    Bytes(Vec<u8>),
+    Pcm(Arc<PcmStore>),
+}
+
+/// A usable sample: finite and inside `-1..=1`.
+fn clean(v: f32) -> f32 {
+    if v.is_finite() {
+        v.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
 /// Audio file kept as its original PCM bytes (memory = file size) plus a summary level for fast
 /// column queries; samples are decoded on access.
 pub struct WaveformSource {
     pub sample_rate: u32,
     pub channels: u16,
-    data: Vec<u8>,
+    data: Raw,
     frames: usize,
     frame_size: usize,
     bytes_per_sample: usize,
@@ -86,8 +106,17 @@ impl WaveformSource {
     /// Decoded sample of channel 0 (left) or 1 (right; mirrors left on mono files).
     #[inline]
     fn sample(&self, channel: usize, frame: usize) -> f32 {
-        let offset = frame * self.frame_size + if channel == 0 { 0 } else { self.right_offset };
-        decode_sample(&self.data[offset..], self.bytes_per_sample, self.is_float)
+        match &self.data {
+            Raw::Bytes(data) => {
+                let offset =
+                    frame * self.frame_size + if channel == 0 { 0 } else { self.right_offset };
+                decode_sample(&data[offset..], self.bytes_per_sample, self.is_float)
+            }
+            Raw::Pcm(store) => {
+                let (l, r) = store.frame(frame);
+                clean(if channel == 0 { l } else { r })
+            }
+        }
     }
 
     pub fn from_wav_bytes(mut bytes: Vec<u8>) -> Result<Self, String> {
@@ -169,7 +198,7 @@ impl WaveformSource {
         let mut src = Self {
             sample_rate,
             channels,
-            data: bytes,
+            data: Raw::Bytes(bytes),
             frames,
             frame_size,
             bytes_per_sample,
@@ -313,6 +342,50 @@ fn decode_sample(bytes: &[u8], bytes_per_sample: usize, is_float: bool) -> f32 {
 }
 
 impl WaveformSource {
+    /// A waveform over decoded stereo sound that is shared, not copied: the summaries are built block
+    /// by block, so a sound on disk is never held whole.
+    pub fn from_pcm(sample_rate: u32, store: Arc<PcmStore>) -> Result<Self, String> {
+        if sample_rate == 0 {
+            return Err("invalid sample rate".into());
+        }
+        let frames = store.frames();
+        let blocks = frames.div_ceil(SUMMARY_BLOCK_FRAMES);
+        let mut left = Vec::with_capacity(blocks);
+        let mut right = Vec::with_capacity(blocks);
+        let mut buf = Vec::with_capacity(SUMMARY_BLOCK_FRAMES * 2);
+        for block in 0..blocks {
+            buf.clear();
+            store.read(block * SUMMARY_BLOCK_FRAMES, SUMMARY_BLOCK_FRAMES, &mut buf);
+            let empty = ChannelSummary {
+                min: f32::MAX,
+                max: f32::MIN,
+                sum_sq: 0.0,
+            };
+            let (mut l, mut r) = (empty, empty);
+            for frame in buf.as_chunks::<2>().0 {
+                for (summary, v) in [(&mut l, clean(frame[0])), (&mut r, clean(frame[1]))] {
+                    summary.min = summary.min.min(v);
+                    summary.max = summary.max.max(v);
+                    summary.sum_sq += f64::from(v) * f64::from(v);
+                }
+            }
+            left.push(l);
+            right.push(r);
+        }
+        Ok(Self {
+            sample_rate,
+            channels: 2,
+            data: Raw::Pcm(store),
+            frames,
+            frame_size: 8,
+            bytes_per_sample: 4,
+            right_offset: 4,
+            is_float: true,
+            summary_left: left,
+            summary_right: right,
+        })
+    }
+
     /// Builds a source from decoded interleaved `f32` samples (1 or 2+ channels; only the first two are kept).
     pub fn from_interleaved_f32(
         sample_rate: u32,
@@ -334,7 +407,7 @@ impl WaveformSource {
         let mut src = Self {
             sample_rate,
             channels: kept as u16,
-            data,
+            data: Raw::Bytes(data),
             frames,
             frame_size: kept * 4,
             bytes_per_sample: 4,
