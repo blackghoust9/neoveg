@@ -339,12 +339,12 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 - [ ] O `.ico` do programa não é versionado (`*.ico` está no `.gitignore`); o `build_portable.py` o gera, mas um `cargo build` direto sai sem ícone. Decidir entre uma exceção no `.gitignore` só para `assets/app_icon/app_icon.ico` ou gerar o ícone no `build.rs`.
 - [ ] O vídeo exige LLVM 19.x para compilar (`ffmpeg-sys-next` 7.1.x quebra com 22 ou mais novo). Avaliar subir a crate `ffmpeg-next` (a 9.x existe, mas anuncia compatibilidade com o FFmpeg 4) em um teste isolado, ou fixar o LLVM 19 no fluxo de contribuição; o `build_portable.py` já recusa LLVM 22+ antes de compilar.
 - [ ] CI com `cargo build/test/clippy/llvm-cov` e empacotamento nos três sistemas (já listado acima), incluindo FFmpeg com `libx264` quando houver.
-- [ ] Reduzir o tamanho do cache de build local (`target/` passa de 9 GB em depuração e release): avaliar `[profile.dev] debug = "line-tables-only"` e rodar com `CARGO_INCREMENTAL=0` em manutenção.
+- [x] Reduzir o tamanho e a memória do build local: `[profile.dev] debug = 0` (a ligação do binário de teste da UI estourava a memória de máquinas de 8 GB); o `target/` de depuração ficou em 2 a 3 GB. `CARGO_INCREMENTAL=0` em manutenção continua a critério de quem compila.
 - [ ] Falha intermitente de linkagem no Windows (`LNK1201`/`LNK1104`, um `.pdb` ou `.exe` de teste que não abre) depois de rebuilds seguidos: investigar antivírus e `mspdbsrv`; hoje basta apagar o `.pdb` do teste e repetir.
 
 **Pesquisa e documentação**
 - [ ] Registrar em `docs/research/nle_features_research.txt` os quatro itens da análise de lacunas sem registro (importar projeto de outro editor, envelope de vídeo "esmaecer para cor", conexão com serviço online de clipes, sobreposição de quadros de borda de edição) antes de virarem tarefa; ver `docs_obsidian/04 - Pesquisas e Benchmarks/lacunas_funcionais.md`.
-- [ ] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código. Feito em 28/10: velocidade do evento, Track Motion, Pan/Crop e a composição de vídeo em várias faixas. O idioma da interface continua pendente: `Assets/i18n` tem oito arquivos, mas nenhum código os carrega.
+- [x] Conferir e atualizar as caixas do roteiro que parecem pendentes mas já têm código. Feito em 28/10: velocidade do evento, Track Motion, Pan/Crop e a composição de vídeo em várias faixas; o idioma da interface também já está pronto (`neoveg_common::i18n`, ver a caixa de Preferências acima). Falta repetir a conferência na seção do plano detalhado, caixa a caixa.
 
 ### Próximos passos da referência funcional (registrados em 28/10/2026)
 
@@ -361,8 +361,8 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [ ] Envelopes de evento de vídeo: a velocidade está pronta; falta o envelope livre de progresso de transição (hoje o progresso é o ganho do fade).
 - [x] **Cadeia de efeitos de vídeo na GPU** (`wgpu`) por evento e por faixa (até 32 efeitos, bypass, parâmetros, desfazer): painel **Efeitos de Vídeo** (`Ctrl+Alt+8`), versão de referência na CPU e versão em compute shader conferidas por teste, usada também na renderização. Também por mídia (vale para todos os eventos dela) e por projeto, e a prévia mostra o valor ao vivo durante o arraste de um controle.
 - [x] Primeiros efeitos: desfoque gaussiano, nitidez, máscara de nitidez, vinheta, preto e branco, inverter, brilho e contraste, pixelizar, espelho, sépia, redemoinho, desfoque radial, mediana, ajuste HSL, desfoque linear e, adaptados do FilmCraft, equilíbrio de cor, níveis, correção de gama, posterizar, extrair, matiz, misturador de canais, ASC CDL, manter cor, trocar por cor, passar cor, ajuste de alfa, espelhar na horizontal e na vertical e deslocar (cada um na GPU e na referência da CPU, conferidos por teste). Faltam curvas de cor, recorte e o restante da lista abaixo.
-- [ ] Mais efeitos, pelo maior valor: desfoques linear e radial, curvas de cor e recorte.
-- [ ] Geradores que faltam: tabuleiro (xadrez) e textura de ruído (só pixels, baixo custo).
+- [ ] Mais efeitos, pelo maior valor: curvas de cor (os desfoques linear e radial já existem na GPU, e o recorte é o Pan/Crop).
+- [ ] Geradores que faltam: textura de ruído (só pixels, baixo custo); o tabuleiro já existe entre os padrões de teste.
 - [ ] Modelo de transição no engine antes da GPU: duração, curva, eixo A/B e envelope de progresso (nota `catalogo_transicoes_e_geradores`).
 - [ ] Medir a GPU com o benchmark de reprodução antes de escolher a primeira família de efeitos (`desempenho_resolucoes`).
 - [ ] Protótipo mínimo de host OFX em processo isolado.
