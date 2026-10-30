@@ -722,5 +722,6 @@
   "{} tem {} s, e o projeto guardou {} s: confira os eventos": "{} 的时长为 {} 秒，而项目中记录的是 {} 秒：请检查事件",
   "{} voltou para a janela principal": "{} 已返回主窗口",
   "{} · {} Hz · {} canais": "{} · {} Hz · {} 个声道",
-  "{}x{} · prévia {}x{} · {}": "{}x{} · 预览 {}x{} · {}"
+  "{}x{} · prévia {}x{} · {}": "{}x{} · 预览 {}x{} · {}",
+  "Abrir em janela própria": "在独立窗口中打开"
 }

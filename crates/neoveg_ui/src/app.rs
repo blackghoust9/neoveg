@@ -11,6 +11,7 @@ use std::time::Duration;
 
 mod composite;
 mod detached;
+mod dock_footer;
 pub(crate) mod headless;
 mod render_job;
 mod tabs;
@@ -485,6 +486,8 @@ struct AppState {
     prefs: Preferences,
     /// System font for Japanese and Chinese, loaded when one of them is the language.
     cjk_fonts: crate::fonts::CjkFonts,
+    /// The footer strips of the docked windows.
+    dock_footer: dock_footer::DockFooter,
     keymap: KeyMap,
     media: HashMap<u64, LoadedMedia>,
     /// Cached WSOLA / varispeed slices keyed by `(media_id, trim_bits, dur_bits, rate_bits, preserve_pitch)`.
@@ -1498,6 +1501,7 @@ impl AppState {
             history: History::new(),
             prefs,
             cjk_fonts: Default::default(),
+            dock_footer: Default::default(),
             keymap,
             media: HashMap::new(),
             stretch_cache: std::cell::RefCell::new(HashMap::new()),
@@ -6569,14 +6573,17 @@ impl NeovegApp {
             .frame(egui::Frame::none())
             .show(ctx, |ui| {
                 let mut style = Style::from_egui(ui.style().as_ref());
-                // egui_dock cannot place its strip at the bottom; grouped panels use `footer_tabs` instead
-                style.tab_bar.height = 22.0;
+                // egui_dock can only put its strip on top, so it is hidden (height 0) and every group
+                // of windows draws its own footer strip (`footer_tabs`, `dock_footer`)
+                style.tab_bar.height = 0.0;
+                self.state.dock_footer.refresh(&self.dock, ui.max_rect());
                 DockArea::new(&mut self.dock).style(style).show_inside(
                     ui,
                     &mut Viewer {
                         state: &mut self.state,
                     },
                 );
+                self.state.dock_footer.apply(&mut self.dock, ui.ctx());
             });
 
         self.promote_floating_windows(ctx);
@@ -9109,6 +9116,42 @@ impl TabViewer for Viewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Tab) {
+        // The footer strip of the group this window is in (a detached panel has none). The Media panel
+        // alone in its group already has strips of its own, so it gets none from the dock.
+        let leaf = self
+            .state
+            .dock_footer
+            .leaf_of(*tab)
+            .filter(|leaf| !(*tab == Tab::Media && leaf.tabs.len() == 1))
+            .cloned();
+        let Some(leaf) = leaf else {
+            self.content(ui, tab);
+            return;
+        };
+        egui::TopBottomPanel::bottom(egui::Id::new((
+            "neoveg_dock_footer_area",
+            leaf.surface.0,
+            leaf.node.0,
+        )))
+        .exact_height(crate::footer_tabs::HEIGHT)
+        .frame(egui::Frame::none())
+        .show_separator_line(false)
+        .show_inside(ui, |ui| self.state.dock_footer.strip(ui, &leaf));
+        // The window draws in what is left, clipped: a panel taller than its group must not paint
+        // over the footer strip
+        let rest = ui.available_rect_before_wrap();
+        let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rest).layout(*ui.layout()));
+        body.set_clip_rect(rest.intersect(ui.clip_rect()));
+        self.content(&mut body, tab);
+    }
+
+    fn closeable(&mut self, _tab: &mut Tab) -> bool {
+        false
+    }
+}
+
+impl Viewer<'_> {
+    fn content(&mut self, ui: &mut egui::Ui, tab: &mut Tab) {
         match tab {
             Tab::Preview => preview_ui(self.state, ui),
             Tab::Timeline => timeline_ui(self.state, ui),
@@ -9136,10 +9179,6 @@ impl TabViewer for Viewer<'_> {
                 }
             }
         }
-    }
-
-    fn closeable(&mut self, _tab: &mut Tab) -> bool {
-        false
     }
 }
 
@@ -9238,24 +9277,15 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
 /// Classic NLE compact footer tabs: flat 22 px headers in a strip at the bottom of the panel.
 fn footer_tabs(ui: &mut egui::Ui, id: &str, labels: &[&'static str], selected: &mut usize) {
     egui::TopBottomPanel::bottom(egui::Id::new(id))
-        .exact_height(22.0)
+        .exact_height(crate::footer_tabs::HEIGHT)
+        .frame(egui::Frame::none())
+        .show_separator_line(false)
         .show_inside(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                for (i, label) in labels.iter().enumerate() {
-                    let text = egui::RichText::new(tr(label)).size(11.0);
-                    if ui
-                        .add(
-                            egui::Button::new(text)
-                                .rounding(Rounding::ZERO)
-                                .selected(*selected == i),
-                        )
-                        .clicked()
-                    {
-                        *selected = i;
-                    }
-                }
-            });
+            let names: Vec<String> = labels.iter().map(|l| tr(l).to_owned()).collect();
+            let out = crate::footer_tabs::show(ui, egui::Id::new(id), &names, *selected, false);
+            if let Some(index) = out.clicked {
+                *selected = index;
+            }
         });
 }
 

@@ -722,5 +722,6 @@
   "{} tem {} s, e o projeto guardou {} s: confira os eventos": "{} の長さは {} 秒ですが、プロジェクトには {} 秒と記録されています: イベントを確認してください",
   "{} voltou para a janela principal": "{} がメインウィンドウに戻りました",
   "{} · {} Hz · {} canais": "{} · {} Hz · {} チャンネル",
-  "{}x{} · prévia {}x{} · {}": "{}x{} · プレビュー {}x{} · {}"
+  "{}x{} · prévia {}x{} · {}": "{}x{} · プレビュー {}x{} · {}",
+  "Abrir em janela própria": "別ウィンドウで開く"
 }

@@ -722,5 +722,6 @@
   "{} tem {} s, e o projeto guardou {} s: confira os eventos": "{} ist {} s lang, und das Projekt hatte {} s gespeichert: Ereignisse prüfen",
   "{} voltou para a janela principal": "{} ist ins Hauptfenster zurückgekehrt",
   "{} · {} Hz · {} canais": "{} · {} Hz · {} Kanäle",
-  "{}x{} · prévia {}x{} · {}": "{}x{} · Vorschau {}x{} · {}"
+  "{}x{} · prévia {}x{} · {}": "{}x{} · Vorschau {}x{} · {}",
+  "Abrir em janela própria": "In eigenem Fenster öffnen"
 }

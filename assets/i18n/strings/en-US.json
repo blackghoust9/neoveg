@@ -722,5 +722,6 @@
   "{} tem {} s, e o projeto guardou {} s: confira os eventos": "{} is {} s long, and the project stored {} s: check the events",
   "{} voltou para a janela principal": "{} returned to the main window",
   "{} · {} Hz · {} canais": "{} · {} Hz · {} channels",
-  "{}x{} · prévia {}x{} · {}": "{}x{} · preview {}x{} · {}"
+  "{}x{} · prévia {}x{} · {}": "{}x{} · preview {}x{} · {}",
+  "Abrir em janela própria": "Open in its own window"
 }

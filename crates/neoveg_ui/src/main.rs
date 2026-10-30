@@ -10,6 +10,7 @@ mod dock;
 mod envelope_canvas;
 mod event_header;
 mod fonts;
+mod footer_tabs;
 mod frame_grid;
 mod fx_panel;
 mod generator_dialog;

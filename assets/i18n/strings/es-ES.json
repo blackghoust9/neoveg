@@ -722,5 +722,6 @@
   "{} tem {} s, e o projeto guardou {} s: confira os eventos": "{} dura {} s, y el proyecto guardó {} s: revise los eventos",
   "{} voltou para a janela principal": "{} volvió a la ventana principal",
   "{} · {} Hz · {} canais": "{} · {} Hz · {} canales",
-  "{}x{} · prévia {}x{} · {}": "{}x{} · vista previa {}x{} · {}"
+  "{}x{} · prévia {}x{} · {}": "{}x{} · vista previa {}x{} · {}",
+  "Abrir em janela própria": "Abrir en su propia ventana"
 }
