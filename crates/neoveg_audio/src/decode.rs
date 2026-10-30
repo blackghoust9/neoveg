@@ -68,6 +68,45 @@ fn pick_audio_track(
 
 /// Decodes the first decodable audio track of `path` (the sound of a video file included).
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
+    decode_impl(path, false)
+}
+
+/// Like [`decode_file`], but keeps only the interleaved stereo version (`channels` still tells how many
+/// the file had). It never holds the file twice, which matters for long recordings on small machines.
+pub fn decode_stereo(path: &Path) -> Result<DecodedAudio, String> {
+    decode_impl(path, true)
+}
+
+/// Length and channel count of the first audio track without decoding it, when the container says.
+pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
+    let file = File::open(path).ok()?;
+    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+    let probed = symphonia::default::get_probe()
+        .format(
+            &hint,
+            stream,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .ok()?;
+    let format = probed.format;
+    let (track_id, _) = pick_audio_track(&*format, path).ok()?;
+    let params = &format
+        .tracks()
+        .iter()
+        .find(|t| t.id == track_id)?
+        .codec_params;
+    let frames = params.n_frames?;
+    let rate = params.sample_rate?;
+    let channels = params.channels?.count() as u16;
+    (rate > 0).then(|| (frames as f64 / f64::from(rate), channels))
+}
+
+fn decode_impl(path: &Path, stereo_only: bool) -> Result<DecodedAudio, String> {
     let file = File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -91,6 +130,19 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     let mut sample_rate = 0u32;
     let mut channels = 0u16;
     let mut samples: Vec<f32> = Vec::new();
+    // The container usually knows the length: one allocation of the right size, not a doubling
+    // vector that peaks at twice the sound
+    let known = format
+        .tracks()
+        .iter()
+        .find(|t| t.id == track_id)
+        .and_then(|t| Some((t.codec_params.n_frames?, t.codec_params.channels?.count())));
+    if let Some((frames, ch)) = known {
+        let per_frame = if stereo_only { 2 } else { ch };
+        let wanted = (frames as usize).saturating_mul(per_frame);
+        // Beyond this a lying header would allocate gigabytes before a single packet
+        samples.reserve_exact(wanted.min(1 << 28));
+    }
 
     loop {
         let packet = match format.next_packet() {
@@ -109,7 +161,15 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
                 channels = spec.channels.count() as u16;
                 let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
                 buf.copy_interleaved_ref(decoded);
-                samples.extend_from_slice(buf.samples());
+                if stereo_only {
+                    let ch = usize::from(channels.max(1));
+                    for frame in buf.samples().chunks_exact(ch) {
+                        samples.push(frame[0]);
+                        samples.push(if ch > 1 { frame[1] } else { frame[0] });
+                    }
+                } else {
+                    samples.extend_from_slice(buf.samples());
+                }
             }
             // A corrupt packet is skipped; the rest of the file is still usable
             Err(Error::DecodeError(e)) => {
@@ -122,6 +182,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     if sample_rate == 0 || channels == 0 || samples.is_empty() {
         return Err(format!("{} contains no decodable audio", path.display()));
     }
+    samples.shrink_to_fit();
     Ok(DecodedAudio {
         sample_rate,
         channels,
@@ -142,6 +203,51 @@ mod tests {
         };
         assert_eq!(audio.to_stereo(), vec![0.25, 0.25, -0.5, -0.5]);
         assert_eq!(audio.frame_count(), 2);
+    }
+
+    /// A 16-bit PCM WAV of `frames` frames; channel `c` of frame `i` holds `(i + c) * 100`.
+    fn write_wav(path: &Path, channels: u16, frames: u32) {
+        let mut data = Vec::new();
+        for i in 0..frames {
+            for c in 0..channels {
+                data.extend_from_slice(&(((i + u32::from(c)) * 100) as i16).to_le_bytes());
+            }
+        }
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&channels.to_le_bytes());
+        wav.extend_from_slice(&8000u32.to_le_bytes());
+        wav.extend_from_slice(&(8000 * u32::from(channels) * 2).to_le_bytes());
+        wav.extend_from_slice(&(channels * 2).to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        wav.extend_from_slice(&data);
+        std::fs::write(path, wav).unwrap();
+    }
+
+    #[test]
+    fn stereo_decode_matches_the_full_decode_and_the_probe_needs_no_decoding() {
+        let dir = std::env::temp_dir().join(format!("neoveg_decode_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for channels in [1u16, 2, 3] {
+            let path = dir.join(format!("c{channels}.wav"));
+            write_wav(&path, channels, 400);
+            let full = decode_file(&path).unwrap();
+            let stereo = decode_stereo(&path).unwrap();
+            assert_eq!(stereo.channels, channels);
+            assert_eq!(stereo.sample_rate, 8000);
+            assert_eq!(stereo.samples, full.to_stereo(), "{channels} channels");
+            let (seconds, found) = probe_audio(&path).unwrap();
+            assert_eq!(found, channels);
+            assert!((seconds - 400.0 / 8000.0).abs() < 1e-9, "{seconds}");
+        }
+        assert!(probe_audio(&dir.join("missing.wav")).is_none());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

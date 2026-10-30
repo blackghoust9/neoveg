@@ -22,7 +22,7 @@ use eframe::egui::{
     TextureHandle,
 };
 use egui_dock::{DockArea, DockState, Node, NodeIndex, Style, TabViewer};
-use neoveg_audio::decode::decode_file;
+use neoveg_audio::decode::{decode_stereo, probe_audio};
 use neoveg_audio::meter::{linear_to_dbfs, PeakMeter};
 use neoveg_audio::metronome::{click_clips, Metronome};
 use neoveg_audio::mixer::MixClip;
@@ -5002,7 +5002,10 @@ impl AppState {
                         e.preserve_pitch,
                     );
                     let mut cache = self.stretch_cache.borrow_mut();
-                    if cache.len() > 64 {
+                    // Bounded by size, not by count: one stretched clip can be tens of megabytes
+                    const STRETCH_CACHE_FLOATS: usize = 32 << 20;
+                    let held: usize = cache.values().map(|b| b.len()).sum();
+                    if cache.len() > 64 || held > STRETCH_CACHE_FLOATS {
                         cache.clear();
                     }
                     let buf = cache
@@ -6656,9 +6659,9 @@ type MediaFormat = Result<(u32, u32, f64), String>;
 
 /// Decodes an audio file and builds its waveform source.
 fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
-    let audio = decode_file(path)?;
-    let stereo = audio.to_stereo();
-    let waveform = WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &stereo)?;
+    // Only the stereo copy is kept: the file is never in memory twice
+    let audio = decode_stereo(path)?;
+    let waveform = WaveformSource::from_interleaved_f32(audio.sample_rate, 2, &audio.samples)?;
     Ok(LoadedMedia {
         name: path
             .file_name()
@@ -6666,10 +6669,10 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
             .unwrap_or_default(),
         path: path.to_path_buf(),
         waveform: Arc::new(waveform),
-        stereo: Arc::new(stereo),
         sample_rate: audio.sample_rate,
         channels: audio.channels,
-        duration: audio.duration_seconds(),
+        duration: audio.samples.len() as f64 / 2.0 / f64::from(audio.sample_rate.max(1)),
+        stereo: Arc::new(audio.samples),
     })
 }
 
@@ -8006,10 +8009,17 @@ fn probe_candidate(path: &std::path::Path) -> Option<relink::Probed> {
             fps: video.then_some(info.fps),
         });
     }
-    let audio = decode_file(path).ok()?;
+    // The header answers without decoding; a file whose header is silent is decoded as before
+    let (duration_seconds, channels) = match probe_audio(path) {
+        Some(found) => found,
+        None => {
+            let audio = neoveg_audio::decode::decode_file(path).ok()?;
+            (audio.duration_seconds(), audio.channels)
+        }
+    };
     Some(relink::Probed {
-        duration_seconds: audio.duration_seconds(),
-        channels: Some(audio.channels),
+        duration_seconds,
+        channels: Some(channels),
         fps: None,
     })
 }
