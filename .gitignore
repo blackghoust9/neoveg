@@ -122,6 +122,7 @@ coverage/qa/qa_report.json
 docs/qa_report.js
 
 # Obsidian vault (docs_obsidian/): tracked, except the per-machine workspace state
+.obsidian/workspace.json
 docs_obsidian/.obsidian/workspace.json
 docs_obsidian/.obsidian/workspace-mobile.json
 
