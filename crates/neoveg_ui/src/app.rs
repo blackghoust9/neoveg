@@ -1989,8 +1989,28 @@ impl AppState {
             return;
         };
         let base = self.paste_base_track();
-        let result = ops::paste(&mut self.timeline, &clip, self.playhead, base, mode);
+        let at = self.playhead;
+        let ripples = self.auto_ripple && mode == PasteMode::Overlay;
+        let result = if ripples {
+            neoveg_engine::ripple::paste_with_ripple(
+                &mut self.timeline,
+                &clip,
+                at,
+                base,
+                self.ripple_scope,
+            )
+        } else {
+            ops::paste(&mut self.timeline, &clip, at, base, mode)
+        };
+        let pasted: Vec<EventRef> = result
+            .as_ref()
+            .map(|(outcome, _)| outcome.touched.clone())
+            .unwrap_or_default();
         self.report_paste(result);
+        // A plain paste on top of other events can be rippled afterwards with F, Ctrl+F or Ctrl+Shift+F
+        if !ripples && mode == PasteMode::Overlay {
+            self.remember_post_ripple(neoveg_engine::ripple::paste_hint(at, clip.length, &pasted));
+        }
     }
 
     /// `true` when the media the event plays is a generated one (a `.neoveggen` manifest).
@@ -2400,10 +2420,10 @@ impl AppState {
         self.selected_track = Some(edge.track);
         self.selection.select_only((edge.track, edge.event));
         self.status = tr_args(
-            "Aparo por teclado: {} do evento — ← / → movem um quadro (Esc sai)",
+            "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)",
             &[&match edge.side {
-                neoveg_engine::keytrim::EdgeSide::Start => "início",
-                neoveg_engine::keytrim::EdgeSide::End => "fim",
+                neoveg_engine::keytrim::EdgeSide::Start => tr("início"),
+                neoveg_engine::keytrim::EdgeSide::End => tr("fim"),
             }],
         );
     }
@@ -2411,6 +2431,116 @@ impl AppState {
     /// Moves the selected edge `frames` frames (negative = earlier). Without an explicit `mode` the
     /// edit tool picks it: Slip and Slide nudge the media or the event, any other tool trims the edge.
     fn nudge_trim_edge(&mut self, frames: f64, mode: Option<neoveg_engine::keytrim::TrimMode>) {
+        let fps = self.project.settings.fps.max(1.0);
+        self.nudge_trim_edge_seconds(frames / fps, mode);
+    }
+
+    /// Moves the selected edge one screen pixel (`direction` is 1 or -1), the way the `4` and `6` keys
+    /// and the wheel with `Ctrl+Shift` do. A pixel is as long as the zoom makes it; with *Quantize to
+    /// Frames* on, the step is the whole number of frames nearest to that (at least one), so the edge
+    /// never lands between frames.
+    fn nudge_trim_edge_pixels(
+        &mut self,
+        direction: f64,
+        pixels_per_point: f32,
+        mode: Option<neoveg_engine::keytrim::TrimMode>,
+    ) {
+        let fps = self.project.settings.fps.max(1.0);
+        let pixel = 1.0 / (self.pixels_per_second.max(1.0) * f64::from(pixels_per_point.max(0.5)));
+        let step = if self.prefs.quantize_to_frames {
+            ((pixel * fps).round().max(1.0)) / fps
+        } else {
+            pixel
+        };
+        self.nudge_trim_edge_seconds(direction * step, mode);
+    }
+
+    /// The keys of the keyboard trim mode that are not commands, so they cannot clash with the
+    /// digits that choose a take: with an edge selected `1` / `3` move it a frame, `4` / `6` a pixel
+    /// (`Ctrl` stretches, `Alt` slips, `Ctrl+Alt` moves the shared cut), `7` / `9` pick the previous
+    /// or next edge and `5` leaves; the wheel with `Ctrl+Shift` moves it a pixel, with `Ctrl+Shift+Alt`
+    /// a frame. Returns `true` when a key or the wheel was used.
+    fn trim_edge_keys(&mut self, ctx: &egui::Context) -> bool {
+        use egui::{Key, Modifiers};
+        use neoveg_engine::keytrim::TrimMode;
+        if self.trim_edge.is_none() {
+            return false;
+        }
+        let ppp = ctx.pixels_per_point();
+        // The most specific first: egui matches the modifiers logically, so a key pressed with Alt
+        // would also match a pattern without it
+        let modes = [
+            (Modifiers::CTRL | Modifiers::ALT, Some(TrimMode::Roll)),
+            (Modifiers::CTRL, Some(TrimMode::Stretch)),
+            (Modifiers::ALT, Some(TrimMode::Slip)),
+            (Modifiers::NONE, None),
+        ];
+        // (key, direction, by pixel?)
+        let steps = [
+            (Key::Num1, -1.0, false),
+            (Key::Num3, 1.0, false),
+            (Key::Num4, -1.0, true),
+            (Key::Num6, 1.0, true),
+        ];
+        for (modifiers, mode) in modes {
+            for (key, direction, by_pixel) in steps {
+                if ctx.input_mut(|i| i.consume_key(modifiers, key)) {
+                    if by_pixel {
+                        self.nudge_trim_edge_pixels(direction, ppp, mode);
+                    } else {
+                        self.nudge_trim_edge(direction, mode);
+                    }
+                    return true;
+                }
+            }
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Num7)) {
+            self.select_trim_edge(false);
+            return true;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Num9)) {
+            self.select_trim_edge(true);
+            return true;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Num5)) {
+            self.trim_edge = None;
+            self.status = "Aparo por teclado encerrado".into();
+            return true;
+        }
+        // The wheel with Ctrl+Shift: one step per notch, up = earlier; the timeline does not zoom
+        let (wheel, ctrl, shift, alt) = ctx.input(|i| {
+            (
+                // With Shift held egui moves the turn of the wheel to the horizontal axis
+                i.raw_scroll_delta.x + i.raw_scroll_delta.y,
+                i.modifiers.ctrl,
+                i.modifiers.shift,
+                i.modifiers.alt,
+            )
+        });
+        if ctrl && shift && wheel != 0.0 {
+            ctx.input_mut(|i| {
+                i.raw_scroll_delta = egui::Vec2::ZERO;
+                i.smooth_scroll_delta = egui::Vec2::ZERO;
+            });
+            let notches = (f64::from(wheel.abs()) / 50.0).ceil().max(1.0);
+            let direction = -f64::from(wheel.signum()) * notches;
+            if alt {
+                self.nudge_trim_edge(direction, None);
+            } else {
+                self.nudge_trim_edge_pixels(direction, ppp, None);
+            }
+            return true;
+        }
+        false
+    }
+
+    /// Moves the selected edge `seconds` seconds (negative = earlier), in `mode` or in the one the
+    /// edit tool picks.
+    fn nudge_trim_edge_seconds(
+        &mut self,
+        seconds: f64,
+        mode: Option<neoveg_engine::keytrim::TrimMode>,
+    ) {
         use neoveg_engine::keytrim::{nudge, TrimMode};
         let Some(edge) = self.trim_edge else {
             self.status = "Escolha uma borda com [ ou ] para aparar pelo teclado".into();
@@ -2425,7 +2555,7 @@ impl AppState {
         let outcome = nudge(
             &self.timeline,
             edge,
-            frames / fps,
+            seconds,
             mode,
             1.0 / fps,
             &|track, event| self.source_len(track, event),
@@ -3977,6 +4107,23 @@ impl AppState {
         if d.current == d.origin && d.target_track == d.track_id {
             return;
         }
+        // Auto Ripple: an event moved along its track closes the gap it leaves and opens room where it lands
+        if self.auto_ripple && d.mode == DragMode::Move && d.target_track == d.track_id {
+            if let Some(outcome) = neoveg_engine::ripple::ripple_move(
+                &self.timeline,
+                d.track_id,
+                d.event_id,
+                d.current,
+                self.ripple_scope,
+            ) {
+                self.history.execute(&mut self.timeline, outcome.command);
+                self.selected_track = Some(d.track_id);
+                self.selection.select_only((d.track_id, d.event_id));
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                return;
+            }
+        }
         self.history.execute(
             &mut self.timeline,
             EditCommand::EditEvent {
@@ -3997,6 +4144,10 @@ impl AppState {
         {
             self.remember_post_ripple(neoveg_engine::ripple::resize_hint(
                 d.track_id, d.origin, d.current,
+            ));
+        } else if d.mode == DragMode::Move && d.target_track == d.track_id {
+            self.remember_post_ripple(neoveg_engine::ripple::move_hint(
+                d.track_id, d.event_id, d.origin, d.current,
             ));
         }
         self.selected_track = Some(d.target_track);
@@ -6078,6 +6229,9 @@ impl AppState {
         {
             self.trim_edge = None;
             self.status = "Aparo por teclado encerrado".into();
+            return;
+        }
+        if self.trim_edge_keys(ctx) {
             return;
         }
         // Sequences of shortcuts (`Ctrl+K Ctrl+S`): the first step waits for the next one
@@ -9381,6 +9535,12 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         &mut prefs.show_welcome_on_startup,
                         tr("Mostrar a tela de boas-vindas ao iniciar o programa"),
                     );
+                    ui.checkbox(
+                        &mut prefs.hardware_decoding,
+                        tr("Decodificar HEVC, AV1 e VP9 com a placa de vídeo"),
+                    )
+                    .on_hover_text(tr("Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador."));
+                    neoveg_video::info::set_hardware_decoding(prefs.hardware_decoding);
                     ui.horizontal(|ui| {
                         ui.label(tr("Projetos recentes a lembrar (0 = desligado)"));
                         ui.add(egui::DragValue::new(&mut prefs.recent_projects_max).range(0..=30));
@@ -14317,6 +14477,261 @@ mod tests {
         s.run_command(command, &egui::Context::default(), 0.0);
     }
 
+    /// One frame of the ruler, in seconds.
+    fn frame_seconds(s: &AppState) -> f64 {
+        1.0 / s.project.settings.fps
+    }
+
+    fn duration_of(s: &AppState, track: TrackId, ev: EventId) -> f64 {
+        geometry(s, track, ev).duration
+    }
+
+    #[test]
+    fn a_pixel_step_follows_the_zoom_and_lands_on_frames_when_quantizing() {
+        let (mut s, track, ev) = state_with_clip(); // event 2.0 - 6.0
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        run(&mut s, Command::EditTrimEdgeNext); // the end edge
+        let frame = frame_seconds(&s);
+        // Zoomed in a pixel is a small part of a frame: with quantizing the step is one frame
+        s.pixels_per_second = 400.0;
+        s.nudge_trim_edge_pixels(1.0, 1.0, None);
+        assert!((duration_of(&s, track, ev) - (4.0 + frame)).abs() < 1e-9);
+        s.undo();
+        // Without quantizing the step is exactly one pixel
+        s.prefs.quantize_to_frames = false;
+        s.nudge_trim_edge_pixels(1.0, 1.0, None);
+        assert!((duration_of(&s, track, ev) - (4.0 + 1.0 / 400.0)).abs() < 1e-9);
+        s.undo();
+        // Zoomed out a pixel is several frames; quantizing rounds to whole frames
+        s.prefs.quantize_to_frames = true;
+        s.pixels_per_second = 10.0;
+        s.nudge_trim_edge_pixels(-1.0, 1.0, None);
+        let frames = ((4.0 - duration_of(&s, track, ev)) / frame).round();
+        assert!(frames >= 3.0, "{frames} frames for a pixel at 10 px/s");
+        s.undo();
+        // A denser screen (more physical pixels per point) makes the pixel smaller
+        s.prefs.quantize_to_frames = false;
+        s.pixels_per_second = 100.0;
+        s.nudge_trim_edge_pixels(1.0, 2.0, None);
+        assert!((duration_of(&s, track, ev) - (4.0 + 1.0 / 200.0)).abs() < 1e-9);
+    }
+
+    /// Feeds one frame of input to the shortcut handler, the way the window would.
+    fn press(s: &mut AppState, events: Vec<egui::Event>) {
+        let ctx = egui::Context::default();
+        // The window reports the modifiers held down along with the events
+        let modifiers = events
+            .iter()
+            .find_map(|e| match e {
+                egui::Event::Key { modifiers, .. } | egui::Event::MouseWheel { modifiers, .. } => {
+                    Some(*modifiers)
+                }
+                _ => None,
+            })
+            .unwrap_or_default();
+        let input = egui::RawInput {
+            events,
+            modifiers,
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| s.handle_shortcuts(ctx));
+    }
+
+    fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    #[test]
+    fn the_keypad_style_keys_trim_the_selected_edge_by_frame_and_by_pixel() {
+        let (mut s, track, ev) = state_with_clip(); // event 2.0 - 6.0
+        s.pixels_per_second = 400.0;
+        s.prefs.quantize_to_frames = false;
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        run(&mut s, Command::EditTrimEdgeNext); // the end edge
+        let frame = frame_seconds(&s);
+        let none = egui::Modifiers::NONE;
+        press(&mut s, vec![key(egui::Key::Num3, none)]);
+        assert!(
+            (duration_of(&s, track, ev) - (4.0 + frame)).abs() < 1e-9,
+            "3: a frame later"
+        );
+        press(&mut s, vec![key(egui::Key::Num1, none)]);
+        assert!(
+            (duration_of(&s, track, ev) - 4.0).abs() < 1e-9,
+            "1: a frame earlier"
+        );
+        press(&mut s, vec![key(egui::Key::Num6, none)]);
+        assert!(
+            (duration_of(&s, track, ev) - (4.0 + 1.0 / 400.0)).abs() < 1e-9,
+            "6: a pixel later"
+        );
+        press(&mut s, vec![key(egui::Key::Num4, none)]);
+        assert!(
+            (duration_of(&s, track, ev) - 4.0).abs() < 1e-9,
+            "4: a pixel earlier"
+        );
+        // 7 and 9 pick the edges, 5 leaves
+        press(&mut s, vec![key(egui::Key::Num7, none)]);
+        assert_eq!(
+            s.trim_edge.map(|e| e.side),
+            Some(neoveg_engine::keytrim::EdgeSide::Start)
+        );
+        press(&mut s, vec![key(egui::Key::Num9, none)]);
+        assert_eq!(
+            s.trim_edge.map(|e| e.side),
+            Some(neoveg_engine::keytrim::EdgeSide::End)
+        );
+        press(&mut s, vec![key(egui::Key::Num5, none)]);
+        assert!(s.trim_edge.is_none());
+        // Out of the mode the digits are left alone: nothing is trimmed
+        let before = geometry(&s, track, ev);
+        press(&mut s, vec![key(egui::Key::Num3, none)]);
+        assert_eq!(geometry(&s, track, ev), before);
+    }
+
+    #[test]
+    fn ctrl_stretches_and_alt_slips_with_the_keypad_style_keys() {
+        let (mut s, track, ev) = state_with_clip();
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        run(&mut s, Command::EditTrimEdgeNext);
+        let frame = frame_seconds(&s);
+        let before = geometry(&s, track, ev);
+        press(&mut s, vec![key(egui::Key::Num3, egui::Modifiers::CTRL)]);
+        let stretched = geometry(&s, track, ev);
+        assert!((stretched.duration - (before.duration + frame)).abs() < 1e-9);
+        assert!(
+            stretched.playback_rate != before.playback_rate,
+            "Ctrl stretched the media in time"
+        );
+        s.undo();
+        press(&mut s, vec![key(egui::Key::Num3, egui::Modifiers::ALT)]);
+        let slipped = geometry(&s, track, ev);
+        assert_eq!(
+            slipped.duration, before.duration,
+            "Alt keeps the event where it is"
+        );
+        assert!(
+            (slipped.trim_in - (before.trim_in + frame)).abs() < 1e-9,
+            "and moves the media under it"
+        );
+    }
+
+    #[test]
+    fn the_wheel_with_ctrl_shift_trims_by_pixel_and_with_alt_by_frame() {
+        let (mut s, track, ev) = state_with_clip();
+        s.pixels_per_second = 400.0;
+        s.prefs.quantize_to_frames = false;
+        s.playhead = 0.0;
+        run(&mut s, Command::EditTrimEdgeNext);
+        run(&mut s, Command::EditTrimEdgeNext);
+        let frame = frame_seconds(&s);
+        let wheel = |modifiers, up: bool| egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, if up { 1.0 } else { -1.0 }),
+            modifiers,
+        };
+        let pixel_mods = egui::Modifiers::CTRL | egui::Modifiers::SHIFT;
+        press(&mut s, vec![wheel(pixel_mods, false)]);
+        assert!(
+            (duration_of(&s, track, ev) - (4.0 + 1.0 / 400.0)).abs() < 1e-9,
+            "down: a pixel later"
+        );
+        press(&mut s, vec![wheel(pixel_mods, true)]);
+        assert!(
+            (duration_of(&s, track, ev) - 4.0).abs() < 1e-9,
+            "up: a pixel earlier"
+        );
+        press(
+            &mut s,
+            vec![wheel(pixel_mods | egui::Modifiers::ALT, false)],
+        );
+        assert!(
+            (duration_of(&s, track, ev) - (4.0 + frame)).abs() < 1e-9,
+            "with Alt: a frame"
+        );
+        // Without an edge selected the wheel is left to the timeline
+        s.trim_edge = None;
+        let before = geometry(&s, track, ev);
+        press(&mut s, vec![wheel(pixel_mods, false)]);
+        assert_eq!(geometry(&s, track, ev), before);
+    }
+
+    fn starts_by_event(s: &AppState, track: TrackId) -> Vec<(EventId, f64)> {
+        let mut list: Vec<(EventId, f64)> = s
+            .timeline
+            .track(track)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (e.id, e.start))
+            .collect();
+        list.sort_by_key(|(id, _)| *id);
+        list
+    }
+
+    fn two_more_events(s: &mut AppState, track: TrackId) -> (EventId, EventId) {
+        let a = add_event(s, track, 8.0, 1.0);
+        let b = add_event(s, track, 12.0, 2.0);
+        (a, b)
+    }
+
+    #[test]
+    fn pasting_with_auto_ripple_makes_room_and_pasting_without_it_can_be_rippled_by_the_key() {
+        let (mut s, track, ev) = state_with_clip(); // 2.0 - 6.0
+        let (late, later) = two_more_events(&mut s, track); // 8-9, 12-14
+        s.selection.select_only((track, ev));
+        run(&mut s, Command::EditCopy);
+        s.playhead = 7.0;
+        // Plain paste: the later events stay
+        s.auto_ripple = false;
+        run(&mut s, Command::EditPaste);
+        assert_eq!(
+            starts_by_event(&s, track)[1..3],
+            [(late, 8.0), (later, 12.0)]
+        );
+        // The key then makes room: 4 s later for what starts at or after 7.0, not the pasted event
+        run(&mut s, Command::RippleAffectedTracks);
+        let after = starts_by_event(&s, track);
+        assert_eq!((after[1], after[2]), ((late, 12.0), (later, 16.0)));
+        let pasted_start = s
+            .timeline
+            .track(track)
+            .unwrap()
+            .events
+            .iter()
+            .filter(|e| e.id != ev && e.id != late && e.id != later)
+            .map(|e| e.start)
+            .next()
+            .unwrap();
+        assert_eq!(pasted_start, 7.0, "the pasted event stays where it was put");
+        // With Auto Ripple the same paste makes the room by itself, in one undo step
+        s.undo(); // the ripple
+        s.undo(); // the paste
+        assert_eq!(
+            starts_by_event(&s, track)[1..3],
+            [(late, 8.0), (later, 12.0)]
+        );
+        s.auto_ripple = true;
+        s.playhead = 7.0;
+        run(&mut s, Command::EditPaste);
+        let after = starts_by_event(&s, track);
+        assert_eq!((after[1], after[2]), ((late, 12.0), (later, 16.0)));
+        s.undo();
+        assert_eq!(
+            starts_by_event(&s, track)[1..3],
+            [(late, 8.0), (later, 12.0)]
+        );
+    }
+
     #[test]
     fn bracket_keys_pick_an_edge_and_the_frame_keys_nudge_it_in_undoable_steps() {
         let (mut s, track, ev) = state_with_clip(); // event 2.0 - 6.0
@@ -15626,6 +16041,121 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert!(table.len() >= 10, "ffmpeg made only {} files", table.len());
         assert!(wrong.is_empty(), "formatos com som errado: {wrong:?}");
+    }
+
+    /// Real movies (the open films of the Blender Foundation, `scripts/fetch_test_media.py`) go through
+    /// the import like any file: a picture that is not black or red, a sound that is not silence, and
+    /// durations that agree. Skipped when `test_media/` (or `NEOVEG_TEST_MEDIA`) has nothing.
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn real_movies_import_with_a_picture_and_a_sound() {
+        let folder = std::env::var_os("NEOVEG_TEST_MEDIA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_media")
+            });
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&folder)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .is_some_and(|e| {
+                        ["mp4", "mov", "avi", "mkv", "ogg", "ogv", "m4v"].contains(&e.as_str())
+                    })
+            })
+            .collect();
+        files.sort();
+        if files.is_empty() {
+            eprintln!(
+                "skipped: no movies in {} (python scripts/fetch_test_media.py)",
+                folder.display()
+            );
+            return;
+        }
+        for file in &files {
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            let started = std::time::Instant::now();
+            let (info, audio) = match load_message(file.clone(), None, false) {
+                LoadMsg::VideoLoaded { info, audio, .. } => (info, audio),
+                LoadMsg::Failed { error, .. } => panic!("{name}: the import failed: {error}"),
+                _ => panic!("{name}: not loaded as a video"),
+            };
+            let import = started.elapsed();
+            assert!(info.duration > 5.0 && info.width >= 160, "{name}: {info:?}");
+
+            // The picture: not black, not the red of an unreadable frame, different at two moments
+            let mut decoder = neoveg_video::decode::VideoDecoder::open(file).unwrap();
+            let mut pictures = Vec::new();
+            for fraction in [0.25, 0.6] {
+                let frame = decoder.frame_at(info.duration * fraction, 160).unwrap();
+                let pixels = frame.rgba.len() / 4;
+                let mean: f64 = frame
+                    .rgba
+                    .chunks(4)
+                    .map(|p| f64::from(p[0]) + f64::from(p[1]) + f64::from(p[2]))
+                    .sum::<f64>()
+                    / (pixels as f64 * 3.0);
+                let reddish = frame
+                    .rgba
+                    .chunks(4)
+                    .filter(|p| p[0] > 150 && p[1] < 60 && p[2] < 60)
+                    .count()
+                    > pixels / 2;
+                assert!(
+                    !reddish,
+                    "{name}: the frame is the red of an unreadable one"
+                );
+                assert!(
+                    mean > 3.0,
+                    "{name}: a black frame at {:.1} s (mean {mean:.1}, {}x{})",
+                    info.duration * fraction,
+                    frame.width,
+                    frame.height
+                );
+                pictures.push(frame.rgba);
+            }
+            assert_ne!(
+                pictures[0], pictures[1],
+                "{name}: the picture does not change"
+            );
+
+            // The sound: there is one, it is not silence, and it lasts about as long as the picture
+            let media = audio.unwrap_or_else(|| panic!("{name}: no sound was loaded"));
+            let rate = media.sample_rate as usize;
+            let from = (media.stereo.frames() as f64 * 0.4) as usize;
+            let window = rate.min(media.stereo.frames().saturating_sub(from));
+            let rms = ((from..from + window)
+                .map(|i| {
+                    let (l, r) = media.stereo.frame(i);
+                    f64::from(l).powi(2) + f64::from(r).powi(2)
+                })
+                .sum::<f64>()
+                / (2.0 * window.max(1) as f64))
+                .sqrt();
+            assert!(rms > 0.003, "{name}: the sound is silence (RMS {rms:.4})");
+            assert!(
+                (media.duration - info.duration).abs() < 1.5,
+                "{name}: sound {:.1} s against picture {:.1} s",
+                media.duration,
+                info.duration
+            );
+
+            // Jumping about, as a scrub does
+            let mut worst = 0.0f64;
+            for k in 0..12 {
+                let at = info.duration * f64::from((k * 5) % 11) / 11.0;
+                let begin = std::time::Instant::now();
+                decoder.frame_at(at, 320).unwrap();
+                worst = worst.max(begin.elapsed().as_secs_f64() * 1000.0);
+            }
+            println!(
+                "{name:34} {}x{} {:6.1} s  import {:5.2} s  sound {}ch {} Hz RMS {rms:.3}  worst jump {worst:.0} ms",
+                info.width, info.height, info.duration, import.as_secs_f64(), media.channels, media.sample_rate
+            );
+        }
     }
 
     #[test]

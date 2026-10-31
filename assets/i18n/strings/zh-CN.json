@@ -1245,5 +1245,11 @@
   "Realimentação 4": "反馈 4",
   "Nível 4": "级别 4",
   "ligado": "开",
-  "desligado": "关"
+  "desligado": "关",
+  "PNG (imagem)": "PNG（图像）",
+  "Decodificar HEVC, AV1 e VP9 com a placa de vídeo": "使用显卡解码 HEVC、AV1 和 VP9",
+  "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "对更改后打开的视频生效。H.264 仍由处理器解码，测试中处理器更快。如果显卡无法解码，程序会退回处理器。",
+  "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "键盘修剪：事件的{} — ← / → 移动一帧，4 / 6 移动一个像素（Esc 或 5 退出）",
+  "início": "起点",
+  "fim": "终点"
 }

@@ -18,6 +18,9 @@ pub enum Target {
     Video,
     /// WAV with 16-bit PCM sound, for files that are only sound.
     Audio,
+    /// PNG, for pictures the importer cannot read itself (HEIC, HEIF and AVIF without the `ffmpeg`
+    /// feature): a still picture, not a one-frame video.
+    Image,
 }
 
 impl Target {
@@ -26,6 +29,7 @@ impl Target {
         match self {
             Target::Video => "mp4",
             Target::Audio => "wav",
+            Target::Image => "png",
         }
     }
 
@@ -34,6 +38,7 @@ impl Target {
         match self {
             Target::Video => tr("MP4 (H.264 + AAC)"),
             Target::Audio => tr("WAV (PCM 16 bits)"),
+            Target::Image => tr("PNG (imagem)"),
         }
     }
 }
@@ -45,7 +50,11 @@ const AUDIO_EXTENSIONS: [&str; 30] = [
     "spx", "ape", "tta", "dts",
 ];
 
-/// What `path` should be converted to: sound files to WAV, everything else to MP4.
+/// Extensions of pictures that are converted to PNG.
+const IMAGE_EXTENSIONS: [&str; 4] = ["heic", "heif", "hif", "avif"];
+
+/// What `path` should be converted to: sound files to WAV, HEIF pictures to PNG, everything else to
+/// MP4.
 pub fn target_for(path: &Path) -> Target {
     let ext = path
         .extension()
@@ -53,6 +62,8 @@ pub fn target_for(path: &Path) -> Target {
         .unwrap_or_default();
     if AUDIO_EXTENSIONS.contains(&ext.as_str()) {
         Target::Audio
+    } else if IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        Target::Image
     } else {
         Target::Video
     }
@@ -110,6 +121,7 @@ pub fn ffmpeg_args(
                 .iter()
                 .map(|s| s.to_string()),
         ),
+        Target::Image => args.extend(["-an", "-frames:v", "1"].iter().map(|s| s.to_string())),
         Target::Video => {
             args.extend(["-c:v", video_encoder].iter().map(|s| s.to_string()));
             if video_encoder == "libx264" {
@@ -151,7 +163,7 @@ pub fn convert(input: &Path, output: &Path, target: Target) -> Result<(), String
     }
     let encoder = match target {
         Target::Video => encoder_for(RenderFormat::Mp4H264)?,
-        Target::Audio => "",
+        Target::Audio | Target::Image => "",
     };
     let result = Command::new("ffmpeg")
         .args(ffmpeg_args(input, output, target, encoder))
@@ -184,6 +196,11 @@ mod tests {
         for name in ["a.mp2", "a.eac3", "a.au", "a.w64", "a.caf", "a.wv", "a.amr"] {
             assert_eq!(target_for(Path::new(name)), Target::Audio, "{name}");
         }
+        // A phone photo the build cannot read is converted to a picture, not to a one-frame video
+        for name in ["foto.heic", "foto.HEIF", "foto.avif"] {
+            assert_eq!(target_for(Path::new(name)), Target::Image, "{name}");
+        }
+        assert_eq!(Target::Image.extension(), "png");
         assert_eq!(target_for(Path::new("filme.mkv")), Target::Video);
         assert_eq!(target_for(Path::new("sem_extensao")), Target::Video);
         assert_eq!(Target::Video.extension(), "mp4");

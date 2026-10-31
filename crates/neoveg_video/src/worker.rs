@@ -788,6 +788,53 @@ fn decode_clip_raw(
     }
 }
 
+/// What a clip shows when its picture cannot be read (a damaged file, a codec the build lacks, media
+/// that is gone): a red frame with a cross, the size of the canvas, so the problem is seen in the
+/// preview instead of the layer silently vanishing.
+pub fn unreadable_frame(width: u32, height: u32) -> FrameBuffer {
+    let (width, height) = (width.max(2), height.max(2));
+    let mut rgba = vec![0u8; width as usize * height as usize * 4];
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            // Pixels near either diagonal are a lighter red
+            let (fx, fy) = (x as f64 / f64::from(width), y as f64 / f64::from(height));
+            let on_cross = (fx - fy).abs() < 0.006 || (fx + fy - 1.0).abs() < 0.006;
+            let (r, g, b) = if on_cross {
+                (255, 140, 140)
+            } else {
+                (200, 24, 24)
+            };
+            let i = (y * width as usize + x) * 4;
+            rgba[i..i + 4].copy_from_slice(&[r, g, b, 255]);
+        }
+    }
+    FrameBuffer {
+        width,
+        height,
+        rgba,
+    }
+}
+
+/// The frame of `clip`, or the red unreadable frame when it cannot be decoded.
+fn clip_raw_or_red(
+    state: &mut WorkerState,
+    clip: &VideoClipRequest,
+    canvas: (u32, u32),
+    max_width: u32,
+) -> Arc<FrameBuffer> {
+    match decode_clip_raw(state, clip, max_width) {
+        Ok(frame) => frame,
+        Err(error) => {
+            tracing::warn!(
+                "[WARN] unreadable frame of {}: {error}",
+                clip.path.display()
+            );
+            let (width, height) = fit_size(canvas.0, canvas.1, max_width);
+            Arc::new(unreadable_frame(width, height))
+        }
+    }
+}
+
 fn decode_clip_stack(
     state: &mut WorkerState,
     clips: &[VideoClipRequest],
@@ -801,7 +848,7 @@ fn decode_clip_stack(
     }
     if clips.len() == 1 && (clips[0].event_opacity - 1.0).abs() < 1e-4 {
         let clip = &clips[0];
-        let raw = decode_clip_raw(state, clip, max_width)?;
+        let raw = clip_raw_or_red(state, clip, (canvas_w, canvas_h), max_width);
         let frame = if clip.apply_chroma && !chroma.is_disabled() {
             let mut keyed = (*raw).clone();
             crate::chroma::apply_chroma_key(&mut keyed, chroma);
@@ -822,7 +869,7 @@ fn decode_clip_stack(
             before = None;
             continue;
         }
-        let raw = decode_clip_raw(state, clip, max_width)?;
+        let raw = clip_raw_or_red(state, clip, (canvas_w, canvas_h), max_width);
         let frame = if clip.apply_chroma && !chroma.is_disabled() {
             let mut keyed = (*raw).clone();
             crate::chroma::apply_chroma_key(&mut keyed, chroma);
@@ -1171,6 +1218,60 @@ mod tests {
         ImageBuffer::from_pixel(w, h, Rgba(color))
             .save(path)
             .unwrap();
+    }
+
+    /// A clip whose picture cannot be read shows red, not nothing: the problem is visible in the
+    /// preview. A readable one is not touched.
+    #[test]
+    fn an_unreadable_clip_is_drawn_red_and_a_readable_one_is_not() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_red_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let good = dir.join("good.png");
+        write_png(&good, 64, 36, [10, 200, 10, 255]);
+        let broken = dir.join("broken.png");
+        std::fs::write(&broken, b"this is not a picture").unwrap();
+        let missing = dir.join("gone.png");
+        let clip = |path: &Path| VideoClipRequest {
+            media_id: 1,
+            path: path.to_path_buf(),
+            seconds: 0.0,
+            source_fps: 25.0,
+            playback_rate: 1.0,
+            event_opacity: 1.0,
+            apply_chroma: false,
+            effects: Vec::new(),
+            pan_crop: None,
+            transitions: Vec::new(),
+            blend: false,
+        };
+        let mut state = WorkerState::new();
+        let chroma = ChromaKey::default();
+        // A pixel away from the two diagonals of the cross
+        let top_left = |frame: &FrameBuffer| {
+            let i =
+                ((frame.height as usize / 8) * frame.width as usize + frame.width as usize / 4) * 4;
+            (frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2])
+        };
+        for path in [&broken, &missing] {
+            let frame = decode_clip_stack(&mut state, &[clip(path)], 64, 36, 64, &chroma)
+                .unwrap()
+                .expect("a frame, not an error");
+            assert_eq!((frame.width, frame.height), (64, 36));
+            let (r, g, b) = top_left(&frame);
+            assert!(
+                r > 150 && g < 60 && b < 60,
+                "{}: {:?}",
+                path.display(),
+                (r, g, b)
+            );
+        }
+        let frame = decode_clip_stack(&mut state, &[clip(&good)], 64, 36, 64, &chroma)
+            .unwrap()
+            .unwrap();
+        let (r, g, _) = top_left(&frame);
+        assert!(g > 150 && r < 60, "the readable picture keeps its colour");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -61,6 +61,8 @@ pub struct Preferences {
     pub quantize_to_frames: bool,
     /// Quantize edits that only touch audio too; off leaves them between frames.
     pub quantize_audio_edits: bool,
+    /// Decode videos on the graphics card when the machine can (falls back to the processor).
+    pub hardware_decoding: bool,
 }
 
 impl Default for Preferences {
@@ -88,6 +90,7 @@ impl Default for Preferences {
             snap_to_all_events: true,
             quantize_to_frames: true,
             quantize_audio_edits: true,
+            hardware_decoding: true,
         }
     }
 }

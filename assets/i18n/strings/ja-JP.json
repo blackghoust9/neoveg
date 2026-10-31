@@ -1245,5 +1245,11 @@
   "Realimentação 4": "フィードバック 4",
   "Nível 4": "レベル 4",
   "ligado": "オン",
-  "desligado": "オフ"
+  "desligado": "オフ",
+  "PNG (imagem)": "PNG（画像）",
+  "Decodificar HEVC, AV1 e VP9 com a placa de vídeo": "HEVC、AV1、VP9 をグラフィックスカードでデコードする",
+  "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "変更後に開いたビデオに適用されます。H.264 はテストで速かったプロセッサーのままです。カードで処理できない場合は、プロセッサーに戻ります。",
+  "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "キーボードトリム：イベントの{} — ← / → で 1 フレーム、4 / 6 で 1 ピクセル移動（Esc か 5 で終了）",
+  "início": "開始",
+  "fim": "終了"
 }

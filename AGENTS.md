@@ -204,9 +204,9 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+T` | Trim events to the time selection | implemented |
 | `Alt+[` / `Alt+]` | Trim event start / end to the cursor | implemented |
 | `[` / `]` or `Numpad 7` / `Numpad 9` | Select previous / next event edge (edge-trim mode) | planned |
-| `Numpad 1` / `3`, `4` / `6` | Trim or nudge by one frame / one pixel (modifiers: `Ctrl` stretch, `Alt` slip, `Ctrl+Alt` slide) | planned |
+| `1` / `3`, `4` / `6`, `7` / `9`, `5` | With a keyboard-trim edge selected (`[` / `]`): trim by one frame / one pixel (modifiers: `Ctrl` stretch, `Alt` slip, `Ctrl+Alt` move the shared cut), previous / next edge, leave. The wheel with `Ctrl+Shift` moves the edge a pixel, with `Ctrl+Shift+Alt` a frame. They are not commands (they would clash with the digits that choose a take): `trim_edge_keys` reads them only while an edge is selected. Outside the mode they are left alone | implemented |
 | `Numpad 5` | Enter / exit expanded edit mode | planned |
-| `F` / `Ctrl+F` / `Ctrl+Shift+F` | Ripple scope: affected tracks / + markers and regions / everything; used by Auto Ripple and ripple delete; they also ripple the last edit (plain delete, edge trim or stretch) while it is still the latest change in the history (move and paste are planned) | partial |
+| `F` / `Ctrl+F` / `Ctrl+Shift+F` | Ripple scope: affected tracks / + markers and regions / everything; used by Auto Ripple and ripple delete; they also ripple the last edit (plain delete, edge trim or stretch) while it is still the latest change in the history (a move leaves a hint that closes the gap and opens room, a paste one that opens room for the pasted events) | implemented |
 | `[` / `]` | Keyboard trim: select the previous / next edit edge; `←` / `→` then move it one frame (the active edit tool picks trim, slip or slide), `Shift+←` / `Shift+→` stretch it, `Ctrl+Shift+←` / `Ctrl+Shift+→` move the cut shared with the neighbouring event (rolling), `Esc` leaves | implemented |
 | `Ctrl+L` | Auto ripple: deleting events closes the gap they leave, and trimming or stretching an edge moves what follows by the change in length (scope from `F` / `Ctrl+F` / `Ctrl+Shift+F`) | implemented |
 | `Ctrl+Delete` | Ripple delete: remove the selected events and move the later ones of each track earlier | implemented |

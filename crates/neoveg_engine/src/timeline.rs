@@ -618,6 +618,11 @@ impl Timeline {
         Self::default()
     }
 
+    /// Keeps the ids a working copy of this timeline handed out from being given out again.
+    pub fn adopt_ids_of(&mut self, copy: &Timeline) {
+        self.next_id = self.next_id.max(copy.next_id);
+    }
+
     /// Allocates a unique id for a track or event.
     pub fn alloc_id(&mut self) -> u64 {
         self.next_id += 1;

@@ -493,6 +493,94 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// Renders a real movie (`test_media/sintel_trailer-1080p.mp4`, see `scripts/fetch_test_media.py`) with
+    /// each engine this machine has and prints the time and the size (`--ignored`: it takes a while).
+    /// The output goes to `NEOVEG_BENCH_OUT` when set.
+    #[test]
+    #[ignore = "benchmark: renders a real movie and prints the speed"]
+    fn benchmark_the_render_of_a_real_movie() {
+        use neoveg_video::render::{RenderEngine, RenderFormat};
+        let movie = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_media/sintel_trailer-1080p.mp4");
+        if !movie.exists() {
+            eprintln!("skipped: {} is missing", movie.display());
+            return;
+        }
+        let dir = std::env::var_os("NEOVEG_BENCH_OUT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::env::temp_dir().join(format!("neoveg_bench_{}", std::process::id()))
+            });
+        std::fs::create_dir_all(&dir).unwrap();
+        let cases: Vec<(&str, RenderFormat, RenderEngine)> = vec![
+            (
+                "H.264, internal encoder",
+                RenderFormat::Mp4H264,
+                RenderEngine::Internal,
+            ),
+            ("H.264, ffmpeg", RenderFormat::Mp4H264, RenderEngine::Ffmpeg),
+            ("HEVC, ffmpeg", RenderFormat::Mp4Hevc, RenderEngine::Ffmpeg),
+        ];
+        for (label, format, engine) in cases {
+            let mut s = AppState::new();
+            s.project_path = Some(dir.join("projeto.neoveg"));
+            let ctx = egui::Context::default();
+            let began = std::time::Instant::now();
+            s.spawn_media(movie.clone(), None, &ctx);
+            for _ in 0..3000 {
+                s.poll_loader();
+                let events: usize = s.timeline.tracks.iter().map(|t| t.events.len()).sum();
+                if events >= 2 {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            let import = began.elapsed().as_secs_f64();
+            let events: usize = s.timeline.tracks.iter().map(|t| t.events.len()).sum();
+            assert!(events >= 2, "{label}: the movie did not import");
+            let settings = s.project.settings.clone();
+            let output = dir.join(format!("{}.mp4", label.replace([' ', ','], "_")));
+            let started = std::time::Instant::now();
+            s.start_render(
+                RenderLaunchRequest {
+                    output_path: output.clone(),
+                    format,
+                    width: settings.width,
+                    height: settings.height,
+                    fps: settings.fps,
+                    crf: 23,
+                    engine,
+                    burn_captions: false,
+                    loop_region_only: false,
+                    save_loudness_log: false,
+                },
+                &ctx,
+            );
+            let Some(job) = s.render_dialog.active_job.as_ref() else {
+                println!("{label:28} could not start: {}", s.status);
+                continue;
+            };
+            for _ in 0..60_000 {
+                if job.status.lock().unwrap().finished {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let status = job.status.lock().unwrap().clone();
+            let seconds = started.elapsed().as_secs_f64();
+            let size = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+            println!(
+                "{label:28} {}x{} {:.2} fps: import {import:5.2} s, render {seconds:6.1} s ({:.0} frames/s), {:.1} MB, error {:?}",
+                settings.width,
+                settings.height,
+                settings.fps,
+                status.total_frames as f64 / seconds,
+                size as f64 / 1e6,
+                status.error
+            );
+        }
+    }
+
     #[test]
     fn captions_are_burned_only_while_they_show() {
         use neoveg_engine::captions::Caption;

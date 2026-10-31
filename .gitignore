@@ -148,3 +148,6 @@ G:/*
 
 # log do instalador do LLVM/FFmpeg
 scripts/install_llvm_ffmpeg.log
+
+# filmes de teste baixados por scripts/fetch_test_media.py
+test_media/

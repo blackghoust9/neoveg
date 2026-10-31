@@ -1,9 +1,9 @@
 //! Ripple edits that do not come from a time selection: deleting events and closing the gap.
 
 use crate::command::{EditCommand, FxTarget};
-use crate::ops::{Draft, Outcome};
+use crate::ops::{Clipboard, Draft, Outcome, PasteMode};
 use crate::selection::EventRef;
-use crate::timeline::{Timeline, TrackEvent, TrackId, TIME_EPSILON};
+use crate::timeline::{EventGeometry, Timeline, TrackEvent, TrackId, TIME_EPSILON};
 use neoveg_common::i18n::tr;
 
 /// Removes the given events and moves every later event of the same track earlier by the length of
@@ -95,7 +95,25 @@ pub fn ripple_after(
     delta: f64,
     scope: RippleScope,
 ) -> Option<Outcome> {
-    if !delta.is_finite() || !from.is_finite() || delta.abs() < TIME_EPSILON {
+    ripple_steps(timeline, edited, &[(from, delta)], &[], scope)
+}
+
+/// [`ripple_after`] with several points: each `(from, delta)` moves everything at or after `from` by
+/// `delta`, and a time after several points moves by the sum. `skip` lists events that stay where
+/// they are (the one that was just moved or pasted). Moving an event is two points: the gap it leaves
+/// closes (`-length` after its old end) and room opens where it lands (`+length` from its new start).
+pub fn ripple_steps(
+    timeline: &Timeline,
+    edited: &[TrackId],
+    steps: &[(f64, f64)],
+    skip: &[EventRef],
+    scope: RippleScope,
+) -> Option<Outcome> {
+    if steps.is_empty()
+        || steps
+            .iter()
+            .any(|(from, delta)| !from.is_finite() || !delta.is_finite())
+    {
         return None;
     }
     let targets: Vec<TrackId> = timeline
@@ -104,14 +122,24 @@ pub fn ripple_after(
         .map(|t| t.id)
         .filter(|id| scope.includes_all_tracks() || edited.contains(id))
         .collect();
-    let moves = |time: f64| time >= from - TIME_EPSILON;
-    let shifted = |time: f64| (time + delta).max(0.0);
+    let offset = |time: f64| -> f64 {
+        steps
+            .iter()
+            .filter(|(from, _)| time >= from - TIME_EPSILON)
+            .map(|(_, delta)| delta)
+            .sum()
+    };
+    let moves = |time: f64| offset(time).abs() >= TIME_EPSILON;
+    let shifted = |time: f64| (time + offset(time)).max(0.0);
 
     let mut commands = Vec::new();
     let mut draft = Draft::new(timeline);
     for &track_id in &targets {
         if let Some(list) = draft.list(track_id) {
-            for event in list.iter_mut().filter(|e| !e.locked && moves(e.start)) {
+            for event in list
+                .iter_mut()
+                .filter(|e| !e.locked && !skip.contains(&(track_id, e.id)) && moves(e.start))
+            {
                 event.start = shifted(event.start);
             }
         }
@@ -281,12 +309,18 @@ pub struct RippleHint {
     pub from: f64,
     /// By how much (negative closes a gap).
     pub delta: f64,
+    /// More points of the same kind (moving an event closes a gap and opens one).
+    pub more: Vec<(f64, f64)>,
+    /// Events that stay where they are: the one that was moved or pasted.
+    pub skip: Vec<EventRef>,
 }
 
 impl RippleHint {
     /// The ripple this hint stands for, under `scope`.
     pub fn outcome(&self, timeline: &Timeline, scope: RippleScope) -> Option<Outcome> {
-        ripple_after(timeline, &self.tracks, self.from, self.delta, scope)
+        let mut steps = vec![(self.from, self.delta)];
+        steps.extend(self.more.iter().copied());
+        ripple_steps(timeline, &self.tracks, &steps, &self.skip, scope)
     }
 }
 
@@ -311,6 +345,8 @@ pub fn removal_hint(timeline: &Timeline, events: &[EventRef]) -> Option<RippleHi
             tracks: vec![track_id],
             from: *end,
             delta: -(end - start),
+            more: Vec::new(),
+            skip: Vec::new(),
         }),
         _ => None,
     }
@@ -327,7 +363,110 @@ pub fn resize_hint(
         tracks: vec![track_id],
         from: old.end(),
         delta,
+        more: Vec::new(),
+        skip: Vec::new(),
     })
+}
+
+/// The hint for an event that was moved along its track from `old` to `new` without rippling: the
+/// gap it left closes and room opens where it landed, so what lies after both stays put.
+pub fn move_hint(
+    track_id: TrackId,
+    event_id: crate::timeline::EventId,
+    old: EventGeometry,
+    new: EventGeometry,
+) -> Option<RippleHint> {
+    ((new.start - old.start).abs() >= TIME_EPSILON && old.duration > TIME_EPSILON).then(|| {
+        RippleHint {
+            tracks: vec![track_id],
+            from: old.end(),
+            delta: -old.duration,
+            more: vec![(new.start, old.duration)],
+            skip: vec![(track_id, event_id)],
+        }
+    })
+}
+
+/// The hint for a paste that did not ripple: the pasted events (`pasted`) stay, everything of their
+/// tracks at or after `at` moves later by the length of the clip.
+pub fn paste_hint(at: f64, length: f64, pasted: &[EventRef]) -> Option<RippleHint> {
+    let mut tracks: Vec<TrackId> = pasted.iter().map(|(track, _)| *track).collect();
+    tracks.sort_unstable();
+    tracks.dedup();
+    (length > TIME_EPSILON && !tracks.is_empty()).then(|| RippleHint {
+        tracks,
+        from: at,
+        delta: length,
+        more: Vec::new(),
+        skip: pasted.to_vec(),
+    })
+}
+
+/// Moves `event` along its track to `new` and ripples: what follows closes the gap it leaves and opens
+/// room where it lands, under `scope`. One undo step; `None` when the event is locked or missing or
+/// the position does not change.
+pub fn ripple_move(
+    timeline: &Timeline,
+    track_id: TrackId,
+    event_id: crate::timeline::EventId,
+    new: EventGeometry,
+    scope: RippleScope,
+) -> Option<Outcome> {
+    let event = timeline
+        .track(track_id)?
+        .events
+        .iter()
+        .find(|e| e.id == event_id)?;
+    if event.locked {
+        return None;
+    }
+    let old = event.geometry();
+    let ripple = move_hint(track_id, event_id, old, new)?.outcome(timeline, scope)?;
+    Some(Outcome {
+        command: EditCommand::Batch(vec![
+            ripple.command,
+            EditCommand::EditEvent {
+                from_track: track_id,
+                to_track: track_id,
+                event_id,
+                old,
+                new,
+            },
+        ]),
+        touched: vec![(track_id, event_id)],
+    })
+}
+
+/// Pastes the clipboard at `at` and makes room for it: everything at or after `at` on the pasted
+/// tracks (and what `scope` adds) moves later by the length of the clip, without splitting anything.
+/// One undo step. The second value is how many items had no track of their kind.
+pub fn paste_with_ripple(
+    timeline: &mut Timeline,
+    clip: &Clipboard,
+    at: f64,
+    base_track: usize,
+    scope: RippleScope,
+) -> Option<(Outcome, usize)> {
+    // A probe tells which tracks the paste lands on
+    let mut probe = timeline.clone();
+    let (first, _) = crate::ops::paste(&mut probe, clip, at, base_track, PasteMode::Overlay)?;
+    let tracks: Vec<TrackId> = first.touched.iter().map(|(track, _)| *track).collect();
+    let Some(ripple) = ripple_after(timeline, &tracks, at, clip.length, scope) else {
+        // Nothing lies after the paste point: it is a plain paste
+        return crate::ops::paste(timeline, clip, at, base_track, PasteMode::Overlay);
+    };
+    // The paste is built on a copy that already has the room, so its commands follow the ripple's
+    let mut roomy = timeline.clone();
+    crate::command::History::new().execute(&mut roomy, ripple.command.clone());
+    let (paste, skipped) = crate::ops::paste(&mut roomy, clip, at, base_track, PasteMode::Overlay)?;
+    timeline.adopt_ids_of(&roomy);
+    Some((
+        Outcome {
+            command: EditCommand::Batch(vec![ripple.command, paste.command]),
+            touched: paste.touched,
+        },
+        skipped,
+    ))
 }
 
 /// Merged `(start, end)` spans of the given events, sorted by start.
@@ -521,6 +660,210 @@ mod tests {
 
     fn starts(tl: &Timeline) -> Vec<f64> {
         tl.tracks[0].events.iter().map(|e| e.start).collect()
+    }
+
+    fn run_outcome(tl: &mut Timeline, outcome: Outcome) -> History {
+        let mut history = History::new();
+        assert!(history.execute(tl, outcome.command));
+        history
+    }
+
+    #[test]
+    fn moving_an_event_later_closes_its_gap_and_keeps_what_lies_after_the_drop() {
+        let (mut tl, track, ids) = timeline(); // 0-2, 2-5, 6-7, 10-12
+                                               // The first event (2 s) is dropped at 8.0, between the 6-7 one and the 10-12 one
+        let old = tl.tracks[0].events[0].geometry();
+        let new = EventGeometry { start: 8.0, ..old };
+        let outcome = ripple_move(&tl, track, ids[0], new, RippleScope::AffectedTracks).unwrap();
+        let mut history = run_outcome(&mut tl, outcome);
+        // What lay between moved 2 s earlier; what lay after the drop did not move
+        assert_eq!(
+            starts(&tl),
+            vec![0.0, 4.0, 8.0, 10.0]
+                .into_iter()
+                .filter(|_| true)
+                .collect::<Vec<_>>()
+                .len()
+                .min(4)
+                .eq(&4)
+                .then(|| {
+                    let mut v: Vec<f64> = tl.tracks[0].events.iter().map(|e| e.start).collect();
+                    v.sort_by(f64::total_cmp);
+                    v
+                })
+                .unwrap()
+        );
+        let mut by_id: Vec<(u64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.id, e.start))
+            .collect();
+        by_id.sort_by_key(|(id, _)| *id);
+        assert_eq!(
+            by_id,
+            vec![(ids[0], 8.0), (ids[1], 0.0), (ids[2], 4.0), (ids[3], 10.0)]
+        );
+        // One undo step
+        assert!(history.undo(&mut tl));
+        let mut back: Vec<(u64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.id, e.start))
+            .collect();
+        back.sort_by_key(|(id, _)| *id);
+        assert_eq!(
+            back,
+            vec![(ids[0], 0.0), (ids[1], 2.0), (ids[2], 6.0), (ids[3], 10.0)]
+        );
+    }
+
+    #[test]
+    fn moving_an_event_earlier_pushes_the_ones_it_lands_before() {
+        let (mut tl, track, ids) = timeline(); // 0-2, 2-5, 6-7, 10-12
+                                               // The 6-7 event (1 s) is dropped at 1.0: the 2-5 event is pushed 1 s later, the 10-12 one stays
+        let old = tl.tracks[0].events[2].geometry();
+        let new = EventGeometry { start: 1.0, ..old };
+        let outcome = ripple_move(&tl, track, ids[2], new, RippleScope::AffectedTracks).unwrap();
+        run_outcome(&mut tl, outcome);
+        let mut by_id: Vec<(u64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.id, e.start))
+            .collect();
+        by_id.sort_by_key(|(id, _)| *id);
+        assert_eq!(
+            by_id,
+            vec![(ids[0], 0.0), (ids[1], 3.0), (ids[2], 1.0), (ids[3], 10.0)]
+        );
+    }
+
+    #[test]
+    fn a_locked_event_cannot_be_moved_with_ripple_and_a_zero_move_does_nothing() {
+        let (mut tl, track, ids) = timeline();
+        let old = tl.tracks[0].events[1].geometry();
+        assert!(ripple_move(&tl, track, ids[1], old, RippleScope::AffectedTracks).is_none());
+        tl.tracks[0].events[1].locked = true;
+        let new = EventGeometry { start: 20.0, ..old };
+        assert!(ripple_move(&tl, track, ids[1], new, RippleScope::AffectedTracks).is_none());
+    }
+
+    #[test]
+    fn the_manual_hint_of_a_move_does_the_same_as_the_automatic_ripple() {
+        let (tl, track, ids) = timeline();
+        let old = tl.tracks[0].events[0].geometry();
+        let new = EventGeometry { start: 8.0, ..old };
+        // The plain move first, then the key
+        let mut manual = tl.clone();
+        let mut history = History::new();
+        assert!(history.execute(
+            &mut manual,
+            EditCommand::EditEvent {
+                from_track: track,
+                to_track: track,
+                event_id: ids[0],
+                old,
+                new
+            },
+        ));
+        let hint = move_hint(track, ids[0], old, new).unwrap();
+        let outcome = hint.outcome(&manual, RippleScope::AffectedTracks).unwrap();
+        assert!(history.execute(&mut manual, outcome.command));
+        let mut automatic = tl.clone();
+        let outcome = ripple_move(&tl, track, ids[0], new, RippleScope::AffectedTracks).unwrap();
+        run_outcome(&mut automatic, outcome);
+        let positions = |t: &Timeline| {
+            let mut v: Vec<(u64, f64)> =
+                t.tracks[0].events.iter().map(|e| (e.id, e.start)).collect();
+            v.sort_by_key(|(id, _)| *id);
+            v
+        };
+        assert_eq!(positions(&manual), positions(&automatic));
+    }
+
+    fn clip_of(length: f64) -> Clipboard {
+        Clipboard {
+            items: vec![crate::ops::ClipItem {
+                track_offset: 0,
+                kind: TrackKind::Audio,
+                event: TrackEvent {
+                    start: 0.0,
+                    duration: length,
+                    media_id: Some(1),
+                    ..TrackEvent::default()
+                },
+            }],
+            length,
+        }
+    }
+
+    #[test]
+    fn pasting_with_ripple_makes_room_without_splitting() {
+        let (mut tl, track, ids) = timeline(); // 0-2, 2-5, 6-7, 10-12
+        let outcome_and_skipped =
+            paste_with_ripple(&mut tl, &clip_of(2.0), 3.0, 0, RippleScope::AffectedTracks);
+        let (outcome, skipped) = outcome_and_skipped.unwrap();
+        assert_eq!(skipped, 0);
+        let pasted = outcome.touched.clone();
+        let mut history = run_outcome(&mut tl, outcome);
+        let mut spans: Vec<(f64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.start, e.end()))
+            .collect();
+        spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+        // The 2-5 event is not split (it stays 2-5 and the paste lies on it, as an overlay does); what
+        // started at or after 3.0 moved 2 s later
+        assert_eq!(
+            spans,
+            vec![(0.0, 2.0), (2.0, 5.0), (3.0, 5.0), (8.0, 9.0), (12.0, 14.0)]
+        );
+        assert_eq!(pasted.len(), 1);
+        assert!(tl.tracks[0].events.iter().any(|e| e.id == pasted[0].1));
+        let _ = (track, ids);
+        // One undo step takes everything back
+        assert!(history.undo(&mut tl));
+        let mut back: Vec<(f64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.start, e.end()))
+            .collect();
+        back.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert_eq!(back, vec![(0.0, 2.0), (2.0, 5.0), (6.0, 7.0), (10.0, 12.0)]);
+        // The ids handed out stay taken
+        let fresh = tl.alloc_id();
+        assert!(tl.tracks[0].events.iter().all(|e| e.id != fresh));
+    }
+
+    #[test]
+    fn pasting_after_the_last_event_is_a_plain_paste() {
+        let (mut tl, _, _) = timeline();
+        let (outcome, _) =
+            paste_with_ripple(&mut tl, &clip_of(1.0), 30.0, 0, RippleScope::AffectedTracks)
+                .unwrap();
+        run_outcome(&mut tl, outcome);
+        assert_eq!(tl.tracks[0].events.len(), 5);
+        assert_eq!(starts(&tl).last().copied(), Some(30.0));
+    }
+
+    #[test]
+    fn the_manual_hint_of_a_paste_leaves_the_pasted_events_where_they_are() {
+        let (mut tl, _, _) = timeline();
+        let (outcome, _) =
+            crate::ops::paste(&mut tl, &clip_of(2.0), 3.0, 0, PasteMode::Overlay).unwrap();
+        let pasted = outcome.touched.clone();
+        let mut history = run_outcome(&mut tl, outcome);
+        let hint = paste_hint(3.0, 2.0, &pasted).unwrap();
+        let ripple = hint.outcome(&tl, RippleScope::AffectedTracks).unwrap();
+        assert!(history.execute(&mut tl, ripple.command));
+        let pasted_event = tl.tracks[0]
+            .events
+            .iter()
+            .find(|e| e.id == pasted[0].1)
+            .unwrap();
+        assert_eq!(pasted_event.start, 3.0, "the pasted event did not move");
+        let mut spans: Vec<f64> = tl.tracks[0].events.iter().map(|e| e.start).collect();
+        spans.sort_by(f64::total_cmp);
+        assert_eq!(spans, vec![0.0, 2.0, 3.0, 8.0, 12.0]);
     }
 
     #[test]

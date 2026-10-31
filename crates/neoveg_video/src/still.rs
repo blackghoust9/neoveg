@@ -9,10 +9,26 @@ use serde::{Deserialize, Serialize};
 use crate::frame::FrameBuffer;
 use crate::info::{fit_size, VideoInfo};
 
-/// Still-image file extensions supported without FFmpeg.
-pub const IMAGE_EXTENSIONS: [&str; 12] = [
-    "png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff", "tga", "ico", "ppm", "pgm",
+/// Still-image file extensions: the first twelve are read in pure Rust, the HEIF family (phone
+/// photos and AVIF) needs the `ffmpeg` feature.
+pub const IMAGE_EXTENSIONS: [&str; 16] = [
+    "png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff", "tga", "ico", "ppm", "pgm", "heic",
+    "heif", "hif", "avif",
 ];
+
+/// Pictures stored as HEIF items (HEVC or AV1 inside an ISO base media file). FFmpeg reads them,
+/// grids of tiles and the rotation included.
+const HEIF_EXTENSIONS: [&str; 4] = ["heic", "heif", "hif", "avif"];
+
+fn is_heif_path(path: &Path) -> bool {
+    path.extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .is_some_and(|e| HEIF_EXTENSIONS.contains(&e.as_str()))
+}
+
+#[cfg(not(feature = "ffmpeg"))]
+const NO_HEIF_DECODER: &str =
+    "HEIC, HEIF e AVIF precisam do build com a decodificação por FFmpeg (recurso `ffmpeg`)";
 
 /// JSON manifest extension representing an imported numbered image sequence.
 pub const SEQUENCE_EXTENSION: &str = "neovegseq";
@@ -31,6 +47,15 @@ pub fn is_sequence_manifest_path(path: &Path) -> bool {
 
 /// Probes dimensions of a still image from its header without decoding pixel data.
 pub fn probe_image(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInfo, String> {
+    if is_heif_path(path) {
+        #[cfg(feature = "ffmpeg")]
+        {
+            let shown = crate::decode::probe(path)?;
+            return Ok(still_info(shown.width, shown.height, fps, still_seconds));
+        }
+        #[cfg(not(feature = "ffmpeg"))]
+        return Err(NO_HEIF_DECODER.into());
+    }
     let reader = ImageReader::open(path)
         .map_err(|e| format!("falha ao abrir imagem {}: {e}", path.display()))?
         .with_guessed_format()
@@ -38,7 +63,12 @@ pub fn probe_image(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInf
     let (width, height) = reader
         .into_dimensions()
         .map_err(|e| format!("cabeçalho de imagem inválido em {}: {e}", path.display()))?;
-    Ok(VideoInfo {
+    Ok(still_info(width, height, fps, still_seconds))
+}
+
+/// The metadata of a still picture: it lasts `still_seconds` and has the project's frame rate.
+fn still_info(width: u32, height: u32, fps: f64, still_seconds: f64) -> VideoInfo {
+    VideoInfo {
         width: width.max(2),
         height: height.max(2),
         fps: if fps.is_finite() && fps > 0.0 {
@@ -51,12 +81,18 @@ pub fn probe_image(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInf
         } else {
             5.0
         },
-    })
+    }
 }
 
 /// Decodes a still image into an RGBA8 `FrameBuffer`, scaling down to `max_width` (even dimensions)
 /// when requested (`0` keeps native resolution rounded down to even dimensions).
 pub fn decode_image(path: &Path, max_width: u32) -> Result<FrameBuffer, String> {
+    if is_heif_path(path) {
+        #[cfg(feature = "ffmpeg")]
+        return crate::decode::VideoDecoder::open(path)?.frame_at(0.0, max_width);
+        #[cfg(not(feature = "ffmpeg"))]
+        return Err(NO_HEIF_DECODER.into());
+    }
     let img = ImageReader::open(path)
         .map_err(|e| format!("falha ao abrir imagem {}: {e}", path.display()))?
         .with_guessed_format()
@@ -348,5 +384,110 @@ mod tests {
         assert_eq!(past_end.pixel(10, 10), colors[3]);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod heif_tests {
+    use super::*;
+
+    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+
+    /// `(r, g, b)` of the pixel at `(x, y)`.
+    fn pixel(frame: &FrameBuffer, x: u32, y: u32) -> (u8, u8, u8) {
+        let i = ((y * frame.width + x) * 4) as usize;
+        (frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2])
+    }
+
+    /// The fixtures are red in the top left quarter, green in the bottom right and blue elsewhere.
+    fn assert_the_three_colours(frame: &FrameBuffer, what: &str) {
+        let (w, h) = (frame.width, frame.height);
+        let near = |got: (u8, u8, u8), want: (u8, u8, u8)| {
+            [
+                got.0 as i32 - want.0 as i32,
+                got.1 as i32 - want.1 as i32,
+                got.2 as i32 - want.2 as i32,
+            ]
+            .iter()
+            .all(|d| d.abs() < 40)
+        };
+        assert!(
+            near(pixel(frame, w / 8, h / 8), (255, 0, 0)),
+            "{what}: top left {:?}",
+            pixel(frame, w / 8, h / 8)
+        );
+        assert!(
+            near(pixel(frame, w * 7 / 8, h * 7 / 8), (0, 255, 0)),
+            "{what}: bottom right"
+        );
+        assert!(
+            near(pixel(frame, w * 7 / 8, h / 8), (30, 60, 200)),
+            "{what}: top right"
+        );
+    }
+
+    /// What the conversion window gives a build without the FFmpeg decoder: a PNG, which the pure Rust
+    /// reader opens. Skipped without the `ffmpeg` command line.
+    #[test]
+    fn a_heic_picture_converted_to_png_reads_without_ffmpeg_decoding() {
+        use crate::convert::{convert, output_path, target_for, Target};
+        let source = Path::new(FIXTURES).join("picture_320x180.heic");
+        assert_eq!(target_for(&source), Target::Image);
+        let dir = std::env::temp_dir().join(format!("neoveg_heic_png_{}", std::process::id()));
+        let out = output_path(&source, &dir, Target::Image, Path::exists);
+        if convert(&source, &out, Target::Image).is_err() {
+            eprintln!("skipped: the ffmpeg command line is not installed");
+            return;
+        }
+        assert_eq!(out.extension().unwrap(), "png");
+        let frame = decode_image(&out, 0).unwrap();
+        assert_eq!((frame.width, frame.height), (320, 180));
+        assert_the_three_colours(&frame, "converted PNG");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_heif_family_counts_as_still_pictures() {
+        for name in ["a.heic", "a.HEIF", "a.hif", "a.avif"] {
+            assert!(is_image_path(Path::new(name)), "{name}");
+        }
+    }
+
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn heic_and_avif_pictures_decode_probe_and_scale() {
+        for name in ["picture_320x180.heic", "picture_320x180.avif"] {
+            let path = Path::new(FIXTURES).join(name);
+            let info = probe_image(&path, 25.0, 4.0).unwrap();
+            assert_eq!(
+                (info.width, info.height, info.fps, info.duration),
+                (320, 180, 25.0, 4.0),
+                "{name}"
+            );
+            let frame = decode_image(&path, 0).unwrap();
+            assert_eq!((frame.width, frame.height), (320, 180), "{name}");
+            assert_the_three_colours(&frame, name);
+            let small = decode_image(&path, 160).unwrap();
+            assert_eq!((small.width, small.height), (160, 90), "{name}");
+        }
+    }
+
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn a_large_heic_photo_made_of_tiles_decodes_whole() {
+        let path = Path::new(FIXTURES).join("picture_1200x800.heic");
+        let frame = decode_image(&path, 0).unwrap();
+        assert_eq!((frame.width, frame.height), (1200, 800));
+        assert_the_three_colours(&frame, "1200x800");
+    }
+
+    #[cfg(not(feature = "ffmpeg"))]
+    #[test]
+    fn without_ffmpeg_a_heic_picture_says_what_is_missing() {
+        let path = Path::new(FIXTURES).join("picture_320x180.heic");
+        let error = decode_image(&path, 0).unwrap_err();
+        assert!(error.contains("FFmpeg"), "{error}");
+        assert!(probe_image(&path, 25.0, 4.0).is_err());
+        let _ = pixel;
     }
 }

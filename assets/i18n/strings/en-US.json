@@ -1245,5 +1245,11 @@
   "Realimentação 4": "Feedback 4",
   "Nível 4": "Level 4",
   "ligado": "on",
-  "desligado": "off"
+  "desligado": "off",
+  "PNG (imagem)": "PNG (image)",
+  "Decodificar HEVC, AV1 e VP9 com a placa de vídeo": "Decode HEVC, AV1 and VP9 on the graphics card",
+  "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "Applies to videos opened after the change. H.264 stays on the processor, which was faster in the tests. If the card cannot do it, the program goes back to the processor.",
+  "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "Keyboard trim: {} of the event — ← / → move one frame, 4 / 6 one pixel (Esc or 5 leave)",
+  "início": "start",
+  "fim": "end"
 }

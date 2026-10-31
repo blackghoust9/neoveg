@@ -14,6 +14,18 @@ pub const fn video_decoding_enabled() -> bool {
     cfg!(feature = "ffmpeg")
 }
 
+static HARDWARE_DECODING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Whether videos opened from now on ask the graphics card to decode them (the preference). The
+/// decoder falls back to the processor by itself when the card, the driver or the codec cannot.
+pub fn hardware_decoding() -> bool {
+    HARDWARE_DECODING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_hardware_decoding(on: bool) {
+    HARDWARE_DECODING.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn is_video_path(path: &Path) -> bool {
     path.extension()
         .map(|e| e.to_string_lossy().to_lowercase())

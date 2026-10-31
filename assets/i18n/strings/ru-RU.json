@@ -1245,5 +1245,11 @@
   "Realimentação 4": "Обратная связь 4",
   "Nível 4": "Уровень 4",
   "ligado": "вкл.",
-  "desligado": "выкл."
+  "desligado": "выкл.",
+  "PNG (imagem)": "PNG (изображение)",
+  "Decodificar HEVC, AV1 e VP9 com a placa de vídeo": "Декодировать HEVC, AV1 и VP9 на видеокарте",
+  "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "Действует для видео, открытых после изменения. H.264 остаётся на процессоре, который в тестах оказался быстрее. Если видеокарта не справится, программа вернётся к процессору.",
+  "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "Подрезка с клавиатуры: {} события — ← / → на один кадр, 4 / 6 на один пиксель (Esc или 5 — выход)",
+  "início": "начало",
+  "fim": "конец"
 }

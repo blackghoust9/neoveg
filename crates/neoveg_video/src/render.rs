@@ -58,14 +58,32 @@ impl RenderFormat {
     }
 }
 
-/// Video encoders to try for `format`, best first. Software builds ship `libx264` / `libx265`; an
-/// LGPL build (the one `winget` installs) has `libopenh264` and the Media Foundation encoders instead.
-/// Hardware encoders (NVENC, AMF, QuickSync) are left out: `ffmpeg` lists them even on a machine
-/// without the card, and they then fail when the render starts.
+/// Encoders to try for `format`, best first: the software ones (libx264 and libx265 on a GPL build of
+/// `ffmpeg`; `libopenh264` on the LGPL one that `winget` installs), then the ones of the graphics card
+/// (NVENC, QuickSync, AMF, VAAPI, VideoToolbox) and last Media Foundation. `ffmpeg` lists the
+/// hardware ones even on a machine without the card, and Media Foundation ones that then refuse the
+/// picture, so each of them is tried on a few frames before it is used ([`encoder_for`]).
 pub fn encoder_candidates(format: RenderFormat) -> &'static [&'static str] {
     match format {
-        RenderFormat::Mp4H264 => &["libx264", "libopenh264", "h264_mf"],
-        RenderFormat::Mp4Hevc => &["libx265", "hevc_mf"],
+        RenderFormat::Mp4H264 => &[
+            "libx264",
+            "libopenh264",
+            "h264_nvenc",
+            "h264_qsv",
+            "h264_amf",
+            "h264_vaapi",
+            "h264_videotoolbox",
+            "h264_mf",
+        ],
+        RenderFormat::Mp4Hevc => &[
+            "libx265",
+            "hevc_nvenc",
+            "hevc_qsv",
+            "hevc_amf",
+            "hevc_vaapi",
+            "hevc_videotoolbox",
+            "hevc_mf",
+        ],
         RenderFormat::MovProRes => &["prores_ks", "prores_aw"],
         RenderFormat::WebmVp9 => &["libvpx-vp9"],
         RenderFormat::WavPcm16 => &[],
@@ -78,6 +96,58 @@ pub fn pick_encoder(format: RenderFormat, available: &HashSet<String>) -> Option
         .iter()
         .copied()
         .find(|name| available.contains(*name))
+}
+
+/// Encoders that depend on a card or a system service: the ones that have to be tried.
+fn needs_a_test(name: &str) -> bool {
+    ["_nvenc", "_qsv", "_amf", "_vaapi", "_videotoolbox", "_mf"]
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
+}
+
+/// The first of [`encoder_candidates`] that is in `available` and, when it depends on hardware,
+/// that `works` says does work here.
+pub fn pick_working_encoder(
+    format: RenderFormat,
+    available: &HashSet<String>,
+    works: &dyn Fn(&str) -> bool,
+) -> Option<&'static str> {
+    encoder_candidates(format)
+        .iter()
+        .copied()
+        .find(|name| available.contains(*name) && (!needs_a_test(name) || works(name)))
+}
+
+/// Encodes a few black frames with `name`, the way a render asks for them, to see whether it works on
+/// this machine.
+fn test_encode(name: &str) -> bool {
+    Command::new("ffmpeg")
+        .args(["-hide_banner", "-v", "error", "-f", "lavfi", "-i"])
+        .arg("color=c=black:s=256x144:r=10:d=0.6")
+        .args(["-frames:v", "4", "-c:v", name, "-b:v", "1000000"])
+        .args(["-pix_fmt", "yuv420p", "-f", "null", "-"])
+        .stdin(Stdio::null())
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+/// The hardware encoders of the candidates that work on this machine, found once.
+static WORKING: OnceLock<HashSet<&'static str>> = OnceLock::new();
+
+fn working_hardware_encoders() -> &'static HashSet<&'static str> {
+    WORKING.get_or_init(|| {
+        let mut working = HashSet::new();
+        if let Some(available) = available_encoders() {
+            for format in RenderFormat::ALL {
+                for name in encoder_candidates(format) {
+                    if needs_a_test(name) && available.contains(*name) && test_encode(name) {
+                        working.insert(*name);
+                    }
+                }
+            }
+        }
+        working
+    })
 }
 
 /// Encoder names in the output of `ffmpeg -encoders` (video, audio and subtitle rows alike).
@@ -133,6 +203,7 @@ pub fn probe_encoders_in_background() {
     STARTED.call_once(|| {
         std::thread::spawn(|| {
             available_encoders();
+            working_hardware_encoders();
         });
     });
 }
@@ -140,7 +211,7 @@ pub fn probe_encoders_in_background() {
 /// The encoder for `format` if the probe has finished: `None` while it is running, `Some(Err)`
 /// when `ffmpeg` is missing or lacks every candidate. Never blocks.
 pub fn cached_encoder_for(format: RenderFormat) -> Option<Result<&'static str, String>> {
-    ENCODERS.get().map(|_| encoder_for(format))
+    WORKING.get().map(|_| encoder_for(format))
 }
 
 /// The encoder this machine's `ffmpeg` will use for `format`, or why there is none.
@@ -148,7 +219,8 @@ pub fn encoder_for(format: RenderFormat) -> Result<&'static str, String> {
     let available = available_encoders().ok_or_else(|| {
         "não foi possível iniciar o `ffmpeg` (verifique se está instalado no PATH)".to_string()
     })?;
-    pick_encoder(format, available).ok_or_else(|| {
+    let working = working_hardware_encoders();
+    pick_working_encoder(format, available, &|name| working.contains(name)).ok_or_else(|| {
         format!(
             "o `ffmpeg` instalado não tem codificador para {} (procurados: {})",
             format.label(),
@@ -511,9 +583,67 @@ mod tests {
         // no ProRes or VP9 in the LGPL build: nothing is picked and the render says so
         assert_eq!(pick_encoder(RenderFormat::MovProRes, &lgpl), None);
         assert_eq!(pick_encoder(RenderFormat::WebmVp9, &lgpl), None);
-        // a hardware encoder alone is never chosen
+        // a hardware encoder alone is listed as a candidate, but only used when it works
         let only_hw: HashSet<String> = ["h264_nvenc".to_string()].into();
-        assert_eq!(pick_encoder(RenderFormat::Mp4H264, &only_hw), None);
+        assert_eq!(
+            pick_encoder(RenderFormat::Mp4H264, &only_hw),
+            Some("h264_nvenc")
+        );
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4H264, &only_hw, &|_| false),
+            None
+        );
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4H264, &only_hw, &|name| name
+                == "h264_nvenc"),
+            Some("h264_nvenc")
+        );
+    }
+
+    /// An encoder that `ffmpeg` lists but that does not work here (Media Foundation HEVC on some
+    /// machines, NVENC without the card) is skipped for the next one.
+    #[test]
+    fn an_encoder_that_does_not_work_here_is_skipped() {
+        let lgpl: HashSet<String> = ["libopenh264", "hevc_mf", "hevc_amf", "h264_amf", "h264_mf"]
+            .map(String::from)
+            .into();
+        // HEVC: the card's encoder works, the Media Foundation one does not
+        let amf_only = |name: &str| name == "hevc_amf";
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4Hevc, &lgpl, &amf_only),
+            Some("hevc_amf")
+        );
+        // nothing works: no encoder, and the render says so
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4Hevc, &lgpl, &|_| false),
+            None
+        );
+        // a software encoder is not tried (it is not in doubt) and comes before the hardware ones
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4H264, &lgpl, &|_| false),
+            Some("libopenh264")
+        );
+        let gpl: HashSet<String> = ["libx265", "hevc_amf"].map(String::from).into();
+        assert_eq!(
+            pick_working_encoder(RenderFormat::Mp4Hevc, &gpl, &|_| true),
+            Some("libx265")
+        );
+    }
+
+    /// Where `ffmpeg` is installed the choice of this machine really encodes.
+    #[test]
+    fn the_encoder_chosen_on_this_machine_encodes_a_few_frames() {
+        if available_encoders().is_none() {
+            return;
+        }
+        for format in [RenderFormat::Mp4H264, RenderFormat::Mp4Hevc] {
+            if let Ok(name) = encoder_for(format) {
+                assert!(
+                    test_encode(name),
+                    "{name} was chosen for {format:?} but does not encode"
+                );
+            }
+        }
     }
 
     #[test]
