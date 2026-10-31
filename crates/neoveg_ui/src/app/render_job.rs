@@ -171,6 +171,9 @@ fn run(
         audio_wav: Some(&wav_path),
         output: &request.output_path,
     };
+    // Where the time goes: the frames (decoding, compositing) against writing them to the encoder
+    let composing = std::cell::Cell::new(std::time::Duration::ZERO);
+    let started = std::time::Instant::now();
     let result = encode_video(
         request.engine,
         &spec,
@@ -180,6 +183,7 @@ fn run(
             ctx.request_repaint();
         },
         |index| {
+            let began = std::time::Instant::now();
             let time = t0 + index as f64 / fps;
             let mut frame = match composite_request(&plan.timeline, time, &settings, &resolve) {
                 Some(frame_request) => renderer.render_frame(&frame_request)?,
@@ -188,9 +192,18 @@ fn run(
             if request.burn_captions {
                 burn_captions(&mut frame, &plan.captions, time, &subtitle_style);
             }
+            composing.set(composing.get() + began.elapsed());
             Ok(frame)
         },
     );
+    if std::env::var_os("NEOVEG_RENDER_PROFILE").is_some() {
+        let total = started.elapsed().as_secs_f64();
+        eprintln!(
+            "render profile: {total_frames} frames in {total:.1} s; frames made in {:.1} s, the rest ({:.1} s) is writing and waiting for the encoder",
+            composing.get().as_secs_f64(),
+            total - composing.get().as_secs_f64()
+        );
+    }
     let _ = std::fs::remove_file(&wav_path);
     result
 }

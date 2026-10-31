@@ -998,6 +998,29 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
+    /// Time per frame of a sequential decode at the size of the picture (what a render asks for), on
+    /// `test_media/sintel_trailer-1080p.mp4` (`--ignored`: it prints the numbers).
+    #[test]
+    #[ignore = "benchmark: prints the decoding speed"]
+    fn benchmark_full_size_sequential_decode() {
+        let movie =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_media/sintel_trailer-1080p.mp4");
+        if !movie.exists() {
+            return;
+        }
+        let mut decoder = VideoDecoder::open_with(&movie, HardwareMode::Off).unwrap();
+        let frames = 300;
+        let start = std::time::Instant::now();
+        for k in 0..frames {
+            decoder.frame_at(f64::from(k) / 24.0, 0).unwrap();
+        }
+        let each = start.elapsed().as_secs_f64() * 1000.0 / f64::from(frames);
+        println!(
+            "full-size decode to RGBA: {each:.1} ms per frame ({:.0} frames/s)",
+            1000.0 / each
+        );
+    }
+
     #[test]
     fn probe_reads_dimensions_rate_and_duration() {
         let Some(path) = make_clip("probe") else {
