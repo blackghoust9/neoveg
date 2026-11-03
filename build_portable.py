@@ -307,32 +307,6 @@ def libclang_major(folder: Path) -> Optional[int]:
     return None
 
 
-def ensure_app_icon() -> None:
-    """Creates `assets/app_icon/app_icon.ico` when it is missing.
-
-    The icon is drawn by `scripts/generate_app_icon.py` (Pillow) and the `.ico` is not committed (the
-    repository ignores `*.ico`), so a clean checkout would otherwise produce an executable without an
-    icon. Only the `.ico` is taken from the generator: the tracked PNG is left untouched.
-    """
-    ico = ROOT / "assets" / "app_icon" / "app_icon.ico"
-    if ico.is_file():
-        return
-    generator = ROOT / "scripts" / "generate_app_icon.py"
-    scratch = TARGET_DIR / "tmp" / "app_icon"
-    try:
-        scratch.mkdir(parents=True, exist_ok=True)
-        done = subprocess.run(
-            [sys.executable, str(generator), "--out", str(scratch)], cwd=ROOT, capture_output=True, text=True
-        )
-        if done.returncode == 0 and (scratch / "app_icon.ico").is_file():
-            shutil.copy2(scratch / "app_icon.ico", ico)
-            log("INFO", f"generated {ico.relative_to(ROOT)} for the executable icon")
-        else:
-            log("WARN", "no app_icon.ico and the generator failed (needs Pillow): the exe will have no icon")
-    except OSError as error:
-        log("WARN", f"could not generate the application icon: {error}")
-
-
 def force_rmtree(path: Path) -> None:
     """`shutil.rmtree` that also removes folders flagged read-only (Windows raises WinError 5 for them)."""
 
@@ -467,7 +441,6 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
-    ensure_app_icon()
     steps = qa_steps(args)
     failed = False
     for step in steps:
@@ -700,7 +673,6 @@ def cmd_build(args: argparse.Namespace) -> int:
             for problem in problems:
                 log("ERROR", problem)
             return 1
-    ensure_app_icon()
     if not args.skip_qa:
         log("INFO", "running the quality gates before packaging (use --skip-qa to bypass)")
         if cmd_qa(args) != 0:

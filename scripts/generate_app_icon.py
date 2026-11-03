@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Draws the Neoveg application icon, the "Nv" mark, as `assets/app_icon/app_icon.png` and `.ico`.
+"""Draws the Neoveg application icon, the "Nv" mark, as `assets/app_icon/app_icon.png` (and optional `.ico`).
 
 The mark is original artwork made from plain polygons (no font and no third-party image): a white
 N and an azure v on a dark navy square with a thin accent bar. It is the icon of the program in the
 system (the executable, the window, the task bar), not a picture shown inside the startup screen.
 
+`crates/neoveg_ui/build.rs` generates `$OUT_DIR/app_icon.ico` directly from these same polygon
+coordinates during `cargo build` (so `*.ico` stays untracked in Git and plain `cargo build` embeds
+the icon without Python or Pillow). Pass `--ico` only when an external `.ico` export is needed.
+
 Usage:
-    python scripts/generate_app_icon.py [--out DIR]
+    python scripts/generate_app_icon.py [--out DIR] [--ico]
 
 Needs Pillow. The drawing is made at 1024 x 1024 and scaled down, so every size is crisp.
 """
@@ -46,13 +50,17 @@ def draw_mark() -> Image.Image:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(ROOT / "assets" / "app_icon"))
+    ap.add_argument("--ico", action="store_true", help="also write app_icon.ico into --out")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     master = draw_mark()
     master.resize((512, 512), Image.LANCZOS).save(out / "app_icon.png", optimize=True)
-    master.save(out / "app_icon.ico", format="ICO", sizes=ICO_SIZES)
-    print(f"gravado {out / 'app_icon.png'} e {out / 'app_icon.ico'}")
+    if args.ico:
+        master.save(out / "app_icon.ico", format="ICO", sizes=ICO_SIZES)
+        print(f"gravado {out / 'app_icon.png'} e {out / 'app_icon.ico'}")
+    else:
+        print(f"gravado {out / 'app_icon.png'}")
     return 0
 
 
