@@ -106,7 +106,7 @@ Conferir a lista item a item continua pendente; esta tabela só cobre o que foi 
 
 ## 5. Testes a rodar numa máquina com mais memória
 
-Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desde a última rodada completa de testes (`262b677`, que passou: 188 do `neoveg_audio`, 309 da interface) foram escritos 46 testes novos que **nunca rodaram**, e o código que eles cobrem mudou desde então. Rode **um crate por vez**, com `-j 1 -- --test-threads=1`, e o da interface em segundo plano.
+Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desde a última rodada completa de testes (`262b677`, que passou: 188 do `neoveg_audio`, 309 da interface) foram escritos 49 testes novos que **nunca rodaram** na suíte inteira do `neoveg_ui` (os 7 de `dialogs.rs` rodaram à parte com `rustc --test`), e o código que eles cobrem mudou desde então. Rode **um crate por vez**, com `-j 1 -- --test-threads=1`, e o da interface em segundo plano.
 
 | Ordem | Comando | O que cobre (testes novos) |
 |---|---|---|
@@ -114,7 +114,7 @@ Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desd
 | 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1), deslocamento de snap por evento (6) |
 | 3 | `cargo test -p neoveg_audio` | curva de ganho do mixer (2); o resto já passou |
 | 4 | `cargo test -p neoveg_video` | nada novo, mas o limite de decodificadores mexeu no worker |
-| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), deslocamento de snap na timeline e em grupos (2), e a suíte toda (309 antes) |
+| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), deslocamento de snap na timeline e em grupos (2), diálogos centrais e cascata de ferramentas (3), e a suíte toda (309 antes) |
 | 6 | `NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot` (segundo plano) | as 18 capturas fora da tela, para ver se a interface nova desenha |
 
 **Por que o `neoveg_engine` inteiro:** o envelope de volume, o de progresso, a duplicação de faixa e o esmaecer mexeram no corte, no aparo, na cópia e no desfazer; os testes antigos de ripple e de seleção são os que mais podem revelar uma regressão.

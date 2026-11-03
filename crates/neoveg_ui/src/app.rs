@@ -17442,14 +17442,15 @@ mod ripple_tests {
         s.insert_time_dialog = Some("00:00:05:00".into());
         s.goto_dialog = Some("00:00:10:00".into());
         s.confirm_exit = true;
-        s.pending_recovery.push(neoveg_engine::autosave::RecoveryEntry {
-            path: PathBuf::from("recovery_demo.neoveg"),
-            meta: neoveg_engine::project_file::RecoveryMeta {
-                project_name: "Demo".into(),
-                original_path: None,
-                saved_unix: 100,
-            },
-        });
+        s.pending_recovery
+            .push(neoveg_engine::autosave::RecoveryEntry {
+                path: PathBuf::from("recovery_demo.neoveg"),
+                meta: neoveg_engine::project_file::RecoveryMeta {
+                    project_name: "Demo".into(),
+                    original_path: None,
+                    saved_unix: 100,
+                },
+            });
         s.notes.open = true;
 
         for _ in 0..3 {

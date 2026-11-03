@@ -34,11 +34,15 @@ pub fn tool_position(screen: egui::Rect, slot: usize) -> Pos2 {
 
 /// A dialog window: titled, not collapsible, opening centred and staying draggable.
 pub fn dialog<'a>(ctx: &egui::Context, title: &str) -> egui::Window<'a> {
+    let pass = ctx.cumulative_pass_nr();
     let screen = ctx.screen_rect();
     let pos = dialog_position(screen);
+    let id = egui::Id::new(title);
+    let dragged = ctx.is_being_dragged(id.with("move")) || ctx.is_being_dragged(id.with("resize"));
+    let loaded = egui::AreaState::load(ctx, id);
     let place = ctx.data_mut(|data| {
         let mem = data.get_temp_mut_or_default::<DialogMemory>(egui::Id::new("neoveg_dialogs"));
-        should_place_window(ctx, &mut mem.windows, title, ctx.cumulative_pass_nr(), screen)
+        should_place_window(&mut mem.windows, title, pass, screen, dragged, loaded)
     });
     let win = egui::Window::new(title.to_owned())
         .collapsible(false)
@@ -78,16 +82,13 @@ struct TrackedWindow {
 /// `false` as soon as the user drags or resizes the window, so egui keeps the chosen position even
 /// if the window is closed and reopened later.
 fn should_place_window(
-    ctx: &egui::Context,
     windows: &mut std::collections::HashMap<String, TrackedWindow>,
     title: &str,
     pass: u64,
     screen: egui::Rect,
+    dragged: bool,
+    loaded: Option<egui::AreaState>,
 ) -> bool {
-    let id = egui::Id::new(title);
-    let dragged = ctx.is_being_dragged(id.with("move")) || ctx.is_being_dragged(id.with("resize"));
-    let loaded = egui::AreaState::load(ctx, id);
-
     let Some(entry) = windows.get_mut(title) else {
         windows.insert(
             title.to_owned(),
@@ -167,10 +168,13 @@ pub fn tool_slot(open: &mut Vec<OpenTool>, title: &str, frame: u64) -> usize {
 pub fn tool_window<'a>(ctx: &egui::Context, title: &str) -> egui::Window<'a> {
     let frame = ctx.cumulative_pass_nr();
     let screen = ctx.screen_rect();
+    let id = egui::Id::new(title);
+    let dragged = ctx.is_being_dragged(id.with("move")) || ctx.is_being_dragged(id.with("resize"));
+    let loaded = egui::AreaState::load(ctx, id);
     let (slot, place) = ctx.data_mut(|data| {
         let mem = data.get_temp_mut_or_default::<DialogMemory>(egui::Id::new("neoveg_dialogs"));
         let slot = tool_slot(&mut mem.tools, title, frame);
-        let place = should_place_window(ctx, &mut mem.windows, title, frame, screen);
+        let place = should_place_window(&mut mem.windows, title, frame, screen, dragged, loaded);
         (slot, place)
     });
     let pos = tool_position(screen, slot);
@@ -233,8 +237,9 @@ mod tests {
         // Both stay where they are while they keep being shown
         assert_eq!(tool_slot(&mut open, "Notas do projeto", 11), 0);
         assert_eq!(tool_slot(&mut open, "Detalhes de edição", 11), 1);
-        // Notes close while the details table stays open at slot 1: the next window opens at slot 2
-        // instead of colliding with the details table at slot 1
+        // Notes close on frame 12 while the details table stays open at slot 1: the next window
+        // opens at slot 2 instead of colliding with the details table at slot 1
+        assert_eq!(tool_slot(&mut open, "Detalhes de edição", 12), 1);
         assert_eq!(tool_slot(&mut open, "Detalhes de edição", 13), 1);
         assert_eq!(tool_slot(&mut open, "Inspetor", 13), 2);
     }
@@ -257,9 +262,11 @@ mod tests {
 
         for _ in 0..3 {
             run_pass(&ctx, small, |ctx| {
-                dialog(ctx, "Inserir tempo").resizable(false).show(ctx, |ui| {
-                    ui.label("00:00:05:00");
-                });
+                dialog(ctx, "Inserir tempo")
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label("00:00:05:00");
+                    });
             });
         }
         let initial = egui::AreaState::load(&ctx, egui::Id::new("Inserir tempo"))
@@ -270,9 +277,11 @@ mod tests {
         // Before the user drags it, maximizing the main window keeps the dialog centred
         for _ in 0..3 {
             run_pass(&ctx, large, |ctx| {
-                dialog(ctx, "Inserir tempo").resizable(false).show(ctx, |ui| {
-                    ui.label("00:00:05:00");
-                });
+                dialog(ctx, "Inserir tempo")
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label("00:00:05:00");
+                    });
             });
         }
         let resized = egui::AreaState::load(&ctx, egui::Id::new("Inserir tempo"))
@@ -281,52 +290,48 @@ mod tests {
         assert!((resized.center() - large.center()).length() <= 2.0);
 
         // Drag the title bar by (-200, -120): unlike `.anchor(...)`, the dialog moves and stays put
-        let grab = Pos2::new(resized.center().x, resized.top() + 10.0);
+        let grab = Pos2::new(resized.center().x, resized.top() + 8.0);
         let drop = grab + egui::vec2(-200.0, -120.0);
-        let _ = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(large),
-                events: vec![
-                    egui::Event::PointerMoved(grab),
-                    egui::Event::PointerButton {
-                        pos: grab,
-                        button: egui::PointerButton::Primary,
-                        pressed: true,
-                        modifiers: egui::Modifiers::NONE,
-                    },
-                ],
-                ..Default::default()
-            },
-            |ctx| {
-                dialog(ctx, "Inserir tempo").resizable(false).show(ctx, |ui| {
-                    ui.label("00:00:05:00");
-                });
-            },
-        );
-        let _ = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(large),
-                events: vec![
-                    egui::Event::PointerMoved(drop),
-                    egui::Event::PointerButton {
-                        pos: drop,
-                        button: egui::PointerButton::Primary,
-                        pressed: false,
-                        modifiers: egui::Modifiers::NONE,
-                    },
-                ],
-                ..Default::default()
-            },
-            |ctx| {
-                dialog(ctx, "Inserir tempo").resizable(false).show(ctx, |ui| {
-                    ui.label("00:00:05:00");
-                });
-            },
-        );
+        for events in [
+            vec![
+                egui::Event::PointerMoved(grab),
+                egui::Event::PointerButton {
+                    pos: grab,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            vec![egui::Event::PointerMoved(drop)],
+            vec![egui::Event::PointerButton {
+                pos: drop,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        ] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(large),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    dialog(ctx, "Inserir tempo")
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.label("00:00:05:00");
+                        });
+                },
+            );
+        }
         let moved = egui::AreaState::load(&ctx, egui::Id::new("Inserir tempo"))
             .unwrap()
             .rect();
-        assert!((moved.center() - (resized.center() + egui::vec2(-200.0, -120.0))).length() <= 2.0);
+        assert!(
+            (moved.center() - (resized.center() + egui::vec2(-200.0, -120.0))).length() <= 2.0,
+            "resized={resized:?}, moved={moved:?}"
+        );
 
         // Close for several passes and reopen: egui remembers where the user moved it
         for _ in 0..4 {
@@ -334,9 +339,11 @@ mod tests {
         }
         for _ in 0..3 {
             run_pass(&ctx, large, |ctx| {
-                dialog(ctx, "Inserir tempo").resizable(false).show(ctx, |ui| {
-                    ui.label("00:00:05:00");
-                });
+                dialog(ctx, "Inserir tempo")
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label("00:00:05:00");
+                    });
             });
         }
         let reopened = egui::AreaState::load(&ctx, egui::Id::new("Inserir tempo"))
