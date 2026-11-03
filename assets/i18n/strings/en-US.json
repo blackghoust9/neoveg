@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "Select two or more unlocked events from the same media in chronological order",
   "Suavidade das sombras": "Shadow softness",
   "Suavidade dos realces": "Highlight softness",
-  "Substituir cor": "Color Replace"
+  "Substituir cor": "Color Replace",
+  "Escolher pasta…": "Choose folder…",
+  "Usar a pasta padrão": "Use the default folder",
+  "Pasta dos layouts: {}": "Layouts folder: {}"
 }

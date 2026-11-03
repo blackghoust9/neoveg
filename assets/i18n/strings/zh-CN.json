@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "请按时间顺序选择同一媒体的两个或多个未锁定事件",
   "Suavidade das sombras": "阴影柔和度",
   "Suavidade dos realces": "高光柔和度",
-  "Substituir cor": "颜色替换"
+  "Substituir cor": "颜色替换",
+  "Escolher pasta…": "选择文件夹…",
+  "Usar a pasta padrão": "使用默认文件夹",
+  "Pasta dos layouts: {}": "布局文件夹：{}"
 }

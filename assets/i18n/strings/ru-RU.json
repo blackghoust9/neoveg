@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "Выберите два или более разблокированных события одного медиафайла в хронологическом порядке",
   "Suavidade das sombras": "Мягкость теней",
   "Suavidade dos realces": "Мягкость светов",
-  "Substituir cor": "Замена цвета"
+  "Substituir cor": "Замена цвета",
+  "Escolher pasta…": "Выбрать папку…",
+  "Usar a pasta padrão": "Использовать папку по умолчанию",
+  "Pasta dos layouts: {}": "Папка раскладок: {}"
 }

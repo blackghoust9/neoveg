@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "Wählen Sie mindestens zwei entsperrte Events desselben Mediums in zeitlicher Reihenfolge aus",
   "Suavidade das sombras": "Tiefen-Weichheit",
   "Suavidade dos realces": "Lichter-Weichheit",
-  "Substituir cor": "Farbe ersetzen"
+  "Substituir cor": "Farbe ersetzen",
+  "Escolher pasta…": "Ordner wählen…",
+  "Usar a pasta padrão": "Standardordner verwenden",
+  "Pasta dos layouts: {}": "Layout-Ordner: {}"
 }

@@ -395,7 +395,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 
 **Janelas e projeto**
 - [x] Layouts de janela nomeados e salvos em disco (`.neoveglayout`, pasta de dados do usuário): Exibir > Layouts lista os salvos com marca no atual, *Salvar layout como…* (nome e atalho de 1 a 9), *Salvar layout atual*, *Recarregar layout selecionado* e *Organizar layouts…* (trocar o atalho, carregar, excluir). `Alt+D` e depois um número carrega, `Ctrl+Alt+D` e depois um número salva.
-- [ ] Layouts: guardar também as janelas destacadas e a pasta de layouts à escolha.
+- [x] Layouts: o arquivo `.neoveglayout` guarda também as janelas destacadas (qual painel e onde estava, `detached`); carregar o layout reabre ou move essas janelas e fecha as que ele não tinha (um arquivo antigo, sem o campo, deixa as janelas abertas como estão). A pasta dos layouts é escolhida em *Organizar layouts… > Escolher pasta…* (guardada nas preferências em `layouts_dir`; *Usar a pasta padrão* volta à da pasta de dados). Os testes novos (`layouts.rs`, `app/detached.rs`) ainda não rodaram neste PC
 - [ ] Painel de compositores (modos de mistura), junto do modelo de composição.
 - [ ] Diálogo de propriedades da mídia: timecode do arquivo ou personalizado, taxa de quadros substituta, ordem dos campos, proporção do pixel, canal alfa e cor de fundo.
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.

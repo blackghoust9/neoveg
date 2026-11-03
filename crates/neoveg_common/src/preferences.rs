@@ -51,6 +51,8 @@ pub struct Preferences {
     pub keymap: BTreeMap<String, Vec<String>>,
     /// Panels that were in their own window (possibly on another monitor) when the program closed.
     pub detached_windows: Vec<SavedWindow>,
+    /// Folder of the saved window layouts; empty = the folder in the user's data directory.
+    pub layouts_dir: String,
     /// Snap to the lines of the frame grid (`Ctrl+F8`).
     pub snap_to_grid: bool,
     /// Snap to markers and the edges of regions (`Shift+F8`).
@@ -85,6 +87,7 @@ impl Default for Preferences {
             theme_file: String::new(),
             keymap: BTreeMap::new(),
             detached_windows: Vec::new(),
+            layouts_dir: String::new(),
             snap_to_grid: false,
             snap_to_markers: true,
             snap_to_all_events: true,

@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "同じメディアのロック解除されたイベントを時系列順に2つ以上選択してください",
   "Suavidade das sombras": "シャドウの柔らかさ",
   "Suavidade dos realces": "ハイライトの柔らかさ",
-  "Substituir cor": "カラーの置換"
+  "Substituir cor": "カラーの置換",
+  "Escolher pasta…": "フォルダーを選択…",
+  "Usar a pasta padrão": "既定のフォルダーを使う",
+  "Pasta dos layouts: {}": "レイアウトのフォルダー: {}"
 }

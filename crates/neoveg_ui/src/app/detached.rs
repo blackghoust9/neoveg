@@ -142,17 +142,53 @@ impl NeovegApp {
         self.sync_detached_prefs(true);
     }
 
-    /// Mirrors the open windows into the preferences; `write` also saves them to disk.
-    pub(super) fn sync_detached_prefs(&mut self, write: bool) {
-        let saved: Vec<SavedWindow> = self
-            .detached
+    /// The panels in their own windows, as the preferences and the saved layouts keep them.
+    pub(super) fn saved_windows(&self) -> Vec<SavedWindow> {
+        self.detached
             .iter()
             .map(|d| SavedWindow {
                 tab: d.tab.id().to_owned(),
                 geometry: d.geometry.clone(),
             })
-            .collect();
-        self.state.prefs.detached_windows = saved;
+            .collect()
+    }
+
+    /// A saved layout's panel windows take the place of the ones that are open: windows the layout
+    /// does not have go away (their panel is simply not shown, as in the layout), the others open or
+    /// move to where the layout had them.
+    pub(super) fn apply_layout_windows(&mut self, windows: &[SavedWindow]) {
+        let ctx = self.state.tabs.ctx.clone();
+        let monitor = ctx.as_ref().and_then(|c| main_window(c).1);
+        let open: Vec<Tab> = self.detached.iter().map(|d| d.tab).collect();
+        self.detached.clear();
+        for window in windows {
+            let Some(tab) = Tab::from_id(&window.tab) else {
+                continue;
+            };
+            if let Some(location) = self.dock.find_tab(&tab) {
+                self.dock.remove_tab(location);
+            }
+            let geometry = window.geometry.sanitized(monitor);
+            if let Some(ctx) = ctx.as_ref().filter(|_| open.contains(&tab)) {
+                // The window is already open: it is moved, its builder only counts when it is created
+                let id = viewport_id(tab);
+                ctx.send_viewport_cmd_to(
+                    id,
+                    egui::ViewportCommand::OuterPosition(egui::pos2(geometry.x, geometry.y)),
+                );
+                ctx.send_viewport_cmd_to(
+                    id,
+                    egui::ViewportCommand::InnerSize(egui::vec2(geometry.width, geometry.height)),
+                );
+            }
+            self.detach(tab, geometry);
+        }
+        self.sync_detached_prefs(true);
+    }
+
+    /// Mirrors the open windows into the preferences; `write` also saves them to disk.
+    pub(super) fn sync_detached_prefs(&mut self, write: bool) {
+        self.state.prefs.detached_windows = self.saved_windows();
         if write {
             self.state.persist_preferences();
         }
@@ -235,6 +271,75 @@ mod tests {
             detached: Vec::new(),
             detached_restored: true,
         }
+    }
+
+    #[test]
+    fn a_layout_brings_back_its_panel_windows_and_the_chosen_folder_is_used() {
+        let base = std::env::temp_dir().join(format!("neoveg_app_detached_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (dir, other) = (base.join("a"), base.join("b"));
+        let mut app = app();
+        app.state.layouts_dir = Some(dir);
+        // The scopes panel in a window of its own, out of the dock
+        if let Some(found) = app.dock.find_tab(&Tab::Scopes) {
+            app.dock.remove_tab(found);
+        }
+        app.detach(
+            Tab::Scopes,
+            WindowGeometry {
+                x: 300.0,
+                ..WindowGeometry::default()
+            },
+        );
+        app.apply_window_action(WindowAction::SaveLayout {
+            name: "Dois monitores".into(),
+            slot: None,
+        });
+        let path = app
+            .state
+            .current_layout
+            .clone()
+            .expect("the layout is selected");
+        assert_eq!(
+            app.state.layouts[0].file.detached.as_ref().map(Vec::len),
+            Some(1),
+            "the window is in the file"
+        );
+        // Close the window (the panel goes back into the dock), then load: it is a window again
+        app.redock(Tab::Scopes);
+        assert!(app.detached.is_empty() && app.dock.find_tab(&Tab::Scopes).is_some());
+        app.apply_window_action(WindowAction::LoadLayout(path));
+        assert_eq!(app.detached.len(), 1);
+        assert_eq!(app.detached[0].tab, Tab::Scopes);
+        assert!(
+            app.dock.find_tab(&Tab::Scopes).is_none(),
+            "not in both places"
+        );
+        // A layout saved with no panel window closes the one that is open
+        app.redock(Tab::Scopes);
+        app.apply_window_action(WindowAction::SaveLayout {
+            name: "Tudo junto".into(),
+            slot: None,
+        });
+        let together = app.state.current_layout.clone().unwrap();
+        app.dock
+            .remove_tab(app.dock.find_tab(&Tab::Scopes).unwrap());
+        app.detach(Tab::Scopes, WindowGeometry::default());
+        app.apply_window_action(WindowAction::LoadLayout(together));
+        assert!(app.detached.is_empty());
+        assert!(app.dock.find_tab(&Tab::Scopes).is_some());
+        // The folder of the layouts can be chosen, and the default one comes back
+        app.apply_window_action(WindowAction::SetLayoutsDir(Some(other.clone())));
+        assert_eq!(app.state.layouts_dir, Some(other.clone()));
+        assert!(
+            app.state.layouts.is_empty(),
+            "that folder has no layouts yet"
+        );
+        assert_eq!(app.state.prefs.layouts_dir, other.to_string_lossy());
+        app.apply_window_action(WindowAction::SetLayoutsDir(None));
+        assert_eq!(app.state.layouts_dir, crate::layouts::dir());
+        assert!(app.state.prefs.layouts_dir.is_empty());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

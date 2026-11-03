@@ -204,6 +204,8 @@ enum WindowAction {
     SaveSlot(u8),
     DeleteLayout(PathBuf),
     SetLayoutSlot(PathBuf, Option<u8>),
+    /// Keep the layouts in this folder (`None`: the default one).
+    SetLayoutsDir(Option<PathBuf>),
 }
 
 /// The *Salvar layout como* dialog.
@@ -1534,6 +1536,8 @@ impl AppState {
             &[&prefs.language, &overrides, &prefs.autosave_minutes],
         );
         self.prefs = prefs;
+        self.layouts_dir = crate::layouts::resolve_dir(&self.prefs.layouts_dir);
+        self.layouts_loaded = false;
         self.keymap = keymap;
         self.snap_sources = neoveg_engine::snapping::SnapSources {
             grid: self.prefs.snap_to_grid,
@@ -7249,8 +7253,19 @@ impl NeovegApp {
             return;
         };
         let (layout, name) = (found.file.dock.clone(), found.file.name.clone());
-        self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
-        self.dock = layout;
+        let windows = found.file.detached.clone();
+        match windows {
+            // The layout knows its panel windows: they replace the ones that are open
+            Some(windows) => {
+                self.dock = layout;
+                self.apply_layout_windows(&windows);
+            }
+            // An older file: the open windows stay, except for panels the layout docks
+            None => {
+                self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
+                self.dock = layout;
+            }
+        }
         self.state.current_layout = Some(path.to_path_buf());
         self.state.status = tr_args("Layout {} carregado", &[&name]);
     }
@@ -7261,7 +7276,7 @@ impl NeovegApp {
             self.state.status = "Não há pasta para guardar o layout".into();
             return;
         };
-        match crate::layouts::save(&dir, name, slot, &self.dock) {
+        match crate::layouts::save(&dir, name, slot, &self.dock, &self.saved_windows()) {
             Ok(path) => {
                 self.state.current_layout = Some(path);
                 self.state.status = tr_args("Layout {} salvo", &[&name]);
@@ -7355,6 +7370,19 @@ impl NeovegApp {
                     }
                 }
                 self.state.refresh_layouts();
+            }
+            WindowAction::SetLayoutsDir(dir) => {
+                self.state.prefs.layouts_dir = dir
+                    .map(|d| d.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.state.layouts_dir = crate::layouts::resolve_dir(&self.state.prefs.layouts_dir);
+                self.state.current_layout = None;
+                self.state.persist_preferences();
+                self.state.refresh_layouts();
+                self.state.status = match &self.state.layouts_dir {
+                    Some(dir) => tr_args("Pasta dos layouts: {}", &[&dir.display()]),
+                    None => "Não há pasta para guardar o layout".into(),
+                };
             }
             WindowAction::DefaultLayout => {
                 self.dock = default_dock();
@@ -9457,6 +9485,20 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                 if let Some(dir) = &state.layouts_dir {
                     ui.weak(tr_args("Pasta: {}", &[&dir.display()]));
                 }
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Escolher pasta…")).clicked() {
+                        if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                            request = Some(WindowAction::SetLayoutsDir(Some(dir)));
+                        }
+                    }
+                    let custom = !state.prefs.layouts_dir.trim().is_empty();
+                    if ui
+                        .add_enabled(custom, egui::Button::new(tr("Usar a pasta padrão")))
+                        .clicked()
+                    {
+                        request = Some(WindowAction::SetLayoutsDir(None));
+                    }
+                });
                 if rows.is_empty() {
                     ui.label(tr(
                         "Nenhum layout salvo ainda. Use Exibir > Layouts > Salvar layout como.",

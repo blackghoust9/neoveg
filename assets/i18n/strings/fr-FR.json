@@ -1332,5 +1332,8 @@
   "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica": "Sélectionnez au moins deux événements déverrouillés du même média dans l’ordre chronologique",
   "Suavidade das sombras": "Douceur des ombres",
   "Suavidade dos realces": "Douceur des hautes lumières",
-  "Substituir cor": "Remplacement de couleur"
+  "Substituir cor": "Remplacement de couleur",
+  "Escolher pasta…": "Choisir le dossier…",
+  "Usar a pasta padrão": "Utiliser le dossier par défaut",
+  "Pasta dos layouts: {}": "Dossier des dispositions : {}"
 }
