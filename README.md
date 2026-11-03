@@ -412,7 +412,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 
 **Edição e timeline**
 - [x] Excluir com ripple (`Ctrl+Delete`) e *Auto Ripple* (`Ctrl+L`) para a exclusão de eventos
-- [ ] Modos de edição de ripple por faixa/tudo ao arrastar e aparar (aparar e esticar bordas já seguem o escopo com o Auto Ripple ligado; falta mover e colar)
+- [x] Modos de edição de ripple por faixa/tudo ao arrastar e aparar: aparar e esticar bordas seguem o escopo com o Auto Ripple ligado, e o ripple ao mover e ao colar também existe (`ripple_move`, `paste_with_ripple`)
 - [x] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
 - [ ] Travar faixa/evento
@@ -466,7 +466,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 
 **Itens extras vindos dos manuais (VP10–VP21), por versão de origem**
-- [ ] Modo de edição expandido e *rolling edit* pelo teclado numérico, com visão 2-up do ponto de edição (VP12)
+- [x] Modo de edição expandido (feito, `Ctrl+Alt+5`) e *rolling edit* pelo teclado (`Ctrl+Shift+←/→` no aparo por teclado), com visão A/B do ponto de edição (VP12)
 - [ ] Proxies inteligentes: troca automática entre original e proxy conforme a qualidade da prévia; o render usa o original (VP12)
 - [ ] Cadeias de efeitos de até 32 efeitos aplicáveis ao evento, faixa, mídia ou projeto; mascaramento de FX e formas (retângulo, elipse, Bézier) (VP12)
 - [ ] Correspondência de cor entre clipes (*Color Match*) e fluxo S-Log/ACES com OpenColorIO por mídia e projeto (VP12)
@@ -491,7 +491,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes nas faixas afetadas) e colar repetido (`Ctrl+B`: janela com número de cópias, uma após a outra ou a cada X segundos)
 - [ ] Arrastar com `Ctrl` copia; arrastar com o botão direito abre "Mover aqui / Copiar aqui / Embaralhar"
 - [x] Aparar à seleção (`Ctrl+T`) e aparar início/fim ao cursor (`Alt+[` / `Alt+]`)
-- [ ] `[` e `]` selecionam a borda do evento (modo de aparo por teclado, Fase 2)
+- [x] `[` e `]` selecionam a borda do evento (modo de aparo por teclado, Fase 2) (feito: ver o aparo por teclado abaixo)
 - [x] `S` divide sem seleção em todas as faixas sob o cursor, com eventos selecionados só neles e, com seleção de tempo, nas duas bordas
 - [x] Inserir tempo (`Ctrl+Alt+T`): abre espaço vazio no cursor nas faixas dos eventos selecionados ou em todas
 - [ ] Inserir evento vazio
@@ -499,11 +499,11 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 2 — Ripple, aparar e edição expandida (entrada 8)**
 - [ ] `RippleScope` (faixas afetadas / + marcadores e regiões / tudo) e `ripple_after(edição, escopo)` — **engine pronto** (`ripple_after`, `ripple_delete_scoped`) e escopo ligado a `F`, `Ctrl+F`, `Ctrl+Shift+F`, ao Auto Ripple e à exclusão com ripple; o Auto Ripple também vale ao aparar e esticar bordas (`ripple_resize`); `F` / `Ctrl+F` / `Ctrl+Shift+F` também fazem o ripple da última edição (exclusão simples ou aparo/esticar de uma borda) enquanto ela for a última mudança do histórico; o ripple ao mover e ao colar já existe (`ripple_move`, `paste_with_ripple`, `move_hint`, `paste_hint`); falta o ripple manual de outras edições; teclas `F`, `Ctrl+F`, `Ctrl+Shift+F`; modo Auto Ripple (`Ctrl+L`) com lista de escopos
 - [ ] `TrimMode` {Normal, Slip, Slide, Stretch, Roll}; slip e slide por mouse e por teclado; resolver o conflito `Alt` (hoje ignora o snap) antes de adotar `Alt` = slip
-- [ ] Aparar por teclado: **feito** `[` / `]` escolhem a borda e `←` / `→` movem um quadro (a ferramenta de edição ativa escolhe aparar, slip ou slide; `Esc` sai; regras em `neoveg_engine::keytrim`); `Shift+←/→` estica e `Ctrl+Shift+←/→` faz o aparo adjacente; o passo de 1 pixel (`4`/`6`) e a roda do mouse com `Ctrl+Shift` estão feitos
+- [x] Aparar por teclado: **feito** `[` / `]` escolhem a borda e `←` / `→` movem um quadro (a ferramenta de edição ativa escolhe aparar, slip ou slide; `Esc` sai; regras em `neoveg_engine::keytrim`); `Shift+←/→` estica e `Ctrl+Shift+←/→` faz o aparo adjacente; o passo de 1 pixel (`4`/`6`) e a roda do mouse com `Ctrl+Shift` estão feitos
 - [ ] Aparo adjacente (rolling) arrastando a borda entre dois eventos (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam já funciona, com regra `edit::roll` testada; falta o aparo por teclado e o corte em J/L); aparar a borda de um evento agrupado também apara os membros do grupo que têm a mesma borda e `Shift`+arrastar (ou Ignorar agrupamento) apara só aquele evento, os cortes em J e L (não vale com o Ripple automático ligado)
 - [ ] Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)
 - [x] Modo de edição expandida (`Editar > Modo de edição expandida`, `Ctrl+Alt+5`, ou duplo clique na borda de um evento; `keytrim::ab_view`, `AppState::toggle_expanded_edit`): no corte da borda escolhida (`[` / `]`) o evento que sai é A e o que entra é B; a prévia se divide ao meio com o último quadro de A e o primeiro de B (cada um com seu timecode), e a linha do tempo desenha a mídia que cada lado não usa — a cauda de A em azul depois do corte, a cabeça de B em laranja antes dele, com a conta de quadros livres — e o corte em vermelho. `Esc` sai (antes de sair do aparo por teclado), assim como o mesmo comando ou o duplo clique na mesma borda; trocar de borda com `[` / `]` mantém o modo; sair do aparo por teclado também o encerra. Os quadros vêm do decodificador como os de borda do slip/slide (`edge_frames`). Os testes ainda não rodaram neste PC (`ab_tests` em `keytrim.rs`, `edge_frames` e o do comando em `app.rs`). Não feito: quadros por velocidade variável (usa só a taxa fixa), faixas de áudio sem imagem (a metade fica vazia) e entrar por `5` (o `5` continua saindo do aparo por teclado)
-- [ ] Evento em repetição (switch Loop) ao esticar além da mídia; quadros ilegíveis em vermelho
+- [x] Evento em repetição (switch Loop) ao esticar além da mídia (o limite da mídia não vale para um evento com Loop) e quadros ilegíveis em vermelho (`unreadable_frame`)
 
 **Fase 3 — Snap e quantização (entrada 9)**
 - [x] `SnapSources` (`neoveg_engine::snapping`): origem, cursor, bordas da seleção de tempo e eventos da própria faixa sempre valem; grade (`Ctrl+F8`), marcadores e regiões (`Shift+F8`) e eventos de outras faixas (`Ctrl+Shift+F8`) são chaves próprias, no menu Editar e por atalho, além de `F8`; **Quantizar para quadros** (`Alt+F8`) liga e desliga o arredondamento ao arrastar (as chaves ficam gravadas nas preferências)
@@ -518,7 +518,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Switches por evento: mudo, travar e inverter fase (Editar > Interruptores, `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I`, botão de cadeado na barra); um evento travado não se move, apara, divide, agrupa, corta nem apaga
 - [x] Switch Loop (`Ctrl+Alt+O`): estender o evento além do fim da mídia repete a fonte, do ponto de entrada até o fim, com marcas a cada repetição; só em velocidade normal
 - [x] Switch Normalize (`Ctrl+Alt+N`) e Recalcular normalização (`Ctrl+Alt+Shift+N`): o ganho leva o pico da parte tocada ao nível `normalize_peak_db` do projeto (0 dBFS por padrão)
-- [ ] Switches por evento que faltam: manter proporção, reduzir cintilação, reamostragem Smart/Force/Disable; campo na interface para o nível de pico da normalização
+- [x] Switches por evento que faltavam: manter proporção, reduzir cintilação, reamostragem (projeto, mistura de quadros, fluxo óptico, desligada) e o campo do nível de pico da normalização (Propriedades do projeto)
 - [x] Seleção não destrutiva de canais de áudio por evento (Editar > Canais de áudio): ambos, somente esquerdo, somente direito, combinar (mono, amplitude pela metade) e trocar
 - [ ] Seleção de canal x / canais x/y em mídia multicanal e de stream de áudio
 - [ ] Esticar no tempo e mudar o tom (teclas `=` e `-`), taxa de reprodução e subamostragem de vídeo
@@ -560,7 +560,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico e menu de contexto; faltam sombra e brilho)
 - [ ] Máscaras (âncoras, positivo/negativo, pena, formas retângulo/elipse) e máscara de FX
 - [ ] `parent: Option<TrackId>`, `composite_mode` e `level` por faixa; árvore pai/filho no engine
-- [ ] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump)
+- [x] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump) — **o compositor** (`neoveg_video::composite`, `wgpu` e referência na CPU, teste `gpu_compositor_matches_cpu_reference_across_all_17_modes`) **já tem os 17 modos**; falta a faixa guardar o modo (hoje a interface só usa Source Alpha) e o painel de compositores
 
 **Fase 10 — Fluxos de trabalho (entrada 16)**
 - [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
