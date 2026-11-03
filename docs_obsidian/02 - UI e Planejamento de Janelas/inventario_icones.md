@@ -1,6 +1,6 @@
-# Inventário e Mapeamento de Ícones SVG (`neoveg_ui`)
+# Inventário e Mapeamento de Ícones BMP Open-Source (`neoveg_ui`)
 
-Este documento registra a varredura completa das pastas de referência visual no Google Drive e o mapeamento semântico para a biblioteca vetorial **100% autoral** do Neoveg em `crates/neoveg_ui/assets/icons/` (`viewBox="0 0 24 24"`, `currentColor`, traços planos `butt`/`miter` sem cópia de pixels).
+Este documento registra a varredura das pastas de referência (apenas medidas e funções, sem cópia de pixels) e o mapeamento semântico para os **99 ícones `.bmp` open-source** do Neoveg em `crates/neoveg_ui/assets/icons/*.bmp` (AGENTS.md seção 35), gerados por `scripts/fetch_and_convert_icons.py` exclusivamente a partir das bibliotecas permissivas **Lucide** (`ISC`), **Phosphor Icons** (`MIT`), **Remix Icon** (`Apache-2.0`) e **Material Symbols** (`Apache-2.0`), decodificados via crate `image` (`bmp`) e enviados ao `egui` com `egui::TextureOptions::LINEAR`.
 
 ---
 
@@ -15,12 +15,9 @@ Este documento registra a varredura completa das pastas de referência visual no
 
 ---
 
-## 2. Catálogo Completo dos 64 Ícones Vetoriais Autorais (`crates/neoveg_ui/assets/icons/`)
+## 2. Catálogo dos Ícones Padronizados em BMP (`crates/neoveg_ui/assets/icons/*.bmp`)
 
-Todos os arquivos seguem o estilo de casa validado automaticamente pelos testes unitários de `crates/neoveg_ui/src/icons.rs`:
-- `viewBox="0 0 24 24"`, `width="24"`, `height="24"`
-- `fill="currentColor"` e/ou `stroke="currentColor"` (adaptação automática a temas claro e escuro)
-- Traços retos (`stroke-linecap="butt"`, `stroke-linejoin="miter"`), sem cores fixas (`#`/`rgb`), sem `<text>` ou `<image>` embutidos.
+Todos os 99 arquivos são bitmaps `.bmp` de 32 bits BGRA (`BITMAPV4HEADER`, `64x64`, branco puro não-pré-multiplicado com canal alpha suave para tingimento dinâmico em temas claros, escuros e de alto contraste), validados automaticamente pelos testes unitários de `crates/neoveg_ui/src/icons.rs`.
 
 ### 2.1 Timeline & Edição (17 ícones)
 

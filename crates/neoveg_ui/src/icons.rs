@@ -873,7 +873,8 @@ fn decoded_bmp_image(icon: SvgIcon, colored: bool) -> Option<Arc<egui::ColorImag
                 out.insert((ic, false), Arc::new(color_image));
             }
             if let Some(cbytes) = color_bytes(ic) {
-                if let Ok(img) = image::load_from_memory_with_format(cbytes, image::ImageFormat::Bmp)
+                if let Ok(img) =
+                    image::load_from_memory_with_format(cbytes, image::ImageFormat::Bmp)
                 {
                     let rgba = img.to_rgba8();
                     let color_image = egui::ColorImage::from_rgba_unmultiplied(
