@@ -121,6 +121,7 @@ commands! {
     EditTrimEdgeStretchLeft => ("edit.trim_edge.stretch_left", "Aparo por teclado: esticar a borda um quadro à esquerda", Edit, true),
     EditTrimEdgeStretchRight => ("edit.trim_edge.stretch_right", "Aparo por teclado: esticar a borda um quadro à direita", Edit, true),
     EditTrimEdgeRollLeft => ("edit.trim_edge.roll_left", "Aparo por teclado: mover o corte adjacente um quadro à esquerda", Edit, true),
+    EditExpandedEdit => ("edit.expanded_edit", "Modo de edição expandida", Edit, true),
     EditTrimEdgeRollRight => ("edit.trim_edge.roll_right", "Aparo por teclado: mover o corte adjacente um quadro à direita", Edit, true),
     EditSelectAll => ("edit.select_all", "Selecionar tudo", Edit, true),
     EditSelectNone => ("edit.select_none", "Desfazer seleção", Edit, true),

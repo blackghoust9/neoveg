@@ -227,6 +227,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditTrimEdgeStretchRight, &["Shift+Right"]),
     (Command::EditTrimEdgeRollLeft, &["Ctrl+Shift+Left"]),
     (Command::EditTrimEdgeRollRight, &["Ctrl+Shift+Right"]),
+    (Command::EditExpandedEdit, &["Ctrl+Alt+5"]),
     (Command::EditSelectAll, &["Ctrl+A"]),
     (Command::EditSelectNone, &["Ctrl+Shift+A"]),
     (Command::EditGroup, &["G"]),

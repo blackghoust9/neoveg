@@ -2117,3 +2117,23 @@ Implementation Guidelines for Neoveg:
     decision. Proxy files (Draft and Preview use them) are a separate roadmap item.
 Sources: manual_vegaspro21_en.pdf pp. 195-196 and its paragraph on proxy files; VEGAS_Pro_18_EN.pdf p. 425.
 Research Date: 2026-10-30
+
+----------------------------------------------------------------------
+56. Feature Name: Expanded Edit Mode (A/B Roll View of an Edit Point)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, section "Expanded edit mode"; VEGAS_Pro_18_EN.pdf, same section.)
+  With an edit point chosen, the mode shows the event that ends there as A and the one that starts there as B,
+  a red bracket at the cut, and the media each event does not use on the far side of the cut (A's tail after
+  the cut, B's head before it). The Video Preview splits in two with the frame on each side. It is entered from
+  the menu, by Num5 or by double-clicking an edge, and left the same ways or with Esc.
+Neoveg Implementation:
+  - Pure rule: neoveg_engine::keytrim::ab_view gives the two sides of the edit point of the selected edge and
+    how many seconds of media each leaves unused (tail of A from the file length, head of B from its trim-in,
+    speed counted, unknown length = no tail).
+  - UI: Editar > Modo de edicao expandida (Ctrl+Alt+5), double-click on an edge, Esc first; bands A (blue) and
+    B (orange) with the free frames, red cut; the preview halves reuse the slip/slide edge-frames widget.
+  - Gap (small task): Num5 enters the mode in the reference; here Num5 already leaves keyboard trimming, so the
+    entry key differs. Frames follow the fixed speed only, not a velocity envelope.
+Sources: manual_vegaspro21_en.pdf (Expanded edit mode); VEGAS_Pro_18_EN.pdf (same section).
+Research Date: 2026-11-03

@@ -1251,5 +1251,11 @@
   "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "変更後に開いたビデオに適用されます。H.264 はテストで速かったプロセッサーのままです。カードで処理できない場合は、プロセッサーに戻ります。",
   "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "キーボードトリム：イベントの{} — ← / → で 1 フレーム、4 / 6 で 1 ピクセル移動（Esc か 5 で終了）",
   "início": "開始",
-  "fim": "終了"
+  "fim": "終了",
+  "Modo de edição expandida": "拡張編集モード",
+  "Saída (A)": "アウト (A)",
+  "Entrada (B)": "イン (B)",
+  "{} q livres": "空き {} フレーム",
+  "Edição expandida encerrada": "拡張編集を終了しました",
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "拡張編集: カットの両側のフレームと未使用メディア (Esc で終了)"
 }

@@ -209,6 +209,204 @@ pub fn nudge(
     })
 }
 
+/// One side of an edit point in expanded edit mode: the event and the media it does not use.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AbSide {
+    pub track: TrackId,
+    pub event: EventId,
+    /// Seconds of media the event does not show on the side of the edit point (the tail of the
+    /// outgoing event, the head of the incoming one); `None` when the length of the media is unknown.
+    pub free: Option<f64>,
+}
+
+/// The two events around an edit point (A rolls out, B rolls in), for expanded edit mode.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AbView {
+    /// Time of the edit point on the timeline.
+    pub time: f64,
+    pub a: Option<AbSide>,
+    pub b: Option<AbSide>,
+}
+
+/// The A/B view of `edge`: A is the event that ends at the edit point, B the one that starts there.
+/// The edge's own event is one of them and its neighbour on the same track (touching within
+/// [`TIME_EPSILON`]) is the other; with no neighbour that side is empty. `None` when the event is
+/// gone.
+pub fn ab_view(
+    timeline: &Timeline,
+    edge: Edge,
+    source_len: &dyn Fn(TrackId, EventId) -> Option<f64>,
+) -> Option<AbView> {
+    let track = timeline.track(edge.track)?;
+    let this = track.events.iter().find(|e| e.id == edge.event)?;
+    let time = match edge.side {
+        EdgeSide::Start => this.start,
+        EdgeSide::End => this.end(),
+    };
+    let side = |event: &crate::timeline::TrackEvent, outgoing: bool| {
+        let used = event.duration * event.playback_rate.abs().max(1e-6);
+        let free = if outgoing {
+            let len = if event.looping {
+                None
+            } else {
+                source_len(edge.track, event.id)
+            };
+            len.map(|l| (l - event.trim_in - used).max(0.0))
+        } else {
+            Some(event.trim_in.max(0.0))
+        };
+        AbSide {
+            track: edge.track,
+            event: event.id,
+            free,
+        }
+    };
+    let neighbour = track.events.iter().find(|e| {
+        e.id != edge.event
+            && match edge.side {
+                EdgeSide::Start => (e.end() - time).abs() < TIME_EPSILON,
+                EdgeSide::End => (e.start - time).abs() < TIME_EPSILON,
+            }
+    });
+    let (a, b) = match edge.side {
+        EdgeSide::End => (Some(side(this, true)), neighbour.map(|e| side(e, false))),
+        EdgeSide::Start => (neighbour.map(|e| side(e, true)), Some(side(this, false))),
+    };
+    Some(AbView { time, a, b })
+}
+
+#[cfg(test)]
+mod ab_tests {
+    use super::*;
+    use crate::timeline::{TrackEvent, TrackKind};
+
+    /// A = 0-4 (trim_in 1, media 10 s), B = 4-8 (trim_in 2), C = 10-12 (alone).
+    fn timeline() -> (Timeline, TrackId, [EventId; 3]) {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let mut ids = [0; 3];
+        for (i, (start, duration, trim_in)) in [(0.0, 4.0, 1.0), (4.0, 4.0, 2.0), (10.0, 2.0, 0.0)]
+            .into_iter()
+            .enumerate()
+        {
+            let event = TrackEvent {
+                id: tl.alloc_id(),
+                start,
+                duration,
+                trim_in,
+                media_id: Some(1),
+                ..TrackEvent::default()
+            };
+            ids[i] = event.id;
+            track.events.push(event);
+        }
+        let id = track.id;
+        tl.tracks.push(track);
+        (tl, id, ids)
+    }
+
+    fn ten(_: TrackId, _: EventId) -> Option<f64> {
+        Some(10.0)
+    }
+
+    #[test]
+    fn a_cut_shows_the_unused_tail_of_a_and_the_unused_head_of_b_from_either_edge() {
+        let (tl, track, ids) = timeline();
+        for side_of_cut in [
+            Edge {
+                track,
+                event: ids[0],
+                side: EdgeSide::End,
+            },
+            Edge {
+                track,
+                event: ids[1],
+                side: EdgeSide::Start,
+            },
+        ] {
+            let view = ab_view(&tl, side_of_cut, &ten).unwrap();
+            assert_eq!(view.time, 4.0);
+            let a = view.a.unwrap();
+            let b = view.b.unwrap();
+            assert_eq!((a.event, b.event), (ids[0], ids[1]));
+            // A shows source 1..5 of 10 s: 5 s are left after it; B starts at 2 s: 2 s before it
+            assert!((a.free.unwrap() - 5.0).abs() < 1e-9);
+            assert!((b.free.unwrap() - 2.0).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn an_edge_without_a_neighbour_has_one_empty_side_and_unknown_media_has_no_tail() {
+        let (tl, track, ids) = timeline();
+        let end = ab_view(
+            &tl,
+            Edge {
+                track,
+                event: ids[2],
+                side: EdgeSide::End,
+            },
+            &ten,
+        )
+        .unwrap();
+        assert_eq!(end.time, 12.0);
+        assert!(end.a.is_some() && end.b.is_none());
+        let start = ab_view(
+            &tl,
+            Edge {
+                track,
+                event: ids[2],
+                side: EdgeSide::Start,
+            },
+            &ten,
+        )
+        .unwrap();
+        assert!(start.a.is_none() && start.b.is_some());
+        let unknown = |_: TrackId, _: EventId| None;
+        let view = ab_view(
+            &tl,
+            Edge {
+                track,
+                event: ids[0],
+                side: EdgeSide::End,
+            },
+            &unknown,
+        )
+        .unwrap();
+        assert_eq!(view.a.unwrap().free, None);
+        assert!(
+            view.b.unwrap().free.is_some(),
+            "the head is known from trim_in"
+        );
+        assert!(ab_view(
+            &tl,
+            Edge {
+                track,
+                event: 999,
+                side: EdgeSide::End
+            },
+            &ten
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn a_sped_up_event_uses_more_media_than_its_length() {
+        let (mut tl, track, ids) = timeline();
+        tl.tracks[0].events[0].playback_rate = 2.0; // 4 s of timeline = 8 s of media (1..9)
+        let view = ab_view(
+            &tl,
+            Edge {
+                track,
+                event: ids[0],
+                side: EdgeSide::End,
+            },
+            &ten,
+        )
+        .unwrap();
+        assert!((view.a.unwrap().free.unwrap() - 1.0).abs() < 1e-9);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

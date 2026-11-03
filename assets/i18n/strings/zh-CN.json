@@ -1251,5 +1251,11 @@
   "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "对更改后打开的视频生效。H.264 仍由处理器解码，测试中处理器更快。如果显卡无法解码，程序会退回处理器。",
   "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "键盘修剪：事件的{} — ← / → 移动一帧，4 / 6 移动一个像素（Esc 或 5 退出）",
   "início": "起点",
-  "fim": "终点"
+  "fim": "终点",
+  "Modo de edição expandida": "扩展编辑模式",
+  "Saída (A)": "出点 (A)",
+  "Entrada (B)": "入点 (B)",
+  "{} q livres": "空闲 {} 帧",
+  "Edição expandida encerrada": "扩展编辑已结束",
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "扩展编辑：剪切点两侧的帧和未使用的素材（Esc 退出）"
 }

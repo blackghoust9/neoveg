@@ -665,6 +665,11 @@ struct AppState {
     edge_frames: crate::edge_frames::EdgeFrames,
     /// What the preview shows in the two halves while it does: the captions' timecodes.
     edge_labels: [String; 2],
+    /// What each half of the edge preview is called (first / last frame, or A / B).
+    edge_captions: [String; 2],
+    /// Expanded edit mode: the edit point of `trim_edge` shows the frames and the unused media of the
+    /// two events around it.
+    expanded_edit: bool,
     env_drag: Option<EnvelopeDrag>,
     context_event: Option<(TrackId, EventId)>,
     context_envelope: Option<EnvelopeHit>,
@@ -1693,6 +1698,8 @@ impl AppState {
             import_report: None,
             edge_frames: crate::edge_frames::EdgeFrames::default(),
             edge_labels: [String::new(), String::new()],
+            edge_captions: [String::new(), String::new()],
+            expanded_edit: false,
             last_frame_key: None,
             last_composite_key: None,
             lut_cache: None,
@@ -5050,14 +5057,28 @@ impl AppState {
     /// While an event is slipped or slid (and the preference is on), asks the frame worker for the
     /// first and last frame it would show, so the preview can draw them; clears them afterwards.
     fn update_edge_frames(&mut self) {
-        let wanted = self.edge_frame_keys();
-        let Some((keys, labels)) = wanted else {
+        if self.trim_edge.is_none() {
+            self.expanded_edit = false;
+        }
+        let wanted = self
+            .edge_frame_keys()
+            .map(|(keys, labels)| {
+                let [first, last] = keys;
+                (
+                    [Some(first), Some(last)],
+                    labels,
+                    [tr("Primeiro quadro"), tr("Último quadro")],
+                )
+            })
+            .or_else(|| self.expanded_edge_preview());
+        let Some((keys, labels, captions)) = wanted else {
             if self.edge_frames.visible() {
                 self.edge_frames.clear();
             }
             return;
         };
         self.edge_labels = labels;
+        self.edge_captions = captions;
         let requests = self.edge_frames.want(keys);
         if let Some(worker) = &self.frame_worker {
             for (path, seconds) in requests {
@@ -5068,6 +5089,83 @@ impl AppState {
                 });
             }
         }
+    }
+
+    /// Expanded edit mode: the last frame A shows and the first frame B shows at the edit point of
+    /// the selected edge. A half stays empty when that side has no event or is not video.
+    fn expanded_edge_preview(&self) -> Option<crate::edge_frames::Preview> {
+        if !self.expanded_edit {
+            return None;
+        }
+        let edge = self.trim_edge?;
+        let view = neoveg_engine::keytrim::ab_view(&self.timeline, edge, &|track, event| {
+            self.source_len(track, event)
+        })?;
+        let fps = self.project.settings.fps.max(1.0);
+        let drop_frame = self.drop_frame();
+        let mut keys: [Option<(PathBuf, f64)>; 2] = [None, None];
+        let mut labels = [String::new(), String::new()];
+        for (slot, side) in [view.a, view.b].into_iter().enumerate() {
+            let Some(side) = side else { continue };
+            let Some(track) = self.timeline.track(side.track) else {
+                continue;
+            };
+            if track.kind != TrackKind::Video {
+                continue;
+            }
+            let Some(event) = track.events.iter().find(|e| e.id == side.event) else {
+                continue;
+            };
+            let Some(media_id) = event.media_id else {
+                continue;
+            };
+            let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+                continue;
+            };
+            let info = self.video_info.get(&media_id);
+            let source_fps = info.map_or(fps, |i| i.fps).max(1.0);
+            let rate = edit::clamp_playback_rate(event.playback_rate);
+            // A shows its last frame at the cut, B its first
+            let wanted = if slot == 0 {
+                event.trim_in + (event.duration - 1.0 / fps).max(0.0) * rate
+            } else {
+                event.trim_in
+            };
+            let last_frame = info.map(|i| (i.duration * source_fps).ceil() - 1.0);
+            let frame = (wanted * source_fps).round().max(0.0);
+            let frame = last_frame.map_or(frame, |l| frame.min(l.max(0.0)));
+            let seconds = frame / source_fps;
+            labels[slot] = seconds_to_timecode(seconds, source_fps, drop_frame);
+            keys[slot] = Some((PathBuf::from(&item.path), seconds));
+        }
+        Some((keys, labels, [tr("Saída (A)"), tr("Entrada (B)")]))
+    }
+
+    /// Turns expanded edit mode on or off. `picked` is the edge that was double-clicked; without it
+    /// the mode uses the selected edge, or the next one after the cursor. Double-clicking the edge
+    /// that is already open leaves the mode.
+    fn toggle_expanded_edit(&mut self, picked: Option<neoveg_engine::keytrim::Edge>) {
+        if self.expanded_edit && (picked.is_none() || picked == self.trim_edge) {
+            self.expanded_edit = false;
+            self.status = tr("Edição expandida encerrada");
+            return;
+        }
+        if let Some(edge) = picked {
+            if let Some(time) = neoveg_engine::keytrim::edge_time(&self.timeline, edge) {
+                self.playhead = time;
+            }
+            self.trim_edge = Some(edge);
+            self.selected_track = Some(edge.track);
+            self.selection.select_only((edge.track, edge.event));
+        } else if self.trim_edge.is_none() {
+            self.select_trim_edge(true);
+        }
+        if self.trim_edge.is_none() {
+            return;
+        }
+        self.expanded_edit = true;
+        self.status =
+            tr("Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)");
     }
 
     /// The files, source times and captions of the two edge frames of the event being dragged, or
@@ -6223,6 +6321,14 @@ impl AppState {
                 }
             }
         }
+        // Esc leaves expanded edit mode first, then the keyboard trim mode
+        if self.expanded_edit
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            self.expanded_edit = false;
+            self.status = tr("Edição expandida encerrada");
+            return;
+        }
         // Esc leaves the keyboard trim mode before it can mean anything else
         if self.trim_edge.is_some()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
@@ -6403,6 +6509,7 @@ impl AppState {
             }
             Command::CursorLeftByFrame => self.step_frames(-1.0, now),
             Command::CursorRightByFrame => self.step_frames(1.0, now),
+            Command::EditExpandedEdit => self.toggle_expanded_edit(None),
             Command::EditTrimEdgePrevious => self.select_trim_edge(false),
             Command::EditTrimEdgeNext => self.select_trim_edge(true),
             Command::TransportPlayToggle => self.toggle_play(now),
@@ -7613,6 +7720,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditTrimEdgeStretchRight,
                 Command::EditTrimEdgeRollLeft,
                 Command::EditTrimEdgeRollRight,
+                Command::EditExpandedEdit,
             ] {
                 command_item(state, ui, command);
             }
@@ -10210,9 +10318,13 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     }
 
     // The first and last frame of an event being slipped or slid, side by side
-    state
-        .edge_frames
-        .paint(&painter, frame_rect, pw / ph.max(1.0), &state.edge_labels);
+    state.edge_frames.paint(
+        &painter,
+        frame_rect,
+        pw / ph.max(1.0),
+        &state.edge_labels,
+        &state.edge_captions,
+    );
 
     // Subtitles showing at the cursor
     let showing = captions::active_at(&state.timeline, state.playhead);
@@ -11540,9 +11652,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
             .and_then(|p| hit_event(state, lanes.left(), lane_top, p));
-        if let Some((track_id, event_id, _, _)) = on_event {
+        if let Some((track_id, event_id, mode, _)) = on_event {
             if let Some(path) = state.subproject_path_of(track_id, event_id) {
                 state.tabs.open_request = Some(path);
+            } else {
+                // Double-clicking the edge of an event enters (or leaves) expanded edit mode
+                use neoveg_engine::keytrim::{Edge, EdgeSide};
+                let side = match mode {
+                    DragMode::TrimLeft => Some(EdgeSide::Start),
+                    DragMode::TrimRight => Some(EdgeSide::End),
+                    _ => None,
+                };
+                if let Some(side) = side {
+                    state.toggle_expanded_edit(Some(Edge {
+                        track: track_id,
+                        event: event_id,
+                        side,
+                    }));
+                }
             }
         }
     }
@@ -12733,6 +12860,66 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             f64::from(state.scroll_y),
         ) {
             state.scroll_y = (offset as f32).clamp(0.0, max_scroll_y);
+        }
+    }
+
+    // Expanded edit mode: the media the two events around the edit point do not show (A after the
+    // cut in blue, B before it in orange), with the frames that are free, and the cut in red
+    if state.expanded_edit {
+        let view = state.trim_edge.and_then(|edge| {
+            let row = state
+                .timeline
+                .tracks
+                .iter()
+                .position(|t| t.id == edge.track)?;
+            let view = neoveg_engine::keytrim::ab_view(&state.timeline, edge, &|track, event| {
+                state.source_len(track, event)
+            })?;
+            Some((row, view))
+        });
+        if let Some((row, view)) = view {
+            let top = lane_top + row as f32 * TRACK_HEIGHT;
+            let bottom = top + TRACK_HEIGHT;
+            let cut = to_x(view.time);
+            for (side, is_a) in [(view.a, true), (view.b, false)] {
+                let Some(free) = side.and_then(|s| s.free).filter(|f| *f > 0.0) else {
+                    continue;
+                };
+                let width = (free * state.pixels_per_second) as f32;
+                let (x0, x1) = if is_a {
+                    (cut, cut + width)
+                } else {
+                    (cut - width, cut)
+                };
+                let (rgb, letter) = if is_a {
+                    ((0x3A, 0x8F, 0xE0), "A")
+                } else {
+                    ((0xE6, 0x7E, 0x22), "B")
+                };
+                let band = Rect::from_min_max(
+                    pos2(x0.max(lanes.left()), top + 2.0),
+                    pos2(x1.min(lanes.right()), bottom - 2.0),
+                );
+                if band.width() > 0.0 {
+                    lane_painter.rect_filled(
+                        band,
+                        Rounding::ZERO,
+                        Color32::from_rgba_unmultiplied(rgb.0, rgb.1, rgb.2, 70),
+                    );
+                    let frames = (free * fps).round();
+                    lane_painter.text(
+                        pos2(band.left() + 4.0, band.top() + 3.0),
+                        Align2::LEFT_TOP,
+                        format!("{letter} · {}", tr_args("{} q livres", &[&frames])),
+                        FontId::monospace(10.0),
+                        Color32::from_rgb(rgb.0, rgb.1, rgb.2),
+                    );
+                }
+            }
+            lane_painter.line_segment(
+                [pos2(cut, top), pos2(cut, bottom)],
+                Stroke::new(3.0_f32, Color32::from_rgb(0xE7, 0x4C, 0x3C)),
+            );
         }
     }
 
@@ -14769,6 +14956,36 @@ mod tests {
         let before = geometry(&s, track, ev);
         run(&mut s, Command::CursorRightByFrame);
         assert_eq!(geometry(&s, track, ev), before);
+    }
+
+    #[test]
+    fn expanded_edit_mode_opens_on_an_edge_toggles_and_ends_with_the_edge() {
+        let (mut s, _track, _ev) = state_with_clip();
+        s.playhead = 0.0;
+        assert!(!s.expanded_edit);
+        // Without a selected edge the command picks the next one and opens the mode
+        run(&mut s, Command::EditExpandedEdit);
+        assert!(s.expanded_edit && s.trim_edge.is_some());
+        // The same command closes it, and the edge stays selected
+        run(&mut s, Command::EditExpandedEdit);
+        assert!(!s.expanded_edit && s.trim_edge.is_some());
+        // Double-clicking an edge opens it; double-clicking the same one again closes it
+        let edge = s.trim_edge.unwrap();
+        s.toggle_expanded_edit(Some(edge));
+        assert!(s.expanded_edit);
+        s.toggle_expanded_edit(Some(edge));
+        assert!(!s.expanded_edit);
+        // Without a media file nothing is asked of the decoder: both halves are empty
+        s.toggle_expanded_edit(None);
+        s.update_edge_frames();
+        assert!(
+            s.edge_frames.visible(),
+            "the panel is up even with empty halves"
+        );
+        // Leaving the keyboard trim mode ends the expanded one
+        s.trim_edge = None;
+        s.update_edge_frames();
+        assert!(!s.expanded_edit && !s.edge_frames.visible());
     }
 
     #[test]

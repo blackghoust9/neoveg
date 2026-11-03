@@ -1251,5 +1251,11 @@
   "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "Gilt für Videos, die nach der Änderung geöffnet werden. H.264 bleibt auf dem Prozessor, der in den Tests schneller war. Schafft die Grafikkarte es nicht, wechselt das Programm zurück zum Prozessor.",
   "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "Tastaturschnitt: {} des Ereignisses — ← / → bewegen um ein Bild, 4 / 6 um ein Pixel (Esc oder 5 beenden)",
   "início": "Anfang",
-  "fim": "Ende"
+  "fim": "Ende",
+  "Modo de edição expandida": "Erweiterter Schnittmodus",
+  "Saída (A)": "Aus (A)",
+  "Entrada (B)": "Ein (B)",
+  "{} q livres": "{} Bilder frei",
+  "Edição expandida encerrada": "Erweiterter Schnittmodus beendet",
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Erweiterter Schnitt: Bilder und ungenutztes Material beiderseits des Schnitts (Esc beendet)"
 }

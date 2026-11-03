@@ -1251,5 +1251,11 @@
   "Vale para os vídeos abertos depois de mudar. O H.264 fica no processador, que foi mais rápido nos testes. Se a placa não conseguir, o programa volta para o processador.": "Vale para los vídeos que se abran después del cambio. El H.264 se queda en el procesador, que fue más rápido en las pruebas. Si la tarjeta no puede, el programa vuelve al procesador.",
   "Aparo por teclado: {} do evento — ← / → movem um quadro, 4 / 6 um pixel (Esc ou 5 saem)": "Recorte con el teclado: {} del evento — ← / → mueven un fotograma, 4 / 6 un píxel (Esc o 5 salen)",
   "início": "inicio",
-  "fim": "fin"
+  "fim": "fin",
+  "Modo de edição expandida": "Modo de edición expandida",
+  "Saída (A)": "Salida (A)",
+  "Entrada (B)": "Entrada (B)",
+  "{} q livres": "{} fotog. libres",
+  "Edição expandida encerrada": "Edición expandida terminada",
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Edición expandida: fotogramas y medio sin usar a ambos lados del corte (Esc sale)"
 }
