@@ -385,22 +385,66 @@ impl RenderEngine {
     }
 }
 
+/// Frames the producer may run ahead of the encoder: enough to hide the uneven cost of a frame,
+/// few enough to keep the memory (each is a whole picture) small.
+const FRAMES_AHEAD: usize = 3;
+
 /// Encodes the movie with the chosen engine; the arguments are those of
 /// [`encode_video_with_ffmpeg`].
+///
+/// The frames are made on the calling thread and encoded on a thread of their own, so decoding and
+/// compositing the next frame overlap with encoding the last one (the internal encoder is the one
+/// that gains: `ffmpeg` already works in another process).
 pub fn encode_video(
     engine: RenderEngine,
     spec: &VideoEncodeSpec<'_>,
     cancel: &AtomicBool,
-    on_progress: impl FnMut(u64, u64),
-    produce_frame: impl FnMut(u64) -> Result<FrameBuffer, String>,
+    on_progress: impl FnMut(u64, u64) + Send,
+    mut produce_frame: impl FnMut(u64) -> Result<FrameBuffer, String>,
 ) -> Result<(), String> {
-    match engine.resolve(spec.format) {
-        RenderEngine::Internal => {
-            crate::render_native::encode_video_native(spec, cancel, on_progress, produce_frame)
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Result<FrameBuffer, String>>(FRAMES_AHEAD);
+    let result = std::thread::scope(|scope| {
+        let encoder = scope.spawn(move || {
+            let next = |_index: u64| {
+                rx.recv().unwrap_or_else(|_| {
+                    Err(if cancel.load(Ordering::Relaxed) {
+                        CANCELLED.to_string()
+                    } else {
+                        "a produção dos quadros parou antes do fim".to_string()
+                    })
+                })
+            };
+            match engine.resolve(spec.format) {
+                RenderEngine::Internal => {
+                    crate::render_native::encode_video_native(spec, cancel, on_progress, next)
+                }
+                _ => encode_video_with_ffmpeg(spec, cancel, on_progress, next),
+            }
+        });
+        for index in 0..spec.total_frames {
+            if cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            let frame = produce_frame(index);
+            let failed = frame.is_err();
+            // A closed channel means the encoder has already stopped: its result says why
+            if tx.send(frame).is_err() || failed {
+                break;
+            }
         }
-        _ => encode_video_with_ffmpeg(spec, cancel, on_progress, produce_frame),
+        drop(tx);
+        encoder
+            .join()
+            .unwrap_or_else(|_| Err("o codificador parou de forma inesperada".into()))
+    });
+    if result.is_err() && cancel.load(Ordering::Relaxed) {
+        let _ = std::fs::remove_file(spec.output);
     }
+    result
 }
+
+/// The message of a render the user stopped.
+const CANCELLED: &str = "renderização cancelada pelo usuário";
 
 /// Encoding parameters passed to [`encode_video_with_ffmpeg`].
 pub struct VideoEncodeSpec<'a> {

@@ -217,6 +217,12 @@ fn blend_source_alpha(dst: &[u8], src: &[u8], opacity: f32) -> Vec<u8> {
         .iter()
         .zip(src.as_chunks::<4>().0.iter())
     {
+        // An opaque pixel at full opacity is the source whatever lies under it (the usual case of
+        // a movie that fills the frame)
+        if s[3] == 255 && opacity >= 1.0 {
+            out.extend_from_slice(s);
+            continue;
+        }
         let eff = (f32::from(s[3]) * (1.0 / 255.0) * opacity).clamp(0.0, 1.0);
         if eff <= 0.0 {
             out.extend_from_slice(d);
@@ -876,6 +882,19 @@ impl GpuCompositor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A source that is opaque at full opacity replaces what is under it, bit for bit.
+    #[test]
+    fn an_opaque_source_at_full_opacity_is_copied_over_any_backdrop() {
+        let dst = [10, 20, 30, 255, 40, 50, 60, 128, 70, 80, 90, 0];
+        let src = [1, 2, 3, 255, 200, 201, 202, 255, 9, 8, 7, 255];
+        let out = blend_source_alpha(&dst, &src, 1.0);
+        assert_eq!(out, src);
+        // Below full opacity it still mixes
+        let half = blend_source_alpha(&dst, &src, 0.5);
+        assert_ne!(half, src);
+        assert_eq!(&half[..4], &[6, 11, 17, 255]);
+    }
 
     /// The byte-level `SourceAlpha` path must agree with the generic float path to within one level
     /// on every kind of pixel: opaque and see-through backdrops, any source alpha and opacity.
