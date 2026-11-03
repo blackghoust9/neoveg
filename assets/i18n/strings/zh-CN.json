@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "恢复原始音高",
   "Preservar formantes": "保持共振峰",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "音高改变时让人声音色保持原位，而不是随音高移动",
-  "Deslocamento de formantes": "共振峰偏移"
+  "Deslocamento de formantes": "共振峰偏移",
+  "Fechar grupo de painéis": "关闭面板组",
+  "Desencaixar grupo de painéis": "取消停靠面板组",
+  "Mover grupo para": "将组移动到",
+  "Restaurar quadro": "还原框架",
+  "Maximizar quadro": "最大化框架",
+  "Origem": "源",
+  "Propriedades": "属性",
+  "Medidores de áudio": "音频电平表",
+  "Grupo de painéis fechado": "面板组已关闭",
+  "Grupo de painéis em janelas próprias": "面板组已转为独立窗口",
+  "Grupo movido para {}": "已将组移动到{}",
+  "Esse lugar não está na tela": "该位置不在屏幕上"
 }

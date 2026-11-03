@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "Вернуть исходную высоту",
   "Preservar formantes": "Сохранять форманты",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Оставляет тембр голоса на месте при смене высоты, а не сдвигает его вместе с высотой",
-  "Deslocamento de formantes": "Сдвиг формант"
+  "Deslocamento de formantes": "Сдвиг формант",
+  "Fechar grupo de painéis": "Закрыть группу панелей",
+  "Desencaixar grupo de painéis": "Открепить группу панелей",
+  "Mover grupo para": "Переместить группу в",
+  "Restaurar quadro": "Восстановить рамку",
+  "Maximizar quadro": "Развернуть рамку",
+  "Origem": "Источник",
+  "Propriedades": "Свойства",
+  "Medidores de áudio": "Аудиоиндикаторы",
+  "Grupo de painéis fechado": "Группа панелей закрыта",
+  "Grupo de painéis em janelas próprias": "Группа панелей в отдельных окнах",
+  "Grupo movido para {}": "Группа перемещена в {}",
+  "Esse lugar não está na tela": "Этого места нет на экране"
 }

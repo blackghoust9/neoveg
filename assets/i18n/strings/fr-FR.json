@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "Rétablir la hauteur d'origine",
   "Preservar formantes": "Préserver les formants",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Garde le timbre de la voix en place quand la hauteur change, au lieu de la suivre",
-  "Deslocamento de formantes": "Décalage des formants"
+  "Deslocamento de formantes": "Décalage des formants",
+  "Fechar grupo de painéis": "Fermer le groupe de panneaux",
+  "Desencaixar grupo de painéis": "Détacher le groupe de panneaux",
+  "Mover grupo para": "Déplacer le groupe vers",
+  "Restaurar quadro": "Restaurer le cadre",
+  "Maximizar quadro": "Agrandir le cadre",
+  "Origem": "Source",
+  "Propriedades": "Propriétés",
+  "Medidores de áudio": "Indicateurs audio",
+  "Grupo de painéis fechado": "Groupe de panneaux fermé",
+  "Grupo de painéis em janelas próprias": "Groupe de panneaux dans des fenêtres propres",
+  "Grupo movido para {}": "Groupe déplacé vers {}",
+  "Esse lugar não está na tela": "Cet emplacement n'est pas à l'écran"
 }

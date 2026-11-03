@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "Restaurar el tono original",
   "Preservar formantes": "Conservar formantes",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Mantiene el timbre de la voz en su sitio cuando cambia el tono, en lugar de seguirlo",
-  "Deslocamento de formantes": "Desplazamiento de formantes"
+  "Deslocamento de formantes": "Desplazamiento de formantes",
+  "Fechar grupo de painéis": "Cerrar grupo de paneles",
+  "Desencaixar grupo de painéis": "Desacoplar grupo de paneles",
+  "Mover grupo para": "Mover grupo a",
+  "Restaurar quadro": "Restaurar marco",
+  "Maximizar quadro": "Maximizar marco",
+  "Origem": "Origen",
+  "Propriedades": "Propiedades",
+  "Medidores de áudio": "Medidores de audio",
+  "Grupo de painéis fechado": "Grupo de paneles cerrado",
+  "Grupo de painéis em janelas próprias": "Grupo de paneles en ventanas propias",
+  "Grupo movido para {}": "Grupo movido a {}",
+  "Esse lugar não está na tela": "Ese lugar no está en pantalla"
 }

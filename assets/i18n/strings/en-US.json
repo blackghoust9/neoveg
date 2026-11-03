@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "Restore the original pitch",
   "Preservar formantes": "Preserve formants",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Keeps the timbre of the voice where it was when the pitch changes, instead of following the pitch",
-  "Deslocamento de formantes": "Formant shift"
+  "Deslocamento de formantes": "Formant shift",
+  "Fechar grupo de painéis": "Close panel group",
+  "Desencaixar grupo de painéis": "Undock panel group",
+  "Mover grupo para": "Move group to",
+  "Restaurar quadro": "Restore frame",
+  "Maximizar quadro": "Maximize frame",
+  "Origem": "Source",
+  "Propriedades": "Properties",
+  "Medidores de áudio": "Audio meters",
+  "Grupo de painéis fechado": "Panel group closed",
+  "Grupo de painéis em janelas próprias": "Panel group in windows of their own",
+  "Grupo movido para {}": "Group moved to {}",
+  "Esse lugar não está na tela": "That place is not on screen"
 }

@@ -71,9 +71,33 @@ pub enum Gesture {
     Dropped { index: usize, pos: egui::Pos2 },
 }
 
+/// What the group menu of a tab asks to do with the whole window group.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupAction {
+    /// Close every window of the group.
+    Close,
+    /// Give every window of the group a native window of its own.
+    Undock,
+    /// Move the group into the window group at this place of [`GroupMenu::destinations`].
+    MoveTo(usize),
+    /// Let the group fill the whole dock, or put the dock back as it was.
+    ToggleMaximize,
+}
+
+/// What the group menu of a strip offers.
+#[derive(Debug, Clone, Default)]
+pub struct GroupMenu {
+    /// The dock is showing a maximized group now (the entry then says *Restore*).
+    pub maximized: bool,
+    /// The places the group can be moved to: the name and whether it can go there now.
+    pub destinations: Vec<(String, bool)>,
+}
+
 /// What the strip reports for a frame.
 #[derive(Debug, Default)]
 pub struct Output {
+    /// The group menu asked for something.
+    pub group: Option<GroupAction>,
     /// A tab was clicked.
     pub clicked: Option<usize>,
     /// A tab is being dragged, or was dropped.
@@ -126,6 +150,25 @@ pub fn drop_target<L: Copy + PartialEq>(
 /// `selected` being the active one. `id` must be the same from frame to frame. With `menu`, a tab has a
 /// right-click menu to open it in a window of its own.
 pub fn show(ui: &mut Ui, id: Id, labels: &[String], selected: usize, menu: bool) -> Output {
+    show_with(
+        ui,
+        id,
+        labels,
+        selected,
+        menu.then(GroupMenu::default).as_ref(),
+    )
+}
+
+/// Like [`show`], with the menu of the window group (close, undock, move, maximize) when `group` is
+/// given: the entries are added under *Abrir em janela própria* in the menu of every tab.
+pub fn show_with(
+    ui: &mut Ui,
+    id: Id,
+    labels: &[String],
+    selected: usize,
+    group: Option<&GroupMenu>,
+) -> Output {
+    let menu = group.is_some();
     let mut out = Output::default();
     let font = FontId::proportional(FONT_SIZE);
     let widths: Vec<f32> = labels
@@ -202,6 +245,35 @@ pub fn show(ui: &mut Ui, id: Id, labels: &[String], selected: usize, menu: bool)
             response.context_menu(|ui| {
                 if ui.button(tr("Abrir em janela própria")).clicked() {
                     out.detach = Some(index);
+                    ui.close_menu();
+                }
+                let Some(group) = group.filter(|g| !g.destinations.is_empty()) else {
+                    return;
+                };
+                ui.separator();
+                if ui.button(tr("Fechar grupo de painéis")).clicked() {
+                    out.group = Some(GroupAction::Close);
+                    ui.close_menu();
+                }
+                if ui.button(tr("Desencaixar grupo de painéis")).clicked() {
+                    out.group = Some(GroupAction::Undock);
+                    ui.close_menu();
+                }
+                ui.menu_button(tr("Mover grupo para"), |ui| {
+                    for (place, (name, enabled)) in group.destinations.iter().enumerate() {
+                        if ui.add_enabled(*enabled, egui::Button::new(name)).clicked() {
+                            out.group = Some(GroupAction::MoveTo(place));
+                            ui.close_menu();
+                        }
+                    }
+                });
+                let toggle = if group.maximized {
+                    tr("Restaurar quadro")
+                } else {
+                    tr("Maximizar quadro")
+                };
+                if ui.button(toggle).clicked() {
+                    out.group = Some(GroupAction::ToggleMaximize);
                     ui.close_menu();
                 }
             });

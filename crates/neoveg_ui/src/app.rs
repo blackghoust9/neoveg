@@ -83,6 +83,7 @@ use tabs::{close_tab_window, project_tab_bar, Tabs};
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
 use crate::event_header;
+use crate::footer_tabs::GroupAction;
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
@@ -538,6 +539,8 @@ struct AppState {
     notes: crate::notes_window::NotesState,
     /// Faixas > Painel de compositores.
     compositors: crate::compositors_window::CompositorsState,
+    /// While a window group is maximized, the whole dock it was taken from.
+    maximized_dock: Option<DockState<Tab>>,
     /// Propriedades da mídia (timecode, taxa de quadros, pixel, alfa, fundo).
     media_props_dialog: crate::media_properties_window::MediaPropsDialog,
     /// Exibir > Detalhes de edição.
@@ -1662,6 +1665,7 @@ impl AppState {
             insert_time_dialog: None,
             notes: Default::default(),
             compositors: Default::default(),
+            maximized_dock: None,
             media_props_dialog: Default::default(),
             show_details: false,
             edit_tool: EditTool::default(),
@@ -7355,6 +7359,7 @@ impl NeovegApp {
                     } else {
                         self.state.new_project_with(*settings);
                     }
+                    self.state.maximized_dock = None;
                     self.dock = match layout {
                         crate::welcome::StartLayout::Video => default_dock(),
                         crate::welcome::StartLayout::Audio => audio_dock(),
@@ -7369,8 +7374,64 @@ impl NeovegApp {
         }
     }
 
+    /// What the group menus of the dock strips asked for (see `footer_tabs::GroupAction`), and the end
+    /// of a maximized view that has nothing left to show.
+    fn apply_group_actions(&mut self, groups: Vec<(dock_footer::Leaf, GroupAction)>) {
+        for (leaf, action) in groups {
+            match action {
+                GroupAction::Close => {
+                    dock_footer::close_group(&mut self.dock, &leaf.tabs);
+                    self.state.status = "Grupo de painéis fechado".into();
+                }
+                GroupAction::Undock => {
+                    // The floating windows become native windows right after, one for each panel
+                    dock_footer::undock_group(&mut self.dock, &leaf.tabs, leaf.rect);
+                    self.state.status = "Grupo de painéis em janelas próprias".into();
+                }
+                GroupAction::MoveTo(place) => {
+                    let Some((name, anchor)) = dock_footer::DESTINATIONS.get(place).copied() else {
+                        continue;
+                    };
+                    if dock_footer::move_group(&mut self.dock, &leaf.tabs, anchor) {
+                        self.state.status = tr_args("Grupo movido para {}", &[&tr(name)]);
+                    } else {
+                        self.state.status = "Esse lugar não está na tela".into();
+                    }
+                }
+                GroupAction::ToggleMaximize => {
+                    if self.state.maximized_dock.is_some() {
+                        self.restore_maximized();
+                    } else if let Some(active) =
+                        leaf.tabs.get(leaf.active).or(leaf.tabs.first()).copied()
+                    {
+                        let shown = dock_footer::maximized_dock(&leaf.tabs, active);
+                        self.state.maximized_dock = Some(std::mem::replace(&mut self.dock, shown));
+                    }
+                }
+            }
+        }
+        // Everything of the maximized group was closed or given a window: back to the whole dock
+        if self.state.maximized_dock.is_some() && self.dock.iter_all_tabs().next().is_none() {
+            self.restore_maximized();
+        }
+    }
+
+    /// Puts the dock back after a maximized view.
+    fn restore_maximized(&mut self) {
+        if let Some(saved) = self.state.maximized_dock.take() {
+            let floating: Vec<Tab> = self.detached.iter().map(|d| d.tab).collect();
+            self.dock = dock_footer::restored_dock(saved, &self.dock, &floating);
+        }
+    }
+
+    /// The dock as the layouts keep it: the whole one, also while a group is maximized.
+    fn whole_dock(&self) -> &DockState<Tab> {
+        self.state.maximized_dock.as_ref().unwrap_or(&self.dock)
+    }
+
     /// Puts the dock of the saved layout at `path` on screen.
     fn load_layout(&mut self, path: &std::path::Path) {
+        self.state.maximized_dock = None;
         self.state.ensure_layouts();
         let Some(found) = self.state.layouts.iter().find(|l| l.path == path) else {
             self.state.status = "Esse layout não existe mais".into();
@@ -7400,7 +7461,7 @@ impl NeovegApp {
             self.state.status = "Não há pasta para guardar o layout".into();
             return;
         };
-        match crate::layouts::save(&dir, name, slot, &self.dock, &self.saved_windows()) {
+        match crate::layouts::save(&dir, name, slot, self.whole_dock(), &self.saved_windows()) {
             Ok(path) => {
                 self.state.current_layout = Some(path);
                 self.state.status = tr_args("Layout {} salvo", &[&name]);
@@ -7509,6 +7570,7 @@ impl NeovegApp {
                 };
             }
             WindowAction::DefaultLayout => {
+                self.state.maximized_dock = None;
                 self.dock = default_dock();
                 let dock = &self.dock;
                 self.detached.retain(|d| dock.find_tab(&d.tab).is_none());
@@ -7662,6 +7724,7 @@ impl NeovegApp {
             });
         });
 
+        let mut groups = Vec::new();
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show(ctx, |ui| {
@@ -7669,6 +7732,9 @@ impl NeovegApp {
                 // egui_dock can only put its strip on top, so it is hidden (height 0) and every group
                 // of windows draws its own footer strip (`footer_tabs`, `dock_footer`)
                 style.tab_bar.height = 0.0;
+                self.state
+                    .dock_footer
+                    .set_maximized(self.state.maximized_dock.is_some());
                 self.state.dock_footer.refresh(&self.dock, ui.max_rect());
                 DockArea::new(&mut self.dock).style(style).show_inside(
                     ui,
@@ -7676,8 +7742,9 @@ impl NeovegApp {
                         state: &mut self.state,
                     },
                 );
-                self.state.dock_footer.apply(&mut self.dock, ui.ctx());
+                groups = self.state.dock_footer.apply(&mut self.dock, ui.ctx());
             });
+        self.apply_group_actions(groups);
 
         self.promote_floating_windows(ctx);
         self.show_detached(ctx);

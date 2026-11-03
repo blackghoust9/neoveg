@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "元のピッチに戻す",
   "Preservar formantes": "フォルマントを保持",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "ピッチを変えても声の音色をその場に保ちます (ピッチに追従しません)",
-  "Deslocamento de formantes": "フォルマントシフト"
+  "Deslocamento de formantes": "フォルマントシフト",
+  "Fechar grupo de painéis": "パネルグループを閉じる",
+  "Desencaixar grupo de painéis": "パネルグループをドッキング解除",
+  "Mover grupo para": "グループの移動先",
+  "Restaurar quadro": "フレームを元に戻す",
+  "Maximizar quadro": "フレームを最大化",
+  "Origem": "ソース",
+  "Propriedades": "プロパティ",
+  "Medidores de áudio": "オーディオメーター",
+  "Grupo de painéis fechado": "パネルグループを閉じました",
+  "Grupo de painéis em janelas próprias": "パネルグループを個別のウィンドウにしました",
+  "Grupo movido para {}": "グループを {} に移動しました",
+  "Esse lugar não está na tela": "その場所は画面にありません"
 }

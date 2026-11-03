@@ -1375,5 +1375,17 @@
   "Restaurar o tom original": "Ursprüngliche Tonhöhe wiederherstellen",
   "Preservar formantes": "Formanten beibehalten",
   "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Hält das Klangbild der Stimme bei einer Tonhöhenänderung an seinem Platz, statt der Tonhöhe zu folgen",
-  "Deslocamento de formantes": "Formantverschiebung"
+  "Deslocamento de formantes": "Formantverschiebung",
+  "Fechar grupo de painéis": "Bereichsgruppe schließen",
+  "Desencaixar grupo de painéis": "Bereichsgruppe lösen",
+  "Mover grupo para": "Gruppe verschieben nach",
+  "Restaurar quadro": "Rahmen wiederherstellen",
+  "Maximizar quadro": "Rahmen maximieren",
+  "Origem": "Quelle",
+  "Propriedades": "Eigenschaften",
+  "Medidores de áudio": "Audiopegel",
+  "Grupo de painéis fechado": "Bereichsgruppe geschlossen",
+  "Grupo de painéis em janelas próprias": "Bereichsgruppe in eigenen Fenstern",
+  "Grupo movido para {}": "Gruppe verschoben nach {}",
+  "Esse lugar não está na tela": "Dieser Ort ist nicht sichtbar"
 }
