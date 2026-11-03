@@ -52,7 +52,12 @@ fn draft_slider(
     suffix: &str,
 ) -> (f32, bool, bool) {
     let mut value = ui.data(|d| d.get_temp::<f32>(key)).unwrap_or(current);
-    let response = ui.add(egui::Slider::new(&mut value, range).suffix(suffix));
+    let response = ui
+        .scope(|ui| {
+            crate::fx_panel::fit_slider(ui);
+            ui.add(egui::Slider::new(&mut value, range).suffix(suffix))
+        })
+        .inner;
     let mut dragging = false;
     let mut ended = false;
     if response.changed() {

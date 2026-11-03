@@ -11464,7 +11464,8 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
 
 /// Which chain the effects tab edits: the selected track's, one audio bus's or the master's.
 fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
+    // In a narrow panel the buttons go to a second row instead of being cut off
+    ui.horizontal_wrapped(|ui| {
         let on_track = !state.fx.master && state.fx.bus.is_none();
         if ui.selectable_label(on_track, tr("Faixa")).clicked() {
             state.fx.master = false;

@@ -120,6 +120,10 @@ fn verdict_color(verdict: Verdict) -> Color32 {
     }
 }
 
+/// Width the scale and the two bars take when the panel has room, and what the target label adds.
+const BARS_WIDTH: f32 = 130.0;
+const TARGET_LABEL_WIDTH: f32 = 20.0;
+
 /// Draws the panel. Returns `true` when the user asked to restart the measurement.
 pub fn loudness_ui(
     ui: &mut egui::Ui,
@@ -150,7 +154,7 @@ fn loudness_content(
     ui.horizontal(|ui| {
         egui::ComboBox::from_id_salt("loudness_target")
             .selected_text(target.name)
-            .width(150.0)
+            .width((crate::fx_panel::visible_width(ui) - 30.0).clamp(60.0, 150.0))
             .show_ui(ui, |ui| {
                 for (i, t) in TARGETS.iter().enumerate() {
                     ui.selectable_value(target_index, i, t.name);
@@ -170,14 +174,20 @@ fn loudness_content(
 
     // Bars: momentary and short-term, with the target line and the integrated loudness marker
     let bars_h = (ui.available_height() - 150.0).max(130.0);
-    let (rect, _) = ui.allocate_exact_size(vec2(190.0, bars_h), Sense::hover());
+    // The bars shrink in a narrow panel so the scale and the target label stay inside it
+    let k =
+        ((crate::fx_panel::visible_width(ui) - TARGET_LABEL_WIDTH) / BARS_WIDTH).clamp(0.6, 1.0);
+    let (rect, _) = ui.allocate_exact_size(
+        vec2(BARS_WIDTH * k + TARGET_LABEL_WIDTH, bars_h),
+        Sense::hover(),
+    );
     let painter = ui.painter_at(rect);
     let (top, bottom) = (rect.top() + 6.0, rect.bottom() - 6.0);
     let y_of = |lufs: f64| bottom - bar_fraction(lufs) * (bottom - top);
 
     for db in [0.0, -9.0, -18.0, -27.0, -36.0, -50.0] {
         painter.text(
-            pos2(rect.left() + 30.0, y_of(db)),
+            pos2(rect.left() + 30.0 * k, y_of(db)),
             Align2::RIGHT_CENTER,
             format!("{db:.0}"),
             FontId::monospace(10.0),
@@ -186,8 +196,8 @@ fn loudness_content(
     }
     let bars = [("M", shown.momentary_lufs), ("S", shown.short_term_lufs)];
     for (i, (label, value)) in bars.into_iter().enumerate() {
-        let x = rect.left() + 40.0 + i as f32 * 44.0;
-        let bar = Rect::from_min_max(pos2(x, top), pos2(x + 32.0, bottom));
+        let x = rect.left() + (40.0 + i as f32 * 44.0) * k;
+        let bar = Rect::from_min_max(pos2(x, top), pos2(x + 32.0 * k, bottom));
         painter.rect_filled(bar, Rounding::ZERO, Color32::from_gray(14));
         if value.is_finite() {
             let color = if value > target.lufs + 6.0 {
@@ -204,25 +214,25 @@ fn loudness_content(
             );
         }
         painter.text(
-            pos2(x + 16.0, bottom + 1.0),
+            pos2(x + 16.0 * k, bottom + 1.0),
             Align2::CENTER_TOP,
             label,
             FontId::monospace(10.0),
             ui.visuals().weak_text_color(),
         );
     }
-    let bars_right = rect.left() + 40.0 + 44.0 + 32.0;
+    let bars_right = rect.left() + (40.0 + 44.0 + 32.0) * k;
     // Target line across both bars
     let target_y = y_of(target.lufs);
     painter.line_segment(
         [
-            pos2(rect.left() + 34.0, target_y),
-            pos2(bars_right + 10.0, target_y),
+            pos2(rect.left() + 34.0 * k, target_y),
+            pos2(bars_right + 10.0 * k, target_y),
         ],
         Stroke::new(1.5_f32, Color32::from_rgb(0x3A, 0x9B, 0xDC)),
     );
     painter.text(
-        pos2(bars_right + 14.0, target_y),
+        pos2(bars_right + 14.0 * k, target_y),
         Align2::LEFT_CENTER,
         format!("{:.0}", target.lufs),
         FontId::monospace(10.0),
@@ -232,11 +242,14 @@ fn loudness_content(
     if shown.integrated_lufs.is_finite() {
         let y = y_of(shown.integrated_lufs);
         painter.line_segment(
-            [pos2(rect.left() + 34.0, y), pos2(bars_right + 10.0, y)],
+            [
+                pos2(rect.left() + 34.0 * k, y),
+                pos2(bars_right + 10.0 * k, y),
+            ],
             Stroke::new(1.0_f32, Color32::WHITE),
         );
         painter.text(
-            pos2(bars_right + 14.0, y + 9.0),
+            pos2(bars_right + 14.0 * k, y + 9.0),
             Align2::LEFT_CENTER,
             "I",
             FontId::monospace(10.0),

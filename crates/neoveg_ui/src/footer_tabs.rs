@@ -4,7 +4,7 @@
 //! view. `egui_dock` cannot place its own strip at the bottom, so the dock draws its strips with this
 //! widget and decides itself where a dragged tab goes ([`drop_target`]).
 
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Rect, Response, Sense, Ui};
+use eframe::egui::{self, pos2, vec2, Color32, FontId, Id, Rect, Response, Sense, Ui};
 use neoveg_common::i18n::tr;
 
 /// Height of the strip.
@@ -15,6 +15,8 @@ pub const FONT_SIZE: f32 = 11.0;
 const PADDING_X: f32 = 6.0;
 /// Width of each scroll arrow.
 const ARROW_WIDTH: f32 = 16.0;
+/// Narrowest a tab can be made when the strip has hardly any room.
+const MIN_TAB_WIDTH: f32 = 40.0;
 /// How far the pointer moves before a press on a tab is a drag.
 const DRAG_THRESHOLD: f32 = 6.0;
 /// Pixels scrolled by a click on an arrow and by one notch of the wheel.
@@ -159,6 +161,11 @@ pub fn show(ui: &mut Ui, id: Id, labels: &[String], selected: usize, menu: bool)
     )
 }
 
+/// The widest a tab may be in a strip of `strip` points: what is left when both arrows are there.
+pub fn widest_tab(strip: f32) -> f32 {
+    (strip - 2.0 * ARROW_WIDTH).max(MIN_TAB_WIDTH)
+}
+
 /// Like [`show`], with the menu of the window group (close, undock, move, maximize) when `group` is
 /// given: the entries are added under *Abrir em janela própria* in the menu of every tab.
 pub fn show_with(
@@ -171,19 +178,21 @@ pub fn show_with(
     let menu = group.is_some();
     let mut out = Output::default();
     let font = FontId::proportional(FONT_SIZE);
+    let full = ui.available_rect_before_wrap();
+    let strip = Rect::from_min_size(full.min, vec2(full.width(), HEIGHT));
+    // A tab never gets wider than the strip can show with its arrows: a longer name ends in "…"
+    let room = widest_tab(strip.width());
     let widths: Vec<f32> = labels
         .iter()
         .map(|label| {
-            ui.fonts(|f| {
+            let text = ui.fonts(|f| {
                 f.layout_no_wrap(label.clone(), font.clone(), Color32::WHITE)
                     .size()
                     .x
-            }) + 2.0 * PADDING_X
+            });
+            (text + 2.0 * PADDING_X).min(room)
         })
         .collect();
-
-    let full = ui.available_rect_before_wrap();
-    let strip = Rect::from_min_size(full.min, vec2(full.width(), HEIGHT));
     ui.allocate_rect(strip, Sense::hover());
 
     let state_id = id.with("scroll");
@@ -228,13 +237,15 @@ pub fn show_with(
         } else {
             visuals.text_color()
         };
-        painter.text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            label,
-            font.clone(),
-            color,
-        );
+        let mut job = egui::text::LayoutJob::simple_singleline(label.clone(), font.clone(), color);
+        job.wrap = egui::text::TextWrapping {
+            max_width: (widths[index] - 2.0 * PADDING_X).max(1.0),
+            max_rows: 1,
+            break_anywhere: true,
+            overflow_character: Some('…'),
+        };
+        let galley = ui.fonts(|f| f.layout_job(job));
+        painter.galley(rect.center() - galley.size() / 2.0, galley, color);
         out.tab_rects.push((index, visible));
 
         if response.clicked() {
@@ -354,6 +365,16 @@ mod tests {
 
     fn r(x0: f32, y0: f32, x1: f32, y1: f32) -> Rect {
         Rect::from_min_max(pos2(x0, y0), pos2(x1, y1))
+    }
+
+    #[test]
+    fn a_tab_is_never_wider_than_the_strip_shows_with_its_arrows() {
+        assert_eq!(widest_tab(300.0), 300.0 - 2.0 * ARROW_WIDTH);
+        assert_eq!(
+            widest_tab(10.0),
+            MIN_TAB_WIDTH,
+            "a tiny strip still gets a tab"
+        );
     }
 
     #[test]

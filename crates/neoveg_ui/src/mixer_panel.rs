@@ -80,7 +80,9 @@ fn fader(
 ) {
     let draft = state.draft.filter(|(t, c, _)| *t == track && *c == control);
     let mut value = draft.map_or(current, |(_, _, v)| v);
-    let response = ui.add(PrecisionSlider::new(&mut value, range, 0.0).width(150.0));
+    // The readout after the fader (about 64 points) stays in view in a narrow panel
+    let width = (crate::fx_panel::visible_width(ui) - 64.0).clamp(60.0, 150.0);
+    let response = ui.add(PrecisionSlider::new(&mut value, range, 0.0).width(width));
     if response.changed() {
         state.draft = Some((track, control, value));
     }

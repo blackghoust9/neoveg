@@ -409,10 +409,15 @@ fn param_row(
             .as_ref()
             .filter(|d| d.index == index && d.values.len() == 1 && d.values[0].0 == spec.id);
         let mut value = dragging.map_or(current, |d| d.values[0].1);
-        let response = ui.add(
-            Slider::new(&mut value, spec.min..=spec.max)
-                .custom_formatter(|v, _| format_value(spec, v as f32)),
-        );
+        let response = ui
+            .scope(|ui| {
+                crate::fx_panel::fit_slider(ui);
+                ui.add(
+                    Slider::new(&mut value, spec.min..=spec.max)
+                        .custom_formatter(|v, _| format_value(spec, v as f32)),
+                )
+            })
+            .inner;
         if response.changed() {
             panel.draft = Some(Draft {
                 index,

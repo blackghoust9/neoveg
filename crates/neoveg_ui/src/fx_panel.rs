@@ -1054,6 +1054,23 @@ fn param_row(
     });
 }
 
+/// The width left in the row that can be seen: a panel inside a scroll area or a narrow dock group
+/// reports more room than its visible part has.
+pub fn visible_width(ui: &egui::Ui) -> f32 {
+    ui.available_width()
+        .min(ui.clip_rect().right() - ui.cursor().left())
+        .max(0.0)
+}
+
+/// Room the value box next to a slider needs.
+const SLIDER_VALUE_ROOM: f32 = 64.0;
+
+/// Makes the sliders of this `ui` no wider than the room left in the row, keeping their value in view.
+pub fn fit_slider(ui: &mut egui::Ui) {
+    let width = (visible_width(ui) - SLIDER_VALUE_ROOM).clamp(40.0, ui.spacing().slider_width);
+    ui.spacing_mut().slider_width = width;
+}
+
 fn slider(
     ui: &mut egui::Ui,
     panel: &mut FxPanelState,
@@ -1068,11 +1085,16 @@ fn slider(
         .as_ref()
         .filter(|d| d.index == index && d.param == spec.id);
     let mut value = dragging.map_or(current, |d| d.value);
-    let response = ui.add(
-        Slider::new(&mut value, spec.min..=spec.max)
-            .logarithmic(spec.log_scale)
-            .custom_formatter(|v, _| format_value(spec, v as f32)),
-    );
+    let response = ui
+        .scope(|ui| {
+            fit_slider(ui);
+            ui.add(
+                Slider::new(&mut value, spec.min..=spec.max)
+                    .logarithmic(spec.log_scale)
+                    .custom_formatter(|v, _| format_value(spec, v as f32)),
+            )
+        })
+        .inner;
     if response.changed() {
         panel.draft = Some(Draft {
             index,
@@ -1133,7 +1155,12 @@ fn clap_param_row(
                 if param.stepped {
                     s = s.integer();
                 }
-                let resp = ui.add(s);
+                let resp = ui
+                    .scope(|ui| {
+                        fit_slider(ui);
+                        ui.add(s)
+                    })
+                    .inner;
                 if resp.changed() {
                     panel.draft = Some(Draft {
                         index,
