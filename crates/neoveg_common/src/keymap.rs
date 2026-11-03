@@ -245,6 +245,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditSwitchLoop, &["Ctrl+Alt+O"]),
     (Command::EditSwitchNormalize, &["Ctrl+Alt+N"]),
     (Command::EditNormalizeRecalculate, &["Ctrl+Alt+Shift+N"]),
+    (Command::EditSwitchMaintainAspect, &["Ctrl+Alt+A"]),
+    (Command::EditSwitchReduceFlicker, &["Ctrl+Alt+F"]),
     (Command::EditToolNormal, &["Ctrl+D"]),
     (Command::EditToolNext, &["D"]),
     (Command::EditToolPrevious, &["Shift+D"]),

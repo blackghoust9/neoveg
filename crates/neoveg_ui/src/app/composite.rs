@@ -34,6 +34,7 @@ pub(super) struct FrameSettings {
     pub max_width: u32,
     pub playing: bool,
     pub auto_crossfade: bool,
+    pub resample_mode: neoveg_common::presets::ResampleMode,
     pub lut: Option<Arc<Lut>>,
     pub grade: Grade,
     pub chroma_key: ChromaKey,
@@ -308,7 +309,9 @@ pub(super) fn composite_request(
                     event_opacity: opacity,
                     transitions,
                     apply_chroma: true,
-                    blend: e.resample.blends(),
+                    resample: e.resample.effective(settings.resample_mode),
+                    maintain_aspect_ratio: e.maintain_aspect_ratio,
+                    reduce_interlace_flicker: e.reduce_interlace_flicker,
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
@@ -389,9 +392,14 @@ pub(super) fn composite_request(
     })
 }
 
-/// `true` when a clip visible at `time` has a video effect that is on (media, event, track) or
-/// the project has one: the preview then goes through the composite path, the one that runs them.
-pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
+/// `true` when a clip visible at `time` has a video effect, resample mode or non-default switch
+/// that is on (media, event, track) or the project has one: the preview then goes through the
+/// composite path, the one that runs them.
+pub(super) fn has_effects(
+    timeline: &Timeline,
+    time: f64,
+    project_resample: neoveg_common::presets::ResampleMode,
+) -> bool {
     let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
     let mut visible = false;
     // Walk bottom to top so an adjustment track only counts when a visible clip sits below it
@@ -424,9 +432,13 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
+            let switch_or_resample_on = !e.adjustment
+                && (e.resample.resamples(project_resample)
+                    || !e.maintain_aspect_ratio
+                    || e.reduce_interlace_flicker);
             let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled)
                 || e.adjustment
-                || e.resample.blends();
+                || switch_or_resample_on;
             let envelope_on = track
                 .envelopes
                 .iter()

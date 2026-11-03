@@ -39,6 +39,10 @@ fn default_preserve_pitch() -> bool {
     true
 }
 
+fn default_maintain_aspect() -> bool {
+    true
+}
+
 fn is_true(v: &bool) -> bool {
     *v
 }
@@ -60,24 +64,27 @@ fn is_zero_time(v: &f64) -> bool {
 }
 
 /// How a video event treats footage whose frames do not line up with the project's (slow motion,
-/// a different frame rate): the nearest frame is shown as it is, or the two around the moment are
-/// blended.
+/// a different frame rate): follow the project's resample setting, blend the two neighbor frames,
+/// interpolate motion by optical flow, or show the nearest frame without resampling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResampleMode {
-    /// Follow the project's setting, which today is no resampling.
+    /// Follow `ProjectSettings::resample_mode` (new projects default to disabled).
     #[default]
     Project,
     /// Blend the frames before and after the moment, in proportion to how close each one is.
     FrameBlend,
+    /// Motion-compensated optical flow interpolation between the frames before and after the moment.
+    OpticalFlow,
     /// No resampling: the nearest frame is shown.
     Disabled,
 }
 
 impl ResampleMode {
-    pub const ALL: [ResampleMode; 3] = [
+    pub const ALL: [ResampleMode; 4] = [
         ResampleMode::Project,
         ResampleMode::FrameBlend,
+        ResampleMode::OpticalFlow,
         ResampleMode::Disabled,
     ];
 
@@ -86,6 +93,7 @@ impl ResampleMode {
         match self {
             ResampleMode::Project => tr("Usar configuração do projeto"),
             ResampleMode::FrameBlend => tr("Mistura de quadros"),
+            ResampleMode::OpticalFlow => tr("Fluxo óptico"),
             ResampleMode::Disabled => tr("Desativar reamostragem"),
         }
     }
@@ -94,7 +102,25 @@ impl ResampleMode {
         *self == ResampleMode::Project
     }
 
-    /// `true` when frames are blended.
+    /// Concrete resampling mode after resolving [`Self::Project`] against `project`.
+    pub fn effective(
+        self,
+        project: neoveg_common::presets::ResampleMode,
+    ) -> neoveg_common::presets::ResampleMode {
+        match self {
+            ResampleMode::Project => project,
+            ResampleMode::FrameBlend => neoveg_common::presets::ResampleMode::FrameBlend,
+            ResampleMode::OpticalFlow => neoveg_common::presets::ResampleMode::OpticalFlow,
+            ResampleMode::Disabled => neoveg_common::presets::ResampleMode::Disable,
+        }
+    }
+
+    /// `true` when this event resamples frames under `project` (either frame blend or optical flow).
+    pub fn resamples(self, project: neoveg_common::presets::ResampleMode) -> bool {
+        self.effective(project) != neoveg_common::presets::ResampleMode::Disable
+    }
+
+    /// `true` when the event explicitly asks for linear frame blend.
     pub fn blends(self) -> bool {
         self == ResampleMode::FrameBlend
     }
@@ -190,6 +216,15 @@ pub struct TrackEvent {
     /// Event switch Resample Mode (video only).
     #[serde(default, skip_serializing_if = "ResampleMode::is_default")]
     pub resample: ResampleMode,
+    /// Event switch Maintain Aspect Ratio (video only, `true` by default): fits the source picture
+    /// inside the project frame without stretching; turning it off stretches the picture to fill
+    /// the project frame.
+    #[serde(default = "default_maintain_aspect", skip_serializing_if = "is_true")]
+    pub maintain_aspect_ratio: bool,
+    /// Event switch Reduce Interlace Flicker (video only): vertical `[1, 2, 1] / 4` anti-flicker
+    /// prefilter on the source picture, for still photos, graphics and generated text.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub reduce_interlace_flicker: bool,
     /// Snap offset in seconds from `start` (`0.0` = bottom-left corner of the event).
     #[serde(default, skip_serializing_if = "is_zero_time")]
     pub snap_offset: f64,
@@ -227,6 +262,8 @@ impl Default for TrackEvent {
             transition_progress: None,
             adjustment: false,
             resample: ResampleMode::Project,
+            maintain_aspect_ratio: true,
+            reduce_interlace_flicker: false,
             snap_offset: 0.0,
         }
     }

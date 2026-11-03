@@ -523,29 +523,37 @@ impl Deinterlace {
     }
 }
 
-/// How frames are resampled when the media has fewer frames per second than the project.
+/// Default project-level frame resampling mode (File > Properties > Video).
+///
+/// Events set to *Use project settings* inherit this mode; new projects default to [`Self::Disable`]
+/// (`manual_vegaspro21_en.md` pp. 99-100, 356-358). Legacy project files that stored `"smart"` or
+/// `"force"` load as [`Self::FrameBlend`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResampleMode {
-    /// Resamples only when the rates differ.
+    /// No resampling: the nearest source frame is shown.
     #[default]
-    Smart,
-    Force,
+    #[serde(alias = "disabled")]
     Disable,
+    /// Linear blend of the surrounding source frames.
+    #[serde(alias = "smart", alias = "force")]
+    FrameBlend,
+    /// Motion-compensated optical flow interpolation between surrounding source frames.
+    OpticalFlow,
 }
 
 impl ResampleMode {
     pub const ALL: [ResampleMode; 3] = [
-        ResampleMode::Smart,
-        ResampleMode::Force,
         ResampleMode::Disable,
+        ResampleMode::FrameBlend,
+        ResampleMode::OpticalFlow,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            ResampleMode::Smart => "Inteligente (Smart)",
-            ResampleMode::Force => "Forçar",
-            ResampleMode::Disable => "Desativar",
+            ResampleMode::Disable => "Desativar reamostragem",
+            ResampleMode::FrameBlend => "Mistura de quadros",
+            ResampleMode::OpticalFlow => "Fluxo óptico",
         }
     }
 }
@@ -845,5 +853,23 @@ mod tests {
                 && !PixelFormat::Bit8Full.has_gamma_choice()
         );
         assert!(SAMPLE_RATES.contains(&48_000) && AUDIO_BIT_DEPTHS.contains(&24));
+        assert_eq!(ResampleMode::default(), ResampleMode::Disable);
+        assert!(ResampleMode::ALL.iter().all(|v| !v.label().is_empty()));
+        assert_eq!(
+            serde_json::from_str::<ResampleMode>("\"smart\"").unwrap(),
+            ResampleMode::FrameBlend
+        );
+        assert_eq!(
+            serde_json::from_str::<ResampleMode>("\"force\"").unwrap(),
+            ResampleMode::FrameBlend
+        );
+        assert_eq!(
+            serde_json::from_str::<ResampleMode>("\"disable\"").unwrap(),
+            ResampleMode::Disable
+        );
+        assert_eq!(
+            serde_json::from_str::<ResampleMode>("\"optical_flow\"").unwrap(),
+            ResampleMode::OpticalFlow
+        );
     }
 }

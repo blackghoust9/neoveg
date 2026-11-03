@@ -137,6 +137,8 @@ commands! {
     EditSwitchLoop => ("edit.switch.loop", "Interruptor: repetir (laço do evento)", Edit, true),
     EditSwitchNormalize => ("edit.switch.normalize", "Interruptor: normalizar", Edit, true),
     EditNormalizeRecalculate => ("edit.normalize.recalculate", "Recalcular a normalização", Edit, true),
+    EditSwitchMaintainAspect => ("edit.switch.maintain_aspect", "Interruptor: manter proporção", Edit, true),
+    EditSwitchReduceFlicker => ("edit.switch.reduce_interlace_flicker", "Interruptor: reduzir cintilação do entrelaçamento", Edit, true),
     EditToolNormal => ("edit.tool.normal", "Ferramenta normal", Edit, true),
     EditToolNext => ("edit.tool.next", "Próxima ferramenta de edição", Edit, true),
     EditToolPrevious => ("edit.tool.previous", "Ferramenta de edição anterior", Edit, true),

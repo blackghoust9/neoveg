@@ -560,6 +560,8 @@ impl EditCommand {
                     ),
                     adjustment: left.adjustment,
                     resample: left.resample,
+                    maintain_aspect_ratio: left.maintain_aspect_ratio,
+                    reduce_interlace_flicker: left.reduce_interlace_flicker,
                     snap_offset: right_snap_offset,
                 };
                 left.duration = left_duration;
