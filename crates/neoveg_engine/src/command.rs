@@ -8,6 +8,7 @@ use crate::timeline::{
     TrackEvent, TrackId, TrackMix, TrackSend, TIME_EPSILON,
 };
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
@@ -201,6 +202,12 @@ pub enum EditCommand {
         bottom: bool,
         before: [u8; 3],
         after: [u8; 3],
+    },
+    /// The compositing mode of a video track (how it blends over the tracks below).
+    SetCompositeMode {
+        track_id: TrackId,
+        before: CompositeMode,
+        after: CompositeMode,
     },
     /// Any change to a video effect chain (add, remove, reorder, bypass, parameter): the whole
     /// chain before and after, so it is one exactly reversible undo step.
@@ -489,6 +496,15 @@ impl EditCommand {
                 }
                 None => false,
             },
+            Self::SetCompositeMode {
+                track_id, after, ..
+            } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.composite_mode = *after;
+                    true
+                }
+                None => false,
+            },
             Self::SetDucking {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
@@ -720,6 +736,13 @@ impl EditCommand {
                     } else {
                         t.fade_color = *before;
                     }
+                }
+            }
+            Self::SetCompositeMode {
+                track_id, before, ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.composite_mode = *before;
                 }
             }
             Self::SetDucking {

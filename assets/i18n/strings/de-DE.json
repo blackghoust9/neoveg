@@ -1335,5 +1335,15 @@
   "Substituir cor": "Farbe ersetzen",
   "Escolher pasta…": "Ordner wählen…",
   "Usar a pasta padrão": "Standardordner verwenden",
-  "Pasta dos layouts: {}": "Layout-Ordner: {}"
+  "Pasta dos layouts: {}": "Layout-Ordner: {}",
+  "Painel de compositores": "Compositor-Fenster",
+  "Painel de compositores…": "Compositor-Fenster…",
+  "Não há faixas de vídeo.": "Es gibt keine Videospuren.",
+  "Como a imagem de cada faixa se mistura com as faixas de baixo": "Wie sich das Bild jeder Spur mit den Spuren darunter mischt",
+  "Faixa de ajuste: sem camada própria": "Einstellungsspur: keine eigene Ebene",
+  "Todas as faixas de vídeo:": "Alle Videospuren:",
+  "O que cada modo faz": "Was jeder Modus tut",
+  "O vermelho e o verde desta faixa deslocam os pixels das faixas de baixo": "Rot und Grün dieser Spur verschieben die Pixel der Spuren darunter",
+  "A luminosidade desta faixa vira relevo: refrata e ilumina as faixas de baixo": "Die Helligkeit dieser Spur wird zum Relief: sie bricht und beleuchtet die Spuren darunter",
+  "A luminosidade desta faixa vira relevo: sombreia as faixas de baixo como em alto-relevo": "Die Helligkeit dieser Spur wird zum Relief: sie schattiert die Spuren darunter wie eine Prägung"
 }

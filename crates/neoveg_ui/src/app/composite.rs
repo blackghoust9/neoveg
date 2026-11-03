@@ -12,7 +12,6 @@ use super::*;
 use crate::pan_crop_window::{EditTarget, PanCropDraft};
 use crate::velocity_editor::VelocityDraft;
 use crate::video_fx_panel::{effects_for, VfxDraft};
-use neoveg_common::composite::CompositeMode;
 use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
@@ -365,7 +364,7 @@ pub(super) fn composite_request(
         if !clips.is_empty() {
             nodes.push(TrackCompositeNode::Track {
                 clips,
-                mode: CompositeMode::SourceAlpha,
+                mode: track.composite_mode,
                 level: track_state.level,
                 effects: layer_effects,
                 fade_color: neoveg_engine::envelope::fade_mix(track, track_state.fade).0,
@@ -459,6 +458,7 @@ pub(super) fn has_effects(
                 || pan_crop_on
                 || transition_on
                 || velocity_on
+                || !track.composite_mode.is_default()
             {
                 return true;
             }
@@ -520,6 +520,36 @@ mod tests {
                 TrackCompositeNode::Adjust { .. } => panic!("no adjustments here"),
             })
             .collect()
+    }
+
+    #[test]
+    fn a_track_blends_with_its_mode_and_a_mode_sends_the_preview_through_the_composite_path() {
+        use neoveg_common::composite::CompositeMode;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 0.0, 4.0);
+        track.events.push(e);
+        let id = track.id;
+        tl.tracks.push(track);
+        let mode_of = |tl: &Timeline| {
+            let request = composite_request(tl, 1.0, &settings(), &resolve).unwrap();
+            match &request.nodes[0] {
+                TrackCompositeNode::Track { mode, .. } => *mode,
+                _ => panic!("a track node"),
+            }
+        };
+        assert_eq!(mode_of(&tl), CompositeMode::SourceAlpha);
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        tl.track_mut(id).unwrap().composite_mode = CompositeMode::Multiply;
+        assert_eq!(mode_of(&tl), CompositeMode::Multiply);
+        assert!(
+            has_effects(&tl, 1.0, ProjectResample::Disable),
+            "a single clip with a mode is not shown as it is"
+        );
+        assert!(
+            !has_effects(&tl, 9.0, ProjectResample::Disable),
+            "nothing is visible then"
+        );
     }
 
     #[test]

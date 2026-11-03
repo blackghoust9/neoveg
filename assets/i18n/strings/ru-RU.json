@@ -1335,5 +1335,15 @@
   "Substituir cor": "Замена цвета",
   "Escolher pasta…": "Выбрать папку…",
   "Usar a pasta padrão": "Использовать папку по умолчанию",
-  "Pasta dos layouts: {}": "Папка раскладок: {}"
+  "Pasta dos layouts: {}": "Папка раскладок: {}",
+  "Painel de compositores": "Панель композиторов",
+  "Painel de compositores…": "Панель композиторов…",
+  "Não há faixas de vídeo.": "Видеодорожек нет.",
+  "Como a imagem de cada faixa se mistura com as faixas de baixo": "Как изображение каждой дорожки смешивается с дорожками ниже",
+  "Faixa de ajuste: sem camada própria": "Корректирующая дорожка: без собственного слоя",
+  "Todas as faixas de vídeo:": "Все видеодорожки:",
+  "O que cada modo faz": "Что делает каждый режим",
+  "O vermelho e o verde desta faixa deslocam os pixels das faixas de baixo": "Красный и зелёный каналы этой дорожки смещают пиксели дорожек ниже",
+  "A luminosidade desta faixa vira relevo: refrata e ilumina as faixas de baixo": "Яркость этой дорожки становится рельефом: преломляет и освещает дорожки ниже",
+  "A luminosidade desta faixa vira relevo: sombreia as faixas de baixo como em alto-relevo": "Яркость этой дорожки становится рельефом: затеняет дорожки ниже, как барельеф"
 }

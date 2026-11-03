@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use neoveg_common::channels::ChannelMode;
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
@@ -593,6 +594,9 @@ pub struct Track {
     /// composite of all video tracks below it, weighted by its `VideoLevel` composite envelope.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub adjustment: bool,
+    /// How this video track blends over the tracks below it (older projects: Source Alpha).
+    #[serde(default, skip_serializing_if = "CompositeMode::is_default")]
+    pub composite_mode: CompositeMode,
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -747,6 +751,7 @@ impl Timeline {
             output: BusOutput::Master,
             sends: Vec::new(),
             adjustment: false,
+            composite_mode: CompositeMode::default(),
         }
     }
 

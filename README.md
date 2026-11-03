@@ -396,10 +396,22 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 **Janelas e projeto**
 - [x] Layouts de janela nomeados e salvos em disco (`.neoveglayout`, pasta de dados do usuário): Exibir > Layouts lista os salvos com marca no atual, *Salvar layout como…* (nome e atalho de 1 a 9), *Salvar layout atual*, *Recarregar layout selecionado* e *Organizar layouts…* (trocar o atalho, carregar, excluir). `Alt+D` e depois um número carrega, `Ctrl+Alt+D` e depois um número salva.
 - [x] Layouts: o arquivo `.neoveglayout` guarda também as janelas destacadas (qual painel e onde estava, `detached`); carregar o layout reabre ou move essas janelas e fecha as que ele não tinha (um arquivo antigo, sem o campo, deixa as janelas abertas como estão). A pasta dos layouts é escolhida em *Organizar layouts… > Escolher pasta…* (guardada nas preferências em `layouts_dir`; *Usar a pasta padrão* volta à da pasta de dados). Os testes novos (`layouts.rs`, `app/detached.rs`) ainda não rodaram neste PC
-- [ ] Painel de compositores (modos de mistura), junto do modelo de composição.
+- [x] Painel de compositores (`Faixas > Painel de compositores…`): cada faixa de vídeo guarda o seu modo de composição (`Track::composite_mode`, no projeto só quando difere de Alfa da origem; `EditCommand::SetCompositeMode`, um passo de desfazer; `neoveg_engine::compositing::{set_mode, set_mode_all}`), a janela lista as faixas com o modo de cada uma, um seletor para todas de uma vez e a explicação de cada um dos 17 modos (fórmula sobre `dst` e `src`, ou uma frase nos três modos de mapa); a prévia e a renderização usam o modo (uma faixa com modo vai pelo caminho do compositor). Faixas de ajuste e de áudio não têm modo. Os testes novos (`compositing.rs`, `compositors_window.rs`, `app/composite.rs`) ainda não rodaram neste PC. Falta a árvore pai/filho, em que o modo da faixa-mãe governa as filhas
 - [ ] Diálogo de propriedades da mídia: timecode do arquivo ou personalizado, taxa de quadros substituta, ordem dos campos, proporção do pixel, canal alfa e cor de fundo.
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.
 - [ ] Adicionar o traço amostragem de frame atual na playhead e sincronizar com a prévia do vídeo, igual ao que tem no Premiere Pro.
+- [ ] ![[Pasted image 20261103154605.png]] Adicionar janela de contexto para encaixar/desencaixar as janelas da dock: 
+      Close panel group
+      Unlock panel group
+      Move group to
+	      Origem
+	      Propriedades
+	      Projeto
+	      Ferramentas
+	      Linha do tempo
+	      Medidores de áudio
+	    Maximize frame
+
 
 **Interoperabilidade**
 - [x] Importar e exportar **AAF** (Arquivo > Importar e Exportar > AAF), pelos crates `neoveg_aaf` e `neoveg_cfb` adaptados do FilmCraft (escritos a partir das especificações públicas da AMWA e do formato de arquivo composto da Microsoft): uma composição com uma trilha por faixa de vídeo e de áudio, preenchimentos e clipes com entrada na fonte, a sobreposição de dois eventos como transição, nomes, caminhos das mídias (com acentos e espaços), marcadores e o timecode; a importação põe os clipes cujas mídias já estão no projeto, em um passo de desfazer. **Ainda não conferido** com o Avid, o Premiere ou o Resolve: a conferência é a ida e volta pelos próprios leitor e escritor.
@@ -559,7 +571,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 9 — Movimento, máscaras e composição (entrada 15)**
 - [x] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico e menu de contexto; faltam sombra e brilho)
 - [ ] Máscaras (âncoras, positivo/negativo, pena, formas retângulo/elipse) e máscara de FX
-- [ ] `parent: Option<TrackId>`, `composite_mode` e `level` por faixa; árvore pai/filho no engine
+- [ ] `parent: Option<TrackId>`, `composite_mode` (**feito** na faixa) e `level` por faixa; árvore pai/filho no engine
 - [x] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump) — **o compositor** (`neoveg_video::composite`, `wgpu` e referência na CPU, teste `gpu_compositor_matches_cpu_reference_across_all_17_modes`) **já tem os 17 modos**; falta a faixa guardar o modo (hoje a interface só usa Source Alpha) e o painel de compositores
 
 **Fase 10 — Fluxos de trabalho (entrada 16)**

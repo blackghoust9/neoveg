@@ -1335,5 +1335,15 @@
   "Substituir cor": "Color Replace",
   "Escolher pasta…": "Choose folder…",
   "Usar a pasta padrão": "Use the default folder",
-  "Pasta dos layouts: {}": "Layouts folder: {}"
+  "Pasta dos layouts: {}": "Layouts folder: {}",
+  "Painel de compositores": "Compositors panel",
+  "Painel de compositores…": "Compositors panel…",
+  "Não há faixas de vídeo.": "There are no video tracks.",
+  "Como a imagem de cada faixa se mistura com as faixas de baixo": "How each track's picture blends with the tracks below",
+  "Faixa de ajuste: sem camada própria": "Adjustment track: no layer of its own",
+  "Todas as faixas de vídeo:": "All video tracks:",
+  "O que cada modo faz": "What each mode does",
+  "O vermelho e o verde desta faixa deslocam os pixels das faixas de baixo": "The red and green of this track shift the pixels of the tracks below",
+  "A luminosidade desta faixa vira relevo: refrata e ilumina as faixas de baixo": "This track's brightness becomes relief: it refracts and lights the tracks below",
+  "A luminosidade desta faixa vira relevo: sombreia as faixas de baixo como em alto-relevo": "This track's brightness becomes relief: it shades the tracks below like an embossed surface"
 }

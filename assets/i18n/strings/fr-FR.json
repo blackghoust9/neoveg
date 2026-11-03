@@ -1335,5 +1335,15 @@
   "Substituir cor": "Remplacement de couleur",
   "Escolher pasta…": "Choisir le dossier…",
   "Usar a pasta padrão": "Utiliser le dossier par défaut",
-  "Pasta dos layouts: {}": "Dossier des dispositions : {}"
+  "Pasta dos layouts: {}": "Dossier des dispositions : {}",
+  "Painel de compositores": "Panneau des compositeurs",
+  "Painel de compositores…": "Panneau des compositeurs…",
+  "Não há faixas de vídeo.": "Il n'y a aucune piste vidéo.",
+  "Como a imagem de cada faixa se mistura com as faixas de baixo": "Comment l'image de chaque piste se mélange avec les pistes du dessous",
+  "Faixa de ajuste: sem camada própria": "Piste d'effets : pas de calque propre",
+  "Todas as faixas de vídeo:": "Toutes les pistes vidéo :",
+  "O que cada modo faz": "Ce que fait chaque mode",
+  "O vermelho e o verde desta faixa deslocam os pixels das faixas de baixo": "Le rouge et le vert de cette piste déplacent les pixels des pistes du dessous",
+  "A luminosidade desta faixa vira relevo: refrata e ilumina as faixas de baixo": "La luminosité de cette piste devient du relief : elle réfracte et éclaire les pistes du dessous",
+  "A luminosidade desta faixa vira relevo: sombreia as faixas de baixo como em alto-relevo": "La luminosité de cette piste devient du relief : elle ombre les pistes du dessous comme un bas-relief"
 }

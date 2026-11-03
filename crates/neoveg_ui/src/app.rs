@@ -536,6 +536,8 @@ struct AppState {
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
     notes: crate::notes_window::NotesState,
+    /// Faixas > Painel de compositores.
+    compositors: crate::compositors_window::CompositorsState,
     /// Exibir > Detalhes de edição.
     show_details: bool,
     /// The editing tool (`D` cycles through them).
@@ -1649,6 +1651,7 @@ impl AppState {
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
+            compositors: Default::default(),
             show_details: false,
             edit_tool: EditTool::default(),
             welcome: Default::default(),
@@ -7162,6 +7165,25 @@ impl NeovegApp {
         }
     }
 
+    /// The compositors panel: the mode changes it asks for are undoable edits.
+    fn run_compositors_window(&mut self, ctx: &egui::Context) {
+        let state = &mut self.state;
+        let actions = state
+            .compositors
+            .show(ctx, &state.timeline, state.selected_track);
+        let mut changed = false;
+        for action in actions {
+            if let Some(command) = crate::compositors_window::command_for(&state.timeline, &action)
+            {
+                changed |= state.history.execute(&mut state.timeline, command);
+            }
+        }
+        if changed {
+            state.last_frame_key = None;
+            state.last_composite_key = None;
+        }
+    }
+
     /// The project notes window: what the user did to the notes, and the cursor jump of "Ir".
     fn run_notes_window(&mut self, ctx: &egui::Context) {
         let fps = self.state.project.settings.fps;
@@ -7582,6 +7604,7 @@ impl NeovegApp {
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
+        self.run_compositors_window(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -8035,6 +8058,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertAdjustmentTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
             command_item(state, ui, Command::InsertAudioBus);
+            if ui.button(tr("Painel de compositores…")).clicked() {
+                state.compositors.open = true;
+                ui.close_menu();
+            }
             if ui.button(tr("Inserir mídia gerada…")).clicked() {
                 state.generator_dialog.open = true;
                 ui.close_menu();

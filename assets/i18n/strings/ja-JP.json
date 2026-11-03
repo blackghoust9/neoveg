@@ -1335,5 +1335,15 @@
   "Substituir cor": "カラーの置換",
   "Escolher pasta…": "フォルダーを選択…",
   "Usar a pasta padrão": "既定のフォルダーを使う",
-  "Pasta dos layouts: {}": "レイアウトのフォルダー: {}"
+  "Pasta dos layouts: {}": "レイアウトのフォルダー: {}",
+  "Painel de compositores": "コンポジターパネル",
+  "Painel de compositores…": "コンポジターパネル…",
+  "Não há faixas de vídeo.": "ビデオトラックがありません。",
+  "Como a imagem de cada faixa se mistura com as faixas de baixo": "各トラックの映像が下のトラックとどう合成されるか",
+  "Faixa de ajuste: sem camada própria": "調整トラック: 独自のレイヤーなし",
+  "Todas as faixas de vídeo:": "すべてのビデオトラック:",
+  "O que cada modo faz": "各モードの働き",
+  "O vermelho e o verde desta faixa deslocam os pixels das faixas de baixo": "このトラックの赤と緑が下のトラックのピクセルをずらします",
+  "A luminosidade desta faixa vira relevo: refrata e ilumina as faixas de baixo": "このトラックの明るさが凹凸になり、下のトラックを屈折させて照らします",
+  "A luminosidade desta faixa vira relevo: sombreia as faixas de baixo como em alto-relevo": "このトラックの明るさが凹凸になり、下のトラックに浮き彫りのような陰影をつけます"
 }
