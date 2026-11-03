@@ -401,6 +401,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.
 - [ ] Adicionar o traço amostragem de frame atual na playhead e sincronizar com a prévia do vídeo, igual ao que tem no Premiere Pro.
 - [ ] ![[Pasted image 20261103154605.png]] Adicionar janela de contexto para encaixar/desencaixar as janelas da dock: 
+      Maximize frame (abaixo de Move group to)
       Close panel group
       Unlock panel group
       Move group to
@@ -410,8 +411,6 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 	      Ferramentas
 	      Linha do tempo
 	      Medidores de áudio
-	    Maximize frame
-
 
 **Interoperabilidade**
 - [x] Importar e exportar **AAF** (Arquivo > Importar e Exportar > AAF), pelos crates `neoveg_aaf` e `neoveg_cfb` adaptados do FilmCraft (escritos a partir das especificações públicas da AMWA e do formato de arquivo composto da Microsoft): uma composição com uma trilha por faixa de vídeo e de áudio, preenchimentos e clipes com entrada na fonte, a sobreposição de dois eventos como transição, nomes, caminhos das mídias (com acentos e espaços), marcadores e o timecode; a importação põe os clipes cujas mídias já estão no projeto, em um passo de desfazer. **Ainda não conferido** com o Avid, o Premiere ou o Resolve: a conferência é a ida e volta pelos próprios leitor e escritor.
