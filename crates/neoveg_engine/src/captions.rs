@@ -30,16 +30,19 @@ pub enum Format {
     WebVtt,
     /// Scenarist Closed Caption (CEA-608), see [`crate::caption_scc`].
     Scc,
+    /// MacCaption Closed Caption (SMPTE ST 334-2 CDP: CEA-608 + CEA-708), see [`crate::caption_mcc`].
+    Mcc,
 }
 
 impl Format {
-    pub const ALL: [Format; 3] = [Format::Srt, Format::WebVtt, Format::Scc];
+    pub const ALL: [Format; 4] = [Format::Srt, Format::WebVtt, Format::Scc, Format::Mcc];
 
     pub fn extension(self) -> &'static str {
         match self {
             Format::Srt => "srt",
             Format::WebVtt => "vtt",
             Format::Scc => "scc",
+            Format::Mcc => "mcc",
         }
     }
 
@@ -48,6 +51,7 @@ impl Format {
             Format::Srt => "SubRip (SRT)",
             Format::WebVtt => "WebVTT",
             Format::Scc => "Scenarist Closed Caption (SCC)",
+            Format::Mcc => "MacCaption (MCC)",
         }
     }
 
@@ -56,6 +60,7 @@ impl Format {
             "srt" | "subrip" => Some(Format::Srt),
             "vtt" | "webvtt" => Some(Format::WebVtt),
             "scc" => Some(Format::Scc),
+            "mcc" => Some(Format::Mcc),
             _ => None,
         }
     }
@@ -189,6 +194,9 @@ pub fn detect(text: &str, extension: Option<&str>) -> Option<Format> {
     }
     if head.starts_with("Scenarist_SCC") {
         return Some(Format::Scc);
+    }
+    if head.starts_with("File Format=MacCaption_MCC") {
+        return Some(Format::Mcc);
     }
     let timing = head
         .lines()
@@ -501,11 +509,12 @@ pub fn parse_bytes(
     let text = decode_text(bytes);
     let format = format
         .or_else(|| detect(&text, extension))
-        .ok_or(Error::NotFormat("SRT, WebVTT ou SCC"))?;
+        .ok_or(Error::NotFormat("SRT, WebVTT, SCC ou MCC"))?;
     let doc = match format {
         Format::Srt => parse_srt(&text)?,
         Format::WebVtt => parse_vtt(&text)?,
         Format::Scc => crate::caption_scc::parse_scc(&text)?,
+        Format::Mcc => crate::caption_mcc::parse_mcc(&text)?,
     };
     Ok((format, doc))
 }
@@ -515,6 +524,7 @@ pub fn write(doc: &Document, format: Format) -> String {
         Format::Srt => write_srt(doc),
         Format::WebVtt => write_vtt(doc),
         Format::Scc => crate::caption_scc::write_scc(doc),
+        Format::Mcc => crate::caption_mcc::write_mcc(doc),
     }
 }
 
@@ -818,6 +828,22 @@ mod tests {
         );
         assert_eq!(detect("hello", Some("srt")), None);
         assert_eq!(Format::from_extension(".VTT"), Some(Format::WebVtt));
+        assert_eq!(Format::from_extension("MCC"), Some(Format::Mcc));
+        let mcc = write(
+            &Document {
+                cues: vec![Cue {
+                    start: 2.0,
+                    end: 4.0,
+                    text: "Legenda".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            Format::Mcc,
+        );
+        let (mcc_fmt, mcc_doc) = parse_bytes(mcc.as_bytes(), None, None).unwrap();
+        assert_eq!((mcc_fmt, mcc_doc.cues.len()), (Format::Mcc, 1));
+        assert_eq!(mcc_doc.cues[0].text, "Legenda");
         let (format, doc) = parse_bytes(
             b"\xef\xbb\xbf1\r\n00:00:01,000 --> 00:00:02,000\r\nhi\r\n",
             None,

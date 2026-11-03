@@ -709,6 +709,126 @@ fn saturation_adjust(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[i] = straight_color(s, hsl_to_rgb(hsl));
 }
 
+fn knee_limiter(v: f32, max_val: f32, comp: f32) -> f32 {
+    let k = max_val * (1.0 - comp);
+    if (comp <= 0.0 || v <= k) { return min(v, max_val); }
+    let r = max_val - k;
+    return k + r * (1.0 - exp(-(v - k) / r));
+}
+
+fn to_rgb_709(y: f32, cb: f32, cr: f32) -> vec3<f32> {
+    let kr = 0.2126;
+    let kb = 0.0722;
+    let kg = 1.0 - kr - kb;
+    let r = y + 2.0 * (1.0 - kr) * cr;
+    let b = y + 2.0 * (1.0 - kb) * cb;
+    let g = (y - kr * r - kb * b) / kg;
+    return vec3<f32>(r, g, b);
+}
+
+// half = axis, a = max_level, b = comp, c = warn, d/e/f = warn_color
+@compute @workgroup_size(8, 8, 1)
+fn video_limiter(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let kr = 0.2126;
+    let kb = 0.0722;
+    let kg = 1.0 - kr - kb;
+    var y = kr * c.x + kg * c.y + kb * c.z;
+    var cb = (c.z - y) / (2.0 * (1.0 - kb));
+    var cr = (c.x - y) / (2.0 * (1.0 - kr));
+    if (p.half != 1u) {
+        y = knee_limiter(max(y, 0.0), p.a, p.b);
+    }
+    if (p.half != 0u) {
+        let rgb = to_rgb_709(y, cb, cr);
+        var sc = 1.0;
+        let dd = rgb - vec3<f32>(y);
+        if (rgb.x > p.a && dd.x > 0.000001) { sc = min(sc, max((p.a - y) / dd.x, 0.0)); }
+        if (rgb.x < 0.0 && dd.x < -0.000001) { sc = min(sc, max(y / (-dd.x), 0.0)); }
+        if (rgb.y > p.a && dd.y > 0.000001) { sc = min(sc, max((p.a - y) / dd.y, 0.0)); }
+        if (rgb.y < 0.0 && dd.y < -0.000001) { sc = min(sc, max(y / (-dd.y), 0.0)); }
+        if (rgb.z > p.a && dd.z > 0.000001) { sc = min(sc, max((p.a - y) / dd.z, 0.0)); }
+        if (rgb.z < 0.0 && dd.z < -0.000001) { sc = min(sc, max(y / (-dd.z), 0.0)); }
+        if (p.half == 3u && sc < 1.0 - 0.0001) {
+            sc = min(knee_limiter(sc, 1.0, max(p.b, 0.03)), 1.0);
+        }
+        cb = cb * sc;
+        cr = cr * sc;
+    }
+    var out_rgb = clamp(to_rgb_709(y, cb, cr), vec3<f32>(0.0), vec3<f32>(p.a));
+    if (p.c >= 0.5) {
+        let delta = abs(c - out_rgb);
+        if (delta.x > 0.0001 || delta.y > 0.0001 || delta.z > 0.0001) {
+            out_rgb = vec3<f32>(p.d, p.e, p.f);
+        }
+    }
+    dst[i] = straight_color(s, out_rgb);
+}
+
+// half = solid, a/b/c = target, d = sim, e/f/g = replace, h/i = replace_hs
+@compute @workgroup_size(8, 8, 1)
+fn color_replace(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let d = length(c - vec3<f32>(p.a, p.b, p.c));
+    let e0 = p.d * 0.85;
+    let e1 = max(p.d, 0.0001);
+    let t = clamp((d - e0) / max(e1 - e0, 0.000001), 0.0, 1.0);
+    let k = 1.0 - t * t * (3.0 - 2.0 * t);
+    if (k <= 0.0) { dst[i] = s; return; }
+    var repl = vec3<f32>(p.e, p.f, p.g);
+    if (p.half == 0u) {
+        let l = rgb_to_hsl(c).z;
+        repl = hsl_to_rgb(vec3<f32>(p.h, p.i, l));
+    }
+    dst[i] = straight_color(s, c + (repl - c) * k);
+}
+
+// a = br, b = co, c = hue (deg), d = sat
+@compute @workgroup_size(8, 8, 1)
+fn proc_amp(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    var hsl = rgb_to_hsl(s.xyz / s.w);
+    let moved = hsl.x + p.c;
+    hsl.x = moved - 360.0 * floor(moved / 360.0);
+    hsl.y = clamp(hsl.y * p.d, 0.0, 1.0);
+    let rgb = hsl_to_rgb(hsl);
+    dst[i] = straight_color(s, (rgb - vec3<f32>(0.5)) * p.b + vec3<f32>(0.5 + p.a));
+}
+
+// a/b/c = sh, d/e/f = md, g/h/i = hi, j = sat, weights[0..4] = range (s0, s1, h0, h1)
+@compute @workgroup_size(8, 8, 1)
+fn three_way_color(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = s.xyz / s.w;
+    let l = luma_straight(c);
+    let ts = clamp((l - weights[0]) / max(weights[1] - weights[0], 0.0001), 0.0, 1.0);
+    let th = clamp((l - weights[2]) / max(weights[3] - weights[2], 0.0001), 0.0, 1.0);
+    var ws = 1.0 - ts * ts * (3.0 - 2.0 * ts);
+    var wh = th * th * (3.0 - 2.0 * th);
+    let wm_raw = max(1.0 - ws - wh, 0.0);
+    let total = ws + wm_raw + wh;
+    ws = ws / total;
+    wh = wh / total;
+    let wm = wm_raw / total;
+    let o = c + vec3<f32>(p.a, p.b, p.c) * ws + vec3<f32>(p.d, p.e, p.f) * wm + vec3<f32>(p.g, p.h, p.i) * wh;
+    let l2 = luma_straight(o);
+    dst[i] = straight_color(s, vec3<f32>(l2) + (o - vec3<f32>(l2)) * p.j);
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -988,6 +1108,10 @@ pub struct VfxGpu {
     hflip: wgpu::ComputePipeline,
     vflip: wgpu::ComputePipeline,
     offset_fx: wgpu::ComputePipeline,
+    video_limiter: wgpu::ComputePipeline,
+    color_replace: wgpu::ComputePipeline,
+    proc_amp: wgpu::ComputePipeline,
+    three_way_color: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -1048,6 +1172,10 @@ enum Pass {
     HFlip,
     VFlip,
     OffsetFx,
+    VideoLimiter,
+    ColorReplace,
+    ProcAmp,
+    ThreeWayColor,
     TransMask,
     TransSlide,
     TransGrow,
@@ -1140,6 +1268,10 @@ impl VfxGpu {
             hflip: make("hflip"),
             vflip: make("vflip"),
             offset_fx: make("offset_fx"),
+            video_limiter: make("video_limiter"),
+            color_replace: make("color_replace"),
+            proc_amp: make("proc_amp"),
+            three_way_color: make("three_way_color"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -1190,6 +1322,10 @@ impl VfxGpu {
             Pass::HFlip => &self.hflip,
             Pass::VFlip => &self.vflip,
             Pass::OffsetFx => &self.offset_fx,
+            Pass::VideoLimiter => &self.video_limiter,
+            Pass::ColorReplace => &self.color_replace,
+            Pass::ProcAmp => &self.proc_amp,
+            Pass::ThreeWayColor => &self.three_way_color,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -1903,6 +2039,71 @@ impl VfxGpu {
                     run(&mut encoder, Pass::OffsetFx, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::VideoLimiter {
+                    max_level,
+                    comp,
+                    axis,
+                    warn,
+                    warn_color,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.half = axis;
+                    p.a = max_level;
+                    p.b = comp;
+                    p.c = f32::from(warn);
+                    (p.d, p.e, p.f) = (warn_color[0], warn_color[1], warn_color[2]);
+                    run(&mut encoder, Pass::VideoLimiter, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::ColorReplace {
+                    target,
+                    replace,
+                    replace_hs,
+                    sim,
+                    solid,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.half = u32::from(solid);
+                    (p.a, p.b, p.c) = (target[0], target[1], target[2]);
+                    p.d = sim;
+                    (p.e, p.f, p.g) = (replace[0], replace[1], replace[2]);
+                    (p.h, p.i) = (replace_hs[0], replace_hs[1]);
+                    run(&mut encoder, Pass::ColorReplace, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::ProcAmp { br, co, hue, sat } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c, p.d) = (br, co, hue, sat);
+                    run(&mut encoder, Pass::ProcAmp, p, cur, dst, None, None);
+                    cur = dst;
+                }
+                Resolved::ThreeWayColor {
+                    sh,
+                    md,
+                    hi,
+                    range,
+                    sat,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    (p.a, p.b, p.c) = (sh[0], sh[1], sh[2]);
+                    (p.d, p.e, p.f) = (md[0], md[1], md[2]);
+                    (p.g, p.h, p.i) = (hi[0], hi[1], hi[2]);
+                    p.j = sat;
+                    run(
+                        &mut encoder,
+                        Pass::ThreeWayColor,
+                        p,
+                        cur,
+                        dst,
+                        Some(&range),
+                        None,
+                    );
+                    cur = dst;
+                }
             }
         }
 
@@ -2129,6 +2330,33 @@ mod tests {
                 .with("low", 0.7)
                 .with("up", -0.6)
                 .with("center", 0.45),
+            VideoEffect::new(crate::vfx::VIDEO_LIMITER),
+            VideoEffect::new(crate::vfx::VIDEO_LIMITER)
+                .with("max_level", 0.85)
+                .with("compression", 0.08)
+                .with("axis", 2.0),
+            VideoEffect::new(crate::vfx::VIDEO_LIMITER)
+                .with("max_level", 0.90)
+                .with("gamut_warning", 1.0),
+            VideoEffect::new(crate::vfx::COLOR_REPLACE),
+            VideoEffect::new(crate::vfx::COLOR_REPLACE)
+                .with("similarity", 0.45)
+                .with("solid", 1.0),
+            VideoEffect::new(crate::vfx::PROC_AMP)
+                .with("brightness", 0.15)
+                .with("contrast", 1.3)
+                .with("hue", -45.0)
+                .with("saturation", 1.5),
+            VideoEffect::new(crate::vfx::THREE_WAY_COLOR)
+                .with("shadow_hue", 220.0)
+                .with("shadow_balance", 0.6)
+                .with("shadow_level", -0.1)
+                .with("mid_hue", 30.0)
+                .with("mid_balance", 0.3)
+                .with("hi_hue", 50.0)
+                .with("hi_balance", 0.5)
+                .with("hi_level", 0.15)
+                .with("saturation", 1.2),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();

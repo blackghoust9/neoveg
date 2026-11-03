@@ -166,8 +166,8 @@
     {
       "id": "edit.edicao_assist",
       "area": "Editar",
-      "estado": "parcial",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 3
     },
     {

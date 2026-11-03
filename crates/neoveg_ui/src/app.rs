@@ -1308,7 +1308,10 @@ impl AppState {
     /// File > Import subtitles: adds the cues of an SRT or WebVTT file as one undo step.
     fn import_captions(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Legendas (SRT, WebVTT, SCC)", &["srt", "vtt", "scc"])
+            .add_filter(
+                "Legendas (SRT, WebVTT, SCC, MCC)",
+                &["srt", "vtt", "scc", "mcc"],
+            )
             .pick_file()
         else {
             return;
@@ -1354,7 +1357,7 @@ impl AppState {
         }
     }
 
-    /// File > Export subtitles: writes the captions as SRT, WebVTT or SCC, by the file's extension.
+    /// File > Export subtitles: writes the captions as SRT, WebVTT, SCC or MCC, by the file's extension.
     fn export_captions(&mut self) {
         if self.timeline.captions.is_empty() {
             self.status = "Não há legendas para exportar".into();
@@ -1364,6 +1367,7 @@ impl AppState {
             .add_filter("SubRip (SRT)", &["srt"])
             .add_filter("WebVTT", &["vtt"])
             .add_filter("Scenarist Closed Caption (SCC)", &["scc"])
+            .add_filter("MacCaption (MCC)", &["mcc"])
             .set_file_name(format!("{}.srt", self.project.name))
             .save_file()
         else {
@@ -1913,6 +1917,24 @@ impl AppState {
             None => {
                 self.status = tr(
                     "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo",
+                )
+                .into();
+            }
+        }
+    }
+
+    fn heal_selected_events(&mut self) {
+        let refs = self.selection.refs();
+        let outcome = ops::heal_events(&self.timeline, &refs);
+        match self.apply_outcome(outcome) {
+            Some(touched) => {
+                self.selection.set(touched);
+                self.last_composite_key = None;
+                self.status = tr("Eventos divididos reunidos").into();
+            }
+            None => {
+                self.status = tr(
+                    "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica",
                 )
                 .into();
             }
@@ -3043,6 +3065,7 @@ impl AppState {
             Command::EditSmartSplit => {
                 ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
             }
+            Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
             Command::EditCloseGaps => {
                 if self.selection.is_empty() {
                     self.selected_track
@@ -6687,6 +6710,7 @@ impl AppState {
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::EditSmartSplit => self.smart_split(),
+            Command::EditHeal => self.heal_selected_events(),
             Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -7921,6 +7945,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             for command in [
                 Command::EditSplit,
                 Command::EditSmartSplit,
+                Command::EditHeal,
                 Command::EditCloseGaps,
                 Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
@@ -11645,6 +11670,7 @@ fn event_context_menu(
         Command::EditDelete,
         Command::EditSplit,
         Command::EditSmartSplit,
+        Command::EditHeal,
         Command::EditCloseGaps,
         Command::EditGroup,
         Command::EditUngroup,

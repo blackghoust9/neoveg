@@ -15,10 +15,12 @@
 //! **Alpha.** Neighbourhood effects work on premultiplied colour, so a keyed or faded edge does not
 //! pick up dark or green fringes.
 //!
-//! The colour tools (colour balance, levels, gamma, posterize, extract, tint) use the formulas of
-//! the FilmCraft effect stage (`render/src/gpufx.rs`, MIT OR Apache-2.0, ArtCraft Team and the
-//! FilmCraft contributors), rewritten for the premultiplied encoded working buffer of this module
-//! (see `third_party/filmcraft/README.md`).
+//! The colour and broadcast tools (colour balance, levels, gamma, posterize, extract, tint,
+//! channel mix, ASC CDL, leave colour, change to colour, colour pass, colour replace, alpha
+//! adjust, flips, offset, proc amp, three-way colour corrector and video limiter) use the
+//! formulas of the FilmCraft effect stage (`render/src/gpufx.rs`, MIT OR Apache-2.0, ArtCraft Team
+//! and the FilmCraft contributors), rewritten for the premultiplied encoded working buffer of this
+//! module (see `third_party/filmcraft/README.md`).
 //!
 //! Effects and their parameters follow the reference manuals (Gaussian Blur: horizontal and vertical
 //! range; Sharpen: none; Unsharp Mask: ratio; Vignette: outer radius, inner radius, aspect and
@@ -85,6 +87,10 @@ pub const HORIZONTAL_FLIP: &str = "horizontal_flip";
 pub const VERTICAL_FLIP: &str = "vertical_flip";
 pub const OFFSET: &str = "offset";
 pub const SATURATION_ADJUST: &str = "saturation_adjust";
+pub const VIDEO_LIMITER: &str = "video_limiter";
+pub const COLOR_REPLACE: &str = "color_replace";
+pub const PROC_AMP: &str = "proc_amp";
+pub const THREE_WAY_COLOR: &str = "three_way_color";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -1205,6 +1211,294 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: VIDEO_LIMITER,
+        label: "Limitador de vídeo",
+        params: &[
+            ParamSpec {
+                id: "max_level",
+                label: "Nível máximo",
+                min: 0.5,
+                max: 1.0,
+                default: 0.92,
+                percent: true,
+            },
+            ParamSpec {
+                id: "compression",
+                label: "Compressão",
+                min: 0.0,
+                max: 0.2,
+                default: 0.03,
+                percent: true,
+            },
+            ParamSpec {
+                id: "axis",
+                label: "Eixo (0 luma, 1 croma, 2 ambos, 3 inteligente)",
+                min: 0.0,
+                max: 3.0,
+                default: 3.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "gamut_warning",
+                label: "Aviso de gama (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "warn_r",
+                label: "Aviso, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "warn_g",
+                label: "Aviso, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "warn_b",
+                label: "Aviso, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: COLOR_REPLACE,
+        label: "Substituir cor",
+        params: &[
+            ParamSpec {
+                id: "target_r",
+                label: "De, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "target_g",
+                label: "De, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "target_b",
+                label: "De, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "replace_r",
+                label: "Para, vermelho",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "replace_g",
+                label: "Para, verde",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "replace_b",
+                label: "Para, azul",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "similarity",
+                label: "Semelhança",
+                min: 0.0,
+                max: 1.0,
+                default: 0.2,
+                percent: true,
+            },
+            ParamSpec {
+                id: "solid",
+                label: "Cor sólida (0 ou 1)",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: false,
+            },
+        ],
+    },
+    EffectSpec {
+        id: PROC_AMP,
+        label: "Amplificador de processamento",
+        params: &[
+            ParamSpec {
+                id: "brightness",
+                label: "Brilho",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "contrast",
+                label: "Contraste",
+                min: 0.0,
+                max: 4.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hue",
+                label: "Matiz",
+                min: -180.0,
+                max: 180.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "saturation",
+                label: "Saturação",
+                min: 0.0,
+                max: 4.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
+    EffectSpec {
+        id: THREE_WAY_COLOR,
+        label: "Corretor de cor (três vias)",
+        params: &[
+            ParamSpec {
+                id: "shadow_hue",
+                label: "Matiz das sombras",
+                min: 0.0,
+                max: 360.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "shadow_balance",
+                label: "Equilíbrio das sombras",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shadow_level",
+                label: "Nível das sombras",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "mid_hue",
+                label: "Matiz dos tons médios",
+                min: 0.0,
+                max: 360.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "mid_balance",
+                label: "Equilíbrio dos tons médios",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "mid_level",
+                label: "Nível dos tons médios",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_hue",
+                label: "Matiz dos realces",
+                min: 0.0,
+                max: 360.0,
+                default: 0.0,
+                percent: false,
+            },
+            ParamSpec {
+                id: "hi_balance",
+                label: "Equilíbrio dos realces",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_level",
+                label: "Nível dos realces",
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shadow_threshold",
+                label: "Limiar das sombras",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "shadow_softness",
+                label: "Suavidade das sombras",
+                min: 0.0,
+                max: 1.0,
+                default: 0.2,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_threshold",
+                label: "Limiar dos realces",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "hi_softness",
+                label: "Suavidade dos realces",
+                min: 0.0,
+                max: 1.0,
+                default: 0.2,
+                percent: true,
+            },
+            ParamSpec {
+                id: "saturation",
+                label: "Saturação",
+                min: 0.0,
+                max: 2.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -1451,6 +1745,66 @@ impl VideoEffect {
                 low: self.value(spec, "low"),
                 up: self.value(spec, "up"),
             },
+            VIDEO_LIMITER => Resolved::VideoLimiter {
+                max_level: self.value(spec, "max_level"),
+                comp: self.value(spec, "compression"),
+                axis: self.value(spec, "axis").round().clamp(0.0, 3.0) as u32,
+                warn: self.value(spec, "gamut_warning") >= 0.5,
+                warn_color: [
+                    self.value(spec, "warn_r"),
+                    self.value(spec, "warn_g"),
+                    self.value(spec, "warn_b"),
+                ],
+            },
+            COLOR_REPLACE => {
+                let target = [
+                    self.value(spec, "target_r"),
+                    self.value(spec, "target_g"),
+                    self.value(spec, "target_b"),
+                ];
+                let replace = [
+                    self.value(spec, "replace_r"),
+                    self.value(spec, "replace_g"),
+                    self.value(spec, "replace_b"),
+                ];
+                let hsl = rgb_to_hsl(replace);
+                Resolved::ColorReplace {
+                    target,
+                    replace,
+                    replace_hs: [hsl[0], hsl[1]],
+                    sim: self.value(spec, "similarity") * 1.2,
+                    solid: self.value(spec, "solid") >= 0.5,
+                }
+            }
+            PROC_AMP => Resolved::ProcAmp {
+                br: self.value(spec, "brightness") * 0.4,
+                co: self.value(spec, "contrast"),
+                hue: self.value(spec, "hue"),
+                sat: self.value(spec, "saturation"),
+            },
+            THREE_WAY_COLOR => {
+                let wheel = |hue: &str, bal: &str, lvl: &str| {
+                    let c = hsl_to_rgb([self.value(spec, hue).rem_euclid(360.0), 1.0, 0.5]);
+                    let m = (c[0] + c[1] + c[2]) / 3.0;
+                    let k = self.value(spec, bal) * 0.5;
+                    let l = self.value(spec, lvl) * 0.25;
+                    [(c[0] - m) * k + l, (c[1] - m) * k + l, (c[2] - m) * k + l]
+                };
+                let edges = |thr: &str, soft: &str| {
+                    let t = self.value(spec, thr);
+                    let s = self.value(spec, soft) * 0.5;
+                    ((t - s).clamp(0.0, 1.0), (t + s).clamp(0.0, 1.0))
+                };
+                let (s0, s1) = edges("shadow_threshold", "shadow_softness");
+                let (h0, h1) = edges("hi_threshold", "hi_softness");
+                Resolved::ThreeWayColor {
+                    sh: wheel("shadow_hue", "shadow_balance", "shadow_level"),
+                    md: wheel("mid_hue", "mid_balance", "mid_level"),
+                    hi: wheel("hi_hue", "hi_balance", "hi_level"),
+                    range: [s0, s1, h0, h1],
+                    sat: self.value(spec, "saturation"),
+                }
+            }
             _ => return None,
         })
     }
@@ -1629,6 +1983,37 @@ pub enum Resolved {
         low: f32,
         up: f32,
     },
+    /// BT.709 soft-knee broadcast limiter (`axis`: 0 luma, 1 chroma, 2 both, 3 smart).
+    VideoLimiter {
+        max_level: f32,
+        comp: f32,
+        axis: u32,
+        warn: bool,
+        warn_color: [f32; 3],
+    },
+    /// Replaces colours near `target` with `replace` (solid or keeping original lightness).
+    ColorReplace {
+        target: [f32; 3],
+        replace: [f32; 3],
+        replace_hs: [f32; 2],
+        sim: f32,
+        solid: bool,
+    },
+    /// Processing amplifier: hue rotation, saturation scale, contrast and brightness offset.
+    ProcAmp {
+        br: f32,
+        co: f32,
+        hue: f32,
+        sat: f32,
+    },
+    /// Three-way tonal colour corrector (shadows, midtones, highlights + luma thresholds).
+    ThreeWayColor {
+        sh: [f32; 3],
+        md: [f32; 3],
+        hi: [f32; 3],
+        range: [f32; 4],
+        sat: f32,
+    },
 }
 
 impl Resolved {
@@ -1703,6 +2088,25 @@ impl Resolved {
             Resolved::SaturationAdjust { ratio, low, up, .. } => {
                 ratio == 0.0 && low == 0.0 && up == 0.0
             }
+            Resolved::VideoLimiter {
+                max_level,
+                comp,
+                warn,
+                ..
+            } => max_level >= 1.0 && comp <= 0.0 && !warn,
+            Resolved::ColorReplace {
+                target,
+                replace,
+                sim,
+                solid,
+                ..
+            } => sim <= 0.0 || (solid && target == replace),
+            Resolved::ProcAmp { br, co, hue, sat } => {
+                br == 0.0 && co == 1.0 && hue % 360.0 == 0.0 && sat == 1.0
+            }
+            Resolved::ThreeWayColor {
+                sh, md, hi, sat, ..
+            } => sh == [0.0; 3] && md == [0.0; 3] && hi == [0.0; 3] && sat == 1.0,
         }
     }
 }
@@ -2613,6 +3017,133 @@ fn saturation_adjust(work: &mut Work, ratio: f32, center: f32, spread: f32, low:
     }
 }
 
+fn knee_limiter(v: f32, max_val: f32, comp: f32) -> f32 {
+    let k = max_val * (1.0 - comp);
+    if comp <= 0.0 || v <= k {
+        return v.min(max_val);
+    }
+    let r = max_val - k;
+    k + r * (1.0 - (-(v - k) / r).exp())
+}
+
+/// BT.709 soft-knee video limiter on straight encoded RGB (`0..=1`).
+pub fn video_limiter_px(
+    c: [f32; 3],
+    max_val: f32,
+    comp: f32,
+    axis: u32,
+    warn: bool,
+    warn_color: [f32; 3],
+) -> [f32; 3] {
+    let (kr, kb) = (0.2126f32, 0.0722f32);
+    let kg = 1.0 - kr - kb;
+    let to_rgb = |y: f32, cb: f32, cr: f32| {
+        let r = y + 2.0 * (1.0 - kr) * cr;
+        let b = y + 2.0 * (1.0 - kb) * cb;
+        let g = (y - kr * r - kb * b) / kg;
+        [r, g, b]
+    };
+    let mut y = kr * c[0] + kg * c[1] + kb * c[2];
+    let mut cb = (c[2] - y) / (2.0 * (1.0 - kb));
+    let mut cr = (c[0] - y) / (2.0 * (1.0 - kr));
+    if axis != 1 {
+        y = knee_limiter(y.max(0.0), max_val, comp);
+    }
+    if axis != 0 {
+        let rgb = to_rgb(y, cb, cr);
+        let mut s = 1.0f32;
+        for &ch in &rgb {
+            let d = ch - y;
+            if ch > max_val && d > 1e-6 {
+                s = s.min(((max_val - y) / d).max(0.0));
+            }
+            if ch < 0.0 && d < -1e-6 {
+                s = s.min((y / -d).max(0.0));
+            }
+        }
+        if axis == 3 && s < 1.0 - 1e-4 {
+            s = knee_limiter(s, 1.0, comp.max(0.03)).min(1.0);
+        }
+        cb *= s;
+        cr *= s;
+    }
+    let out = to_rgb(y, cb, cr).map(|q| q.clamp(0.0, max_val));
+    if warn && c.iter().zip(&out).any(|(a, b)| (a - b).abs() > 1e-4) {
+        warn_color
+    } else {
+        out
+    }
+}
+
+/// Replaces colours near `target` with `replace` (or keeping original lightness when `!solid`).
+pub fn color_replace_px(
+    c: [f32; 3],
+    target: [f32; 3],
+    replace: [f32; 3],
+    replace_hs: [f32; 2],
+    sim: f32,
+    solid: bool,
+) -> [f32; 3] {
+    let d = ((c[0] - target[0]).powi(2) + (c[1] - target[1]).powi(2) + (c[2] - target[2]).powi(2))
+        .sqrt();
+    let e0 = sim * 0.85;
+    let e1 = sim.max(1e-4);
+    let t = ((d - e0) / (e1 - e0).max(1e-6)).clamp(0.0, 1.0);
+    let k = 1.0 - t * t * (3.0 - 2.0 * t);
+    if k <= 0.0 {
+        return c;
+    }
+    let repl = if solid {
+        replace
+    } else {
+        let l = rgb_to_hsl(c)[2];
+        hsl_to_rgb([replace_hs[0], replace_hs[1], l])
+    };
+    [
+        c[0] + (repl[0] - c[0]) * k,
+        c[1] + (repl[1] - c[1]) * k,
+        c[2] + (repl[2] - c[2]) * k,
+    ]
+}
+
+/// Processing amplifier on one straight RGB pixel.
+pub fn proc_amp_px(c: [f32; 3], br: f32, co: f32, hue: f32, sat: f32) -> [f32; 3] {
+    let mut hsl = rgb_to_hsl(c);
+    hsl[0] = (hsl[0] + hue).rem_euclid(360.0);
+    hsl[1] = (hsl[1] * sat).clamp(0.0, 1.0);
+    let rgb = hsl_to_rgb(hsl);
+    rgb.map(|v| (v - 0.5) * co + 0.5 + br)
+}
+
+/// Three-way tonal colour corrector on one straight RGB pixel.
+pub fn three_way_color_px(
+    c: [f32; 3],
+    sh: [f32; 3],
+    md: [f32; 3],
+    hi: [f32; 3],
+    range: [f32; 4],
+    sat: f32,
+) -> [f32; 3] {
+    let ramp = |l: f32, lo: f32, up: f32| {
+        let t = ((l - lo) / (up - lo).max(1e-4)).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+    let l = luma_of(c);
+    let mut ws = 1.0 - ramp(l, range[0], range[1]);
+    let mut wh = ramp(l, range[2], range[3]);
+    let wm_raw = (1.0 - ws - wh).max(0.0);
+    let total = ws + wm_raw + wh;
+    ws /= total;
+    wh /= total;
+    let wm = wm_raw / total;
+    let mut o = [0.0; 3];
+    for k in 0..3 {
+        o[k] = c[k] + sh[k] * ws + md[k] * wm + hi[k] * wh;
+    }
+    let l2 = luma_of(o);
+    o.map(|v| l2 + (v - l2) * sat)
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -2733,6 +3264,34 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             }
             out
         }),
+        Resolved::VideoLimiter {
+            max_level,
+            comp,
+            axis,
+            warn,
+            warn_color,
+        } => map_straight(work, |c| {
+            video_limiter_px(c, max_level, comp, axis, warn, warn_color)
+        }),
+        Resolved::ColorReplace {
+            target,
+            replace,
+            replace_hs,
+            sim,
+            solid,
+        } => map_straight(work, |c| {
+            color_replace_px(c, target, replace, replace_hs, sim, solid)
+        }),
+        Resolved::ProcAmp { br, co, hue, sat } => {
+            map_straight(work, |c| proc_amp_px(c, br, co, hue, sat))
+        }
+        Resolved::ThreeWayColor {
+            sh,
+            md,
+            hi,
+            range,
+            sat,
+        } => map_straight(work, |c| three_way_color_px(c, sh, md, hi, range, sat)),
     }
 }
 
@@ -3509,5 +4068,84 @@ mod tests {
     fn the_chain_is_capped() {
         let chain: Vec<VideoEffect> = (0..40).map(|_| VideoEffect::new(SHARPEN)).collect();
         assert_eq!(resolve_chain(&chain).len(), MAX_CHAIN);
+    }
+
+    #[test]
+    fn the_third_batch_limiter_color_replace_proc_amp_and_three_way_work() {
+        let px = |rgb: [u8; 3], fx: VideoEffect| {
+            let mut f = FrameBuffer {
+                width: 1,
+                height: 1,
+                rgba: vec![rgb[0], rgb[1], rgb[2], 255],
+            };
+            apply_chain_cpu(&mut f, &[fx]);
+            [f.rgba[0], f.rgba[1], f.rgba[2]]
+        };
+        // Video limiter: soft-knees white down to max_level (~92% = 235), leaves mid-grey intact,
+        // and paints gamut-warning magenta on clipped pixels when enabled.
+        let lim = px([255, 255, 255], VideoEffect::new(VIDEO_LIMITER));
+        assert!(lim[0] <= 236 && lim[0] >= 230, "limited white: {lim:?}");
+        assert_eq!(
+            px([100, 100, 100], VideoEffect::new(VIDEO_LIMITER)),
+            [100, 100, 100]
+        );
+        assert_eq!(
+            px(
+                [255, 255, 255],
+                VideoEffect::new(VIDEO_LIMITER).with("gamut_warning", 1.0)
+            ),
+            [255, 0, 255]
+        );
+        assert!(resolve_chain(&[VideoEffect::new(VIDEO_LIMITER)
+            .with("max_level", 1.0)
+            .with("compression", 0.0)])
+        .is_empty());
+
+        // Color replace: replaces dark red while keeping lightness unless solid == 1.
+        let kept_luma = px(
+            [128, 0, 0],
+            VideoEffect::new(COLOR_REPLACE).with("similarity", 0.5),
+        );
+        let solid_repl = px(
+            [128, 0, 0],
+            VideoEffect::new(COLOR_REPLACE)
+                .with("similarity", 0.5)
+                .with("solid", 1.0),
+        );
+        assert!(
+            kept_luma[2] > kept_luma[0] && kept_luma[2] < 200,
+            "{kept_luma:?}"
+        );
+        assert_eq!(solid_repl, [0, 128, 255]);
+        assert_eq!(
+            px([0, 255, 0], VideoEffect::new(COLOR_REPLACE)),
+            [0, 255, 0]
+        );
+        assert!(
+            resolve_chain(&[VideoEffect::new(COLOR_REPLACE).with("similarity", 0.0)]).is_empty()
+        );
+
+        // Proc amp: default is neutral; hue +120 turns red into green; saturation 0 turns grey.
+        assert!(resolve_chain(&[VideoEffect::new(PROC_AMP)]).is_empty());
+        let shifted = px([255, 0, 0], VideoEffect::new(PROC_AMP).with("hue", 120.0));
+        assert!(shifted[1] >= 254 && shifted[0] <= 1, "{shifted:?}");
+        let desat = px(
+            [200, 80, 40],
+            VideoEffect::new(PROC_AMP).with("saturation", 0.0),
+        );
+        assert!(desat[0] == desat[1] && desat[1] == desat[2]);
+
+        // Three-way colour corrector: default is neutral; shadow balance tints dark pixels while
+        // sparing bright highlights.
+        assert!(resolve_chain(&[VideoEffect::new(THREE_WAY_COLOR)]).is_empty());
+        let grade = || {
+            VideoEffect::new(THREE_WAY_COLOR)
+                .with("shadow_hue", 240.0)
+                .with("shadow_balance", 0.8)
+        };
+        let dark = px([30, 30, 30], grade());
+        let bright = px([240, 240, 240], grade());
+        assert!(dark[2] > dark[0] + 20, "shadows tinted blue: {dark:?}");
+        assert_eq!(bright, [240, 240, 240], "highlights untouched");
     }
 }

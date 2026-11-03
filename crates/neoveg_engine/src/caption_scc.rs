@@ -81,7 +81,7 @@ fn timecode_of(frames: u64) -> String {
     )
 }
 
-fn frame_of(seconds: f64) -> u64 {
+pub(crate) fn frame_of(seconds: f64) -> u64 {
     (seconds.max(0.0) / FRAME).round() as u64
 }
 
@@ -173,7 +173,7 @@ fn send(c: char) -> Sent {
 }
 
 /// The byte with the odd parity bit CEA-608 asks for.
-fn with_parity(b: u8) -> u8 {
+pub(crate) fn with_parity(b: u8) -> u8 {
     let b = b & 0x7f;
     if b.count_ones().is_multiple_of(2) {
         b | 0x80
@@ -483,10 +483,31 @@ pub fn parse_scc(text: &str) -> Result<Document> {
     Ok(doc)
 }
 
+/// Decodes timed CEA-608 field-1 byte pairs `(frame, b1, b2)` into cues at `frame_seconds` per frame.
+pub(crate) fn decode_pairs(
+    pairs: &[(u64, u8, u8)],
+    frame_seconds: f64,
+    warnings: &mut Vec<String>,
+) -> Vec<Cue> {
+    let mut decoder = Decoder::new();
+    let mut last_time = 0.0;
+    for &(frame, a, b) in pairs {
+        decoder.now = frame as f64 * frame_seconds;
+        last_time = decoder.now;
+        decoder.word(a & 0x7f, b & 0x7f);
+    }
+    if decoder.shown_since.is_some() {
+        decoder.now = last_time + 2.0;
+        decoder.end_display();
+        warnings.push("a última legenda não foi apagada: dura 2 s".into());
+    }
+    decoder.cues
+}
+
 // ---- writing --------------------------------------------------------------------------------------
 
 /// The rows of a cue: tags dropped, lines wrapped at 32 characters, at most four rows.
-fn rows_of(text: &str) -> Vec<String> {
+pub(crate) fn rows_of(text: &str) -> Vec<String> {
     let mut plain = String::new();
     let (mut in_tag, mut in_brace) = (false, false);
     for c in text.chars() {
@@ -580,6 +601,7 @@ fn pac(row: usize, indent: usize) -> (u8, u8) {
     (b1, 0x40 | (high << 5) | (((8 + indent.min(7)) as u8) << 1))
 }
 
+#[cfg(test)]
 fn words_of(bytes: &[(u8, u8)]) -> Vec<String> {
     bytes
         .iter()
@@ -592,8 +614,8 @@ fn doubled(pair: (u8, u8)) -> [(u8, u8); 2] {
     [pair, pair]
 }
 
-/// The words that load and display a caption: reset, the rows with their positions, flip.
-fn load_words(rows: &[String]) -> Vec<String> {
+/// The raw 7-bit pairs that load and display a caption: reset, rows with positions, flip.
+fn load_pairs(rows: &[String]) -> Vec<(u8, u8)> {
     let mut pairs: Vec<(u8, u8)> = Vec::new();
     pairs.extend(doubled((0x14, 0x20)));
     pairs.extend(doubled((0x14, 0x2e)));
@@ -608,35 +630,30 @@ fn load_words(rows: &[String]) -> Vec<String> {
         pairs.extend(bytes.as_chunks::<2>().0.iter().map(|p| (p[0], p[1])));
     }
     pairs.extend(doubled((0x14, 0x2f)));
-    words_of(&pairs)
+    pairs
 }
 
-/// Puts `words` in the first free frames from `from` on; returns the frames used.
+/// Puts `pairs` in the first free frames from `from` on; returns the frames used.
 fn place_forward(
-    slots: &mut std::collections::BTreeMap<u64, String>,
+    slots: &mut std::collections::BTreeMap<u64, (u8, u8)>,
     from: u64,
-    words: &[String],
+    pairs: &[(u8, u8)],
 ) -> Vec<u64> {
     let mut at = from;
-    let mut used = Vec::with_capacity(words.len());
-    for word in words {
+    let mut used = Vec::with_capacity(pairs.len());
+    for &pair in pairs {
         while slots.contains_key(&at) {
             at += 1;
         }
-        slots.insert(at, word.clone());
+        slots.insert(at, pair);
         used.push(at);
         at += 1;
     }
     used
 }
 
-/// Writes the cues as an SCC file (pop-on captions on channel 1).
-///
-/// The stream carries one word a frame. The erases are placed first, on the frame a caption ends;
-/// each caption is then loaded in the free frames before the frame it must appear on, never mixed
-/// with the load of the one before it (they share the memory that is not on the screen). When there
-/// is no room before the frame, the caption comes as soon as its load ends.
-pub fn write_scc(doc: &Document) -> String {
+/// Schedules channel-1 CEA-608 pop-on byte pairs (without parity) at 29.97 fps.
+pub(crate) fn schedule_pairs(doc: &Document) -> std::collections::BTreeMap<u64, (u8, u8)> {
     use std::collections::BTreeMap;
     let mut cues: Vec<&Cue> = doc
         .cues
@@ -655,21 +672,21 @@ pub fn write_scc(doc: &Document) -> String {
         })
         .collect();
 
-    let mut slots: BTreeMap<u64, String> = BTreeMap::new();
+    let mut slots: BTreeMap<u64, (u8, u8)> = BTreeMap::new();
     for (i, &end) in ends.iter().enumerate() {
         // The next caption replaces this one when it comes right after it
         let replaced = cues
             .get(i + 1)
             .is_some_and(|next| frame_of(next.start) <= end + 2);
         if !replaced {
-            place_forward(&mut slots, end, &words_of(&doubled((0x14, 0x2c))));
+            place_forward(&mut slots, end, &doubled((0x14, 0x2c)));
         }
     }
 
     let mut cursor = 0u64;
     for cue in &cues {
-        let words = load_words(&rows_of(&cue.text));
-        let before = words.len() - 2;
+        let pairs = load_pairs(&rows_of(&cue.text));
+        let before = pairs.len() - 2;
         let mut flip = frame_of(cue.start);
         while slots.contains_key(&flip) {
             flip += 1;
@@ -688,15 +705,26 @@ pub fn write_scc(doc: &Document) -> String {
                 next += 1;
             }
             frames.push(next);
-            for (frame, word) in frames.iter().zip(&words) {
-                slots.insert(*frame, word.clone());
+            for (frame, &pair) in frames.iter().zip(&pairs) {
+                slots.insert(*frame, pair);
             }
             frames
         } else {
-            place_forward(&mut slots, cursor, &words)
+            place_forward(&mut slots, cursor, &pairs)
         };
         cursor = used.last().map_or(cursor, |&last| last + 1);
     }
+    slots
+}
+
+/// Writes the cues as an SCC file (pop-on captions on channel 1).
+///
+/// The stream carries one word a frame. The erases are placed first, on the frame a caption ends;
+/// each caption is then loaded in the free frames before the frame it must appear on, never mixed
+/// with the load of the one before it (they share the memory that is not on the screen). When there
+/// is no room before the frame, the caption comes as soon as its load ends.
+pub fn write_scc(doc: &Document) -> String {
+    let slots = schedule_pairs(doc);
 
     // Runs of consecutive frames are the lines of the file
     let mut out = format!(
@@ -704,8 +732,9 @@ pub fn write_scc(doc: &Document) -> String {
 
 "
     );
-    let mut run: Option<(u64, u64, Vec<&str>)> = None;
-    for (&frame, word) in &slots {
+    let mut run: Option<(u64, u64, Vec<String>)> = None;
+    for (&frame, &(a, b)) in &slots {
+        let word = format!("{:02x}{:02x}", with_parity(a), with_parity(b));
         match run.as_mut() {
             Some((_, last, words)) if frame == *last + 1 => {
                 *last = frame;

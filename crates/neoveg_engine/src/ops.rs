@@ -791,7 +791,123 @@ pub fn smart_split(
     outcome(draft.finish(), touched)
 }
 
-fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Option<Outcome> {
+fn heal_duration(events: &[&TrackEvent]) -> Option<f64> {
+    if events.len() < 2 {
+        return None;
+    }
+    let first = events[0];
+    if first.locked
+        || first.adjustment
+        || first.media_id.is_none()
+        || crate::velocity::is_active(first.velocity.as_ref())
+    {
+        return None;
+    }
+    let rate = crate::edit::clamp_playback_rate(first.playback_rate);
+    for pair in events.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if b.locked
+            || b.adjustment
+            || b.media_id != first.media_id
+            || b.channels != first.channels
+            || crate::velocity::is_active(b.velocity.as_ref())
+            || (crate::edit::clamp_playback_rate(b.playback_rate) - rate).abs() > 1e-6
+        {
+            return None;
+        }
+        let a_src_end = a.trim_in + a.duration * rate;
+        let b_src_end = b.trim_in + b.duration * rate;
+        if b.trim_in + TIME_EPSILON < a.trim_in || b_src_end + TIME_EPSILON < a_src_end {
+            return None;
+        }
+    }
+    let last = *events.last()?;
+    let last_src_end = last.trim_in + last.duration * rate;
+    let new_duration = (last_src_end - first.trim_in) / rate;
+    (new_duration > TIME_EPSILON).then_some(new_duration)
+}
+
+/// `true` when [`heal_events`] can reunite the selected events: at least one track has selected
+/// events, and on every track with selected events there are two or more unlocked, non-adjustment
+/// events from the same media source in forward media order.
+pub fn can_heal_events(timeline: &Timeline, selected: &[EventRef]) -> bool {
+    if selected.is_empty() {
+        return false;
+    }
+    let mut any_track = false;
+    for track in &timeline.tracks {
+        let mut chosen: Vec<&TrackEvent> = track
+            .events
+            .iter()
+            .filter(|ev| selected.contains(&(track.id, ev.id)))
+            .collect();
+        if chosen.is_empty() {
+            continue;
+        }
+        any_track = true;
+        chosen.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+        if heal_duration(&chosen).is_none() {
+            return false;
+        }
+    }
+    any_track
+}
+
+/// Reunites split events forward in time on each track where two or more selected events share
+/// the same media and follow media order: the first event extends its out-point to the last
+/// selected event's media out-point and inherits the last event's out-fade and out-transition.
+pub fn heal_events(timeline: &Timeline, selected: &[EventRef]) -> Option<Outcome> {
+    if !can_heal_events(timeline, selected) {
+        return None;
+    }
+    let mut draft = Draft::new(timeline);
+    let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
+    let mut touched = Vec::new();
+
+    for track_id in track_ids {
+        let Some(list) = draft.list(track_id) else {
+            continue;
+        };
+        let mut chosen: Vec<TrackEvent> = list
+            .iter()
+            .filter(|ev| selected.contains(&(track_id, ev.id)))
+            .cloned()
+            .collect();
+        if chosen.is_empty() {
+            continue;
+        }
+        chosen.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+        let refs: Vec<&TrackEvent> = chosen.iter().collect();
+        let new_duration = heal_duration(&refs)?;
+        let first = &chosen[0];
+        let last = chosen.last()?;
+        let mut healed = first.clone();
+        healed.duration = new_duration;
+        healed.fade_in = healed.fade_in.clamp(0.0, new_duration);
+        healed.fade_out = last
+            .fade_out
+            .clamp(0.0, (new_duration - healed.fade_in).max(0.0));
+        healed.fade_out_curve = last.fade_out_curve;
+        healed.transition_out = last.transition_out.clone();
+        healed.snap_offset = if healed.snap_offset.is_finite() && healed.snap_offset > TIME_EPSILON
+        {
+            healed.snap_offset.clamp(0.0, new_duration)
+        } else {
+            0.0
+        };
+        let removed_ids: BTreeSet<EventId> = chosen.iter().skip(1).map(|ev| ev.id).collect();
+        list.retain(|ev| !removed_ids.contains(&ev.id));
+        if let Some(slot) = list.iter_mut().find(|ev| ev.id == first.id) {
+            *slot = healed;
+        }
+        touched.push((track_id, first.id));
+    }
+
+    outcome(draft.finish(), touched)
+}
+
+/// Splits every event inside `scope` at each timestamp in `times`.
+pub fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Option<Outcome> {
     let mut draft = Draft::new(timeline);
     let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
     let mut alloc = || timeline.alloc_id();
@@ -1372,5 +1488,102 @@ mod tests {
         assert_eq!(a_ev[0].group, Some(group));
         assert_eq!(a_ev[1].group, Some(group));
         assert!(a_ev[1].transition_in.is_none());
+    }
+
+    #[test]
+    fn heal_events_reunites_split_or_gapped_halves_and_rejects_bad_selections() {
+        let mut tl = Timeline::new();
+        let mut history = History::new();
+        let group = tl.alloc_id();
+
+        let mut v_track = tl.new_track(TrackKind::Video);
+        let v_tid = v_track.id;
+        let vid = tl.alloc_id();
+        v_track.events.push(TrackEvent {
+            id: vid,
+            media_id: Some(7),
+            start: 1.0,
+            duration: 10.0,
+            trim_in: 2.0,
+            fade_in: 0.4,
+            fade_out: 0.6,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+
+        let mut a_track = tl.new_track(TrackKind::Audio);
+        let a_tid = a_track.id;
+        let aid = tl.alloc_id();
+        a_track.events.push(TrackEvent {
+            id: aid,
+            media_id: Some(7),
+            start: 1.0,
+            duration: 10.0,
+            trim_in: 2.0,
+            fade_in: 0.4,
+            fade_out: 0.6,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+        tl.tracks.extend([v_track, a_track]);
+
+        assert!(
+            !can_heal_events(&tl, &[(v_tid, vid)]),
+            "single event cannot heal"
+        );
+
+        // Split both tracks at 5.0 s -> left (1..5, src 2..6) and right (5..11, src 6..12)
+        let split_out = split_at(&mut tl, 5.0, Scope::AllTracks);
+        run(&mut tl, &mut history, split_out);
+        assert_eq!(tl.track(v_tid).unwrap().events.len(), 2);
+
+        // Trim left down to 3 s (src 2..5) and move right to 9.0 s (creating a 5 s timeline gap)
+        tl.track_mut(v_tid).unwrap().events[0].duration = 3.0;
+        tl.track_mut(v_tid).unwrap().events[1].start = 9.0;
+        let v_refs: Vec<EventRef> = tl
+            .track(v_tid)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (v_tid, e.id))
+            .collect();
+        let a_refs: Vec<EventRef> = tl
+            .track(a_tid)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (a_tid, e.id))
+            .collect();
+        let mut all_refs = v_refs.clone();
+        all_refs.extend_from_slice(&a_refs);
+
+        assert!(can_heal_events(&tl, &all_refs));
+        let healed_out = heal_events(&tl, &all_refs);
+        let touched = run(&mut tl, &mut history, healed_out);
+        assert_eq!(touched, vec![(v_tid, vid), (a_tid, aid)]);
+
+        let vh = &tl.track(v_tid).unwrap().events;
+        let ah = &tl.track(a_tid).unwrap().events;
+        assert_eq!(vh.len(), 1);
+        assert_eq!(ah.len(), 1);
+        assert!((vh[0].start - 1.0).abs() < 1e-9);
+        assert!((vh[0].trim_in - 2.0).abs() < 1e-9);
+        assert!((vh[0].duration - 10.0).abs() < 1e-9);
+        assert!((vh[0].fade_in - 0.4).abs() < 1e-9);
+        assert!((vh[0].fade_out - 0.6).abs() < 1e-9);
+        assert_eq!(vh[0].group, Some(group));
+        assert_eq!(ah[0].group, Some(group));
+
+        assert!(history.undo(&mut tl));
+        assert_eq!(tl.track(v_tid).unwrap().events.len(), 2);
+
+        // Reversed media order (later media moved earlier on timeline) must be refused
+        tl.track_mut(v_tid).unwrap().events[1].start = 0.2;
+        assert!(!can_heal_events(&tl, &v_refs));
+
+        // Different media_id must be refused
+        tl.track_mut(v_tid).unwrap().events[1].start = 9.0;
+        tl.track_mut(v_tid).unwrap().events[1].media_id = Some(99);
+        assert!(!can_heal_events(&tl, &v_refs));
     }
 }

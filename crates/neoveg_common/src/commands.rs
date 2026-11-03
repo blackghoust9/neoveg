@@ -108,6 +108,7 @@ commands! {
     EditResizeAdjustmentToProject => ("edit.resize_adjustment_to_project", "Redimensionar eventos de ajuste ao projeto", Edit, true),
     EditSplit => ("edit.split", "Dividir no cursor", Edit, true),
     EditSmartSplit => ("edit.smart_split", "Divisão inteligente", Edit, true),
+    EditHeal => ("edit.heal", "Curar eventos divididos", Edit, true),
     EditCut => ("edit.cut", "Recortar", Edit, true),
     EditCopy => ("edit.copy", "Copiar", Edit, true),
     EditPaste => ("edit.paste", "Colar", Edit, true),

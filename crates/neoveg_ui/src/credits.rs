@@ -37,6 +37,17 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/storytold/filmcraft",
     },
     Credit {
+        name: "FilmCraft (vídeo, texto, codecs, AAF e legendas)",
+        used_for: "Motor de texto e fontes (neoveg_text), codificadores H.264, AAC e MP4 em Rust puro \
+                   (neoveg_h264, neoveg_aac, neoveg_media), intercâmbio AAF (neoveg_cfb, neoveg_aaf), \
+                   closed captions MacCaption .mcc (neoveg_engine::caption_mcc), leitura de imagens \
+                   compostas .psd (neoveg_video::psd), detecção de cortes de cena (neoveg_video::scene) \
+                   e 18 efeitos de cor e vídeo em CPU e GPU",
+        authors: "ArtCraft Team and the FilmCraft contributors",
+        license: "MIT OR Apache-2.0 (usado sob a MIT)",
+        url: "https://github.com/storytold/filmcraft",
+    },
+    Credit {
         name: "Lucide Icons",
         used_for: "Ícones BMP de ferramentas, cursores, edição e janelas da interface",
         authors: "Cole Bemis and Lucide Contributors",
@@ -300,6 +311,30 @@ mod tests {
         assert!(text.contains("adapted from `filmcraft-captions`"));
         assert!(text.contains("ArtCraft Team and the FilmCraft contributors"));
         assert!(repo_file("AUTHORS.md").contains("captions.rs"));
+    }
+
+    #[test]
+    fn the_adapted_mcc_psd_and_scene_files_carry_their_attribution() {
+        for (path, short) in [
+            ("crates/neoveg_engine/src/caption_mcc.rs", "caption_mcc.rs"),
+            ("crates/neoveg_video/src/psd.rs", "psd.rs"),
+            ("crates/neoveg_video/src/scene.rs", "scene.rs"),
+        ] {
+            let text = repo_file(path);
+            assert!(
+                text.contains("Adapted from")
+                    && text.contains("ArtCraft Team and the FilmCraft contributors"),
+                "{path} lost its attribution header"
+            );
+            assert!(
+                repo_file("AUTHORS.md").contains(short),
+                "AUTHORS.md: {short}"
+            );
+            assert!(
+                repo_file("third_party/filmcraft/README.md").contains(short),
+                "third_party/filmcraft/README.md: {short}"
+            );
+        }
     }
 
     #[test]

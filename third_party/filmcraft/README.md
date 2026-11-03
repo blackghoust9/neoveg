@@ -3,10 +3,10 @@
 | | |
 | :--- | :--- |
 | Projeto | **FilmCraft**, editor não linear em Rust puro |
-| Repositório | <https://github.com/storytold/filmcraft> (commit `8fda2f2`, 2026-10-25) |
+| Repositório | <https://github.com/storytold/filmcraft> (commits `8fda2f2`, `8d925e9` e `57dc82e` / `v0.17.0`) |
 | Autores | ArtCraft Team and the FilmCraft contributors |
 | Licença | `MIT OR Apache-2.0`. O Neoveg usa o código **sob a licença MIT**; o texto está em [`LICENSE-MIT`](LICENSE-MIT) e acompanha todos os pacotes |
-| Crate de origem | `crates/audio-dsp` (`filmcraft-audio-dsp`) |
+| Crates de origem | `audio-dsp`, `captions`, `render`, `gpu`, `text`, `h264enc`, `aac`, `cfb`, `interchange` e `media` |
 
 ## O que foi copiado
 
@@ -34,13 +34,16 @@
 | `crates/neoveg_audio/src/dsp/effects/channel.rs` | `audio-dsp/src/effects/channel.rs` | Amplificar, volume por canal, balanço e inverter fase |
 | `crates/neoveg_audio/src/dsp/effects/util.rs` | `audio-dsp/src/effects/util.rs` | Linhas de atraso, filtros de um polo, LFOs e envelopes usados pelos efeitos |
 | `crates/neoveg_engine/src/captions.rs` | `captions/src/srt.rs`, `captions/src/vtt.rs` e funções de relógio e de decodificação de `captions/src/lib.rs` | Leitura e escrita de legendas SubRip (`.srt`) e WebVTT (`.vtt`) tolerantes a arquivos reais |
+| `crates/neoveg_engine/src/caption_mcc.rs` | `captions/src/mcc.rs` (commit `57dc82e`) | Leitura e escrita de closed captions MacCaption (`.mcc`, pacotes SMPTE ST 334-2 CDP com CEA-608 e CEA-708 serviço 1 e compressão de repetições do MacCaption) |
+| `crates/neoveg_video/src/psd.rs` | `media/src/still/psd.rs` e `psd/tests.rs` (commit `57dc82e`) | Leitura e decodificação em Rust puro da imagem composta de arquivos `.psd` (`8BPS`, 8 e 16 bits por canal, tons de cinza e RGB, bruto e PackBits RLE, alfa reto) |
+| `crates/neoveg_video/src/scene.rs` | `render/src/scene.rs` (commit `57dc82e`) | Detecção de cortes bruscos de cena por assinatura híbrida (grade espacial 32×18 de luminância BT.709 e histograma RGB de 16 faixas) com limiar adaptativo local |
 | `crates/neoveg_audio/src/dsp/effects/mod.rs` | trecho de `audio-dsp/src/effects/mod.rs` | Registro dos efeitos (só os 7 que o Neoveg oferece) e seus testes de consistência |
 
 ## O que foi adaptado (reescrito)
 
 | Arquivo no Neoveg | Origem | Função |
 | :--- | :--- | :--- |
-| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos efeitos Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair, Matiz, Misturador de canais, ASC CDL, Manter cor, Trocar por cor, Passar cor, Ajuste de alfa, Espelhar na horizontal e na vertical e Deslocar, reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
+| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos 18 efeitos Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair, Matiz, Misturador de canais, ASC CDL, Manter cor, Trocar por cor, Passar cor, Ajuste de alfa, Espelhar na horizontal e na vertical, Deslocar, Limitador de vídeo, Substituir cor, Amplificador de processamento e Corretor de cor (três vias), reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
 
 ## O motor de texto (copiado)
 
@@ -83,6 +86,7 @@ Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
   de `audio-dsp/src/lib.rs`, e alguns lints do clippy foram silenciados só nesse módulo.
 - Em `effects/mod.rs` só foram registrados os 28 efeitos usados (os de `audio-dsp` que dependem de convolução, ambisonics, guitarra e do modelo de projeto ficaram de fora); os nomes dos efeitos, dos parâmetros e das opções de escolha ficaram em pt-BR (mantendo os identificadores internos dos parâmetros) e foram acrescentados `has_latency` e `Category::label`.
 - Em `captions.rs` o tempo passou de ticks para segundos (`f64`), as cadeias `let` da edição 2024 foram reescritas para a 2021, e o modelo de projeto do FilmCraft (faixas de legenda, ticks) foi trocado pelo `Caption` e pelos comandos do Neoveg, que são código próprio.
+- Em `caption_mcc.rs`, `psd.rs` e `scene.rs`, as cadeias `let` da edição 2024 foram reescritas para a 2021, os tempos foram convertidos para segundos (`f64`), os diagnósticos de linha malformada foram traduzidos para pt-BR e os buffers foram ligados a `neoveg_video::still` e `neoveg_video::FrameBuffer`.
 - Os testes unitários de todos os arquivos copiados foram mantidos. Os testes de oráculo contra o `ffmpeg`
   (`audio-dsp/tests/loudness_oracle.rs`) **não** foram trazidos.
 

@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use crate::frame::FrameBuffer;
 use crate::info::{fit_size, VideoInfo};
 
-/// Still-image file extensions: the first twelve are read in pure Rust, the HEIF family (phone
+/// Still-image file extensions: the first thirteen are read in pure Rust, the HEIF family (phone
 /// photos and AVIF) needs the `ffmpeg` feature.
-pub const IMAGE_EXTENSIONS: [&str; 16] = [
-    "png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff", "tga", "ico", "ppm", "pgm", "heic",
-    "heif", "hif", "avif",
+pub const IMAGE_EXTENSIONS: [&str; 17] = [
+    "png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff", "tga", "ico", "ppm", "pgm", "psd",
+    "heic", "heif", "hif", "avif",
 ];
 
 /// Pictures stored as HEIF items (HEVC or AV1 inside an ISO base media file). FFmpeg reads them,
@@ -24,6 +24,12 @@ fn is_heif_path(path: &Path) -> bool {
     path.extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .is_some_and(|e| HEIF_EXTENSIONS.contains(&e.as_str()))
+}
+
+fn is_psd_path(path: &Path) -> bool {
+    path.extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .is_some_and(|e| e == "psd")
 }
 
 #[cfg(not(feature = "ffmpeg"))]
@@ -55,6 +61,10 @@ pub fn probe_image(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInf
         }
         #[cfg(not(feature = "ffmpeg"))]
         return Err(NO_HEIF_DECODER.into());
+    }
+    if is_psd_path(path) {
+        let (width, height) = crate::psd::probe_file(path)?;
+        return Ok(still_info(width, height, fps, still_seconds));
     }
     let reader = ImageReader::open(path)
         .map_err(|e| format!("falha ao abrir imagem {}: {e}", path.display()))?
@@ -92,6 +102,22 @@ pub fn decode_image(path: &Path, max_width: u32) -> Result<FrameBuffer, String> 
         return crate::decode::VideoDecoder::open(path)?.frame_at(0.0, max_width);
         #[cfg(not(feature = "ffmpeg"))]
         return Err(NO_HEIF_DECODER.into());
+    }
+    if is_psd_path(path) {
+        let r = crate::psd::decode_file(path)?;
+        let (dst_w, dst_h) = fit_size(r.width, r.height, max_width);
+        let rgba = if (dst_w, dst_h) == (r.width, r.height) {
+            r.rgba
+        } else {
+            let img = image::RgbaImage::from_raw(r.width, r.height, r.rgba)
+                .ok_or_else(|| format!("buffer PSD inválido em {}", path.display()))?;
+            image::imageops::resize(&img, dst_w, dst_h, FilterType::Triangle).into_raw()
+        };
+        return Ok(FrameBuffer {
+            width: dst_w,
+            height: dst_h,
+            rgba,
+        });
     }
     let img = ImageReader::open(path)
         .map_err(|e| format!("falha ao abrir imagem {}: {e}", path.display()))?
@@ -334,6 +360,30 @@ mod tests {
         let decoded = decode_image(&png, 160).unwrap();
         assert_eq!((decoded.width, decoded.height), (160, 90));
         assert_eq!(decoded.pixel(80, 45), [220, 40, 90, 255]);
+
+        let psd_path = dir.join("composite.PSD");
+        let mut psd_bytes = b"8BPS".to_vec();
+        psd_bytes.extend(1u16.to_be_bytes());
+        psd_bytes.extend([0u8; 6]);
+        psd_bytes.extend(3u16.to_be_bytes());
+        psd_bytes.extend(4u32.to_be_bytes()); // height
+        psd_bytes.extend(8u32.to_be_bytes()); // width
+        psd_bytes.extend(8u16.to_be_bytes()); // depth
+        psd_bytes.extend(3u16.to_be_bytes()); // RGB
+        psd_bytes.extend(0u32.to_be_bytes()); // color mode len
+        psd_bytes.extend(0u32.to_be_bytes()); // resources len
+        psd_bytes.extend(0u32.to_be_bytes()); // layers len
+        psd_bytes.extend(0u16.to_be_bytes()); // raw compression
+        psd_bytes.extend(vec![180u8; 32]); // R
+        psd_bytes.extend(vec![90u8; 32]); // G
+        psd_bytes.extend(vec![45u8; 32]); // B
+        std::fs::write(&psd_path, psd_bytes).unwrap();
+        assert!(is_image_path(&psd_path));
+        let psd_info = probe_image(&psd_path, 30.0, 6.0).unwrap();
+        assert_eq!((psd_info.width, psd_info.height), (8, 4));
+        let psd_frame = decode_image(&psd_path, 4).unwrap();
+        assert_eq!((psd_frame.width, psd_frame.height), (4, 2));
+        assert_eq!(psd_frame.pixel(1, 1), [180, 90, 45, 255]);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
