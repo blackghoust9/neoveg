@@ -274,35 +274,65 @@ def sha256(path: Path) -> str:
 # ----------------------------------------------------------------------------- check
 
 
+def pkg_config_has_ffmpeg() -> bool:
+    """Whether `pkg-config` can resolve the five FFmpeg libraries `neoveg_video` links on Unix."""
+    try:
+        proc = subprocess.run(
+            ["pkg-config", "--exists", "libavcodec", "libavformat", "libavutil", "libswscale", "libswresample"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return proc.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
 def ffmpeg_environment() -> List[str]:
     """Problems with the FFmpeg build variables (empty when everything is in place)."""
-    problems = []
+    problems: List[str] = []
     ffmpeg_dir = os.environ.get("FFMPEG_DIR")
     libclang = os.environ.get("LIBCLANG_PATH")
-    if not ffmpeg_dir or not Path(ffmpeg_dir).is_dir():
-        problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    elif not (Path(ffmpeg_dir) / "include").is_dir():
-        problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    if not libclang or not Path(libclang).is_dir():
-        problems.append("LIBCLANG_PATH must point to the LLVM bin folder (containing libclang)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    else:
-        major = libclang_major(Path(libclang))
-        if major is not None and major < 16:
-            problems.append(  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-                f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 9.x (bindgen 0.73) needs LLVM 16 or newer: {libclang}"
-            )
-    return problems  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
+    is_windows = platform.system() == "Windows"
+    if ffmpeg_dir:
+        if not Path(ffmpeg_dir).is_dir():
+            problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")
+        elif not (Path(ffmpeg_dir) / "include").is_dir():
+            problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")
+    elif is_windows or not pkg_config_has_ffmpeg():
+        problems.append(
+            "FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)"
+            if is_windows
+            else "FFmpeg headers not found: set FFMPEG_DIR or expose libavcodec/libavformat/libavutil/libswscale/libswresample to pkg-config"
+        )
+    if libclang:
+        if not Path(libclang).is_dir():
+            problems.append("LIBCLANG_PATH must point to the LLVM folder (containing libclang)")
+        else:
+            major = libclang_major(Path(libclang))
+            if major is not None and major < 16:
+                problems.append(
+                    f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 9.x (bindgen 0.73) needs LLVM 16 or newer: {libclang}"
+                )
+    elif is_windows or capture(["clang", "--version"]) is None:
+        problems.append(
+            "LIBCLANG_PATH must point to the LLVM bin folder (containing libclang)"
+            if is_windows
+            else "libclang/clang not found: set LIBCLANG_PATH or install clang and libclang-dev"
+        )
+    return problems
 
 
 def libclang_major(folder: Path) -> Optional[int]:
     """Major version of the LLVM in `folder` (read from its `clang`), or None when it cannot be told."""
-    for name in ("clang.exe", "clang"):
-        clang = folder / name
-        if clang.is_file():
-            out = capture([str(clang), "--version"])
-            match = re.search(r"clang version (\d+)", out or "")
-            if match:
-                return int(match.group(1))
+    for directory in (folder, folder.parent / "bin"):
+        for name in ("clang.exe", "clang"):
+            clang = directory / name
+            if clang.is_file():
+                out = capture([str(clang), "--version"])
+                match = re.search(r"clang version (\d+)", out or "")
+                if match:
+                    return int(match.group(1))
     return None
 
 
@@ -536,8 +566,11 @@ def copy_ffmpeg_runtime(rid: str, destination: Path) -> None:
     count = 0
     for folder, pattern in patterns:
         for lib in folder.glob(pattern):
-            if lib.is_file():
-                shutil.copy2(lib, destination / lib.name)
+            if lib.is_symlink() or lib.is_file():
+                dst = destination / lib.name
+                if dst.exists() or dst.is_symlink():
+                    dst.unlink()
+                shutil.copy2(lib, dst, follow_symlinks=False)
                 count += 1
     log("INFO", f"{count} FFmpeg libraries copied for {rid}")
 

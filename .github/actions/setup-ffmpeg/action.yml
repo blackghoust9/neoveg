@@ -1,0 +1,235 @@
+name: "Setup FFmpeg 7.1 & LLVM"
+description: "Installs LLVM/libclang, system windowing/audio libraries, and FFmpeg 7.1 (keeping an ffmpeg CLI with libx264 on PATH for test jobs while preserving strict LGPL v2.1+ shared libraries for packaging)."
+
+inputs:
+  prefer-cli-x264:
+    description: "Keep an ffmpeg CLI with libx264 ahead on PATH when available (true for test/coverage jobs; false for portable packaging)."
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    # ------------------------------------------------------------------ Windows
+    - name: Cache FFmpeg 7.1 LGPL shared (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: C:\Tools\neoveg-ffmpeg-7.1
+        key: ffmpeg-7.1-lgpl-win64-v1
+
+    - name: Configure FFmpeg 7.1, LLVM and MSVC headers (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PREFER_X264: ${{ inputs.prefer-cli-x264 }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $ProgressPreference = 'SilentlyContinue'
+
+        $ffmpegDir = 'C:\Tools\neoveg-ffmpeg-7.1'
+        if (-not (Test-Path "$ffmpegDir\include\libavcodec\avcodec.h")) {
+            $work = Join-Path $env:RUNNER_TEMP 'neoveg-ffmpeg-dl'
+            New-Item -ItemType Directory -Force $work | Out-Null
+            $zip = Join-Path $work 'ffmpeg-win64-lgpl-shared-7.1.zip'
+
+            $pinnedUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n7.1.5-12-g1fdbca85aa-win64-lgpl-shared-7.1.zip'
+            $pinnedSha = '0F376F96FB38554CCEFB1B2AE9C7C6A7B351F0E60A372B38262C320E8392C5D0'
+            $downloaded = $false
+            try {
+                Invoke-WebRequest -Uri $pinnedUrl -OutFile $zip
+                $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+                if ($actual -ne $pinnedSha) {
+                    throw "Pinned FFmpeg SHA256 mismatch: $actual"
+                }
+                $downloaded = $true
+            } catch {
+                Write-Host "Pinned autobuild unavailable ($_); falling back to BtbN rolling 7.1 LGPL release..."
+            }
+
+            if (-not $downloaded) {
+                $assetName = 'ffmpeg-n7.1-latest-win64-lgpl-shared-7.1.zip'
+                $baseUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest'
+                $sumsFile = Join-Path $work 'checksums.sha256'
+                Invoke-WebRequest -Uri "$baseUrl/checksums.sha256" -OutFile $sumsFile
+                Invoke-WebRequest -Uri "$baseUrl/$assetName" -OutFile $zip
+                $line = Get-Content $sumsFile | Where-Object { $_ -match ([regex]::Escape($assetName) + '$') } | Select-Object -First 1
+                if (-not $line) {
+                    throw "Could not find $assetName in BtbN checksums.sha256"
+                }
+                $expected = ($line -split '\s+')[0].ToUpperInvariant()
+                $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+                if ($actual -ne $expected) {
+                    throw "Rolling FFmpeg SHA256 mismatch: expected $expected, got $actual"
+                }
+            }
+
+            $extractRoot = Join-Path $work 'extracted'
+            Expand-Archive -Path $zip -DestinationPath $extractRoot -Force
+            $inner = Get-ChildItem $extractRoot -Directory -Filter 'ffmpeg-*' |
+                Where-Object { Test-Path (Join-Path $_.FullName 'include\libavcodec\avcodec.h') } |
+                Select-Object -First 1
+            if (-not $inner) {
+                throw 'Extracted FFmpeg archive has no include\libavcodec\avcodec.h'
+            }
+            if (Test-Path $ffmpegDir) {
+                Remove-Item -Recurse -Force $ffmpegDir
+            }
+            New-Item -ItemType Directory -Force (Split-Path -Parent $ffmpegDir) | Out-Null
+            Move-Item -Path $inner.FullName -Destination $ffmpegDir
+            Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+        }
+
+        $libclang = "$env:ProgramFiles\LLVM\bin"
+        if (-not (Test-Path "$libclang\libclang.dll")) {
+            $llvmExe = Join-Path $env:RUNNER_TEMP 'LLVM-19.1.7-win64.exe'
+            Invoke-WebRequest -Uri 'https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-win64.exe' -OutFile $llvmExe
+            $llvmHash = (Get-FileHash $llvmExe -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($llvmHash -ne 'F19AE5BC4823AC69EC01DC2DED503EC80A04AD2208DDA1595D1F0413C148EF90') {
+                throw "LLVM installer SHA256 mismatch: $llvmHash"
+            }
+            $proc = Start-Process -FilePath $llvmExe -ArgumentList '/S' -Wait -PassThru
+            if ($proc.ExitCode -ne 0 -or -not (Test-Path "$libclang\libclang.dll")) {
+                throw "LLVM installation failed with exit code $($proc.ExitCode)"
+            }
+        }
+
+        # Preserve preinstalled standalone ffmpeg.exe with libx264 (e.g. Chocolatey static build) in an isolated
+        # shim directory when running tests, so BtbN's LGPL bin/ does not shadow libx264 and no MinGW clang leaks in.
+        $shimDir = $null
+        if ($env:PREFER_X264 -eq 'true') {
+            $existing = Get-Command ffmpeg -ErrorAction SilentlyContinue
+            if ($existing -and (Test-Path $existing.Source)) {
+                $srcDir = Split-Path -Parent $existing.Source
+                $hasAvDll = @(Get-ChildItem $srcDir -Filter 'avcodec*.dll' -ErrorAction SilentlyContinue).Count -gt 0
+                $encoders = (& $existing.Source -hide_banner -encoders 2>$null) -join "`n"
+                if (-not $hasAvDll -and $encoders -match '\blibx264\b') {
+                    $shimDir = Join-Path $env:RUNNER_TEMP 'neoveg-ffmpeg-cli'
+                    New-Item -ItemType Directory -Force $shimDir | Out-Null
+                    Copy-Item $existing.Source (Join-Path $shimDir 'ffmpeg.exe') -Force
+                    $ffprobe = Join-Path $srcDir 'ffprobe.exe'
+                    if (Test-Path $ffprobe) {
+                        Copy-Item $ffprobe (Join-Path $shimDir 'ffprobe.exe') -Force
+                    }
+                }
+            }
+        }
+
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (-not (Test-Path $vswhere)) {
+            throw 'vswhere.exe not found; Visual Studio C++ Build Tools are required for bindgen'
+        }
+        $vs = & $vswhere -latest -products * -property installationPath
+        $msvc = (Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name | Select-Object -Last 1).FullName
+        $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\Include"
+        $sdk = (Get-ChildItem $kits -Directory | Sort-Object Name | Select-Object -Last 1).FullName
+
+        "FFMPEG_DIR=$ffmpegDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "LIBCLANG_PATH=$libclang" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "CLANG_PATH=$libclang\clang.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "INCLUDE=$msvc\include;$sdk\ucrt;$sdk\shared;$sdk\um" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+        # Each line written to GITHUB_PATH is prepended to PATH, so the last entry ends up first:
+        # 1. LLVM bin (first: avoids MinGW clang headers breaking bindgen)
+        # 2. Isolated ffmpeg CLI with libx264 (when PREFER_X264=true)
+        # 3. FFmpeg 7.1 LGPL shared bin/ (avcodec-61.dll et al. for dynamic linking at test runtime)
+        "$ffmpegDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        if ($shimDir) {
+            $shimDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        }
+        $libclang | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    # -------------------------------------------------------------------- Linux
+    - name: System libraries, LLVM and FFmpeg CLI (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        PREFER_X264: ${{ inputs.prefer-cli-x264 }}
+      run: |
+        set -euo pipefail
+        ffmpeg_pkg=""
+        if [ "${PREFER_X264}" = "true" ]; then
+          ffmpeg_pkg="ffmpeg"
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          pkg-config clang libclang-dev \
+          libasound2-dev libudev-dev libgl1-mesa-dev \
+          libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+          libvulkan-dev mesa-vulkan-drivers xvfb \
+          libva-dev libvdpau-dev libdrm-dev zlib1g-dev liblzma-dev \
+          xz-utils curl ca-certificates \
+          ${ffmpeg_pkg}
+
+    - name: Cache FFmpeg 7.1 LGPL shared (Linux)
+      if: runner.os == 'Linux'
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/neoveg-ffmpeg-7.1
+        key: ffmpeg-7.1-lgpl-linux64-v1
+
+    - name: Configure FFmpeg 7.1 LGPL shared (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        ffmpeg_dir="${HOME}/.local/neoveg-ffmpeg-7.1"
+        if [ ! -f "${ffmpeg_dir}/include/libavcodec/avcodec.h" ]; then
+          work="$(mktemp -d)"
+          asset="ffmpeg-n7.1-latest-linux64-lgpl-shared-7.1.tar.xz"
+          base="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest"
+          curl -fsSL "${base}/checksums.sha256" -o "${work}/checksums.sha256"
+          curl -fsSL "${base}/${asset}" -o "${work}/${asset}"
+          (
+            cd "${work}"
+            grep "  ${asset}\$" checksums.sha256 | sha256sum -c -
+          )
+          rm -rf "${ffmpeg_dir}"
+          mkdir -p "${ffmpeg_dir}"
+          tar -xJf "${work}/${asset}" --strip-components=1 -C "${ffmpeg_dir}"
+          rm -rf "${work}"
+        fi
+        echo "FFMPEG_DIR=${ffmpeg_dir}" >> "${GITHUB_ENV}"
+        echo "LD_LIBRARY_PATH=${ffmpeg_dir}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> "${GITHUB_ENV}"
+
+    # -------------------------------------------------------------------- macOS
+    - name: Install FFmpeg 7.1 and LLVM (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        PREFER_X264: ${{ inputs.prefer-cli-x264 }}
+      run: |
+        set -euo pipefail
+        brew install ffmpeg@7 llvm pkg-config
+        ffmpeg_prefix="$(brew --prefix ffmpeg@7)"
+        llvm_prefix="$(brew --prefix llvm)"
+        sdkroot="$(xcrun --sdk macosx --show-sdk-path)"
+        echo "PKG_CONFIG_PATH=${ffmpeg_prefix}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}" >> "${GITHUB_ENV}"
+        echo "LIBCLANG_PATH=${llvm_prefix}/lib" >> "${GITHUB_ENV}"
+        echo "SDKROOT=${sdkroot}" >> "${GITHUB_ENV}"
+        echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot ${sdkroot}" >> "${GITHUB_ENV}"
+        if [ "${PREFER_X264}" = "true" ]; then
+          echo "${ffmpeg_prefix}/bin" >> "${GITHUB_PATH}"
+        fi
+
+    # -------------------------------------------------------------- Diagnostics
+    - name: Report FFmpeg and LLVM environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "FFMPEG_DIR=${FFMPEG_DIR:-<pkg-config>}"
+        echo "LIBCLANG_PATH=${LIBCLANG_PATH:-<system>}"
+        clang --version | head -n 1 || true
+        if command -v ffmpeg >/dev/null 2>&1; then
+          ffmpeg -version | head -n 1
+          if ffmpeg -hide_banner -encoders 2>/dev/null | grep -Eq '(^|[[:space:]])libx264([[:space:]]|$)'; then
+            echo "ffmpeg CLI encoder libx264: available"
+          else
+            echo "ffmpeg CLI encoder libx264: not present in CLI"
+          fi
+        else
+          echo "ffmpeg CLI: not on PATH (packaging-only mode)"
+        fi
