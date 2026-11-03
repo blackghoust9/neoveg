@@ -9,7 +9,9 @@
 #  - o clang de LIBCLANG_PATH (LLVM 19+) vai na frente do PATH: um clang do LLVM-MinGW no PATH faz o bindgen ler
 #    os cabeçalhos do MinGW e falhar em time.h;
 #  - INCLUDE aponta para o Visual Studio e o SDK do Windows: sem ele o libclang não acha errno.h;
-#  - as DLLs do FFmpeg 7 entram no PATH desta sessão, para os testes carregarem as bibliotecas.
+#  - as DLLs do FFmpeg 7 entram no PATH desta sessão, para os testes carregarem as bibliotecas;
+#  - se o antivírus residente ou um `mspdbsrv` externo prender um `.pdb`/`.exe` após rebuilds seguidos
+#    (`LNK1201`/`LNK1104`/`failed to write PDB file`), limpa os `.pdb`/`.ilk` destravados e repete uma vez.
 # Sem param(): $args repassa -p, -j, -- e -D direto ao cargo (inclusive via `powershell -File`).
 $ErrorActionPreference = 'Stop'
 
@@ -38,5 +40,32 @@ $env:CLANG_PATH = "$libclang\clang.exe"
 $env:INCLUDE = "$msvc\include;$sdk\ucrt;$sdk\shared;$sdk\um"
 $env:Path = "$libclang;$ffmpeg\bin;$env:Path"
 
-& cargo @args
-exit $LASTEXITCODE
+$cargoArgs = @($args)
+$errLog = Join-Path $env:TEMP "neoveg_cargo_ffmpeg_$PID.log"
+try {
+    $ErrorActionPreference = 'Continue'
+    & cargo @cargoArgs 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $errLog
+    $code = $LASTEXITCODE
+    if ($code -ne 0 -and (Test-Path $errLog)) {
+        $errText = Get-Content $errLog -Raw -ErrorAction SilentlyContinue
+        if ($errText -match 'LNK1201|LNK1104|LNK1168|failed to write PDB file|cannot open output file') {
+            Write-Warning 'Bloqueio transitorio de .pdb/.exe detectado (antivirus / mspdbsrv); limpando e repetindo uma vez...'
+            Stop-Process -Name mspdbsrv -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 1500
+            $repoRoot = Split-Path -Parent $PSScriptRoot
+            $targetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $repoRoot 'target' }
+            foreach ($sub in 'debug', 'debug\deps', 'release', 'release\deps') {
+                $dir = Join-Path $targetRoot $sub
+                if (Test-Path $dir) {
+                    Get-ChildItem -Path "$dir\*" -Include *.pdb,*.ilk -File -ErrorAction SilentlyContinue |
+                        Remove-Item -Force -ErrorAction SilentlyContinue
+                }
+            }
+            & cargo @cargoArgs
+            $code = $LASTEXITCODE
+        }
+    }
+} finally {
+    Remove-Item $errLog -Force -ErrorAction SilentlyContinue
+}
+exit $code

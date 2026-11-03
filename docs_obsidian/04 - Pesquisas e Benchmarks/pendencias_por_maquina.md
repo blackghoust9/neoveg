@@ -39,7 +39,7 @@ O que dá e o que não dá para fazer **no PC de desenvolvimento atual**, com o 
 | 368, 381, 618, 595 (parte) | Host de plug-ins OFX, VST3 em processo isolado com gerenciador, efeitos de terceiros em eventos, compensação de atraso de plug-ins | O código pode ser escrito, mas não há nenhum plug-in instalado (nem a pasta VST3) para validar; precisa de plug-ins de teste |
 | 327, 328, 332, 336, 590 | Itens "conferir em uso" | Pedem olho humano ou controle de tela, que não existe nesta sessão; só o dono do projeto confere |
 | 367 | Medir a GPU com o benchmark de reprodução para escolher a primeira família de efeitos | O resultado só valeria para este gráfico integrado de 1 GB, que não representa as GPUs dos usuários |
-| 343 | Falha intermitente de linkagem (`LNK1201`/`LNK1104`) | Só aparece depois de vários rebuilds seguidos, e cada rebuild completo aqui chega a ser parado por falta de memória; falta reproduzir (suspeita: antivírus residente) |
+| 343 | Falha intermitente de linkagem (`LNK1201`/`LNK1104`) | Resolvido em 03/11/2026: confirmado Kaspersky Endpoint Security ativo (`0x41000`) + reabertura destrutiva do `.pdb` pelo `link.exe` (`mspdbcore.dll`, não `mspdbsrv.exe`); migrado para `rust-lld.exe` em `.cargo/config.toml` + `[profile.dev.build-override] debug = 0` + retentativa automática em `build_portable.py` e `scripts/cargo-ffmpeg.ps1` |
 | 307, 318, 393 | Scripting do usuário, pacote portátil, quais formatos de câmera valem o custo | Estão "em decisão": não é limite de hardware, falta a escolha do dono do projeto |
 
 ## 2. Dá só em parte (o código sim, a validação limitada)

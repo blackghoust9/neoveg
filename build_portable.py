@@ -143,14 +143,81 @@ def log(level: str, message: str, source: str = "build_portable") -> None:
         pass
 
 
+WINDOWS_LINK_LOCK_PATTERNS = (
+    "LNK1201",
+    "LNK1104",
+    "LNK1168",
+    "failed to write PDB file",
+    "cannot open output file",
+)
+
+
+def is_windows_link_lock_error(stderr_text: str) -> bool:
+    """True when `cargo` failed on Windows because an antivirus scanner or stale `mspdbsrv` held `.pdb`/`.exe`."""
+    return any(token in stderr_text for token in WINDOWS_LINK_LOCK_PATTERNS)
+
+
+def clear_windows_link_locks() -> int:
+    """Stops stray `mspdbsrv.exe`, waits briefly for real-time AV scan handles, and removes unlocked `.pdb`/`.ilk`."""
+    if platform.system() == "Windows":
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "mspdbsrv.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    time.sleep(1.5)
+    removed = 0
+    if TARGET_DIR.is_dir():
+        for profile in ("debug", "release"):
+            base = TARGET_DIR / profile
+            for folder in (base, base / "deps"):
+                if not folder.is_dir():
+                    continue
+                for ext in ("*.pdb", "*.ilk"):
+                    for candidate in folder.glob(ext):
+                        try:
+                            candidate.unlink()
+                            removed += 1
+                        except OSError:
+                            pass
+    return removed
+
+
+def _run_once(cmd: List[str], merged: Dict[str, str]) -> Tuple[int, str]:
+    """Runs `cmd` streaming stdout directly and teeing stderr so transient linker locks can be detected."""
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=merged, stderr=subprocess.PIPE, text=True, errors="replace")
+    tail: List[str] = []
+    size = 0
+    assert proc.stderr is not None
+    for line in proc.stderr:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        tail.append(line)
+        size += len(line)
+        while size > 65536 and len(tail) > 1:
+            size -= len(tail.pop(0))
+    return proc.wait(), "".join(tail)
+
+
 def run(cmd: List[str], env: Optional[Dict[str, str]] = None, check: bool = True) -> int:
-    """Runs a command in the repository root, streaming its output."""
+    """Runs a command in the repository root, streaming its output and retrying once on Windows PDB/exe locks."""
     print("  $ " + " ".join(cmd))
     merged = {**os.environ, **(env or {})}
-    result = subprocess.run(cmd, cwd=ROOT, env=merged)
-    if check and result.returncode != 0:
-        raise RuntimeError(f"command failed with exit code {result.returncode}: {' '.join(cmd)}")
-    return result.returncode
+    if cmd and cmd[0] == "cargo" and "CARGO_TERM_COLOR" not in merged and sys.stderr.isatty():
+        merged["CARGO_TERM_COLOR"] = "always"
+    code, err_tail = _run_once(cmd, merged)
+    if code != 0 and platform.system() == "Windows" and cmd and cmd[0] == "cargo" and is_windows_link_lock_error(err_tail):
+        removed = clear_windows_link_locks()
+        log(
+            "WARN",
+            f"transient Windows linker lock detected; cleared {removed} .pdb/.ilk file(s) and retrying once",
+        )
+        print("  $ " + " ".join(cmd) + "  # retry after Windows linker lock")
+        code, _ = _run_once(cmd, merged)
+    if check and code != 0:
+        raise RuntimeError(f"command failed with exit code {code}: {' '.join(cmd)}")
+    return code
 
 
 def capture(cmd: List[str]) -> Optional[str]:

@@ -33,7 +33,7 @@ Linux: `sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale
 ## 2. System Libraries (runtime windowing, GPU and audio)
 
 ### Windows
-No extra packages beyond a current graphics driver. The default MSVC target (`x86_64-pc-windows-msvc`) needs the Visual Studio *Build Tools* C++ linker that `rustup` offers to install; the `-gnu` target works with MinGW.
+No extra packages beyond a current graphics driver. The default MSVC target (`x86_64-pc-windows-msvc`) needs the Visual Studio *Build Tools* C++ import libraries that `rustup` offers to install, while `.cargo/config.toml` selects the bundled `rust-lld.exe` linker (avoiding MSVC `link.exe` / `mspdbsrv.exe` in-place `.pdb` locking errors `LNK1201`/`LNK1104` and reducing linker memory usage); the `-gnu` target works with MinGW. On machines with aggressive real-time antivirus minifilters (e.g., Kaspersky Endpoint Security or Windows Defender), excluding `<repo>\target` from real-time file scanning prevents transient post-build scan locks during back-to-back rebuilds.
 
 ### Linux (Debian / Ubuntu)
 ```bash

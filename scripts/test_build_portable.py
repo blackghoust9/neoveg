@@ -353,5 +353,57 @@ class MultiOsStagingAndCi(unittest.TestCase):
             self.assertEqual(parsed_act["runs"]["using"], "composite")
 
 
+class WindowsLinkerMitigation(unittest.TestCase):
+    """Windows `LNK1201`/`LNK1104` mitigation: `rust-lld.exe` config plus automatic transient-lock retry."""
+
+    def test_cargo_config_uses_rust_lld_and_disables_build_script_debuginfo(self) -> None:
+        cargo_cfg = (ROOT / ".cargo" / "config.toml").read_text(encoding="utf-8")
+        cargo_toml = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertIn("[target.x86_64-pc-windows-msvc]", cargo_cfg)
+        self.assertIn('linker = "rust-lld.exe"', cargo_cfg)
+        self.assertIn("[profile.dev.build-override]", cargo_toml)
+
+    def test_run_retries_once_on_windows_linker_lock_and_not_on_compile_errors(self) -> None:
+        old_system = build_portable.platform.system
+        old_run_once = build_portable._run_once
+        old_clear = build_portable.clear_windows_link_locks
+        calls: list[list[str]] = []
+        cleared = 0
+        try:
+            build_portable.platform.system = lambda: "Windows"  # type: ignore[assignment]
+
+            def fake_clear() -> int:
+                nonlocal cleared
+                cleared += 1
+                return 2
+
+            build_portable.clear_windows_link_locks = fake_clear  # type: ignore[assignment]
+
+            responses = [
+                (101, "LINK : fatal error LNK1201: error writing to program database 'foo.pdb'"),
+                (0, ""),
+            ]
+
+            def fake_once(cmd: list[str], _env: dict[str, str]) -> tuple[int, str]:
+                calls.append(cmd)
+                return responses.pop(0)
+
+            build_portable._run_once = fake_once  # type: ignore[assignment]
+            self.assertEqual(build_portable.run(["cargo", "test"], check=True), 0)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(cleared, 1)
+
+            calls.clear()
+            responses[:] = [(101, "error[E0308]: mismatched types")]
+            self.assertEqual(build_portable.run(["cargo", "test"], check=False), 101)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(cleared, 1)
+        finally:
+            build_portable.platform.system = old_system  # type: ignore[assignment]
+            build_portable._run_once = old_run_once  # type: ignore[assignment]
+            build_portable.clear_windows_link_locks = old_clear  # type: ignore[assignment]
+
+
+
 if __name__ == "__main__":
     unittest.main()

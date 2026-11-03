@@ -1,0 +1,14 @@
+# Workspace Cargo configuration.
+#
+# Windows MSVC linker (`rust-lld.exe`, bundled with official Rust 1.88+ toolchains):
+# - MSVC `link.exe` (via `mspdbcore.dll` / `mspdbsrv.exe`) opens existing `.pdb` files in-place with
+#   `GENERIC_READ | GENERIC_WRITE`. Right after consecutive rebuilds or test runs, real-time antivirus
+#   minifilters (e.g. Kaspersky Endpoint Security or Windows Defender) or `dbghelp.dll` symbol readers
+#   often hold a brief `FILE_SHARE_READ | FILE_SHARE_DELETE` handle on the `.pdb` or `.exe`, causing
+#   `link.exe` to fail intermittently with `LNK1201` / `LNK1104` (which is why manually deleting the
+#   `.pdb` worked around the lock).
+# - `rust-lld.exe` never spawns `mspdbsrv.exe`, writes outputs into a fresh temporary file
+#   (`llvm::FileOutputBuffer`) before atomically replacing the target, succeeds under
+#   `FILE_SHARE_DELETE` read handles, and links faster with lower peak RAM on 8 GB machines.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
