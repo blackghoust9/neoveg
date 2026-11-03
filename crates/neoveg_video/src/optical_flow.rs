@@ -384,17 +384,19 @@ pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuff
     let mut best_score = vec![f32::NEG_INFINITY; gw * gh];
 
     // Seed every intermediate cell from colocated forward/backward flows
-    for i in 0..(gw * gh) {
-        let cf = fwd.cells[i];
-        let cb = bwd.cells[i];
-        mid.cells[i] = CellFlow {
+    for ((mid_cell, score_slot), (&cf, &cb)) in mid
+        .cells
+        .iter_mut()
+        .zip(&mut best_score)
+        .zip(fwd.cells.iter().zip(&bwd.cells))
+    {
+        *mid_cell = CellFlow {
             u: ((1.0 - t) * cf.u - t * cb.u) * sx,
             v: ((1.0 - t) * cf.v - t * cb.v) * sy,
             variance: cf.variance.max(cb.variance),
             residual: cf.residual.min(cb.residual),
         };
-        best_score[i] =
-            0.25 * (cf.variance.max(cb.variance)) - 2.0 * (cf.residual.min(cb.residual));
+        *score_slot = 0.25 * (cf.variance.max(cb.variance)) - 2.0 * (cf.residual.min(cb.residual));
     }
 
     // Forward-project textured cells from `a` (+t * v) and `b` (+(1 - t) * bwd) onto time `t`
@@ -464,10 +466,7 @@ pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuff
         let (u, v, res) = mid.sample(px, py, cell_w, cell_h);
         let ca = sample_clamped_premul(a, px - t * u, py - t * v);
         let cb = sample_clamped_premul(b, px + (1.0 - t) * u, py + (1.0 - t) * v);
-        let mut warped = [0.0f32; 4];
-        for c in 0..4 {
-            warped[c] = ca[c] * (1.0 - t) + cb[c] * t;
-        }
+        let mut warped: [f32; 4] = std::array::from_fn(|c| ca[c] * (1.0 - t) + cb[c] * t);
         let diff = ((ca[0] - cb[0]).abs()
             + (ca[1] - cb[1]).abs()
             + (ca[2] - cb[2]).abs()
@@ -477,9 +476,9 @@ pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuff
             let la = sample_clamped_premul(a, px, py);
             let lb = sample_clamped_premul(b, px, py);
             let fallback = ((diff - 90.0) / 100.0).clamp(0.0, 0.75);
-            for c in 0..4 {
-                let lin = la[c] * (1.0 - t) + lb[c] * t;
-                warped[c] += (lin - warped[c]) * fallback;
+            for ((w_c, &la_c), &lb_c) in warped.iter_mut().zip(&la).zip(&lb) {
+                let lin = la_c * (1.0 - t) + lb_c * t;
+                *w_c += (lin - *w_c) * fallback;
             }
         }
         warped
