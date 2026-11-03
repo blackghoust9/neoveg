@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "该媒体不在项目中",
   "Selecione um evento que toque uma mídia": "请选择播放媒体文件的事件",
   "Propriedades da mídia aplicadas": "已应用媒体属性",
-  "As propriedades da mídia não mudaram": "媒体属性未更改"
+  "As propriedades da mídia não mudaram": "媒体属性未更改",
+  "Mudança de tom": "音高变化",
+  "Semitons; as frações são centésimos de semitom": "半音；小数为音分",
+  "Restaurar o tom original": "恢复原始音高",
+  "Preservar formantes": "保持共振峰",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "音高改变时让人声音色保持原位，而不是随音高移动",
+  "Deslocamento de formantes": "共振峰偏移"
 }

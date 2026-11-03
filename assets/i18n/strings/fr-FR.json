@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "Ce média n'est pas dans le projet",
   "Selecione um evento que toque uma mídia": "Sélectionnez un événement qui lit un média",
   "Propriedades da mídia aplicadas": "Propriétés du média appliquées",
-  "As propriedades da mídia não mudaram": "Les propriétés du média n'ont pas changé"
+  "As propriedades da mídia não mudaram": "Les propriétés du média n'ont pas changé",
+  "Mudança de tom": "Changement de hauteur",
+  "Semitons; as frações são centésimos de semitom": "Demi-tons ; les fractions sont des centièmes",
+  "Restaurar o tom original": "Rétablir la hauteur d'origine",
+  "Preservar formantes": "Préserver les formants",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Garde le timbre de la voix en place quand la hauteur change, au lieu de la suivre",
+  "Deslocamento de formantes": "Décalage des formants"
 }

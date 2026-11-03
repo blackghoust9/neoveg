@@ -89,6 +89,7 @@ pub fn apply(
     }
     if set.pitch && !video {
         target.preserve_pitch = source.preserve_pitch;
+        target.pitch = source.pitch;
     }
     if set.volume && !video {
         target.volume_envelope = source.volume_envelope.clone();

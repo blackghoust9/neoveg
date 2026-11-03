@@ -14,6 +14,7 @@ pub mod media_props;
 pub mod pan;
 pub mod pan_crop;
 pub mod paths;
+pub mod pitch_change;
 pub mod preferences;
 pub mod presets;
 pub mod project;

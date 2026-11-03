@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "Ese medio no está en el proyecto",
   "Selecione um evento que toque uma mídia": "Seleccione un evento que reproduzca un medio",
   "Propriedades da mídia aplicadas": "Propiedades del medio aplicadas",
-  "As propriedades da mídia não mudaram": "Las propiedades del medio no cambiaron"
+  "As propriedades da mídia não mudaram": "Las propiedades del medio no cambiaron",
+  "Mudança de tom": "Cambio de tono",
+  "Semitons; as frações são centésimos de semitom": "Semitonos; las fracciones son centésimas",
+  "Restaurar o tom original": "Restaurar el tono original",
+  "Preservar formantes": "Conservar formantes",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Mantiene el timbre de la voz en su sitio cuando cambia el tono, en lugar de seguirlo",
+  "Deslocamento de formantes": "Desplazamiento de formantes"
 }

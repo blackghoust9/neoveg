@@ -482,7 +482,7 @@ struct RepeatDialog {
     seconds: f64,
 }
 
-type StretchCacheKey = (u64, u64, u64, u64, bool);
+type StretchCacheKey = (u64, u64, u64, u64, bool, (u64, bool, u64));
 
 struct AppState {
     project: ProjectInfo,
@@ -5807,7 +5807,10 @@ impl AppState {
                     .map(|later| later.fade_in_curve)
                     .next()
                     .unwrap_or_default();
-                let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate) {
+                // The source is read directly only while nothing changes its speed or its pitch
+                let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                    && !e.pitch.changes_sound()
+                {
                     (Arc::clone(&media.stereo), e.trim_in)
                 } else {
                     let rate = neoveg_audio::stretch::clamp_rate(e.playback_rate);
@@ -5817,6 +5820,7 @@ impl AppState {
                         e.duration.to_bits(),
                         rate.to_bits(),
                         e.preserve_pitch,
+                        e.pitch.key(),
                     );
                     let mut cache = self.stretch_cache.borrow_mut();
                     // Bounded by size, not by count: one stretched clip can be tens of megabytes
@@ -5835,6 +5839,7 @@ impl AppState {
                                 e.duration,
                                 rate,
                                 e.preserve_pitch,
+                                &e.pitch,
                             )
                         })
                         .clone();
@@ -5863,7 +5868,9 @@ impl AppState {
                     channels: e.channels,
                     volume: mix_gain_curve(e.volume_envelope.as_ref()),
                     // Only an event at normal speed loops (its source is read directly)
-                    loop_len: if e.looping && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                    loop_len: if e.looping
+                        && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                        && !e.pitch.changes_sound()
                     {
                         edit::loop_length(media.duration, e.trim_in)
                     } else {
@@ -10279,6 +10286,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut rename: Option<String> = None;
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
+    let mut pitch_change: Option<neoveg_common::pitch_change::PitchChange> = None;
     let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut progress: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut header: Option<event_header::HeaderButton> = None;
@@ -10419,6 +10427,9 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 &mut new.preserve_pitch,
                 tr("Preservar tom ao esticar (WSOLA)"),
             );
+            if kind == TrackKind::Audio && !generated {
+                pitch_change = pitch_controls(ui, track_id, event_id, ev.pitch);
+            }
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(tr("Fade-in"));
@@ -10629,6 +10640,8 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             neoveg_engine::switches::set(&state.timeline, &[(track_id, event_id)], which, on)
         } else if let Some(mode) = resample {
             neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
+        } else if let Some(pitch) = pitch_change {
+            neoveg_engine::event_pitch::set(&state.timeline, &[(track_id, event_id)], &pitch)
         } else if let Some(envelope) = volume {
             neoveg_engine::event_volume::set(&state.timeline, track_id, event_id, envelope)
         } else if let Some(envelope) = progress {
@@ -10648,6 +10661,66 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     state.show_inspector = open;
+}
+
+/// The pitch controls of the inspector for an audio event: the change in semitones, whether the
+/// formants stay where they were and how far they are moved besides. While a value is being
+/// dragged the change is kept in a draft, and only the finished value is returned, because every
+/// new value makes the sound of the event be computed again.
+fn pitch_controls(
+    ui: &mut egui::Ui,
+    track_id: TrackId,
+    event_id: EventId,
+    stored: neoveg_common::pitch_change::PitchChange,
+) -> Option<neoveg_common::pitch_change::PitchChange> {
+    use neoveg_common::pitch_change::{PitchChange, MAX_FORMANT_SHIFT, MAX_SEMITONES};
+    let id = egui::Id::new(("inspector_pitch_draft", track_id, event_id));
+    let mut pitch: PitchChange = ui.data(|d| d.get_temp(id)).unwrap_or(stored);
+    let mut busy = false;
+    ui.horizontal(|ui| {
+        ui.label(tr("Mudança de tom"));
+        let response = ui
+            .add(
+                egui::DragValue::new(&mut pitch.semitones)
+                    .range(-MAX_SEMITONES..=MAX_SEMITONES)
+                    .speed(0.05)
+                    .fixed_decimals(2)
+                    .suffix(" st"),
+            )
+            .on_hover_text(tr("Semitons; as frações são centésimos de semitom"));
+        busy |= response.dragged() || response.has_focus();
+        if ui
+            .small_button("0")
+            .on_hover_text(tr("Restaurar o tom original"))
+            .clicked()
+        {
+            pitch.semitones = 0.0;
+        }
+    });
+    ui.checkbox(&mut pitch.preserve_formants, tr("Preservar formantes"))
+        .on_hover_text(tr(
+            "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom",
+        ));
+    ui.add_enabled_ui(pitch.preserve_formants, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(tr("Deslocamento de formantes"));
+            let response = ui.add(
+                egui::DragValue::new(&mut pitch.formant_shift)
+                    .range(-MAX_FORMANT_SHIFT..=MAX_FORMANT_SHIFT)
+                    .speed(0.05)
+                    .fixed_decimals(2)
+                    .suffix(" st"),
+            );
+            busy |= response.dragged() || response.has_focus();
+        });
+    });
+    if busy {
+        ui.data_mut(|d| d.insert_temp(id, pitch));
+        None
+    } else {
+        ui.data_mut(|d| d.remove_temp::<PitchChange>(id));
+        (pitch != stored).then_some(pitch)
+    }
 }
 
 // ============================================================================================

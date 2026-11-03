@@ -12,6 +12,7 @@ pub mod meter;
 pub mod metronome;
 pub mod mixer;
 pub mod pcm;
+pub mod pitch_shift;
 pub mod playback;
 pub mod readout;
 pub mod record;

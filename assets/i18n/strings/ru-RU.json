@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "Этого медиа нет в проекте",
   "Selecione um evento que toque uma mídia": "Выберите событие, которое воспроизводит медиафайл",
   "Propriedades da mídia aplicadas": "Свойства медиа применены",
-  "As propriedades da mídia não mudaram": "Свойства медиа не изменились"
+  "As propriedades da mídia não mudaram": "Свойства медиа не изменились",
+  "Mudança de tom": "Изменение высоты тона",
+  "Semitons; as frações são centésimos de semitom": "Полутоны; доли — центы",
+  "Restaurar o tom original": "Вернуть исходную высоту",
+  "Preservar formantes": "Сохранять форманты",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Оставляет тембр голоса на месте при смене высоты, а не сдвигает его вместе с высотой",
+  "Deslocamento de formantes": "Сдвиг формант"
 }

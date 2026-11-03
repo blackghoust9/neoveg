@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "That media is not in the project",
   "Selecione um evento que toque uma mídia": "Select an event that plays a media file",
   "Propriedades da mídia aplicadas": "Media properties applied",
-  "As propriedades da mídia não mudaram": "The media properties did not change"
+  "As propriedades da mídia não mudaram": "The media properties did not change",
+  "Mudança de tom": "Pitch change",
+  "Semitons; as frações são centésimos de semitom": "Semitones; fractions are cents",
+  "Restaurar o tom original": "Restore the original pitch",
+  "Preservar formantes": "Preserve formants",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Keeps the timbre of the voice where it was when the pitch changes, instead of following the pitch",
+  "Deslocamento de formantes": "Formant shift"
 }

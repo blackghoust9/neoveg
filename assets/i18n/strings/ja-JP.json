@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "このメディアはプロジェクトにありません",
   "Selecione um evento que toque uma mídia": "メディアを再生するイベントを選択してください",
   "Propriedades da mídia aplicadas": "メディアのプロパティを適用しました",
-  "As propriedades da mídia não mudaram": "メディアのプロパティは変わりませんでした"
+  "As propriedades da mídia não mudaram": "メディアのプロパティは変わりませんでした",
+  "Mudança de tom": "ピッチ変更",
+  "Semitons; as frações são centésimos de semitom": "半音単位。小数はセント",
+  "Restaurar o tom original": "元のピッチに戻す",
+  "Preservar formantes": "フォルマントを保持",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "ピッチを変えても声の音色をその場に保ちます (ピッチに追従しません)",
+  "Deslocamento de formantes": "フォルマントシフト"
 }

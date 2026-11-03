@@ -1369,5 +1369,11 @@
   "Essa mídia não está no projeto": "Dieses Medium ist nicht im Projekt",
   "Selecione um evento que toque uma mídia": "Wählen Sie ein Ereignis, das eine Mediendatei abspielt",
   "Propriedades da mídia aplicadas": "Medieneigenschaften angewendet",
-  "As propriedades da mídia não mudaram": "Die Medieneigenschaften haben sich nicht geändert"
+  "As propriedades da mídia não mudaram": "Die Medieneigenschaften haben sich nicht geändert",
+  "Mudança de tom": "Tonhöhenänderung",
+  "Semitons; as frações são centésimos de semitom": "Halbtöne; Bruchteile sind Cent",
+  "Restaurar o tom original": "Ursprüngliche Tonhöhe wiederherstellen",
+  "Preservar formantes": "Formanten beibehalten",
+  "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom": "Hält das Klangbild der Stimme bei einer Tonhöhenänderung an seinem Platz, statt der Tonhöhe zu folgen",
+  "Deslocamento de formantes": "Formantverschiebung"
 }

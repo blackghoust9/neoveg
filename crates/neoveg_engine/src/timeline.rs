@@ -14,6 +14,7 @@ use neoveg_common::grade::Grade;
 use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
+use neoveg_common::pitch_change::PitchChange;
 use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
@@ -153,6 +154,10 @@ pub struct TrackEvent {
     /// When `true`, time-stretching keeps the original pitch via WSOLA; when `false`, varispeed.
     #[serde(default = "default_preserve_pitch", skip_serializing_if = "is_true")]
     pub preserve_pitch: bool,
+    /// A change of the pitch of an audio event on top of its speed, with its formants kept or moved
+    /// (older projects: none).
+    #[serde(default, skip_serializing_if = "PitchChange::is_default")]
+    pub pitch: PitchChange,
     /// Events that share a group are selected and moved together (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<GroupId>,
@@ -247,6 +252,7 @@ impl Default for TrackEvent {
             fade_out_curve: FadeCurve::default(),
             playback_rate: 1.0,
             preserve_pitch: true,
+            pitch: PitchChange::default(),
             group: None,
             muted: false,
             locked: false,

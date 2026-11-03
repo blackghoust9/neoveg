@@ -16,6 +16,7 @@ pub mod edit;
 pub mod edl;
 pub mod effects;
 pub mod envelope;
+pub mod event_pitch;
 pub mod event_volume;
 pub mod fcp7;
 pub mod fcpxml;
