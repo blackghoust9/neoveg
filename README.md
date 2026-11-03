@@ -381,7 +381,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 
 **Edição**
 - [x] Eventos de ajuste (`Ctrl+Alt+J`, menu Faixas): um evento vazio numa faixa de vídeo, com cadeia de até 32 efeitos, fades e opacidade, que age sobre as faixas abaixo dele enquanto dura; cortar, copiar, colar, Mudo e Travar valem. Velocidade e Pan/Crop não se aplicam a ele.
-- [ ] Faixas de ajuste e redimensionar o evento de ajuste ao projeto.
+- [x] Faixas de ajuste (`Ctrl+Alt+Shift+Q`, `Faixas > Inserir faixa de ajuste` e menu de contexto do cabeçalho de faixa) e redimensionar o evento de ajuste ao projeto (`Ctrl+Alt+Shift+J`, `Editar > Redimensionar eventos de ajuste ao projeto`, menu do evento e Inspetor): a faixa de ajuste nasce acima da faixa de vídeo selecionada (ou no topo), com envelope de nível de composição (`VideoLevel`) ativo, botão Track FX no cabeçalho e pilha cumulativa sobre as faixas de vídeo abaixo na prévia e na renderização; falta a hierarquia pai/filho de composição.
 - [x] Interruptor de reamostragem do evento de vídeo (menu Editar > Interruptores e menu do evento > Reamostragem): *Usar configuração do projeto* (sem reamostrar), *Mistura de quadros* (entre dois quadros da fonte, como na câmera lenta pela velocidade, mistura os dois em proporção) e *Desativar reamostragem*.
 - [ ] Interruptores de vídeo que faltam: fluxo óptico, manter proporção, reduzir cintilação do entrelaçamento e a configuração de reamostragem do projeto.
 - [x] Colar atributos do evento, completo (`Ctrl+Alt+V`) e seletivo (`Ctrl+Alt+Shift+V`, janela com uma caixa por atributo): interruptores, tom do áudio, velocidade de reprodução, efeitos de vídeo, Pan/Crop, envelope de velocidade e transições, num só passo de desfazer, no menu Editar e no menu do evento.

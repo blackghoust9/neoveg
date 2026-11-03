@@ -173,8 +173,8 @@
     {
       "id": "edit.ajuste",
       "area": "Editar",
-      "estado": "previsto",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 2
     },
     {
@@ -313,8 +313,8 @@
     {
       "id": "ins.faixa_ajuste",
       "area": "Inserir",
-      "estado": "previsto",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 1
     },
     {

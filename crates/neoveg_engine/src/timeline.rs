@@ -552,6 +552,10 @@ pub struct Track {
     /// Sends of an audio track to buses, besides its output (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<TrackSend>,
+    /// An adjustment video track holds no media of its own: its `video_effects` run on the
+    /// composite of all video tracks below it, weighted by its `VideoLevel` composite envelope.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub adjustment: bool,
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -705,6 +709,7 @@ impl Timeline {
             motion: PanCrop::default(),
             output: BusOutput::Master,
             sends: Vec::new(),
+            adjustment: false,
         }
     }
 

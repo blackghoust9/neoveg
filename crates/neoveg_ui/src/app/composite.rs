@@ -334,16 +334,28 @@ pub(super) fn composite_request(
                 })
             })
             .collect();
+        let track_effects = effects_for(
+            &track.video_effects,
+            VideoFxTarget::Track(track.id),
+            settings.fx_draft.as_ref(),
+        );
+        let layer_effects = if track.adjustment {
+            if !track_effects.is_empty() && track_state.level > 0.0 {
+                nodes.push(TrackCompositeNode::Adjust {
+                    effects: track_effects,
+                    opacity: track_state.level,
+                });
+            }
+            Vec::new()
+        } else {
+            track_effects
+        };
         if !clips.is_empty() {
             nodes.push(TrackCompositeNode::Track {
                 clips,
                 mode: CompositeMode::SourceAlpha,
                 level: track_state.level,
-                effects: effects_for(
-                    &track.video_effects,
-                    VideoFxTarget::Track(track.id),
-                    settings.fx_draft.as_ref(),
-                ),
+                effects: layer_effects,
                 fade_color: neoveg_engine::envelope::fade_mix(track, track_state.fade).0,
                 fade_amount: neoveg_engine::envelope::fade_mix(track, track_state.fade).1,
                 motion: track_motion_frame(track, time, settings),
@@ -382,17 +394,30 @@ pub(super) fn composite_request(
 pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
     let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
     let mut visible = false;
+    // Walk bottom to top so an adjustment track only counts when a visible clip sits below it
     for track in timeline
         .tracks
         .iter()
+        .rev()
         .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
     {
+        let track_state = envelope::video_track_state(track, time);
+        if track.adjustment
+            && visible
+            && !track_state.muted
+            && track_state.level > 0.0
+            && on(&track.video_effects)
+        {
+            return true;
+        }
         for e in track
             .events
             .iter()
             .filter(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
         {
-            visible = true;
+            if !e.adjustment {
+                visible = true;
+            }
             let media_on = e
                 .media_id
                 .and_then(|m| timeline.media_video_effects.get(&m))
@@ -1162,5 +1187,99 @@ mod tests {
         tl.tracks[0].events[0].muted = true;
         let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
         assert_eq!(muted.nodes.len(), 2);
+    }
+
+    #[test]
+    fn adjustment_tracks_stack_over_lower_tracks_follow_composite_level_and_mute() {
+        use neoveg_engine::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEffect};
+        let mut tl = Timeline::new();
+        // Track list top to bottom (manual p. 387):
+        //   0: top overlay video track (untouched by adj_mid below it, touched if adj_top were above)
+        //   1: adjustment track A ("sharpen", composite level 0.4 at t = 2 s)
+        //   2: middle video track (touched by A, untouched by B)
+        //   3: adjustment track B ("vignette", composite level 1.0)
+        //   4: bottom video track (touched by B then A)
+        let mut t_top = tl.new_track(TrackKind::Video);
+        t_top.events.push(event(&mut tl, 3, 0.0, 10.0));
+
+        let mut adj_a = neoveg_engine::adjustment::new_track(&mut tl, [0, 0, 0], [255, 255, 255]);
+        adj_a.video_effects.push(TrackEffect::new("sharpen"));
+        adj_a.envelopes[0].points = vec![EnvelopePoint {
+            time: 0.0,
+            value: 0.4,
+            shape: EnvelopeShape::Linear,
+        }];
+
+        let mut t_mid = tl.new_track(TrackKind::Video);
+        t_mid.events.push(event(&mut tl, 2, 0.0, 10.0));
+
+        let mut adj_b = neoveg_engine::adjustment::new_track(&mut tl, [0, 0, 0], [255, 255, 255]);
+        adj_b.video_effects.push(TrackEffect::new("vignette"));
+        assert_eq!(adj_b.envelopes[0].target, AutomationTarget::VideoLevel);
+
+        let mut t_bot = tl.new_track(TrackKind::Video);
+        t_bot.events.push(event(&mut tl, 1, 0.0, 10.0));
+
+        tl.tracks = vec![t_top, adj_a, t_mid, adj_b, t_bot];
+
+        // Even with a single visible clip under an adjustment track, `has_effects` routes to composite
+        let mut single_under_adj = Timeline::new();
+        let mut adj_only =
+            neoveg_engine::adjustment::new_track(&mut single_under_adj, [0, 0, 0], [255, 255, 255]);
+        adj_only.video_effects.push(TrackEffect::new("vignette"));
+        let mut base_only = single_under_adj.new_track(TrackKind::Video);
+        base_only
+            .events
+            .push(event(&mut single_under_adj, 1, 0.0, 5.0));
+        single_under_adj.tracks = vec![adj_only.clone(), base_only.clone()];
+        assert!(has_effects(&single_under_adj, 2.0));
+
+        // If the adjustment track is BELOW the only visible clip, nothing is under it to adjust
+        let mut adj_below = Timeline::new();
+        adj_below.tracks = vec![base_only, adj_only.clone()];
+        assert!(!has_effects(&adj_below, 2.0));
+
+        // If only an adjustment track exists with no media below it, composite_request is None
+        let mut empty_below = Timeline::new();
+        empty_below.tracks = vec![adj_only];
+        assert!(composite_request(&empty_below, 1.0, &settings(), &resolve).is_none());
+
+        // Bottom-up node order on the 5-track stack:
+        //   t_bot ("track") -> adj_b ("adjust", 1.0) -> t_mid ("track") -> adj_a ("adjust", 0.4) -> t_top ("track")
+        let req = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        let kinds: Vec<&str> = req
+            .nodes
+            .iter()
+            .map(|n| match n {
+                TrackCompositeNode::Track { .. } => "track",
+                TrackCompositeNode::Adjust { .. } => "adjust",
+                TrackCompositeNode::Group { .. } => "group",
+            })
+            .collect();
+        assert_eq!(kinds, ["track", "adjust", "track", "adjust", "track"]);
+        let TrackCompositeNode::Adjust {
+            effects: fx_b,
+            opacity: op_b,
+        } = &req.nodes[1]
+        else {
+            panic!("expected adj_b");
+        };
+        assert_eq!(fx_b[0].kind, "vignette");
+        assert!((*op_b - 1.0_f32).abs() < 1e-6);
+
+        let TrackCompositeNode::Adjust {
+            effects: fx_a,
+            opacity: op_a,
+        } = &req.nodes[3]
+        else {
+            panic!("expected adj_a");
+        };
+        assert_eq!(fx_a[0].kind, "sharpen");
+        assert!((*op_a - 0.4_f32).abs() < 1e-6);
+
+        // Muting adj_a removes its adjustment node while keeping the other tracks intact
+        tl.tracks[1].muted = true;
+        let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        assert_eq!(muted.nodes.len(), 4);
     }
 }

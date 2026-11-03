@@ -1274,5 +1274,15 @@
   "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "BMP-Symbole für Werkzeuge, Cursor, Bearbeitung und Fenster",
   "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "BMP-Symbole für Transportleiste, Metronom, Kurven und Hüllkurven",
   "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "BMP-Symbole für Medien, Audio-/Videospuren und Mischpult",
-  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP-Symbole für Timeline, Übergänge, Frames und Audioverstärkung"
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP-Symbole für Timeline, Übergänge, Frames und Audioverstärkung",
+  "Inserir faixa de ajuste": "Einstellungsspur einf?gen",
+  "Redimensionar eventos de ajuste ao projeto": "Einstellungsereignisse an Projektgr??e anpassen",
+  "Redimensionar ao projeto": "An Projekt anpassen",
+  "Ajuste": "Einstellung",
+  "Efeitos de v?deo da faixa?": "Videospur-FX?",
+  "Efeitos de v?deo da faixa": "Videospur-FX",
+  "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Einstellungsspur eingef?gt: Effekte im Reiter Video-FX anwenden",
+  "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "W?hlen Sie ein entsperrtes Einstellungsereignis in einem Projekt mit Dauer aus",
+  "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} Einstellungsereignis(se) an das Projekt angepasst",
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Die ausgew?hlten Einstellungsereignisse decken bereits das gesamte Projekt ab"
 }

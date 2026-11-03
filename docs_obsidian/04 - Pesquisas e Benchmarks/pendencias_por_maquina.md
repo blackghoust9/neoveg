@@ -91,7 +91,7 @@ A conferência por busca no código mostra que estas caixas estão atrasadas em 
 |---|---|
 | 405 | Travar evento existe (interruptor e cadeado); falta só conferir a trava de faixa |
 | 415, 536 | Barramentos (até 26), sends e cadeia de efeitos do barramento já estão no roteiro como feitos |
-| 465, 372, 557 | `adjustment.rs`: evento de ajuste já existe; falta o redimensionamento ao projeto |
+| 465, 384, 577 | `adjustment.rs`: eventos de ajuste, faixas de ajuste e redimensionar ao projeto feitos; nas linhas 465/577 restam outros itens agrupados |
 | 515, 612 | Reverter evento: a velocidade negativa já reproduz ao contrário; falta o subclipe revertido |
 | 563 | Congelar quadro no cursor existe (`velocity::freeze_command`) |
 | 539 | O registro `_loud.txt` e a medição offline existem em `loudness_report` e no render |

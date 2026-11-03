@@ -252,7 +252,12 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditPreviousTake, &["Shift+T"]),
     (Command::InsertAudioTrack, &["Ctrl+Q"]),
     (Command::InsertVideoTrack, &["Ctrl+Shift+Q"]),
+    (Command::InsertAdjustmentTrack, &["Ctrl+Alt+Shift+Q"]),
     (Command::InsertAdjustmentEvent, &["Ctrl+Alt+J"]),
+    (
+        Command::EditResizeAdjustmentToProject,
+        &["Ctrl+Alt+Shift+J"],
+    ),
     (Command::InsertAudioBus, &["Ctrl+Alt+B"]),
     (Command::InsertMarker, &["M"]),
     (Command::InsertRegion, &["R"]),

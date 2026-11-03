@@ -308,7 +308,9 @@ pub fn import_into_timeline(
             .tracks
             .iter()
             .chain(commands.iter().filter_map(|c| match c {
-                EditCommand::AddTrack { track } => Some(track),
+                EditCommand::AddTrack { track } | EditCommand::InsertTrack { track, .. } => {
+                    Some(track)
+                }
                 _ => None,
             }))
             .find(|t| t.kind == kind)

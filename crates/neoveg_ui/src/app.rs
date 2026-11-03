@@ -677,6 +677,8 @@ struct AppState {
     context_envelope: Option<EnvelopeHit>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
     context_mark: Option<MarkId>,
+    /// Whether the timeline context menu was opened over the track header column.
+    context_header: bool,
     name_edit: Option<NameEdit>,
     mark_drag: Option<MarkDrag>,
     /// Ctrl+Shift+U: clicking one event of a group selects only that event.
@@ -1730,6 +1732,7 @@ impl AppState {
             context_event: None,
             context_envelope: None,
             context_mark: None,
+            context_header: false,
             name_edit: None,
             mark_drag: None,
             ignore_grouping: false,
@@ -2344,6 +2347,52 @@ impl AppState {
         }
     }
 
+    /// *Inserir faixa de ajuste*: inserts a pass-through video track above the selected video
+    /// track (or at the top of the track list) with an enabled `VideoLevel` composite envelope.
+    fn insert_adjustment_track(&mut self) {
+        let (id, command) = neoveg_engine::adjustment::insert_track_command(
+            &mut self.timeline,
+            self.selected_track,
+            self.prefs.new_track_fade_top,
+            self.prefs.new_track_fade_bottom,
+        );
+        if self.history.execute(&mut self.timeline, command) {
+            self.selected_track = Some(id);
+            self.vfx.scope = VfxScope::Track;
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+            self.status =
+                tr("Faixa de ajuste inserida: aplique efeitos na aba Efeitos de Vídeo").into();
+        }
+    }
+
+    /// *Redimensionar eventos de ajuste ao projeto*: spans selected unlocked adjustment events
+    /// from `0.0` to the end of the project's content in a single undo step.
+    fn resize_adjustment_events_to_project(&mut self) {
+        let targets = self.selection.refs();
+        if !neoveg_engine::adjustment::can_resize_to_project(&self.timeline, &targets) {
+            self.status =
+                tr("Selecione um evento de ajuste desbloqueado em um projeto com duração").into();
+            return;
+        }
+        match neoveg_engine::adjustment::resize_to_project_command(&self.timeline, &targets) {
+            Some((command, count)) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.last_frame_key = None;
+                    self.last_composite_key = None;
+                    self.status = tr_args(
+                        "{} evento(s) de ajuste redimensionado(s) ao projeto",
+                        &[&count],
+                    );
+                }
+            }
+            None => {
+                self.status =
+                    tr("Os eventos de ajuste selecionados já cobrem todo o projeto").into();
+            }
+        }
+    }
+
     /// *Colar atributos do evento*: the first event on the clipboard lends its attributes to the
     /// selected events (one undo step).
     fn paste_attributes(&mut self, set: Attributes) {
@@ -2936,6 +2985,12 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
+            Command::EditResizeAdjustmentToProject => {
+                neoveg_engine::adjustment::can_resize_to_project(
+                    &self.timeline,
+                    &self.selection.refs(),
+                )
+            }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
             Command::EditSwitchMute
@@ -5683,11 +5738,10 @@ impl AppState {
             let event = track.events.iter().find(|e| e.id == event_id)?;
             Some((track_id, event_id, event.name.clone(), event.media_id))
         });
-        let track = event
-            .as_ref()
-            .map(|(t, ..)| *t)
-            .or(self.selected_track)
-            .and_then(video_track);
+        let track = self
+            .selected_track
+            .and_then(video_track)
+            .or_else(|| event.as_ref().and_then(|(t, ..)| video_track(*t)));
         let media = event.as_ref().and_then(|(.., m)| *m);
         let scopes = VfxScopes {
             event: event.is_some(),
@@ -6560,8 +6614,10 @@ impl AppState {
             }
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
+            Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
+            Command::InsertAdjustmentTrack => self.insert_adjustment_track(),
             Command::InsertAdjustmentEvent => self.insert_adjustment_event(),
             Command::InsertAudioBus => self.add_audio_bus(),
             Command::CursorLeftByFrame if self.trim_edge.is_some() => {
@@ -7786,6 +7842,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             for command in [
                 Command::EditSplit,
                 Command::EditCloseGaps,
+                Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
                 Command::EditTrimStart,
                 Command::EditTrimEnd,
@@ -7842,6 +7899,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         scrolling_menu(ui, tr("Faixas"), |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
+            command_item(state, ui, Command::InsertAdjustmentTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
             command_item(state, ui, Command::InsertAudioBus);
             if ui.button(tr("Inserir mídia gerada…")).clicked() {
@@ -7875,8 +7933,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .selected_track
                 .and_then(|id| state.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video);
+            let track_motion_ok = state
+                .selected_track
+                .is_some_and(|id| tmotion::get(&state.timeline, id).is_some());
             if ui
-                .add_enabled(video_track, egui::Button::new(tr("Movimento da trilha…")))
+                .add_enabled(
+                    track_motion_ok,
+                    egui::Button::new(tr("Movimento da trilha…")),
+                )
                 .clicked()
             {
                 state.open_track_motion();
@@ -9943,6 +10007,7 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut progress: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut header: Option<event_header::HeaderButton> = None;
+    let mut resize_adj = false;
     let playhead = state.playhead;
     crate::dialogs::tool_window(ctx, tr("Inspetor"))
         .open(&mut open)
@@ -10235,6 +10300,20 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui.button(tr("Efeitos…")).clicked() {
                     header = Some(event_header::HeaderButton::Fx);
                 }
+                if ev.adjustment {
+                    let can_resize = !ev.locked
+                        && neoveg_engine::adjustment::project_span_end(&state.timeline)
+                            > TIME_EPSILON;
+                    if ui
+                        .add_enabled(
+                            can_resize,
+                            egui::Button::new(tr("Redimensionar ao projeto")),
+                        )
+                        .clicked()
+                    {
+                        resize_adj = true;
+                    }
+                }
                 if generated && ui.button(tr("Editar mídia gerada…")).clicked() {
                     header = Some(event_header::HeaderButton::GeneratedMedia);
                 }
@@ -10245,6 +10324,9 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
         });
     if let Some((track_id, event_id, new)) = change {
         state.apply_geometry(track_id, event_id, new);
+    }
+    if resize_adj {
+        state.resize_adjustment_events_to_project();
     }
     if let Some((track_id, event_id)) = target {
         let command = if let Some(name) = rename {
@@ -11073,14 +11155,16 @@ enum HeaderControl {
     Mute,
     Solo,
     Phase,
+    TrackFx,
 }
 
 impl HeaderControl {
-    fn icon(self) -> Icon {
+    fn icon(self) -> Option<Icon> {
         match self {
-            Self::Mute => Icon::Mute,
-            Self::Solo => Icon::Solo,
-            Self::Phase => Icon::Phase,
+            Self::Mute => Some(Icon::Mute),
+            Self::Solo => Some(Icon::Solo),
+            Self::Phase => Some(Icon::Phase),
+            Self::TrackFx => None,
         }
     }
 
@@ -11089,12 +11173,13 @@ impl HeaderControl {
             Self::Mute => "Mudo (Z; Ctrl+clique = só esta faixa)",
             Self::Solo => "Solo (X; Ctrl+clique = só esta faixa)",
             Self::Phase => "Inverter a fase",
+            Self::TrackFx => "Efeitos de vídeo da faixa",
         }
     }
 }
 
-/// Rectangles of the Mute, Solo and Phase buttons inside a track header row.
-fn header_buttons(row: Rect, kind: TrackKind) -> Vec<(HeaderControl, Rect)> {
+/// Rectangles of the Mute, Solo, Phase and Track FX buttons inside a track header row.
+fn header_buttons(row: Rect, kind: TrackKind, adjustment: bool) -> Vec<(HeaderControl, Rect)> {
     let side = 20.0;
     let y = row.top() + 34.0;
     let button = |x: f32| Rect::from_min_size(pos2(row.left() + x, y), vec2(side, side));
@@ -11104,12 +11189,21 @@ fn header_buttons(row: Rect, kind: TrackKind) -> Vec<(HeaderControl, Rect)> {
             (HeaderControl::Solo, button(29.0)),
             (HeaderControl::Phase, button(52.0)),
         ],
+        TrackKind::Video if adjustment => vec![
+            (HeaderControl::Mute, button(6.0)),
+            (HeaderControl::TrackFx, button(29.0)),
+        ],
         TrackKind::Video => vec![(HeaderControl::Mute, button(6.0))],
     }
 }
 
-fn hit_header_control(row: Rect, kind: TrackKind, p: Pos2) -> Option<HeaderControl> {
-    header_buttons(row, kind)
+fn hit_header_control(
+    row: Rect,
+    kind: TrackKind,
+    adjustment: bool,
+    p: Pos2,
+) -> Option<HeaderControl> {
+    header_buttons(row, kind, adjustment)
         .into_iter()
         .find_map(|(control, r)| r.contains(p).then_some(control))
 }
@@ -11343,6 +11437,34 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
     }
 }
 
+fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
+    command_item(state, ui, Command::InsertAudioTrack);
+    command_item(state, ui, Command::InsertVideoTrack);
+    command_item(state, ui, Command::InsertAdjustmentTrack);
+    if let Some(track) = state
+        .selected_track
+        .and_then(|id| state.timeline.track(id))
+        .cloned()
+    {
+        ui.separator();
+        command_item(state, ui, Command::TrackDuplicate);
+        command_item(state, ui, Command::TrackMute);
+        if track.kind == TrackKind::Audio {
+            command_item(state, ui, Command::TrackSolo);
+        } else {
+            if ui.button(tr("Efeitos de vídeo da faixa…")).clicked() {
+                state.vfx.scope = VfxScope::Track;
+                state.window_request = Some(WindowAction::Show(Tab::VideoFx));
+                ui.close_menu();
+            }
+            if !track.adjustment && ui.button(tr("Movimento da trilha…")).clicked() {
+                state.open_track_motion();
+                ui.close_menu();
+            }
+        }
+    }
+}
+
 fn event_context_menu(
     state: &mut AppState,
     ui: &mut egui::Ui,
@@ -11361,6 +11483,14 @@ fn event_context_menu(
         ui.separator();
     }
     command_item(state, ui, Command::FileCreateSubproject);
+    let is_adjustment = state
+        .timeline
+        .track(track_id)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .is_some_and(|e| e.adjustment);
+    if is_adjustment {
+        command_item(state, ui, Command::EditResizeAdjustmentToProject);
+    }
     if pcrop::get(&state.timeline, track_id, event_id).is_some()
         && ui.button(tr("Pan/Crop do evento…")).clicked()
     {
@@ -11971,16 +12101,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         pos2(rect.left(), y),
                         pos2(lanes.left(), y + TRACK_HEIGHT),
                     );
-                    if let Some(ctrl) = hit_header_control(row_rect, track.kind, p) {
-                        let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
-                        let action = match ctrl {
-                            HeaderControl::Mute if exclusive => MixAction::MuteExclusive,
-                            HeaderControl::Mute => MixAction::Mute(!track.muted),
-                            HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
-                            HeaderControl::Solo => MixAction::Solo(!track.solo),
-                            HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
-                        };
-                        state.apply_mix_actions(track.id, vec![action]);
+                    if let Some(ctrl) =
+                        hit_header_control(row_rect, track.kind, track.adjustment, p)
+                    {
+                        if ctrl == HeaderControl::TrackFx {
+                            state.vfx.scope = VfxScope::Track;
+                            state.window_request = Some(WindowAction::Show(Tab::VideoFx));
+                        } else {
+                            let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                            let action = match ctrl {
+                                HeaderControl::Mute if exclusive => MixAction::MuteExclusive,
+                                HeaderControl::Mute => MixAction::Mute(!track.muted),
+                                HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
+                                HeaderControl::Solo => MixAction::Solo(!track.solo),
+                                HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
+                                HeaderControl::TrackFx => unreachable!(),
+                            };
+                            state.apply_mix_actions(track.id, vec![action]);
+                        }
                     }
                 }
             }
@@ -12146,11 +12284,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.range_anchor = None;
     }
 
-    // Right-click on an envelope, an event or a ruler mark
+    // Right-click on a track header, an envelope, an event or a ruler mark
     if response.secondary_clicked() {
-        let pressed = response
-            .interact_pointer_pos()
-            .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom);
+        let pointer = response.interact_pointer_pos();
+        let in_header = pointer.filter(|p| p.x < lanes.left() && p.y >= ruler_bottom);
+        state.context_header = in_header.is_some();
+        if let Some(p) = in_header {
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            if row >= 0.0 {
+                if let Some(track) = state.timeline.tracks.get(row as usize) {
+                    state.selected_track = Some(track.id);
+                }
+            }
+        }
+        let pressed = pointer.filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom);
         state.context_envelope = pressed.and_then(|p| {
             envelope_canvas::hit_test(
                 &state.timeline.tracks,
@@ -12189,6 +12336,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         });
     }
     response.context_menu(|ui| {
+        if state.context_header {
+            track_header_context_menu(state, ui);
+            return;
+        }
         if let Some(env_hit) = state.context_envelope.clone() {
             envelope_context_menu(state, ui, &env_hit);
             return;
@@ -12968,6 +13119,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         if selected {
             header_painter.rect_filled(row, Rounding::ZERO, pal.header_selected);
         }
+        if track.adjustment {
+            let stripe = Rect::from_min_max(row.min, pos2(row.left() + 3.0, row.bottom()));
+            header_painter.rect_filled(stripe, Rounding::ZERO, Color32::from_rgb(0x3A, 0x8F, 0xE0));
+        }
         header_painter.rect_stroke(
             row,
             Rounding::ZERO,
@@ -13006,19 +13161,21 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ui.visuals().text_color(),
         );
 
-        // Per-track Mute / Solo / Phase buttons and compact dB + Pan readout
+        // Per-track Mute / Solo / Phase / Track FX buttons and compact dB + Pan / Adjustment readout
         let hover_pos = response.hover_pos();
-        for (ctrl, btn_rect) in header_buttons(row, track.kind) {
+        for (ctrl, btn_rect) in header_buttons(row, track.kind, track.adjustment) {
             let active = match ctrl {
                 HeaderControl::Mute => track.muted,
                 HeaderControl::Solo => track.solo,
                 HeaderControl::Phase => track.invert_phase,
+                HeaderControl::TrackFx => track.video_effects.iter().any(|e| !e.bypass),
             };
             let hovered = hover_pos.is_some_and(|p| btn_rect.contains(p));
             let fill = match (ctrl, active, hovered) {
                 (HeaderControl::Mute, true, _) => Color32::from_rgb(0xC0, 0x39, 0x2B),
                 (HeaderControl::Solo, true, _) => Color32::from_rgb(0xD3, 0x54, 0x00),
                 (HeaderControl::Phase, true, _) => ui.visuals().selection.bg_fill,
+                (HeaderControl::TrackFx, true, _) => Color32::from_rgb(0x29, 0x80, 0xB9),
                 (_, false, true) => ui.visuals().widgets.hovered.bg_fill,
                 _ => Color32::from_black_alpha(45),
             };
@@ -13028,9 +13185,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             } else {
                 ui.visuals().text_color()
             };
-            header_painter.extend(icons::shapes(ctrl.icon(), btn_rect.shrink(3.5), fg));
+            if let Some(icon) = ctrl.icon() {
+                header_painter.extend(icons::shapes(icon, btn_rect.shrink(3.5), fg));
+            } else if ctrl == HeaderControl::TrackFx
+                && btn_rect.top() >= ruler_bottom
+                && btn_rect.bottom() <= rect.bottom()
+            {
+                icons::paint_svg(ui, icons::SvgIcon::TrackFx, btn_rect.shrink(3.0), fg);
+            }
         }
-        if track.kind == TrackKind::Audio {
+        if track.adjustment {
+            header_painter.text(
+                row.min + vec2(56.0, 44.0),
+                Align2::LEFT_CENTER,
+                tr("Ajuste"),
+                FontId::proportional(10.0),
+                Color32::from_rgb(0x5D, 0xAD, 0xE2),
+            );
+        } else if track.kind == TrackKind::Audio {
             let db_short = if track.volume_db <= neoveg_engine::TrackMix::VOLUME_RANGE_DB.0 {
                 "-∞".to_string()
             } else {
@@ -13056,8 +13228,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 let y = lane_top + row_idx * TRACK_HEIGHT;
                 let row =
                     Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
-                if let Some(ctrl) = hit_header_control(row, track.kind, p) {
-                    response.clone().on_hover_text(ctrl.tooltip());
+                if let Some(ctrl) = hit_header_control(row, track.kind, track.adjustment, p) {
+                    response.clone().on_hover_text(tr(ctrl.tooltip()));
                 }
             }
         }
@@ -16740,6 +16912,61 @@ mod tests {
         assert!(s.timeline.track(video).unwrap().events.is_empty());
     }
 
+    #[test]
+    fn inserting_an_adjustment_track_and_resizing_adjustment_events_to_project() {
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertVideoTrack);
+        let base_video = s.timeline.tracks[0].id;
+        let clip_id = s.timeline.alloc_id();
+        assert!(s.history.execute(
+            &mut s.timeline,
+            EditCommand::AddEvent {
+                track_id: base_video,
+                event: TrackEvent {
+                    id: clip_id,
+                    media_id: Some(1),
+                    start: 2.0,
+                    duration: 10.0,
+                    ..TrackEvent::default()
+                },
+            }
+        ));
+        s.selection.select_only((base_video, clip_id));
+        s.selected_track = Some(base_video);
+
+        // Insert an adjustment track right above `base_video`
+        assert!(s.command_enabled(Command::InsertAdjustmentTrack));
+        run(&mut s, Command::InsertAdjustmentTrack);
+        let adj_track = s.timeline.tracks[0].id;
+        assert_ne!(adj_track, base_video);
+        assert!(s.timeline.tracks[0].adjustment);
+        assert_eq!(s.selected_track, Some(adj_track));
+        assert_eq!(s.vfx.scope, VfxScope::Track);
+        // Even with `clip_id` still selected on `base_video`, `vfx_target` resolves to `adj_track`
+        assert_eq!(s.vfx_target().0, VideoFxTarget::Track(adj_track));
+
+        // Plain media events do not enable `EditResizeAdjustmentToProject`
+        assert!(!s.command_enabled(Command::EditResizeAdjustmentToProject));
+
+        // Insert an adjustment event at t = 4.0 (5.0 s default) and resize it to the project (0..12)
+        s.playhead = 4.0;
+        run(&mut s, Command::InsertAdjustmentEvent);
+        let adj_event = s.timeline.track(adj_track).unwrap().events[0].id;
+        assert_eq!(s.selection.primary(), Some((adj_track, adj_event)));
+        assert!(s.command_enabled(Command::EditResizeAdjustmentToProject));
+        run(&mut s, Command::EditResizeAdjustmentToProject);
+        let resized = s.timeline.track(adj_track).unwrap().events[0].clone();
+        assert_eq!((resized.start, resized.duration), (0.0, 12.0));
+
+        // Undo restores the adjustment event's original 4.0..9.0 span
+        run(&mut s, Command::EditUndo);
+        let restored = s.timeline.track(adj_track).unwrap().events[0].clone();
+        assert_eq!(
+            (restored.start, restored.duration),
+            (4.0, neoveg_engine::adjustment::DEFAULT_LENGTH)
+        );
+    }
+
     /// A mono 16-bit WAV of `seconds` at 8 kHz (silence), written by hand.
     fn write_wav(path: &std::path::Path, seconds: u32) {
         let samples = 8000 * seconds;
@@ -17295,25 +17522,30 @@ mod tests {
     fn header_controls_hit_test_audio_and_video_rows() {
         let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(12.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(12.0, 142.0)),
             Some(HeaderControl::Mute)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(35.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(35.0, 142.0)),
             Some(HeaderControl::Solo)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(58.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(58.0, 142.0)),
             Some(HeaderControl::Phase)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Video, pos2(12.0, 142.0)),
+            hit_header_control(row, TrackKind::Video, false, pos2(12.0, 142.0)),
             Some(HeaderControl::Mute)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Video, pos2(35.0, 142.0)),
+            hit_header_control(row, TrackKind::Video, false, pos2(35.0, 142.0)),
             None,
-            "video headers have no solo button"
+            "plain video headers have no second button"
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Video, true, pos2(35.0, 142.0)),
+            Some(HeaderControl::TrackFx),
+            "adjustment track headers expose Track FX at the second slot"
         );
     }
 

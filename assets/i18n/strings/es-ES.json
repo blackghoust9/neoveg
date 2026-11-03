@@ -1274,5 +1274,15 @@
   "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "Iconos BMP de herramientas, cursores, edición y ventanas de la interfaz",
   "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "Iconos BMP de barra de transporte, metrónomo, curvas y envolventes",
   "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "Iconos BMP de medios, pistas de audio/vídeo y consola de mezcla",
-  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "Iconos BMP de línea de tiempo, transiciones, fotogramas y ganancia de audio"
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "Iconos BMP de línea de tiempo, transiciones, fotogramas y ganancia de audio",
+  "Inserir faixa de ajuste": "Insertar pista de ajuste",
+  "Redimensionar eventos de ajuste ao projeto": "Redimensionar eventos de ajuste al proyecto",
+  "Redimensionar ao projeto": "Redimensionar al proyecto",
+  "Ajuste": "Ajuste",
+  "Efeitos de v?deo da faixa?": "Efectos de v?deo de la pista?",
+  "Efeitos de v?deo da faixa": "Efectos de v?deo de la pista",
+  "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Pista de ajuste insertada: aplique efectos en la pesta?a Efectos de v?deo",
+  "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "Seleccione un evento de ajuste desbloqueado en un proyecto con duraci?n",
+  "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} evento(s) de ajuste redimensionado(s) al proyecto",
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Los eventos de ajuste seleccionados ya cubren todo el proyecto"
 }

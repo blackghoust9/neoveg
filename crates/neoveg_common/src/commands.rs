@@ -105,6 +105,7 @@ commands! {
     EditDelete => ("edit.delete", "Excluir seleção", Edit, true),
     EditRippleDelete => ("edit.ripple_delete", "Excluir e fechar o espaço (ripple)", Edit, true),
     EditCloseGaps => ("edit.close_gaps", "Fechar espaços na faixa", Edit, true),
+    EditResizeAdjustmentToProject => ("edit.resize_adjustment_to_project", "Redimensionar eventos de ajuste ao projeto", Edit, true),
     EditSplit => ("edit.split", "Dividir no cursor", Edit, true),
     EditCut => ("edit.cut", "Recortar", Edit, true),
     EditCopy => ("edit.copy", "Copiar", Edit, true),
@@ -145,6 +146,7 @@ commands! {
     // ---- Inserir
     InsertAudioTrack => ("insert.audio_track", "Inserir faixa de áudio", Insert, true),
     InsertVideoTrack => ("insert.video_track", "Inserir faixa de vídeo", Insert, true),
+    InsertAdjustmentTrack => ("insert.adjustment_track", "Inserir faixa de ajuste", Insert, true),
     InsertAdjustmentEvent => ("insert.adjustment_event", "Inserir evento de ajuste", Insert, true),
     InsertAudioBus => ("insert.audio_bus", "Inserir barramento de áudio", Insert, true),
     InsertMarker => ("insert.marker", "Inserir marcador", Insert, true),

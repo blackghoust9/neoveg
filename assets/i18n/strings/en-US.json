@@ -1274,5 +1274,15 @@
   "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "BMP icons for tools, cursors, editing and interface windows",
   "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "BMP icons for transport bar, metronome, curves and envelopes",
   "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "BMP icons for media, audio/video tracks and mixing console",
-  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP icons for timeline, transitions, frames and audio gain"
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP icons for timeline, transitions, frames and audio gain",
+  "Inserir faixa de ajuste": "Insert adjustment track",
+  "Redimensionar eventos de ajuste ao projeto": "Resize adjustment events to project",
+  "Redimensionar ao projeto": "Resize to project",
+  "Ajuste": "Adjustment",
+  "Efeitos de v?deo da faixa?": "Video track FX?",
+  "Efeitos de v?deo da faixa": "Video track FX",
+  "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Adjustment track inserted: apply effects in the Video FX tab",
+  "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "Select an unlocked adjustment event in a project with content",
+  "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} adjustment event(s) resized to project",
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Selected adjustment events already span the whole project"
 }

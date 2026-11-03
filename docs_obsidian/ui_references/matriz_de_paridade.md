@@ -15,8 +15,8 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
-| Editar | 100 | 100 | 20 | 65 | 15 | 0 | 52 % |
-| Inserir | 32 | 30 | 16 | 11 | 3 | 2 | 72 % |
+| Editar | 100 | 100 | 22 | 65 | 13 | 0 | 54 % |
+| Inserir | 32 | 30 | 17 | 11 | 2 | 2 | 75 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 41 | 15 | 5 | 49 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **40 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 37 parciais, 38 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 38 feitas, 37 parciais, 36 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -35,13 +35,11 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
 | P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
-| P2 | Redimensionar eventos de ajuste ao projeto | Editar | 2 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
 | P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
-| P2 | Inserir faixa de ajuste | Inserir | 1 | previsto |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | parcial |
 | P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | parcial |
 | P2 | Inserir transição de áudio | Inserir | 1 | parcial |
@@ -105,7 +103,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |
 | Divisão inteligente, curar evento dividido e fechar lacunas | 3 | previsto | roteiro (README) | P2 |
-| Redimensionar eventos de ajuste ao projeto | 2 | previsto | o evento de ajuste existe; falta redimensioná-lo ao projeto | P2 |
+| Redimensionar eventos de ajuste ao projeto | 2 | feito | `edit.resize_adjustment_to_project` (menu Editar, menu do evento e Inspetor) | - |
 | Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar | 20 | parcial | a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução | P3 |
 | Escopo do ripple pós-edição | 4 | parcial | 3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento | P3 |
 | Selecionar tudo, depois do cursor e bordas do evento | 4 | parcial | tudo e bordas (aparo por teclado) feitos; depois do cursor não | P3 |
@@ -130,7 +128,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
 | Envelope de velocidade do evento de vídeo | 1 | parcial | envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo, o áudio vinculado acompanhar e a velocidade nas exportações | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
-| Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
+| Inserir faixa de ajuste | 1 | feito | `insert.adjustment_track` (manual v21 p.385-387; sem hierarquia pai/filho) | - |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | parcial | `insert.audio_bus` e envios feitos (manual v21 p.869-873); faltam o barramento de entrada e o efeito atribuível | P2 |
 | Inserir legendas de arquivo e de regiões | 2 | parcial | de arquivo (SRT, WebVTT) feito; de regiões não | P3 |
 | Inserir fluxo ausente, evento vazio e evento de ajuste | 3 | parcial | `insert.adjustment_event` (manual v21 p.281-284) feito; faltam o fluxo ausente e o evento vazio | P2 |

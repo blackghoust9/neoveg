@@ -93,6 +93,11 @@ pub enum EditCommand {
     AddTrack {
         track: Track,
     },
+    /// Inserts a track at `index` in `Timeline::tracks` (`0` = top layer).
+    InsertTrack {
+        track: Track,
+        index: usize,
+    },
     AddEvent {
         track_id: TrackId,
         event: TrackEvent,
@@ -306,6 +311,14 @@ impl EditCommand {
         match self {
             Self::AddTrack { track } => {
                 tl.tracks.push(track.clone());
+                true
+            }
+            Self::InsertTrack { track, index } => {
+                if tl.tracks.iter().any(|t| t.id == track.id) {
+                    return false;
+                }
+                let at = (*index).min(tl.tracks.len());
+                tl.tracks.insert(at, track.clone());
                 true
             }
             Self::AddEvent { track_id, event } => match tl.track_mut(*track_id) {
@@ -562,7 +575,9 @@ impl EditCommand {
 
     fn revert(&self, tl: &mut Timeline) {
         match self {
-            Self::AddTrack { track } => tl.tracks.retain(|t| t.id != track.id),
+            Self::AddTrack { track } | Self::InsertTrack { track, .. } => {
+                tl.tracks.retain(|t| t.id != track.id);
+            }
             Self::AddEvent { track_id, event } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.events.retain(|e| e.id != event.id);
