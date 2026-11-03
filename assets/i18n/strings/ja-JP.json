@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "パネルグループを閉じました",
   "Grupo de painéis em janelas próprias": "パネルグループを個別のウィンドウにしました",
   "Grupo movido para {}": "グループを {} に移動しました",
-  "Esse lugar não está na tela": "その場所は画面にありません"
+  "Esse lugar não está na tela": "その場所は画面にありません",
+  "Curvas de cor": "カラーカーブ",
+  "Mestre": "マスター",
+  "Arraste os pontos; duplo clique restaura um ponto.": "点をドラッグします。ダブルクリックで点を元に戻します。",
+  "Restaurar curva": "カーブをリセット"
 }

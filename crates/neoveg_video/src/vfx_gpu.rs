@@ -14,8 +14,8 @@ use wgpu::util::DeviceExt;
 use crate::frame::FrameBuffer;
 use crate::transitions as tr;
 use crate::vfx::{
-    contrast_gain, gaussian_kernel, hue_degrees, linear_blur_line, median_radius, offset_pixels,
-    pixelate_block, range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS,
+    contrast_gain, curve_luts, gaussian_kernel, hue_degrees, linear_blur_line, median_radius,
+    offset_pixels, pixelate_block, range_pixels, vignette_corner, Resolved, Work, UNSHARP_RADIUS,
 };
 
 #[repr(C)]
@@ -829,6 +829,23 @@ fn three_way_color(@builtin(global_invocation_id) id: vec3<u32>) {
     dst[i] = straight_color(s, vec3<f32>(l2) + (o - vec3<f32>(l2)) * p.j);
 }
 
+// weights = the tables of the colour curves: 256 entries for red, then green, then blue
+@compute @workgroup_size(8, 8, 1)
+fn curves(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let i = id.y * p.width + id.x;
+    let s = src[i];
+    if (s.w <= 0.000001) { dst[i] = s; return; }
+    let c = clamp(s.xyz / s.w, vec3<f32>(0.0), vec3<f32>(1.0)) * 255.0;
+    let lo = vec3<u32>(floor(c));
+    let hi = min(lo + vec3<u32>(1u), vec3<u32>(255u));
+    let t = c - floor(c);
+    let r = mix(weights[lo.x], weights[hi.x], t.x);
+    let g = mix(weights[256u + lo.y], weights[256u + hi.y], t.y);
+    let b = mix(weights[512u + lo.z], weights[512u + hi.z], t.z);
+    dst[i] = straight_color(s, vec3<f32>(r, g, b));
+}
+
 // Transitions. a = progress, b = frame aspect ratio, c = angle (start angle for the clock wipe),
 // d = softness, e = blind count, half = mode (0 dissolve, 1 linear wipe, 2 clock wipe, 3 iris,
 // 4 barn door, 5 blinds)
@@ -1112,6 +1129,7 @@ pub struct VfxGpu {
     color_replace: wgpu::ComputePipeline,
     proc_amp: wgpu::ComputePipeline,
     three_way_color: wgpu::ComputePipeline,
+    curves: wgpu::ComputePipeline,
     trans_mask: wgpu::ComputePipeline,
     trans_slide: wgpu::ComputePipeline,
     trans_grow: wgpu::ComputePipeline,
@@ -1176,6 +1194,7 @@ enum Pass {
     ColorReplace,
     ProcAmp,
     ThreeWayColor,
+    Curves,
     TransMask,
     TransSlide,
     TransGrow,
@@ -1272,6 +1291,7 @@ impl VfxGpu {
             color_replace: make("color_replace"),
             proc_amp: make("proc_amp"),
             three_way_color: make("three_way_color"),
+            curves: make("curves"),
             trans_mask: make("trans_mask"),
             trans_slide: make("trans_slide"),
             trans_grow: make("trans_grow"),
@@ -1326,6 +1346,7 @@ impl VfxGpu {
             Pass::ColorReplace => &self.color_replace,
             Pass::ProcAmp => &self.proc_amp,
             Pass::ThreeWayColor => &self.three_way_color,
+            Pass::Curves => &self.curves,
             Pass::TransMask => &self.trans_mask,
             Pass::TransSlide => &self.trans_slide,
             Pass::TransGrow => &self.trans_grow,
@@ -2104,6 +2125,20 @@ impl VfxGpu {
                     );
                     cur = dst;
                 }
+                Resolved::Curves { pts } => {
+                    let dst = (cur + 1) % 3;
+                    let luts = curve_luts(&pts);
+                    run(
+                        &mut encoder,
+                        Pass::Curves,
+                        Params::new(w, h),
+                        cur,
+                        dst,
+                        Some(&luts),
+                        None,
+                    );
+                    cur = dst;
+                }
             }
         }
 
@@ -2357,6 +2392,15 @@ mod tests {
                 .with("hi_balance", 0.5)
                 .with("hi_level", 0.15)
                 .with("saturation", 1.2),
+            VideoEffect::new(crate::vfx::COLOR_CURVES),
+            VideoEffect::new(crate::vfx::COLOR_CURVES)
+                .with("m_y2", 0.1)
+                .with("m_y4", 0.9)
+                .with("r_y3", 0.7)
+                .with("g_x3", 0.4)
+                .with("g_y3", 0.55)
+                .with("b_y1", 0.1)
+                .with("b_y5", 0.8),
         ] {
             let chain = [fx];
             let mut cpu = original.clone();

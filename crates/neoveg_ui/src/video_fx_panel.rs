@@ -11,6 +11,7 @@ use neoveg_common::i18n::tr_text;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
 use neoveg_video::vfx::{self, ParamSpec, VideoEffect};
 
+use crate::curve_editor::{self, CurveOutput, CurveState};
 use crate::icons::{self, Icon};
 
 /// What the user did in the panel.
@@ -31,6 +32,11 @@ pub enum VfxAction {
     ResetParam {
         index: usize,
         param: String,
+    },
+    /// Several parameters of one effect as one edit (a point of the colour curves).
+    SetParams {
+        index: usize,
+        values: Vec<(String, f32)>,
     },
     /// The color the video track fades to (track chain only).
     /// A color of the fade envelope: the bottom one when `bottom` is true.
@@ -56,8 +62,7 @@ pub const FADE_COLORS: [(&str, [u8; 3]); 8] = [
 #[derive(Debug, Clone, PartialEq)]
 struct Draft {
     index: usize,
-    param: String,
-    value: f32,
+    values: Vec<(String, f32)>,
 }
 
 /// Which chain the panel edits.
@@ -79,14 +84,15 @@ pub struct VfxPanelState {
     /// The chain the user chose; it falls back to one that exists (see [`VfxScopes::resolve`]).
     pub scope: VfxScope,
     draft: Option<Draft>,
+    /// The editor of the colour curves.
+    curves: CurveState,
 }
 
 impl VfxPanelState {
-    /// While the user drags a slider: the effect index, the parameter and the value being dragged.
-    pub fn draft_view(&self) -> Option<(usize, &str, f32)> {
-        self.draft
-            .as_ref()
-            .map(|d| (d.index, d.param.as_str(), d.value))
+    /// While the user drags a slider or a curve point: the effect index and the values being
+    /// dragged.
+    pub fn draft_view(&self) -> Option<(usize, &[(String, f32)])> {
+        self.draft.as_ref().map(|d| (d.index, d.values.as_slice()))
     }
 }
 
@@ -118,14 +124,13 @@ impl VfxScopes {
     }
 }
 
-/// A slider value that is being dragged, ready for the preview: the chain at `target` is shown
-/// with `param` of effect `index` set to `value`, without touching the project.
+/// Values that are being dragged, ready for the preview: the chain at `target` is shown with the
+/// `values` of effect `index` put in, without touching the project.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VfxDraft {
     pub target: VideoFxTarget,
     pub index: usize,
-    pub param: String,
-    pub value: f32,
+    pub values: Vec<(String, f32)>,
 }
 
 impl VfxDraft {
@@ -143,8 +148,10 @@ impl VfxDraft {
             VideoFxTarget::Project => 3u8.hash(&mut h),
         }
         d.index.hash(&mut h);
-        d.param.hash(&mut h);
-        d.value.to_bits().hash(&mut h);
+        for (param, value) in &d.values {
+            param.hash(&mut h);
+            value.to_bits().hash(&mut h);
+        }
         h.finish() | 1
     }
 }
@@ -160,7 +167,9 @@ pub fn effects_for(
         Some(d) => {
             let mut chain = stored.to_vec();
             if let Some(effect) = chain.get_mut(d.index) {
-                effect.params.insert(d.param.clone(), d.value);
+                for (param, value) in &d.values {
+                    effect.params.insert(param.clone(), *value);
+                }
             }
             to_worker_chain(&chain)
         }
@@ -346,10 +355,38 @@ fn effect_ui(
         ui.weak(tr("Sem parâmetros."));
     }
     ui.add_enabled_ui(!effect.bypass, |ui| {
+        if spec.id == vfx::COLOR_CURVES {
+            curves_row(ui, panel, index, effect, actions);
+            return;
+        }
         for param in spec.params {
             param_row(ui, panel, index, effect, param, actions);
         }
     });
+}
+
+/// The curve editor in place of the sliders of the colour curves effect.
+fn curves_row(
+    ui: &mut egui::Ui,
+    panel: &mut VfxPanelState,
+    index: usize,
+    effect: &TrackEffect,
+    actions: &mut Vec<VfxAction>,
+) {
+    let dragged: Vec<(String, f32)> = panel
+        .draft
+        .as_ref()
+        .filter(|d| d.index == index)
+        .map(|d| d.values.clone())
+        .unwrap_or_default();
+    match curve_editor::curves_ui(ui, &mut panel.curves, effect, &dragged) {
+        Some(CurveOutput::Live(values)) => panel.draft = Some(Draft { index, values }),
+        Some(CurveOutput::Commit(values)) => {
+            panel.draft = None;
+            actions.push(VfxAction::SetParams { index, values });
+        }
+        None => {}
+    }
 }
 
 fn param_row(
@@ -370,8 +407,8 @@ fn param_row(
         let dragging = panel
             .draft
             .as_ref()
-            .filter(|d| d.index == index && d.param == spec.id);
-        let mut value = dragging.map_or(current, |d| d.value);
+            .filter(|d| d.index == index && d.values.len() == 1 && d.values[0].0 == spec.id);
+        let mut value = dragging.map_or(current, |d| d.values[0].1);
         let response = ui.add(
             Slider::new(&mut value, spec.min..=spec.max)
                 .custom_formatter(|v, _| format_value(spec, v as f32)),
@@ -379,8 +416,7 @@ fn param_row(
         if response.changed() {
             panel.draft = Some(Draft {
                 index,
-                param: spec.id.into(),
-                value,
+                values: vec![(spec.id.into(), value)],
             });
         }
         let finished = response.drag_stopped()
@@ -389,13 +425,14 @@ fn param_row(
         if finished {
             if let Some(draft) = panel
                 .draft
-                .take_if(|d| d.index == index && d.param == spec.id)
+                .take_if(|d| d.index == index && d.values.len() == 1 && d.values[0].0 == spec.id)
             {
-                if (draft.value - current).abs() > f32::EPSILON {
+                let (param, value) = draft.values[0].clone();
+                if (value - current).abs() > f32::EPSILON {
                     actions.push(VfxAction::SetParam {
                         index,
-                        param: draft.param,
-                        value: draft.value,
+                        param,
+                        value,
                     });
                 }
             }
@@ -500,8 +537,7 @@ mod tests {
         let draft = VfxDraft {
             target,
             index: 0,
-            param: "h_range".into(),
-            value: 0.04,
+            values: vec![("h_range".into(), 0.04)],
         };
         let live = effects_for(&stored, target, Some(&draft));
         assert_eq!(live[0].params["h_range"], 0.04);
@@ -521,12 +557,30 @@ mod tests {
         assert_eq!(VfxDraft::stamp(None), 0);
         let a = VfxDraft::stamp(Some(&draft));
         let b = VfxDraft::stamp(Some(&VfxDraft {
-            value: 0.05,
+            values: vec![("h_range".into(), 0.05)],
             ..draft.clone()
         }));
         assert_ne!(a, 0);
         assert_ne!(a, b);
         assert_eq!(a, VfxDraft::stamp(Some(&draft)));
+    }
+
+    #[test]
+    fn a_draft_of_a_curve_point_puts_both_numbers_in_the_chain() {
+        let target = VideoFxTarget::Project;
+        let stored = [TrackEffect::new(vfx::COLOR_CURVES)];
+        let draft = VfxDraft {
+            target,
+            index: 0,
+            values: vec![("m_x2".into(), 0.3), ("m_y2".into(), 0.1)],
+        };
+        let live = effects_for(&stored, target, Some(&draft));
+        assert_eq!((live[0].params["m_x2"], live[0].params["m_y2"]), (0.3, 0.1));
+        let moved = VfxDraft::stamp(Some(&VfxDraft {
+            values: vec![("m_x2".into(), 0.3), ("m_y2".into(), 0.2)],
+            ..draft.clone()
+        }));
+        assert_ne!(VfxDraft::stamp(Some(&draft)), moved);
     }
 
     #[test]

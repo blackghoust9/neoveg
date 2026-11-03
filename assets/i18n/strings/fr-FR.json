@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "Groupe de panneaux fermé",
   "Grupo de painéis em janelas próprias": "Groupe de panneaux dans des fenêtres propres",
   "Grupo movido para {}": "Groupe déplacé vers {}",
-  "Esse lugar não está na tela": "Cet emplacement n'est pas à l'écran"
+  "Esse lugar não está na tela": "Cet emplacement n'est pas à l'écran",
+  "Curvas de cor": "Courbes de couleur",
+  "Mestre": "Maître",
+  "Arraste os pontos; duplo clique restaura um ponto.": "Faites glisser les points ; un double-clic restaure un point.",
+  "Restaurar curva": "Restaurer la courbe"
 }

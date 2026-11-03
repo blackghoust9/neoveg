@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "Группа панелей закрыта",
   "Grupo de painéis em janelas próprias": "Группа панелей в отдельных окнах",
   "Grupo movido para {}": "Группа перемещена в {}",
-  "Esse lugar não está na tela": "Этого места нет на экране"
+  "Esse lugar não está na tela": "Этого места нет на экране",
+  "Curvas de cor": "Цветовые кривые",
+  "Mestre": "Основная",
+  "Arraste os pontos; duplo clique restaura um ponto.": "Перетаскивайте точки; двойной щелчок сбрасывает точку.",
+  "Restaurar curva": "Сбросить кривую"
 }

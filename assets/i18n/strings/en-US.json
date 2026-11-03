@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "Panel group closed",
   "Grupo de painéis em janelas próprias": "Panel group in windows of their own",
   "Grupo movido para {}": "Group moved to {}",
-  "Esse lugar não está na tela": "That place is not on screen"
+  "Esse lugar não está na tela": "That place is not on screen",
+  "Curvas de cor": "Color Curves",
+  "Mestre": "Master",
+  "Arraste os pontos; duplo clique restaura um ponto.": "Drag the points; double-click restores a point.",
+  "Restaurar curva": "Restore curve"
 }

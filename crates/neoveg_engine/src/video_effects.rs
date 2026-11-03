@@ -142,6 +142,29 @@ pub fn set_param(
     })
 }
 
+/// Sets several parameters of the effect at `index` as one edit (one undo step): the two numbers of
+/// a dragged curve point, or the ten of a whole curve.
+pub fn set_params(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    values: &[(String, f32)],
+) -> Option<EditCommand> {
+    if values.iter().any(|(_, v)| !v.is_finite()) {
+        return None;
+    }
+    edit(timeline, target, |list| match list.get_mut(index) {
+        Some(effect) => {
+            let before = effect.params.clone();
+            for (param, value) in values {
+                effect.params.insert(param.clone(), *value);
+            }
+            effect.params != before
+        }
+        None => false,
+    })
+}
+
 /// Puts one parameter back to its default (drops the stored value).
 pub fn reset_param(
     timeline: &Timeline,
@@ -251,6 +274,25 @@ mod tests {
         );
         assert!(h.undo(&mut tl));
         assert_eq!(chain(&tl, target).unwrap()[0].params["h_range"], 0.04);
+    }
+
+    #[test]
+    fn several_parameters_change_as_one_undo_step() {
+        let (mut tl, mut h, track_id, event_id) = setup();
+        let target = VideoFxTarget::Event { track_id, event_id };
+        exec!(tl, h, add_effect(&tl, target, "color_curves"));
+        let point = [("m_x2".to_string(), 0.3), ("m_y2".to_string(), 0.1)];
+        exec!(tl, h, set_params(&tl, target, 0, &point));
+        let fx = &chain(&tl, target).unwrap()[0];
+        assert_eq!((fx.params["m_x2"], fx.params["m_y2"]), (0.3, 0.1));
+        assert!(
+            set_params(&tl, target, 0, &point).is_none(),
+            "the same values change nothing"
+        );
+        assert!(set_params(&tl, target, 0, &[("m_x2".into(), f32::NAN)]).is_none());
+        assert!(set_params(&tl, target, 5, &point).is_none());
+        assert!(h.undo(&mut tl));
+        assert!(chain(&tl, target).unwrap()[0].params.is_empty());
     }
 
     #[test]

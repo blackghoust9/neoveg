@@ -6185,6 +6185,9 @@ impl AppState {
                 VfxAction::ResetParam { index, param } => {
                     vfxe::reset_param(&self.timeline, target, index, &param)
                 }
+                VfxAction::SetParams { index, values } => {
+                    vfxe::set_params(&self.timeline, target, index, &values)
+                }
                 VfxAction::FadeColor { bottom, color } => match target {
                     VideoFxTarget::Track(id) if bottom => {
                         envelope::set_fade_color_bottom(&self.timeline, id, color)
@@ -11336,15 +11339,11 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     };
     let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes, fade_color);
     // A slider being dragged shows in the preview at once; the project changes on release
-    state.vfx_draft = state
-        .vfx
-        .draft_view()
-        .map(|(index, param, value)| VfxDraft {
-            target,
-            index,
-            param: param.to_owned(),
-            value,
-        });
+    state.vfx_draft = state.vfx.draft_view().map(|(index, values)| VfxDraft {
+        target,
+        index,
+        values: values.to_vec(),
+    });
     state.apply_vfx_actions(target, actions);
     if let VideoFxTarget::Event { track_id, event_id } = target {
         let adjustment = state

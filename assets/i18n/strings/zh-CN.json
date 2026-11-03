@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "面板组已关闭",
   "Grupo de painéis em janelas próprias": "面板组已转为独立窗口",
   "Grupo movido para {}": "已将组移动到{}",
-  "Esse lugar não está na tela": "该位置不在屏幕上"
+  "Esse lugar não está na tela": "该位置不在屏幕上",
+  "Curvas de cor": "色彩曲线",
+  "Mestre": "主曲线",
+  "Arraste os pontos; duplo clique restaura um ponto.": "拖动控制点；双击可还原该点。",
+  "Restaurar curva": "还原曲线"
 }

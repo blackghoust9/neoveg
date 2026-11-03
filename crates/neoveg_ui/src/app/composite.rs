@@ -775,8 +775,7 @@ mod tests {
                 event_id: eid,
             },
             index: 0,
-            param: "outer_radius".into(),
-            value: 0.7,
+            values: vec![("outer_radius".into(), 0.7)],
         });
         let request = composite_request(&tl, 1.0, &live, &resolve).unwrap();
         let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {

@@ -5,6 +5,7 @@ mod buses_panel;
 mod captions_panel;
 mod compositors_window;
 mod credits;
+mod curve_editor;
 mod details_window;
 mod dialogs;
 mod dock;

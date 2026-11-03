@@ -91,6 +91,7 @@ pub const VIDEO_LIMITER: &str = "video_limiter";
 pub const COLOR_REPLACE: &str = "color_replace";
 pub const PROC_AMP: &str = "proc_amp";
 pub const THREE_WAY_COLOR: &str = "three_way_color";
+pub const COLOR_CURVES: &str = "color_curves";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -1499,6 +1500,332 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    EffectSpec {
+        id: COLOR_CURVES,
+        label: "Curvas de cor",
+        params: &[
+            ParamSpec {
+                id: "m_x1",
+                label: "Mestre X1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_y1",
+                label: "Mestre Y1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_x2",
+                label: "Mestre X2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_y2",
+                label: "Mestre Y2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_x3",
+                label: "Mestre X3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_y3",
+                label: "Mestre Y3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_x4",
+                label: "Mestre X4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_y4",
+                label: "Mestre Y4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_x5",
+                label: "Mestre X5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "m_y5",
+                label: "Mestre Y5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_x1",
+                label: "Vermelho X1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_y1",
+                label: "Vermelho Y1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_x2",
+                label: "Vermelho X2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_y2",
+                label: "Vermelho Y2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_x3",
+                label: "Vermelho X3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_y3",
+                label: "Vermelho Y3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_x4",
+                label: "Vermelho X4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_y4",
+                label: "Vermelho Y4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_x5",
+                label: "Vermelho X5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "r_y5",
+                label: "Vermelho Y5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_x1",
+                label: "Verde X1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_y1",
+                label: "Verde Y1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_x2",
+                label: "Verde X2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_y2",
+                label: "Verde Y2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_x3",
+                label: "Verde X3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_y3",
+                label: "Verde Y3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_x4",
+                label: "Verde X4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_y4",
+                label: "Verde Y4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_x5",
+                label: "Verde X5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "g_y5",
+                label: "Verde Y5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_x1",
+                label: "Azul X1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_y1",
+                label: "Azul Y1",
+                min: 0.0,
+                max: 1.0,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_x2",
+                label: "Azul X2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_y2",
+                label: "Azul Y2",
+                min: 0.0,
+                max: 1.0,
+                default: 0.25,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_x3",
+                label: "Azul X3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_y3",
+                label: "Azul Y3",
+                min: 0.0,
+                max: 1.0,
+                default: 0.5,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_x4",
+                label: "Azul X4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_y4",
+                label: "Azul Y4",
+                min: 0.0,
+                max: 1.0,
+                default: 0.75,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_x5",
+                label: "Azul X5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "b_y5",
+                label: "Azul Y5",
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                percent: true,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -1805,6 +2132,16 @@ impl VideoEffect {
                     sat: self.value(spec, "saturation"),
                 }
             }
+            COLOR_CURVES => {
+                let mut pts = [[0.0; 10]; 4];
+                for (curve, prefix) in pts.iter_mut().zip(["m", "r", "g", "b"]) {
+                    for i in 0..CURVE_POINTS {
+                        curve[2 * i] = self.value(spec, &format!("{prefix}_x{}", i + 1));
+                        curve[2 * i + 1] = self.value(spec, &format!("{prefix}_y{}", i + 1));
+                    }
+                }
+                Resolved::Curves { pts }
+            }
             _ => return None,
         })
     }
@@ -2014,6 +2351,11 @@ pub enum Resolved {
         range: [f32; 4],
         sat: f32,
     },
+    /// Colour curves: the master curve and then one per channel, each through five control points
+    /// (`x0, y0, x1, y1, ...`).
+    Curves {
+        pts: [[f32; 2 * CURVE_POINTS]; 4],
+    },
 }
 
 impl Resolved {
@@ -2107,6 +2449,12 @@ impl Resolved {
             Resolved::ThreeWayColor {
                 sh, md, hi, sat, ..
             } => sh == [0.0; 3] && md == [0.0; 3] && hi == [0.0; 3] && sat == 1.0,
+            Resolved::Curves { ref pts } => {
+                let luts = curve_luts(pts);
+                luts.iter()
+                    .enumerate()
+                    .all(|(i, v)| (v - (i % 256) as f32 / 255.0).abs() < 1e-4)
+            }
         }
     }
 }
@@ -3144,6 +3492,139 @@ pub fn three_way_color_px(
     o.map(|v| l2 + (v - l2) * sat)
 }
 
+/// Control points of each curve of the colour curves effect.
+pub const CURVE_POINTS: usize = 5;
+
+/// Entries of the table of one channel of the colour curves.
+pub const CURVE_STEPS: usize = 256;
+
+/// A smooth curve through control points that never leaves the range of their heights and never
+/// bends back (monotone cubic Hermite, the Fritsch-Carlson slopes): dragging a point cannot make
+/// the picture wave.
+struct Curve {
+    x: Vec<f32>,
+    y: Vec<f32>,
+    m: Vec<f32>,
+}
+
+impl Curve {
+    /// The curve of `flat` (`x0, y0, x1, y1, ...`): the points are sorted by x, and points closer
+    /// than a ten-thousandth keep the later height.
+    fn new(flat: &[f32; 2 * CURVE_POINTS]) -> Self {
+        let mut pairs: Vec<(f32, f32)> = flat
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|p| (p[0], p[1]))
+            .collect();
+        pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut x: Vec<f32> = Vec::with_capacity(pairs.len());
+        let mut y: Vec<f32> = Vec::with_capacity(pairs.len());
+        for (px, py) in pairs {
+            match x.last() {
+                Some(last) if px - last < 1e-4 => *y.last_mut().expect("same length") = py,
+                _ => {
+                    x.push(px);
+                    y.push(py);
+                }
+            }
+        }
+        let n = x.len();
+        let h: Vec<f32> = x.windows(2).map(|w| w[1] - w[0]).collect();
+        let d: Vec<f32> = y
+            .windows(2)
+            .zip(&h)
+            .map(|(w, h)| (w[1] - w[0]) / h)
+            .collect();
+        let mut m = vec![0.0; n];
+        match n {
+            0 | 1 => {}
+            2 => m = vec![d[0]; 2],
+            _ => {
+                for k in 1..n - 1 {
+                    if d[k - 1] * d[k] > 0.0 {
+                        let w1 = 2.0 * h[k] + h[k - 1];
+                        let w2 = h[k] + 2.0 * h[k - 1];
+                        m[k] = (w1 + w2) / (w1 / d[k - 1] + w2 / d[k]);
+                    }
+                }
+                m[0] = end_slope(h[0], h[1], d[0], d[1]);
+                m[n - 1] = end_slope(h[n - 2], h[n - 3], d[n - 2], d[n - 3]);
+            }
+        }
+        Self { x, y, m }
+    }
+
+    /// The height of the curve at `v`, held at the first and last height outside the points.
+    fn eval(&self, v: f32) -> f32 {
+        let n = self.x.len();
+        if n == 0 {
+            return v;
+        }
+        if v <= self.x[0] {
+            return self.y[0];
+        }
+        if v >= self.x[n - 1] {
+            return self.y[n - 1];
+        }
+        let k = self.x.partition_point(|&px| px <= v) - 1;
+        let h = self.x[k + 1] - self.x[k];
+        let t = (v - self.x[k]) / h;
+        let (t2, t3) = (t * t, t * t * t);
+        let out = (2.0 * t3 - 3.0 * t2 + 1.0) * self.y[k]
+            + (t3 - 2.0 * t2 + t) * h * self.m[k]
+            + (-2.0 * t3 + 3.0 * t2) * self.y[k + 1]
+            + (t3 - t2) * h * self.m[k + 1];
+        out.clamp(0.0, 1.0)
+    }
+}
+
+/// Slope at the end of a curve from the two segments next to it, kept from bending back.
+fn end_slope(h0: f32, h1: f32, d0: f32, d1: f32) -> f32 {
+    let m = ((2.0 * h0 + h1) * d0 - h0 * d1) / (h0 + h1);
+    if m * d0 <= 0.0 {
+        0.0
+    } else if d0 * d1 <= 0.0 && m.abs() > 3.0 * d0.abs() {
+        3.0 * d0
+    } else {
+        m
+    }
+}
+
+/// The tables of the colour curves: for red, green and blue (`CURVE_STEPS` entries each, one after
+/// the other) the master curve followed by the channel's own, evaluated at `i / 255`. `pts` holds
+/// the master curve and then the three channel curves.
+pub fn curve_luts(pts: &[[f32; 2 * CURVE_POINTS]; 4]) -> Vec<f32> {
+    let master = Curve::new(&pts[0]);
+    let mut luts = Vec::with_capacity(3 * CURVE_STEPS);
+    for channel in &pts[1..] {
+        let channel = Curve::new(channel);
+        for i in 0..CURVE_STEPS {
+            let v = i as f32 / (CURVE_STEPS - 1) as f32;
+            luts.push(channel.eval(master.eval(v)));
+        }
+    }
+    luts
+}
+
+/// One curve alone (`x0, y0, x1, y1, ...`) as a table of `CURVE_STEPS` heights at `i / 255`, to
+/// draw it.
+pub fn curve_table(flat: &[f32; 2 * CURVE_POINTS]) -> Vec<f32> {
+    let curve = Curve::new(flat);
+    (0..CURVE_STEPS)
+        .map(|i| curve.eval(i as f32 / (CURVE_STEPS - 1) as f32))
+        .collect()
+}
+
+/// `v` (`0.0..=1.0`) through channel `ch` of [`curve_luts`], interpolating between its entries.
+pub fn lut_lookup(luts: &[f32], ch: usize, v: f32) -> f32 {
+    let p = v.clamp(0.0, 1.0) * (CURVE_STEPS - 1) as f32;
+    let i = p.floor() as usize;
+    let i1 = (i + 1).min(CURVE_STEPS - 1);
+    let t = p - i as f32;
+    luts[ch * CURVE_STEPS + i] * (1.0 - t) + luts[ch * CURVE_STEPS + i1] * t
+}
+
 /// Runs one resolved effect on the working buffer.
 pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
     match *effect {
@@ -3292,6 +3773,10 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
             range,
             sat,
         } => map_straight(work, |c| three_way_color_px(c, sh, md, hi, range, sat)),
+        Resolved::Curves { ref pts } => {
+            let luts = curve_luts(pts);
+            map_straight(work, |c| [0, 1, 2].map(|k| lut_lookup(&luts, k, c[k])))
+        }
     }
 }
 
@@ -4147,5 +4632,106 @@ mod tests {
         let bright = px([240, 240, 240], grade());
         assert!(dark[2] > dark[0] + 20, "shadows tinted blue: {dark:?}");
         assert_eq!(bright, [240, 240, 240], "highlights untouched");
+    }
+}
+
+#[cfg(test)]
+mod curves_tests {
+    use super::*;
+
+    fn curves(set: &[(&str, f32)]) -> VideoEffect {
+        set.iter()
+            .fold(VideoEffect::new(COLOR_CURVES), |fx, (k, v)| fx.with(k, *v))
+    }
+
+    fn pixel(px: [u8; 4]) -> FrameBuffer {
+        FrameBuffer {
+            width: 1,
+            height: 1,
+            rgba: px.to_vec(),
+        }
+    }
+
+    #[test]
+    fn the_untouched_curves_leave_the_picture_alone() {
+        assert!(resolve_chain(&[VideoEffect::new(COLOR_CURVES)]).is_empty());
+        let mut frame = pixel([10, 128, 250, 255]);
+        apply_chain_cpu(&mut frame, &[VideoEffect::new(COLOR_CURVES)]);
+        assert_eq!(frame.rgba, vec![10, 128, 250, 255]);
+    }
+
+    #[test]
+    fn an_s_curve_darkens_the_shadows_and_brightens_the_highlights() {
+        let s = curves(&[("m_y2", 0.1), ("m_y4", 0.9)]);
+        let mut dark = pixel([64, 64, 64, 255]);
+        let mut light = pixel([192, 192, 192, 255]);
+        let mut mid = pixel([128, 128, 128, 255]);
+        for f in [&mut dark, &mut light, &mut mid] {
+            apply_chain_cpu(f, std::slice::from_ref(&s));
+        }
+        assert!(dark.rgba[0] < 64, "{:?}", dark.rgba);
+        assert!(light.rgba[0] > 192, "{:?}", light.rgba);
+        assert!((i32::from(mid.rgba[0]) - 128).abs() <= 1, "{:?}", mid.rgba);
+    }
+
+    #[test]
+    fn a_channel_curve_moves_only_its_channel_and_keeps_the_alpha() {
+        let red_up = curves(&[("r_y3", 0.8)]);
+        let mut frame = pixel([64, 64, 64, 200]);
+        let mut half = pixel([128, 128, 128, 255]);
+        apply_chain_cpu(&mut frame, std::slice::from_ref(&red_up));
+        apply_chain_cpu(&mut half, std::slice::from_ref(&red_up));
+        assert_eq!(frame.rgba[3], 200);
+        assert!(half.rgba[0] > 190, "{:?}", half.rgba);
+        assert_eq!(half.rgba[1], 128);
+        assert_eq!(half.rgba[2], 128);
+    }
+
+    #[test]
+    fn the_curve_stays_inside_its_range_and_never_bends_back() {
+        // A steep rise then a plateau must not overshoot the plateau
+        let flat = [0.0, 0.0, 0.2, 0.9, 0.4, 0.9, 0.7, 0.95, 1.0, 1.0];
+        let curve = Curve::new(&flat);
+        let mut last = 0.0;
+        for i in 0..=200 {
+            let v = curve.eval(i as f32 / 200.0);
+            assert!((0.0..=1.0).contains(&v));
+            assert!(v + 1e-6 >= last, "falls at {i}: {v} < {last}");
+            assert!(v <= 1.0);
+            last = v;
+        }
+        assert!(curve.eval(0.3) <= 0.9 + 1e-6, "no overshoot on the plateau");
+    }
+
+    #[test]
+    fn points_out_of_order_or_on_top_of_each_other_still_make_a_curve() {
+        let shuffled = [1.0, 1.0, 0.0, 0.0, 0.5, 0.25, 0.5, 0.25, 0.25, 0.1];
+        let curve = Curve::new(&shuffled);
+        assert!((curve.eval(0.0) - 0.0).abs() < 1e-6);
+        assert!((curve.eval(1.0) - 1.0).abs() < 1e-6);
+        assert!((curve.eval(0.5) - 0.25).abs() < 1e-4);
+        // One point: a constant
+        let one = Curve::new(&[0.5, 0.3, 0.5, 0.3, 0.5, 0.3, 0.5, 0.3, 0.5, 0.3]);
+        assert!((one.eval(0.9) - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_tables_put_the_master_curve_before_the_channel_curve() {
+        let mut pts = [[0.0; 10]; 4];
+        pts.fill([0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0]);
+        pts[0][5] = 0.8; // master: mid 0.5 -> 0.8
+        pts[2][3] = 0.2; // green: 0.25 -> 0.2
+        let luts = curve_luts(&pts);
+        assert_eq!(luts.len(), 3 * CURVE_STEPS);
+        let red_mid = lut_lookup(&luts, 0, 0.5);
+        assert!(red_mid > 0.7, "master lifted the mid: {red_mid}");
+        // Green's own curve then acts on what the master made of 0.25
+        let master_quarter = Curve::new(&pts[0]).eval(0.25);
+        let green_quarter = lut_lookup(&luts, 1, 0.25);
+        let expected = Curve::new(&pts[2]).eval(master_quarter);
+        assert!(
+            (green_quarter - expected).abs() < 0.01,
+            "{green_quarter} vs {expected}"
+        );
     }
 }

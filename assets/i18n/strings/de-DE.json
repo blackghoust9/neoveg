@@ -1387,5 +1387,9 @@
   "Grupo de painéis fechado": "Bereichsgruppe geschlossen",
   "Grupo de painéis em janelas próprias": "Bereichsgruppe in eigenen Fenstern",
   "Grupo movido para {}": "Gruppe verschoben nach {}",
-  "Esse lugar não está na tela": "Dieser Ort ist nicht sichtbar"
+  "Esse lugar não está na tela": "Dieser Ort ist nicht sichtbar",
+  "Curvas de cor": "Farbkurven",
+  "Mestre": "Master",
+  "Arraste os pontos; duplo clique restaura um ponto.": "Punkte ziehen; Doppelklick setzt einen Punkt zurück.",
+  "Restaurar curva": "Kurve zurücksetzen"
 }

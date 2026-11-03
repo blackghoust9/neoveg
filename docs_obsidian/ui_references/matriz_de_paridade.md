@@ -143,7 +143,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Abrir o evento em editor de áudio externo | 4 | sem plano | sem editor de áudio externo | - |
 | Editar o projeto de origem de um evento aninhado | 1 | feito | duplo clique no sub-projeto abre a aba | - |
 | Efeitos de áudio do evento e da faixa, aplicar fora de tempo real | 4 | parcial | faixa e master feitos (28 efeitos); efeitos por evento não | P2 |
-| Efeitos de vídeo da mídia, do evento, da faixa e da saída | 4 | feito | cadeias de mídia, evento, faixa e projeto (35 efeitos CPU/GPU) | - |
+| Efeitos de vídeo da mídia, do evento, da faixa e da saída | 4 | feito | cadeias de mídia, evento, faixa e projeto (36 efeitos CPU/GPU) | - |
 | Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave | 1 | parcial | janela com caixa e alças, campos numéricos, quadros-chave com suavidade e prévia ao lado; faltam máscaras, centro de rotação e o botão no cabeçalho do evento | P2 |
 | Movimento da trilha: posição, escala e rotação da camada com quadros-chave | 1 | parcial | janela com caixa, picture-in-picture, rotação 2D, suavidade e prévia ao lado; faltam 3D, sombra, brilho e movimento do pai de um grupo | P2 |
 | Modo de gradação de cor e rastreamento de movimento | 2 | parcial | correção de cor primária e LUT feitas; gradação por evento e rastreamento não | P2 |
