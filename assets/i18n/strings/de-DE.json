@@ -1284,5 +1284,13 @@
   "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Einstellungsspur eingef?gt: Effekte im Reiter Video-FX anwenden",
   "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "W?hlen Sie ein entsperrtes Einstellungsereignis in einem Projekt mit Dauer aus",
   "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} Einstellungsereignis(se) an das Projekt angepasst",
-  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Die ausgew?hlten Einstellungsereignisse decken bereits das gesamte Projekt ab"
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Die ausgew?hlten Einstellungsereignisse decken bereits das gesamte Projekt ab",
+  "Fluxo óptico": "Optischer Fluss",
+  "Interruptor: manter proporção": "Schalter: Seitenverhältnis beibehalten",
+  "Interruptor: reduzir cintilação do entrelaçamento": "Schalter: Zeilensprungflimmern reduzieren",
+  "Manter proporção": "Seitenverhältnis beibehalten",
+  "Reduzir cintilação": "Flimmern reduzieren",
+  "Reduzir cintilação do entrelaçamento": "Zeilensprungflimmern reduzieren",
+  "Vale só para eventos de vídeo desbloqueados": "Gilt nur für entsperrte Video-Events",
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Bereits wirksam: Auflösung, Bildrate, Resampling und Abtastrate. Die übrigen Optionen werden im Projekt gespeichert und in künftigen Versionen beim Rendern angewendet."
 }

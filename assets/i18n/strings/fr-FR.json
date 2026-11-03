@@ -1284,5 +1284,13 @@
   "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Piste d?ajustement ins?r?e : appliquez des effets dans l?onglet Effets vid?o",
   "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "S?lectionnez un ?v?nement d?ajustement d?verrouill? dans un projet non vide",
   "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} ?v?nement(s) d?ajustement redimensionn?(s) au projet",
-  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Les ?v?nements d?ajustement s?lectionn?s couvrent d?j? tout le projet"
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Les ?v?nements d?ajustement s?lectionn?s couvrent d?j? tout le projet",
+  "Fluxo óptico": "Flux optique",
+  "Interruptor: manter proporção": "Commutateur : conserver les proportions",
+  "Interruptor: reduzir cintilação do entrelaçamento": "Commutateur : réduire le scintillement entrelacé",
+  "Manter proporção": "Conserver les proportions",
+  "Reduzir cintilação": "Réduire le scintillement",
+  "Reduzir cintilação do entrelaçamento": "Réduire le scintillement entrelacé",
+  "Vale só para eventos de vídeo desbloqueados": "S’applique uniquement aux événements vidéo déverrouillés",
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Déjà pris en compte : résolution, cadence d’images, rééchantillonnage et fréquence d’échantillonnage. Les autres options sont enregistrées dans le projet et seront appliquées au rendu dans les prochaines versions."
 }

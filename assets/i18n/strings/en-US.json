@@ -1284,5 +1284,13 @@
   "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Adjustment track inserted: apply effects in the Video FX tab",
   "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "Select an unlocked adjustment event in a project with content",
   "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} adjustment event(s) resized to project",
-  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Selected adjustment events already span the whole project"
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Selected adjustment events already span the whole project",
+  "Fluxo óptico": "Optical flow",
+  "Interruptor: manter proporção": "Switch: maintain aspect ratio",
+  "Interruptor: reduzir cintilação do entrelaçamento": "Switch: reduce interlace flicker",
+  "Manter proporção": "Maintain aspect ratio",
+  "Reduzir cintilação": "Reduce flicker",
+  "Reduzir cintilação do entrelaçamento": "Reduce interlace flicker",
+  "Vale só para eventos de vídeo desbloqueados": "Applies only to unlocked video events",
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "In effect now: resolution, frame rate, resampling and sample rate. The other options are saved in the project and will be applied to rendering in future versions."
 }

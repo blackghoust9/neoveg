@@ -1284,5 +1284,13 @@
   "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "Pista de ajuste insertada: aplique efectos en la pesta?a Efectos de v?deo",
   "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "Seleccione un evento de ajuste desbloqueado en un proyecto con duraci?n",
   "{} evento(s) de ajuste redimensionado(s) ao projeto": "{} evento(s) de ajuste redimensionado(s) al proyecto",
-  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Los eventos de ajuste seleccionados ya cubren todo el proyecto"
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "Los eventos de ajuste seleccionados ya cubren todo el proyecto",
+  "Fluxo óptico": "Flujo óptico",
+  "Interruptor: manter proporção": "Interruptor: mantener relación de aspecto",
+  "Interruptor: reduzir cintilação do entrelaçamento": "Interruptor: reducir parpadeo de entrelazado",
+  "Manter proporção": "Mantener relación de aspecto",
+  "Reduzir cintilação": "Reducir parpadeo",
+  "Reduzir cintilação do entrelaçamento": "Reducir parpadeo de entrelazado",
+  "Vale só para eventos de vídeo desbloqueados": "Solo se aplica a eventos de vídeo desbloqueados",
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Ya están activos en el programa: resolución, frecuencia de fotogramas, remuestreo y frecuencia de muestreo. Las demás opciones se guardan en el proyecto y se aplicarán al renderizado en próximas versiones."
 }

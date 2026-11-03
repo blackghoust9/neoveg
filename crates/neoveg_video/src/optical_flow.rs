@@ -26,10 +26,9 @@ impl LumaPlane {
         let mut data = Vec::with_capacity(w * h);
         for px in frame.rgba.as_chunks::<4>().0.iter().take(w * h) {
             let a = f32::from(px[3]) * (1.0 / 255.0);
-            let y = (0.2126 * f32::from(px[0])
-                + 0.7152 * f32::from(px[1])
-                + 0.0722 * f32::from(px[2]))
-                * a;
+            let y =
+                (0.2126 * f32::from(px[0]) + 0.7152 * f32::from(px[1]) + 0.0722 * f32::from(px[2]))
+                    * a;
             data.push(y);
         }
         Self { w, h, data }
@@ -52,11 +51,7 @@ impl LumaPlane {
                         + self.data[y1 * self.w + x1]);
             }
         }
-        Self {
-            w: nw,
-            h: nh,
-            data,
-        }
+        Self { w: nw, h: nh, data }
     }
 
     #[inline]
@@ -145,7 +140,15 @@ fn patch_variance(src: &LumaPlane, cx: isize, cy: isize, half: isize) -> f32 {
     mad / (count.max(1) as f32)
 }
 
-fn patch_sad(src: &LumaPlane, dst: &LumaPlane, cx: isize, cy: isize, u: isize, v: isize, half: isize) -> f32 {
+fn patch_sad(
+    src: &LumaPlane,
+    dst: &LumaPlane,
+    cx: isize,
+    cy: isize,
+    u: isize,
+    v: isize,
+    half: isize,
+) -> f32 {
     let mut sad = 0.0f32;
     for py in (cy - half)..(cy + half) {
         for px in (cx - half)..(cx + half) {
@@ -231,10 +234,7 @@ fn estimate_pyramid_flow(src_pyr: &[LumaPlane], dst_pyr: &[LumaPlane]) -> FlowGr
                     let py = (gy / 2) as isize;
                     for (ox, oy) in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)] {
                         let pc = parent.get_clamped(px + ox, py + oy);
-                        let cand = (
-                            (pc.u * 2.0).round() as isize,
-                            (pc.v * 2.0).round() as isize,
-                        );
+                        let cand = ((pc.u * 2.0).round() as isize, (pc.v * 2.0).round() as isize);
                         if !seeds[..n_seeds].contains(&cand) && n_seeds < seeds.len() {
                             seeds[n_seeds] = cand;
                             n_seeds += 1;
@@ -346,7 +346,11 @@ fn sample_clamped_premul(src: &FrameBuffer, x: f32, y: f32) -> [f32; 4] {
 
 /// Motion-compensated optical-flow interpolation between `a` (`t = 0`) and `b` (`t = 1`).
 pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuffer {
-    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     if t <= 0.0 {
         return a.clone();
     }
@@ -368,8 +372,8 @@ pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuff
 
     // Scene-cut detector: if global match residual is extreme across the picture, fall back cleanly
     // to a linear dissolve instead of warping unrelated shots.
-    let mean_residual = fwd.cells.iter().map(|c| c.residual).sum::<f32>()
-        / (fwd.cells.len().max(1) as f32);
+    let mean_residual =
+        fwd.cells.iter().map(|c| c.residual).sum::<f32>() / (fwd.cells.len().max(1) as f32);
     if mean_residual > 65.0 {
         return mix_frames(a, b, t);
     }
@@ -389,11 +393,18 @@ pub fn interpolate_frames(a: &FrameBuffer, b: &FrameBuffer, t: f32) -> FrameBuff
             variance: cf.variance.max(cb.variance),
             residual: cf.residual.min(cb.residual),
         };
-        best_score[i] = 0.25 * (cf.variance.max(cb.variance)) - 2.0 * (cf.residual.min(cb.residual));
+        best_score[i] =
+            0.25 * (cf.variance.max(cb.variance)) - 2.0 * (cf.residual.min(cb.residual));
     }
 
     // Forward-project textured cells from `a` (+t * v) and `b` (+(1 - t) * bwd) onto time `t`
-    let mut splat = |gx: usize, gy: usize, disp_x: f32, disp_y: f32, u_full: f32, v_full: f32, cell: CellFlow| {
+    let mut splat = |gx: usize,
+                     gy: usize,
+                     disp_x: f32,
+                     disp_y: f32,
+                     u_full: f32,
+                     v_full: f32,
+                     cell: CellFlow| {
         if cell.variance < 0.75 {
             return;
         }

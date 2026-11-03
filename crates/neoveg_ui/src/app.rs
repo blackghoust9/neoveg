@@ -2998,6 +2998,8 @@ impl AppState {
             | Command::EditSwitchInvertPhase
             | Command::EditSwitchLoop
             | Command::EditSwitchNormalize
+            | Command::EditSwitchMaintainAspect
+            | Command::EditSwitchReduceFlicker
             | Command::EditNormalizeRecalculate => has_events,
             Command::EditUngroup | Command::EditRemoveFromGroup | Command::EditSelectGroup => self
                 .selection
@@ -4705,6 +4707,8 @@ impl AppState {
                     Switch::InvertPhase => "Inverter fase",
                     Switch::Loop => "Repetir",
                     Switch::Normalize => "Normalizar",
+                    Switch::MaintainAspectRatio => "Manter proporção",
+                    Switch::ReduceInterlaceFlicker => "Reduzir cintilação do entrelaçamento",
                 };
                 self.status = format!("{name} {}", if on { "ligado" } else { "desligado" });
             }
@@ -4712,6 +4716,9 @@ impl AppState {
                 self.status = match switch {
                     Switch::InvertPhase | Switch::Normalize => {
                         "Vale só para eventos de áudio desbloqueados".into()
+                    }
+                    Switch::MaintainAspectRatio | Switch::ReduceInterlaceFlicker => {
+                        "Vale só para eventos de vídeo desbloqueados".into()
                     }
                     Switch::Loop => {
                         "Repetir vale só para eventos desbloqueados em velocidade normal".into()
@@ -5042,7 +5049,7 @@ impl AppState {
         // Overlapping video clips (several tracks, or a crossfade) are composited
         // (also when an effect is on: only that path runs the video effects)
         if composite::visible_clips(timeline, self.playhead) > 1
-            || composite::has_effects(timeline, self.playhead)
+            || composite::has_effects(timeline, self.playhead, self.project.settings.resample_mode)
             || self.pan_crop_draft.is_some()
             || self.velocity_draft.is_some()
         {
@@ -5153,6 +5160,7 @@ impl AppState {
             max_width,
             playing: self.active_player.is_some(),
             auto_crossfade: settings.auto_crossfade,
+            resample_mode: settings.resample_mode,
             lut,
             grade,
             chroma_key: chroma,
@@ -6745,6 +6753,12 @@ impl AppState {
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
             Command::EditSwitchLoop => self.toggle_event_switch(Switch::Loop),
             Command::EditSwitchNormalize => self.toggle_event_switch(Switch::Normalize),
+            Command::EditSwitchMaintainAspect => {
+                self.toggle_event_switch(Switch::MaintainAspectRatio);
+            }
+            Command::EditSwitchReduceFlicker => {
+                self.toggle_event_switch(Switch::ReduceInterlaceFlicker);
+            }
             Command::EditNormalizeRecalculate => self.recalculate_normalize(),
             Command::TransportLoop => self.toggle_loop(),
             Command::TransportShuttleForward => self.shuttle(true, now),
@@ -8352,6 +8366,18 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
     switch_item(state, ui, Switch::Loop, Command::EditSwitchLoop);
     switch_item(state, ui, Switch::Normalize, Command::EditSwitchNormalize);
     command_item(state, ui, Command::EditNormalizeRecalculate);
+    switch_item(
+        state,
+        ui,
+        Switch::MaintainAspectRatio,
+        Command::EditSwitchMaintainAspect,
+    );
+    switch_item(
+        state,
+        ui,
+        Switch::ReduceInterlaceFlicker,
+        Command::EditSwitchReduceFlicker,
+    );
     resample_items(state, ui);
 }
 
@@ -10223,15 +10249,34 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             ui.separator();
             // Switches (the ones that make sense for the kind of event)
             ui.horizontal_wrapped(|ui| {
-                for (label, which, audio_only) in [
-                    (tr("Mudo"), Switch::Mute, false),
-                    (tr("Travado"), Switch::Lock, false),
-                    (tr("Laço"), Switch::Loop, false),
-                    (tr("Inverter fase"), Switch::InvertPhase, true),
-                    (tr("Normalizar"), Switch::Normalize, true),
+                #[derive(Copy, Clone, PartialEq, Eq)]
+                enum Scope {
+                    Any,
+                    Audio,
+                    VideoMedia,
+                }
+                for (label, which, scope) in [
+                    (tr("Mudo"), Switch::Mute, Scope::Any),
+                    (tr("Travado"), Switch::Lock, Scope::Any),
+                    (tr("Laço"), Switch::Loop, Scope::Any),
+                    (tr("Inverter fase"), Switch::InvertPhase, Scope::Audio),
+                    (tr("Normalizar"), Switch::Normalize, Scope::Audio),
+                    (
+                        tr("Manter proporção"),
+                        Switch::MaintainAspectRatio,
+                        Scope::VideoMedia,
+                    ),
+                    (
+                        tr("Reduzir cintilação"),
+                        Switch::ReduceInterlaceFlicker,
+                        Scope::VideoMedia,
+                    ),
                 ] {
-                    if audio_only && kind != TrackKind::Audio {
-                        continue;
+                    match scope {
+                        Scope::Any => {}
+                        Scope::Audio if kind == TrackKind::Audio => {}
+                        Scope::VideoMedia if kind == TrackKind::Video && !ev.adjustment => {}
+                        _ => continue,
                     }
                     let mut on = which.is_on(&ev);
                     if ui.checkbox(&mut on, label).changed() {
@@ -10489,8 +10534,18 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     painter.rect_filled(frame_rect, Rounding::ZERO, Color32::BLACK);
     state.preview_pane_width = frame_rect.width();
     if let Some(texture) = &state.video_texture {
+        // Fit the decoded picture proportionally inside the project frame (composite frames already
+        // carry the canvas aspect; a single source clip keeps its own aspect when Maintain Aspect
+        // Ratio is on)
+        let [tw, th] = texture.size();
+        let target_rect = if tw > 0 && th > 0 {
+            let fit = (frame_rect.width() / tw as f32).min(frame_rect.height() / th as f32);
+            Rect::from_center_size(frame_rect.center(), vec2(tw as f32 * fit, th as f32 * fit))
+        } else {
+            frame_rect
+        };
         // On the pixel grid, so a picture decoded for the window is drawn pixel for pixel
-        let picture = pixel_aligned_rect(frame_rect, texture.size(), ui.ctx().pixels_per_point());
+        let picture = pixel_aligned_rect(target_rect, [tw, th], ui.ctx().pixels_per_point());
         painter.image(
             texture.id(),
             picture,

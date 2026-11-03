@@ -37,7 +37,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
-| P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | parcial |
@@ -111,7 +110,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Modo de edição expandida (entrar e sair) | 2 | previsto | roteiro (README) | P2 |
 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | 5 | parcial | normal, slip, slide e embaralhar com ciclo (`D`); faltam esticar e dividir-aparar | P2 |
 | Interruptores do evento: mudo, trava, fase, laço, normalizar | 5 | feito | `edit.switch.*` | - |
-| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | 9 | parcial | reamostragem com mistura de quadros feita (manual v21 p.355-358); faltam fluxo óptico, proporção, cintilação do entrelaçamento e o ajuste do projeto | P2 |
+| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção, cintilação | 9 | parcial | reamostragem do projeto e do evento (projeto, mistura de quadros, fluxo óptico, desativar), manter proporção (`edit.switch.maintain_aspect`), reduzir cintilação do entrelaçamento (`edit.switch.reduce_interlace_flicker`) e retenção do último quadro sem laço feitos (manual v21 p.99-100, 355-358); faltam aparar para todos os quadros e normalização automática | P3 |
 | Takes do evento: renomear, escolher, próximo, anterior, apagar | 6 | previsto | `edit.take.*` têm atalho, sem ação | P2 |
 | Grupos: criar, remover, limpar, selecionar, recortar, copiar e apagar tudo | 7 | parcial | criar, remover, desagrupar e selecionar feitos (`edit.group`, `edit.ungroup`) | P3 |
 | Escolha do fluxo de origem e dos canais (ambos, esquerdo, direito, combinar, trocar) | 6 | parcial | canais feitos (`ChannelMode`); fluxo de origem não | P3 |

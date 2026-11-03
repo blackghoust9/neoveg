@@ -391,8 +391,8 @@ impl ProjectDialogState {
         );
         ui.separator();
         ui.weak(tr(
-            "Já valem no programa: resolução, taxa de quadros e taxa de amostragem. As demais \
-             opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.",
+            "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. \
+             As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.",
         ));
     }
 

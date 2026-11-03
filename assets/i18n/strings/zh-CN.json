@@ -1284,5 +1284,13 @@
   "Faixa de ajuste inserida: aplique efeitos na aba Efeitos de V?deo": "??????????????????????",
   "Selecione um evento de ajuste desbloqueado em um projeto com dura??o": "???????????????????",
   "{} evento(s) de ajuste redimensionado(s) ao projeto": "?? {} ????????????",
-  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "?????????????"
+  "Os eventos de ajuste selecionados j? cobrem todo o projeto": "?????????????",
+  "Fluxo óptico": "光流",
+  "Interruptor: manter proporção": "开关：保持宽高比",
+  "Interruptor: reduzir cintilação do entrelaçamento": "开关：减少隔行扫描闪烁",
+  "Manter proporção": "保持宽高比",
+  "Reduzir cintilação": "减少闪烁",
+  "Reduzir cintilação do entrelaçamento": "减少隔行扫描闪烁",
+  "Vale só para eventos de vídeo desbloqueados": "仅适用于未锁定的视频事件",
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "当前已生效：分辨率、帧率、重采样和采样率。其余选项保存在项目中，将在后续版本中用于渲染。"
 }

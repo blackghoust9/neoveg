@@ -1997,7 +1997,11 @@ mod tests {
         };
 
         let pillarboxed = eval_portrait(true, false);
-        assert_eq!(pillarboxed.pixel(2, 10), [0, 0, 0, 255], "left bar is black");
+        assert_eq!(
+            pillarboxed.pixel(2, 10),
+            [0, 0, 0, 255],
+            "left bar is black"
+        );
         let stretched_filtered = eval_portrait(false, true);
         assert!(
             stretched_filtered.pixel(2, 10)[0] > 90,

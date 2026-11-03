@@ -145,8 +145,7 @@ pub fn reduce_interlace_flicker(src: &FrameBuffer) -> FrameBuffer {
             let dst = &mut out[mid + off..mid + off + 4];
             if tp[3] == 255 && mp[3] == 255 && bp[3] == 255 {
                 for c in 0..3 {
-                    let sum =
-                        u16::from(tp[c]) + 2 * u16::from(mp[c]) + u16::from(bp[c]) + 2;
+                    let sum = u16::from(tp[c]) + 2 * u16::from(mp[c]) + u16::from(bp[c]) + 2;
                     dst[c] = (sum >> 2) as u8;
                 }
                 dst[3] = 255;
@@ -1085,7 +1084,8 @@ mod tests {
     }
 
     #[test]
-    fn reduce_interlace_flicker_smooths_horizontal_nyquist_lines_and_keeps_vertical_stripes_sharp() {
+    fn reduce_interlace_flicker_smooths_horizontal_nyquist_lines_and_keeps_vertical_stripes_sharp()
+    {
         let mut h_lines = FrameBuffer::solid(16, 16, [0, 0, 0, 255]);
         let mut v_stripes = FrameBuffer::solid(16, 16, [0, 0, 0, 255]);
         for y in 0..16u32 {

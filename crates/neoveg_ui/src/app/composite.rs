@@ -461,6 +461,7 @@ pub(super) fn has_effects(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use neoveg_common::presets::ResampleMode as ProjectResample;
 
     fn settings() -> FrameSettings {
         FrameSettings {
@@ -469,6 +470,7 @@ mod tests {
             max_width: 0,
             playing: false,
             auto_crossfade: true,
+            resample_mode: ProjectResample::Disable,
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
@@ -670,8 +672,11 @@ mod tests {
         let kinds: Vec<&str> = clips[0].effects.iter().map(|f| f.kind.as_str()).collect();
         assert_eq!(kinds, ["gaussian_blur", "vignette"]);
         assert_eq!(request.project_effects[0].kind, "sharpen");
-        assert!(has_effects(&tl, 1.0));
-        assert!(!has_effects(&tl, 9.0), "nothing is visible then");
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert!(
+            !has_effects(&tl, 9.0, ProjectResample::Disable),
+            "nothing is visible then"
+        );
 
         // A dragged slider shows its value in the request and nowhere else
         let mut live = settings();
@@ -706,7 +711,7 @@ mod tests {
         e.video_effects = vec![off];
         track.events.push(e);
         tl.tracks.push(track);
-        assert!(!has_effects(&tl, 1.0));
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -743,7 +748,7 @@ mod tests {
         assert!((level - 0.5).abs() < 1e-6 && (amount - 0.5).abs() < 1e-6);
         assert_eq!(color, [10, 20, 30]);
         assert!(
-            has_effects(&tl, 2.0),
+            has_effects(&tl, 2.0, ProjectResample::Disable),
             "an envelope sends the preview through the composite path"
         );
         assert!(
@@ -755,7 +760,7 @@ mod tests {
             env.enabled = false;
         }
         assert_eq!(node(&tl, 2.0).unwrap().0, 1.0);
-        assert!(!has_effects(&tl, 2.0));
+        assert!(!has_effects(&tl, 2.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -779,7 +784,7 @@ mod tests {
         track.events.push(e);
         tl.tracks.push(track);
         assert!(
-            has_effects(&tl, 12.0),
+            has_effects(&tl, 12.0, ProjectResample::Disable),
             "a Pan/Crop sends the preview through the composite path"
         );
 
@@ -839,7 +844,7 @@ mod tests {
         track.motion = motion;
         tl.tracks.push(track);
         assert!(
-            has_effects(&tl, 4.0),
+            has_effects(&tl, 4.0, ProjectResample::Disable),
             "a moving track goes through the composite path"
         );
 
@@ -880,7 +885,7 @@ mod tests {
             frame(&tl, &settings(), 4.0).is_none(),
             "a track without motion sends none"
         );
-        assert!(!has_effects(&tl, 4.0));
+        assert!(!has_effects(&tl, 4.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -1005,7 +1010,7 @@ mod tests {
         e.transition_in = Some(TrackEffect::new("linear_wipe"));
         track.events.push(e);
         tl.tracks.push(track);
-        assert!(has_effects(&tl, 4.0));
+        assert!(has_effects(&tl, 4.0, ProjectResample::Disable));
         let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
         let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
             panic!("a track node");
@@ -1095,9 +1100,12 @@ mod tests {
         track.events.push(e);
         let (track_id, event_id) = (track.id, track.events[0].id);
         tl.tracks.push(track);
-        assert!(!has_effects(&tl, 2.0), "no envelope, the plain path");
+        assert!(
+            !has_effects(&tl, 2.0, ProjectResample::Disable),
+            "no envelope, the plain path"
+        );
         tl.tracks[0].events[0].velocity = Some(speeds(&[(0.0, 2.0), (4.0, -1.0)]));
-        assert!(has_effects(&tl, 2.0));
+        assert!(has_effects(&tl, 2.0, ProjectResample::Disable));
         let rate_of = |tl: &Timeline, settings: &FrameSettings, time: f64| {
             let request = composite_request(tl, time, settings, &resolve).unwrap();
             let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
@@ -1160,7 +1168,7 @@ mod tests {
         tl.tracks.push(top);
         tl.tracks.push(bottom);
         assert!(
-            has_effects(&tl, 2.0),
+            has_effects(&tl, 2.0, ProjectResample::Disable),
             "an adjustment sends the preview through the composite path"
         );
         let request = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
@@ -1244,12 +1252,16 @@ mod tests {
             .events
             .push(event(&mut single_under_adj, 1, 0.0, 5.0));
         single_under_adj.tracks = vec![adj_only.clone(), base_only.clone()];
-        assert!(has_effects(&single_under_adj, 2.0));
+        assert!(has_effects(
+            &single_under_adj,
+            2.0,
+            ProjectResample::Disable
+        ));
 
         // If the adjustment track is BELOW the only visible clip, nothing is under it to adjust
         let mut adj_below = Timeline::new();
         adj_below.tracks = vec![base_only, adj_only.clone()];
-        assert!(!has_effects(&adj_below, 2.0));
+        assert!(!has_effects(&adj_below, 2.0, ProjectResample::Disable));
 
         // If only an adjustment track exists with no media below it, composite_request is None
         let mut empty_below = Timeline::new();
@@ -1293,5 +1305,67 @@ mod tests {
         tl.tracks[1].muted = true;
         let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
         assert_eq!(muted.nodes.len(), 4);
+    }
+
+    #[test]
+    fn project_and_event_resample_and_video_switches_reach_the_request_and_composite_path() {
+        use neoveg_engine::ResampleMode;
+
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        track.events.push(event(&mut tl, 1, 0.0, 4.0));
+        tl.tracks.push(track);
+
+        let inspect = |tl: &Timeline, project_resample: ProjectResample| {
+            let mut s = settings();
+            s.resample_mode = project_resample;
+            let req = composite_request(tl, 1.0, &s, &resolve).unwrap();
+            let TrackCompositeNode::Track { clips, .. } = &req.nodes[0] else {
+                panic!("expected track node");
+            };
+            (
+                clips[0].resample,
+                clips[0].maintain_aspect_ratio,
+                clips[0].reduce_interlace_flicker,
+            )
+        };
+
+        // Default event (ResampleMode::Project, maintain_aspect_ratio: true, flicker: false)
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, true, false)
+        );
+
+        // Project-level OpticalFlow or FrameBlend flows down to events using ResampleMode::Project
+        assert!(has_effects(&tl, 1.0, ProjectResample::OpticalFlow));
+        assert_eq!(
+            inspect(&tl, ProjectResample::OpticalFlow),
+            (ProjectResample::OpticalFlow, true, false)
+        );
+
+        // Explicit event ResampleMode::Disabled overrides project OpticalFlow
+        tl.tracks[0].events[0].resample = ResampleMode::Disabled;
+        assert!(!has_effects(&tl, 1.0, ProjectResample::OpticalFlow));
+        assert_eq!(
+            inspect(&tl, ProjectResample::OpticalFlow),
+            (ProjectResample::Disable, true, false)
+        );
+
+        // Maintain Aspect Ratio off and Reduce Interlace Flicker on route through composite
+        tl.tracks[0].events[0].maintain_aspect_ratio = false;
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, false, false)
+        );
+
+        tl.tracks[0].events[0].maintain_aspect_ratio = true;
+        tl.tracks[0].events[0].reduce_interlace_flicker = true;
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, true, true)
+        );
     }
 }
