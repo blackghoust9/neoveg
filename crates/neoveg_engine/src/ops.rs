@@ -2,11 +2,19 @@
 //! ranges. Every function is pure (it only reads the timeline and allocates ids) and returns one
 //! [`EditCommand`], so a menu action or shortcut is exactly one undo step.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::command::{EditCommand, TrackChange};
 use crate::selection::{EventRef, TimeRange};
-use crate::timeline::{EventId, GroupId, Timeline, TrackEvent, TrackId, TrackKind, TIME_EPSILON};
+use crate::timeline::{
+    EventId, GroupId, Timeline, TrackEffect, TrackEvent, TrackId, TrackKind, TIME_EPSILON,
+};
+
+/// Default overlap duration (in project frames) created by [`smart_split`].
+pub const SMART_SPLIT_OVERLAP_FRAMES: f64 = 5.0;
+
+/// Transition id applied automatically to the incoming half created by [`smart_split`].
+pub const WARP_FLOW_TRANSITION_ID: &str = "warp_flow";
 
 /// A command plus the events the UI should select once it ran (pasted or created events).
 #[derive(Debug, Clone, PartialEq)]
@@ -126,6 +134,22 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     out.fade_out = out
         .fade_out
         .clamp(0.0, (out.duration - out.fade_in).max(0.0));
+    out.snap_offset = if ev.snap_offset > TIME_EPSILON {
+        let shifted = ev.snap_offset - (start - ev.start);
+        let right_cut = end < ev.end() - TIME_EPSILON;
+        let upper = if right_cut {
+            out.duration - TIME_EPSILON
+        } else {
+            out.duration + TIME_EPSILON
+        };
+        if shifted > TIME_EPSILON && shifted <= upper {
+            shifted.clamp(0.0, out.duration)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
     Some(out)
 }
 
@@ -616,7 +640,274 @@ pub fn split_range(timeline: &mut Timeline, range: TimeRange, scope: Scope) -> O
     split_at_times(timeline, &[range.start, range.end], scope)
 }
 
-fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Option<Outcome> {
+fn strictly_spans(ev: &TrackEvent, range: TimeRange) -> bool {
+    range.start > ev.start + TIME_EPSILON && range.end < ev.end() - TIME_EPSILON
+}
+
+/// `true` when [`smart_split`] can act: `range` is non-empty and at least one selected, unlocked,
+/// non-adjustment video event strictly spans both ends of `range`.
+pub fn can_smart_split(
+    timeline: &Timeline,
+    range: Option<TimeRange>,
+    selected: &[EventRef],
+) -> bool {
+    let Some(range) = range.filter(|r| !r.is_empty()) else {
+        return false;
+    };
+    timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Video)
+        .any(|track| {
+            track.events.iter().any(|ev| {
+                !ev.locked
+                    && !ev.adjustment
+                    && selected.contains(&(track.id, ev.id))
+                    && strictly_spans(ev, range)
+            })
+        })
+}
+
+/// *Smart Split* (`Alt+S`): removes `range` from each selected, unlocked, non-adjustment video
+/// event that strictly spans `range` (plus any selected unlocked audio event in the same group
+/// that also strictly spans `range`), moves the second half left over the first for a 5-frame
+/// overlap (`5.0 / fps`), applies the `"warp_flow"` transition on the incoming video half, and
+/// groups the resulting halves together in a single undo step.
+pub fn smart_split(
+    timeline: &mut Timeline,
+    range: TimeRange,
+    selected: &[EventRef],
+    fps: f64,
+) -> Option<Outcome> {
+    if range.is_empty() {
+        return None;
+    }
+    let fps = if fps.is_finite() && fps > 0.0 {
+        fps
+    } else {
+        30.0
+    };
+    let nominal_overlap = SMART_SPLIT_OVERLAP_FRAMES / fps;
+
+    let mut video_groups = BTreeSet::new();
+    let mut group_overlaps: BTreeMap<GroupId, f64> = BTreeMap::new();
+    let mut has_video = false;
+    for track in &timeline.tracks {
+        if track.kind != TrackKind::Video {
+            continue;
+        }
+        for ev in &track.events {
+            if !ev.locked
+                && !ev.adjustment
+                && selected.contains(&(track.id, ev.id))
+                && strictly_spans(ev, range)
+            {
+                has_video = true;
+                if let Some(g) = ev.group {
+                    video_groups.insert(g);
+                    let max_ov = nominal_overlap
+                        .min(range.start - ev.start)
+                        .min(ev.end() - range.end);
+                    group_overlaps
+                        .entry(g)
+                        .and_modify(|ov| *ov = ov.min(max_ov))
+                        .or_insert(max_ov);
+                }
+            }
+        }
+    }
+    if !has_video {
+        return None;
+    }
+
+    for track in &timeline.tracks {
+        if track.kind != TrackKind::Audio {
+            continue;
+        }
+        for ev in &track.events {
+            if let Some(g) = ev.group.filter(|g| video_groups.contains(g)) {
+                if !ev.locked && selected.contains(&(track.id, ev.id)) && strictly_spans(ev, range)
+                {
+                    let max_ov = nominal_overlap
+                        .min(range.start - ev.start)
+                        .min(ev.end() - range.end);
+                    if let Some(ov) = group_overlaps.get_mut(&g) {
+                        *ov = ov.min(max_ov);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut draft = Draft::new(timeline);
+    let tracks_meta: Vec<(TrackId, TrackKind)> =
+        timeline.tracks.iter().map(|t| (t.id, t.kind)).collect();
+    let mut alloc = || timeline.alloc_id();
+    let mut touched = Vec::new();
+
+    for (track_id, track_kind) in tracks_meta {
+        let Some(list) = draft.list(track_id) else {
+            continue;
+        };
+        let mut result = Vec::with_capacity(list.len() + 1);
+        for ev in list.drain(..) {
+            let eligible = !ev.locked
+                && selected.contains(&(track_id, ev.id))
+                && strictly_spans(&ev, range)
+                && match track_kind {
+                    TrackKind::Video => !ev.adjustment,
+                    TrackKind::Audio => ev.group.is_some_and(|g| video_groups.contains(&g)),
+                };
+            if eligible {
+                let left = clip_to(&ev, TimeRange::new(ev.start, range.start));
+                let right = clip_to(&ev, TimeRange::new(range.end, ev.end()));
+                if let (Some(mut left), Some(mut right)) = (left, right) {
+                    let overlap = ev
+                        .group
+                        .and_then(|g| group_overlaps.get(&g).copied())
+                        .unwrap_or_else(|| nominal_overlap.min(left.duration).min(right.duration));
+                    let group_id = ev.group.unwrap_or_else(&mut alloc);
+                    right.id = alloc();
+                    right.start = (range.start - overlap).max(0.0);
+                    left.group = Some(group_id);
+                    right.group = Some(group_id);
+                    if track_kind == TrackKind::Video {
+                        left.transition_out = None;
+                        right.transition_in = Some(TrackEffect::new(WARP_FLOW_TRANSITION_ID));
+                        right.transition_progress = None;
+                    }
+                    touched.push((track_id, left.id));
+                    touched.push((track_id, right.id));
+                    result.push(left);
+                    result.push(right);
+                    continue;
+                }
+            }
+            result.push(ev);
+        }
+        *list = result;
+    }
+
+    outcome(draft.finish(), touched)
+}
+
+fn heal_duration(events: &[&TrackEvent]) -> Option<f64> {
+    if events.len() < 2 {
+        return None;
+    }
+    let first = events[0];
+    if first.locked
+        || first.adjustment
+        || first.media_id.is_none()
+        || crate::velocity::is_active(first.velocity.as_ref())
+    {
+        return None;
+    }
+    let rate = crate::edit::clamp_playback_rate(first.playback_rate);
+    for pair in events.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if b.locked
+            || b.adjustment
+            || b.media_id != first.media_id
+            || b.channels != first.channels
+            || crate::velocity::is_active(b.velocity.as_ref())
+            || (crate::edit::clamp_playback_rate(b.playback_rate) - rate).abs() > 1e-6
+        {
+            return None;
+        }
+        let a_src_end = a.trim_in + a.duration * rate;
+        let b_src_end = b.trim_in + b.duration * rate;
+        if b.trim_in + TIME_EPSILON < a.trim_in || b_src_end + TIME_EPSILON < a_src_end {
+            return None;
+        }
+    }
+    let last = *events.last()?;
+    let last_src_end = last.trim_in + last.duration * rate;
+    let new_duration = (last_src_end - first.trim_in) / rate;
+    (new_duration > TIME_EPSILON).then_some(new_duration)
+}
+
+/// `true` when [`heal_events`] can reunite the selected events: at least one track has selected
+/// events, and on every track with selected events there are two or more unlocked, non-adjustment
+/// events from the same media source in forward media order.
+pub fn can_heal_events(timeline: &Timeline, selected: &[EventRef]) -> bool {
+    if selected.is_empty() {
+        return false;
+    }
+    let mut any_track = false;
+    for track in &timeline.tracks {
+        let mut chosen: Vec<&TrackEvent> = track
+            .events
+            .iter()
+            .filter(|ev| selected.contains(&(track.id, ev.id)))
+            .collect();
+        if chosen.is_empty() {
+            continue;
+        }
+        any_track = true;
+        chosen.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+        if heal_duration(&chosen).is_none() {
+            return false;
+        }
+    }
+    any_track
+}
+
+/// Reunites split events forward in time on each track where two or more selected events share
+/// the same media and follow media order: the first event extends its out-point to the last
+/// selected event's media out-point and inherits the last event's out-fade and out-transition.
+pub fn heal_events(timeline: &Timeline, selected: &[EventRef]) -> Option<Outcome> {
+    if !can_heal_events(timeline, selected) {
+        return None;
+    }
+    let mut draft = Draft::new(timeline);
+    let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
+    let mut touched = Vec::new();
+
+    for track_id in track_ids {
+        let Some(list) = draft.list(track_id) else {
+            continue;
+        };
+        let mut chosen: Vec<TrackEvent> = list
+            .iter()
+            .filter(|ev| selected.contains(&(track_id, ev.id)))
+            .cloned()
+            .collect();
+        if chosen.is_empty() {
+            continue;
+        }
+        chosen.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+        let refs: Vec<&TrackEvent> = chosen.iter().collect();
+        let new_duration = heal_duration(&refs)?;
+        let first = &chosen[0];
+        let last = chosen.last()?;
+        let mut healed = first.clone();
+        healed.duration = new_duration;
+        healed.fade_in = healed.fade_in.clamp(0.0, new_duration);
+        healed.fade_out = last
+            .fade_out
+            .clamp(0.0, (new_duration - healed.fade_in).max(0.0));
+        healed.fade_out_curve = last.fade_out_curve;
+        healed.transition_out = last.transition_out.clone();
+        healed.snap_offset = if healed.snap_offset.is_finite() && healed.snap_offset > TIME_EPSILON
+        {
+            healed.snap_offset.clamp(0.0, new_duration)
+        } else {
+            0.0
+        };
+        let removed_ids: BTreeSet<EventId> = chosen.iter().skip(1).map(|ev| ev.id).collect();
+        list.retain(|ev| !removed_ids.contains(&ev.id));
+        if let Some(slot) = list.iter_mut().find(|ev| ev.id == first.id) {
+            *slot = healed;
+        }
+        touched.push((track_id, first.id));
+    }
+
+    outcome(draft.finish(), touched)
+}
+
+/// Splits every event inside `scope` at each timestamp in `times`.
+pub fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Option<Outcome> {
     let mut draft = Draft::new(timeline);
     let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
     let mut alloc = || timeline.alloc_id();
@@ -1032,5 +1323,267 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), total, "no duplicated event id");
+    }
+
+    #[test]
+    fn splitting_an_event_keeps_snap_offset_on_the_piece_that_contains_it() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Audio);
+        let id = tl.alloc_id();
+        track.events.push(TrackEvent {
+            id,
+            start: 2.0,
+            duration: 4.0,
+            snap_offset: 1.5, // timeline snap point at 3.5 s
+            ..TrackEvent::default()
+        });
+        tl.tracks.push(track);
+
+        // Split after the snap point (4.5 s): left keeps 1.5, right resets to 0.0
+        let mut tl_after = tl.clone();
+        let mut history = History::new();
+        let out = split_at(&mut tl_after, 4.5, Scope::AllTracks);
+        run(&mut tl_after, &mut history, out);
+        assert!((tl_after.tracks[0].events[0].snap_offset - 1.5).abs() < 1e-9);
+        assert_eq!(tl_after.tracks[0].events[1].snap_offset, 0.0);
+
+        // Split before the snap point (3.0 s): left resets to 0.0, right keeps 0.5 (3.0 + 0.5 = 3.5 s)
+        let mut tl_before = tl;
+        let mut history = History::new();
+        let out = split_at(&mut tl_before, 3.0, Scope::AllTracks);
+        run(&mut tl_before, &mut history, out);
+        assert_eq!(tl_before.tracks[0].events[0].snap_offset, 0.0);
+        assert!((tl_before.tracks[0].events[1].snap_offset - 0.5).abs() < 1e-9);
+        assert!((tl_before.tracks[0].events[1].snap_point() - 3.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn smart_split_removes_selection_overlaps_five_frames_with_warp_flow_and_groups() {
+        let mut tl = Timeline::new();
+        let mut history = History::new();
+        let mut v_track = tl.new_track(TrackKind::Video);
+        let v_tid = v_track.id;
+        let vid = tl.alloc_id();
+        v_track.events.push(TrackEvent {
+            id: vid,
+            media_id: Some(1),
+            start: 1.0,
+            duration: 10.0,
+            trim_in: 2.0,
+            ..TrackEvent::default()
+        });
+        tl.tracks.push(v_track);
+
+        let range = TimeRange::new(4.0, 6.0);
+        assert!(!can_smart_split(&tl, Some(range), &[]));
+        assert!(!can_smart_split(&tl, None, &[(v_tid, vid)]));
+        assert!(!can_smart_split(
+            &tl,
+            Some(TimeRange::new(0.5, 4.0)),
+            &[(v_tid, vid)]
+        ));
+        assert!(can_smart_split(&tl, Some(range), &[(v_tid, vid)]));
+
+        let out = smart_split(&mut tl, range, &[(v_tid, vid)], 25.0);
+        let touched = run(&mut tl, &mut history, out);
+        assert_eq!(touched.len(), 2);
+
+        let events = &tl.track(v_tid).unwrap().events;
+        assert_eq!(events.len(), 2);
+        let (left, right) = (&events[0], &events[1]);
+        // Left: 1.0..4.0 (duration 3.0, trim_in 2.0)
+        assert!((left.start - 1.0).abs() < 1e-9);
+        assert!((left.duration - 3.0).abs() < 1e-9);
+        assert!((left.trim_in - 2.0).abs() < 1e-9);
+        // Right: 5 frames at 25 fps = 0.2 s overlap -> starts at 3.8, duration 5.0 (6.0..11.0), trim_in 7.0
+        assert!((right.start - 3.8).abs() < 1e-9);
+        assert!((right.duration - 5.0).abs() < 1e-9);
+        assert!((right.trim_in - 7.0).abs() < 1e-9);
+        assert_eq!(
+            right.transition_in.as_ref().map(|t| t.kind.as_str()),
+            Some(WARP_FLOW_TRANSITION_ID)
+        );
+        assert!(left.group.is_some());
+        assert_eq!(left.group, right.group);
+
+        // Undoes in a single step
+        assert!(history.undo(&mut tl));
+        let restored = &tl.track(v_tid).unwrap().events;
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].id, vid);
+        assert!(restored[0].group.is_none());
+    }
+
+    #[test]
+    fn smart_split_keeps_grouped_audio_in_sync_and_rejects_locked_or_adjustment_events() {
+        let mut tl = Timeline::new();
+        let mut history = History::new();
+        let group = tl.alloc_id();
+
+        let mut v_track = tl.new_track(TrackKind::Video);
+        let v_tid = v_track.id;
+        let vid = tl.alloc_id();
+        let adj_id = tl.alloc_id();
+        v_track.events.push(TrackEvent {
+            id: vid,
+            media_id: Some(1),
+            start: 0.0,
+            duration: 12.0,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+        v_track.events.push(TrackEvent {
+            id: adj_id,
+            start: 0.0,
+            duration: 12.0,
+            adjustment: true,
+            ..TrackEvent::default()
+        });
+
+        let mut a_track = tl.new_track(TrackKind::Audio);
+        let a_tid = a_track.id;
+        let aid = tl.alloc_id();
+        a_track.events.push(TrackEvent {
+            id: aid,
+            media_id: Some(1),
+            start: 0.0,
+            duration: 12.0,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+        tl.tracks.extend([v_track, a_track]);
+
+        let range = TimeRange::new(3.0, 5.0);
+        assert!(
+            !can_smart_split(&tl, Some(range), &[(v_tid, adj_id)]),
+            "adjustment events are not smart-split"
+        );
+        tl.track_mut(v_tid).unwrap().events[0].locked = true;
+        assert!(
+            !can_smart_split(&tl, Some(range), &[(v_tid, vid), (a_tid, aid)]),
+            "locked video events are not smart-split"
+        );
+        tl.track_mut(v_tid).unwrap().events[0].locked = false;
+
+        let out = smart_split(&mut tl, range, &[(v_tid, vid), (a_tid, aid)], 50.0);
+        let touched = run(&mut tl, &mut history, out);
+        assert_eq!(touched.len(), 4);
+
+        let v_ev: Vec<_> = tl
+            .track(v_tid)
+            .unwrap()
+            .events
+            .iter()
+            .filter(|e| !e.adjustment)
+            .collect();
+        let a_ev = &tl.track(a_tid).unwrap().events;
+        // 5 frames at 50 fps = 0.1 s -> right half of both video and audio starts at 2.9 s in same group
+        assert_eq!(v_ev.len(), 2);
+        assert!((v_ev[1].start - 2.9).abs() < 1e-9);
+        assert!((a_ev[0].duration - 3.0).abs() < 1e-9);
+        assert!((a_ev[1].start - 2.9).abs() < 1e-9);
+        assert!((a_ev[1].trim_in - 5.0).abs() < 1e-9);
+        assert_eq!(v_ev[0].group, Some(group));
+        assert_eq!(v_ev[1].group, Some(group));
+        assert_eq!(a_ev[0].group, Some(group));
+        assert_eq!(a_ev[1].group, Some(group));
+        assert!(a_ev[1].transition_in.is_none());
+    }
+
+    #[test]
+    fn heal_events_reunites_split_or_gapped_halves_and_rejects_bad_selections() {
+        let mut tl = Timeline::new();
+        let mut history = History::new();
+        let group = tl.alloc_id();
+
+        let mut v_track = tl.new_track(TrackKind::Video);
+        let v_tid = v_track.id;
+        let vid = tl.alloc_id();
+        v_track.events.push(TrackEvent {
+            id: vid,
+            media_id: Some(7),
+            start: 1.0,
+            duration: 10.0,
+            trim_in: 2.0,
+            fade_in: 0.4,
+            fade_out: 0.6,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+
+        let mut a_track = tl.new_track(TrackKind::Audio);
+        let a_tid = a_track.id;
+        let aid = tl.alloc_id();
+        a_track.events.push(TrackEvent {
+            id: aid,
+            media_id: Some(7),
+            start: 1.0,
+            duration: 10.0,
+            trim_in: 2.0,
+            fade_in: 0.4,
+            fade_out: 0.6,
+            group: Some(group),
+            ..TrackEvent::default()
+        });
+        tl.tracks.extend([v_track, a_track]);
+
+        assert!(
+            !can_heal_events(&tl, &[(v_tid, vid)]),
+            "single event cannot heal"
+        );
+
+        // Split both tracks at 5.0 s -> left (1..5, src 2..6) and right (5..11, src 6..12)
+        let split_out = split_at(&mut tl, 5.0, Scope::AllTracks);
+        run(&mut tl, &mut history, split_out);
+        assert_eq!(tl.track(v_tid).unwrap().events.len(), 2);
+
+        // Trim left down to 3 s (src 2..5) and move right to 9.0 s (creating a 5 s timeline gap)
+        tl.track_mut(v_tid).unwrap().events[0].duration = 3.0;
+        tl.track_mut(v_tid).unwrap().events[1].start = 9.0;
+        let v_refs: Vec<EventRef> = tl
+            .track(v_tid)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (v_tid, e.id))
+            .collect();
+        let a_refs: Vec<EventRef> = tl
+            .track(a_tid)
+            .unwrap()
+            .events
+            .iter()
+            .map(|e| (a_tid, e.id))
+            .collect();
+        let mut all_refs = v_refs.clone();
+        all_refs.extend_from_slice(&a_refs);
+
+        assert!(can_heal_events(&tl, &all_refs));
+        let healed_out = heal_events(&tl, &all_refs);
+        let touched = run(&mut tl, &mut history, healed_out);
+        assert_eq!(touched, vec![(v_tid, vid), (a_tid, aid)]);
+
+        let vh = &tl.track(v_tid).unwrap().events;
+        let ah = &tl.track(a_tid).unwrap().events;
+        assert_eq!(vh.len(), 1);
+        assert_eq!(ah.len(), 1);
+        assert!((vh[0].start - 1.0).abs() < 1e-9);
+        assert!((vh[0].trim_in - 2.0).abs() < 1e-9);
+        assert!((vh[0].duration - 10.0).abs() < 1e-9);
+        assert!((vh[0].fade_in - 0.4).abs() < 1e-9);
+        assert!((vh[0].fade_out - 0.6).abs() < 1e-9);
+        assert_eq!(vh[0].group, Some(group));
+        assert_eq!(ah[0].group, Some(group));
+
+        assert!(history.undo(&mut tl));
+        assert_eq!(tl.track(v_tid).unwrap().events.len(), 2);
+
+        // Reversed media order (later media moved earlier on timeline) must be refused
+        tl.track_mut(v_tid).unwrap().events[1].start = 0.2;
+        assert!(!can_heal_events(&tl, &v_refs));
+
+        // Different media_id must be refused
+        tl.track_mut(v_tid).unwrap().events[1].start = 9.0;
+        tl.track_mut(v_tid).unwrap().events[1].media_id = Some(99);
+        assert!(!can_heal_events(&tl, &v_refs));
     }
 }

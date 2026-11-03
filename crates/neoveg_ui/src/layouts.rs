@@ -9,6 +9,7 @@ use neoveg_common::i18n::tr_args;
 use std::path::{Path, PathBuf};
 
 use egui_dock::DockState;
+use neoveg_common::window_layout::SavedWindow;
 use serde::{Deserialize, Serialize};
 
 use crate::app::Tab;
@@ -30,6 +31,10 @@ pub struct LayoutFile {
     #[serde(default)]
     pub slot: Option<u8>,
     pub dock: DockState<Tab>,
+    /// The panels that were in their own windows, with where each one was. `None` in a file written
+    /// before windows were stored: loading it leaves the open windows as they are.
+    #[serde(default)]
+    pub detached: Option<Vec<SavedWindow>>,
 }
 
 /// A layout found in the folder.
@@ -42,6 +47,17 @@ pub struct SavedLayout {
 /// The per-user folder of the layouts.
 pub fn dir() -> Option<PathBuf> {
     neoveg_common::paths::app_data_dir().map(|d| d.join("layouts"))
+}
+
+/// The folder the layouts live in: the one the user chose (`custom`, from the preferences), or the
+/// per-user folder when none was chosen.
+pub fn resolve_dir(custom: &str) -> Option<PathBuf> {
+    let custom = custom.trim();
+    if custom.is_empty() {
+        dir()
+    } else {
+        Some(PathBuf::from(custom))
+    }
 }
 
 /// A file name for `name`: letters, digits, `-` and `_` stay, anything else becomes `_`.
@@ -148,13 +164,15 @@ pub fn list(dir: &Path) -> Vec<SavedLayout> {
     found
 }
 
-/// Saves `dock` as `name` in `dir`, with `slot` when given: the slot is taken away from any other
-/// layout that had it. Saving under a name that exists replaces that layout. Returns the file.
+/// Saves `dock` and the panel windows `detached` as `name` in `dir`, with `slot` when given: the slot
+/// is taken away from any other layout that had it. Saving under a name that exists replaces that
+/// layout. Returns the file.
 pub fn save(
     dir: &Path,
     name: &str,
     slot: Option<u8>,
     dock: &DockState<Tab>,
+    detached: &[SavedWindow],
 ) -> Result<PathBuf, String> {
     let name = name.trim();
     if name.is_empty() {
@@ -174,6 +192,7 @@ pub fn save(
             name: name.to_owned(),
             slot,
             dock: dock.clone(),
+            detached: Some(detached.to_vec()),
         },
     )?;
     Ok(path)
@@ -233,7 +252,7 @@ mod tests {
     fn a_layout_survives_the_round_trip_with_its_name_slot_and_windows() {
         let dir = temp("roundtrip");
         let saved = dock(vec![Tab::Preview, Tab::Timeline]);
-        let path = save(&dir, "Mixagem de áudio", Some(4), &saved).unwrap();
+        let path = save(&dir, "Mixagem de áudio", Some(4), &saved, &[]).unwrap();
         assert_eq!(path.extension().unwrap(), EXTENSION);
         let found = list(&dir);
         assert_eq!(found.len(), 1);
@@ -251,8 +270,8 @@ mod tests {
         let dir = temp("slots");
         let a = dock(vec![Tab::Preview]);
         let b = dock(vec![Tab::Timeline]);
-        let first = save(&dir, "A", Some(2), &a).unwrap();
-        save(&dir, "B", Some(2), &b).unwrap();
+        let first = save(&dir, "A", Some(2), &a, &[]).unwrap();
+        save(&dir, "B", Some(2), &b, &[]).unwrap();
         let found = list(&dir);
         assert_eq!(found.len(), 2);
         assert_eq!(by_slot(&found, 2).unwrap().file.name, "B", "B took slot 2");
@@ -261,7 +280,7 @@ mod tests {
             None
         );
         // The same name again replaces it, not a third file
-        save(&dir, "B", None, &a).unwrap();
+        save(&dir, "B", None, &a, &[]).unwrap();
         let found = list(&dir);
         assert_eq!(found.len(), 2);
         assert!(found
@@ -288,10 +307,13 @@ mod tests {
     fn bad_input_is_an_error_and_bad_files_are_skipped() {
         let dir = temp("bad");
         let d = dock(vec![Tab::Preview]);
-        assert!(save(&dir, "  ", None, &d).is_err(), "no name");
-        assert!(save(&dir, "X", Some(0), &d).is_err() && save(&dir, "X", Some(10), &d).is_err());
+        assert!(save(&dir, "  ", None, &d, &[]).is_err(), "no name");
+        assert!(
+            save(&dir, "X", Some(0), &d, &[]).is_err()
+                && save(&dir, "X", Some(10), &d, &[]).is_err()
+        );
         assert!(set_slot(&dir, &dir.join("nada.neoveglayout"), Some(10)).is_err());
-        save(&dir, "Boa", None, &d).unwrap();
+        save(&dir, "Boa", None, &d, &[]).unwrap();
         std::fs::write(dir.join("quebrada.neoveglayout"), "{ não é json").unwrap();
         // A file from a newer version, and a file with no windows at all
         let newer = LayoutFile {
@@ -299,6 +321,7 @@ mod tests {
             name: "Futuro".into(),
             slot: None,
             dock: d.clone(),
+            detached: None,
         };
         std::fs::write(
             dir.join("futuro.neoveglayout"),
@@ -317,6 +340,54 @@ mod tests {
             .to_string_lossy()
             .ends_with(".tmp")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_detached_windows_are_stored_and_an_old_file_without_them_still_reads() {
+        use neoveg_common::window_layout::WindowGeometry;
+        let dir = temp("detached");
+        let windows = vec![SavedWindow {
+            tab: "scopes".into(),
+            geometry: WindowGeometry {
+                x: 1930.0,
+                y: 40.0,
+                width: 500.0,
+                height: 300.0,
+                ..WindowGeometry::default()
+            },
+        }];
+        let d = dock(vec![Tab::Preview, Tab::Timeline]);
+        let path = save(&dir, "Dois monitores", None, &d, &windows).unwrap();
+        let found = list(&dir);
+        assert_eq!(found[0].file.detached.as_deref(), Some(windows.as_slice()));
+        // A layout saved with no detached window says so (an empty list, not "unknown")
+        save(&dir, "Sem janelas", None, &d, &[]).unwrap();
+        let none = list(&dir)
+            .into_iter()
+            .find(|l| l.file.name == "Sem janelas")
+            .unwrap();
+        assert_eq!(none.file.detached, Some(Vec::new()));
+        // A file written before the windows were stored has no such field
+        let mut value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        value.as_object_mut().unwrap().remove("detached");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let old = list(&dir)
+            .into_iter()
+            .find(|l| l.file.name == "Dois monitores")
+            .unwrap();
+        assert_eq!(old.file.detached, None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_chosen_folder_wins_over_the_default_one() {
+        assert_eq!(resolve_dir(""), dir());
+        assert_eq!(resolve_dir("   "), dir());
+        assert_eq!(
+            resolve_dir(" D:\\Meus layouts "),
+            Some(PathBuf::from("D:\\Meus layouts"))
+        );
     }
 
     #[test]

@@ -26,11 +26,30 @@ pub fn quantize(seconds: f64, fps: f64) -> f64 {
     }
 }
 
-/// Keeps `fade_in + fade_out` inside the event after its length changed.
+/// Keeps `fade_in + fade_out` and `snap_offset` inside the event after its length changed.
 fn clamp_fades(mut g: EventGeometry) -> EventGeometry {
-    g.fade_in = g.fade_in.clamp(0.0, g.duration);
-    g.fade_out = g.fade_out.clamp(0.0, (g.duration - g.fade_in).max(0.0));
+    let dur = g.duration.max(0.0);
+    g.fade_in = g.fade_in.clamp(0.0, dur);
+    g.fade_out = g.fade_out.clamp(0.0, (dur - g.fade_in).max(0.0));
+    g.snap_offset = if g.snap_offset.is_finite() {
+        g.snap_offset.clamp(0.0, dur)
+    } else {
+        0.0
+    };
     g
+}
+
+/// Sets the event's snap offset (`0.0..=duration` seconds from `start`).
+pub fn set_snap_offset(g: EventGeometry, offset: f64) -> EventGeometry {
+    let clean = if offset.is_finite() {
+        offset.clamp(0.0, g.duration.max(0.0))
+    } else {
+        0.0
+    };
+    EventGeometry {
+        snap_offset: clean,
+        ..g
+    }
 }
 
 /// Sets the fade-in length (at most the room left before the fade-out starts).
@@ -66,10 +85,17 @@ pub fn trim_left(g: EventGeometry, new_start: f64, min_len: f64) -> EventGeometr
     let lowest = (g.start - g.trim_in / rate).max(0.0);
     let highest = (end - min_len).max(g.start);
     let start = new_start.clamp(lowest, highest.max(lowest));
+    let duration = end - start;
+    let snap_offset = if g.snap_offset > 1e-9 {
+        (g.snap_offset - (start - g.start)).clamp(0.0, duration.max(0.0))
+    } else {
+        0.0
+    };
     clamp_fades(EventGeometry {
         start,
-        duration: end - start,
+        duration,
         trim_in: g.trim_in + (start - g.start) * rate,
+        snap_offset,
         ..g
     })
 }
@@ -177,9 +203,15 @@ pub fn stretch_right(g: EventGeometry, new_end: f64, min_len: f64) -> EventGeome
     let raw_dur = (new_end - g.start).max(min_len.max(1e-6));
     let new_rate = clamp_playback_rate(source_span / raw_dur);
     let duration = (source_span / new_rate).max(min_len);
+    let scale = if g.duration > 1e-9 {
+        duration / g.duration
+    } else {
+        1.0
+    };
     clamp_fades(EventGeometry {
         duration,
         playback_rate: new_rate,
+        snap_offset: g.snap_offset * scale,
         ..g
     })
 }
@@ -195,10 +227,16 @@ pub fn stretch_left(g: EventGeometry, new_start: f64, min_len: f64) -> EventGeom
     let new_rate = clamp_playback_rate(source_span / raw_dur);
     let duration = (source_span / new_rate).min(end).max(min_len.min(end));
     let actual_rate = clamp_playback_rate(source_span / duration.max(1e-6));
+    let scale = if g.duration > 1e-9 {
+        duration / g.duration
+    } else {
+        1.0
+    };
     clamp_fades(EventGeometry {
         start: (end - duration).max(0.0),
         duration,
         playback_rate: actual_rate,
+        snap_offset: g.snap_offset * scale,
         ..g
     })
 }
@@ -210,9 +248,15 @@ pub fn set_playback_rate(g: EventGeometry, rate: f64, min_len: f64) -> EventGeom
     let new_rate = clamp_playback_rate(rate);
     let source_span = (g.duration * old_rate).max(1e-6);
     let duration = (source_span / new_rate).max(min_len);
+    let scale = if g.duration > 1e-9 {
+        duration / g.duration
+    } else {
+        1.0
+    };
     clamp_fades(EventGeometry {
         duration,
         playback_rate: new_rate,
+        snap_offset: g.snap_offset * scale,
         ..g
     })
 }
@@ -226,17 +270,46 @@ pub fn snap_time(time: f64, candidates: &[f64], threshold: f64) -> Option<f64> {
         .min_by(|a, b| (a - time).abs().total_cmp(&(b - time).abs()))
 }
 
+/// Snaps a moving event or selection whose left snap point sits at `start + left_offset` and right
+/// snap point sits at `start + right_offset`, keeping `new_start >= min_start`.
+/// Returns `(new_start, matched_target)`.
+pub fn snap_block_with_offset(
+    start: f64,
+    left_offset: f64,
+    right_offset: f64,
+    min_start: f64,
+    candidates: &[f64],
+    threshold: f64,
+) -> Option<(f64, f64)> {
+    let best_for = |offset: f64| {
+        let point = start + offset;
+        candidates
+            .iter()
+            .copied()
+            .filter(|&c| (c - point).abs() <= threshold && c - offset >= min_start - 1e-9)
+            .min_by(|a, b| (a - point).abs().total_cmp(&(b - point).abs()))
+            .map(|c| ((c - point).abs(), (c - offset).max(min_start), c))
+    };
+    let by_left = best_for(left_offset);
+    let by_right = best_for(right_offset);
+    match (by_left, by_right) {
+        (Some(a), Some(b)) => Some(if a.0 <= b.0 { (a.1, a.2) } else { (b.1, b.2) }),
+        (a, b) => a.or(b).map(|(_, new_start, target)| (new_start, target)),
+    }
+}
+
 /// For a block `[start, start + duration]`, the start that aligns the nearest of its two edges to a
 /// candidate within `threshold`.
 pub fn snap_block(start: f64, duration: f64, candidates: &[f64], threshold: f64) -> Option<f64> {
-    // (distance moved, resulting start); computed from the candidate so the edge lands exactly on it
-    let by_start = snap_time(start, candidates, threshold).map(|c| ((c - start).abs(), c));
-    let by_end = snap_time(start + duration, candidates, threshold)
-        .map(|c| ((c - (start + duration)).abs(), c - duration));
-    match (by_start, by_end) {
-        (Some(a), Some(b)) => Some(if a.0 <= b.0 { a.1 } else { b.1 }),
-        (a, b) => a.or(b).map(|(_, new_start)| new_start),
-    }
+    snap_block_with_offset(
+        start,
+        0.0,
+        duration,
+        f64::NEG_INFINITY,
+        candidates,
+        threshold,
+    )
+    .map(|(new_start, _)| new_start)
 }
 
 #[cfg(test)]
@@ -371,12 +444,7 @@ mod tests {
             start,
             duration,
             trim_in,
-            fade_in: 0.0,
-            fade_out: 0.0,
-            fade_in_curve: Default::default(),
-            fade_out_curve: Default::default(),
-            playback_rate: 1.0,
-            preserve_pitch: true,
+            ..Default::default()
         }
     }
 
@@ -468,5 +536,55 @@ mod tests {
         let (l, r) = roll(left, right, 0.5, 0.04, Some(10.0));
         assert!((l.end() - r.start).abs() < 1e-9);
         assert!(r.trim_in >= 0.0 && l.duration >= 0.04);
+    }
+
+    #[test]
+    fn snap_offset_is_clamped_and_tracks_left_trim_right_trim_and_stretch() {
+        let g = set_snap_offset(geo(2.0, 4.0, 1.0), 1.5);
+        assert!((g.snap_offset - 1.5).abs() < 1e-9);
+        assert_eq!(set_snap_offset(g, 99.0).snap_offset, 4.0);
+        assert_eq!(set_snap_offset(g, -3.0).snap_offset, 0.0);
+        assert_eq!(set_snap_offset(g, f64::NAN).snap_offset, 0.0);
+
+        // Trimming the left edge keeps the snap offset pinned to the same frame (3.5 s on timeline)
+        let trimmed_in = trim_left(g, 2.5, 0.04);
+        assert!((trimmed_in.start + trimmed_in.snap_offset - 3.5).abs() < 1e-9);
+        let extended_out = trim_left(g, 1.5, 0.04);
+        assert!((extended_out.start + extended_out.snap_offset - 3.5).abs() < 1e-9);
+        // Default zero offset stays at the lower-left corner when extending left
+        assert_eq!(trim_left(geo(2.0, 4.0, 1.0), 1.5, 0.04).snap_offset, 0.0);
+        // Trimming past the snap offset resets it to 0.0
+        assert_eq!(trim_left(g, 4.0, 0.04).snap_offset, 0.0);
+        // Trimming the right edge clamps the snap offset into the remaining duration
+        assert!((trim_right(g, 3.0, 0.04, None).snap_offset - 1.0).abs() < 1e-9);
+
+        // Time-stretching scales the snap offset proportionally with the clip duration
+        let half_speed = set_playback_rate(g, 0.5, 0.04);
+        assert!((half_speed.duration - 8.0).abs() < 1e-9);
+        assert!((half_speed.snap_offset - 3.0).abs() < 1e-9);
+        let restored = set_playback_rate(half_speed, 1.0, 0.04);
+        assert!((restored.snap_offset - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn snap_block_with_offset_aligns_internal_offset_or_right_edge_and_respects_min_start() {
+        let candidates = [0.0, 1.0, 5.0, 10.0];
+        // Event duration 4.0, snap_offset 1.5: raw start 3.58 puts snap point at 5.08 -> snaps to 5.0 (start = 3.5)
+        let (new_start, target) =
+            snap_block_with_offset(3.58, 1.5, 4.0, 0.0, &candidates, 0.15).unwrap();
+        assert!((new_start - 3.5).abs() < 1e-9);
+        assert!((target - 5.0).abs() < 1e-9);
+
+        // Right edge at 9.92 snaps to 10.0 (start = 6.0)
+        let (new_start, target) =
+            snap_block_with_offset(5.92, 1.5, 4.0, 0.0, &candidates, 0.15).unwrap();
+        assert!((new_start - 6.0).abs() < 1e-9);
+        assert!((target - 10.0).abs() < 1e-9);
+
+        // Candidate 1.0 cannot be matched by left_offset 1.5 when min_start = 0.0 (would require start = -0.5)
+        assert_eq!(
+            snap_block_with_offset(0.0, 1.5, 4.0, 0.0, &[1.0], 0.6),
+            None
+        );
     }
 }

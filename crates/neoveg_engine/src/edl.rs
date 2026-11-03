@@ -81,6 +81,8 @@ impl std::error::Error for EdlError {}
 pub struct ClipInfo {
     pub name: String,
     pub path: Option<String>,
+    /// Seconds the source timecode of the media starts at (a custom start timecode of the user's).
+    pub start_offset: f64,
 }
 
 /// Reel name: the first 8 letters and digits of the clip name, upper-case, or `AX` when it has none.
@@ -135,6 +137,7 @@ pub fn export_track(
         let info = clip_info(ev.media_id).unwrap_or_else(|| ClipInfo {
             name: ev.name.clone(),
             path: None,
+            start_offset: 0.0,
         });
         out.push_str(&format!(
             "{:03}  {:<8} {:<5} {:<8} {} {} {} {}\n",
@@ -142,8 +145,8 @@ pub fn export_track(
             reel_name(&info.name),
             kind,
             "C",
-            tc(ev.trim_in, false),
-            tc(ev.trim_in + ev.duration, false),
+            tc(ev.trim_in + info.start_offset, false),
+            tc(ev.trim_in + ev.duration + info.start_offset, false),
             tc(ev.start, true),
             tc(ev.end(), true)
         ));
@@ -308,7 +311,9 @@ pub fn import_into_timeline(
             .tracks
             .iter()
             .chain(commands.iter().filter_map(|c| match c {
-                EditCommand::AddTrack { track } => Some(track),
+                EditCommand::AddTrack { track } | EditCommand::InsertTrack { track, .. } => {
+                    Some(track)
+                }
                 _ => None,
             }))
             .find(|t| t.kind == kind)
@@ -418,10 +423,12 @@ mod tests {
             1 => Some(ClipInfo {
                 name: "Entrevista".into(),
                 path: Some("C:\\media\\entrevista 01.mp4".into()),
+                ..ClipInfo::default()
             }),
             2 => Some(ClipInfo {
                 name: "Cobertura.mov".into(),
                 path: None,
+                ..ClipInfo::default()
             }),
             _ => None,
         }
@@ -439,6 +446,27 @@ mod tests {
              * SOURCE FILE: C:\\media\\entrevista 01.mp4\n\
              002  COBERTUR V     C        00:00:00:00 00:00:02:10 01:00:06:00 01:00:08:10\n\
              * FROM CLIP NAME: Cobertura.mov\n"
+        );
+    }
+
+    #[test]
+    fn a_custom_start_timecode_of_the_media_moves_the_source_timecodes() {
+        let (tl, id) = timeline();
+        // The interview starts at 10:00:00:00 instead of zero; the other clip is left alone
+        let with_start = |media: Option<u64>| {
+            info(media).map(|i| ClipInfo {
+                start_offset: if media == Some(1) { 36000.0 } else { 0.0 },
+                ..i
+            })
+        };
+        let text = export_track(&tl, id, "x", 25.0, 1, with_start).unwrap();
+        assert!(
+            text.contains("10:00:02:00 10:00:06:00 01:00:00:00 01:00:04:00"),
+            "{text}"
+        );
+        assert!(
+            text.contains("00:00:00:00 00:00:02:10 01:00:06:00 01:00:08:10"),
+            "{text}"
         );
     }
 

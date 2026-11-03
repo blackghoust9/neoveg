@@ -39,7 +39,7 @@ O que dá e o que não dá para fazer **no PC de desenvolvimento atual**, com o 
 | 368, 381, 618, 595 (parte) | Host de plug-ins OFX, VST3 em processo isolado com gerenciador, efeitos de terceiros em eventos, compensação de atraso de plug-ins | O código pode ser escrito, mas não há nenhum plug-in instalado (nem a pasta VST3) para validar; precisa de plug-ins de teste |
 | 327, 328, 332, 336, 590 | Itens "conferir em uso" | Pedem olho humano ou controle de tela, que não existe nesta sessão; só o dono do projeto confere |
 | 367 | Medir a GPU com o benchmark de reprodução para escolher a primeira família de efeitos | O resultado só valeria para este gráfico integrado de 1 GB, que não representa as GPUs dos usuários |
-| 343 | Falha intermitente de linkagem (`LNK1201`/`LNK1104`) | Só aparece depois de vários rebuilds seguidos, e cada rebuild completo aqui chega a ser parado por falta de memória; falta reproduzir (suspeita: antivírus residente) |
+| 343 | Falha intermitente de linkagem (`LNK1201`/`LNK1104`) | Resolvido em 03/11/2026: confirmado Kaspersky Endpoint Security ativo (`0x41000`) + reabertura destrutiva do `.pdb` pelo `link.exe` (`mspdbcore.dll`, não `mspdbsrv.exe`); migrado para `rust-lld.exe` em `.cargo/config.toml` + `[profile.dev.build-override] debug = 0` + retentativa automática em `build_portable.py` e `scripts/cargo-ffmpeg.ps1` |
 | 307, 318, 393 | Scripting do usuário, pacote portátil, quais formatos de câmera valem o custo | Estão "em decisão": não é limite de hardware, falta a escolha do dono do projeto |
 
 ## 2. Dá só em parte (o código sim, a validação limitada)
@@ -59,7 +59,7 @@ O que dá e o que não dá para fazer **no PC de desenvolvimento atual**, com o 
 
 **Edição e linha do tempo**
 - Caixas de início, fim e duração com valor relativo (476); arrastar com `Ctrl` copia e menu do botão direito (479, 562); `[` e `]` selecionam a borda (481); inserir evento vazio (484).
-- Ripple por escopo, `TrimMode`, aparo adjacente, embaralhar e modo de edição expandida A/B (402, 487 a 492, 334, 456); evento em laço com quadros ilegíveis (493); flag de deslocamento de snap por evento (335, 499).
+- Ripple por escopo, `TrimMode`, aparo adjacente, embaralhar e modo de edição expandida A/B (402, 487 a 492, 334, 456); evento em laço com quadros ilegíveis (493).
 - Marcadores: mover e redimensionar etiquetas, marcadores de comando e de mídia (407, 521, 522); subclipes e copiar o quadro atual (529); importar estéreo como mono duplo (530).
 - Faixas: grupos, duplicar, cor e altura (534); faixas pai e filho (410, 549); faixa e evento de ajuste (372); Fechar espaços, Reunir evento e Divisão inteligente (561, 377); L-cut, J-cut e vínculos de sincronização (460, 514); reparo de dessincronia (613).
 - Seleção de canal em mídia multicanal (510), takes (512, 587), esticar com preservação de formantes (389), interruptores de vídeo que faltam (374, 508).
@@ -91,7 +91,7 @@ A conferência por busca no código mostra que estas caixas estão atrasadas em 
 |---|---|
 | 405 | Travar evento existe (interruptor e cadeado); falta só conferir a trava de faixa |
 | 415, 536 | Barramentos (até 26), sends e cadeia de efeitos do barramento já estão no roteiro como feitos |
-| 465, 372, 557 | `adjustment.rs`: evento de ajuste já existe; falta o redimensionamento ao projeto |
+| 465, 384, 577 | `adjustment.rs`: eventos de ajuste, faixas de ajuste e redimensionar ao projeto feitos; nas linhas 465/577 restam outros itens agrupados |
 | 515, 612 | Reverter evento: a velocidade negativa já reproduz ao contrário; falta o subclipe revertido |
 | 563 | Congelar quadro no cursor existe (`velocity::freeze_command`) |
 | 539 | O registro `_loud.txt` e a medição offline existem em `loudness_report` e no render |
@@ -106,15 +106,15 @@ Conferir a lista item a item continua pendente; esta tabela só cobre o que foi 
 
 ## 5. Testes a rodar numa máquina com mais memória
 
-Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desde a última rodada completa de testes (`262b677`, que passou: 188 do `neoveg_audio`, 309 da interface) foram escritos 46 testes novos que **nunca rodaram**, e o código que eles cobrem mudou desde então. Rode **um crate por vez**, com `-j 1 -- --test-threads=1`, e o da interface em segundo plano.
+Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desde a última rodada completa de testes (`262b677`, que passou: 188 do `neoveg_audio`, 309 da interface) foram escritos 49 testes novos que **nunca rodaram** na suíte inteira do `neoveg_ui` (os 7 de `dialogs.rs` rodaram à parte com `rustc --test`), e o código que eles cobrem mudou desde então. Rode **um crate por vez**, com `-j 1 -- --test-threads=1`, e o da interface em segundo plano.
 
 | Ordem | Comando | O que cobre (testes novos) |
 |---|---|---|
 | 1 | `cargo test -p neoveg_common` | mapas de teclado nomeados (4), sequências de atalhos (2), preferências (importar, cores do esmaecer: 2), orçamento de cache e de decodificadores (2) |
-| 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1) |
+| 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1), deslocamento de snap por evento (6) |
 | 3 | `cargo test -p neoveg_audio` | curva de ganho do mixer (2); o resto já passou |
 | 4 | `cargo test -p neoveg_video` | nada novo, mas o limite de decodificadores mexeu no worker |
-| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), e a suíte toda (309 antes) |
+| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), deslocamento de snap na timeline e em grupos (2), diálogos centrais e cascata de ferramentas (3), e a suíte toda (309 antes) |
 | 6 | `NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot` (segundo plano) | as 18 capturas fora da tela, para ver se a interface nova desenha |
 
 **Por que o `neoveg_engine` inteiro:** o envelope de volume, o de progresso, a duplicação de faixa e o esmaecer mexeram no corte, no aparo, na cópia e no desfazer; os testes antigos de ripple e de seleção são os que mais podem revelar uma regressão.

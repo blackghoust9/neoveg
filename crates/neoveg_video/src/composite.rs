@@ -94,6 +94,89 @@ pub fn fit_layer_to_canvas(
     })
 }
 
+/// Stretches `src` to fill `(canvas_w, canvas_h)` without letterbox or pillarbox bars (used when the
+/// event's *Maintain Aspect Ratio* switch is turned off). Borrows `src` directly when dimensions
+/// already match.
+pub fn stretch_layer_to_canvas(
+    src: &FrameBuffer,
+    canvas_w: u32,
+    canvas_h: u32,
+) -> Cow<'_, FrameBuffer> {
+    let cw = canvas_w.max(1);
+    let ch = canvas_h.max(1);
+    if src.width == cw && src.height == ch {
+        return Cow::Borrowed(src);
+    }
+    if src.width == 0 || src.height == 0 || src.rgba.len() < (src.width * src.height * 4) as usize {
+        return Cow::Owned(FrameBuffer::solid(cw, ch, [0, 0, 0, 0]));
+    }
+    let Some(src_img) = RgbaImage::from_raw(src.width, src.height, src.rgba.clone()) else {
+        return Cow::Owned(FrameBuffer::solid(cw, ch, [0, 0, 0, 0]));
+    };
+    let resized = image::imageops::resize(&src_img, cw, ch, FilterType::Triangle);
+    Cow::Owned(FrameBuffer {
+        width: cw,
+        height: ch,
+        rgba: resized.into_raw(),
+    })
+}
+
+/// Vertical `[1, 2, 1] / 4` anti-flicker low-pass prefilter across adjacent scanlines
+/// (`manual_vegaspro21_en.md` pp. 355-356, *Reduce Interlace Flicker*). Computed in premultiplied
+/// alpha so thin text and graphics over transparency do not pick up dark halos, while 1-pixel
+/// alternating horizontal lines are attenuated without blurring vertical edges.
+pub fn reduce_interlace_flicker(src: &FrameBuffer) -> FrameBuffer {
+    let w = src.width as usize;
+    let h = src.height as usize;
+    if w == 0 || h <= 1 || src.rgba.len() < w * h * 4 {
+        return src.clone();
+    }
+    let stride = w * 4;
+    let mut out = vec![0u8; w * h * 4];
+    for y in 0..h {
+        let top = y.saturating_sub(1) * stride;
+        let mid = y * stride;
+        let bot = (y + 1).min(h - 1) * stride;
+        for x in 0..w {
+            let off = x * 4;
+            let tp = &src.rgba[top + off..top + off + 4];
+            let mp = &src.rgba[mid + off..mid + off + 4];
+            let bp = &src.rgba[bot + off..bot + off + 4];
+            let dst = &mut out[mid + off..mid + off + 4];
+            if tp[3] == 255 && mp[3] == 255 && bp[3] == 255 {
+                for c in 0..3 {
+                    let sum = u16::from(tp[c]) + 2 * u16::from(mp[c]) + u16::from(bp[c]) + 2;
+                    dst[c] = (sum >> 2) as u8;
+                }
+                dst[3] = 255;
+            } else {
+                let ta = u32::from(tp[3]);
+                let ma = u32::from(mp[3]);
+                let ba = u32::from(bp[3]);
+                let out_a4 = ta + 2 * ma + ba;
+                let out_a = ((out_a4 + 2) >> 2) as u8;
+                if out_a == 0 {
+                    dst.copy_from_slice(&[0, 0, 0, 0]);
+                } else {
+                    for c in 0..3 {
+                        let premul4 = u32::from(tp[c]) * ta
+                            + 2 * u32::from(mp[c]) * ma
+                            + u32::from(bp[c]) * ba;
+                        let unpremul = (premul4 + out_a4 / 2) / out_a4.max(1);
+                        dst[c] = unpremul.min(255) as u8;
+                    }
+                    dst[3] = out_a;
+                }
+            }
+        }
+    }
+    FrameBuffer {
+        width: src.width,
+        height: src.height,
+        rgba: out,
+    }
+}
+
 #[inline]
 fn unpack_px(rgba: &[u8], idx: usize) -> [f32; 4] {
     let base = idx * 4;
@@ -982,5 +1065,61 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn maintain_aspect_fits_with_bars_while_stretch_fills_the_canvas() {
+        // Portrait 20x40 red frame placed on a landscape 40x20 canvas
+        let portrait = FrameBuffer::solid(20, 40, [220, 30, 40, 255]);
+        let fitted = fit_layer_to_canvas(&portrait, 40, 20);
+        assert_eq!((fitted.width, fitted.height), (40, 20));
+        assert_eq!(fitted.pixel(2, 10)[3], 0, "left pillarbox is transparent");
+        assert_eq!(fitted.pixel(37, 10)[3], 0, "right pillarbox is transparent");
+        assert_eq!(fitted.pixel(20, 10), [220, 30, 40, 255]);
+
+        let stretched = stretch_layer_to_canvas(&portrait, 40, 20);
+        assert_eq!((stretched.width, stretched.height), (40, 20));
+        assert_eq!(stretched.pixel(2, 10), [220, 30, 40, 255]);
+        assert_eq!(stretched.pixel(37, 10), [220, 30, 40, 255]);
+    }
+
+    #[test]
+    fn reduce_interlace_flicker_smooths_horizontal_nyquist_lines_and_keeps_vertical_stripes_sharp()
+    {
+        let mut h_lines = FrameBuffer::solid(16, 16, [0, 0, 0, 255]);
+        let mut v_stripes = FrameBuffer::solid(16, 16, [0, 0, 0, 255]);
+        for y in 0..16u32 {
+            for x in 0..16u32 {
+                if y % 2 == 1 {
+                    let i = ((y * 16 + x) * 4) as usize;
+                    h_lines.rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+                }
+                if x % 2 == 1 {
+                    let i = ((y * 16 + x) * 4) as usize;
+                    v_stripes.rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+                }
+            }
+        }
+        let filtered_h = reduce_interlace_flicker(&h_lines);
+        // Interior scanlines (0, 255, 0, 255) collapse to uniform 128 -> zero field-to-field flicker
+        assert_eq!(filtered_h.pixel(8, 5), [128, 128, 128, 255]);
+        assert_eq!(filtered_h.pixel(8, 6), [128, 128, 128, 255]);
+
+        let filtered_v = reduce_interlace_flicker(&v_stripes);
+        assert_eq!(
+            filtered_v, v_stripes,
+            "vertical 1-px stripes stay completely sharp"
+        );
+
+        // White text scanline over transparent background keeps pure white RGB without dark halo
+        let mut text_line = FrameBuffer::solid(8, 8, [0, 0, 0, 0]);
+        for x in 0..8u32 {
+            let i = ((4 * 8 + x) * 4) as usize;
+            text_line.rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+        }
+        let filtered_text = reduce_interlace_flicker(&text_line);
+        let neighbor = filtered_text.pixel(4, 3);
+        assert_eq!((neighbor[0], neighbor[1], neighbor[2]), (255, 255, 255));
+        assert_eq!(neighbor[3], 64);
     }
 }

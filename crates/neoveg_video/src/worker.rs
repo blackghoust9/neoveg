@@ -10,6 +10,7 @@ use std::sync::Arc;
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::grade::Grade;
+use neoveg_common::presets::ResampleMode as ClipResample;
 
 use crate::cache::LruFrameCache;
 use crate::composite::{composite_nodes_cpu, CompositeNode, DecodedLayer, GpuCompositor};
@@ -74,9 +75,14 @@ pub struct VideoClipRequest {
     /// Transitions in progress (the one that reveals the event and the one that hides it), run on
     /// the finished picture; the event's opacity then leaves out the part they replace.
     pub transitions: Vec<TransitionRequest>,
-    /// Frame blend: between two source frames the picture is the blend of both, in proportion to
-    /// how close each one is (slow motion, another frame rate).
-    pub blend: bool,
+    /// Effective frame resampling mode (`Disable`, `FrameBlend`, or `OpticalFlow`).
+    pub resample: ClipResample,
+    /// Maintain Aspect Ratio switch (`true` fits proportionally; `false` stretches to canvas).
+    pub maintain_aspect_ratio: bool,
+    /// Reduce Interlace Flicker switch: vertical `[1, 2, 1] / 4` anti-flicker prefilter on the source picture.
+    pub reduce_interlace_flicker: bool,
+    /// What the user said about the media (alpha, background, pixel aspect), applied to each decoded frame.
+    pub media_look: neoveg_common::media_props::MediaProps,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -326,17 +332,27 @@ impl WorkerState {
         self.gpu_compositor.as_ref()
     }
 
-    /// What a clip needs after its picture is decoded and keyed: the Pan/Crop, then the effect
-    /// chain. A clip with neither returns the same `Arc`, so the cached source frame is never
+    /// What a clip needs after its picture is decoded and keyed: the Pan/Crop, optional canvas
+    /// stretch when *Maintain Aspect Ratio* is turned off, then the effect chain and transitions.
+    /// A clip with default settings returns the same `Arc`, so the cached source frame is never
     /// copied or changed.
     fn finish_clip(
         &mut self,
         frame: Arc<FrameBuffer>,
         clip: &VideoClipRequest,
+        canvas: (u32, u32),
     ) -> Arc<FrameBuffer> {
         let frame = match clip.pan_crop.filter(|p| !p.is_identity()) {
             Some(p) => Arc::new(pan_crop::apply(&frame, &p.frame, p.stretch_to_fill)),
             None => frame,
+        };
+        let frame = if !clip.maintain_aspect_ratio {
+            match crate::composite::stretch_layer_to_canvas(&frame, canvas.0, canvas.1) {
+                std::borrow::Cow::Borrowed(_) => frame,
+                std::borrow::Cow::Owned(stretched) => Arc::new(stretched),
+            }
+        } else {
+            frame
         };
         let frame = self.apply_effects(frame, &clip.effects);
         let mut frame = frame;
@@ -367,7 +383,7 @@ impl WorkerState {
             }
         }
         let inc = crate::composite::fit_layer_to_canvas(incoming, canvas_w, canvas_h);
-        if canvas_w * canvas_h >= 64 * 64 {
+        if !matches!(t, transitions::Resolved::WarpFlow) && canvas_w * canvas_h >= 64 * 64 {
             if let Some(gpu) = self.vfx_gpu() {
                 match gpu.process_transition2(Some(&out), &inc, t, progress) {
                     Ok(done) => return Arc::new(done),
@@ -623,6 +639,39 @@ fn hash_pan_crop(h: &mut impl Hasher, pan_crop: Option<&PanCropRequest>) {
     }
 }
 
+fn hash_clip(h: &mut impl Hasher, clip: &VideoClipRequest, max_width: u32) {
+    let sk = SourceCacheKey::for_source(&clip.path, clip.seconds, clip.source_fps, max_width);
+    sk.hash(h);
+    hash_f32(h, clip.event_opacity);
+    clip.apply_chroma.hash(h);
+    vfx::hash_chain(&clip.effects, h);
+    hash_pan_crop(h, clip.pan_crop.as_ref());
+    clip.transitions.len().hash(h);
+    for t in &clip.transitions {
+        t.hash_into(h);
+    }
+    let resample_code: u8 = match clip.resample {
+        ClipResample::Disable => 0,
+        ClipResample::FrameBlend => 1,
+        ClipResample::OpticalFlow => 2,
+    };
+    resample_code.hash(h);
+    if clip.resample != ClipResample::Disable && clip.source_fps > 0.0 {
+        // Resampled pictures differ between frames: the key follows the position in 1/16ths
+        ((clip.seconds * clip.source_fps * 16.0).floor() as i64).hash(h);
+    }
+    clip.maintain_aspect_ratio.hash(h);
+    clip.reduce_interlace_flicker.hash(h);
+    hash_media_look(h, &clip.media_look);
+}
+
+/// The parts of the media properties that change the picture.
+fn hash_media_look(h: &mut impl Hasher, look: &neoveg_common::media_props::MediaProps) {
+    look.alpha.hash(h);
+    look.background.hash(h);
+    look.pixel_aspect.to_bits().hash(h);
+}
+
 fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
     match node {
         TrackCompositeNode::Track {
@@ -651,26 +700,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             }
             clips.len().hash(h);
             for clip in clips {
-                let sk = SourceCacheKey::for_source(
-                    &clip.path,
-                    clip.seconds,
-                    clip.source_fps,
-                    max_width,
-                );
-                sk.hash(h);
-                hash_f32(h, clip.event_opacity);
-                clip.apply_chroma.hash(h);
-                vfx::hash_chain(&clip.effects, h);
-                hash_pan_crop(h, clip.pan_crop.as_ref());
-                clip.transitions.len().hash(h);
-                for t in &clip.transitions {
-                    t.hash_into(h);
-                }
-                clip.blend.hash(h);
-                if clip.blend && clip.source_fps > 0.0 {
-                    // Blended pictures differ between frames: the key follows the position in 1/16ths
-                    ((clip.seconds * clip.source_fps * 16.0).floor() as i64).hash(h);
-                }
+                hash_clip(h, clip, max_width);
             }
         }
         TrackCompositeNode::Adjust { effects, opacity } => {
@@ -695,21 +725,7 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             }
             parent_clips.len().hash(h);
             for clip in parent_clips {
-                let sk = SourceCacheKey::for_source(
-                    &clip.path,
-                    clip.seconds,
-                    clip.source_fps,
-                    max_width,
-                );
-                sk.hash(h);
-                hash_f32(h, clip.event_opacity);
-                clip.apply_chroma.hash(h);
-                vfx::hash_chain(&clip.effects, h);
-                hash_pan_crop(h, clip.pan_crop.as_ref());
-                clip.transitions.len().hash(h);
-                for t in &clip.transitions {
-                    t.hash_into(h);
-                }
+                hash_clip(h, clip, max_width);
             }
         }
     }
@@ -750,41 +766,65 @@ fn composite_request_signature(req: &CompositeFrameRequest, out_w: u32, out_h: u
     h.finish()
 }
 
-/// The source frame a clip shows, blended with the next one when the clip asks for it and the
-/// moment falls between two frames.
+/// The source frame a clip shows: resampled between neighbor frames (linear blend or optical flow)
+/// when the clip asks for it and the moment falls between two frames, then prefiltered vertically
+/// when *Reduce Interlace Flicker* is enabled.
 fn decode_clip_raw(
     state: &mut WorkerState,
     clip: &VideoClipRequest,
     max_width: u32,
 ) -> Result<Arc<FrameBuffer>, String> {
-    if !clip.blend
+    let raw = if clip.resample == ClipResample::Disable
         || !(clip.source_fps.is_finite() && clip.source_fps > 0.0)
         || is_image_path(&clip.path)
     {
-        return state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width);
-    }
-    let position = clip.seconds * clip.source_fps;
-    let t = position - position.floor();
-    // Close to a frame there is nothing to blend
-    if !(0.02..=0.98).contains(&t) {
-        return state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width);
-    }
-    // Each frame is asked for at its own time, a hair after it: the cache rounds times to frames, so
-    // a time half way between two would otherwise share one entry
-    let at = |frame: f64| (frame + 0.01) / clip.source_fps;
-    let first =
-        state.decode_raw_cached(&clip.path, at(position.floor()), clip.source_fps, max_width)?;
-    match state.decode_raw_cached(
-        &clip.path,
-        at(position.floor() + 1.0),
-        clip.source_fps,
-        max_width,
-    ) {
-        Ok(next) if next.width == first.width && next.height == first.height => {
-            Ok(Arc::new(mix_frames(&first, &next, t as f32)))
+        state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?
+    } else {
+        let position = clip.seconds * clip.source_fps;
+        let t = position - position.floor();
+        // Close to a frame there is nothing to resample
+        if !(0.02..=0.98).contains(&t) {
+            state.decode_raw_cached(&clip.path, clip.seconds, clip.source_fps, max_width)?
+        } else {
+            // Each frame is asked for at its own time, a hair after it: the cache rounds times to frames, so
+            // a time half way between two would otherwise share one entry
+            let at = |frame: f64| (frame + 0.01) / clip.source_fps;
+            let first = state.decode_raw_cached(
+                &clip.path,
+                at(position.floor()),
+                clip.source_fps,
+                max_width,
+            )?;
+            match state.decode_raw_cached(
+                &clip.path,
+                at(position.floor() + 1.0),
+                clip.source_fps,
+                max_width,
+            ) {
+                Ok(next) if next.width == first.width && next.height == first.height => {
+                    let interpolated = match clip.resample {
+                        ClipResample::FrameBlend => mix_frames(&first, &next, t as f32),
+                        ClipResample::OpticalFlow => {
+                            crate::optical_flow::interpolate_frames(&first, &next, t as f32)
+                        }
+                        ClipResample::Disable => (*first).clone(),
+                    };
+                    Arc::new(interpolated)
+                }
+                // The last frame has no next one
+                _ => first,
+            }
         }
-        // The last frame has no next one
-        _ => Ok(first),
+    };
+    let raw = if clip.reduce_interlace_flicker {
+        Arc::new(crate::composite::reduce_interlace_flicker(&raw))
+    } else {
+        raw
+    };
+    if clip.media_look.changes_picture() {
+        Ok(Arc::new(crate::media_look::apply(&raw, &clip.media_look)))
+    } else {
+        Ok(raw)
     }
 }
 
@@ -856,7 +896,7 @@ fn decode_clip_stack(
         } else {
             raw
         };
-        return Ok(Some(state.finish_clip(frame, clip)));
+        return Ok(Some(state.finish_clip(frame, clip, (canvas_w, canvas_h))));
     }
 
     // Multiple overlapping clips on the same track (crossfade) or partial event fade-in/out:
@@ -887,7 +927,7 @@ fn decode_clip_stack(
             if let Some(resolved) = transitions::resolve(&request.kind, &request.params) {
                 let mut rest = clip.clone();
                 rest.transitions.remove(index);
-                let incoming = state.finish_clip(frame, &rest);
+                let incoming = state.finish_clip(frame, &rest, (canvas_w, canvas_h));
                 let merged = state.apply_transition_pair(
                     &outgoing,
                     out_opacity,
@@ -907,7 +947,7 @@ fn decode_clip_stack(
                 continue;
             }
         }
-        let frame = state.finish_clip(frame, clip);
+        let frame = state.finish_clip(frame, clip, (canvas_w, canvas_h));
         layers.push(CompositeNode::Layer(DecodedLayer {
             frame: Arc::clone(&frame),
             mode: CompositeMode::SourceAlpha,
@@ -1243,7 +1283,10 @@ mod tests {
             effects: Vec::new(),
             pan_crop: None,
             transitions: Vec::new(),
-            blend: false,
+            resample: ClipResample::Disable,
+            maintain_aspect_ratio: true,
+            reduce_interlace_flicker: false,
+            media_look: Default::default(),
         };
         let mut state = WorkerState::new();
         let chroma = ChromaKey::default();
@@ -1316,7 +1359,10 @@ mod tests {
                     effects: Vec::new(),
                     pan_crop: None,
                     transitions: Vec::new(),
-                    blend: false,
+                    resample: ClipResample::Disable,
+                    maintain_aspect_ratio: true,
+                    reduce_interlace_flicker: false,
+                    media_look: Default::default(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1383,7 +1429,10 @@ mod tests {
                     effects: clip_fx,
                     pan_crop: None,
                     transitions: Vec::new(),
-                    blend: false,
+                    resample: ClipResample::Disable,
+                    maintain_aspect_ratio: true,
+                    reduce_interlace_flicker: false,
+                    media_look: Default::default(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1435,7 +1484,14 @@ mod tests {
                         effects: Vec::new(),
                         pan_crop: None,
                         transitions: Vec::new(),
-                        blend,
+                        resample: if blend {
+                            ClipResample::FrameBlend
+                        } else {
+                            ClipResample::Disable
+                        },
+                        maintain_aspect_ratio: true,
+                        reduce_interlace_flicker: false,
+                        media_look: Default::default(),
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -1502,7 +1558,10 @@ mod tests {
             effects: Vec::new(),
             pan_crop: None,
             transitions: Vec::new(),
-            blend: false,
+            resample: ClipResample::Disable,
+            maintain_aspect_ratio: true,
+            reduce_interlace_flicker: false,
+            media_look: Default::default(),
         };
         let track = |path: &Path, sized: bool| TrackCompositeNode::Track {
             clips: vec![clip(path)],
@@ -1891,6 +1950,154 @@ mod tests {
             .render_frame(&effect_request(&path, Vec::new(), Vec::new()))
             .unwrap();
         assert_eq!(again, plain);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn worker_applies_optical_flow_aspect_stretch_and_interlace_flicker_switches() {
+        let dir =
+            std::env::temp_dir().join(format!("neoveg_worker_switches_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // 1. Portrait 20x40 image with alternating horizontal scanlines on a 40x20 canvas
+        let portrait = dir.join("portrait_stripes.png");
+        let mut img = ImageBuffer::from_pixel(20, 40, Rgba([0u8, 0, 0, 255]));
+        for y in (1..40u32).step_by(2) {
+            for x in 0..20u32 {
+                img.put_pixel(x, y, Rgba([240, 240, 240, 255]));
+            }
+        }
+        img.save(&portrait).unwrap();
+
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        let eval_portrait = |maintain_aspect_ratio: bool, reduce_interlace_flicker: bool| {
+            worker.request_composite(CompositeFrameRequest {
+                timeline_seconds: 0.0,
+                fps: 25.0,
+                playing: false,
+                shuttle_speed: 1.0,
+                canvas_width: 40,
+                canvas_height: 20,
+                max_width: 0,
+                nodes: vec![TrackCompositeNode::Track {
+                    clips: vec![VideoClipRequest {
+                        media_id: 1,
+                        path: portrait.clone(),
+                        seconds: 0.0,
+                        source_fps: 25.0,
+                        playback_rate: 1.0,
+                        event_opacity: 1.0,
+                        apply_chroma: false,
+                        effects: Vec::new(),
+                        pan_crop: None,
+                        transitions: Vec::new(),
+                        resample: ClipResample::Disable,
+                        maintain_aspect_ratio,
+                        reduce_interlace_flicker,
+                        media_look: Default::default(),
+                    }],
+                    mode: CompositeMode::SourceAlpha,
+                    level: 1.0,
+                    effects: Vec::new(),
+                    fade_color: [0, 0, 0],
+                    fade_amount: 0.0,
+                    motion: None,
+                }],
+                lut: None,
+                grade: Grade::default(),
+                chroma_key: ChromaKey::default(),
+                project_effects: Vec::new(),
+            });
+            worker
+                .composite_rx
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap()
+                .result
+                .unwrap()
+        };
+
+        let pillarboxed = eval_portrait(true, false);
+        assert_eq!(
+            pillarboxed.pixel(2, 10),
+            [0, 0, 0, 255],
+            "left bar is black"
+        );
+        let stretched_filtered = eval_portrait(false, true);
+        assert!(
+            stretched_filtered.pixel(2, 10)[0] > 90,
+            "with Maintain Aspect Ratio off and flicker prefilter on, edge fills with grey: {:?}",
+            stretched_filtered.pixel(2, 10)
+        );
+
+        // 2. Optical flow over an image sequence with a moving square
+        let write_box = |path: &Path, x0: u32| {
+            let mut f = ImageBuffer::from_pixel(64, 64, Rgba([10u8, 12, 16, 255]));
+            for y in 26..38 {
+                for x in x0..(x0 + 12) {
+                    f.put_pixel(x, y, Rgba([240, 200, 40, 255]));
+                }
+            }
+            f.save(path).unwrap();
+        };
+        write_box(&dir.join("flow_0001.png"), 12);
+        write_box(&dir.join("flow_0002.png"), 28);
+        write_box(&dir.join("flow_0003.png"), 28);
+        let seq = detect_image_sequence(&dir.join("flow_0001.png"), 25.0)
+            .unwrap()
+            .unwrap();
+        let manifest = dir.join("flow.neovegseq");
+        seq.save_manifest(&manifest).unwrap();
+
+        worker.request_composite(CompositeFrameRequest {
+            timeline_seconds: 0.02,
+            fps: 50.0,
+            playing: false,
+            shuttle_speed: 1.0,
+            canvas_width: 64,
+            canvas_height: 64,
+            max_width: 0,
+            nodes: vec![TrackCompositeNode::Track {
+                clips: vec![VideoClipRequest {
+                    media_id: 2,
+                    path: manifest,
+                    seconds: 0.02,
+                    source_fps: 25.0,
+                    playback_rate: 1.0,
+                    event_opacity: 1.0,
+                    apply_chroma: false,
+                    effects: Vec::new(),
+                    pan_crop: None,
+                    transitions: Vec::new(),
+                    resample: ClipResample::OpticalFlow,
+                    maintain_aspect_ratio: true,
+                    reduce_interlace_flicker: false,
+                    media_look: Default::default(),
+                }],
+                mode: CompositeMode::SourceAlpha,
+                level: 1.0,
+                effects: Vec::new(),
+                fade_color: [0, 0, 0],
+                fade_amount: 0.0,
+                motion: None,
+            }],
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
+        });
+        let flowed = worker
+            .composite_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .result
+            .unwrap();
+        assert!(
+            flowed.pixel(26, 32)[0] > 200,
+            "optical flow interpolates intermediate square center at (26, 32): {:?}",
+            flowed.pixel(26, 32)
+        );
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -12,7 +12,6 @@ use super::*;
 use crate::pan_crop_window::{EditTarget, PanCropDraft};
 use crate::velocity_editor::VelocityDraft;
 use crate::video_fx_panel::{effects_for, VfxDraft};
-use neoveg_common::composite::CompositeMode;
 use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
@@ -34,6 +33,7 @@ pub(super) struct FrameSettings {
     pub max_width: u32,
     pub playing: bool,
     pub auto_crossfade: bool,
+    pub resample_mode: neoveg_common::presets::ResampleMode,
     pub lut: Option<Arc<Lut>>,
     pub grade: Grade,
     pub chroma_key: ChromaKey,
@@ -254,11 +254,12 @@ pub(super) fn composite_request(
         if track_state.muted {
             continue;
         }
-        let crossfades = if settings.auto_crossfade {
-            find_crossfades(&track.events)
-        } else {
-            Vec::new()
-        };
+        let crossfades =
+            if settings.auto_crossfade || track.events.iter().any(|e| e.transition_in.is_some()) {
+                find_crossfades(&track.events)
+            } else {
+                Vec::new()
+            };
         let mut active: Vec<&TrackEvent> = track
             .events
             .iter()
@@ -267,11 +268,15 @@ pub(super) fn composite_request(
         active.sort_by(|a, b| a.start.total_cmp(&b.start));
         // Adjustment events of this track act on the tracks below it, so they go before its own layer
         for e in active.iter().filter(|e| e.adjustment) {
-            let cross_in = crossfades
-                .iter()
-                .filter(|c| c.later == e.id)
-                .map(Crossfade::length)
-                .fold(0.0, f64::max);
+            let cross_in = if settings.auto_crossfade || e.transition_in.is_some() {
+                crossfades
+                    .iter()
+                    .filter(|c| c.later == e.id)
+                    .map(Crossfade::length)
+                    .fold(0.0, f64::max)
+            } else {
+                0.0
+            };
             let (opacity, _) = clip_look(e, time, cross_in);
             nodes.push(TrackCompositeNode::Adjust {
                 effects: effects_for(
@@ -290,25 +295,38 @@ pub(super) fn composite_request(
             .filter_map(|e| {
                 let media_id = e.media_id?;
                 let source = resolve(media_id)?;
-                let cross_in = crossfades
-                    .iter()
-                    .filter(|c| c.later == e.id)
-                    .map(Crossfade::length)
-                    .fold(0.0, f64::max);
+                let cross_in = if settings.auto_crossfade || e.transition_in.is_some() {
+                    crossfades
+                        .iter()
+                        .filter(|c| c.later == e.id)
+                        .map(Crossfade::length)
+                        .fold(0.0, f64::max)
+                } else {
+                    0.0
+                };
                 let (opacity, transitions) = clip_look(e, time, cross_in);
                 let speed = velocity_of(e, track.id, settings);
+                let look = neoveg_engine::media_props::props_of(timeline, media_id);
+                // A substitute frame rate plays the picture faster or slower than the file says
+                let factor = look.rate_factor(source.fps);
                 Some(VideoClipRequest {
                     media_id,
-                    seconds: source_seconds_with(e, speed, time, source.duration),
+                    seconds: e.trim_in
+                        + (source_seconds_with(e, speed, time, source.duration) - e.trim_in)
+                            * factor,
                     source_fps: source.fps,
                     path: source.path,
                     // The sign says which way the picture runs (the decoder reads ahead with it)
                     playback_rate: edit::clamp_playback_rate(e.playback_rate)
-                        * velocity::rate_at(speed, time - e.start),
+                        * velocity::rate_at(speed, time - e.start)
+                        * factor,
                     event_opacity: opacity,
                     transitions,
                     apply_chroma: true,
-                    blend: e.resample.blends(),
+                    resample: e.resample.effective(settings.resample_mode),
+                    maintain_aspect_ratio: e.maintain_aspect_ratio,
+                    reduce_interlace_flicker: e.reduce_interlace_flicker,
+                    media_look: look,
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
@@ -334,16 +352,28 @@ pub(super) fn composite_request(
                 })
             })
             .collect();
+        let track_effects = effects_for(
+            &track.video_effects,
+            VideoFxTarget::Track(track.id),
+            settings.fx_draft.as_ref(),
+        );
+        let layer_effects = if track.adjustment {
+            if !track_effects.is_empty() && track_state.level > 0.0 {
+                nodes.push(TrackCompositeNode::Adjust {
+                    effects: track_effects,
+                    opacity: track_state.level,
+                });
+            }
+            Vec::new()
+        } else {
+            track_effects
+        };
         if !clips.is_empty() {
             nodes.push(TrackCompositeNode::Track {
                 clips,
-                mode: CompositeMode::SourceAlpha,
+                mode: track.composite_mode,
                 level: track_state.level,
-                effects: effects_for(
-                    &track.video_effects,
-                    VideoFxTarget::Track(track.id),
-                    settings.fx_draft.as_ref(),
-                ),
+                effects: layer_effects,
                 fade_color: neoveg_engine::envelope::fade_mix(track, track_state.fade).0,
                 fade_amount: neoveg_engine::envelope::fade_mix(track, track_state.fade).1,
                 motion: track_motion_frame(track, time, settings),
@@ -377,31 +407,57 @@ pub(super) fn composite_request(
     })
 }
 
-/// `true` when a clip visible at `time` has a video effect that is on (media, event, track) or
-/// the project has one: the preview then goes through the composite path, the one that runs them.
-pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
+/// `true` when a clip visible at `time` has a video effect, resample mode or non-default switch
+/// that is on (media, event, track) or the project has one: the preview then goes through the
+/// composite path, the one that runs them.
+pub(super) fn has_effects(
+    timeline: &Timeline,
+    time: f64,
+    project_resample: neoveg_common::presets::ResampleMode,
+) -> bool {
     let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
     let mut visible = false;
+    // Walk bottom to top so an adjustment track only counts when a visible clip sits below it
     for track in timeline
         .tracks
         .iter()
+        .rev()
         .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
     {
+        let track_state = envelope::video_track_state(track, time);
+        if track.adjustment
+            && visible
+            && !track_state.muted
+            && track_state.level > 0.0
+            && on(&track.video_effects)
+        {
+            return true;
+        }
         for e in track
             .events
             .iter()
             .filter(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
         {
-            visible = true;
+            if !e.adjustment {
+                visible = true;
+            }
             let media_on = e
                 .media_id
                 .and_then(|m| timeline.media_video_effects.get(&m))
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
+            // What the user said about the media (rate, alpha, background, pixel aspect) is run by the composite path
+            let media_props_on = e
+                .media_id
+                .is_some_and(|m| timeline.media_props.contains_key(&m));
+            let switch_or_resample_on = !e.adjustment
+                && (e.resample.resamples(project_resample)
+                    || !e.maintain_aspect_ratio
+                    || e.reduce_interlace_flicker);
             let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled)
                 || e.adjustment
-                || e.resample.blends();
+                || switch_or_resample_on;
             let envelope_on = track
                 .envelopes
                 .iter()
@@ -413,6 +469,8 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
                 || pan_crop_on
                 || transition_on
                 || velocity_on
+                || !track.composite_mode.is_default()
+                || media_props_on
             {
                 return true;
             }
@@ -424,6 +482,7 @@ pub(super) fn has_effects(timeline: &Timeline, time: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use neoveg_common::presets::ResampleMode as ProjectResample;
 
     fn settings() -> FrameSettings {
         FrameSettings {
@@ -432,6 +491,7 @@ mod tests {
             max_width: 0,
             playing: false,
             auto_crossfade: true,
+            resample_mode: ProjectResample::Disable,
             lut: None,
             grade: Grade::default(),
             chroma_key: ChromaKey::default(),
@@ -472,6 +532,74 @@ mod tests {
                 TrackCompositeNode::Adjust { .. } => panic!("no adjustments here"),
             })
             .collect()
+    }
+
+    #[test]
+    fn a_track_blends_with_its_mode_and_a_mode_sends_the_preview_through_the_composite_path() {
+        use neoveg_common::composite::CompositeMode;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 0.0, 4.0);
+        track.events.push(e);
+        let id = track.id;
+        tl.tracks.push(track);
+        let mode_of = |tl: &Timeline| {
+            let request = composite_request(tl, 1.0, &settings(), &resolve).unwrap();
+            match &request.nodes[0] {
+                TrackCompositeNode::Track { mode, .. } => *mode,
+                _ => panic!("a track node"),
+            }
+        };
+        assert_eq!(mode_of(&tl), CompositeMode::SourceAlpha);
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        tl.track_mut(id).unwrap().composite_mode = CompositeMode::Multiply;
+        assert_eq!(mode_of(&tl), CompositeMode::Multiply);
+        assert!(
+            has_effects(&tl, 1.0, ProjectResample::Disable),
+            "a single clip with a mode is not shown as it is"
+        );
+        assert!(
+            !has_effects(&tl, 9.0, ProjectResample::Disable),
+            "nothing is visible then"
+        );
+    }
+
+    #[test]
+    fn the_media_properties_reach_the_request_and_a_substitute_rate_changes_the_speed() {
+        use neoveg_common::media_props::{AlphaMode, MediaProps};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 2.0, 6.0);
+        track.events.push(e);
+        tl.tracks.push(track);
+        let clip_at = |tl: &Timeline, time: f64| {
+            let request = composite_request(tl, time, &settings(), &resolve).unwrap();
+            match &request.nodes[0] {
+                TrackCompositeNode::Track { clips, .. } => clips[0].clone(),
+                _ => panic!("a track node"),
+            }
+        };
+        // Nothing set: the source plays at the file's rate and the plain path is enough
+        let plain = clip_at(&tl, 4.0);
+        assert!((plain.seconds - 2.0).abs() < 1e-9 && plain.media_look.is_default());
+        assert!(!has_effects(&tl, 4.0, ProjectResample::Disable));
+        // The file is 25 fps; played at 50 fps the source runs twice as fast
+        let props = MediaProps {
+            substitute_fps: Some(50.0),
+            alpha: AlphaMode::Premultiplied,
+            pixel_aspect: 1.5,
+            ..MediaProps::default()
+        };
+        tl.media_props.insert(1, props.clone());
+        let fast = clip_at(&tl, 4.0);
+        assert!((fast.seconds - 4.0).abs() < 1e-9, "{}", fast.seconds);
+        assert!((fast.playback_rate - 2.0).abs() < 1e-9);
+        assert_eq!(fast.media_look, props);
+        assert!(has_effects(&tl, 4.0, ProjectResample::Disable));
+        // The trim-in is a point of the file, so only the time after it is sped up
+        tl.tracks[0].events[0].trim_in = 1.0;
+        let trimmed = clip_at(&tl, 4.0);
+        assert!((trimmed.seconds - 5.0).abs() < 1e-9, "{}", trimmed.seconds);
     }
 
     #[test]
@@ -633,8 +761,11 @@ mod tests {
         let kinds: Vec<&str> = clips[0].effects.iter().map(|f| f.kind.as_str()).collect();
         assert_eq!(kinds, ["gaussian_blur", "vignette"]);
         assert_eq!(request.project_effects[0].kind, "sharpen");
-        assert!(has_effects(&tl, 1.0));
-        assert!(!has_effects(&tl, 9.0), "nothing is visible then");
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert!(
+            !has_effects(&tl, 9.0, ProjectResample::Disable),
+            "nothing is visible then"
+        );
 
         // A dragged slider shows its value in the request and nowhere else
         let mut live = settings();
@@ -669,7 +800,7 @@ mod tests {
         e.video_effects = vec![off];
         track.events.push(e);
         tl.tracks.push(track);
-        assert!(!has_effects(&tl, 1.0));
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -706,7 +837,7 @@ mod tests {
         assert!((level - 0.5).abs() < 1e-6 && (amount - 0.5).abs() < 1e-6);
         assert_eq!(color, [10, 20, 30]);
         assert!(
-            has_effects(&tl, 2.0),
+            has_effects(&tl, 2.0, ProjectResample::Disable),
             "an envelope sends the preview through the composite path"
         );
         assert!(
@@ -718,7 +849,7 @@ mod tests {
             env.enabled = false;
         }
         assert_eq!(node(&tl, 2.0).unwrap().0, 1.0);
-        assert!(!has_effects(&tl, 2.0));
+        assert!(!has_effects(&tl, 2.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -742,7 +873,7 @@ mod tests {
         track.events.push(e);
         tl.tracks.push(track);
         assert!(
-            has_effects(&tl, 12.0),
+            has_effects(&tl, 12.0, ProjectResample::Disable),
             "a Pan/Crop sends the preview through the composite path"
         );
 
@@ -802,7 +933,7 @@ mod tests {
         track.motion = motion;
         tl.tracks.push(track);
         assert!(
-            has_effects(&tl, 4.0),
+            has_effects(&tl, 4.0, ProjectResample::Disable),
             "a moving track goes through the composite path"
         );
 
@@ -843,7 +974,7 @@ mod tests {
             frame(&tl, &settings(), 4.0).is_none(),
             "a track without motion sends none"
         );
-        assert!(!has_effects(&tl, 4.0));
+        assert!(!has_effects(&tl, 4.0, ProjectResample::Disable));
     }
 
     #[test]
@@ -968,7 +1099,7 @@ mod tests {
         e.transition_in = Some(TrackEffect::new("linear_wipe"));
         track.events.push(e);
         tl.tracks.push(track);
-        assert!(has_effects(&tl, 4.0));
+        assert!(has_effects(&tl, 4.0, ProjectResample::Disable));
         let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
         let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
             panic!("a track node");
@@ -1058,9 +1189,12 @@ mod tests {
         track.events.push(e);
         let (track_id, event_id) = (track.id, track.events[0].id);
         tl.tracks.push(track);
-        assert!(!has_effects(&tl, 2.0), "no envelope, the plain path");
+        assert!(
+            !has_effects(&tl, 2.0, ProjectResample::Disable),
+            "no envelope, the plain path"
+        );
         tl.tracks[0].events[0].velocity = Some(speeds(&[(0.0, 2.0), (4.0, -1.0)]));
-        assert!(has_effects(&tl, 2.0));
+        assert!(has_effects(&tl, 2.0, ProjectResample::Disable));
         let rate_of = |tl: &Timeline, settings: &FrameSettings, time: f64| {
             let request = composite_request(tl, time, settings, &resolve).unwrap();
             let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
@@ -1123,7 +1257,7 @@ mod tests {
         tl.tracks.push(top);
         tl.tracks.push(bottom);
         assert!(
-            has_effects(&tl, 2.0),
+            has_effects(&tl, 2.0, ProjectResample::Disable),
             "an adjustment sends the preview through the composite path"
         );
         let request = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
@@ -1162,5 +1296,193 @@ mod tests {
         tl.tracks[0].events[0].muted = true;
         let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
         assert_eq!(muted.nodes.len(), 2);
+    }
+
+    #[test]
+    fn adjustment_tracks_stack_over_lower_tracks_follow_composite_level_and_mute() {
+        use neoveg_engine::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEffect};
+        let mut tl = Timeline::new();
+        // Track list top to bottom (manual p. 387):
+        //   0: top overlay video track (untouched by adj_mid below it, touched if adj_top were above)
+        //   1: adjustment track A ("sharpen", composite level 0.4 at t = 2 s)
+        //   2: middle video track (touched by A, untouched by B)
+        //   3: adjustment track B ("vignette", composite level 1.0)
+        //   4: bottom video track (touched by B then A)
+        let mut t_top = tl.new_track(TrackKind::Video);
+        t_top.events.push(event(&mut tl, 3, 0.0, 10.0));
+
+        let mut adj_a = neoveg_engine::adjustment::new_track(&mut tl, [0, 0, 0], [255, 255, 255]);
+        adj_a.video_effects.push(TrackEffect::new("sharpen"));
+        adj_a.envelopes[0].points = vec![EnvelopePoint {
+            time: 0.0,
+            value: 0.4,
+            shape: EnvelopeShape::Linear,
+        }];
+
+        let mut t_mid = tl.new_track(TrackKind::Video);
+        t_mid.events.push(event(&mut tl, 2, 0.0, 10.0));
+
+        let mut adj_b = neoveg_engine::adjustment::new_track(&mut tl, [0, 0, 0], [255, 255, 255]);
+        adj_b.video_effects.push(TrackEffect::new("vignette"));
+        assert_eq!(adj_b.envelopes[0].target, AutomationTarget::VideoLevel);
+
+        let mut t_bot = tl.new_track(TrackKind::Video);
+        t_bot.events.push(event(&mut tl, 1, 0.0, 10.0));
+
+        tl.tracks = vec![t_top, adj_a, t_mid, adj_b, t_bot];
+
+        // Even with a single visible clip under an adjustment track, `has_effects` routes to composite
+        let mut single_under_adj = Timeline::new();
+        let mut adj_only =
+            neoveg_engine::adjustment::new_track(&mut single_under_adj, [0, 0, 0], [255, 255, 255]);
+        adj_only.video_effects.push(TrackEffect::new("vignette"));
+        let mut base_only = single_under_adj.new_track(TrackKind::Video);
+        base_only
+            .events
+            .push(event(&mut single_under_adj, 1, 0.0, 5.0));
+        single_under_adj.tracks = vec![adj_only.clone(), base_only.clone()];
+        assert!(has_effects(
+            &single_under_adj,
+            2.0,
+            ProjectResample::Disable
+        ));
+
+        // If the adjustment track is BELOW the only visible clip, nothing is under it to adjust
+        let mut adj_below = Timeline::new();
+        adj_below.tracks = vec![base_only, adj_only.clone()];
+        assert!(!has_effects(&adj_below, 2.0, ProjectResample::Disable));
+
+        // If only an adjustment track exists with no media below it, composite_request is None
+        let mut empty_below = Timeline::new();
+        empty_below.tracks = vec![adj_only];
+        assert!(composite_request(&empty_below, 1.0, &settings(), &resolve).is_none());
+
+        // Bottom-up node order on the 5-track stack:
+        //   t_bot ("track") -> adj_b ("adjust", 1.0) -> t_mid ("track") -> adj_a ("adjust", 0.4) -> t_top ("track")
+        let req = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        let kinds: Vec<&str> = req
+            .nodes
+            .iter()
+            .map(|n| match n {
+                TrackCompositeNode::Track { .. } => "track",
+                TrackCompositeNode::Adjust { .. } => "adjust",
+                TrackCompositeNode::Group { .. } => "group",
+            })
+            .collect();
+        assert_eq!(kinds, ["track", "adjust", "track", "adjust", "track"]);
+        let TrackCompositeNode::Adjust {
+            effects: fx_b,
+            opacity: op_b,
+        } = &req.nodes[1]
+        else {
+            panic!("expected adj_b");
+        };
+        assert_eq!(fx_b[0].kind, "vignette");
+        assert!((*op_b - 1.0_f32).abs() < 1e-6);
+
+        let TrackCompositeNode::Adjust {
+            effects: fx_a,
+            opacity: op_a,
+        } = &req.nodes[3]
+        else {
+            panic!("expected adj_a");
+        };
+        assert_eq!(fx_a[0].kind, "sharpen");
+        assert!((*op_a - 0.4_f32).abs() < 1e-6);
+
+        // Muting adj_a removes its adjustment node while keeping the other tracks intact
+        tl.tracks[1].muted = true;
+        let muted = composite_request(&tl, 2.0, &settings(), &resolve).unwrap();
+        assert_eq!(muted.nodes.len(), 4);
+    }
+
+    #[test]
+    fn project_and_event_resample_and_video_switches_reach_the_request_and_composite_path() {
+        use neoveg_engine::ResampleMode;
+
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        track.events.push(event(&mut tl, 1, 0.0, 4.0));
+        tl.tracks.push(track);
+
+        let inspect = |tl: &Timeline, project_resample: ProjectResample| {
+            let mut s = settings();
+            s.resample_mode = project_resample;
+            let req = composite_request(tl, 1.0, &s, &resolve).unwrap();
+            let TrackCompositeNode::Track { clips, .. } = &req.nodes[0] else {
+                panic!("expected track node");
+            };
+            (
+                clips[0].resample,
+                clips[0].maintain_aspect_ratio,
+                clips[0].reduce_interlace_flicker,
+            )
+        };
+
+        // Default event (ResampleMode::Project, maintain_aspect_ratio: true, flicker: false)
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, true, false)
+        );
+
+        // Project-level OpticalFlow or FrameBlend flows down to events using ResampleMode::Project
+        assert!(has_effects(&tl, 1.0, ProjectResample::OpticalFlow));
+        assert_eq!(
+            inspect(&tl, ProjectResample::OpticalFlow),
+            (ProjectResample::OpticalFlow, true, false)
+        );
+
+        // Explicit event ResampleMode::Disabled overrides project OpticalFlow
+        tl.tracks[0].events[0].resample = ResampleMode::Disabled;
+        assert!(!has_effects(&tl, 1.0, ProjectResample::OpticalFlow));
+        assert_eq!(
+            inspect(&tl, ProjectResample::OpticalFlow),
+            (ProjectResample::Disable, true, false)
+        );
+
+        // Maintain Aspect Ratio off and Reduce Interlace Flicker on route through composite
+        tl.tracks[0].events[0].maintain_aspect_ratio = false;
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, false, false)
+        );
+
+        tl.tracks[0].events[0].maintain_aspect_ratio = true;
+        tl.tracks[0].events[0].reduce_interlace_flicker = true;
+        assert!(has_effects(&tl, 1.0, ProjectResample::Disable));
+        assert_eq!(
+            inspect(&tl, ProjectResample::Disable),
+            (ProjectResample::Disable, true, true)
+        );
+    }
+
+    #[test]
+    fn explicit_transition_in_over_overlap_runs_even_when_auto_crossfade_is_off() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let first = event(&mut tl, 1, 0.0, 4.0);
+        let mut second = event(&mut tl, 2, 3.8, 4.0);
+        second.transition_in = Some(neoveg_engine::TrackEffect::new(
+            neoveg_video::transitions::WARP_FLOW,
+        ));
+        track.events.extend([first, second]);
+        tl.tracks.push(track);
+
+        let mut off = settings();
+        off.auto_crossfade = false;
+        let request = composite_request(&tl, 3.9, &off, &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("expected video track node");
+        };
+        assert_eq!(clips.len(), 2);
+        assert_eq!(clips[1].transitions.len(), 1);
+        assert_eq!(
+            clips[1].transitions[0].kind,
+            neoveg_video::transitions::WARP_FLOW
+        );
+        assert!(clips[1].transitions[0].entering);
+        assert!((clips[1].transitions[0].progress - 0.5).abs() < 1e-5);
     }
 }

@@ -59,6 +59,10 @@ class StagedPackage(unittest.TestCase):
         for relative in (
             "third_party/filmcraft/LICENSE-MIT",
             "third_party/flat-color-icons/LICENSE-MIT",
+            "third_party/lucide/LICENSE",
+            "third_party/phosphor-icons/LICENSE-MIT",
+            "third_party/remix-icon/LICENSE-APACHE",
+            "third_party/material-symbols/LICENSE-APACHE",
             "third_party/nnnoiseless/COPYING",
         ):
             self.assertTrue((self.stage / relative).is_file(), relative)
@@ -193,6 +197,212 @@ class QaReport(unittest.TestCase):
         self.assertEqual(report["pillars"]["Portability"]["status"], "skipped")
         self.assertEqual(report["pillars"]["Portability"]["passed"], 0)
         self.assertTrue(build_portable.QA_JS.read_text(encoding="utf-8").startswith("window.NEOVEG_QA_REPORT"))
+
+
+class FfmpegEnvironment(unittest.TestCase):
+    """`ffmpeg_environment` accepts LLVM 19 and 22+ (`ffmpeg-next` 9.x / `bindgen` 0.73) and rejects missing headers."""
+
+    def test_accepts_llvm_19_and_llvm_22_plus(self) -> None:
+        case = SCRATCH / "ffmpeg_env_case"
+        (case / "ffmpeg" / "include").mkdir(parents=True, exist_ok=True)
+        (case / "llvm").mkdir(parents=True, exist_ok=True)
+        old_env = (os.environ.get("FFMPEG_DIR"), os.environ.get("LIBCLANG_PATH"))
+        old_major = build_portable.libclang_major
+        os.environ["FFMPEG_DIR"] = str(case / "ffmpeg")
+        os.environ["LIBCLANG_PATH"] = str(case / "llvm")
+        try:
+            for version in (19, 20, 22, 23):
+                build_portable.libclang_major = lambda _folder, v=version: v  # type: ignore[assignment]
+                self.assertEqual(build_portable.ffmpeg_environment(), [], f"LLVM {version} rejected")
+            build_portable.libclang_major = lambda _folder: 14  # type: ignore[assignment]
+            self.assertEqual(len(build_portable.ffmpeg_environment()), 1)
+        finally:
+            build_portable.libclang_major = old_major  # type: ignore[assignment]
+            for key, value in zip(("FFMPEG_DIR", "LIBCLANG_PATH"), old_env):
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            shutil.rmtree(case, ignore_errors=True)
+
+    def test_unix_accepts_pkg_config_and_system_clang_while_windows_requires_explicit_paths(self) -> None:
+        old_env = (os.environ.pop("FFMPEG_DIR", None), os.environ.pop("LIBCLANG_PATH", None))
+        old_system = build_portable.platform.system
+        old_pkg = build_portable.pkg_config_has_ffmpeg
+        old_capture = build_portable.capture
+        try:
+            build_portable.pkg_config_has_ffmpeg = lambda: True  # type: ignore[assignment]
+            build_portable.capture = lambda _cmd: "clang version 19.1.7"  # type: ignore[assignment]
+            for unix_os in ("Linux", "Darwin"):
+                build_portable.platform.system = lambda os_name=unix_os: os_name  # type: ignore[assignment]
+                self.assertEqual(build_portable.ffmpeg_environment(), [], unix_os)
+            build_portable.platform.system = lambda: "Windows"  # type: ignore[assignment]
+            self.assertEqual(len(build_portable.ffmpeg_environment()), 2)
+        finally:
+            build_portable.platform.system = old_system  # type: ignore[assignment]
+            build_portable.pkg_config_has_ffmpeg = old_pkg  # type: ignore[assignment]
+            build_portable.capture = old_capture  # type: ignore[assignment]
+            for key, value in zip(("FFMPEG_DIR", "LIBCLANG_PATH"), old_env):
+                if value is not None:
+                    os.environ[key] = value
+
+    def test_libclang_major_finds_clang_in_sibling_bin_folder(self) -> None:
+        case = SCRATCH / "llvm_sibling_case"
+        (case / "llvm" / "lib").mkdir(parents=True, exist_ok=True)
+        (case / "llvm" / "bin").mkdir(parents=True, exist_ok=True)
+        (case / "llvm" / "bin" / "clang").write_text("#!/bin/sh\n", encoding="utf-8")
+        old_capture = build_portable.capture
+        try:
+            build_portable.capture = lambda _cmd: "Homebrew clang version 19.1.7"  # type: ignore[assignment]
+            self.assertEqual(build_portable.libclang_major(case / "llvm" / "lib"), 19)
+        finally:
+            build_portable.capture = old_capture  # type: ignore[assignment]
+            shutil.rmtree(case, ignore_errors=True)
+
+
+class MultiOsStagingAndCi(unittest.TestCase):
+    """Linux/macOS portable staging and GitHub Actions workflow invariants across all three OS families."""
+
+    def test_linux_and_macos_packages_stage_and_archive(self) -> None:
+        import tarfile
+
+        case = SCRATCH / "multios_case"
+        if case.exists():
+            shutil.rmtree(case)
+        (case / "ffmpeg" / "lib").mkdir(parents=True)
+        (case / "ffmpeg" / "lib" / "libavcodec.so.61").write_bytes(b"\x7fELF fake so")
+        (case / "ffmpeg" / "lib" / "libswscale.so.8").write_bytes(b"\x7fELF fake sws")
+        (case / "ffmpeg" / "LICENSE.txt").write_text("LGPL v2.1+", encoding="utf-8")
+        fake_bin = case / "neoveg"
+        fake_bin.write_bytes(b"\x7fELF fake neoveg")
+
+        old_dist = build_portable.DIST
+        old_ffmpeg = os.environ.get("FFMPEG_DIR")
+        build_portable.DIST = case / "dist"
+        os.environ["FFMPEG_DIR"] = str(case / "ffmpeg")
+        try:
+            linux_stage = build_portable.stage_package("linux-x64", fake_bin, "9.9.9", ffmpeg=True)
+            self.assertTrue((linux_stage / "neoveg.sh").is_file())
+            self.assertTrue((linux_stage / "lib" / "libavcodec.so.61").is_file())
+            self.assertTrue((linux_stage / "third_party" / "ffmpeg" / "LICENSE.txt").is_file())
+            linux_archive = build_portable.make_archive(linux_stage, "linux-x64", "9.9.9")
+            self.assertEqual(linux_archive.name, "Neoveg_v9.9.9_linux-x64_Portable.tar.gz")
+            with tarfile.open(linux_archive, "r:gz") as bundle:
+                tar_names = bundle.getnames()
+            self.assertIn("Neoveg-Portable-linux-x64/neoveg.sh", tar_names)
+            self.assertIn("Neoveg-Portable-linux-x64/lib/libavcodec.so.61", tar_names)
+
+            os.environ.pop("FFMPEG_DIR", None)
+            mac_stage = build_portable.stage_package("osx-arm64", fake_bin, "9.9.9", ffmpeg=True, macos_min="11.0")
+            self.assertTrue((mac_stage / "Neoveg.app" / "Contents" / "MacOS" / "neoveg").is_file())
+            plist = (mac_stage / "Neoveg.app" / "Contents" / "Info.plist").read_text(encoding="utf-8")
+            self.assertIn("LSMinimumSystemVersion", plist)
+            mac_archive = build_portable.make_archive(mac_stage, "osx-arm64", "9.9.9")
+            self.assertEqual(mac_archive.name, "Neoveg_v9.9.9_osx-arm64_Portable.tar.gz")
+            with tarfile.open(mac_archive, "r:gz") as bundle:
+                mac_member = bundle.getmember("Neoveg-Portable-osx-arm64/Neoveg.app/Contents/MacOS/neoveg")
+            self.assertEqual(mac_member.mode, 0o755)
+        finally:
+            build_portable.DIST = old_dist
+            if old_ffmpeg is None:
+                os.environ.pop("FFMPEG_DIR", None)
+            else:
+                os.environ["FFMPEG_DIR"] = old_ffmpeg
+            shutil.rmtree(case, ignore_errors=True)
+
+    def test_ci_workflow_covers_build_test_clippy_llvm_cov_ffmpeg_x264_and_three_os_packages(self) -> None:
+        workflow_path = ROOT / ".github" / "workflows" / "rust.yml"
+        action_path = ROOT / ".github" / "actions" / "setup-ffmpeg" / "action.yml"
+        self.assertTrue(workflow_path.is_file(), "missing .github/workflows/rust.yml")
+        self.assertTrue(action_path.is_file(), "missing .github/actions/setup-ffmpeg/action.yml")
+
+        workflow = workflow_path.read_text(encoding="utf-8")
+        action = action_path.read_text(encoding="utf-8")
+
+        for snippet in (
+            "cargo fmt --all -- --check",
+            "cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "cargo clippy --workspace --all-targets --features neoveg_ui/ffmpeg --locked -- -D warnings",
+            "cargo build --workspace --features neoveg_ui/ffmpeg --locked",
+            "cargo test --workspace --features neoveg_ui/ffmpeg --locked",
+            "cargo llvm-cov --workspace --features neoveg_ui/ffmpeg --locked",
+            "cargo deny check",
+            "build_portable.py build --ffmpeg --targets ${{ matrix.rid }} --skip-qa --keep-target",
+            "rid: win-x64",
+            "rid: linux-x64",
+            "rid: osx-arm64",
+            "rid: osx-x64",
+            "windows-latest",
+            "ubuntu-latest",
+            "macos-latest",
+            "macos-15-intel",
+        ):
+            self.assertIn(snippet, workflow, f"missing in rust.yml: {snippet}")
+
+        for snippet in ("prefer-cli-x264", "libx264", "lgpl-shared-7.1", "ffmpeg@7"):
+            self.assertIn(snippet, action, f"missing in setup-ffmpeg/action.yml: {snippet}")
+
+        try:
+            import yaml  # type: ignore[import-not-found]
+        except ImportError:
+            yaml = None
+        if yaml is not None:
+            parsed_wf = yaml.safe_load(workflow)
+            parsed_act = yaml.safe_load(action)
+            self.assertEqual(set(parsed_wf["jobs"].keys()), {"quality", "coverage", "package"})
+            self.assertEqual(parsed_act["runs"]["using"], "composite")
+
+
+class WindowsLinkerMitigation(unittest.TestCase):
+    """Windows `LNK1201`/`LNK1104` mitigation: `rust-lld.exe` config plus automatic transient-lock retry."""
+
+    def test_cargo_config_uses_rust_lld_and_disables_build_script_debuginfo(self) -> None:
+        cargo_cfg = (ROOT / ".cargo" / "config.toml").read_text(encoding="utf-8")
+        cargo_toml = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertIn("[target.x86_64-pc-windows-msvc]", cargo_cfg)
+        self.assertIn('linker = "rust-lld.exe"', cargo_cfg)
+        self.assertIn("[profile.dev.build-override]", cargo_toml)
+
+    def test_run_retries_once_on_windows_linker_lock_and_not_on_compile_errors(self) -> None:
+        old_system = build_portable.platform.system
+        old_run_once = build_portable._run_once
+        old_clear = build_portable.clear_windows_link_locks
+        calls: list[list[str]] = []
+        cleared = 0
+        try:
+            build_portable.platform.system = lambda: "Windows"  # type: ignore[assignment]
+
+            def fake_clear() -> int:
+                nonlocal cleared
+                cleared += 1
+                return 2
+
+            build_portable.clear_windows_link_locks = fake_clear  # type: ignore[assignment]
+
+            responses = [
+                (101, "LINK : fatal error LNK1201: error writing to program database 'foo.pdb'"),
+                (0, ""),
+            ]
+
+            def fake_once(cmd: list[str], _env: dict[str, str]) -> tuple[int, str]:
+                calls.append(cmd)
+                return responses.pop(0)
+
+            build_portable._run_once = fake_once  # type: ignore[assignment]
+            self.assertEqual(build_portable.run(["cargo", "test"], check=True), 0)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(cleared, 1)
+
+            calls.clear()
+            responses[:] = [(101, "error[E0308]: mismatched types")]
+            self.assertEqual(build_portable.run(["cargo", "test"], check=False), 101)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(cleared, 1)
+        finally:
+            build_portable.platform.system = old_system  # type: ignore[assignment]
+            build_portable._run_once = old_run_once  # type: ignore[assignment]
+            build_portable.clear_windows_link_locks = old_clear  # type: ignore[assignment]
+
 
 
 if __name__ == "__main__":

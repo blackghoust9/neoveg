@@ -9,10 +9,11 @@ use neoveg_common::pan_crop::TrackMotion;
 use crate::command::EditCommand;
 use crate::timeline::{Timeline, TrackId, TrackKind};
 
-/// The motion of a video track, or `None` when the track does not exist or is not a video track.
+/// The motion of a video track, or `None` when the track does not exist, is not a video track,
+/// or is an adjustment track (which holds no layer of its own).
 pub fn get(timeline: &Timeline, track_id: TrackId) -> Option<&TrackMotion> {
     let track = timeline.track(track_id)?;
-    (track.kind == TrackKind::Video).then_some(&track.motion)
+    (track.kind == TrackKind::Video && !track.adjustment).then_some(&track.motion)
 }
 
 /// A command that replaces the motion of the track with `after`, or `None` when nothing changes (or
@@ -73,10 +74,15 @@ mod tests {
 
     #[test]
     fn only_video_tracks_have_motion() {
-        let (tl, _, aid) = track(TrackKind::Audio);
+        let (mut tl, mut h, aid) = track(TrackKind::Audio);
         assert!(get(&tl, aid).is_none());
         assert!(set(&tl, aid, corner()).is_none());
         assert!(set(&tl, 999, corner()).is_none());
+        let (adj_id, cmd) =
+            crate::adjustment::insert_track_command(&mut tl, None, [0, 0, 0], [255, 255, 255]);
+        assert!(h.execute(&mut tl, cmd));
+        assert!(get(&tl, adj_id).is_none());
+        assert!(set(&tl, adj_id, corner()).is_none());
     }
 
     #[test]

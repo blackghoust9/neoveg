@@ -76,8 +76,10 @@ pub fn apply(
         target.muted = source.muted;
         target.locked = source.locked;
         target.looping = source.looping;
-        if video {
+        if video && !target.adjustment {
             target.resample = source.resample;
+            target.maintain_aspect_ratio = source.maintain_aspect_ratio;
+            target.reduce_interlace_flicker = source.reduce_interlace_flicker;
         }
         if !video {
             target.invert_phase = source.invert_phase;
@@ -87,6 +89,7 @@ pub fn apply(
     }
     if set.pitch && !video {
         target.preserve_pitch = source.preserve_pitch;
+        target.pitch = source.pitch;
     }
     if set.volume && !video {
         target.volume_envelope = source.volume_envelope.clone();
@@ -188,6 +191,9 @@ mod tests {
             if i == 0 {
                 event.muted = true;
                 event.looping = true;
+                event.resample = crate::timeline::ResampleMode::OpticalFlow;
+                event.maintain_aspect_ratio = false;
+                event.reduce_interlace_flicker = true;
                 event.playback_rate = 2.0;
                 event.preserve_pitch = false;
                 event.invert_phase = true;
@@ -236,6 +242,9 @@ mod tests {
         assert!(h.execute(&mut tl, cmd));
         let after = event(&tl, refs[0]);
         assert!(after.muted && after.looping);
+        assert_eq!(after.resample, crate::timeline::ResampleMode::OpticalFlow);
+        assert!(!after.maintain_aspect_ratio);
+        assert!(after.reduce_interlace_flicker);
         assert_eq!(after.playback_rate, 2.0);
         assert_eq!(after.video_effects, source.video_effects);
         assert_eq!(after.pan_crop, source.pan_crop);

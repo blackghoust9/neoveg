@@ -163,36 +163,66 @@ def export_all(src_dir: Path, out_dir: Path, ink_hex: str) -> int:
         folder.mkdir(parents=True, exist_ok=True)
 
     svgs = sorted(src_dir.glob("*.svg"))
-    if not svgs:
-        print(f"erro: nenhum arquivo .svg encontrado em {src_dir}", file=sys.stderr)
+    bmps = sorted(src_dir.glob("*.bmp"))
+    if not svgs and not bmps:
+        print(f"erro: nenhum arquivo .svg ou .bmp encontrado em {src_dir}", file=sys.stderr)
         return 1
 
-    for svg_path in svgs:
-        stem = svg_path.stem
-        svg_text = svg_path.read_text(encoding="utf-8")
+    if svgs:
+        for svg_path in svgs:
+            stem = svg_path.stem
+            svg_text = svg_path.read_text(encoding="utf-8")
 
-        # 1. Cópia SVG normalizada em LF
-        (svg_out / f"{stem}.svg").write_bytes(svg_text.replace("\r\n", "\n").encode("utf-8"))
+            # 1. Cópia SVG normalizada em LF
+            (svg_out / f"{stem}.svg").write_bytes(svg_text.replace("\r\n", "\n").encode("utf-8"))
 
-        # 2. PNGs transparentes em 32x32, 64x64 e 128x128
-        rendered_128: Image.Image | None = None
+            # 2. PNGs transparentes em 32x32, 64x64 e 128x128
+            rendered_128: Image.Image | None = None
+            for size in PNG_SIZES:
+                im = render_svg_rgba(svg_text, size, ink_hex)
+                im.save(png_out / f"{stem}_{size}x{size}.png", format="PNG")
+                if size == RASTER_BASE_SIZE:
+                    rendered_128 = im
+
+            assert rendered_128 is not None
+
+            # 3. BMP 32-bit BGRA com transparência alpha
+            save_bmp_32bit_alpha(rendered_128, bmp_out / f"{stem}.bmp")
+
+            # 4. JPG com fundo #1e1e1e
+            save_jpg_dark_bg(rendered_128, jpg_out / f"{stem}.jpg")
+
+        print(
+            f"Exportados {len(svgs)} ícones para {out_dir} "
+            f"(svg={len(svgs)}, png={len(svgs) * len(PNG_SIZES)}, bmp={len(svgs)}, jpg={len(svgs)})."
+        )
+        return 0
+
+    hex_clean = ink_hex.lstrip("#")
+    ink_rgb = tuple(int(hex_clean[i : i + 2], 16) for i in (0, 2, 4))
+    for bmp_path in bmps:
+        stem = bmp_path.stem
+        base = Image.open(bmp_path).convert("RGBA")
+        _, _, _, alpha = base.split()
+        r = alpha.point(lambda a: ink_rgb[0] if a > 0 else 0)
+        g = alpha.point(lambda a: ink_rgb[1] if a > 0 else 0)
+        b = alpha.point(lambda a: ink_rgb[2] if a > 0 else 0)
+        tinted = Image.merge("RGBA", (r, g, b, alpha))
+
+        rendered_128 = None
         for size in PNG_SIZES:
-            im = render_svg_rgba(svg_text, size, ink_hex)
+            im = tinted.resize((size, size), Image.Resampling.LANCZOS) if tinted.size != (size, size) else tinted
             im.save(png_out / f"{stem}_{size}x{size}.png", format="PNG")
             if size == RASTER_BASE_SIZE:
                 rendered_128 = im
 
         assert rendered_128 is not None
-
-        # 3. BMP 32-bit BGRA com transparência alpha
         save_bmp_32bit_alpha(rendered_128, bmp_out / f"{stem}.bmp")
-
-        # 4. JPG com fundo #1e1e1e
         save_jpg_dark_bg(rendered_128, jpg_out / f"{stem}.jpg")
 
     print(
-        f"Exportados {len(svgs)} ícones para {out_dir} "
-        f"(svg={len(svgs)}, png={len(svgs) * len(PNG_SIZES)}, bmp={len(svgs)}, jpg={len(svgs)})."
+        f"Exportados {len(bmps)} ícones BMP para {out_dir} "
+        f"(png={len(bmps) * len(PNG_SIZES)}, bmp={len(bmps)}, jpg={len(bmps)})."
     )
     return 0
 

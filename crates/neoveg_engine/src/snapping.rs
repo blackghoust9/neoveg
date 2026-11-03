@@ -72,6 +72,44 @@ pub fn candidates(
     times
 }
 
+/// Span of a moving selection `(earliest_start, left_snap_time, rightmost_end)`:
+/// `earliest_start` is the first event's `start`, `left_snap_time` uses any snap offset established
+/// on the leftmost event(s), and `rightmost_end` is the last event's `end()`.
+pub fn move_span(timeline: &Timeline, events: &[EventRef]) -> Option<(f64, f64, f64)> {
+    let mut found = Vec::new();
+    for (track_idx, track) in timeline.tracks.iter().enumerate() {
+        for ev in &track.events {
+            if events.contains(&(track.id, ev.id)) {
+                found.push((track_idx, ev));
+            }
+        }
+    }
+    if found.is_empty() {
+        return None;
+    }
+    let earliest = found
+        .iter()
+        .map(|(_, e)| e.start)
+        .fold(f64::INFINITY, f64::min);
+    let rightmost = found
+        .iter()
+        .map(|(_, e)| e.end())
+        .fold(f64::NEG_INFINITY, f64::max);
+    let left_snap = found
+        .iter()
+        .filter(|(_, e)| (e.start - earliest).abs() <= crate::timeline::TIME_EPSILON)
+        .min_by(|(ta, ea), (tb, eb)| {
+            let a_has = ea.snap_offset > crate::timeline::TIME_EPSILON;
+            let b_has = eb.snap_offset > crate::timeline::TIME_EPSILON;
+            b_has
+                .cmp(&a_has)
+                .then_with(|| ta.cmp(tb))
+                .then_with(|| ea.id.cmp(&eb.id))
+        })
+        .map_or(earliest, |(_, e)| e.snap_point());
+    Some((earliest.max(0.0), left_snap, rightmost))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +201,53 @@ mod tests {
         assert_eq!(grid_candidates(1.0, 0.5), vec![1.0, 1.5]);
         assert!(grid_candidates(1.0, 0.0).is_empty());
         assert!(grid_candidates(f64::NAN, 1.0).is_empty());
+    }
+
+    #[test]
+    fn move_span_uses_leftmost_snap_offset_and_rightmost_end() {
+        let mut tl = Timeline::new();
+        let mut v_track = tl.new_track(TrackKind::Video);
+        let mut a_track = tl.new_track(TrackKind::Audio);
+        let v_id = tl.alloc_id();
+        let a_id = tl.alloc_id();
+        let tail_id = tl.alloc_id();
+        v_track.events.push(TrackEvent {
+            id: v_id,
+            start: 2.0,
+            duration: 3.0,
+            snap_offset: 0.0,
+            ..TrackEvent::default()
+        });
+        a_track.events.push(TrackEvent {
+            id: a_id,
+            start: 2.0,
+            duration: 4.0,
+            snap_offset: 1.25,
+            ..TrackEvent::default()
+        });
+        v_track.events.push(TrackEvent {
+            id: tail_id,
+            start: 5.0,
+            duration: 2.5,
+            snap_offset: 0.8,
+            ..TrackEvent::default()
+        });
+        let vt = v_track.id;
+        let at = a_track.id;
+        tl.tracks.push(v_track);
+        tl.tracks.push(a_track);
+
+        // Synchronous A/V group plus trailing clip: leftmost is at 2.0 with audio snap_offset 1.25 -> 3.25; rightmost end is 7.5
+        let (earliest, left_snap, rightmost) =
+            move_span(&tl, &[(vt, v_id), (at, a_id), (vt, tail_id)]).unwrap();
+        assert!((earliest - 2.0).abs() < 1e-9);
+        assert!((left_snap - 3.25).abs() < 1e-9);
+        assert!((rightmost - 7.5).abs() < 1e-9);
+
+        // L-cut where video starts earlier (1.0, snap_offset = 0.0) than audio (2.0, snap_offset = 1.25): leftmost is video -> 1.0
+        tl.tracks[0].events[0].start = 1.0;
+        let (earliest, left_snap, _) = move_span(&tl, &[(vt, v_id), (at, a_id)]).unwrap();
+        assert!((earliest - 1.0).abs() < 1e-9);
+        assert!((left_snap - 1.0).abs() < 1e-9);
     }
 }

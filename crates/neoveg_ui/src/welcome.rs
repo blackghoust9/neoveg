@@ -11,7 +11,7 @@ use neoveg_common::i18n::tr_args;
 use neoveg_common::i18n::tr_text;
 use std::path::Path;
 
-use eframe::egui::{self, Align2, Color32, RichText};
+use eframe::egui::{self, Color32, RichText};
 use neoveg_common::presets::{
     builtin_templates, frame_rate_of, resolution_named, ProjectTemplate, FRAME_RATES, RESOLUTIONS,
 };
@@ -136,11 +136,9 @@ impl WelcomeState {
             return actions;
         }
         let mut open = self.open;
-        egui::Window::new(tr("Bem-vindo ao Neoveg"))
+        crate::dialogs::dialog(ctx, tr("Bem-vindo ao Neoveg"))
             .open(&mut open)
-            .collapsible(false)
             .resizable(false)
-            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .default_width(720.0)
             .show(ctx, |ui| {
                 ui.columns(2, |columns| {

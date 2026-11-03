@@ -15,16 +15,16 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
-| Editar | 100 | 100 | 20 | 65 | 15 | 0 | 52 % |
-| Inserir | 32 | 30 | 16 | 11 | 3 | 2 | 72 % |
+| Editar | 100 | 100 | 25 | 65 | 10 | 0 | 58 % |
+| Inserir | 32 | 30 | 17 | 11 | 2 | 2 | 75 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 41 | 15 | 5 | 49 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
-| **Total** | **872** | **762** | | | | | **40 %** |
+| **Total** | **872** | **762** | | | | | **41 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 36 feitas, 37 parciais, 38 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 39 feitas, 37 parciais, 35 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -34,14 +34,10 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | :--- | :--- | :--- | ---: | :--- |
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
-| P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
-| P2 | Redimensionar eventos de ajuste ao projeto | Editar | 2 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
-| P2 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | Editar | 9 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
-| P2 | Inserir faixa de ajuste | Inserir | 1 | previsto |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | parcial |
 | P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | parcial |
 | P2 | Inserir transição de áudio | Inserir | 1 | parcial |
@@ -81,14 +77,14 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Salvar, salvar como, versão incremental, propriedades do projeto | 4 | feito | `file.save`, `file.save_as`, `file.save_incremental`, `file.properties` | - |
 | Assistente de filme e renderizar como | 2 | feito | Arquivo > Renderizar como (MP4, MOV ProRes, WebM, WAV) | - |
 | Renderizar áudio em tempo real incluindo entradas externas | 1 | sem plano | depende de gravação multicanal em tempo real | - |
-| Importar e adicionar mídia | 2 | feito | Importar mídia (áudio, vídeo, imagem, sequência) | - |
+| Importar e adicionar mídia | 2 | feito | Importar mídia (áudio, vídeo, imagem, `.psd` composto, sequência) | - |
 | Importar mídia de outro projeto | 1 | previsto | sub-projetos existem; importar só a mídia não | P3 |
 | Importar e exportar lista de edição (EDL) | 2 | feito | `neoveg_engine::edl` (CMX 3600) | - |
 | Importar e exportar XML de edição e FCPXML | 4 | feito | `neoveg_engine::fcp7` e `fcpxml` | - |
 | Importar e exportar AAF | 3 | previsto | roteiro: primeiro formato profissional a avaliar | P2 |
 | Importar e exportar projeto de outro editor (formato fechado) | 2 | sem plano | formato proprietário; a ponte são XML, FCPXML, EDL, OTIO e AAF | - |
 | Exportar o projeto no formato fechado do editor de referência | 1 | sem plano | o Neoveg usa `.neoveg` (ZIP aberto) | - |
-| Importar legendas e closed caption | 1 | parcial | SRT e WebVTT feitos; closed caption de TV não | P3 |
+| Importar legendas e closed caption | 1 | parcial | SRT, WebVTT, SCC (CEA-608) e MCC (CEA-608/708) feitos (`neoveg_engine::captions`); faltam SMI, RT e os canais CC2–CC4 | P3 |
 | Importar Broadcast Wave e disco de câmera, exportar para disco profissional e console | 4 | sem plano | Broadcast Wave abre como WAV; mídia de disco de câmera e console ficam fora | - |
 | Captura de vídeo e extração de faixas de CD de áudio | 2 | sem plano | captura e CD ficam fora do escopo atual | - |
 | Preparar e gerenciar clipes de um serviço online do fabricante | 2 | sem plano | serviço fechado do fabricante | - |
@@ -104,8 +100,8 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Excluir eventos ou faixas | 1 | feito | `edit.delete` e `edit.ripple_delete` | - |
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |
-| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | previsto | roteiro (README) | P2 |
-| Redimensionar eventos de ajuste ao projeto | 2 | previsto | o evento de ajuste existe; falta redimensioná-lo ao projeto | P2 |
+| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | feito | divisão inteligente (`edit.smart_split`, `Alt+S`), curar eventos divididos (`edit.heal`, `Ctrl+Alt+H`, `ops::heal_events`, manual v21 p.309) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, manual v21 p.309) | - |
+| Redimensionar eventos de ajuste ao projeto | 2 | feito | `edit.resize_adjustment_to_project` (menu Editar, menu do evento e Inspetor) | - |
 | Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar | 20 | parcial | a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução | P3 |
 | Escopo do ripple pós-edição | 4 | parcial | 3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento | P3 |
 | Selecionar tudo, depois do cursor e bordas do evento | 4 | parcial | tudo e bordas (aparo por teclado) feitos; depois do cursor não | P3 |
@@ -113,7 +109,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Modo de edição expandida (entrar e sair) | 2 | previsto | roteiro (README) | P2 |
 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | 5 | parcial | normal, slip, slide e embaralhar com ciclo (`D`); faltam esticar e dividir-aparar | P2 |
 | Interruptores do evento: mudo, trava, fase, laço, normalizar | 5 | feito | `edit.switch.*` | - |
-| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção | 9 | parcial | reamostragem com mistura de quadros feita (manual v21 p.355-358); faltam fluxo óptico, proporção, cintilação do entrelaçamento e o ajuste do projeto | P2 |
+| Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção, cintilação | 9 | parcial | reamostragem do projeto e do evento (projeto, mistura de quadros, fluxo óptico, desativar), manter proporção (`edit.switch.maintain_aspect`), reduzir cintilação do entrelaçamento (`edit.switch.reduce_interlace_flicker`) e retenção do último quadro sem laço feitos (manual v21 p.99-100, 355-358); faltam aparar para todos os quadros e normalização automática | P3 |
 | Takes do evento: renomear, escolher, próximo, anterior, apagar | 6 | previsto | `edit.take.*` têm atalho, sem ação | P2 |
 | Grupos: criar, remover, limpar, selecionar, recortar, copiar e apagar tudo | 7 | parcial | criar, remover, desagrupar e selecionar feitos (`edit.group`, `edit.ungroup`) | P3 |
 | Escolha do fluxo de origem e dos canais (ambos, esquerdo, direito, combinar, trocar) | 6 | parcial | canais feitos (`ChannelMode`); fluxo de origem não | P3 |
@@ -130,9 +126,9 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
 | Envelope de velocidade do evento de vídeo | 1 | parcial | envelope de -100 % a 300 %, reverso, congelar quadro no cursor e prévia ao vivo feitos; falta desenhá-lo sobre o evento na linha do tempo, o áudio vinculado acompanhar e a velocidade nas exportações | P1 |
 | Inserir faixa de áudio e de vídeo | 2 | feito | `insert.audio_track`, `insert.video_track` | - |
-| Inserir faixa de ajuste | 1 | previsto | roteiro (eventos de ajuste) | P2 |
+| Inserir faixa de ajuste | 1 | feito | `insert.adjustment_track` (manual v21 p.385-387; sem hierarquia pai/filho) | - |
 | Inserir barramento de áudio, de entrada e efeito atribuível | 3 | parcial | `insert.audio_bus` e envios feitos (manual v21 p.869-873); faltam o barramento de entrada e o efeito atribuível | P2 |
-| Inserir legendas de arquivo e de regiões | 2 | parcial | de arquivo (SRT, WebVTT) feito; de regiões não | P3 |
+| Inserir legendas de arquivo e de regiões | 2 | parcial | de arquivo (SRT, WebVTT, SCC, MCC) feito; de regiões não | P3 |
 | Inserir fluxo ausente, evento vazio e evento de ajuste | 3 | parcial | `insert.adjustment_event` (manual v21 p.281-284) feito; faltam o fluxo ausente e o evento vazio | P2 |
 | Inserir texto, mídia gerada e apresentação de slides | 3 | feito | Faixas > Inserir mídia gerada, janela de slideshow | - |
 | Inserir transição de áudio | 1 | parcial | crossfade automático e curvas de fade; sem janela de transições | P2 |
@@ -147,7 +143,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Abrir o evento em editor de áudio externo | 4 | sem plano | sem editor de áudio externo | - |
 | Editar o projeto de origem de um evento aninhado | 1 | feito | duplo clique no sub-projeto abre a aba | - |
 | Efeitos de áudio do evento e da faixa, aplicar fora de tempo real | 4 | parcial | faixa e master feitos (28 efeitos); efeitos por evento não | P2 |
-| Efeitos de vídeo da mídia, do evento, da faixa e da saída | 4 | feito | cadeias de mídia, evento, faixa e projeto (4 efeitos) | - |
+| Efeitos de vídeo da mídia, do evento, da faixa e da saída | 4 | feito | cadeias de mídia, evento, faixa e projeto (35 efeitos CPU/GPU) | - |
 | Pan/Crop do evento: caixa de seleção, zoom, movimento, rotação e quadros-chave | 1 | parcial | janela com caixa e alças, campos numéricos, quadros-chave com suavidade e prévia ao lado; faltam máscaras, centro de rotação e o botão no cabeçalho do evento | P2 |
 | Movimento da trilha: posição, escala e rotação da camada com quadros-chave | 1 | parcial | janela com caixa, picture-in-picture, rotação 2D, suavidade e prévia ao lado; faltam 3D, sombra, brilho e movimento do pai de um grupo | P2 |
 | Modo de gradação de cor e rastreamento de movimento | 2 | parcial | correção de cor primária e LUT feitas; gradação por evento e rastreamento não | P2 |

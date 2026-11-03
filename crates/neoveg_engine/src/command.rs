@@ -8,8 +8,10 @@ use crate::timeline::{
     TrackEvent, TrackId, TrackMix, TrackSend, TIME_EPSILON,
 };
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
+use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
 
@@ -92,6 +94,11 @@ impl RouteChange {
 pub enum EditCommand {
     AddTrack {
         track: Track,
+    },
+    /// Inserts a track at `index` in `Timeline::tracks` (`0` = top layer).
+    InsertTrack {
+        track: Track,
+        index: usize,
     },
     AddEvent {
         track_id: TrackId,
@@ -196,6 +203,18 @@ pub enum EditCommand {
         bottom: bool,
         before: [u8; 3],
         after: [u8; 3],
+    },
+    /// The properties the user gave a media file (`None`: none, the file's own).
+    SetMediaProps {
+        media_id: u64,
+        before: Option<MediaProps>,
+        after: Option<MediaProps>,
+    },
+    /// The compositing mode of a video track (how it blends over the tracks below).
+    SetCompositeMode {
+        track_id: TrackId,
+        before: CompositeMode,
+        after: CompositeMode,
     },
     /// Any change to a video effect chain (add, remove, reorder, bypass, parameter): the whole
     /// chain before and after, so it is one exactly reversible undo step.
@@ -306,6 +325,14 @@ impl EditCommand {
         match self {
             Self::AddTrack { track } => {
                 tl.tracks.push(track.clone());
+                true
+            }
+            Self::InsertTrack { track, index } => {
+                if tl.tracks.iter().any(|t| t.id == track.id) {
+                    return false;
+                }
+                let at = (*index).min(tl.tracks.len());
+                tl.tracks.insert(at, track.clone());
                 true
             }
             Self::AddEvent { track_id, event } => match tl.track_mut(*track_id) {
@@ -476,6 +503,21 @@ impl EditCommand {
                 }
                 None => false,
             },
+            Self::SetMediaProps {
+                media_id, after, ..
+            } => {
+                put_media_props(tl, *media_id, after);
+                true
+            }
+            Self::SetCompositeMode {
+                track_id, after, ..
+            } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.composite_mode = *after;
+                    true
+                }
+                None => false,
+            },
             Self::SetDucking {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
@@ -495,13 +537,24 @@ impl EditCommand {
                 };
                 let left = &mut t.events[i];
                 let left_duration = at - left.start;
+                let right_duration = left.duration - left_duration;
+                let right_snap_offset = if left.snap_offset > TIME_EPSILON {
+                    let shifted = left.snap_offset - left_duration;
+                    if shifted > TIME_EPSILON && shifted <= right_duration + TIME_EPSILON {
+                        shifted.clamp(0.0, right_duration.max(0.0))
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
                 let right = TrackEvent {
                     group: None,
                     id: *new_event_id,
                     name: left.name.clone(),
                     media_id: left.media_id,
                     start: *at,
-                    duration: left.duration - left_duration,
+                    duration: right_duration,
                     trim_in: left.trim_in
                         + left.playback_rate
                             * crate::velocity::source_offset(left.velocity.as_ref(), left_duration),
@@ -511,6 +564,7 @@ impl EditCommand {
                     fade_out_curve: left.fade_out_curve,
                     playback_rate: left.playback_rate,
                     preserve_pitch: left.preserve_pitch,
+                    pitch: left.pitch,
                     muted: left.muted,
                     locked: left.locked,
                     invert_phase: left.invert_phase,
@@ -536,9 +590,15 @@ impl EditCommand {
                     ),
                     adjustment: left.adjustment,
                     resample: left.resample,
+                    maintain_aspect_ratio: left.maintain_aspect_ratio,
+                    reduce_interlace_flicker: left.reduce_interlace_flicker,
+                    snap_offset: right_snap_offset,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
+                if left.snap_offset >= left_duration - TIME_EPSILON {
+                    left.snap_offset = 0.0;
+                }
                 t.events.insert(i + 1, right);
                 true
             }
@@ -547,7 +607,9 @@ impl EditCommand {
 
     fn revert(&self, tl: &mut Timeline) {
         match self {
-            Self::AddTrack { track } => tl.tracks.retain(|t| t.id != track.id),
+            Self::AddTrack { track } | Self::InsertTrack { track, .. } => {
+                tl.tracks.retain(|t| t.id != track.id);
+            }
             Self::AddEvent { track_id, event } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.events.retain(|e| e.id != event.id);
@@ -690,6 +752,16 @@ impl EditCommand {
                     }
                 }
             }
+            Self::SetMediaProps {
+                media_id, before, ..
+            } => put_media_props(tl, *media_id, before),
+            Self::SetCompositeMode {
+                track_id, before, ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.composite_mode = *before;
+                }
+            }
             Self::SetDucking {
                 track_id, before, ..
             } => {
@@ -707,8 +779,16 @@ impl EditCommand {
                 ..
             } => {
                 if let Some(t) = tl.track_mut(*track_id) {
+                    let right_snap_offset = t
+                        .events
+                        .iter()
+                        .find(|e| e.id == *new_event_id)
+                        .map_or(0.0, |r| r.snap_offset);
                     t.events.retain(|e| e.id != *new_event_id);
                     if let Some(e) = t.events.iter_mut().find(|e| e.id == *event_id) {
+                        if right_snap_offset > TIME_EPSILON {
+                            e.snap_offset = e.duration + right_snap_offset;
+                        }
                         e.duration = *original_duration;
                         e.fade_out = *original_fade_out;
                     }
@@ -843,6 +923,17 @@ fn set_pan_crop(tl: &mut Timeline, track_id: TrackId, event_id: EventId, value: 
             true
         }
         None => false,
+    }
+}
+
+fn put_media_props(tl: &mut Timeline, media_id: u64, props: &Option<MediaProps>) {
+    match props {
+        Some(p) if !p.is_default() => {
+            tl.media_props.insert(media_id, p.clone());
+        }
+        _ => {
+            tl.media_props.remove(&media_id);
+        }
     }
 }
 
@@ -1218,5 +1309,24 @@ mod tests {
             },
         );
         assert!(!history.can_redo());
+    }
+
+    #[test]
+    fn split_event_transfers_and_undoes_snap_offset() {
+        let (mut tl, mut history, track_id, event_id) = timeline_with_event(); // 2.0..6.0
+        tl.track_mut(track_id).unwrap().events[0].snap_offset = 2.5; // timeline snap point at 4.5 s
+
+        let cmd = EditCommand::split(&mut tl, track_id, event_id, 3.5).unwrap();
+        assert!(history.execute(&mut tl, cmd));
+        let events = &tl.track(track_id).unwrap().events;
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].snap_offset, 0.0);
+        assert!((events[1].snap_offset - 1.0).abs() < 1e-9);
+        assert!((events[1].snap_point() - 4.5).abs() < 1e-9);
+
+        assert!(history.undo(&mut tl));
+        let restored = &tl.track(track_id).unwrap().events;
+        assert_eq!(restored.len(), 1);
+        assert!((restored[0].snap_offset - 2.5).abs() < 1e-9);
     }
 }

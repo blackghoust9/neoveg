@@ -83,6 +83,7 @@ use tabs::{close_tab_window, project_tab_bar, Tabs};
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
 use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
 use crate::event_header;
+use crate::footer_tabs::GroupAction;
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
@@ -204,6 +205,8 @@ enum WindowAction {
     SaveSlot(u8),
     DeleteLayout(PathBuf),
     SetLayoutSlot(PathBuf, Option<u8>),
+    /// Keep the layouts in this folder (`None`: the default one).
+    SetLayoutsDir(Option<PathBuf>),
 }
 
 /// The *Salvar layout como* dialog.
@@ -387,6 +390,8 @@ enum DragMode {
     StretchRight,
     FadeIn,
     FadeOut,
+    /// Bottom-left / bottom-edge snap-offset flag.
+    SnapOffset,
 }
 
 /// What the dragged edge or block is aligned to right now (drawn as a vertical line).
@@ -478,7 +483,7 @@ struct RepeatDialog {
     seconds: f64,
 }
 
-type StretchCacheKey = (u64, u64, u64, u64, bool);
+type StretchCacheKey = (u64, u64, u64, u64, bool, (u64, bool, u64));
 
 struct AppState {
     project: ProjectInfo,
@@ -532,6 +537,12 @@ struct AppState {
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
     notes: crate::notes_window::NotesState,
+    /// Faixas > Painel de compositores.
+    compositors: crate::compositors_window::CompositorsState,
+    /// While a window group is maximized, the whole dock it was taken from.
+    maximized_dock: Option<DockState<Tab>>,
+    /// Propriedades da mídia (timecode, taxa de quadros, pixel, alfa, fundo).
+    media_props_dialog: crate::media_properties_window::MediaPropsDialog,
     /// Exibir > Detalhes de edição.
     show_details: bool,
     /// The editing tool (`D` cycles through them).
@@ -555,9 +566,9 @@ struct AppState {
     /// Index into `loudness_panel::TARGETS`.
     loudness_target: usize,
     show_credits: bool,
-    /// Exibir > Visualizador de Logs.
+    /// Ajuda > Visualizador de logs.
     log_viewer: crate::log_viewer::LogViewerState,
-    /// Arquivo > Renderizar como… (Make Movie).
+    /// Arquivo > Exportar > Renderizar como… (Make Movie).
     render_dialog: crate::render_dialog::RenderDialogState,
     /// Faixas > Inserir apresentação de slides.
     slideshow: crate::slideshow_window::SlideshowState,
@@ -665,11 +676,18 @@ struct AppState {
     edge_frames: crate::edge_frames::EdgeFrames,
     /// What the preview shows in the two halves while it does: the captions' timecodes.
     edge_labels: [String; 2],
+    /// What each half of the edge preview is called (first / last frame, or A / B).
+    edge_captions: [String; 2],
+    /// Expanded edit mode: the edit point of `trim_edge` shows the frames and the unused media of the
+    /// two events around it.
+    expanded_edit: bool,
     env_drag: Option<EnvelopeDrag>,
     context_event: Option<(TrackId, EventId)>,
     context_envelope: Option<EnvelopeHit>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
     context_mark: Option<MarkId>,
+    /// Whether the timeline context menu was opened over the track header column.
+    context_header: bool,
     name_edit: Option<NameEdit>,
     mark_drag: Option<MarkDrag>,
     /// Ctrl+Shift+U: clicking one event of a group selects only that event.
@@ -1186,6 +1204,12 @@ impl AppState {
             .iter()
             .map(|(id, m)| (*id, m.name.clone()))
             .collect();
+        let timecode_start: HashMap<u64, f64> = self
+            .timeline
+            .media_props
+            .iter()
+            .filter_map(|(id, p)| Some((*id, p.timecode_start?)))
+            .collect();
         let clip_info = |media: Option<u64>| {
             let id = media?;
             let item = pool.iter().find(|m| m.id == id)?;
@@ -1199,6 +1223,8 @@ impl AppState {
             Some(edl::ClipInfo {
                 name,
                 path: Some(item.path.clone()),
+                // The media's own start timecode, when the user gave it one
+                start_offset: timecode_start.get(&id).copied().unwrap_or(0.0),
             })
         };
         let Some(text) = edl::export_track(
@@ -1299,7 +1325,10 @@ impl AppState {
     /// File > Import subtitles: adds the cues of an SRT or WebVTT file as one undo step.
     fn import_captions(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Legendas (SRT, WebVTT, SCC)", &["srt", "vtt", "scc"])
+            .add_filter(
+                "Legendas (SRT, WebVTT, SCC, MCC)",
+                &["srt", "vtt", "scc", "mcc"],
+            )
             .pick_file()
         else {
             return;
@@ -1345,7 +1374,7 @@ impl AppState {
         }
     }
 
-    /// File > Export subtitles: writes the captions as SRT, WebVTT or SCC, by the file's extension.
+    /// File > Export subtitles: writes the captions as SRT, WebVTT, SCC or MCC, by the file's extension.
     fn export_captions(&mut self) {
         if self.timeline.captions.is_empty() {
             self.status = "Não há legendas para exportar".into();
@@ -1355,6 +1384,7 @@ impl AppState {
             .add_filter("SubRip (SRT)", &["srt"])
             .add_filter("WebVTT", &["vtt"])
             .add_filter("Scenarist Closed Caption (SCC)", &["scc"])
+            .add_filter("MacCaption (MCC)", &["mcc"])
             .set_file_name(format!("{}.srt", self.project.name))
             .save_file()
         else {
@@ -1521,6 +1551,8 @@ impl AppState {
             &[&prefs.language, &overrides, &prefs.autosave_minutes],
         );
         self.prefs = prefs;
+        self.layouts_dir = crate::layouts::resolve_dir(&self.prefs.layouts_dir);
+        self.layouts_loaded = false;
         self.keymap = keymap;
         self.snap_sources = neoveg_engine::snapping::SnapSources {
             grid: self.prefs.snap_to_grid,
@@ -1632,6 +1664,9 @@ impl AppState {
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
+            compositors: Default::default(),
+            maximized_dock: None,
+            media_props_dialog: Default::default(),
             show_details: false,
             edit_tool: EditTool::default(),
             welcome: Default::default(),
@@ -1693,6 +1728,8 @@ impl AppState {
             import_report: None,
             edge_frames: crate::edge_frames::EdgeFrames::default(),
             edge_labels: [String::new(), String::new()],
+            edge_captions: [String::new(), String::new()],
+            expanded_edit: false,
             last_frame_key: None,
             last_composite_key: None,
             lut_cache: None,
@@ -1721,6 +1758,7 @@ impl AppState {
             context_event: None,
             context_envelope: None,
             context_mark: None,
+            context_header: false,
             name_edit: None,
             mark_drag: None,
             ignore_grouping: false,
@@ -1779,22 +1817,46 @@ impl AppState {
         }
     }
 
-    /// *Fechar espaços na faixa*: the events of the selected track meet each other.
+    /// *Fechar espaços na faixa*: closes gaps between 2+ selected events on each track, or across
+    /// the whole selected track when no event is selected.
     fn close_gaps_on_selected_track(&mut self) {
-        let Some(id) = self.selected_track else {
-            self.status = tr("Selecione uma faixa para fechar os espaços").into();
+        if self.selection.is_empty() {
+            let Some(id) = self.selected_track else {
+                self.status = tr("Selecione uma faixa para fechar os espaços").into();
+                return;
+            };
+            match neoveg_engine::track_ops::close_gaps(&self.timeline, id) {
+                Some(command) => {
+                    if self.history.execute(&mut self.timeline, command) {
+                        self.status = tr("Espaços fechados na faixa").into();
+                        self.last_frame_key = None;
+                        self.last_composite_key = None;
+                        self.restart_audio_if_playing();
+                    }
+                }
+                None => self.status = tr("Não há espaços para fechar nesta faixa").into(),
+            }
             return;
-        };
-        match neoveg_engine::track_ops::close_gaps(&self.timeline, id) {
+        }
+        let refs = self.selection.refs();
+        if !neoveg_engine::track_ops::has_selected_pair(&self.timeline, &refs) {
+            self.status =
+                tr("Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles")
+                    .into();
+            return;
+        }
+        match neoveg_engine::track_ops::close_selected_gaps(&self.timeline, &refs) {
             Some(command) => {
                 if self.history.execute(&mut self.timeline, command) {
-                    self.status = tr("Espaços fechados na faixa").into();
+                    self.status = tr("Espaços fechados entre os eventos selecionados").into();
                     self.last_frame_key = None;
                     self.last_composite_key = None;
                     self.restart_audio_if_playing();
                 }
             }
-            None => self.status = tr("Não há espaços para fechar nesta faixa").into(),
+            None => {
+                self.status = tr("Não há espaços para fechar entre os eventos selecionados").into();
+            }
         }
     }
 
@@ -1856,6 +1918,100 @@ impl AppState {
             None => ops::split_at(&mut self.timeline, self.playhead, scope),
         };
         self.apply_outcome(outcome);
+    }
+
+    fn smart_split(&mut self) {
+        let Some(range) = self.time_selection.filter(|r| !r.is_empty()) else {
+            self.status =
+                tr("Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente")
+                    .into();
+            return;
+        };
+        let refs = self.selection.refs();
+        let outcome = ops::smart_split(&mut self.timeline, range, &refs, self.project.settings.fps);
+        match self.apply_outcome(outcome) {
+            Some(touched) => {
+                self.selection.set(touched);
+                self.last_composite_key = None;
+                self.status =
+                    tr("Divisão inteligente aplicada com transição de fluxo de deformação").into();
+            }
+            None => {
+                self.status = tr(
+                    "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo",
+                )
+                .into();
+            }
+        }
+    }
+
+    /// Opens the Media Properties dialog on `media_id`.
+    fn open_media_properties(&mut self, media_id: u64) {
+        let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+            self.status = "Essa mídia não está no projeto".into();
+            return;
+        };
+        let path = item.path.clone();
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .map_or_else(|| path.clone(), |n| n.to_string_lossy().into_owned());
+        let project_fps = self.project.settings.fps;
+        let drop_frame = self.drop_frame();
+        let video = self.video_info.get(&media_id);
+        let summary = match (video, self.media.get(&media_id)) {
+            (Some(v), _) => format!(
+                "{}×{} · {:.3} fps · {:.2} s",
+                v.width, v.height, v.fps, v.duration
+            ),
+            (None, Some(m)) => format!("{} Hz · {:.2} s", m.sample_rate, m.duration),
+            (None, None) => String::new(),
+        };
+        let timecode_fps = video.map_or(project_fps, |v| v.fps.max(1.0));
+        let props = neoveg_engine::media_props::props_of(&self.timeline, media_id);
+        self.media_props_dialog.open(
+            media_id,
+            name,
+            path,
+            summary,
+            video.is_some(),
+            timecode_fps,
+            drop_frame,
+            props,
+        );
+    }
+
+    /// Edit > Media properties: the dialog of the media the first selected event plays.
+    fn open_selected_media_properties(&mut self) {
+        let media = self.selection.refs().iter().find_map(|(track, event)| {
+            self.timeline
+                .track(*track)?
+                .events
+                .iter()
+                .find(|e| e.id == *event)?
+                .media_id
+        });
+        match media {
+            Some(id) => self.open_media_properties(id),
+            None => self.status = "Selecione um evento que toque uma mídia".into(),
+        }
+    }
+
+    fn heal_selected_events(&mut self) {
+        let refs = self.selection.refs();
+        let outcome = ops::heal_events(&self.timeline, &refs);
+        match self.apply_outcome(outcome) {
+            Some(touched) => {
+                self.selection.set(touched);
+                self.last_composite_key = None;
+                self.status = tr("Eventos divididos reunidos").into();
+            }
+            None => {
+                self.status = tr(
+                    "Selecione dois ou mais eventos desbloqueados da mesma mídia e em ordem cronológica",
+                )
+                .into();
+            }
+        }
     }
 
     /// Delete: selected events, or the time selection (all tracks, or only the selected events).
@@ -2332,6 +2488,52 @@ impl AppState {
             self.last_composite_key = None;
             self.status =
                 "Evento de ajuste inserido: aplique efeitos na aba Efeitos de Vídeo".into();
+        }
+    }
+
+    /// *Inserir faixa de ajuste*: inserts a pass-through video track above the selected video
+    /// track (or at the top of the track list) with an enabled `VideoLevel` composite envelope.
+    fn insert_adjustment_track(&mut self) {
+        let (id, command) = neoveg_engine::adjustment::insert_track_command(
+            &mut self.timeline,
+            self.selected_track,
+            self.prefs.new_track_fade_top,
+            self.prefs.new_track_fade_bottom,
+        );
+        if self.history.execute(&mut self.timeline, command) {
+            self.selected_track = Some(id);
+            self.vfx.scope = VfxScope::Track;
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+            self.status =
+                tr("Faixa de ajuste inserida: aplique efeitos na aba Efeitos de Vídeo").into();
+        }
+    }
+
+    /// *Redimensionar eventos de ajuste ao projeto*: spans selected unlocked adjustment events
+    /// from `0.0` to the end of the project's content in a single undo step.
+    fn resize_adjustment_events_to_project(&mut self) {
+        let targets = self.selection.refs();
+        if !neoveg_engine::adjustment::can_resize_to_project(&self.timeline, &targets) {
+            self.status =
+                tr("Selecione um evento de ajuste desbloqueado em um projeto com duração").into();
+            return;
+        }
+        match neoveg_engine::adjustment::resize_to_project_command(&self.timeline, &targets) {
+            Some((command, count)) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.last_frame_key = None;
+                    self.last_composite_key = None;
+                    self.status = tr_args(
+                        "{} evento(s) de ajuste redimensionado(s) ao projeto",
+                        &[&count],
+                    );
+                }
+            }
+            None => {
+                self.status =
+                    tr("Os eventos de ajuste selecionados já cobrem todo o projeto").into();
+            }
         }
     }
 
@@ -2927,6 +3129,34 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
+            Command::EditResizeAdjustmentToProject => {
+                neoveg_engine::adjustment::can_resize_to_project(
+                    &self.timeline,
+                    &self.selection.refs(),
+                )
+            }
+            Command::EditSmartSplit => {
+                ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
+            }
+            Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
+            Command::EditMediaProperties => self.selection.refs().iter().any(|(track, event)| {
+                self.timeline
+                    .track(*track)
+                    .and_then(|t| t.events.iter().find(|e| e.id == *event))
+                    .is_some_and(|e| e.media_id.is_some())
+            }),
+            Command::EditCloseGaps => {
+                if self.selection.is_empty() {
+                    self.selected_track
+                        .and_then(|id| self.timeline.track(id))
+                        .is_some()
+                } else {
+                    neoveg_engine::track_ops::has_selected_pair(
+                        &self.timeline,
+                        &self.selection.refs(),
+                    )
+                }
+            }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
             Command::EditSwitchMute
@@ -2934,6 +3164,8 @@ impl AppState {
             | Command::EditSwitchInvertPhase
             | Command::EditSwitchLoop
             | Command::EditSwitchNormalize
+            | Command::EditSwitchMaintainAspect
+            | Command::EditSwitchReduceFlicker
             | Command::EditNormalizeRecalculate => has_events,
             Command::EditUngroup | Command::EditRemoveFromGroup | Command::EditSelectGroup => self
                 .selection
@@ -3813,12 +4045,32 @@ impl AppState {
         } else {
             Vec::new()
         };
+        let move_span = (drag.mode == DragMode::Move).then(|| {
+            if drag.moving.len() > 1 {
+                neoveg_engine::snapping::move_span(&self.timeline, &drag.moving)
+            } else {
+                None
+            }
+            .unwrap_or((
+                drag.origin.start.max(0.0),
+                drag.origin.snap_point(),
+                drag.origin.end(),
+            ))
+        });
         if snap_enabled && self.snap_sources.grid {
-            // Grid lines around the dragged block's start and end and around the pointer
+            // Grid lines around the dragged snap points and around the pointer
             let step = self.grid_step_seconds();
-            let start = pointer_time - drag.grab_offset;
-            for t in [start, start + drag.origin.duration, pointer_time] {
-                candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+            if let Some((_, left_snap, right_end)) = move_span {
+                let raw = pointer_time - drag.grab_offset;
+                let delta = raw - drag.origin.start;
+                for t in [left_snap + delta, right_end + delta, pointer_time] {
+                    candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+                }
+            } else {
+                let start = pointer_time - drag.grab_offset;
+                for t in [start, start + drag.origin.duration, pointer_time] {
+                    candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+                }
             }
         }
         // Audio-only edits are left between frames when the preference says so
@@ -3846,16 +4098,37 @@ impl AppState {
 
         match drag.mode {
             DragMode::Move => {
-                let raw = pointer_time - drag.grab_offset;
-                let snapped = edit::snap_block(raw, drag.origin.duration, &candidates, threshold);
-                let start = snapped.unwrap_or_else(|| quant(raw));
+                let (earliest, left_snap, right_end) = move_span.unwrap_or((
+                    drag.origin.start.max(0.0),
+                    drag.origin.snap_point(),
+                    drag.origin.end(),
+                ));
+                let left_offset = left_snap - drag.origin.start;
+                let right_offset = right_end - drag.origin.start;
+                let min_start = if drag.moving.len() > 1 {
+                    (drag.origin.start - earliest).max(0.0)
+                } else {
+                    0.0
+                };
+                let raw = (pointer_time - drag.grab_offset).max(min_start);
+                let snapped = edit::snap_block_with_offset(
+                    raw,
+                    left_offset,
+                    right_offset,
+                    min_start,
+                    &candidates,
+                    threshold,
+                );
+                let start = match snapped {
+                    Some((s, _)) => s,
+                    None => (quant(raw + left_offset) - left_offset).max(min_start),
+                };
                 drag.snap_mark = match snapped {
-                    // The line goes on whichever edge of the block met the target
-                    Some(_) if candidates.iter().any(|c| (c - start).abs() < 1e-9) => {
-                        Some(SnapMark::Target(start))
+                    Some((_, target)) => Some(SnapMark::Target(target)),
+                    None => {
+                        let aligned = start + left_offset;
+                        ((start - raw).abs() > 1e-6).then_some(SnapMark::Rounded(aligned))
                     }
-                    Some(_) => Some(SnapMark::Target(start + drag.origin.duration)),
-                    None => ((start - raw).abs() > 1e-6).then_some(SnapMark::Rounded(start)),
                 };
                 drag.current = edit::move_to(drag.origin, start);
                 if drag.moving.len() > 1 {
@@ -3958,6 +4231,17 @@ impl AppState {
                 let length = quant(drag.origin.end() - pointer_time);
                 drag.current = edit::set_fade_out(drag.origin, length);
             }
+            DragMode::SnapOffset => {
+                let clamped_pointer = pointer_time.clamp(drag.origin.start, drag.origin.end());
+                let (aligned, mark) = snap(clamped_pointer);
+                let clamped = aligned.clamp(drag.origin.start, drag.origin.end());
+                drag.snap_mark = if (clamped - aligned).abs() <= 1e-6 {
+                    mark
+                } else {
+                    None
+                };
+                drag.current = edit::set_snap_offset(drag.origin, clamped - drag.origin.start);
+            }
         }
         self.drag = Some(drag);
     }
@@ -3977,6 +4261,10 @@ impl AppState {
             return;
         };
         if old != new {
+            let playback_changed = EventGeometry {
+                snap_offset: old.snap_offset,
+                ..new
+            } != old;
             self.history.execute(
                 &mut self.timeline,
                 EditCommand::EditEvent {
@@ -3987,8 +4275,10 @@ impl AppState {
                     new,
                 },
             );
-            self.restart_audio_if_playing();
-            self.last_frame_key = None;
+            if playback_changed {
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+            }
         }
     }
 
@@ -4154,8 +4444,15 @@ impl AppState {
         if d.target_track != d.track_id || !self.selection.contains((d.target_track, d.event_id)) {
             self.selection.select_only((d.target_track, d.event_id));
         }
-        self.restart_audio_if_playing();
-        self.last_frame_key = None;
+        let playback_changed = d.target_track != d.track_id
+            || EventGeometry {
+                snap_offset: d.origin.snap_offset,
+                ..d.current
+            } != d.origin;
+        if playback_changed {
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
+        }
     }
 
     fn earliest_start(&self, events: &[EventRef]) -> f64 {
@@ -4576,6 +4873,8 @@ impl AppState {
                     Switch::InvertPhase => "Inverter fase",
                     Switch::Loop => "Repetir",
                     Switch::Normalize => "Normalizar",
+                    Switch::MaintainAspectRatio => "Manter proporção",
+                    Switch::ReduceInterlaceFlicker => "Reduzir cintilação do entrelaçamento",
                 };
                 self.status = format!("{name} {}", if on { "ligado" } else { "desligado" });
             }
@@ -4583,6 +4882,9 @@ impl AppState {
                 self.status = match switch {
                     Switch::InvertPhase | Switch::Normalize => {
                         "Vale só para eventos de áudio desbloqueados".into()
+                    }
+                    Switch::MaintainAspectRatio | Switch::ReduceInterlaceFlicker => {
+                        "Vale só para eventos de vídeo desbloqueados".into()
                     }
                     Switch::Loop => {
                         "Repetir vale só para eventos desbloqueados em velocidade normal".into()
@@ -4904,16 +5206,23 @@ impl AppState {
         self.last_frame_key = None;
     }
 
+    /// The moment the preview samples: the start of the project frame the playhead is in.
+    fn sampled_time(&self) -> f64 {
+        neoveg_common::timecode::frame_start(self.playhead, self.project.settings.fps)
+    }
+
     /// Asks the decoder thread for the frame under the playhead (topmost video track wins).
     fn request_preview_frame(&mut self, ppp: f32) {
         let max_width = self.preview_max_width(ppp);
+        // The preview shows the frame the playhead is in, the one its tick marks and its timecode reads
+        let at = self.sampled_time();
         // A sub-project plays through the expansion of its events
         let flat = self.flattened();
         let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
         // Overlapping video clips (several tracks, or a crossfade) are composited
         // (also when an effect is on: only that path runs the video effects)
-        if composite::visible_clips(timeline, self.playhead) > 1
-            || composite::has_effects(timeline, self.playhead)
+        if composite::visible_clips(timeline, at) > 1
+            || composite::has_effects(timeline, at, self.project.settings.resample_mode)
             || self.pan_crop_draft.is_some()
             || self.velocity_draft.is_some()
         {
@@ -4926,10 +5235,10 @@ impl AppState {
             .tracks
             .iter()
             .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
-            .find_map(|t| timeline.playing_event_at(t.id, self.playhead))
+            .find_map(|t| timeline.playing_event_at(t.id, at))
             .and_then(|e| {
                 let rate = edit::clamp_playback_rate(e.playback_rate);
-                let mut offset = (self.playhead - e.start) * rate;
+                let mut offset = (at - e.start) * rate;
                 if e.looping {
                     let source = e.media_id.and_then(|id| self.video_info.get(&id));
                     let len = source.map_or(0.0, |i| edit::loop_length(i.duration, e.trim_in));
@@ -4957,7 +5266,8 @@ impl AppState {
             .video_info
             .get(&media_id)
             .map_or(self.project.settings.fps, |i| i.fps);
-        let frame = (seconds * fps).round() as i64;
+        // The source frame that covers that instant
+        let frame = neoveg_common::timecode::frame_index(seconds, fps);
         let key = (media_id, frame, max_width);
         // An undo of the LUT changes the picture without changing the frame key
         if self.last_lut_path != self.timeline.video_lut
@@ -5004,7 +5314,7 @@ impl AppState {
         }
         let settings = &self.project.settings;
         let fps = settings.fps;
-        let frame = (self.playhead * fps).round() as i64;
+        let frame = neoveg_common::timecode::frame_index(self.playhead, fps);
         let key = (
             frame,
             max_width,
@@ -5024,6 +5334,7 @@ impl AppState {
             max_width,
             playing: self.active_player.is_some(),
             auto_crossfade: settings.auto_crossfade,
+            resample_mode: settings.resample_mode,
             lut,
             grade,
             chroma_key: chroma,
@@ -5050,14 +5361,31 @@ impl AppState {
     /// While an event is slipped or slid (and the preference is on), asks the frame worker for the
     /// first and last frame it would show, so the preview can draw them; clears them afterwards.
     fn update_edge_frames(&mut self) {
-        let wanted = self.edge_frame_keys();
-        let Some((keys, labels)) = wanted else {
+        if self.trim_edge.is_none() {
+            self.expanded_edit = false;
+        }
+        let wanted = self
+            .edge_frame_keys()
+            .map(|(keys, labels)| {
+                let [first, last] = keys;
+                (
+                    [Some(first), Some(last)],
+                    labels,
+                    [
+                        tr("Primeiro quadro").to_string(),
+                        tr("Último quadro").to_string(),
+                    ],
+                )
+            })
+            .or_else(|| self.expanded_edge_preview());
+        let Some((keys, labels, captions)) = wanted else {
             if self.edge_frames.visible() {
                 self.edge_frames.clear();
             }
             return;
         };
         self.edge_labels = labels;
+        self.edge_captions = captions;
         let requests = self.edge_frames.want(keys);
         if let Some(worker) = &self.frame_worker {
             for (path, seconds) in requests {
@@ -5068,6 +5396,88 @@ impl AppState {
                 });
             }
         }
+    }
+
+    /// Expanded edit mode: the last frame A shows and the first frame B shows at the edit point of
+    /// the selected edge. A half stays empty when that side has no event or is not video.
+    fn expanded_edge_preview(&self) -> Option<crate::edge_frames::Preview> {
+        if !self.expanded_edit {
+            return None;
+        }
+        let edge = self.trim_edge?;
+        let view = neoveg_engine::keytrim::ab_view(&self.timeline, edge, &|track, event| {
+            self.source_len(track, event)
+        })?;
+        let fps = self.project.settings.fps.max(1.0);
+        let drop_frame = self.drop_frame();
+        let mut keys: [Option<(PathBuf, f64)>; 2] = [None, None];
+        let mut labels = [String::new(), String::new()];
+        for (slot, side) in [view.a, view.b].into_iter().enumerate() {
+            let Some(side) = side else { continue };
+            let Some(track) = self.timeline.track(side.track) else {
+                continue;
+            };
+            if track.kind != TrackKind::Video {
+                continue;
+            }
+            let Some(event) = track.events.iter().find(|e| e.id == side.event) else {
+                continue;
+            };
+            let Some(media_id) = event.media_id else {
+                continue;
+            };
+            let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+                continue;
+            };
+            let info = self.video_info.get(&media_id);
+            let source_fps = info.map_or(fps, |i| i.fps).max(1.0);
+            let rate = edit::clamp_playback_rate(event.playback_rate);
+            // A shows its last frame at the cut, B its first
+            let wanted = if slot == 0 {
+                event.trim_in + (event.duration - 1.0 / fps).max(0.0) * rate
+            } else {
+                event.trim_in
+            };
+            let last_frame = info.map(|i| (i.duration * source_fps).ceil() - 1.0);
+            let frame = (wanted * source_fps).round().max(0.0);
+            let frame = last_frame.map_or(frame, |l| frame.min(l.max(0.0)));
+            let seconds = frame / source_fps;
+            labels[slot] = seconds_to_timecode(seconds, source_fps, drop_frame);
+            keys[slot] = Some((PathBuf::from(&item.path), seconds));
+        }
+        Some((
+            keys,
+            labels,
+            [tr("Saída (A)").to_string(), tr("Entrada (B)").to_string()],
+        ))
+    }
+
+    /// Turns expanded edit mode on or off. `picked` is the edge that was double-clicked; without it
+    /// the mode uses the selected edge, or the next one after the cursor. Double-clicking the edge
+    /// that is already open leaves the mode.
+    fn toggle_expanded_edit(&mut self, picked: Option<neoveg_engine::keytrim::Edge>) {
+        if self.expanded_edit && (picked.is_none() || picked == self.trim_edge) {
+            self.expanded_edit = false;
+            self.status = tr("Edição expandida encerrada").to_string();
+            return;
+        }
+        if let Some(edge) = picked {
+            if let Some(time) = neoveg_engine::keytrim::edge_time(&self.timeline, edge) {
+                self.playhead = time;
+            }
+            self.trim_edge = Some(edge);
+            self.selected_track = Some(edge.track);
+            self.selection.select_only((edge.track, edge.event));
+        } else if self.trim_edge.is_none() {
+            self.select_trim_edge(true);
+        }
+        if self.trim_edge.is_none() {
+            return;
+        }
+        self.expanded_edit = true;
+        self.status =
+            tr("Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)")
+                .to_string();
     }
 
     /// The files, source times and captions of the two edge frames of the event being dragged, or
@@ -5409,7 +5819,10 @@ impl AppState {
                     .map(|later| later.fade_in_curve)
                     .next()
                     .unwrap_or_default();
-                let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate) {
+                // The source is read directly only while nothing changes its speed or its pitch
+                let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                    && !e.pitch.changes_sound()
+                {
                     (Arc::clone(&media.stereo), e.trim_in)
                 } else {
                     let rate = neoveg_audio::stretch::clamp_rate(e.playback_rate);
@@ -5419,6 +5832,7 @@ impl AppState {
                         e.duration.to_bits(),
                         rate.to_bits(),
                         e.preserve_pitch,
+                        e.pitch.key(),
                     );
                     let mut cache = self.stretch_cache.borrow_mut();
                     // Bounded by size, not by count: one stretched clip can be tens of megabytes
@@ -5437,6 +5851,7 @@ impl AppState {
                                 e.duration,
                                 rate,
                                 e.preserve_pitch,
+                                &e.pitch,
                             )
                         })
                         .clone();
@@ -5465,7 +5880,9 @@ impl AppState {
                     channels: e.channels,
                     volume: mix_gain_curve(e.volume_envelope.as_ref()),
                     // Only an event at normal speed loops (its source is read directly)
-                    loop_len: if e.looping && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                    loop_len: if e.looping
+                        && neoveg_audio::stretch::is_unity_rate(e.playback_rate)
+                        && !e.pitch.changes_sound()
                     {
                         edit::loop_length(media.duration, e.trim_in)
                     } else {
@@ -5510,11 +5927,10 @@ impl AppState {
             let event = track.events.iter().find(|e| e.id == event_id)?;
             Some((track_id, event_id, event.name.clone(), event.media_id))
         });
-        let track = event
-            .as_ref()
-            .map(|(t, ..)| *t)
-            .or(self.selected_track)
-            .and_then(video_track);
+        let track = self
+            .selected_track
+            .and_then(video_track)
+            .or_else(|| event.as_ref().and_then(|(t, ..)| video_track(*t)));
         let media = event.as_ref().and_then(|(.., m)| *m);
         let scopes = VfxScopes {
             event: event.is_some(),
@@ -6223,6 +6639,14 @@ impl AppState {
                 }
             }
         }
+        // Esc leaves expanded edit mode first, then the keyboard trim mode
+        if self.expanded_edit
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            self.expanded_edit = false;
+            self.status = tr("Edição expandida encerrada").to_string();
+            return;
+        }
         // Esc leaves the keyboard trim mode before it can mean anything else
         if self.trim_edge.is_some()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
@@ -6379,8 +6803,13 @@ impl AppState {
             }
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
+            Command::EditSmartSplit => self.smart_split(),
+            Command::EditHeal => self.heal_selected_events(),
+            Command::EditMediaProperties => self.open_selected_media_properties(),
+            Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
+            Command::InsertAdjustmentTrack => self.insert_adjustment_track(),
             Command::InsertAdjustmentEvent => self.insert_adjustment_event(),
             Command::InsertAudioBus => self.add_audio_bus(),
             Command::CursorLeftByFrame if self.trim_edge.is_some() => {
@@ -6403,6 +6832,7 @@ impl AppState {
             }
             Command::CursorLeftByFrame => self.step_frames(-1.0, now),
             Command::CursorRightByFrame => self.step_frames(1.0, now),
+            Command::EditExpandedEdit => self.toggle_expanded_edit(None),
             Command::EditTrimEdgePrevious => self.select_trim_edge(false),
             Command::EditTrimEdgeNext => self.select_trim_edge(true),
             Command::TransportPlayToggle => self.toggle_play(now),
@@ -6507,6 +6937,12 @@ impl AppState {
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
             Command::EditSwitchLoop => self.toggle_event_switch(Switch::Loop),
             Command::EditSwitchNormalize => self.toggle_event_switch(Switch::Normalize),
+            Command::EditSwitchMaintainAspect => {
+                self.toggle_event_switch(Switch::MaintainAspectRatio);
+            }
+            Command::EditSwitchReduceFlicker => {
+                self.toggle_event_switch(Switch::ReduceInterlaceFlicker);
+            }
             Command::EditNormalizeRecalculate => self.recalculate_normalize(),
             Command::TransportLoop => self.toggle_loop(),
             Command::TransportShuttleForward => self.shuttle(true, now),
@@ -6817,6 +7253,43 @@ impl NeovegApp {
         }
     }
 
+    /// The Media Properties dialog: what it applies is one undoable edit.
+    fn run_media_properties_dialog(&mut self, ctx: &egui::Context) {
+        let state = &mut self.state;
+        let Some(action) = state.media_props_dialog.show(ctx) else {
+            return;
+        };
+        match neoveg_engine::media_props::set(&state.timeline, action.media_id, &action.props) {
+            Some(command) => {
+                if state.history.execute(&mut state.timeline, command) {
+                    state.last_frame_key = None;
+                    state.last_composite_key = None;
+                    state.status = "Propriedades da mídia aplicadas".into();
+                }
+            }
+            None => state.status = "As propriedades da mídia não mudaram".into(),
+        }
+    }
+
+    /// The compositors panel: the mode changes it asks for are undoable edits.
+    fn run_compositors_window(&mut self, ctx: &egui::Context) {
+        let state = &mut self.state;
+        let actions = state
+            .compositors
+            .show(ctx, &state.timeline, state.selected_track);
+        let mut changed = false;
+        for action in actions {
+            if let Some(command) = crate::compositors_window::command_for(&state.timeline, &action)
+            {
+                changed |= state.history.execute(&mut state.timeline, command);
+            }
+        }
+        if changed {
+            state.last_frame_key = None;
+            state.last_composite_key = None;
+        }
+    }
+
     /// The project notes window: what the user did to the notes, and the cursor jump of "Ir".
     fn run_notes_window(&mut self, ctx: &egui::Context) {
         let fps = self.state.project.settings.fps;
@@ -6886,6 +7359,7 @@ impl NeovegApp {
                     } else {
                         self.state.new_project_with(*settings);
                     }
+                    self.state.maximized_dock = None;
                     self.dock = match layout {
                         crate::welcome::StartLayout::Video => default_dock(),
                         crate::welcome::StartLayout::Audio => audio_dock(),
@@ -6900,16 +7374,83 @@ impl NeovegApp {
         }
     }
 
+    /// What the group menus of the dock strips asked for (see `footer_tabs::GroupAction`), and the end
+    /// of a maximized view that has nothing left to show.
+    fn apply_group_actions(&mut self, groups: Vec<(dock_footer::Leaf, GroupAction)>) {
+        for (leaf, action) in groups {
+            match action {
+                GroupAction::Close => {
+                    dock_footer::close_group(&mut self.dock, &leaf.tabs);
+                    self.state.status = "Grupo de painéis fechado".into();
+                }
+                GroupAction::Undock => {
+                    // The floating windows become native windows right after, one for each panel
+                    dock_footer::undock_group(&mut self.dock, &leaf.tabs, leaf.rect);
+                    self.state.status = "Grupo de painéis em janelas próprias".into();
+                }
+                GroupAction::MoveTo(place) => {
+                    let Some((name, anchor)) = dock_footer::DESTINATIONS.get(place).copied() else {
+                        continue;
+                    };
+                    if dock_footer::move_group(&mut self.dock, &leaf.tabs, anchor) {
+                        self.state.status = tr_args("Grupo movido para {}", &[&tr(name)]);
+                    } else {
+                        self.state.status = "Esse lugar não está na tela".into();
+                    }
+                }
+                GroupAction::ToggleMaximize => {
+                    if self.state.maximized_dock.is_some() {
+                        self.restore_maximized();
+                    } else if let Some(active) =
+                        leaf.tabs.get(leaf.active).or(leaf.tabs.first()).copied()
+                    {
+                        let shown = dock_footer::maximized_dock(&leaf.tabs, active);
+                        self.state.maximized_dock = Some(std::mem::replace(&mut self.dock, shown));
+                    }
+                }
+            }
+        }
+        // Everything of the maximized group was closed or given a window: back to the whole dock
+        if self.state.maximized_dock.is_some() && self.dock.iter_all_tabs().next().is_none() {
+            self.restore_maximized();
+        }
+    }
+
+    /// Puts the dock back after a maximized view.
+    fn restore_maximized(&mut self) {
+        if let Some(saved) = self.state.maximized_dock.take() {
+            let floating: Vec<Tab> = self.detached.iter().map(|d| d.tab).collect();
+            self.dock = dock_footer::restored_dock(saved, &self.dock, &floating);
+        }
+    }
+
+    /// The dock as the layouts keep it: the whole one, also while a group is maximized.
+    fn whole_dock(&self) -> &DockState<Tab> {
+        self.state.maximized_dock.as_ref().unwrap_or(&self.dock)
+    }
+
     /// Puts the dock of the saved layout at `path` on screen.
     fn load_layout(&mut self, path: &std::path::Path) {
+        self.state.maximized_dock = None;
         self.state.ensure_layouts();
         let Some(found) = self.state.layouts.iter().find(|l| l.path == path) else {
             self.state.status = "Esse layout não existe mais".into();
             return;
         };
         let (layout, name) = (found.file.dock.clone(), found.file.name.clone());
-        self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
-        self.dock = layout;
+        let windows = found.file.detached.clone();
+        match windows {
+            // The layout knows its panel windows: they replace the ones that are open
+            Some(windows) => {
+                self.dock = layout;
+                self.apply_layout_windows(&windows);
+            }
+            // An older file: the open windows stay, except for panels the layout docks
+            None => {
+                self.detached.retain(|d| layout.find_tab(&d.tab).is_none());
+                self.dock = layout;
+            }
+        }
         self.state.current_layout = Some(path.to_path_buf());
         self.state.status = tr_args("Layout {} carregado", &[&name]);
     }
@@ -6920,7 +7461,7 @@ impl NeovegApp {
             self.state.status = "Não há pasta para guardar o layout".into();
             return;
         };
-        match crate::layouts::save(&dir, name, slot, &self.dock) {
+        match crate::layouts::save(&dir, name, slot, self.whole_dock(), &self.saved_windows()) {
             Ok(path) => {
                 self.state.current_layout = Some(path);
                 self.state.status = tr_args("Layout {} salvo", &[&name]);
@@ -7015,7 +7556,21 @@ impl NeovegApp {
                 }
                 self.state.refresh_layouts();
             }
+            WindowAction::SetLayoutsDir(dir) => {
+                self.state.prefs.layouts_dir = dir
+                    .map(|d| d.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.state.layouts_dir = crate::layouts::resolve_dir(&self.state.prefs.layouts_dir);
+                self.state.current_layout = None;
+                self.state.persist_preferences();
+                self.state.refresh_layouts();
+                self.state.status = match &self.state.layouts_dir {
+                    Some(dir) => tr_args("Pasta dos layouts: {}", &[&dir.display()]),
+                    None => "Não há pasta para guardar o layout".into(),
+                };
+            }
             WindowAction::DefaultLayout => {
+                self.state.maximized_dock = None;
                 self.dock = default_dock();
                 let dock = &self.dock;
                 self.detached.retain(|d| dock.find_tab(&d.tab).is_none());
@@ -7169,6 +7724,7 @@ impl NeovegApp {
             });
         });
 
+        let mut groups = Vec::new();
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show(ctx, |ui| {
@@ -7176,6 +7732,9 @@ impl NeovegApp {
                 // egui_dock can only put its strip on top, so it is hidden (height 0) and every group
                 // of windows draws its own footer strip (`footer_tabs`, `dock_footer`)
                 style.tab_bar.height = 0.0;
+                self.state
+                    .dock_footer
+                    .set_maximized(self.state.maximized_dock.is_some());
                 self.state.dock_footer.refresh(&self.dock, ui.max_rect());
                 DockArea::new(&mut self.dock).style(style).show_inside(
                     ui,
@@ -7183,8 +7742,9 @@ impl NeovegApp {
                         state: &mut self.state,
                     },
                 );
-                self.state.dock_footer.apply(&mut self.dock, ui.ctx());
+                groups = self.state.dock_footer.apply(&mut self.dock, ui.ctx());
             });
+        self.apply_group_actions(groups);
 
         self.promote_floating_windows(ctx);
         self.show_detached(ctx);
@@ -7213,6 +7773,8 @@ impl NeovegApp {
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
+        self.run_compositors_window(ctx);
+        self.run_media_properties_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -7603,7 +8165,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             for command in [
                 Command::EditSplit,
+                Command::EditSmartSplit,
+                Command::EditHeal,
+                Command::EditMediaProperties,
                 Command::EditCloseGaps,
+                Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
                 Command::EditTrimStart,
                 Command::EditTrimEnd,
@@ -7613,6 +8179,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditTrimEdgeStretchRight,
                 Command::EditTrimEdgeRollLeft,
                 Command::EditTrimEdgeRollRight,
+                Command::EditExpandedEdit,
             ] {
                 command_item(state, ui, command);
             }
@@ -7659,8 +8226,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         scrolling_menu(ui, tr("Faixas"), |ui| {
             command_item(state, ui, Command::InsertAudioTrack);
             command_item(state, ui, Command::InsertVideoTrack);
+            command_item(state, ui, Command::InsertAdjustmentTrack);
             command_item(state, ui, Command::InsertAdjustmentEvent);
             command_item(state, ui, Command::InsertAudioBus);
+            if ui.button(tr("Painel de compositores…")).clicked() {
+                state.compositors.open = true;
+                ui.close_menu();
+            }
             if ui.button(tr("Inserir mídia gerada…")).clicked() {
                 state.generator_dialog.open = true;
                 ui.close_menu();
@@ -7692,8 +8264,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .selected_track
                 .and_then(|id| state.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video);
+            let track_motion_ok = state
+                .selected_track
+                .is_some_and(|id| tmotion::get(&state.timeline, id).is_some());
             if ui
-                .add_enabled(video_track, egui::Button::new(tr("Movimento da trilha…")))
+                .add_enabled(
+                    track_motion_ok,
+                    egui::Button::new(tr("Movimento da trilha…")),
+                )
                 .clicked()
             {
                 state.open_track_motion();
@@ -7938,6 +8516,9 @@ fn bundled_luts() -> Vec<(String, String)> {
 
 /// Help → Credits: authors and licences of the code Neoveg is built on.
 fn credits_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_credits {
+        return;
+    }
     let mut open = state.show_credits;
     crate::dialogs::dialog(ctx, tr("Créditos e licenças"))
         .open(&mut open)
@@ -8028,18 +8609,18 @@ fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             // Render sits with the file commands, as in the manuals' toolbar
             if i == 0 {
-                let tooltip = "Renderizar como… (Make Movie)";
+                let tooltip = tr("Renderizar como… (Make Movie)");
                 if icons::svg_button(ui, SvgIcon::ExportRender, tooltip, false).clicked() {
                     state.render_dialog.open = true;
                 }
             }
         }
         ui.separator();
-        if icons::svg_button(ui, SvgIcon::Welcome, "Tela de boas-vindas", false).clicked() {
+        if icons::svg_button(ui, SvgIcon::Welcome, tr("Tela de boas-vindas"), false).clicked() {
             let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
             state.welcome.open_with(&defaults);
         }
-        if icons::svg_button(ui, SvgIcon::Preferences, "Preferências", false).clicked() {
+        if icons::svg_button(ui, SvgIcon::Preferences, tr("Preferências"), false).clicked() {
             state.show_preferences = true;
         }
     });
@@ -8102,6 +8683,18 @@ fn switch_items(state: &mut AppState, ui: &mut egui::Ui) {
     switch_item(state, ui, Switch::Loop, Command::EditSwitchLoop);
     switch_item(state, ui, Switch::Normalize, Command::EditSwitchNormalize);
     command_item(state, ui, Command::EditNormalizeRecalculate);
+    switch_item(
+        state,
+        ui,
+        Switch::MaintainAspectRatio,
+        Command::EditSwitchMaintainAspect,
+    );
+    switch_item(
+        state,
+        ui,
+        Switch::ReduceInterlaceFlicker,
+        Command::EditSwitchReduceFlicker,
+    );
     resample_items(state, ui);
 }
 
@@ -8144,7 +8737,7 @@ fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool, alt: bool
     if alt {
         return false;
     }
-    if shift && matches!(mode, Some(DragMode::Move)) {
+    if shift && matches!(mode, Some(DragMode::Move | DragMode::SnapOffset)) {
         !snapping
     } else {
         snapping
@@ -8584,11 +9177,11 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     };
     let fps = state.project.settings.fps;
+    let mut keep_open = true;
     let (mut insert, mut cancel) = (false, false);
-    egui::Window::new(tr("Inserir tempo"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Inserir tempo"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
             if !edit.has_focus() && !edit.lost_focus() {
@@ -8620,7 +9213,7 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
         if let Some(length) = navigation::parse_time(&text, fps) {
             state.insert_time_at_cursor(length);
         }
-    } else if !cancel {
+    } else if keep_open && !cancel {
         state.insert_time_dialog = Some(text);
     }
 }
@@ -8630,11 +9223,11 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     };
     let fps = state.project.settings.fps;
+    let mut keep_open = true;
     let (mut go, mut cancel) = (false, false);
-    egui::Window::new(tr("Ir para o tempo"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Ir para o tempo"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
             if !edit.has_focus() && !edit.lost_focus() {
@@ -8644,9 +9237,9 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
             if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && valid {
                 go = true;
             }
-            ui.weak("00:01:02:10, 1:02,5, 62,5 ou 1500f");
+            ui.weak(tr("00:01:02:10, 1:02,5, 62,5 ou 1500f"));
             ui.horizontal(|ui| {
-                if ui.add_enabled(valid, egui::Button::new("Ir")).clicked() {
+                if ui.add_enabled(valid, egui::Button::new(tr("Ir"))).clicked() {
                     go = true;
                 }
                 if ui.button(tr("Cancelar")).clicked() {
@@ -8662,7 +9255,7 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
             let now = ctx.input(|i| i.time);
             state.go_to_time(time, now);
         }
-    } else if !cancel {
+    } else if keep_open && !cancel {
         state.goto_dialog = Some(text);
     }
 }
@@ -9090,6 +9683,20 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
                 if let Some(dir) = &state.layouts_dir {
                     ui.weak(tr_args("Pasta: {}", &[&dir.display()]));
                 }
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Escolher pasta…")).clicked() {
+                        if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                            request = Some(WindowAction::SetLayoutsDir(Some(dir)));
+                        }
+                    }
+                    let custom = !state.prefs.layouts_dir.trim().is_empty();
+                    if ui
+                        .add_enabled(custom, egui::Button::new(tr("Usar a pasta padrão")))
+                        .clicked()
+                    {
+                        request = Some(WindowAction::SetLayoutsDir(None));
+                    }
+                });
                 if rows.is_empty() {
                     ui.label(tr(
                         "Nenhum layout salvo ainda. Use Exibir > Layouts > Salvar layout como.",
@@ -9121,7 +9728,7 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
 
 /// A drop-down with *Nenhum* and the numbers 1 to 9 for the layout shortcut.
 fn slot_combo(ui: &mut egui::Ui, id: &str, slot: &mut Option<u8>) {
-    let text = slot.map_or_else(|| "Nenhum".to_owned(), |n| n.to_string());
+    let text = slot.map_or_else(|| tr("Nenhum").to_owned(), |n| n.to_string());
     egui::ComboBox::from_id_salt(id)
         .selected_text(text)
         .show_ui(ui, |ui| {
@@ -9489,6 +10096,9 @@ fn save_prefs(prefs: &Preferences) {
 }
 
 fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_preferences {
+        return;
+    }
     let mut open = state.show_preferences;
     let mut prefs = state.prefs.clone();
     let mut tab = state.prefs_tab;
@@ -9642,10 +10252,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
 fn format_age(saved_unix: u64, now_unix: u64) -> String {
     let secs = now_unix.saturating_sub(saved_unix);
     match secs {
-        0..=59 => "agora há pouco".into(),
-        60..=3599 => format!("há {} min", secs / 60),
-        3600..=86_399 => format!("há {} h", secs / 3600),
-        _ => format!("há {} dia(s)", secs / 86_400),
+        0..=59 => tr("agora há pouco").to_owned(),
+        60..=3599 => tr_args("há {} min", &[&(secs / 60)]),
+        3600..=86_399 => tr_args("há {} h", &[&(secs / 3600)]),
+        _ => tr_args("há {} dia(s)", &[&(secs / 86_400)]),
     }
 }
 
@@ -9655,10 +10265,8 @@ fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
     }
     let (mut recover, mut discard, mut discard_all) = (None, None, false);
     let now = autosave::unix_now();
-    egui::Window::new(tr("Recuperar projetos"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Recuperar projetos"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.label(tr(
                 "O Neoveg não foi encerrado normalmente. Projetos com alterações não salvas:",
@@ -9701,11 +10309,11 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
     if !state.confirm_exit {
         return;
     }
+    let mut keep_open = true;
     let (mut save, mut discard, mut cancel) = (false, false, false);
-    egui::Window::new(tr("Alterações não salvas"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Alterações não salvas"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.label(tr_args(
                 "Salvar as alterações em \"{}\" antes de sair?",
@@ -9716,7 +10324,13 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
                 discard = ui.button(tr("Sair sem salvar")).clicked();
                 cancel = ui.button(tr("Cancelar")).clicked();
             });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
         });
+    if !keep_open {
+        cancel = true;
+    }
 
     if save {
         state.save_project(false);
@@ -9737,6 +10351,9 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 }
 
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_inspector {
+        return;
+    }
     let mut open = state.show_inspector;
     let mut change = None;
     // What the controls asked for: applied after the window is drawn
@@ -9744,9 +10361,11 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut rename: Option<String> = None;
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
+    let mut pitch_change: Option<neoveg_common::pitch_change::PitchChange> = None;
     let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut progress: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut header: Option<event_header::HeaderButton> = None;
+    let mut resize_adj = false;
     let playhead = state.playhead;
     crate::dialogs::tool_window(ctx, tr("Inspetor"))
         .open(&mut open)
@@ -9883,6 +10502,9 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 &mut new.preserve_pitch,
                 tr("Preservar tom ao esticar (WSOLA)"),
             );
+            if kind == TrackKind::Audio && !generated {
+                pitch_change = pitch_controls(ui, track_id, event_id, ev.pitch);
+            }
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(tr("Fade-in"));
@@ -9922,18 +10544,74 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             } else if new.fade_out != g.fade_out {
                 new = edit::set_fade_out(new, new.fade_out);
             }
+            ui.horizontal(|ui| {
+                ui.label(tr("Deslocamento de snap"));
+                let mut offset = new.snap_offset;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut offset)
+                            .range(0.0..=g.duration)
+                            .speed(0.01)
+                            .suffix(" s"),
+                    )
+                    .on_hover_text(tr(
+                        "Ponto interno do evento usado para alinhar (snap) na timeline",
+                    ))
+                    .changed()
+                {
+                    new = edit::set_snap_offset(new, offset);
+                }
+                let cursor_inside = state.playhead > g.start + TIME_EPSILON
+                    && state.playhead < g.end() - TIME_EPSILON;
+                if ui
+                    .add_enabled(cursor_inside, egui::Button::new(tr("No cursor")).small())
+                    .on_hover_text(tr("Definir deslocamento de snap no cursor"))
+                    .clicked()
+                {
+                    new = edit::set_snap_offset(new, state.playhead - g.start);
+                }
+                if ui
+                    .add_enabled(
+                        g.snap_offset > TIME_EPSILON,
+                        egui::Button::new("0 s").small(),
+                    )
+                    .on_hover_text(tr("Restaurar deslocamento de snap"))
+                    .clicked()
+                {
+                    new = edit::set_snap_offset(new, 0.0);
+                }
+            });
             ui.separator();
             // Switches (the ones that make sense for the kind of event)
             ui.horizontal_wrapped(|ui| {
-                for (label, which, audio_only) in [
-                    (tr("Mudo"), Switch::Mute, false),
-                    (tr("Travado"), Switch::Lock, false),
-                    (tr("Laço"), Switch::Loop, false),
-                    (tr("Inverter fase"), Switch::InvertPhase, true),
-                    (tr("Normalizar"), Switch::Normalize, true),
+                #[derive(Copy, Clone, PartialEq, Eq)]
+                enum Scope {
+                    Any,
+                    Audio,
+                    VideoMedia,
+                }
+                for (label, which, scope) in [
+                    (tr("Mudo"), Switch::Mute, Scope::Any),
+                    (tr("Travado"), Switch::Lock, Scope::Any),
+                    (tr("Laço"), Switch::Loop, Scope::Any),
+                    (tr("Inverter fase"), Switch::InvertPhase, Scope::Audio),
+                    (tr("Normalizar"), Switch::Normalize, Scope::Audio),
+                    (
+                        tr("Manter proporção"),
+                        Switch::MaintainAspectRatio,
+                        Scope::VideoMedia,
+                    ),
+                    (
+                        tr("Reduzir cintilação"),
+                        Switch::ReduceInterlaceFlicker,
+                        Scope::VideoMedia,
+                    ),
                 ] {
-                    if audio_only && kind != TrackKind::Audio {
-                        continue;
+                    match scope {
+                        Scope::Any => {}
+                        Scope::Audio if kind == TrackKind::Audio => {}
+                        Scope::VideoMedia if kind == TrackKind::Video && !ev.adjustment => {}
+                        _ => continue,
                     }
                     let mut on = which.is_on(&ev);
                     if ui.checkbox(&mut on, label).changed() {
@@ -10002,6 +10680,20 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 if ui.button(tr("Efeitos…")).clicked() {
                     header = Some(event_header::HeaderButton::Fx);
                 }
+                if ev.adjustment {
+                    let can_resize = !ev.locked
+                        && neoveg_engine::adjustment::project_span_end(&state.timeline)
+                            > TIME_EPSILON;
+                    if ui
+                        .add_enabled(
+                            can_resize,
+                            egui::Button::new(tr("Redimensionar ao projeto")),
+                        )
+                        .clicked()
+                    {
+                        resize_adj = true;
+                    }
+                }
                 if generated && ui.button(tr("Editar mídia gerada…")).clicked() {
                     header = Some(event_header::HeaderButton::GeneratedMedia);
                 }
@@ -10013,6 +10705,9 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     if let Some((track_id, event_id, new)) = change {
         state.apply_geometry(track_id, event_id, new);
     }
+    if resize_adj {
+        state.resize_adjustment_events_to_project();
+    }
     if let Some((track_id, event_id)) = target {
         let command = if let Some(name) = rename {
             neoveg_engine::switches::rename_event(&state.timeline, (track_id, event_id), &name)
@@ -10020,6 +10715,8 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             neoveg_engine::switches::set(&state.timeline, &[(track_id, event_id)], which, on)
         } else if let Some(mode) = resample {
             neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
+        } else if let Some(pitch) = pitch_change {
+            neoveg_engine::event_pitch::set(&state.timeline, &[(track_id, event_id)], &pitch)
         } else if let Some(envelope) = volume {
             neoveg_engine::event_volume::set(&state.timeline, track_id, event_id, envelope)
         } else if let Some(envelope) = progress {
@@ -10039,6 +10736,66 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     state.show_inspector = open;
+}
+
+/// The pitch controls of the inspector for an audio event: the change in semitones, whether the
+/// formants stay where they were and how far they are moved besides. While a value is being
+/// dragged the change is kept in a draft, and only the finished value is returned, because every
+/// new value makes the sound of the event be computed again.
+fn pitch_controls(
+    ui: &mut egui::Ui,
+    track_id: TrackId,
+    event_id: EventId,
+    stored: neoveg_common::pitch_change::PitchChange,
+) -> Option<neoveg_common::pitch_change::PitchChange> {
+    use neoveg_common::pitch_change::{PitchChange, MAX_FORMANT_SHIFT, MAX_SEMITONES};
+    let id = egui::Id::new(("inspector_pitch_draft", track_id, event_id));
+    let mut pitch: PitchChange = ui.data(|d| d.get_temp(id)).unwrap_or(stored);
+    let mut busy = false;
+    ui.horizontal(|ui| {
+        ui.label(tr("Mudança de tom"));
+        let response = ui
+            .add(
+                egui::DragValue::new(&mut pitch.semitones)
+                    .range(-MAX_SEMITONES..=MAX_SEMITONES)
+                    .speed(0.05)
+                    .fixed_decimals(2)
+                    .suffix(" st"),
+            )
+            .on_hover_text(tr("Semitons; as frações são centésimos de semitom"));
+        busy |= response.dragged() || response.has_focus();
+        if ui
+            .small_button("0")
+            .on_hover_text(tr("Restaurar o tom original"))
+            .clicked()
+        {
+            pitch.semitones = 0.0;
+        }
+    });
+    ui.checkbox(&mut pitch.preserve_formants, tr("Preservar formantes"))
+        .on_hover_text(tr(
+            "Mantém o timbre da voz no lugar quando o tom muda, em vez de acompanhar o tom",
+        ));
+    ui.add_enabled_ui(pitch.preserve_formants, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(tr("Deslocamento de formantes"));
+            let response = ui.add(
+                egui::DragValue::new(&mut pitch.formant_shift)
+                    .range(-MAX_FORMANT_SHIFT..=MAX_FORMANT_SHIFT)
+                    .speed(0.05)
+                    .fixed_decimals(2)
+                    .suffix(" st"),
+            );
+            busy |= response.dragged() || response.has_focus();
+        });
+    });
+    if busy {
+        ui.data_mut(|d| d.insert_temp(id, pitch));
+        None
+    } else {
+        ui.data_mut(|d| d.remove_temp::<PitchChange>(id));
+        (pitch != stored).then_some(pitch)
+    }
 }
 
 // ============================================================================================
@@ -10174,8 +10931,18 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     painter.rect_filled(frame_rect, Rounding::ZERO, Color32::BLACK);
     state.preview_pane_width = frame_rect.width();
     if let Some(texture) = &state.video_texture {
+        // Fit the decoded picture proportionally inside the project frame (composite frames already
+        // carry the canvas aspect; a single source clip keeps its own aspect when Maintain Aspect
+        // Ratio is on)
+        let [tw, th] = texture.size();
+        let target_rect = if tw > 0 && th > 0 {
+            let fit = (frame_rect.width() / tw as f32).min(frame_rect.height() / th as f32);
+            Rect::from_center_size(frame_rect.center(), vec2(tw as f32 * fit, th as f32 * fit))
+        } else {
+            frame_rect
+        };
         // On the pixel grid, so a picture decoded for the window is drawn pixel for pixel
-        let picture = pixel_aligned_rect(frame_rect, texture.size(), ui.ctx().pixels_per_point());
+        let picture = pixel_aligned_rect(target_rect, [tw, th], ui.ctx().pixels_per_point());
         painter.image(
             texture.id(),
             picture,
@@ -10210,9 +10977,13 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
     }
 
     // The first and last frame of an event being slipped or slid, side by side
-    state
-        .edge_frames
-        .paint(&painter, frame_rect, pw / ph.max(1.0), &state.edge_labels);
+    state.edge_frames.paint(
+        &painter,
+        frame_rect,
+        pw / ph.max(1.0),
+        &state.edge_labels,
+        &state.edge_captions,
+    );
 
     // Subtitles showing at the cursor
     let showing = captions::active_at(&state.timeline, state.playhead);
@@ -10296,6 +11067,7 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
         ui.weak(tr("Nenhuma mídia no projeto"));
     }
     let mut open = None;
+    let mut properties = None;
     for item in &state.project.media_pool {
         if let Some(m) = state.media.get(&item.id) {
             let row = ui
@@ -10310,10 +11082,19 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
             if row.double_clicked() {
                 open = Some(item.id);
             }
+            row.context_menu(|ui| {
+                if ui.button(tr("Propriedades da mídia…")).clicked() {
+                    properties = Some(item.id);
+                    ui.close_menu();
+                }
+            });
         }
     }
     if let Some(id) = open {
         state.open_in_trimmer(id);
+    }
+    if let Some(id) = properties {
+        state.open_media_properties(id);
     }
 }
 
@@ -10836,14 +11617,16 @@ enum HeaderControl {
     Mute,
     Solo,
     Phase,
+    TrackFx,
 }
 
 impl HeaderControl {
-    fn icon(self) -> Icon {
+    fn icon(self) -> Option<Icon> {
         match self {
-            Self::Mute => Icon::Mute,
-            Self::Solo => Icon::Solo,
-            Self::Phase => Icon::Phase,
+            Self::Mute => Some(Icon::Mute),
+            Self::Solo => Some(Icon::Solo),
+            Self::Phase => Some(Icon::Phase),
+            Self::TrackFx => None,
         }
     }
 
@@ -10852,12 +11635,13 @@ impl HeaderControl {
             Self::Mute => "Mudo (Z; Ctrl+clique = só esta faixa)",
             Self::Solo => "Solo (X; Ctrl+clique = só esta faixa)",
             Self::Phase => "Inverter a fase",
+            Self::TrackFx => "Efeitos de vídeo da faixa",
         }
     }
 }
 
-/// Rectangles of the Mute, Solo and Phase buttons inside a track header row.
-fn header_buttons(row: Rect, kind: TrackKind) -> Vec<(HeaderControl, Rect)> {
+/// Rectangles of the Mute, Solo, Phase and Track FX buttons inside a track header row.
+fn header_buttons(row: Rect, kind: TrackKind, adjustment: bool) -> Vec<(HeaderControl, Rect)> {
     let side = 20.0;
     let y = row.top() + 34.0;
     let button = |x: f32| Rect::from_min_size(pos2(row.left() + x, y), vec2(side, side));
@@ -10867,12 +11651,21 @@ fn header_buttons(row: Rect, kind: TrackKind) -> Vec<(HeaderControl, Rect)> {
             (HeaderControl::Solo, button(29.0)),
             (HeaderControl::Phase, button(52.0)),
         ],
+        TrackKind::Video if adjustment => vec![
+            (HeaderControl::Mute, button(6.0)),
+            (HeaderControl::TrackFx, button(29.0)),
+        ],
         TrackKind::Video => vec![(HeaderControl::Mute, button(6.0))],
     }
 }
 
-fn hit_header_control(row: Rect, kind: TrackKind, p: Pos2) -> Option<HeaderControl> {
-    header_buttons(row, kind)
+fn hit_header_control(
+    row: Rect,
+    kind: TrackKind,
+    adjustment: bool,
+    p: Pos2,
+) -> Option<HeaderControl> {
+    header_buttons(row, kind, adjustment)
         .into_iter()
         .find_map(|(control, r)| r.contains(p).then_some(control))
 }
@@ -10884,6 +11677,11 @@ const FADE_HANDLE_PX: f32 = 6.0;
 const FADE_HANDLE_MIN_OFFSET_PX: f32 = 8.0;
 /// Events narrower than this have no fade handles.
 const FADE_HANDLE_MIN_EVENT_PX: f32 = 28.0;
+/// Bottom-left / bottom-edge snap-offset triangle geometry and hit zone.
+const SNAP_OFFSET_HANDLE_PX: f32 = 7.0;
+const SNAP_OFFSET_HIT_HEIGHT: f32 = 10.0;
+const SNAP_OFFSET_TRIANGLE_PX: f32 = 7.0;
+const SNAP_OFFSET_MIN_EVENT_PX: f32 = 20.0;
 
 /// Handle centres (fade-in, fade-out) in pixels for an event spanning `x0..x1`.
 fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) -> (f32, f32) {
@@ -10891,6 +11689,16 @@ fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) 
         x0 + ((ev_fade_in * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
         x1 - ((ev_fade_out * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
     )
+}
+
+/// Horizontal position of an event's snap-offset triangle within `x0..=x1`.
+fn snap_offset_x(snap_offset: f64, duration: f64, pps: f64, x0: f32, x1: f32) -> f32 {
+    let clamped = if duration > 0.0 && snap_offset.is_finite() {
+        snap_offset.clamp(0.0, duration)
+    } else {
+        0.0
+    };
+    (x0 + (clamped * pps) as f32).clamp(x0, x1)
 }
 
 /// The header button of an event under `p`, with the event and the button's rectangle.
@@ -10957,6 +11765,17 @@ fn hit_event(
             }
             if dout <= FADE_HANDLE_PX {
                 return Some((track.id, ev.id, DragMode::FadeOut, ev.geometry()));
+            }
+        }
+        // Snap-offset triangle lives along the bottom strip of the event and wins over trim/move there
+        let row_bottom = row_top + TRACK_HEIGHT - 2.0;
+        if p.y >= row_bottom - SNAP_OFFSET_HIT_HEIGHT
+            && p.y <= row_bottom
+            && x1 - x0 >= SNAP_OFFSET_MIN_EVENT_PX
+        {
+            let sx = snap_offset_x(ev.snap_offset, ev.duration, state.pixels_per_second, x0, x1);
+            if (p.x - sx).abs() <= SNAP_OFFSET_HANDLE_PX {
+                return Some((track.id, ev.id, DragMode::SnapOffset, ev.geometry()));
             }
         }
         let edge = TRIM_EDGE_PX.min((x1 - x0) / 3.0);
@@ -11080,6 +11899,35 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
     }
 }
 
+fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
+    command_item(state, ui, Command::InsertAudioTrack);
+    command_item(state, ui, Command::InsertVideoTrack);
+    command_item(state, ui, Command::InsertAdjustmentTrack);
+    if let Some(track) = state
+        .selected_track
+        .and_then(|id| state.timeline.track(id))
+        .cloned()
+    {
+        ui.separator();
+        command_item(state, ui, Command::TrackDuplicate);
+        command_item(state, ui, Command::EditCloseGaps);
+        command_item(state, ui, Command::TrackMute);
+        if track.kind == TrackKind::Audio {
+            command_item(state, ui, Command::TrackSolo);
+        } else {
+            if ui.button(tr("Efeitos de vídeo da faixa…")).clicked() {
+                state.vfx.scope = VfxScope::Track;
+                state.window_request = Some(WindowAction::Show(Tab::VideoFx));
+                ui.close_menu();
+            }
+            if !track.adjustment && ui.button(tr("Movimento da trilha…")).clicked() {
+                state.open_track_motion();
+                ui.close_menu();
+            }
+        }
+    }
+}
+
 fn event_context_menu(
     state: &mut AppState,
     ui: &mut egui::Ui,
@@ -11098,6 +11946,14 @@ fn event_context_menu(
         ui.separator();
     }
     command_item(state, ui, Command::FileCreateSubproject);
+    let is_adjustment = state
+        .timeline
+        .track(track_id)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .is_some_and(|e| e.adjustment);
+    if is_adjustment {
+        command_item(state, ui, Command::EditResizeAdjustmentToProject);
+    }
     if pcrop::get(&state.timeline, track_id, event_id).is_some()
         && ui.button(tr("Pan/Crop do evento…")).clicked()
     {
@@ -11128,6 +11984,11 @@ fn event_context_menu(
         Command::EditPasteAttributes,
         Command::EditPasteAttributesSelective,
         Command::EditDelete,
+        Command::EditSplit,
+        Command::EditSmartSplit,
+        Command::EditHeal,
+        Command::EditMediaProperties,
+        Command::EditCloseGaps,
         Command::EditGroup,
         Command::EditUngroup,
         Command::EditRemoveFromGroup,
@@ -11178,6 +12039,32 @@ fn event_context_menu(
                 ..g
             },
         );
+        ui.close_menu();
+    }
+    let cursor_in_event =
+        state.playhead > g.start + TIME_EPSILON && state.playhead < g.end() - TIME_EPSILON;
+    if ui
+        .add_enabled(
+            cursor_in_event,
+            egui::Button::new(tr("Definir deslocamento de snap no cursor")),
+        )
+        .clicked()
+    {
+        state.apply_geometry(
+            track_id,
+            event_id,
+            edit::set_snap_offset(g, state.playhead - g.start),
+        );
+        ui.close_menu();
+    }
+    if ui
+        .add_enabled(
+            g.snap_offset > TIME_EPSILON,
+            egui::Button::new(tr("Restaurar deslocamento de snap")),
+        )
+        .clicked()
+    {
+        state.apply_geometry(track_id, event_id, edit::set_snap_offset(g, 0.0));
         ui.close_menu();
     }
     ui.separator();
@@ -11375,6 +12262,17 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icon(ui, Icon::Split, &tip) {
             state.split_at_playhead();
         }
+        let smart_tip =
+            state.with_hint(tr(Command::EditSmartSplit.label()), Command::EditSmartSplit);
+        if ui
+            .add_enabled_ui(state.command_enabled(Command::EditSmartSplit), |ui| {
+                icons::svg_button(ui, icons::SvgIcon::EventFx, &smart_tip, false)
+            })
+            .inner
+            .clicked()
+        {
+            state.smart_split();
+        }
         let tip = state.with_hint(tr(Command::EditUndo.label()), Command::EditUndo);
         if icon(ui, Icon::Undo, &tip) {
             state.undo();
@@ -11540,9 +12438,26 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
             .and_then(|p| hit_event(state, lanes.left(), lane_top, p));
-        if let Some((track_id, event_id, _, _)) = on_event {
+        if let Some((track_id, event_id, mode, g)) = on_event {
             if let Some(path) = state.subproject_path_of(track_id, event_id) {
                 state.tabs.open_request = Some(path);
+            } else if mode == DragMode::SnapOffset && g.snap_offset > TIME_EPSILON {
+                state.apply_geometry(track_id, event_id, edit::set_snap_offset(g, 0.0));
+            } else {
+                // Double-clicking the edge of an event enters (or leaves) expanded edit mode
+                use neoveg_engine::keytrim::{Edge, EdgeSide};
+                let side = match mode {
+                    DragMode::TrimLeft => Some(EdgeSide::Start),
+                    DragMode::TrimRight => Some(EdgeSide::End),
+                    _ => None,
+                };
+                if let Some(side) = side {
+                    state.toggle_expanded_edit(Some(Edge {
+                        track: track_id,
+                        event: event_id,
+                        side,
+                    }));
+                }
             }
         }
     }
@@ -11665,16 +12580,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         pos2(rect.left(), y),
                         pos2(lanes.left(), y + TRACK_HEIGHT),
                     );
-                    if let Some(ctrl) = hit_header_control(row_rect, track.kind, p) {
-                        let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
-                        let action = match ctrl {
-                            HeaderControl::Mute if exclusive => MixAction::MuteExclusive,
-                            HeaderControl::Mute => MixAction::Mute(!track.muted),
-                            HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
-                            HeaderControl::Solo => MixAction::Solo(!track.solo),
-                            HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
-                        };
-                        state.apply_mix_actions(track.id, vec![action]);
+                    if let Some(ctrl) =
+                        hit_header_control(row_rect, track.kind, track.adjustment, p)
+                    {
+                        if ctrl == HeaderControl::TrackFx {
+                            state.vfx.scope = VfxScope::Track;
+                            state.window_request = Some(WindowAction::Show(Tab::VideoFx));
+                        } else {
+                            let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                            let action = match ctrl {
+                                HeaderControl::Mute if exclusive => MixAction::MuteExclusive,
+                                HeaderControl::Mute => MixAction::Mute(!track.muted),
+                                HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
+                                HeaderControl::Solo => MixAction::Solo(!track.solo),
+                                HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
+                                HeaderControl::TrackFx => unreachable!(),
+                            };
+                            state.apply_mix_actions(track.id, vec![action]);
+                        }
                     }
                 }
             }
@@ -11840,11 +12763,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.range_anchor = None;
     }
 
-    // Right-click on an envelope, an event or a ruler mark
+    // Right-click on a track header, an envelope, an event or a ruler mark
     if response.secondary_clicked() {
-        let pressed = response
-            .interact_pointer_pos()
-            .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom);
+        let pointer = response.interact_pointer_pos();
+        let in_header = pointer.filter(|p| p.x < lanes.left() && p.y >= ruler_bottom);
+        state.context_header = in_header.is_some();
+        if let Some(p) = in_header {
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            if row >= 0.0 {
+                if let Some(track) = state.timeline.tracks.get(row as usize) {
+                    state.selected_track = Some(track.id);
+                }
+            }
+        }
+        let pressed = pointer.filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom);
         state.context_envelope = pressed.and_then(|p| {
             envelope_canvas::hit_test(
                 &state.timeline.tracks,
@@ -11871,6 +12803,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if !state.selection.contains((track_id, event_id)) {
                 state.click_select((track_id, event_id));
             }
+        } else if let Some(p) = pressed {
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            if row >= 0.0 {
+                if let Some(track) = state.timeline.tracks.get(row as usize) {
+                    state.selected_track = Some(track.id);
+                }
+            }
         }
     }
     if response.secondary_clicked() {
@@ -11883,6 +12822,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         });
     }
     response.context_menu(|ui| {
+        if state.context_header {
+            track_header_context_menu(state, ui);
+            return;
+        }
         if let Some(env_hit) = state.context_envelope.clone() {
             envelope_context_menu(state, ui, &env_hit);
             return;
@@ -11908,6 +12851,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
             }
             (None, None) => {
+                command_item(state, ui, Command::EditCloseGaps);
+                ui.separator();
                 for command in [Command::InsertMarker, Command::InsertRegion] {
                     command_item(state, ui, command);
                 }
@@ -11931,7 +12876,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     } else if let Some(drag) = &state.drag {
         ui.ctx().set_cursor_icon(match drag.mode {
-            DragMode::Move => egui::CursorIcon::Grabbing,
+            DragMode::Move | DragMode::SnapOffset => egui::CursorIcon::Grabbing,
             DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
             _ => egui::CursorIcon::ResizeHorizontal,
         });
@@ -11963,38 +12908,38 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 .track(track_id)
                 .is_some_and(|t| t.kind == TrackKind::Video);
             response.clone().on_hover_text(button.tooltip(video));
-        }
-        match hit_event(state, lanes.left(), lane_top, p)
-            .map(|h| h.2)
-            .filter(|_| header_hover.is_none())
-        {
-            Some(
+        } else if let Some((_, _, mode, g)) = hit_event(state, lanes.left(), lane_top, p) {
+            match mode {
+                DragMode::SnapOffset => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    let tc = seconds_to_timecode(g.snap_offset, fps, drop_frame);
+                    response
+                        .clone()
+                        .on_hover_text(tr_args("Deslocamento de snap: {}", &[&tc]));
+                }
                 DragMode::TrimLeft
                 | DragMode::TrimRight
                 | DragMode::StretchLeft
                 | DragMode::StretchRight
                 | DragMode::FadeIn
-                | DragMode::FadeOut,
-            ) => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-            Some(DragMode::Move) => {
-                // The body of an event: the slip and slide tools show the sideways arrows
-                let icon = if state.edit_tool == EditTool::Normal {
-                    egui::CursorIcon::Grab
-                } else {
-                    egui::CursorIcon::ResizeHorizontal
-                };
-                ui.ctx().set_cursor_icon(icon);
-            }
-            Some(
+                | DragMode::FadeOut => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                }
+                DragMode::Move => {
+                    // The body of an event: the slip and slide tools show the sideways arrows
+                    let icon = if state.edit_tool == EditTool::Normal {
+                        egui::CursorIcon::Grab
+                    } else {
+                        egui::CursorIcon::ResizeHorizontal
+                    };
+                    ui.ctx().set_cursor_icon(icon);
+                }
                 DragMode::Slip
                 | DragMode::Slide
                 | DragMode::Shuffle
                 | DragMode::RollLeft
-                | DragMode::RollRight,
-            )
-            | None => {}
+                | DragMode::RollRight => {}
+            }
         }
     }
 
@@ -12500,6 +13445,45 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Color32::from_gray(15)
             };
             lane_painter.rect_stroke(ev_rect, Rounding::ZERO, Stroke::new(1.0_f32, border));
+            if x1 - x0 >= SNAP_OFFSET_MIN_EVENT_PX {
+                let sx = snap_offset_x(g.snap_offset, g.duration, state.pixels_per_second, x0, x1);
+                let active_snap = dragging.is_some_and(|d| d.mode == DragMode::SnapOffset);
+                let has_offset = g.snap_offset > TIME_EPSILON;
+                let by = ev_rect.bottom();
+                if has_offset || active_snap {
+                    lane_painter.line_segment(
+                        [pos2(sx, ev_rect.top() + EVENT_HEADER_HEIGHT), pos2(sx, by)],
+                        Stroke::new(
+                            1.0_f32,
+                            Color32::from_white_alpha(if active_snap { 220 } else { 145 }),
+                        ),
+                    );
+                }
+                let tri_points = if !has_offset && (sx - x0).abs() < 0.5 {
+                    vec![
+                        pos2(x0, by - SNAP_OFFSET_TRIANGLE_PX),
+                        pos2((x0 + SNAP_OFFSET_TRIANGLE_PX).min(x1), by),
+                        pos2(x0, by),
+                    ]
+                } else {
+                    let half = 4.5_f32;
+                    vec![
+                        pos2(sx, by - SNAP_OFFSET_TRIANGLE_PX),
+                        pos2((sx + half).min(x1), by),
+                        pos2((sx - half).max(x0), by),
+                    ]
+                };
+                let fill = Color32::from_white_alpha(if selected || active_snap || has_offset {
+                    245
+                } else {
+                    185
+                });
+                lane_painter.add(Shape::convex_polygon(
+                    tri_points,
+                    fill,
+                    Stroke::new(1.0_f32, Color32::from_black_alpha(170)),
+                ));
+            }
         }
         if track.kind == TrackKind::Audio && state.project.settings.auto_crossfade {
             for cf in find_crossfades(&track.events) {
@@ -12572,22 +13556,34 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         );
     }
 
-    // Live read-out while dragging: start and length of the event
+    // Live read-out while dragging: start and length of the event, or the snap offset
     if let (Some(drag), Some(p)) = (&state.drag, ui.input(|i| i.pointer.hover_pos())) {
-        let label = format!(
-            "{}  ·  {:.3} s",
-            seconds_to_timecode(drag.current.start, fps, drop_frame),
-            drag.current.duration
-        );
+        let label = if drag.mode == DragMode::SnapOffset {
+            tr_args(
+                "Deslocamento de snap: {}",
+                &[&seconds_to_timecode(
+                    drag.current.snap_offset,
+                    fps,
+                    drop_frame,
+                )],
+            )
+        } else {
+            format!(
+                "{}  ·  {:.3} s",
+                seconds_to_timecode(drag.current.start, fps, drop_frame),
+                drag.current.duration
+            )
+        };
+        let galley = painter.layout_no_wrap(label, FontId::monospace(10.0), Color32::WHITE);
         let at = pos2(p.x + 14.0, p.y - 22.0);
-        let galley_rect =
-            Rect::from_min_size(at, vec2(label.chars().count() as f32 * 6.4 + 10.0, 16.0));
+        let galley_rect = Rect::from_min_size(at, vec2(galley.size().x + 10.0, 16.0));
         painter.rect_filled(galley_rect, Rounding::ZERO, Color32::from_black_alpha(200));
-        painter.text(
-            galley_rect.left_center() + vec2(5.0, 0.0),
-            Align2::LEFT_CENTER,
-            label,
-            FontId::monospace(10.0),
+        painter.galley(
+            pos2(
+                galley_rect.left() + 5.0,
+                galley_rect.center().y - galley.size().y * 0.5,
+            ),
+            galley,
             Color32::WHITE,
         );
     }
@@ -12610,6 +13606,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let selected = state.selected_track == Some(track.id);
         if selected {
             header_painter.rect_filled(row, Rounding::ZERO, pal.header_selected);
+        }
+        if track.adjustment {
+            let stripe = Rect::from_min_max(row.min, pos2(row.left() + 3.0, row.bottom()));
+            header_painter.rect_filled(stripe, Rounding::ZERO, Color32::from_rgb(0x3A, 0x8F, 0xE0));
         }
         header_painter.rect_stroke(
             row,
@@ -12649,19 +13649,21 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             ui.visuals().text_color(),
         );
 
-        // Per-track Mute / Solo / Phase buttons and compact dB + Pan readout
+        // Per-track Mute / Solo / Phase / Track FX buttons and compact dB + Pan / Adjustment readout
         let hover_pos = response.hover_pos();
-        for (ctrl, btn_rect) in header_buttons(row, track.kind) {
+        for (ctrl, btn_rect) in header_buttons(row, track.kind, track.adjustment) {
             let active = match ctrl {
                 HeaderControl::Mute => track.muted,
                 HeaderControl::Solo => track.solo,
                 HeaderControl::Phase => track.invert_phase,
+                HeaderControl::TrackFx => track.video_effects.iter().any(|e| !e.bypass),
             };
             let hovered = hover_pos.is_some_and(|p| btn_rect.contains(p));
             let fill = match (ctrl, active, hovered) {
                 (HeaderControl::Mute, true, _) => Color32::from_rgb(0xC0, 0x39, 0x2B),
                 (HeaderControl::Solo, true, _) => Color32::from_rgb(0xD3, 0x54, 0x00),
                 (HeaderControl::Phase, true, _) => ui.visuals().selection.bg_fill,
+                (HeaderControl::TrackFx, true, _) => Color32::from_rgb(0x29, 0x80, 0xB9),
                 (_, false, true) => ui.visuals().widgets.hovered.bg_fill,
                 _ => Color32::from_black_alpha(45),
             };
@@ -12671,9 +13673,24 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             } else {
                 ui.visuals().text_color()
             };
-            header_painter.extend(icons::shapes(ctrl.icon(), btn_rect.shrink(3.5), fg));
+            if let Some(icon) = ctrl.icon() {
+                header_painter.extend(icons::shapes(icon, btn_rect.shrink(3.5), fg));
+            } else if ctrl == HeaderControl::TrackFx
+                && btn_rect.top() >= ruler_bottom
+                && btn_rect.bottom() <= rect.bottom()
+            {
+                icons::paint_svg(ui, icons::SvgIcon::TrackFx, btn_rect.shrink(3.0), fg);
+            }
         }
-        if track.kind == TrackKind::Audio {
+        if track.adjustment {
+            header_painter.text(
+                row.min + vec2(56.0, 44.0),
+                Align2::LEFT_CENTER,
+                tr("Ajuste"),
+                FontId::proportional(10.0),
+                Color32::from_rgb(0x5D, 0xAD, 0xE2),
+            );
+        } else if track.kind == TrackKind::Audio {
             let db_short = if track.volume_db <= neoveg_engine::TrackMix::VOLUME_RANGE_DB.0 {
                 "-∞".to_string()
             } else {
@@ -12699,8 +13716,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 let y = lane_top + row_idx * TRACK_HEIGHT;
                 let row =
                     Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
-                if let Some(ctrl) = hit_header_control(row, track.kind, p) {
-                    response.clone().on_hover_text(ctrl.tooltip());
+                if let Some(ctrl) = hit_header_control(row, track.kind, track.adjustment, p) {
+                    response.clone().on_hover_text(tr(ctrl.tooltip()));
                 }
             }
         }
@@ -12733,6 +13750,66 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             f64::from(state.scroll_y),
         ) {
             state.scroll_y = (offset as f32).clamp(0.0, max_scroll_y);
+        }
+    }
+
+    // Expanded edit mode: the media the two events around the edit point do not show (A after the
+    // cut in blue, B before it in orange), with the frames that are free, and the cut in red
+    if state.expanded_edit {
+        let view = state.trim_edge.and_then(|edge| {
+            let row = state
+                .timeline
+                .tracks
+                .iter()
+                .position(|t| t.id == edge.track)?;
+            let view = neoveg_engine::keytrim::ab_view(&state.timeline, edge, &|track, event| {
+                state.source_len(track, event)
+            })?;
+            Some((row, view))
+        });
+        if let Some((row, view)) = view {
+            let top = lane_top + row as f32 * TRACK_HEIGHT;
+            let bottom = top + TRACK_HEIGHT;
+            let cut = to_x(view.time);
+            for (side, is_a) in [(view.a, true), (view.b, false)] {
+                let Some(free) = side.and_then(|s| s.free).filter(|f| *f > 0.0) else {
+                    continue;
+                };
+                let width = (free * state.pixels_per_second) as f32;
+                let (x0, x1) = if is_a {
+                    (cut, cut + width)
+                } else {
+                    (cut - width, cut)
+                };
+                let (rgb, letter) = if is_a {
+                    ((0x3A, 0x8F, 0xE0), "A")
+                } else {
+                    ((0xE6, 0x7E, 0x22), "B")
+                };
+                let band = Rect::from_min_max(
+                    pos2(x0.max(lanes.left()), top + 2.0),
+                    pos2(x1.min(lanes.right()), bottom - 2.0),
+                );
+                if band.width() > 0.0 {
+                    lane_painter.rect_filled(
+                        band,
+                        Rounding::ZERO,
+                        Color32::from_rgba_unmultiplied(rgb.0, rgb.1, rgb.2, 70),
+                    );
+                    let frames = (free * fps).round();
+                    lane_painter.text(
+                        pos2(band.left() + 4.0, band.top() + 3.0),
+                        Align2::LEFT_TOP,
+                        format!("{letter} · {}", tr_args("{} q livres", &[&frames])),
+                        FontId::monospace(10.0),
+                        Color32::from_rgb(rgb.0, rgb.1, rgb.2),
+                    );
+                }
+            }
+            lane_painter.line_segment(
+                [pos2(cut, top), pos2(cut, bottom)],
+                Stroke::new(3.0_f32, Color32::from_rgb(0xE7, 0x4C, 0x3C)),
+            );
         }
     }
 
@@ -12770,6 +13847,29 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             [pos2(px, rect.top() + 14.0), pos2(px, rect.bottom())],
             Stroke::new(hairline, line_color),
         );
+        // The frame sampling tick: the span of the frame the preview shows, in the strip under the
+        // ruler and, once a frame is wide enough to see, as a faint band through the tracks
+        let sampled = state.sampled_time();
+        let (fx0, fx1) = (to_x(sampled), to_x(sampled + 1.0 / fps.max(1.0)));
+        let fx1 = fx1.max(fx0 + 2.0);
+        let tick = Rect::from_min_max(
+            pos2(fx0.max(lanes.left()), lanes.top()),
+            pos2(fx1.min(lanes.right()), lanes.top() + 4.0),
+        );
+        if tick.width() > 0.0 {
+            lane_painter.rect_filled(tick, Rounding::ZERO, bright);
+            if fx1 - fx0 >= 6.0 {
+                let band = Rect::from_min_max(
+                    pos2(tick.left(), tick.bottom()),
+                    pos2(tick.right(), rect.bottom()),
+                );
+                lane_painter.rect_filled(
+                    band,
+                    Rounding::ZERO,
+                    Color32::from_rgba_unmultiplied(bright.r(), bright.g(), bright.b(), 28),
+                );
+            }
+        }
 
         let top = rect.top();
         lane_painter.add(Shape::convex_polygon(
@@ -14325,6 +15425,76 @@ mod tests {
         assert_eq!(mode_at(100.0, 10.0), None);
         assert_eq!(mode_at(400.0, TRACK_HEIGHT + 10.0), None);
         assert_eq!(mode_at(400.0, -5.0), None);
+        // bottom-left strip: snap-offset triangle sits at x0 (200 px) while snap_offset == 0
+        assert_eq!(
+            mode_at(203.0, TRACK_HEIGHT - 5.0),
+            Some((track, ev, DragMode::SnapOffset))
+        );
+        assert_eq!(
+            mode_at(350.0, TRACK_HEIGHT - 5.0),
+            Some((track, ev, DragMode::Move))
+        );
+    }
+
+    #[test]
+    fn snap_offset_drag_snaps_to_playhead_and_moves_align_by_offset() {
+        let (mut s, track, ev) = state_with_clip(); // event 2.0..6.0
+        s.pixels_per_second = 100.0;
+        s.playhead = 3.5;
+
+        // Dragging the lower-left snap-offset flag near the playhead snaps it to 1.5 s inside the event
+        let revision = s.history.revision();
+        s.begin_drag(hit(&s, track, ev, DragMode::SnapOffset), 2.0);
+        s.update_drag(3.46, Some(track), 0.08, true);
+        assert_eq!(
+            s.drag.as_ref().and_then(|d| d.snap_mark),
+            Some(SnapMark::Target(3.5))
+        );
+        s.finish_drag();
+        assert_eq!(s.history.revision(), revision + 1);
+        assert!((geometry(&s, track, ev).snap_offset - 1.5).abs() < 1e-9);
+        assert_eq!(
+            hit_event(&s, 0.0, 0.0, pos2(350.0, TRACK_HEIGHT - 5.0)).map(|h| h.2),
+            Some(DragMode::SnapOffset)
+        );
+
+        // Moving the event near a marker at 10.0 aligns `start + 1.5` to 10.0 (`start == 8.5`)
+        s.timeline.markers.push(neoveg_engine::markers::Marker {
+            id: 99,
+            time: 10.0,
+            name: "beat".into(),
+        });
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0); // grab_offset = 1.0
+        s.update_drag(9.54, Some(track), 0.1, true); // raw start = 8.54, snap point = 10.04 -> 10.0
+        assert_eq!(
+            s.drag.as_ref().and_then(|d| d.snap_mark),
+            Some(SnapMark::Target(10.0))
+        );
+        s.finish_drag();
+        assert!((geometry(&s, track, ev).start - 8.5).abs() < 1e-9);
+
+        // Single undo restores position, second undo restores snap_offset to 0.0
+        s.history.undo(&mut s.timeline);
+        assert!((geometry(&s, track, ev).start - 2.0).abs() < 1e-9);
+        s.history.undo(&mut s.timeline);
+        assert_eq!(geometry(&s, track, ev).snap_offset, 0.0);
+    }
+
+    #[test]
+    fn group_move_uses_leftmost_event_snap_offset_and_rightmost_end() {
+        let (mut s, track, ev1) = state_with_clip(); // 2.0..6.0
+        let ev2 = add_event(&mut s, track, 6.0, 3.0); // 6.0..9.0
+        let g1 = geometry(&s, track, ev1);
+        s.apply_geometry(track, ev1, edit::set_snap_offset(g1, 1.25));
+        s.selection.set(vec![(track, ev1), (track, ev2)]);
+        s.playhead = 5.0;
+
+        // Dragging the selection aligns ev1's snap point (`start + 1.25`) to playhead 5.0 -> ev1.start == 3.75, ev2.start == 7.75
+        s.begin_drag(hit(&s, track, ev2, DragMode::Move), 7.0); // grab_offset on ev2 = 1.0
+        s.update_drag(8.80, Some(track), 0.1, true); // raw ev2 = 7.80 -> delta = +1.80 -> left_snap = 3.25 + 1.80 = 5.05 -> snaps to 5.0
+        s.finish_drag();
+        assert!((geometry(&s, track, ev1).start - 3.75).abs() < 1e-9);
+        assert!((geometry(&s, track, ev2).start - 7.75).abs() < 1e-9);
     }
 
     #[test]
@@ -14769,6 +15939,57 @@ mod tests {
         let before = geometry(&s, track, ev);
         run(&mut s, Command::CursorRightByFrame);
         assert_eq!(geometry(&s, track, ev), before);
+    }
+
+    #[test]
+    fn expanded_edit_mode_opens_on_an_edge_toggles_and_ends_with_the_edge() {
+        let (mut s, _track, _ev) = state_with_clip();
+        s.playhead = 0.0;
+        assert!(!s.expanded_edit);
+        // Without a selected edge the command picks the next one and opens the mode
+        run(&mut s, Command::EditExpandedEdit);
+        assert!(s.expanded_edit && s.trim_edge.is_some());
+        // The same command closes it, and the edge stays selected
+        run(&mut s, Command::EditExpandedEdit);
+        assert!(!s.expanded_edit && s.trim_edge.is_some());
+        // Double-clicking an edge opens it; double-clicking the same one again closes it
+        let edge = s.trim_edge.unwrap();
+        s.toggle_expanded_edit(Some(edge));
+        assert!(s.expanded_edit);
+        s.toggle_expanded_edit(Some(edge));
+        assert!(!s.expanded_edit);
+        // Without a media file nothing is asked of the decoder: both halves are empty
+        s.toggle_expanded_edit(None);
+        s.update_edge_frames();
+        assert!(
+            s.edge_frames.visible(),
+            "the panel is up even with empty halves"
+        );
+        // Leaving the keyboard trim mode ends the expanded one
+        s.trim_edge = None;
+        s.update_edge_frames();
+        assert!(!s.expanded_edit && !s.edge_frames.visible());
+    }
+
+    #[test]
+    fn the_preview_samples_the_frame_the_playhead_is_in_and_its_timecode_reads() {
+        let (mut s, _, _) = state_with_clip();
+        let fps = s.project.settings.fps;
+        for k in 0..60 {
+            // In the second half of a frame the old rounding showed the next frame
+            s.playhead = (f64::from(k) + 0.8) / fps;
+            assert!(
+                (s.sampled_time() - f64::from(k) / fps).abs() < 1e-9,
+                "frame {k}"
+            );
+            assert_eq!(
+                neoveg_common::timecode::seconds_to_timecode(s.sampled_time(), fps, false),
+                neoveg_common::timecode::seconds_to_timecode(s.playhead, fps, false)
+            );
+        }
+        // Exactly on a boundary the frame starts there
+        s.playhead = 10.0 / fps;
+        assert!((s.sampled_time() - s.playhead).abs() < 1e-9);
     }
 
     #[test]
@@ -16223,6 +17444,61 @@ mod tests {
         assert!(s.timeline.track(video).unwrap().events.is_empty());
     }
 
+    #[test]
+    fn inserting_an_adjustment_track_and_resizing_adjustment_events_to_project() {
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertVideoTrack);
+        let base_video = s.timeline.tracks[0].id;
+        let clip_id = s.timeline.alloc_id();
+        assert!(s.history.execute(
+            &mut s.timeline,
+            EditCommand::AddEvent {
+                track_id: base_video,
+                event: TrackEvent {
+                    id: clip_id,
+                    media_id: Some(1),
+                    start: 2.0,
+                    duration: 10.0,
+                    ..TrackEvent::default()
+                },
+            }
+        ));
+        s.selection.select_only((base_video, clip_id));
+        s.selected_track = Some(base_video);
+
+        // Insert an adjustment track right above `base_video`
+        assert!(s.command_enabled(Command::InsertAdjustmentTrack));
+        run(&mut s, Command::InsertAdjustmentTrack);
+        let adj_track = s.timeline.tracks[0].id;
+        assert_ne!(adj_track, base_video);
+        assert!(s.timeline.tracks[0].adjustment);
+        assert_eq!(s.selected_track, Some(adj_track));
+        assert_eq!(s.vfx.scope, VfxScope::Track);
+        // Even with `clip_id` still selected on `base_video`, `vfx_target` resolves to `adj_track`
+        assert_eq!(s.vfx_target().0, VideoFxTarget::Track(adj_track));
+
+        // Plain media events do not enable `EditResizeAdjustmentToProject`
+        assert!(!s.command_enabled(Command::EditResizeAdjustmentToProject));
+
+        // Insert an adjustment event at t = 4.0 (5.0 s default) and resize it to the project (0..12)
+        s.playhead = 4.0;
+        run(&mut s, Command::InsertAdjustmentEvent);
+        let adj_event = s.timeline.track(adj_track).unwrap().events[0].id;
+        assert_eq!(s.selection.primary(), Some((adj_track, adj_event)));
+        assert!(s.command_enabled(Command::EditResizeAdjustmentToProject));
+        run(&mut s, Command::EditResizeAdjustmentToProject);
+        let resized = s.timeline.track(adj_track).unwrap().events[0].clone();
+        assert_eq!((resized.start, resized.duration), (0.0, 12.0));
+
+        // Undo restores the adjustment event's original 4.0..9.0 span
+        run(&mut s, Command::EditUndo);
+        let restored = s.timeline.track(adj_track).unwrap().events[0].clone();
+        assert_eq!(
+            (restored.start, restored.duration),
+            (4.0, neoveg_engine::adjustment::DEFAULT_LENGTH)
+        );
+    }
+
     /// A mono 16-bit WAV of `seconds` at 8 kHz (silence), written by hand.
     fn write_wav(path: &std::path::Path, seconds: u32) {
         let samples = 8000 * seconds;
@@ -16778,25 +18054,30 @@ mod tests {
     fn header_controls_hit_test_audio_and_video_rows() {
         let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(12.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(12.0, 142.0)),
             Some(HeaderControl::Mute)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(35.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(35.0, 142.0)),
             Some(HeaderControl::Solo)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Audio, pos2(58.0, 142.0)),
+            hit_header_control(row, TrackKind::Audio, false, pos2(58.0, 142.0)),
             Some(HeaderControl::Phase)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Video, pos2(12.0, 142.0)),
+            hit_header_control(row, TrackKind::Video, false, pos2(12.0, 142.0)),
             Some(HeaderControl::Mute)
         );
         assert_eq!(
-            hit_header_control(row, TrackKind::Video, pos2(35.0, 142.0)),
+            hit_header_control(row, TrackKind::Video, false, pos2(35.0, 142.0)),
             None,
-            "video headers have no solo button"
+            "plain video headers have no second button"
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Video, true, pos2(35.0, 142.0)),
+            Some(HeaderControl::TrackFx),
+            "adjustment track headers expose Track FX at the second slot"
         );
     }
 
@@ -16914,5 +18195,69 @@ mod ripple_tests {
         assert_eq!(s.timeline.markers[0].time, 3.0, "marker followed the gap");
         s.undo();
         assert_eq!(s.timeline.markers[0].time, 6.0, "one undo step restores it");
+    }
+
+    #[test]
+    fn centered_prompts_follow_dialogs_and_closed_inspector_leaves_first_tool_slot_free() {
+        neoveg_common::i18n::set_language("pt-BR");
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 720.0));
+        let mut s = AppState::new();
+        s.insert_time_dialog = Some("00:00:05:00".into());
+        s.goto_dialog = Some("00:00:10:00".into());
+        s.confirm_exit = true;
+        s.pending_recovery
+            .push(neoveg_engine::autosave::RecoveryEntry {
+                path: PathBuf::from("recovery_demo.neoveg"),
+                meta: neoveg_engine::project_file::RecoveryMeta {
+                    project_name: "Demo".into(),
+                    original_path: None,
+                    saved_unix: 100,
+                },
+            });
+        s.notes.open = true;
+
+        for _ in 0..3 {
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| {
+                    insert_time_window(ctx, &mut s);
+                    goto_window(ctx, &mut s);
+                    recovery_window(ctx, &mut s);
+                    exit_window(ctx, &mut s);
+                    inspector_window(ctx, &mut s);
+                    let _ = s.notes.show(ctx, &s.project.notes, 30.0, false);
+                },
+            );
+        }
+
+        for title in [
+            "Inserir tempo",
+            "Ir para o tempo",
+            "Recuperar projetos",
+            "Alterações não salvas",
+        ] {
+            let rect = egui::AreaState::load(&ctx, egui::Id::new(title))
+                .unwrap_or_else(|| panic!("{title} did not open"))
+                .rect();
+            assert!(
+                (rect.center() - screen.center()).length() <= 2.0,
+                "{title} should open centred, got {:?}",
+                rect.center()
+            );
+        }
+
+        // Closed Inspector must not steal slot 0 from the first open tool window
+        let notes_rect = egui::AreaState::load(&ctx, egui::Id::new("Notas do projeto"))
+            .expect("notes window opened")
+            .rect();
+        assert!(
+            (notes_rect.top() - 96.0).abs() <= 2.0,
+            "first open tool window should start at y = 96, got {}",
+            notes_rect.top()
+        );
     }
 }

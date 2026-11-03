@@ -2117,3 +2117,45 @@ Implementation Guidelines for Neoveg:
     decision. Proxy files (Draft and Preview use them) are a separate roadmap item.
 Sources: manual_vegaspro21_en.pdf pp. 195-196 and its paragraph on proxy files; VEGAS_Pro_18_EN.pdf p. 425.
 Research Date: 2026-10-30
+
+----------------------------------------------------------------------
+56. Feature Name: Expanded Edit Mode (A/B Roll View of an Edit Point)
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf, section "Expanded edit mode"; VEGAS_Pro_18_EN.pdf, same section.)
+  With an edit point chosen, the mode shows the event that ends there as A and the one that starts there as B,
+  a red bracket at the cut, and the media each event does not use on the far side of the cut (A's tail after
+  the cut, B's head before it). The Video Preview splits in two with the frame on each side. It is entered from
+  the menu, by Num5 or by double-clicking an edge, and left the same ways or with Esc.
+Neoveg Implementation:
+  - Pure rule: neoveg_engine::keytrim::ab_view gives the two sides of the edit point of the selected edge and
+    how many seconds of media each leaves unused (tail of A from the file length, head of B from its trim-in,
+    speed counted, unknown length = no tail).
+  - UI: Editar > Modo de edicao expandida (Ctrl+Alt+5), double-click on an edge, Esc first; bands A (blue) and
+    B (orange) with the free frames, red cut; the preview halves reuse the slip/slide edge-frames widget.
+  - Gap (small task): Num5 enters the mode in the reference; here Num5 already leaves keyboard trimming, so the
+    entry key differs. Frames follow the fixed speed only, not a velocity envelope.
+Sources: manual_vegaspro21_en.pdf (Expanded edit mode); VEGAS_Pro_18_EN.pdf (same section).
+Research Date: 2026-11-03
+
+----------------------------------------------------------------------
+57. Feature Name: Audio Event Pitch Change with Formant Preservation
+----------------------------------------------------------------------
+Classic NLE Exact Behavior:
+  (Read from manual_vegaspro21_en.pdf pp. 363-366, "Editing from the timeline" and the Audio Event tab of
+  the Event Properties dialog; VEGAS_Pro_18_EN.pdf, same section.)
+  The pitch of an audio event moves by semitones (keys = and - on the timeline, Ctrl for cents, Shift for an
+  octave, Ctrl+Shift to reset) or in the Event Properties dialog (Pitch change box, Lock to stretch). In the
+  high-quality method Preserve Formants keeps the characteristic resonances of the sound where they were,
+  and Formant Shift moves them by a number of semitones besides, for instance to deepen a voice without
+  changing its pitch.
+Neoveg Implementation:
+  - TrackEvent::pitch (PitchChange: semitones, preserve_formants, formant_shift), edited in the Inspector as
+    one undo step; time stretch keeps its two modes (WSOLA keeps the pitch, varispeed follows it).
+  - neoveg_audio::pitch_shift: WSOLA by the pitch ratio then resampling (length kept); with formants kept, a
+    spectral-envelope correction per frame from the cepstrum of the original and of the shifted sound.
+  - Gap (small task): keys = and -, cents and octave steps; the same controls in a properties dialog next to
+    New length; band-limited resampling for big upward shifts; the reference offers several algorithms
+    (Pro, Efficient, Soloist) that Neoveg does not tell apart.
+Sources: manual_vegaspro21_en.pdf pp. 363-366; VEGAS_Pro_18_EN.pdf (same section).
+Research Date: 2026-11-03

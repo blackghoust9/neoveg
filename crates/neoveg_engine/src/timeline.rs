@@ -8,10 +8,13 @@ use std::collections::BTreeMap;
 
 use neoveg_common::channels::ChannelMode;
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
+use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
+use neoveg_common::pitch_change::PitchChange;
 use serde::{Deserialize, Serialize};
 
 pub type TrackId = u64;
@@ -39,6 +42,10 @@ fn default_preserve_pitch() -> bool {
     true
 }
 
+fn default_maintain_aspect() -> bool {
+    true
+}
+
 fn is_true(v: &bool) -> bool {
     *v
 }
@@ -55,25 +62,32 @@ fn is_unity_gain(v: &f32) -> bool {
     (*v - 1.0).abs() < 1e-9
 }
 
+fn is_zero_time(v: &f64) -> bool {
+    v.abs() < TIME_EPSILON
+}
+
 /// How a video event treats footage whose frames do not line up with the project's (slow motion,
-/// a different frame rate): the nearest frame is shown as it is, or the two around the moment are
-/// blended.
+/// a different frame rate): follow the project's resample setting, blend the two neighbor frames,
+/// interpolate motion by optical flow, or show the nearest frame without resampling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResampleMode {
-    /// Follow the project's setting, which today is no resampling.
+    /// Follow `ProjectSettings::resample_mode` (new projects default to disabled).
     #[default]
     Project,
     /// Blend the frames before and after the moment, in proportion to how close each one is.
     FrameBlend,
+    /// Motion-compensated optical flow interpolation between the frames before and after the moment.
+    OpticalFlow,
     /// No resampling: the nearest frame is shown.
     Disabled,
 }
 
 impl ResampleMode {
-    pub const ALL: [ResampleMode; 3] = [
+    pub const ALL: [ResampleMode; 4] = [
         ResampleMode::Project,
         ResampleMode::FrameBlend,
+        ResampleMode::OpticalFlow,
         ResampleMode::Disabled,
     ];
 
@@ -82,6 +96,7 @@ impl ResampleMode {
         match self {
             ResampleMode::Project => tr("Usar configuração do projeto"),
             ResampleMode::FrameBlend => tr("Mistura de quadros"),
+            ResampleMode::OpticalFlow => tr("Fluxo óptico"),
             ResampleMode::Disabled => tr("Desativar reamostragem"),
         }
     }
@@ -90,7 +105,25 @@ impl ResampleMode {
         *self == ResampleMode::Project
     }
 
-    /// `true` when frames are blended.
+    /// Concrete resampling mode after resolving [`Self::Project`] against `project`.
+    pub fn effective(
+        self,
+        project: neoveg_common::presets::ResampleMode,
+    ) -> neoveg_common::presets::ResampleMode {
+        match self {
+            ResampleMode::Project => project,
+            ResampleMode::FrameBlend => neoveg_common::presets::ResampleMode::FrameBlend,
+            ResampleMode::OpticalFlow => neoveg_common::presets::ResampleMode::OpticalFlow,
+            ResampleMode::Disabled => neoveg_common::presets::ResampleMode::Disable,
+        }
+    }
+
+    /// `true` when this event resamples frames under `project` (either frame blend or optical flow).
+    pub fn resamples(self, project: neoveg_common::presets::ResampleMode) -> bool {
+        self.effective(project) != neoveg_common::presets::ResampleMode::Disable
+    }
+
+    /// `true` when the event explicitly asks for linear frame blend.
     pub fn blends(self) -> bool {
         self == ResampleMode::FrameBlend
     }
@@ -121,6 +154,10 @@ pub struct TrackEvent {
     /// When `true`, time-stretching keeps the original pitch via WSOLA; when `false`, varispeed.
     #[serde(default = "default_preserve_pitch", skip_serializing_if = "is_true")]
     pub preserve_pitch: bool,
+    /// A change of the pitch of an audio event on top of its speed, with its formants kept or moved
+    /// (older projects: none).
+    #[serde(default, skip_serializing_if = "PitchChange::is_default")]
+    pub pitch: PitchChange,
     /// Events that share a group are selected and moved together (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<GroupId>,
@@ -186,6 +223,18 @@ pub struct TrackEvent {
     /// Event switch Resample Mode (video only).
     #[serde(default, skip_serializing_if = "ResampleMode::is_default")]
     pub resample: ResampleMode,
+    /// Event switch Maintain Aspect Ratio (video only, `true` by default): fits the source picture
+    /// inside the project frame without stretching; turning it off stretches the picture to fill
+    /// the project frame.
+    #[serde(default = "default_maintain_aspect", skip_serializing_if = "is_true")]
+    pub maintain_aspect_ratio: bool,
+    /// Event switch Reduce Interlace Flicker (video only): vertical `[1, 2, 1] / 4` anti-flicker
+    /// prefilter on the source picture, for still photos, graphics and generated text.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub reduce_interlace_flicker: bool,
+    /// Snap offset in seconds from `start` (`0.0` = bottom-left corner of the event).
+    #[serde(default, skip_serializing_if = "is_zero_time")]
+    pub snap_offset: f64,
 }
 
 impl Default for TrackEvent {
@@ -203,6 +252,7 @@ impl Default for TrackEvent {
             fade_out_curve: FadeCurve::default(),
             playback_rate: 1.0,
             preserve_pitch: true,
+            pitch: PitchChange::default(),
             group: None,
             muted: false,
             locked: false,
@@ -220,6 +270,9 @@ impl Default for TrackEvent {
             transition_progress: None,
             adjustment: false,
             resample: ResampleMode::Project,
+            maintain_aspect_ratio: true,
+            reduce_interlace_flicker: false,
+            snap_offset: 0.0,
         }
     }
 }
@@ -227,6 +280,16 @@ impl Default for TrackEvent {
 impl TrackEvent {
     pub fn end(&self) -> f64 {
         self.start + self.duration
+    }
+
+    /// Timeline position of this event's left snap point (`start + snap_offset`, clamped to the event).
+    pub fn snap_point(&self) -> f64 {
+        let offset = if self.snap_offset.is_finite() {
+            self.snap_offset.clamp(0.0, self.duration.max(0.0))
+        } else {
+            0.0
+        };
+        self.start + offset
     }
 }
 
@@ -242,6 +305,7 @@ pub struct EventGeometry {
     pub fade_out_curve: FadeCurve,
     pub playback_rate: f64,
     pub preserve_pitch: bool,
+    pub snap_offset: f64,
 }
 
 impl Default for EventGeometry {
@@ -256,6 +320,7 @@ impl Default for EventGeometry {
             fade_out_curve: FadeCurve::default(),
             playback_rate: 1.0,
             preserve_pitch: true,
+            snap_offset: 0.0,
         }
     }
 }
@@ -263,6 +328,16 @@ impl Default for EventGeometry {
 impl EventGeometry {
     pub fn end(&self) -> f64 {
         self.start + self.duration
+    }
+
+    /// Timeline position of this geometry's left snap point (`start + snap_offset`, clamped to `duration`).
+    pub fn snap_point(&self) -> f64 {
+        let offset = if self.snap_offset.is_finite() {
+            self.snap_offset.clamp(0.0, self.duration.max(0.0))
+        } else {
+            0.0
+        };
+        self.start + offset
     }
 }
 
@@ -278,6 +353,7 @@ impl TrackEvent {
             fade_out_curve: self.fade_out_curve,
             playback_rate: self.playback_rate,
             preserve_pitch: self.preserve_pitch,
+            snap_offset: self.snap_offset,
         }
     }
 
@@ -291,6 +367,7 @@ impl TrackEvent {
         self.fade_out_curve = g.fade_out_curve;
         self.playback_rate = g.playback_rate;
         self.preserve_pitch = g.preserve_pitch;
+        self.snap_offset = g.snap_offset;
     }
 }
 
@@ -520,6 +597,13 @@ pub struct Track {
     /// Sends of an audio track to buses, besides its output (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<TrackSend>,
+    /// An adjustment video track holds no media of its own: its `video_effects` run on the
+    /// composite of all video tracks below it, weighted by its `VideoLevel` composite envelope.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub adjustment: bool,
+    /// How this video track blends over the tracks below it (older projects: Source Alpha).
+    #[serde(default, skip_serializing_if = "CompositeMode::is_default")]
+    pub composite_mode: CompositeMode,
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -610,6 +694,10 @@ pub struct Timeline {
     /// the media, before the event's own chain (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub media_video_effects: BTreeMap<u64, Vec<TrackEffect>>,
+    /// What the user says about a media file (timecode, frame rate, pixel aspect, alpha...), by
+    /// media id; a media with nothing changed has no entry (older projects have none).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media_props: BTreeMap<u64, MediaProps>,
     next_id: u64,
 }
 
@@ -673,6 +761,8 @@ impl Timeline {
             motion: PanCrop::default(),
             output: BusOutput::Master,
             sends: Vec::new(),
+            adjustment: false,
+            composite_mode: CompositeMode::default(),
         }
     }
 
@@ -706,5 +796,31 @@ impl Timeline {
             .events
             .iter()
             .find(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snap_offset_defaults_to_zero_for_older_projects_and_round_trips_when_set() {
+        let legacy = r#"{"id":1,"name":"clip","media_id":1,"start":2.0,"duration":4.0,"trim_in":0.0,"fade_in":0.0,"fade_out":0.0}"#;
+        let ev: TrackEvent = serde_json::from_str(legacy).unwrap();
+        assert_eq!(ev.snap_offset, 0.0);
+        assert_eq!(ev.snap_point(), 2.0);
+        assert!(
+            !serde_json::to_string(&ev).unwrap().contains("snap_offset"),
+            "zero snap_offset stays omitted"
+        );
+
+        let mut moved = ev;
+        moved.snap_offset = 1.25;
+        assert!((moved.snap_point() - 3.25).abs() < 1e-9);
+        let json = serde_json::to_string(&moved).unwrap();
+        assert!(json.contains("\"snap_offset\":1.25"));
+        let loaded: TrackEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.snap_offset, 1.25);
+        assert_eq!(loaded.geometry().snap_offset, 1.25);
     }
 }

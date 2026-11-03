@@ -24,15 +24,21 @@ pub enum Switch {
     Loop,
     /// Audio events only; the gain itself comes from [`set_normalize`].
     Normalize,
+    /// Video media events only (`true` by default): fit proportionally inside the project frame.
+    MaintainAspectRatio,
+    /// Video media events only: vertical anti-flicker prefilter on the source picture.
+    ReduceInterlaceFlicker,
 }
 
 impl Switch {
-    pub const ALL: [Switch; 5] = [
+    pub const ALL: [Switch; 7] = [
         Switch::Mute,
         Switch::Lock,
         Switch::InvertPhase,
         Switch::Loop,
         Switch::Normalize,
+        Switch::MaintainAspectRatio,
+        Switch::ReduceInterlaceFlicker,
     ];
 
     /// Whether the switch is on for `event`.
@@ -43,6 +49,8 @@ impl Switch {
             Switch::InvertPhase => event.invert_phase,
             Switch::Loop => event.looping,
             Switch::Normalize => event.normalize,
+            Switch::MaintainAspectRatio => event.maintain_aspect_ratio,
+            Switch::ReduceInterlaceFlicker => event.reduce_interlace_flicker,
         }
     }
 
@@ -58,6 +66,8 @@ impl Switch {
                     event.normalize_gain = 1.0;
                 }
             }
+            Switch::MaintainAspectRatio => event.maintain_aspect_ratio = on,
+            Switch::ReduceInterlaceFlicker => event.reduce_interlace_flicker = on,
         }
     }
 }
@@ -126,6 +136,9 @@ fn eligible(timeline: &Timeline, events: &[EventRef], switch: Switch) -> Vec<Eve
                 Switch::Mute => !event.locked,
                 Switch::InvertPhase | Switch::Normalize => {
                     !event.locked && track.kind == TrackKind::Audio
+                }
+                Switch::MaintainAspectRatio | Switch::ReduceInterlaceFlicker => {
+                    !event.locked && !event.adjustment && track.kind == TrackKind::Video
                 }
                 Switch::Loop => !event.locked && (event.playback_rate - 1.0).abs() < 1e-6,
             }
@@ -625,6 +638,94 @@ mod tests {
         let back: TrackEvent =
             serde_json::from_str(&serde_json::to_string(&blended).unwrap()).unwrap();
         assert_eq!(back.resample, ResampleMode::Disabled);
+
+        let mut optical = event.clone();
+        optical.resample = ResampleMode::OpticalFlow;
+        let back_opt: TrackEvent =
+            serde_json::from_str(&serde_json::to_string(&optical).unwrap()).unwrap();
+        assert_eq!(back_opt.resample, ResampleMode::OpticalFlow);
+
+        use neoveg_common::presets::ResampleMode as ProjectResample;
+        assert_eq!(
+            ResampleMode::Project.effective(ProjectResample::Disable),
+            ProjectResample::Disable
+        );
+        assert_eq!(
+            ResampleMode::Project.effective(ProjectResample::FrameBlend),
+            ProjectResample::FrameBlend
+        );
+        assert_eq!(
+            ResampleMode::Project.effective(ProjectResample::OpticalFlow),
+            ProjectResample::OpticalFlow
+        );
+        assert_eq!(
+            ResampleMode::Disabled.effective(ProjectResample::OpticalFlow),
+            ProjectResample::Disable
+        );
+        assert_eq!(
+            ResampleMode::OpticalFlow.effective(ProjectResample::Disable),
+            ProjectResample::OpticalFlow
+        );
+        assert!(!ResampleMode::Project.resamples(ProjectResample::Disable));
+        assert!(ResampleMode::Project.resamples(ProjectResample::OpticalFlow));
+    }
+
+    #[test]
+    fn video_aspect_and_flicker_switches_apply_only_to_unlocked_media_video_events() {
+        let (mut tl, audio, _, video) = timeline();
+        let adj_id = tl.alloc_id();
+        tl.track_mut(video.0).unwrap().events.push(TrackEvent {
+            id: adj_id,
+            start: 6.0,
+            duration: 4.0,
+            adjustment: true,
+            ..TrackEvent::default()
+        });
+        let adj = (video.0, adj_id);
+
+        // Maintain Aspect Ratio defaults to On for video events; audio & adjustment events are skipped
+        assert_eq!(
+            state(&tl, &[video], Switch::MaintainAspectRatio),
+            SwitchState::On
+        );
+        assert!(toggle(&tl, &[audio, adj], Switch::MaintainAspectRatio).is_none());
+        let mut h = History::new();
+        let cmd = toggle(&tl, &[audio, adj, video], Switch::MaintainAspectRatio).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert!(!tl.track(video.0).unwrap().events[0].maintain_aspect_ratio);
+        assert!(
+            tl.track(video.0).unwrap().events[1].maintain_aspect_ratio,
+            "adjustment untouched"
+        );
+        assert_eq!(
+            state(&tl, &[video], Switch::MaintainAspectRatio),
+            SwitchState::Off
+        );
+
+        // Reduce Interlace Flicker defaults to Off and toggles On
+        assert_eq!(
+            state(&tl, &[video], Switch::ReduceInterlaceFlicker),
+            SwitchState::Off
+        );
+        assert!(toggle(&tl, &[audio, adj], Switch::ReduceInterlaceFlicker).is_none());
+        let cmd = toggle(&tl, &[audio, adj, video], Switch::ReduceInterlaceFlicker).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert!(tl.track(video.0).unwrap().events[0].reduce_interlace_flicker);
+        assert!(!tl.track(video.0).unwrap().events[1].reduce_interlace_flicker);
+
+        // Non-default values round-trip cleanly; defaults omit extra keys
+        let ev = &tl.track(video.0).unwrap().events[0];
+        let json = serde_json::to_string(ev).unwrap();
+        assert!(json.contains("maintain_aspect_ratio"));
+        assert!(json.contains("reduce_interlace_flicker"));
+        let back: TrackEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, *ev);
+
+        assert!(h.undo(&mut tl));
+        assert!(h.undo(&mut tl));
+        let default_json = serde_json::to_string(&tl.track(video.0).unwrap().events[0]).unwrap();
+        assert!(!default_json.contains("maintain_aspect_ratio"));
+        assert!(!default_json.contains("reduce_interlace_flicker"));
     }
 
     #[test]

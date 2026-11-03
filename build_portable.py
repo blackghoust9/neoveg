@@ -92,6 +92,14 @@ PAYLOAD_FILES = {
     "third_party/filmcraft/README.md": "third_party/filmcraft/README.md",
     "third_party/flat-color-icons/LICENSE-MIT": "third_party/flat-color-icons/LICENSE-MIT",
     "third_party/flat-color-icons/README.md": "third_party/flat-color-icons/README.md",
+    "third_party/lucide/LICENSE": "third_party/lucide/LICENSE",
+    "third_party/lucide/README.md": "third_party/lucide/README.md",
+    "third_party/phosphor-icons/LICENSE-MIT": "third_party/phosphor-icons/LICENSE-MIT",
+    "third_party/phosphor-icons/README.md": "third_party/phosphor-icons/README.md",
+    "third_party/remix-icon/LICENSE-APACHE": "third_party/remix-icon/LICENSE-APACHE",
+    "third_party/remix-icon/README.md": "third_party/remix-icon/README.md",
+    "third_party/material-symbols/LICENSE-APACHE": "third_party/material-symbols/LICENSE-APACHE",
+    "third_party/material-symbols/README.md": "third_party/material-symbols/README.md",
     "third_party/nnnoiseless/COPYING": "third_party/nnnoiseless/COPYING",
     "third_party/nnnoiseless/AUTHORS": "third_party/nnnoiseless/AUTHORS",
     "third_party/nnnoiseless/README.md": "third_party/nnnoiseless/README.md",
@@ -135,14 +143,81 @@ def log(level: str, message: str, source: str = "build_portable") -> None:
         pass
 
 
+WINDOWS_LINK_LOCK_PATTERNS = (
+    "LNK1201",
+    "LNK1104",
+    "LNK1168",
+    "failed to write PDB file",
+    "cannot open output file",
+)
+
+
+def is_windows_link_lock_error(stderr_text: str) -> bool:
+    """True when `cargo` failed on Windows because an antivirus scanner or stale `mspdbsrv` held `.pdb`/`.exe`."""
+    return any(token in stderr_text for token in WINDOWS_LINK_LOCK_PATTERNS)
+
+
+def clear_windows_link_locks() -> int:
+    """Stops stray `mspdbsrv.exe`, waits briefly for real-time AV scan handles, and removes unlocked `.pdb`/`.ilk`."""
+    if platform.system() == "Windows":
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "mspdbsrv.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    time.sleep(1.5)
+    removed = 0
+    if TARGET_DIR.is_dir():
+        for profile in ("debug", "release"):
+            base = TARGET_DIR / profile
+            for folder in (base, base / "deps"):
+                if not folder.is_dir():
+                    continue
+                for ext in ("*.pdb", "*.ilk"):
+                    for candidate in folder.glob(ext):
+                        try:
+                            candidate.unlink()
+                            removed += 1
+                        except OSError:
+                            pass
+    return removed
+
+
+def _run_once(cmd: List[str], merged: Dict[str, str]) -> Tuple[int, str]:
+    """Runs `cmd` streaming stdout directly and teeing stderr so transient linker locks can be detected."""
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=merged, stderr=subprocess.PIPE, text=True, errors="replace")
+    tail: List[str] = []
+    size = 0
+    assert proc.stderr is not None
+    for line in proc.stderr:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        tail.append(line)
+        size += len(line)
+        while size > 65536 and len(tail) > 1:
+            size -= len(tail.pop(0))
+    return proc.wait(), "".join(tail)
+
+
 def run(cmd: List[str], env: Optional[Dict[str, str]] = None, check: bool = True) -> int:
-    """Runs a command in the repository root, streaming its output."""
+    """Runs a command in the repository root, streaming its output and retrying once on Windows PDB/exe locks."""
     print("  $ " + " ".join(cmd))
     merged = {**os.environ, **(env or {})}
-    result = subprocess.run(cmd, cwd=ROOT, env=merged)
-    if check and result.returncode != 0:
-        raise RuntimeError(f"command failed with exit code {result.returncode}: {' '.join(cmd)}")
-    return result.returncode
+    if cmd and cmd[0] == "cargo" and "CARGO_TERM_COLOR" not in merged and sys.stderr.isatty():
+        merged["CARGO_TERM_COLOR"] = "always"
+    code, err_tail = _run_once(cmd, merged)
+    if code != 0 and platform.system() == "Windows" and cmd and cmd[0] == "cargo" and is_windows_link_lock_error(err_tail):
+        removed = clear_windows_link_locks()
+        log(
+            "WARN",
+            f"transient Windows linker lock detected; cleared {removed} .pdb/.ilk file(s) and retrying once",
+        )
+        print("  $ " + " ".join(cmd) + "  # retry after Windows linker lock")
+        code, _ = _run_once(cmd, merged)
+    if check and code != 0:
+        raise RuntimeError(f"command failed with exit code {code}: {' '.join(cmd)}")
+    return code
 
 
 def capture(cmd: List[str]) -> Optional[str]:
@@ -266,63 +341,66 @@ def sha256(path: Path) -> str:
 # ----------------------------------------------------------------------------- check
 
 
+def pkg_config_has_ffmpeg() -> bool:
+    """Whether `pkg-config` can resolve the five FFmpeg libraries `neoveg_video` links on Unix."""
+    try:
+        proc = subprocess.run(
+            ["pkg-config", "--exists", "libavcodec", "libavformat", "libavutil", "libswscale", "libswresample"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return proc.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
 def ffmpeg_environment() -> List[str]:
     """Problems with the FFmpeg build variables (empty when everything is in place)."""
-    problems = []
+    problems: List[str] = []
     ffmpeg_dir = os.environ.get("FFMPEG_DIR")
     libclang = os.environ.get("LIBCLANG_PATH")
-    if not ffmpeg_dir or not Path(ffmpeg_dir).is_dir():
-        problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    elif not (Path(ffmpeg_dir) / "include").is_dir():
-        problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    if not libclang or not Path(libclang).is_dir():
-        problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-    else:
-        major = libclang_major(Path(libclang))
-        if major is not None and major >= 22:
-            problems.append(  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-                f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 7.1.x needs LLVM 19.x "
-                f"(it fails to compile with 22 or newer): {libclang}"
-            )
-    return problems  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
+    is_windows = platform.system() == "Windows"
+    if ffmpeg_dir:
+        if not Path(ffmpeg_dir).is_dir():
+            problems.append("FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)")
+        elif not (Path(ffmpeg_dir) / "include").is_dir():
+            problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")
+    elif is_windows or not pkg_config_has_ffmpeg():
+        problems.append(
+            "FFMPEG_DIR must point to the FFmpeg 7.1.x shared build (bin, include, lib)"
+            if is_windows
+            else "FFmpeg headers not found: set FFMPEG_DIR or expose libavcodec/libavformat/libavutil/libswscale/libswresample to pkg-config"
+        )
+    if libclang:
+        if not Path(libclang).is_dir():
+            problems.append("LIBCLANG_PATH must point to the LLVM folder (containing libclang)")
+        else:
+            major = libclang_major(Path(libclang))
+            if major is not None and major < 16:
+                problems.append(
+                    f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 9.x (bindgen 0.73) needs LLVM 16 or newer: {libclang}"
+                )
+    elif is_windows or capture(["clang", "--version"]) is None:
+        problems.append(
+            "LIBCLANG_PATH must point to the LLVM bin folder (containing libclang)"
+            if is_windows
+            else "libclang/clang not found: set LIBCLANG_PATH or install clang and libclang-dev"
+        )
+    return problems
 
 
 def libclang_major(folder: Path) -> Optional[int]:
     """Major version of the LLVM in `folder` (read from its `clang`), or None when it cannot be told."""
-    for name in ("clang.exe", "clang"):
-        clang = folder / name
-        if clang.is_file():
-            out = capture([str(clang), "--version"])
-            match = re.search(r"clang version (\d+)", out or "")
-            if match:
-                return int(match.group(1))
+    for directory in (folder, folder.parent / "bin"):
+        for name in ("clang.exe", "clang"):
+            clang = directory / name
+            if clang.is_file():
+                out = capture([str(clang), "--version"])
+                match = re.search(r"clang version (\d+)", out or "")
+                if match:
+                    return int(match.group(1))
     return None
-
-
-def ensure_app_icon() -> None:
-    """Creates `assets/app_icon/app_icon.ico` when it is missing.
-
-    The icon is drawn by `scripts/generate_app_icon.py` (Pillow) and the `.ico` is not committed (the
-    repository ignores `*.ico`), so a clean checkout would otherwise produce an executable without an
-    icon. Only the `.ico` is taken from the generator: the tracked PNG is left untouched.
-    """
-    ico = ROOT / "assets" / "app_icon" / "app_icon.ico"
-    if ico.is_file():
-        return
-    generator = ROOT / "scripts" / "generate_app_icon.py"
-    scratch = TARGET_DIR / "tmp" / "app_icon"
-    try:
-        scratch.mkdir(parents=True, exist_ok=True)
-        done = subprocess.run(
-            [sys.executable, str(generator), "--out", str(scratch)], cwd=ROOT, capture_output=True, text=True
-        )
-        if done.returncode == 0 and (scratch / "app_icon.ico").is_file():
-            shutil.copy2(scratch / "app_icon.ico", ico)
-            log("INFO", f"generated {ico.relative_to(ROOT)} for the executable icon")
-        else:
-            log("WARN", "no app_icon.ico and the generator failed (needs Pillow): the exe will have no icon")
-    except OSError as error:
-        log("WARN", f"could not generate the application icon: {error}")
 
 
 def force_rmtree(path: Path) -> None:
@@ -459,7 +537,6 @@ def write_qa_report(steps: List[Dict[str, object]], outcome: str) -> None:
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
-    ensure_app_icon()
     steps = qa_steps(args)
     failed = False
     for step in steps:
@@ -556,8 +633,11 @@ def copy_ffmpeg_runtime(rid: str, destination: Path) -> None:
     count = 0
     for folder, pattern in patterns:
         for lib in folder.glob(pattern):
-            if lib.is_file():
-                shutil.copy2(lib, destination / lib.name)
+            if lib.is_symlink() or lib.is_file():
+                dst = destination / lib.name
+                if dst.exists() or dst.is_symlink():
+                    dst.unlink()
+                shutil.copy2(lib, dst, follow_symlinks=False)
                 count += 1
     log("INFO", f"{count} FFmpeg libraries copied for {rid}")
 
@@ -692,7 +772,6 @@ def cmd_build(args: argparse.Namespace) -> int:
             for problem in problems:
                 log("ERROR", problem)
             return 1
-    ensure_app_icon()
     if not args.skip_qa:
         log("INFO", "running the quality gates before packaging (use --skip-qa to bypass)")
         if cmd_qa(args) != 0:

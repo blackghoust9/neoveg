@@ -8,7 +8,10 @@
 use std::f64::consts::PI;
 use std::sync::Arc;
 
+use neoveg_common::pitch_change::PitchChange;
+
 use crate::pcm::PcmStore;
+use crate::pitch_shift::pitch_shift_stereo;
 
 /// Slowest supported playback rate (`0.25x` = 400% duration).
 pub const MIN_STRETCH_RATE: f64 = 0.25;
@@ -76,6 +79,9 @@ pub fn stretch_stereo(
 /// buffer whose `0..timeline_duration` maps `1:1` to timeline local time.
 ///
 /// Slicing before stretching keeps editing responsive even on hour-long recordings.
+///
+/// `pitch` then moves the pitch of the result without changing its length, with the formants kept
+/// where they were when `pitch.preserve_formants` is set (see [`crate::pitch_shift`]).
 pub fn stretch_clip_slice(
     samples: &PcmStore,
     source_rate: u32,
@@ -83,6 +89,7 @@ pub fn stretch_clip_slice(
     timeline_duration: f64,
     rate: f64,
     preserve_pitch: bool,
+    pitch: &PitchChange,
 ) -> Arc<PcmStore> {
     let total_frames = samples.frames();
     if total_frames == 0 || timeline_duration <= 0.0 || source_rate == 0 {
@@ -113,11 +120,14 @@ pub fn stretch_clip_slice(
     if stretched.len() > target_out_frames * 2 {
         stretched.truncate(target_out_frames * 2);
     }
+    if pitch.changes_sound() {
+        stretched = pitch_shift_stereo(&stretched, source_rate, pitch);
+    }
     PcmStore::shared(stretched)
 }
 
 /// Linear stereo resampling (tape-speed varispeed or fallback for sub-window clips).
-fn resample_stereo_linear(samples: &[f32], out_frames: usize) -> Vec<f32> {
+pub(crate) fn resample_stereo_linear(samples: &[f32], out_frames: usize) -> Vec<f32> {
     let in_frames = samples.len() / 2;
     if in_frames == 0 || out_frames == 0 {
         return Vec::new();
@@ -427,9 +437,53 @@ mod tests {
         let mut src = vec![0.0f32; sr * 2 * 2];
         src.extend(vec![0.6f32; sr * 2 * 2]);
         // Trim into the loud half at 2.0 s, stretch 1.0 s of source into 2.0 s on timeline (0.5x)
-        let out = stretch_clip_slice(&PcmStore::from_vec(src), sr as u32, 2.0, 2.0, 0.5, true)
-            .to_vec(0, usize::MAX);
+        let out = stretch_clip_slice(
+            &PcmStore::from_vec(src),
+            sr as u32,
+            2.0,
+            2.0,
+            0.5,
+            true,
+            &PitchChange::default(),
+        )
+        .to_vec(0, usize::MAX);
         assert_eq!(out.len() / 2, sr * 2);
         assert!(out.iter().all(|&v| (v - 0.6).abs() < 1e-3));
+    }
+
+    #[test]
+    fn a_pitch_change_keeps_the_length_of_the_clip_at_any_speed() {
+        let sr = 22_050usize;
+        let src = sine_stereo(220.0, 3.0, sr as u32);
+        let up = PitchChange {
+            semitones: 12.0,
+            preserve_formants: true,
+            ..PitchChange::default()
+        };
+        for rate in [1.0, 0.5, 2.0] {
+            let plain = stretch_clip_slice(
+                &PcmStore::from_vec(src.clone()),
+                sr as u32,
+                0.0,
+                1.0,
+                rate,
+                true,
+                &PitchChange::default(),
+            );
+            let shifted = stretch_clip_slice(
+                &PcmStore::from_vec(src.clone()),
+                sr as u32,
+                0.0,
+                1.0,
+                rate,
+                true,
+                &up,
+            );
+            assert_eq!(shifted.frames(), plain.frames(), "rate {rate}");
+            assert_ne!(
+                shifted.to_vec(0, shifted.frames()),
+                plain.to_vec(0, plain.frames())
+            );
+        }
     }
 }

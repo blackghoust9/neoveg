@@ -1070,7 +1070,7 @@ fn demo_welcome(scratch: &Path) -> AppState {
 fn icon_grid(ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading(format!(
-            "Biblioteca de ícones SVG do Neoveg ({} ícones)",
+            "Biblioteca de ícones BMP do Neoveg ({} ícones)",
             icons::SvgIcon::ALL.len()
         ));
         ui.add_space(6.0);
