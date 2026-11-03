@@ -5202,16 +5202,23 @@ impl AppState {
         self.last_frame_key = None;
     }
 
+    /// The moment the preview samples: the start of the project frame the playhead is in.
+    fn sampled_time(&self) -> f64 {
+        neoveg_common::timecode::frame_start(self.playhead, self.project.settings.fps)
+    }
+
     /// Asks the decoder thread for the frame under the playhead (topmost video track wins).
     fn request_preview_frame(&mut self, ppp: f32) {
         let max_width = self.preview_max_width(ppp);
+        // The preview shows the frame the playhead is in, the one its tick marks and its timecode reads
+        let at = self.sampled_time();
         // A sub-project plays through the expansion of its events
         let flat = self.flattened();
         let timeline = flat.as_deref().map_or(&self.timeline, |f| &f.timeline);
         // Overlapping video clips (several tracks, or a crossfade) are composited
         // (also when an effect is on: only that path runs the video effects)
-        if composite::visible_clips(timeline, self.playhead) > 1
-            || composite::has_effects(timeline, self.playhead, self.project.settings.resample_mode)
+        if composite::visible_clips(timeline, at) > 1
+            || composite::has_effects(timeline, at, self.project.settings.resample_mode)
             || self.pan_crop_draft.is_some()
             || self.velocity_draft.is_some()
         {
@@ -5224,10 +5231,10 @@ impl AppState {
             .tracks
             .iter()
             .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
-            .find_map(|t| timeline.playing_event_at(t.id, self.playhead))
+            .find_map(|t| timeline.playing_event_at(t.id, at))
             .and_then(|e| {
                 let rate = edit::clamp_playback_rate(e.playback_rate);
-                let mut offset = (self.playhead - e.start) * rate;
+                let mut offset = (at - e.start) * rate;
                 if e.looping {
                     let source = e.media_id.and_then(|id| self.video_info.get(&id));
                     let len = source.map_or(0.0, |i| edit::loop_length(i.duration, e.trim_in));
@@ -5255,7 +5262,8 @@ impl AppState {
             .video_info
             .get(&media_id)
             .map_or(self.project.settings.fps, |i| i.fps);
-        let frame = (seconds * fps).round() as i64;
+        // The source frame that covers that instant
+        let frame = neoveg_common::timecode::frame_index(seconds, fps);
         let key = (media_id, frame, max_width);
         // An undo of the LUT changes the picture without changing the frame key
         if self.last_lut_path != self.timeline.video_lut
@@ -5302,7 +5310,7 @@ impl AppState {
         }
         let settings = &self.project.settings;
         let fps = settings.fps;
-        let frame = (self.playhead * fps).round() as i64;
+        let frame = neoveg_common::timecode::frame_index(self.playhead, fps);
         let key = (
             frame,
             max_width,
@@ -13772,6 +13780,29 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             [pos2(px, rect.top() + 14.0), pos2(px, rect.bottom())],
             Stroke::new(hairline, line_color),
         );
+        // The frame sampling tick: the span of the frame the preview shows, in the strip under the
+        // ruler and, once a frame is wide enough to see, as a faint band through the tracks
+        let sampled = state.sampled_time();
+        let (fx0, fx1) = (to_x(sampled), to_x(sampled + 1.0 / fps.max(1.0)));
+        let fx1 = fx1.max(fx0 + 2.0);
+        let tick = Rect::from_min_max(
+            pos2(fx0.max(lanes.left()), lanes.top()),
+            pos2(fx1.min(lanes.right()), lanes.top() + 4.0),
+        );
+        if tick.width() > 0.0 {
+            lane_painter.rect_filled(tick, Rounding::ZERO, bright);
+            if fx1 - fx0 >= 6.0 {
+                let band = Rect::from_min_max(
+                    pos2(tick.left(), tick.bottom()),
+                    pos2(tick.right(), rect.bottom()),
+                );
+                lane_painter.rect_filled(
+                    band,
+                    Rounding::ZERO,
+                    Color32::from_rgba_unmultiplied(bright.r(), bright.g(), bright.b(), 28),
+                );
+            }
+        }
 
         let top = rect.top();
         lane_painter.add(Shape::convex_polygon(
@@ -15871,6 +15902,27 @@ mod tests {
         s.trim_edge = None;
         s.update_edge_frames();
         assert!(!s.expanded_edit && !s.edge_frames.visible());
+    }
+
+    #[test]
+    fn the_preview_samples_the_frame_the_playhead_is_in_and_its_timecode_reads() {
+        let (mut s, _, _) = state_with_clip();
+        let fps = s.project.settings.fps;
+        for k in 0..60 {
+            // In the second half of a frame the old rounding showed the next frame
+            s.playhead = (f64::from(k) + 0.8) / fps;
+            assert!(
+                (s.sampled_time() - f64::from(k) / fps).abs() < 1e-9,
+                "frame {k}"
+            );
+            assert_eq!(
+                neoveg_common::timecode::seconds_to_timecode(s.sampled_time(), fps, false),
+                neoveg_common::timecode::seconds_to_timecode(s.playhead, fps, false)
+            );
+        }
+        // Exactly on a boundary the frame starts there
+        s.playhead = 10.0 / fps;
+        assert!((s.sampled_time() - s.playhead).abs() < 1e-9);
     }
 
     #[test]

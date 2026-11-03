@@ -47,10 +47,26 @@ pub fn frame_to_timecode(frame: i64, fps: f64, drop_frame: bool) -> String {
     format!("{hh:02}:{mm:02}:{ss:02}{sep}{ff:02}")
 }
 
+/// The frame a moment in time falls in: frame `n` covers `n / fps` up to (not including) `(n + 1) / fps`.
+/// This is the frame the timecode reads and the one the preview shows, so the two never differ.
+pub fn frame_index(seconds: f64, fps: f64) -> i64 {
+    if !seconds.is_finite() || !(fps.is_finite() && fps > 0.0) {
+        return 0;
+    }
+    (seconds.max(0.0) * fps + 1e-6).floor() as i64
+}
+
+/// The time at which the frame that `seconds` falls in starts.
+pub fn frame_start(seconds: f64, fps: f64) -> f64 {
+    if !(fps.is_finite() && fps > 0.0) {
+        return seconds.max(0.0);
+    }
+    frame_index(seconds, fps) as f64 / fps
+}
+
 /// Seconds to a timecode string at the given frame rate.
 pub fn seconds_to_timecode(seconds: f64, fps: f64, drop_frame: bool) -> String {
-    let frame = (seconds.max(0.0) * fps + 1e-6).floor() as i64;
-    frame_to_timecode(frame, fps, drop_frame)
+    frame_to_timecode(frame_index(seconds, fps), fps, drop_frame)
 }
 
 /// Frame number at which the timecode reads `timecode_seconds` with `;00` / `:00` frames.
@@ -102,6 +118,44 @@ pub fn parse_timecode(text: &str, fps: f64) -> Option<(i64, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_moment_belongs_to_the_frame_it_falls_in_and_the_timecode_agrees() {
+        let fps = 25.0;
+        assert_eq!(frame_index(0.0, fps), 0);
+        assert_eq!(frame_index(0.039, fps), 0, "just before the second frame");
+        assert_eq!(frame_index(0.04, fps), 1, "exactly on the boundary");
+        assert_eq!(
+            frame_index(0.0799, fps),
+            1,
+            "the second half of a frame is still that frame"
+        );
+        assert_eq!(frame_index(0.08, fps), 2);
+        // A float error under a boundary does not fall back a frame
+        assert_eq!(frame_index(3.0 * (1.0 / 25.0) - 1e-12, fps), 3);
+        assert!((frame_start(0.0799, fps) - 0.04).abs() < 1e-12);
+        assert_eq!(frame_start(-1.0, fps), 0.0);
+        // Odd input never panics or goes negative
+        assert_eq!(frame_index(f64::NAN, fps), 0);
+        assert_eq!(frame_index(1.0, 0.0), 0);
+        assert_eq!(frame_start(2.0, f64::NAN), 2.0);
+        // The timecode reads the same frame the index names, over a second of every standard rate
+        for fps in [23.976, 24.0, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0] {
+            let drop = is_drop_frame_rate(fps);
+            for step in 0..(fps as i64 * 3) {
+                let t = (step as f64 + 0.7) / fps;
+                assert_eq!(
+                    seconds_to_timecode(t, fps, drop),
+                    frame_to_timecode(frame_index(t, fps), fps, drop)
+                );
+                assert_eq!(
+                    seconds_to_timecode(t, fps, drop),
+                    seconds_to_timecode(frame_start(t, fps), fps, drop),
+                    "{fps} fps at {t}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn only_29_97_and_59_94_are_drop_frame_and_30_and_60_are_not() {
