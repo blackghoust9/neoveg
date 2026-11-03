@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "Set snap offset at cursor",
   "Restaurar deslocamento de snap": "Reset snap offset",
   "No cursor": "At cursor",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "Internal point of the event used to snap on the timeline"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Internal point of the event used to snap on the timeline",
+  "Ir": "Go",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10, 1:02.5, 62.5 or 1500f",
+  "Tela de boas-vindas": "Welcome screen",
+  "agora há pouco": "just now",
+  "há {} min": "{} min ago",
+  "há {} h": "{} h ago",
+  "há {} dia(s)": "{} day(s) ago"
 }

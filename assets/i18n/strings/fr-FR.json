@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "Définir le décalage de magnétisme au curseur",
   "Restaurar deslocamento de snap": "Réinitialiser le décalage de magnétisme",
   "No cursor": "Au curseur",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "Point interne de l'événement utilisé pour le magnétisme sur la timeline"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Point interne de l'événement utilisé pour le magnétisme sur la timeline",
+  "Ir": "Aller",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10, 1:02,5, 62,5 ou 1500f",
+  "Tela de boas-vindas": "Écran d'accueil",
+  "agora há pouco": "à l'instant",
+  "há {} min": "il y a {} min",
+  "há {} h": "il y a {} h",
+  "há {} dia(s)": "il y a {} jour(s)"
 }

@@ -505,11 +505,11 @@ pub(super) fn close_tab_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     };
     let title = state.tab_title(id);
+    let mut keep_open = true;
     let (mut save, mut discard, mut cancel) = (false, false, false);
-    egui::Window::new(tr("Fechar projeto"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Fechar projeto"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.label(tr_args("\"{}\" tem alterações não salvas.", &[&title]));
             ui.horizontal(|ui| {
@@ -517,7 +517,13 @@ pub(super) fn close_tab_window(ctx: &egui::Context, state: &mut AppState) {
                 discard = ui.button(tr("Descartar")).clicked();
                 cancel = ui.button(tr("Cancelar")).clicked();
             });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
         });
+    if !keep_open {
+        cancel = true;
+    }
     if cancel {
         state.tabs.pending_close = None;
     } else if discard {

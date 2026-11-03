@@ -557,9 +557,9 @@ struct AppState {
     /// Index into `loudness_panel::TARGETS`.
     loudness_target: usize,
     show_credits: bool,
-    /// Exibir > Visualizador de Logs.
+    /// Ajuda > Visualizador de logs.
     log_viewer: crate::log_viewer::LogViewerState,
-    /// Arquivo > Renderizar como… (Make Movie).
+    /// Arquivo > Exportar > Renderizar como… (Make Movie).
     render_dialog: crate::render_dialog::RenderDialogState,
     /// Faixas > Inserir apresentação de slides.
     slideshow: crate::slideshow_window::SlideshowState,
@@ -8121,6 +8121,9 @@ fn bundled_luts() -> Vec<(String, String)> {
 
 /// Help → Credits: authors and licences of the code Neoveg is built on.
 fn credits_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_credits {
+        return;
+    }
     let mut open = state.show_credits;
     crate::dialogs::dialog(ctx, tr("Créditos e licenças"))
         .open(&mut open)
@@ -8211,18 +8214,18 @@ fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             // Render sits with the file commands, as in the manuals' toolbar
             if i == 0 {
-                let tooltip = "Renderizar como… (Make Movie)";
+                let tooltip = tr("Renderizar como… (Make Movie)");
                 if icons::svg_button(ui, SvgIcon::ExportRender, tooltip, false).clicked() {
                     state.render_dialog.open = true;
                 }
             }
         }
         ui.separator();
-        if icons::svg_button(ui, SvgIcon::Welcome, "Tela de boas-vindas", false).clicked() {
+        if icons::svg_button(ui, SvgIcon::Welcome, tr("Tela de boas-vindas"), false).clicked() {
             let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
             state.welcome.open_with(&defaults);
         }
-        if icons::svg_button(ui, SvgIcon::Preferences, "Preferências", false).clicked() {
+        if icons::svg_button(ui, SvgIcon::Preferences, tr("Preferências"), false).clicked() {
             state.show_preferences = true;
         }
     });
@@ -8767,11 +8770,11 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     };
     let fps = state.project.settings.fps;
+    let mut keep_open = true;
     let (mut insert, mut cancel) = (false, false);
-    egui::Window::new(tr("Inserir tempo"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Inserir tempo"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
             if !edit.has_focus() && !edit.lost_focus() {
@@ -8803,7 +8806,7 @@ fn insert_time_window(ctx: &egui::Context, state: &mut AppState) {
         if let Some(length) = navigation::parse_time(&text, fps) {
             state.insert_time_at_cursor(length);
         }
-    } else if !cancel {
+    } else if keep_open && !cancel {
         state.insert_time_dialog = Some(text);
     }
 }
@@ -8813,11 +8816,11 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
         return;
     };
     let fps = state.project.settings.fps;
+    let mut keep_open = true;
     let (mut go, mut cancel) = (false, false);
-    egui::Window::new(tr("Ir para o tempo"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Ir para o tempo"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             let edit = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0));
             if !edit.has_focus() && !edit.lost_focus() {
@@ -8827,9 +8830,9 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
             if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && valid {
                 go = true;
             }
-            ui.weak("00:01:02:10, 1:02,5, 62,5 ou 1500f");
+            ui.weak(tr("00:01:02:10, 1:02,5, 62,5 ou 1500f"));
             ui.horizontal(|ui| {
-                if ui.add_enabled(valid, egui::Button::new("Ir")).clicked() {
+                if ui.add_enabled(valid, egui::Button::new(tr("Ir"))).clicked() {
                     go = true;
                 }
                 if ui.button(tr("Cancelar")).clicked() {
@@ -8845,7 +8848,7 @@ fn goto_window(ctx: &egui::Context, state: &mut AppState) {
             let now = ctx.input(|i| i.time);
             state.go_to_time(time, now);
         }
-    } else if !cancel {
+    } else if keep_open && !cancel {
         state.goto_dialog = Some(text);
     }
 }
@@ -9304,7 +9307,7 @@ fn layout_dialogs(ctx: &egui::Context, state: &mut AppState) {
 
 /// A drop-down with *Nenhum* and the numbers 1 to 9 for the layout shortcut.
 fn slot_combo(ui: &mut egui::Ui, id: &str, slot: &mut Option<u8>) {
-    let text = slot.map_or_else(|| "Nenhum".to_owned(), |n| n.to_string());
+    let text = slot.map_or_else(|| tr("Nenhum").to_owned(), |n| n.to_string());
     egui::ComboBox::from_id_salt(id)
         .selected_text(text)
         .show_ui(ui, |ui| {
@@ -9672,6 +9675,9 @@ fn save_prefs(prefs: &Preferences) {
 }
 
 fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_preferences {
+        return;
+    }
     let mut open = state.show_preferences;
     let mut prefs = state.prefs.clone();
     let mut tab = state.prefs_tab;
@@ -9825,10 +9831,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
 fn format_age(saved_unix: u64, now_unix: u64) -> String {
     let secs = now_unix.saturating_sub(saved_unix);
     match secs {
-        0..=59 => "agora há pouco".into(),
-        60..=3599 => format!("há {} min", secs / 60),
-        3600..=86_399 => format!("há {} h", secs / 3600),
-        _ => format!("há {} dia(s)", secs / 86_400),
+        0..=59 => tr("agora há pouco").to_owned(),
+        60..=3599 => tr_args("há {} min", &[&(secs / 60)]),
+        3600..=86_399 => tr_args("há {} h", &[&(secs / 3600)]),
+        _ => tr_args("há {} dia(s)", &[&(secs / 86_400)]),
     }
 }
 
@@ -9838,10 +9844,8 @@ fn recovery_window(ctx: &egui::Context, state: &mut AppState) {
     }
     let (mut recover, mut discard, mut discard_all) = (None, None, false);
     let now = autosave::unix_now();
-    egui::Window::new(tr("Recuperar projetos"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Recuperar projetos"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.label(tr(
                 "O Neoveg não foi encerrado normalmente. Projetos com alterações não salvas:",
@@ -9884,11 +9888,11 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
     if !state.confirm_exit {
         return;
     }
+    let mut keep_open = true;
     let (mut save, mut discard, mut cancel) = (false, false, false);
-    egui::Window::new(tr("Alterações não salvas"))
-        .collapsible(false)
+    crate::dialogs::dialog(ctx, tr("Alterações não salvas"))
         .resizable(false)
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.label(tr_args(
                 "Salvar as alterações em \"{}\" antes de sair?",
@@ -9899,7 +9903,13 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
                 discard = ui.button(tr("Sair sem salvar")).clicked();
                 cancel = ui.button(tr("Cancelar")).clicked();
             });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
         });
+    if !keep_open {
+        cancel = true;
+    }
 
     if save {
         state.save_project(false);
@@ -9920,6 +9930,9 @@ fn exit_window(ctx: &egui::Context, state: &mut AppState) {
 }
 
 fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
+    if !state.show_inspector {
+        return;
+    }
     let mut open = state.show_inspector;
     let mut change = None;
     // What the controls asked for: applied after the window is drawn
@@ -17418,5 +17431,68 @@ mod ripple_tests {
         assert_eq!(s.timeline.markers[0].time, 3.0, "marker followed the gap");
         s.undo();
         assert_eq!(s.timeline.markers[0].time, 6.0, "one undo step restores it");
+    }
+
+    #[test]
+    fn centered_prompts_follow_dialogs_and_closed_inspector_leaves_first_tool_slot_free() {
+        neoveg_common::i18n::set_language("pt-BR");
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 720.0));
+        let mut s = AppState::new();
+        s.insert_time_dialog = Some("00:00:05:00".into());
+        s.goto_dialog = Some("00:00:10:00".into());
+        s.confirm_exit = true;
+        s.pending_recovery.push(neoveg_engine::autosave::RecoveryEntry {
+            path: PathBuf::from("recovery_demo.neoveg"),
+            meta: neoveg_engine::project_file::RecoveryMeta {
+                project_name: "Demo".into(),
+                original_path: None,
+                saved_unix: 100,
+            },
+        });
+        s.notes.open = true;
+
+        for _ in 0..3 {
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| {
+                    insert_time_window(ctx, &mut s);
+                    goto_window(ctx, &mut s);
+                    recovery_window(ctx, &mut s);
+                    exit_window(ctx, &mut s);
+                    inspector_window(ctx, &mut s);
+                    let _ = s.notes.show(ctx, &s.project.notes, 30.0, false);
+                },
+            );
+        }
+
+        for title in [
+            "Inserir tempo",
+            "Ir para o tempo",
+            "Recuperar projetos",
+            "Alterações não salvas",
+        ] {
+            let rect = egui::AreaState::load(&ctx, egui::Id::new(title))
+                .unwrap_or_else(|| panic!("{title} did not open"))
+                .rect();
+            assert!(
+                (rect.center() - screen.center()).length() <= 2.0,
+                "{title} should open centred, got {:?}",
+                rect.center()
+            );
+        }
+
+        // Closed Inspector must not steal slot 0 from the first open tool window
+        let notes_rect = egui::AreaState::load(&ctx, egui::Id::new("Notas do projeto"))
+            .expect("notes window opened")
+            .rect();
+        assert!(
+            (notes_rect.top() - 96.0).abs() <= 2.0,
+            "first open tool window should start at y = 96, got {}",
+            notes_rect.top()
+        );
     }
 }

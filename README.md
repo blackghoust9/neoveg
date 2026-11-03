@@ -257,7 +257,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 
 ### Decisões
 Aqui é onde o filho chora e a mãe não vê, não há como simplesmente empurrar tudo do VEGAS pra cá, quem deve decidir isso não é só eu, e sim os outros usuários desse programa.
-- [ ] Scripting para o usuário em Rust (substituir Roslyn/Python) (Em decisão: os scripts e extensões feitos para o VEGAS são código .NET (C#, VB.NET, JScript) e não rodam no Neoveg; falta escolher entre só Rhai com um guia de migração, um conversor Python que traduz esses scripts para Rhai, ou um host .NET opcional e isolado, e como espelhar o modelo de objetos sem copiar nomes de outro produto).
+- [ ] Scripting para o usuário em Rust (substituir Roslyn/Python) (Em decisão: os scripts e extensões feitos para o VEGAS são código .NET 2 e 3.5 (C#, VB.NET, JScript) e não rodam no Neoveg; falta escolher entre só Rhai com um guia de migração, um conversor Python que traduz esses scripts para Rhai, ou um host .NET 2 e 3.5 opcional e isolado, e como espelhar o modelo de objetos sem copiar nomes de outro produto).
 - [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem, e Linux e macOS x64/arm64 ficam para a fase do porte, com o ambiente Docker já pronto mas pausado. Pacote do Windows conferido em 31/10/2026: `python build_portable.py build --ffmpeg` gera o `.zip` e o `.exe`, que abre com um PATH mínimo, com as DLLs do FFmpeg, as tabelas de cor e as licenças dentro; falta a CI) (para Linux é até que "fácil", para macOS vai precisar de uma máquina real)
 
 

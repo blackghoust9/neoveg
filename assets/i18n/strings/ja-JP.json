@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "カーソル位置にスナップ オフセットを設定",
   "Restaurar deslocamento de snap": "スナップ オフセットをリセット",
   "No cursor": "カーソル位置",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "タイムライン上でスナップに使うイベント内の基準点"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "タイムライン上でスナップに使うイベント内の基準点",
+  "Ir": "移動",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10、1:02.5、62.5 または 1500f",
+  "Tela de boas-vindas": "ようこそ画面",
+  "agora há pouco": "たった今",
+  "há {} min": "{} 分前",
+  "há {} h": "{} 時間前",
+  "há {} dia(s)": "{} 日前"
 }

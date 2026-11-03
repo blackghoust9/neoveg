@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "Einrastversatz am Cursor setzen",
   "Restaurar deslocamento de snap": "Einrastversatz zurücksetzen",
   "No cursor": "Am Cursor",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "Interner Punkt des Ereignisses zum Einrasten in der Zeitleiste"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Interner Punkt des Ereignisses zum Einrasten in der Zeitleiste",
+  "Ir": "Gehe zu",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10, 1:02,5, 62,5 oder 1500f",
+  "Tela de boas-vindas": "Willkommensbildschirm",
+  "agora há pouco": "gerade eben",
+  "há {} min": "vor {} Min.",
+  "há {} h": "vor {} Std.",
+  "há {} dia(s)": "vor {} Tag(en)"
 }

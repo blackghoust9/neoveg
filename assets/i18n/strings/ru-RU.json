@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "Задать смещение привязки по курсору",
   "Restaurar deslocamento de snap": "Сбросить смещение привязки",
   "No cursor": "По курсору",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "Внутренняя точка события для привязки на монтажной линейке"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Внутренняя точка события для привязки на монтажной линейке",
+  "Ir": "Перейти",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10, 1:02,5, 62,5 или 1500f",
+  "Tela de boas-vindas": "Экран приветствия",
+  "agora há pouco": "только что",
+  "há {} min": "{} мин назад",
+  "há {} h": "{} ч назад",
+  "há {} dia(s)": "{} дн. назад"
 }

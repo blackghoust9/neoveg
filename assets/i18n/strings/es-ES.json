@@ -1263,5 +1263,12 @@
   "Definir deslocamento de snap no cursor": "Definir desplazamiento de ajuste en el cursor",
   "Restaurar deslocamento de snap": "Restablecer desplazamiento de ajuste",
   "No cursor": "En el cursor",
-  "Ponto interno do evento usado para alinhar (snap) na timeline": "Punto interno del evento usado para ajustar en la línea de tiempo"
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Punto interno del evento usado para ajustar en la línea de tiempo",
+  "Ir": "Ir",
+  "00:01:02:10, 1:02,5, 62,5 ou 1500f": "00:01:02:10, 1:02,5, 62,5 o 1500f",
+  "Tela de boas-vindas": "Pantalla de bienvenida",
+  "agora há pouco": "hace un momento",
+  "há {} min": "hace {} min",
+  "há {} h": "hace {} h",
+  "há {} dia(s)": "hace {} día(s)"
 }
