@@ -10122,14 +10122,14 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                 {
                     new = edit::set_snap_offset(new, offset);
                 }
-                let cursor_inside = self.playhead > g.start + TIME_EPSILON
-                    && self.playhead < g.end() - TIME_EPSILON;
+                let cursor_inside = state.playhead > g.start + TIME_EPSILON
+                    && state.playhead < g.end() - TIME_EPSILON;
                 if ui
                     .add_enabled(cursor_inside, egui::Button::new(tr("No cursor")).small())
                     .on_hover_text(tr("Definir deslocamento de snap no cursor"))
                     .clicked()
                 {
-                    new = edit::set_snap_offset(new, self.playhead - g.start);
+                    new = edit::set_snap_offset(new, state.playhead - g.start);
                 }
                 if ui
                     .add_enabled(
