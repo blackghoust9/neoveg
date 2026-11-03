@@ -22,6 +22,7 @@ pub mod fcpxml;
 pub mod groups;
 pub mod keytrim;
 pub mod markers;
+pub mod media_props;
 pub mod mix;
 pub mod navigation;
 pub mod ops;

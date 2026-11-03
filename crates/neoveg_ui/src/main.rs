@@ -22,6 +22,7 @@ mod import_report;
 mod layouts;
 mod log_viewer;
 mod loudness_panel;
+mod media_properties_window;
 mod mixer_panel;
 mod notes_window;
 mod pan_crop_window;

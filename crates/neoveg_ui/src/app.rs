@@ -538,6 +538,8 @@ struct AppState {
     notes: crate::notes_window::NotesState,
     /// Faixas > Painel de compositores.
     compositors: crate::compositors_window::CompositorsState,
+    /// Propriedades da mídia (timecode, taxa de quadros, pixel, alfa, fundo).
+    media_props_dialog: crate::media_properties_window::MediaPropsDialog,
     /// Exibir > Detalhes de edição.
     show_details: bool,
     /// The editing tool (`D` cycles through them).
@@ -1199,6 +1201,12 @@ impl AppState {
             .iter()
             .map(|(id, m)| (*id, m.name.clone()))
             .collect();
+        let timecode_start: HashMap<u64, f64> = self
+            .timeline
+            .media_props
+            .iter()
+            .filter_map(|(id, p)| Some((*id, p.timecode_start?)))
+            .collect();
         let clip_info = |media: Option<u64>| {
             let id = media?;
             let item = pool.iter().find(|m| m.id == id)?;
@@ -1212,6 +1220,8 @@ impl AppState {
             Some(edl::ClipInfo {
                 name,
                 path: Some(item.path.clone()),
+                // The media's own start timecode, when the user gave it one
+                start_offset: timecode_start.get(&id).copied().unwrap_or(0.0),
             })
         };
         let Some(text) = edl::export_track(
@@ -1652,6 +1662,7 @@ impl AppState {
             insert_time_dialog: None,
             notes: Default::default(),
             compositors: Default::default(),
+            media_props_dialog: Default::default(),
             show_details: false,
             edit_tool: EditTool::default(),
             welcome: Default::default(),
@@ -1927,6 +1938,57 @@ impl AppState {
                 )
                 .into();
             }
+        }
+    }
+
+    /// Opens the Media Properties dialog on `media_id`.
+    fn open_media_properties(&mut self, media_id: u64) {
+        let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
+            self.status = "Essa mídia não está no projeto".into();
+            return;
+        };
+        let path = item.path.clone();
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .map_or_else(|| path.clone(), |n| n.to_string_lossy().into_owned());
+        let project_fps = self.project.settings.fps;
+        let drop_frame = self.drop_frame();
+        let video = self.video_info.get(&media_id);
+        let summary = match (video, self.media.get(&media_id)) {
+            (Some(v), _) => format!(
+                "{}×{} · {:.3} fps · {:.2} s",
+                v.width, v.height, v.fps, v.duration
+            ),
+            (None, Some(m)) => format!("{} Hz · {:.2} s", m.sample_rate, m.duration),
+            (None, None) => String::new(),
+        };
+        let timecode_fps = video.map_or(project_fps, |v| v.fps.max(1.0));
+        let props = neoveg_engine::media_props::props_of(&self.timeline, media_id);
+        self.media_props_dialog.open(
+            media_id,
+            name,
+            path,
+            summary,
+            video.is_some(),
+            timecode_fps,
+            drop_frame,
+            props,
+        );
+    }
+
+    /// Edit > Media properties: the dialog of the media the first selected event plays.
+    fn open_selected_media_properties(&mut self) {
+        let media = self.selection.refs().iter().find_map(|(track, event)| {
+            self.timeline
+                .track(*track)?
+                .events
+                .iter()
+                .find(|e| e.id == *event)?
+                .media_id
+        });
+        match media {
+            Some(id) => self.open_media_properties(id),
+            None => self.status = "Selecione um evento que toque uma mídia".into(),
         }
     }
 
@@ -3073,6 +3135,12 @@ impl AppState {
                 ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
             }
             Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
+            Command::EditMediaProperties => self.selection.refs().iter().any(|(track, event)| {
+                self.timeline
+                    .track(*track)
+                    .and_then(|t| t.events.iter().find(|e| e.id == *event))
+                    .is_some_and(|e| e.media_id.is_some())
+            }),
             Command::EditCloseGaps => {
                 if self.selection.is_empty() {
                     self.selected_track
@@ -6718,6 +6786,7 @@ impl AppState {
             Command::EditSplit => self.split_at_playhead(),
             Command::EditSmartSplit => self.smart_split(),
             Command::EditHeal => self.heal_selected_events(),
+            Command::EditMediaProperties => self.open_selected_media_properties(),
             Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -7165,6 +7234,24 @@ impl NeovegApp {
         }
     }
 
+    /// The Media Properties dialog: what it applies is one undoable edit.
+    fn run_media_properties_dialog(&mut self, ctx: &egui::Context) {
+        let state = &mut self.state;
+        let Some(action) = state.media_props_dialog.show(ctx) else {
+            return;
+        };
+        match neoveg_engine::media_props::set(&state.timeline, action.media_id, &action.props) {
+            Some(command) => {
+                if state.history.execute(&mut state.timeline, command) {
+                    state.last_frame_key = None;
+                    state.last_composite_key = None;
+                    state.status = "Propriedades da mídia aplicadas".into();
+                }
+            }
+            None => state.status = "As propriedades da mídia não mudaram".into(),
+        }
+    }
+
     /// The compositors panel: the mode changes it asks for are undoable edits.
     fn run_compositors_window(&mut self, ctx: &egui::Context) {
         let state = &mut self.state;
@@ -7605,6 +7692,7 @@ impl NeovegApp {
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
         self.run_compositors_window(ctx);
+        self.run_media_properties_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -7997,6 +8085,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditSplit,
                 Command::EditSmartSplit,
                 Command::EditHeal,
+                Command::EditMediaProperties,
                 Command::EditCloseGaps,
                 Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
@@ -10830,6 +10919,7 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
         ui.weak(tr("Nenhuma mídia no projeto"));
     }
     let mut open = None;
+    let mut properties = None;
     for item in &state.project.media_pool {
         if let Some(m) = state.media.get(&item.id) {
             let row = ui
@@ -10844,10 +10934,19 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
             if row.double_clicked() {
                 open = Some(item.id);
             }
+            row.context_menu(|ui| {
+                if ui.button(tr("Propriedades da mídia…")).clicked() {
+                    properties = Some(item.id);
+                    ui.close_menu();
+                }
+            });
         }
     }
     if let Some(id) = open {
         state.open_in_trimmer(id);
+    }
+    if let Some(id) = properties {
+        state.open_media_properties(id);
     }
 }
 
@@ -11740,6 +11839,7 @@ fn event_context_menu(
         Command::EditSplit,
         Command::EditSmartSplit,
         Command::EditHeal,
+        Command::EditMediaProperties,
         Command::EditCloseGaps,
         Command::EditGroup,
         Command::EditUngroup,

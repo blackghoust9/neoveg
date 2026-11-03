@@ -11,6 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
+use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
 
@@ -202,6 +203,12 @@ pub enum EditCommand {
         bottom: bool,
         before: [u8; 3],
         after: [u8; 3],
+    },
+    /// The properties the user gave a media file (`None`: none, the file's own).
+    SetMediaProps {
+        media_id: u64,
+        before: Option<MediaProps>,
+        after: Option<MediaProps>,
     },
     /// The compositing mode of a video track (how it blends over the tracks below).
     SetCompositeMode {
@@ -496,6 +503,12 @@ impl EditCommand {
                 }
                 None => false,
             },
+            Self::SetMediaProps {
+                media_id, after, ..
+            } => {
+                put_media_props(tl, *media_id, after);
+                true
+            }
             Self::SetCompositeMode {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -738,6 +751,9 @@ impl EditCommand {
                     }
                 }
             }
+            Self::SetMediaProps {
+                media_id, before, ..
+            } => put_media_props(tl, *media_id, before),
             Self::SetCompositeMode {
                 track_id, before, ..
             } => {
@@ -906,6 +922,17 @@ fn set_pan_crop(tl: &mut Timeline, track_id: TrackId, event_id: EventId, value: 
             true
         }
         None => false,
+    }
+}
+
+fn put_media_props(tl: &mut Timeline, media_id: u64, props: &Option<MediaProps>) {
+    match props {
+        Some(p) if !p.is_default() => {
+            tl.media_props.insert(media_id, p.clone());
+        }
+        _ => {
+            tl.media_props.remove(&media_id);
+        }
     }
 }
 

@@ -11,6 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
+use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
 use serde::{Deserialize, Serialize};
@@ -687,6 +688,10 @@ pub struct Timeline {
     /// the media, before the event's own chain (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub media_video_effects: BTreeMap<u64, Vec<TrackEffect>>,
+    /// What the user says about a media file (timecode, frame rate, pixel aspect, alpha...), by
+    /// media id; a media with nothing changed has no entry (older projects have none).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media_props: BTreeMap<u64, MediaProps>,
     next_id: u64,
 }
 

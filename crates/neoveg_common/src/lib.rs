@@ -10,6 +10,7 @@ pub mod i18n;
 pub mod keymap;
 pub mod keymap_sets;
 pub mod logging;
+pub mod media_props;
 pub mod pan;
 pub mod pan_crop;
 pub mod paths;

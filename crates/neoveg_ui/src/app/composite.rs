@@ -306,20 +306,27 @@ pub(super) fn composite_request(
                 };
                 let (opacity, transitions) = clip_look(e, time, cross_in);
                 let speed = velocity_of(e, track.id, settings);
+                let look = neoveg_engine::media_props::props_of(timeline, media_id);
+                // A substitute frame rate plays the picture faster or slower than the file says
+                let factor = look.rate_factor(source.fps);
                 Some(VideoClipRequest {
                     media_id,
-                    seconds: source_seconds_with(e, speed, time, source.duration),
+                    seconds: e.trim_in
+                        + (source_seconds_with(e, speed, time, source.duration) - e.trim_in)
+                            * factor,
                     source_fps: source.fps,
                     path: source.path,
                     // The sign says which way the picture runs (the decoder reads ahead with it)
                     playback_rate: edit::clamp_playback_rate(e.playback_rate)
-                        * velocity::rate_at(speed, time - e.start),
+                        * velocity::rate_at(speed, time - e.start)
+                        * factor,
                     event_opacity: opacity,
                     transitions,
                     apply_chroma: true,
                     resample: e.resample.effective(settings.resample_mode),
                     maintain_aspect_ratio: e.maintain_aspect_ratio,
                     reduce_interlace_flicker: e.reduce_interlace_flicker,
+                    media_look: look,
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
@@ -440,6 +447,10 @@ pub(super) fn has_effects(
                 .is_some_and(|chain| on(chain));
             let pan_crop_on = !e.pan_crop.is_default() || !track.motion.is_default();
             let transition_on = e.transition_in.is_some() || e.transition_out.is_some();
+            // What the user said about the media (rate, alpha, background, pixel aspect) is run by the composite path
+            let media_props_on = e
+                .media_id
+                .is_some_and(|m| timeline.media_props.contains_key(&m));
             let switch_or_resample_on = !e.adjustment
                 && (e.resample.resamples(project_resample)
                     || !e.maintain_aspect_ratio
@@ -459,6 +470,7 @@ pub(super) fn has_effects(
                 || transition_on
                 || velocity_on
                 || !track.composite_mode.is_default()
+                || media_props_on
             {
                 return true;
             }
@@ -550,6 +562,44 @@ mod tests {
             !has_effects(&tl, 9.0, ProjectResample::Disable),
             "nothing is visible then"
         );
+    }
+
+    #[test]
+    fn the_media_properties_reach_the_request_and_a_substitute_rate_changes_the_speed() {
+        use neoveg_common::media_props::{AlphaMode, MediaProps};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 2.0, 6.0);
+        track.events.push(e);
+        tl.tracks.push(track);
+        let clip_at = |tl: &Timeline, time: f64| {
+            let request = composite_request(tl, time, &settings(), &resolve).unwrap();
+            match &request.nodes[0] {
+                TrackCompositeNode::Track { clips, .. } => clips[0].clone(),
+                _ => panic!("a track node"),
+            }
+        };
+        // Nothing set: the source plays at the file's rate and the plain path is enough
+        let plain = clip_at(&tl, 4.0);
+        assert!((plain.seconds - 2.0).abs() < 1e-9 && plain.media_look.is_default());
+        assert!(!has_effects(&tl, 4.0, ProjectResample::Disable));
+        // The file is 25 fps; played at 50 fps the source runs twice as fast
+        let props = MediaProps {
+            substitute_fps: Some(50.0),
+            alpha: AlphaMode::Premultiplied,
+            pixel_aspect: 1.5,
+            ..MediaProps::default()
+        };
+        tl.media_props.insert(1, props.clone());
+        let fast = clip_at(&tl, 4.0);
+        assert!((fast.seconds - 4.0).abs() < 1e-9, "{}", fast.seconds);
+        assert!((fast.playback_rate - 2.0).abs() < 1e-9);
+        assert_eq!(fast.media_look, props);
+        assert!(has_effects(&tl, 4.0, ProjectResample::Disable));
+        // The trim-in is a point of the file, so only the time after it is sped up
+        tl.tracks[0].events[0].trim_in = 1.0;
+        let trimmed = clip_at(&tl, 4.0);
+        assert!((trimmed.seconds - 5.0).abs() < 1e-9, "{}", trimmed.seconds);
     }
 
     #[test]

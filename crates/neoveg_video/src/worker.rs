@@ -81,6 +81,8 @@ pub struct VideoClipRequest {
     pub maintain_aspect_ratio: bool,
     /// Reduce Interlace Flicker switch: vertical `[1, 2, 1] / 4` anti-flicker prefilter on the source picture.
     pub reduce_interlace_flicker: bool,
+    /// What the user said about the media (alpha, background, pixel aspect), applied to each decoded frame.
+    pub media_look: neoveg_common::media_props::MediaProps,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -660,6 +662,14 @@ fn hash_clip(h: &mut impl Hasher, clip: &VideoClipRequest, max_width: u32) {
     }
     clip.maintain_aspect_ratio.hash(h);
     clip.reduce_interlace_flicker.hash(h);
+    hash_media_look(h, &clip.media_look);
+}
+
+/// The parts of the media properties that change the picture.
+fn hash_media_look(h: &mut impl Hasher, look: &neoveg_common::media_props::MediaProps) {
+    look.alpha.hash(h);
+    look.background.hash(h);
+    look.pixel_aspect.to_bits().hash(h);
 }
 
 fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
@@ -806,8 +816,13 @@ fn decode_clip_raw(
             }
         }
     };
-    if clip.reduce_interlace_flicker {
-        Ok(Arc::new(crate::composite::reduce_interlace_flicker(&raw)))
+    let raw = if clip.reduce_interlace_flicker {
+        Arc::new(crate::composite::reduce_interlace_flicker(&raw))
+    } else {
+        raw
+    };
+    if clip.media_look.changes_picture() {
+        Ok(Arc::new(crate::media_look::apply(&raw, &clip.media_look)))
     } else {
         Ok(raw)
     }
@@ -1271,6 +1286,7 @@ mod tests {
             resample: ClipResample::Disable,
             maintain_aspect_ratio: true,
             reduce_interlace_flicker: false,
+            media_look: Default::default(),
         };
         let mut state = WorkerState::new();
         let chroma = ChromaKey::default();
@@ -1346,6 +1362,7 @@ mod tests {
                     resample: ClipResample::Disable,
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
+                    media_look: Default::default(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1415,6 +1432,7 @@ mod tests {
                     resample: ClipResample::Disable,
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
+                    media_look: Default::default(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1473,6 +1491,7 @@ mod tests {
                         },
                         maintain_aspect_ratio: true,
                         reduce_interlace_flicker: false,
+                        media_look: Default::default(),
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -1542,6 +1561,7 @@ mod tests {
             resample: ClipResample::Disable,
             maintain_aspect_ratio: true,
             reduce_interlace_flicker: false,
+            media_look: Default::default(),
         };
         let track = |path: &Path, sized: bool| TrackCompositeNode::Track {
             clips: vec![clip(path)],
@@ -1975,6 +1995,7 @@ mod tests {
                         resample: ClipResample::Disable,
                         maintain_aspect_ratio,
                         reduce_interlace_flicker,
+                        media_look: Default::default(),
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -2051,6 +2072,7 @@ mod tests {
                     resample: ClipResample::OpticalFlow,
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
+                    media_look: Default::default(),
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
