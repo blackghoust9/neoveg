@@ -59,6 +59,10 @@ class StagedPackage(unittest.TestCase):
         for relative in (
             "third_party/filmcraft/LICENSE-MIT",
             "third_party/flat-color-icons/LICENSE-MIT",
+            "third_party/lucide/LICENSE",
+            "third_party/phosphor-icons/LICENSE-MIT",
+            "third_party/remix-icon/LICENSE-APACHE",
+            "third_party/material-symbols/LICENSE-APACHE",
             "third_party/nnnoiseless/COPYING",
         ):
             self.assertTrue((self.stage / relative).is_file(), relative)

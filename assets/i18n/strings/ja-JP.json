@@ -1270,5 +1270,9 @@
   "agora há pouco": "たった今",
   "há {} min": "{} 分前",
   "há {} h": "{} 時間前",
-  "há {} dia(s)": "{} 日前"
+  "há {} dia(s)": "{} 日前",
+  "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "ツール、カーソル、編集、インターフェースウィンドウ用の BMP アイコン",
+  "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "トランスポートバー、メトロノーム、カーブ、エンベロープ用の BMP アイコン",
+  "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "メディア、オーディオ/ビデオトラック、ミキシングコンソール用の BMP アイコン",
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "タイムライン、トランジション、フレーム、オーディオゲイン用の BMP アイコン"
 }

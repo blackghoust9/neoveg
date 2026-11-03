@@ -1270,5 +1270,9 @@
   "agora há pouco": "刚刚",
   "há {} min": "{} 分钟前",
   "há {} h": "{} 小时前",
-  "há {} dia(s)": "{} 天前"
+  "há {} dia(s)": "{} 天前",
+  "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "工具、光标、剪辑与界面窗口的 BMP 图标",
+  "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "播放控制栏、节拍器、曲线与包络的 BMP 图标",
+  "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "媒体、音视频轨道与调音台的 BMP 图标",
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "时间线、转场、帧与音频增益的 BMP 图标"
 }

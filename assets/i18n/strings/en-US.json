@@ -1270,5 +1270,9 @@
   "agora há pouco": "just now",
   "há {} min": "{} min ago",
   "há {} h": "{} h ago",
-  "há {} dia(s)": "{} day(s) ago"
+  "há {} dia(s)": "{} day(s) ago",
+  "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "BMP icons for tools, cursors, editing and interface windows",
+  "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "BMP icons for transport bar, metronome, curves and envelopes",
+  "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "BMP icons for media, audio/video tracks and mixing console",
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP icons for timeline, transitions, frames and audio gain"
 }

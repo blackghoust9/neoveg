@@ -1270,5 +1270,9 @@
   "agora há pouco": "только что",
   "há {} min": "{} мин назад",
   "há {} h": "{} ч назад",
-  "há {} dia(s)": "{} дн. назад"
+  "há {} dia(s)": "{} дн. назад",
+  "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "BMP-значки инструментов, курсоров, монтажа и окон интерфейса",
+  "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "BMP-значки панели транспорта, метронома, кривых и огибающих",
+  "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "BMP-значки медиафайлов, аудио/видеодорожек и микшерного пульта",
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP-значки таймлайна, переходов, кадров и усиления звука"
 }

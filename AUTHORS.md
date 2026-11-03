@@ -92,6 +92,10 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 | **`Audacity Waveform & Audio DSP Architecture`** | [`audacity/audacity`](https://github.com/audacity/audacity) | Audacity Team & Audacity Contributors | `GPL-3.0-or-later` (`GPLv3`) | Estudo arquitetural do algoritmo de amostragem multi-zoom de picos de forma de onda (`min`, `max`, `rms` em `rust-core/src/audio_peaks.rs` e `AudioWaveformRenderer.cs`) e processamento DSP (`Neoveg.AudioEngine`) |
 | **`Kdenlive / Neoveg Presets & Color Scopes`** | [`KDE/kdenlive`](https://invent.kde.org/multimedia/kdenlive) | Jean-Baptiste Mardelle, Simon Andreas Eugster & KDE Community | `GPL-3.0-only` | Coeficientes CIE Rec.601/Rec.709 (`colorconstants.h`), LUTs `.cube`, perfis de proxy e miniaturas `.webp` de transições |
 
+| **`Lucide Icons`** | [`lucide-icons/lucide`](https://github.com/lucide-icons/lucide) | Cole Bemis & Lucide Contributors | `ISC` (`MIT`) | 62 ícones monocromáticos BMP em `crates/neoveg_ui/assets/icons/`, via `scripts/fetch_and_convert_icons.py` |
+| **`Phosphor Icons`** | [`phosphor-icons/core`](https://github.com/phosphor-icons/core) | Helena Zhang & Tobias Fried | `MIT` | 20 ícones monocromáticos BMP (transporte, metrônomo, curvas) em `crates/neoveg_ui/assets/icons/` |
+| **`Remix Icon`** | [`Remix-Design/RemixIcon`](https://github.com/Remix-Design/RemixIcon) | Remix Design Studio | `Apache-2.0` | 8 ícones monocromáticos BMP (mídia, faixas, mixer) em `crates/neoveg_ui/assets/icons/` |
+| **`Material Symbols`** | [`google/material-design-icons`](https://github.com/google/material-design-icons) | Google LLC | `Apache-2.0` | 9 ícones monocromáticos BMP (timeline, transições, áudio) em `crates/neoveg_ui/assets/icons/` |
 | **`Flat Color Icons`** | [`icons8/flat-color-icons`](https://github.com/icons8/flat-color-icons) | Icons8 | `MIT` | 27 ícones coloridos opcionais (BMP) em `crates/neoveg_ui/assets/icons_color/`, via Iconify |
 
 ---

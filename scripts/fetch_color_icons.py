@@ -55,15 +55,12 @@ MAP = {
 }
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--tmp", type=Path, default=None)
-    ap.add_argument("--size", type=int, default=64)
-    args = ap.parse_args()
-    tmp = args.tmp or Path(tempfile.mkdtemp(prefix="neoveg_color_icons_"))
-    tmp.mkdir(parents=True, exist_ok=True)
+def main_with_args(tmp: Path | None = None, size: int = 64) -> int:
+    tmp_dir = tmp or Path(tempfile.mkdtemp(prefix="neoveg_color_icons_"))
+    tmp_dir.mkdir(parents=True, exist_ok=True)
     OUT.mkdir(parents=True, exist_ok=True)
-    known = {p.stem for p in (ROOT / "crates/neoveg_ui/assets/icons").glob("*.svg")}
+    icons_dir = ROOT / "crates" / "neoveg_ui" / "assets" / "icons"
+    known = {p.stem for p in icons_dir.glob("*.bmp")} | {p.stem for p in icons_dir.glob("*.svg")}
     for ours, theirs in MAP.items():
         if ours not in known:
             print(f"ignorado (não existe no Neoveg): {ours}", file=sys.stderr)
@@ -74,11 +71,19 @@ def main() -> int:
         if "<svg" not in svg:
             print(f"falhou: {url}", file=sys.stderr)
             return 1
-        (tmp / f"{ours}.svg").write_text(svg, encoding="utf-8")
-        im = render_svg_rgba(svg, args.size, "#000000")
+        (tmp_dir / f"{ours}.svg").write_text(svg, encoding="utf-8")
+        im = render_svg_rgba(svg, size, "#000000")
         save_bmp_32bit_alpha(im, OUT / f"{ours}.bmp")
-    print(f"{len(MAP)} BMP em {OUT} (SVG de origem em {tmp})")
+    print(f"{len(MAP)} BMP em {OUT} (SVG de origem em {tmp_dir})")
     return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tmp", type=Path, default=None)
+    ap.add_argument("--size", type=int, default=64)
+    args = ap.parse_args()
+    return main_with_args(args.tmp, args.size)
 
 
 if __name__ == "__main__":

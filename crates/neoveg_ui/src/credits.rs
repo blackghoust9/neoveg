@@ -37,6 +37,34 @@ pub const CREDITS: &[Credit] = &[
         url: "https://github.com/storytold/filmcraft",
     },
     Credit {
+        name: "Lucide Icons",
+        used_for: "Ícones BMP de ferramentas, cursores, edição e janelas da interface",
+        authors: "Cole Bemis and Lucide Contributors",
+        license: "ISC",
+        url: "https://lucide.dev",
+    },
+    Credit {
+        name: "Phosphor Icons",
+        used_for: "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes",
+        authors: "Helena Zhang and Tobias Fried",
+        license: "MIT",
+        url: "https://phosphoricons.com",
+    },
+    Credit {
+        name: "Remix Icon",
+        used_for: "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem",
+        authors: "Remix Design Studio",
+        license: "Apache-2.0",
+        url: "https://remixicon.com",
+    },
+    Credit {
+        name: "Material Symbols",
+        used_for: "Ícones BMP de timeline, transições, quadros e ganho de áudio",
+        authors: "Google LLC",
+        license: "Apache-2.0",
+        url: "https://fonts.google.com/icons",
+    },
+    Credit {
         name: "Flat Color Icons",
         used_for: "Ícones coloridos opcionais da interface (27 imagens BMP derivadas)",
         authors: "Icons8",
@@ -235,6 +263,35 @@ mod tests {
             assert!(repo_file(doc).contains("nnnoiseless"), "{doc}");
         }
         assert!(repo_file("build_portable.py").contains("third_party/nnnoiseless/COPYING"));
+    }
+
+    #[test]
+    fn open_source_bmp_icon_libraries_are_credited_and_their_licences_ship() {
+        for (name, licence_path) in [
+            ("Lucide Icons", "third_party/lucide/LICENSE"),
+            ("Phosphor Icons", "third_party/phosphor-icons/LICENSE-MIT"),
+            ("Remix Icon", "third_party/remix-icon/LICENSE-APACHE"),
+            (
+                "Material Symbols",
+                "third_party/material-symbols/LICENSE-APACHE",
+            ),
+        ] {
+            let entry = CREDITS
+                .iter()
+                .find(|c| c.name == name)
+                .unwrap_or_else(|| panic!("missing credit for {name}"));
+            assert!(!entry.license.is_empty());
+            assert!(!repo_file(licence_path).trim().is_empty(), "{licence_path}");
+            assert!(repo_file("AUTHORS.md").contains(name), "AUTHORS.md: {name}");
+            assert!(
+                repo_file("third_party/README.md").contains(name),
+                "third_party/README.md: {name}"
+            );
+            assert!(
+                repo_file("build_portable.py").contains(licence_path),
+                "build_portable.py: {licence_path}"
+            );
+        }
     }
 
     #[test]

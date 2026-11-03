@@ -1270,5 +1270,9 @@
   "agora há pouco": "gerade eben",
   "há {} min": "vor {} Min.",
   "há {} h": "vor {} Std.",
-  "há {} dia(s)": "vor {} Tag(en)"
+  "há {} dia(s)": "vor {} Tag(en)",
+  "Ícones BMP de ferramentas, cursores, edição e janelas da interface": "BMP-Symbole für Werkzeuge, Cursor, Bearbeitung und Fenster",
+  "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes": "BMP-Symbole für Transportleiste, Metronom, Kurven und Hüllkurven",
+  "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem": "BMP-Symbole für Medien, Audio-/Videospuren und Mischpult",
+  "Ícones BMP de timeline, transições, quadros e ganho de áudio": "BMP-Symbole für Timeline, Übergänge, Frames und Audioverstärkung"
 }
