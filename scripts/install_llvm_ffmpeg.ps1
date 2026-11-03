@@ -1,7 +1,7 @@
 # Instala o LLVM 19 e o FFmpeg 7.1 (LGPL, compartilhado) que a feature `ffmpeg` do Neoveg exige no Windows.
 # Rode no PowerShell COMO ADMINISTRADOR. Baixa dos enderecos oficiais, confere o SHA256, instala o LLVM em
 # Program Files\LLVM, extrai o FFmpeg em C:\Tools e define FFMPEG_DIR e LIBCLANG_PATH para a maquina
-# (nao mexe no PATH). O LLVM tem de ser o 19: o 22 ou mais novo quebra a `ffmpeg-sys-next` 7.1.
+# (nao mexe no PATH). Fixa o LLVM 19.1.7 por SHA256 (com `ffmpeg-next` 9.x / `bindgen` 0.73, LLVM 22+ tambem compila).
 # O endereco do FFmpeg e uma versao fixa da BtbN; se ela sair do ar, troque a URL e o SHA256 abaixo.
 # Depois use scripts\cargo-ffmpeg.ps1 para compilar e testar.
 $ErrorActionPreference = 'Stop'

@@ -18,12 +18,12 @@ rustup component add llvm-tools-preview
 cargo install cargo-llvm-cov --locked      # cargo llvm-cov --workspace
 ```
 
-Optional, only for native video decoding (`cargo build -p neoveg_video --features ffmpeg`). `ffmpeg-next` 7.1 needs three things:
+Optional, only for native video decoding (`cargo build -p neoveg_video --features ffmpeg`). `ffmpeg-next` 9.x needs three things:
 
 | Requirement | Version | Windows install | Environment |
 | :--- | :--- | :--- | :--- |
-| FFmpeg **shared** build with `include/` and `lib/` | **7.1.x** (not 8/9) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` | `FFMPEG_DIR` = the extracted `ffmpeg-n7.1...-win64-lgpl-shared-7.1` folder |
-| libclang (bindgen) | **LLVM 19.x** (LLVM 22+ makes `ffmpeg-sys-next` 7.1.3 fail with `attempt to compute 1_usize - N_usize`) | `winget install --id LLVM.LLVM --exact --version 19.1.7` | `LIBCLANG_PATH` = `C:\Program Files\LLVM\bin` |
+| FFmpeg **shared** build with `include/` and `lib/` | **7.1.x** (7.1–8.x supported by `ffmpeg-next` 9.x) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` | `FFMPEG_DIR` = the extracted `ffmpeg-n7.1...-win64-lgpl-shared-7.1` folder |
+| libclang (bindgen) | **LLVM 19+** (LLVM 19–22+ all work with `ffmpeg-sys-next` 9.0.1 / `bindgen` 0.73) | `winget install --id LLVM.LLVM --exact` | `LIBCLANG_PATH` = `C:\Program Files\LLVM\bin` |
 | `ffmpeg`'s `bin/` DLLs on `PATH` at run time | 7.1.x | added by the winget package | - |
 
 Linux: `sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libclang-dev pkg-config`. macOS: `brew install ffmpeg@7 llvm pkg-config`.

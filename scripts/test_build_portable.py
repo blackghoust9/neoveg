@@ -199,5 +199,32 @@ class QaReport(unittest.TestCase):
         self.assertTrue(build_portable.QA_JS.read_text(encoding="utf-8").startswith("window.NEOVEG_QA_REPORT"))
 
 
+class FfmpegEnvironment(unittest.TestCase):
+    """`ffmpeg_environment` accepts LLVM 19 and 22+ (`ffmpeg-next` 9.x / `bindgen` 0.73) and rejects missing headers."""
+
+    def test_accepts_llvm_19_and_llvm_22_plus(self) -> None:
+        case = SCRATCH / "ffmpeg_env_case"
+        (case / "ffmpeg" / "include").mkdir(parents=True, exist_ok=True)
+        (case / "llvm").mkdir(parents=True, exist_ok=True)
+        old_env = (os.environ.get("FFMPEG_DIR"), os.environ.get("LIBCLANG_PATH"))
+        old_major = build_portable.libclang_major
+        os.environ["FFMPEG_DIR"] = str(case / "ffmpeg")
+        os.environ["LIBCLANG_PATH"] = str(case / "llvm")
+        try:
+            for version in (19, 20, 22, 23):
+                build_portable.libclang_major = lambda _folder, v=version: v  # type: ignore[assignment]
+                self.assertEqual(build_portable.ffmpeg_environment(), [], f"LLVM {version} rejected")
+            build_portable.libclang_major = lambda _folder: 14  # type: ignore[assignment]
+            self.assertEqual(len(build_portable.ffmpeg_environment()), 1)
+        finally:
+            build_portable.libclang_major = old_major  # type: ignore[assignment]
+            for key, value in zip(("FFMPEG_DIR", "LIBCLANG_PATH"), old_env):
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            shutil.rmtree(case, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

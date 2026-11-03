@@ -6,11 +6,11 @@
 # O que ele acerta (conferido em 30/10/2026, `cargo check` e `clippy` da feature passaram):
 #  - FFMPEG_DIR e LIBCLANG_PATH vêm da sessão, do usuário ou da máquina, nessa ordem
 #    (install_llvm_ffmpeg.ps1 as define para a máquina);
-#  - o clang do LLVM 19 vai na frente do PATH: um clang do LLVM-MinGW no PATH faz o bindgen ler
+#  - o clang de LIBCLANG_PATH (LLVM 19+) vai na frente do PATH: um clang do LLVM-MinGW no PATH faz o bindgen ler
 #    os cabeçalhos do MinGW e falhar em time.h;
 #  - INCLUDE aponta para o Visual Studio e o SDK do Windows: sem ele o libclang não acha errno.h;
 #  - as DLLs do FFmpeg 7 entram no PATH desta sessão, para os testes carregarem as bibliotecas.
-param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CargoArgs)
+# Sem param(): $args repassa -p, -j, -- e -D direto ao cargo (inclusive via `powershell -File`).
 $ErrorActionPreference = 'Stop'
 
 function Get-Setting($name) {
@@ -38,5 +38,5 @@ $env:CLANG_PATH = "$libclang\clang.exe"
 $env:INCLUDE = "$msvc\include;$sdk\ucrt;$sdk\shared;$sdk\um"
 $env:Path = "$libclang;$ffmpeg\bin;$env:Path"
 
-& cargo @CargoArgs
+& cargo @args
 exit $LASTEXITCODE

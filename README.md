@@ -143,8 +143,8 @@ A única dependência **obrigatória** é a toolchain oficial do Rust. Não são
 | Visual Studio com *Desktop development with C++* (linker MSVC) | 2022 ou 2026 | **Sim, no Windows** | Linker do alvo `x86_64-pc-windows-msvc` | instalador do Visual Studio / Build Tools |
 | `llvm-tools-preview` | da toolchain | Opcional | Relatórios de cobertura | `rustup component add llvm-tools-preview` |
 | `cargo-llvm-cov` | 0.9+ | Opcional | `cargo llvm-cov --workspace` | `cargo install cargo-llvm-cov --locked` |
-| FFmpeg **compartilhado** com `include/` e `lib/` | **7.1.x** (não 8/9) | Só para `--features ffmpeg` | Decodificação de vídeo (`ffmpeg-next` 7.1) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` |
-| LLVM / `libclang` | **19.x** (22+ quebra a `ffmpeg-sys-next` 7.1.3) | Só para `--features ffmpeg` | `bindgen` gera as ligações do FFmpeg | `winget install --id LLVM.LLVM --exact --version 19.1.7` |
+| FFmpeg **compartilhado** com `include/` e `lib/` | **7.1.x** (suportado pela `ffmpeg-next` 9.x) | Só para `--features ffmpeg` | Decodificação de vídeo (`ffmpeg-next` 9.x) | `winget install --id BtbN.FFmpeg.LGPL.Shared.7.1 --exact` |
+| LLVM / `libclang` | **19+** (19 a 22+ funcionam com `ffmpeg-sys-next` 9.0.1 / `bindgen` 0.73) | Só para `--features ffmpeg` | `bindgen` gera as ligações do FFmpeg | `winget install --id LLVM.LLVM --exact` |
 | `poppler` (`pdftoppm`) | qualquer | Opcional | Ver as páginas dos manuais como imagem (figuras e diagramas): sem ele só o texto dos PDFs é lido, com `pypdf`. As páginas renderizadas ficam fora do repositório (AGENTS.md, seções 28 e 37) | `winget install --id oschwartz10612.Poppler --exact` |
 
 Variáveis de ambiente para o build com FFmpeg (Windows, escopo do usuário; abra um terminal novo depois de defini-las):
@@ -165,7 +165,7 @@ Resumo do que o projeto usa hoje, para reproduzir o ambiente em outra máquina W
 - [x] Visual Studio 2026 / Build Tools com *Desktop development with C++* (linker MSVC)
 - [x] `cargo-llvm-cov` 0.9.1 (`cargo install cargo-llvm-cov --locked`)
 - [x] FFmpeg 7.1.x compartilhado LGPL (`BtbN.FFmpeg.LGPL.Shared.7.1`) com `FFMPEG_DIR` apontando para a pasta extraída
-- [x] LLVM / `libclang` 19.x com `LIBCLANG_PATH=C:\Program Files\LLVM\bin` (o LLVM 22+ quebra a `ffmpeg-sys-next`)
+- [x] LLVM / `libclang` 19+ com `LIBCLANG_PATH=C:\Program Files\LLVM\bin` (a `ffmpeg-next` 9.x / `bindgen` 0.73 aceita LLVM 19 até 22+)
 - [x] Scripts de ambiente para a feature `ffmpeg` (Windows): `scripts/install_llvm_ffmpeg.ps1` (como administrador: baixa e confere o SHA256 do LLVM 19.1.7 e do FFmpeg 7.1.5 LGPL, instala e define `FFMPEG_DIR` e `LIBCLANG_PATH`) e `scripts/cargo-ffmpeg.ps1` (roda o cargo com o clang 19 na frente do PATH, o `INCLUDE` do Visual Studio e as DLLs do FFmpeg; lê as variáveis da sessão, do usuário ou da máquina). Ex.: `.\scripts\cargo-ffmpeg.ps1 test -p neoveg_ui --features ffmpeg -j 2 -- --test-threads=1`. Vieram da pasta do Drive «Neoveg - instaladores e pacotes»; o instalador ainda não foi executado
 - [x] Git e GitHub Desktop (fluxo de branches descrito no AGENTS.md, seção 11)
 - [x] Nenhum dos itens legados (.NET SDK, CMake, Python) é necessário para o workspace Rust (o Python só roda o empacotamento opcional, `build_portable.py`, e os scripts de `scripts/`)
@@ -349,7 +349,7 @@ O que ficou em aberto depois da rodada de edição (Fases 2 e 3), do pacote do W
 
 **Build, pacote e ambiente**
 - [x] **Ícone `.ico` do executável no `build.rs`** (feito: `crates/neoveg_ui/build.rs` agora desenha a marca `"Nv"` em Rust `std` puro nas sete resoluções de `16` a `256` px, grava `$OUT_DIR/app_icon.ico` e o embute via `winres`, mantendo `*.ico` ignorado no `.gitignore` sem exigir Python/Pillow nem o `build_portable.py` antes de um `cargo build` direto; testado à parte com `rustc --test` e conferido no recurso PE `.rsrc` de `neoveg.exe`): o `.ico` do programa não era versionado (`*.ico` está no `.gitignore`); o `build_portable.py` o gerava, mas um `cargo build` direto saía sem ícone.
-- [ ] O vídeo exige LLVM 19.x para compilar (`ffmpeg-sys-next` 7.1.x quebra com 22 ou mais novo). Avaliar subir a crate `ffmpeg-next` (a 9.x existe, mas anuncia compatibilidade com o FFmpeg 4) em um teste isolado, ou fixar o LLVM 19 no fluxo de contribuição; o `build_portable.py` já recusa LLVM 22+ antes de compilar.
+- [x] **Subir `ffmpeg-next` para 9.x e liberar LLVM 22+** (feito: validado em crate isolado e na suíte de `neoveg_video --features ffmpeg`; a descrição histórica `"FFmpeg 4 compatible fork"` no `Cargo.toml` da crate vem de 2020, enquanto a `ffmpeg-next` 9.0.0 detecta automaticamente o FFmpeg de 3.4 a 8.0+ — incluindo o FFmpeg 7.1.5 LGPL compartilhado do projeto —, corrige o `Send` não atômico em `Context` (`Rc` → `Arc`) e atualiza `ffmpeg-sys-next` para 9.0.1 com `bindgen` 0.73.2, eliminando a falha `attempt to compute 1_usize - N_usize` no LLVM 20/22+; removido o bloqueio a `LLVM >= 22` em `build_portable.py`): o vídeo exigia LLVM 19.x para compilar (`ffmpeg-sys-next` 7.1.x quebrava com 22 ou mais novo).
 - [ ] CI com `cargo build/test/clippy/llvm-cov` e empacotamento nos três sistemas (já listado acima), incluindo FFmpeg com `libx264` quando houver.
 - [x] Reduzir o tamanho e a memória do build local: `[profile.dev] debug = 0` (a ligação do binário de teste da UI estourava a memória de máquinas de 8 GB); o `target/` de depuração ficou em 2 a 3 GB. `CARGO_INCREMENTAL=0` em manutenção continua a critério de quem compila.
 - [ ] Falha intermitente de linkagem no Windows (`LNK1201`/`LNK1104`, um `.pdb` ou `.exe` de teste que não abre) depois de rebuilds seguidos: investigar antivírus e `mspdbsrv`; hoje basta apagar o `.pdb` do teste e repetir.

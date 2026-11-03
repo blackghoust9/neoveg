@@ -284,13 +284,12 @@ def ffmpeg_environment() -> List[str]:
     elif not (Path(ffmpeg_dir) / "include").is_dir():
         problems.append(f"FFMPEG_DIR has no include folder: {ffmpeg_dir}")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
     if not libclang or not Path(libclang).is_dir():
-        problems.append("LIBCLANG_PATH must point to the LLVM 19.x bin folder (LLVM 22+ breaks ffmpeg-sys-next)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
+        problems.append("LIBCLANG_PATH must point to the LLVM bin folder (containing libclang)")  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
     else:
         major = libclang_major(Path(libclang))
-        if major is not None and major >= 22:
+        if major is not None and major < 16:
             problems.append(  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
-                f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 7.1.x needs LLVM 19.x "
-                f"(it fails to compile with 22 or newer): {libclang}"
+                f"LIBCLANG_PATH points to LLVM {major}: ffmpeg-sys-next 9.x (bindgen 0.73) needs LLVM 16 or newer: {libclang}"
             )
     return problems  # type: ignore  # `problems = []` has no element type for Pylance strict to infer (it holds str only)
 
