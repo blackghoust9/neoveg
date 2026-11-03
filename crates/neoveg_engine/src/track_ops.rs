@@ -1,8 +1,10 @@
-//! Operations on a whole track: duplicating it and closing the gaps between its events. Each one
-//! returns a single [`EditCommand`], so it is one undo step.
+//! Operations on a whole track or a track selection: duplicating a track and closing the gaps
+//! between events (either between 2+ selected events on a track or across the whole track when
+//! nothing is selected). Each operation returns a single [`EditCommand`], so it is one undo step.
 
 use crate::command::EditCommand;
-use crate::timeline::{Timeline, TrackId, TIME_EPSILON};
+use crate::selection::EventRef;
+use crate::timeline::{Timeline, Track, TrackId, TIME_EPSILON};
 
 /// A copy of the track: the same controls, effects, envelopes and events (with new ids, out of any
 /// group), named "<name> (cópia)", not soloed, added after the last track. Returns the id of the copy
@@ -20,15 +22,17 @@ pub fn duplicate(timeline: &mut Timeline, track_id: TrackId) -> Option<(TrackId,
     Some((id, EditCommand::AddTrack { track }))
 }
 
-/// *Close gaps*: every event of the track moves left to meet the end of the one before it, so no
-/// empty space is left between them. The first event stays where it is, an overlap (a crossfade)
-/// is left as it is, and a locked event does not move (the ones after it close up to its end).
-/// `None` when there is nothing to close.
-pub fn close_gaps(timeline: &Timeline, track_id: TrackId) -> Option<EditCommand> {
-    let track = timeline.track(track_id)?;
-    let mut order: Vec<usize> = (0..track.events.len()).collect();
-    order.sort_by(|&a, &b| track.events[a].start.total_cmp(&track.events[b].start));
-    let mut commands = Vec::new();
+fn pack_track_events(track: &Track, indices: &[usize], commands: &mut Vec<EditCommand>) {
+    if indices.len() < 2 {
+        return;
+    }
+    let mut order = indices.to_vec();
+    order.sort_by(|&a, &b| {
+        track.events[a]
+            .start
+            .total_cmp(&track.events[b].start)
+            .then_with(|| track.events[a].id.cmp(&track.events[b].id))
+    });
     // `orig_end` and `new_end`: where the events seen so far end before and after the move;
     // `shift`: how far the one before moved (an event that overlaps it moves along with it)
     let mut ends: Option<(f64, f64)> = None;
@@ -47,8 +51,8 @@ pub fn close_gaps(timeline: &Timeline, track_id: TrackId) -> Option<EditCommand>
         if shift.abs() > TIME_EPSILON {
             let old = event.geometry();
             commands.push(EditCommand::EditEvent {
-                from_track: track_id,
-                to_track: track_id,
+                from_track: track.id,
+                to_track: track.id,
                 event_id: event.id,
                 old,
                 new: crate::timeline::EventGeometry { start, ..old },
@@ -60,10 +64,67 @@ pub fn close_gaps(timeline: &Timeline, track_id: TrackId) -> Option<EditCommand>
             new_end.max(start + event.duration),
         ));
     }
+}
+
+fn finish_commands(mut commands: Vec<EditCommand>) -> Option<EditCommand> {
     match commands.len() {
         0 => None,
         1 => commands.pop(),
         _ => Some(EditCommand::Batch(commands)),
+    }
+}
+
+/// `true` when at least one track contains two or more events present in `selected`.
+pub fn has_selected_pair(timeline: &Timeline, selected: &[EventRef]) -> bool {
+    timeline.tracks.iter().any(|track| {
+        track
+            .events
+            .iter()
+            .filter(|e| selected.contains(&(track.id, e.id)))
+            .take(2)
+            .count()
+            >= 2
+    })
+}
+
+/// *Close gaps* over an entire track: every event of `track_id` moves left to meet the end of the
+/// one before it, so no empty space is left between them. The first event stays where it is, an
+/// overlap (a crossfade) is left as it is, and a locked event does not move (the ones after it
+/// close up to its end). `None` when there is nothing to close.
+pub fn close_gaps(timeline: &Timeline, track_id: TrackId) -> Option<EditCommand> {
+    let track = timeline.track(track_id)?;
+    let indices: Vec<usize> = (0..track.events.len()).collect();
+    let mut commands = Vec::new();
+    pack_track_events(track, &indices, &mut commands);
+    finish_commands(commands)
+}
+
+/// *Close gaps* between selected events: on every track where two or more events are selected, the
+/// second and all following selected events move left toward the first selected event on that track
+/// so they border each other, leaving unselected events, overlaps, and locked events untouched.
+pub fn close_selected_gaps(timeline: &Timeline, selected: &[EventRef]) -> Option<EditCommand> {
+    let mut commands = Vec::new();
+    for track in &timeline.tracks {
+        let indices: Vec<usize> = (0..track.events.len())
+            .filter(|&i| selected.contains(&(track.id, track.events[i].id)))
+            .collect();
+        pack_track_events(track, &indices, &mut commands);
+    }
+    finish_commands(commands)
+}
+
+/// Manual-driven *Close Gaps* entry point: when no event is selected, closes all gaps on
+/// `selected_track`; otherwise closes gaps between the selected events on each track that has two
+/// or more selected events.
+pub fn close_gaps_in_scope(
+    timeline: &Timeline,
+    selected: &[EventRef],
+    selected_track: Option<TrackId>,
+) -> Option<EditCommand> {
+    if selected.is_empty() {
+        close_gaps(timeline, selected_track?)
+    } else {
+        close_selected_gaps(timeline, selected)
     }
 }
 
@@ -168,5 +229,89 @@ mod tests {
         // The first has nothing before it; the locked one stays at 4; the last closes to 5
         assert_eq!(starts(&tl, tid), vec![0.0, 4.0, 5.0]);
         assert!(close_gaps(&tl, 999).is_none());
+    }
+
+    #[test]
+    fn closing_selected_gaps_moves_only_selected_events_toward_the_first_selected() {
+        // E0 (0..1, unselected), E1 (3..5, selected), E2 (6..7, unselected),
+        // E3 (9..11, selected), E4 (10.5..12, selected, 0.5 s overlap with E3)
+        let (mut tl, mut h, tid, ids) =
+            track_with(&[(0.0, 1.0), (3.0, 2.0), (6.0, 1.0), (9.0, 2.0), (10.5, 1.5)]);
+        let single = vec![(tid, ids[1])];
+        assert!(!has_selected_pair(&tl, &single));
+        assert!(close_gaps_in_scope(&tl, &single, Some(tid)).is_none());
+
+        let selected = vec![(tid, ids[1]), (tid, ids[3]), (tid, ids[4])];
+        assert!(has_selected_pair(&tl, &selected));
+        let cmd = close_gaps_in_scope(&tl, &selected, Some(tid)).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+
+        let by_id = |id: u64| {
+            tl.track(tid)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == id)
+                .unwrap()
+                .start
+        };
+        assert_eq!(by_id(ids[0]), 0.0, "unselected event before stays put");
+        assert_eq!(by_id(ids[1]), 3.0, "first selected event stays put");
+        assert_eq!(by_id(ids[2]), 6.0, "unselected event in between stays put");
+        assert_eq!(by_id(ids[3]), 5.0, "second selected borders first selected");
+        assert_eq!(
+            by_id(ids[4]),
+            6.5,
+            "third selected keeps its 0.5 s overlap with the second"
+        );
+
+        assert!(h.undo(&mut tl));
+        assert_eq!(starts(&tl, tid), vec![0.0, 3.0, 6.0, 9.0, 10.5]);
+
+        // With an empty selection, close_gaps_in_scope closes the whole track
+        let full = close_gaps_in_scope(&tl, &[], Some(tid)).unwrap();
+        assert!(h.execute(&mut tl, full));
+        assert_eq!(starts(&tl, tid), vec![0.0, 1.0, 3.0, 4.0, 5.5]);
+    }
+
+    #[test]
+    fn closing_selected_gaps_packs_multiple_tracks_in_one_undo_step() {
+        let (mut tl, mut h, v_tid, v_ids) = track_with(&[(2.0, 2.0), (8.0, 3.0)]);
+        let a_track = tl.new_track(TrackKind::Audio);
+        let a_tid = a_track.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: a_track }));
+        let mut a_ids = Vec::new();
+        for &(start, duration) in &[(2.0, 2.0), (8.0, 3.0)] {
+            let id = tl.alloc_id();
+            a_ids.push(id);
+            assert!(h.execute(
+                &mut tl,
+                EditCommand::AddEvent {
+                    track_id: a_tid,
+                    event: TrackEvent {
+                        id,
+                        media_id: Some(1),
+                        start,
+                        duration,
+                        ..TrackEvent::default()
+                    },
+                }
+            ));
+        }
+
+        let selected = vec![
+            (v_tid, v_ids[0]),
+            (v_tid, v_ids[1]),
+            (a_tid, a_ids[0]),
+            (a_tid, a_ids[1]),
+        ];
+        let cmd = close_selected_gaps(&tl, &selected).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(starts(&tl, v_tid), vec![2.0, 4.0]);
+        assert_eq!(starts(&tl, a_tid), vec![2.0, 4.0]);
+
+        assert!(h.undo(&mut tl));
+        assert_eq!(starts(&tl, v_tid), vec![2.0, 8.0]);
+        assert_eq!(starts(&tl, a_tid), vec![2.0, 8.0]);
     }
 }

@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "Réduire le scintillement",
   "Reduzir cintilação do entrelaçamento": "Réduire le scintillement entrelacé",
   "Vale só para eventos de vídeo desbloqueados": "S’applique uniquement aux événements vidéo déverrouillés",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Déjà pris en compte : résolution, cadence d’images, rééchantillonnage et fréquence d’échantillonnage. Les autres options sont enregistrées dans le projet et seront appliquées au rendu dans les prochaines versions."
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Déjà pris en compte : résolution, cadence d’images, rééchantillonnage et fréquence d’échantillonnage. Les autres options sont enregistrées dans le projet et seront appliquées au rendu dans les prochaines versions.",
+  "Divisão inteligente": "Division intelligente",
+  "Fluxo de deformação": "Flux de déformation",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "Sélectionnez deux événements ou plus sur une piste pour fermer les espaces entre eux",
+  "Espaços fechados entre os eventos selecionados": "Espaces fermés entre les événements sélectionnés",
+  "Não há espaços para fechar entre os eventos selecionados": "Aucun espace à fermer entre les événements sélectionnés",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "Définissez une sélection temporelle sur la partie à retirer avec la division intelligente",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "Division intelligente appliquée avec transition de flux de déformation",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "Sélectionnez un événement vidéo déverrouillé couvrant toute la sélection temporelle"
 }

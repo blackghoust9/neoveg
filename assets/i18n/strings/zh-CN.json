@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "减少闪烁",
   "Reduzir cintilação do entrelaçamento": "减少隔行扫描闪烁",
   "Vale só para eventos de vídeo desbloqueados": "仅适用于未锁定的视频事件",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "当前已生效：分辨率、帧率、重采样和采样率。其余选项保存在项目中，将在后续版本中用于渲染。"
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "当前已生效：分辨率、帧率、重采样和采样率。其余选项保存在项目中，将在后续版本中用于渲染。",
+  "Divisão inteligente": "智能分割",
+  "Fluxo de deformação": "变形流",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "请在轨道上选择两个或多个事件以闭合它们之间的间隙",
+  "Espaços fechados entre os eventos selecionados": "已闭合所选事件之间的间隙",
+  "Não há espaços para fechar entre os eventos selecionados": "所选事件之间没有可闭合的间隙",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "请在要通过智能分割移除的片段上设置时间选区",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "已应用带变形流转场的智能分割",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "请选择一个完整包含整个时间选区的未锁定视频事件"
 }

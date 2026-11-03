@@ -211,6 +211,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditRippleDelete, &["Ctrl+Delete"]),
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
+    (Command::EditSmartSplit, &["Alt+S"]),
     (Command::EditCut, &["Ctrl+X", "Shift+Delete"]),
     (Command::EditCopy, &["Ctrl+C", "Ctrl+Insert"]),
     (Command::EditPaste, &["Ctrl+V", "Shift+Insert"]),

@@ -32,6 +32,7 @@ pub const PUSH: &str = "push";
 pub const PAGE_ROLL: &str = "page_roll";
 pub const PAGE_PEEL: &str = "page_peel";
 pub const GRADIENT_WIPE: &str = "gradient_wipe";
+pub const WARP_FLOW: &str = "warp_flow";
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -370,6 +371,11 @@ pub fn transitions() -> &'static [EffectSpec] {
                     },
                 ]),
             },
+            EffectSpec {
+                id: WARP_FLOW,
+                label: "Fluxo de deformação",
+                params: &[],
+            },
         ]
     })
 }
@@ -482,6 +488,8 @@ pub enum Resolved {
         softness: f32,
         invert: bool,
     },
+    /// Motion-compensated optical-flow morph between the outgoing clip and the incoming clip.
+    WarpFlow,
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -553,6 +561,7 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
             softness: v("softness"),
             invert: v("invert") >= 0.5,
         },
+        WARP_FLOW => Resolved::WarpFlow,
         _ => return None,
     })
 }
@@ -607,7 +616,7 @@ pub fn split_extent(center: f32, size: f32) -> f32 {
 /// `true` for the transitions that draw the clip before the one they reveal (the outgoing layer).
 /// With no clip before, they run on the incoming layer alone, as if the outgoing one were empty.
 pub fn needs_outgoing(kind: &str) -> bool {
-    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL)
+    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL | WARP_FLOW)
 }
 
 /// Where a point is along the way of a transition that enters from `edge` (see [`squeeze_edge`]):
@@ -698,6 +707,12 @@ pub fn apply2(
         return incoming.clone();
     }
     let outgoing = outgoing.filter(|o| o.width == width && o.height == height);
+    if matches!(t, Resolved::WarpFlow) {
+        return match outgoing {
+            Some(out) => crate::optical_flow::interpolate_frames(out, incoming, progress),
+            None => apply(incoming, t, progress),
+        };
+    }
     // A roll or a peel with no clip before still uncovers the picture the way a page would: the
     // page is taken as an opaque sheet and only what it leaves free shows
     let ghost_page =
@@ -840,7 +855,7 @@ fn along(u: f32, v: f32, aspect: f32, degrees: f32) -> f32 {
 /// How much of the layer is visible at `(u, v)` for the mask transitions.
 fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
     match *t {
-        Resolved::Dissolve => progress,
+        Resolved::Dissolve | Resolved::WarpFlow => progress,
         Resolved::LinearWipe { angle, softness } => {
             reveal(along(u, v, aspect, angle), progress, softness)
         }
@@ -1283,7 +1298,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 16);
+        assert_eq!(transitions().len(), 17);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {
@@ -1487,5 +1502,46 @@ mod tests {
         assert_ne!(key(&base), key(&other));
         assert_ne!(key(&base), key(&third));
         assert_eq!(key(&base), key(&base.clone()));
+    }
+
+    #[test]
+    fn warp_flow_morphs_between_outgoing_and_incoming_with_optical_flow() {
+        assert!(needs_outgoing(WARP_FLOW));
+        assert_eq!(spec(WARP_FLOW).unwrap().params.len(), 0);
+        let warp = resolve(WARP_FLOW, &BTreeMap::new()).unwrap();
+        assert_eq!(warp, Resolved::WarpFlow);
+
+        let paint_disk = |cx: i32, cy: i32| {
+            let (w, h) = (64usize, 48usize);
+            let mut f = FrameBuffer::solid(w as u32, h as u32, [20, 24, 30, 255]);
+            for y in 0..h {
+                for x in 0..w {
+                    let dx = x as i32 - cx;
+                    let dy = y as i32 - cy;
+                    if dx * dx + dy * dy <= 64 {
+                        let i = (y * w + x) * 4;
+                        f.rgba[i..i + 4].copy_from_slice(&[240, 220, 180, 255]);
+                    }
+                }
+            }
+            f
+        };
+        let out = paint_disk(20, 24);
+        let inc = paint_disk(28, 24);
+
+        assert_eq!(apply2(Some(&out), &inc, &warp, 0.0), out);
+        assert_eq!(apply2(Some(&out), &inc, &warp, 1.0), inc);
+
+        // At midpoint, optical flow warps the disk toward x = 24 instead of leaving two half-dim ghosts
+        let mid = apply2(Some(&out), &inc, &warp, 0.5);
+        assert!(
+            mid.pixel(24, 24)[0] > 200,
+            "midpoint should morph the bright subject to the intermediate position: {:?}",
+            mid.pixel(24, 24)
+        );
+
+        // Without an outgoing clip, WarpFlow falls back cleanly to a dissolve fade
+        let solo = apply2(None, &inc, &warp, 0.5);
+        assert!((i32::from(solo.pixel(28, 24)[3]) - 128).abs() <= 1);
     }
 }

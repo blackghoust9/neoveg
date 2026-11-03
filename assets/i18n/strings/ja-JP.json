@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "フリッカーを低減",
   "Reduzir cintilação do entrelaçamento": "インターレースフリッカーを低減",
   "Vale só para eventos de vídeo desbloqueados": "ロックされていないビデオイベントにのみ適用されます",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "現在有効な設定: 解像度、フレームレート、リサンプリング、サンプルレート。その他の設定はプロジェクトに保存され、今後のバージョンでレンダリングに反映されます。"
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "現在有効な設定: 解像度、フレームレート、リサンプリング、サンプルレート。その他の設定はプロジェクトに保存され、今後のバージョンでレンダリングに反映されます。",
+  "Divisão inteligente": "スマート分割",
+  "Fluxo de deformação": "ワープフロー",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "トラック上の2つ以上のイベントを選択して間のギャップを閉じます",
+  "Espaços fechados entre os eventos selecionados": "選択したイベント間のギャップを閉じました",
+  "Não há espaços para fechar entre os eventos selecionados": "選択したイベント間に閉じるギャップはありません",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "スマート分割で削除する範囲に時間選択を設定してください",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "ワープフロー・トランジションでスマート分割を適用しました",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "時間選択全体を含むロック解除済みのビデオイベントを選択してください"
 }

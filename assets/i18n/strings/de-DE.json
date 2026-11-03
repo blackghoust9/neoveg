@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "Flimmern reduzieren",
   "Reduzir cintilação do entrelaçamento": "Zeilensprungflimmern reduzieren",
   "Vale só para eventos de vídeo desbloqueados": "Gilt nur für entsperrte Video-Events",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Bereits wirksam: Auflösung, Bildrate, Resampling und Abtastrate. Die übrigen Optionen werden im Projekt gespeichert und in künftigen Versionen beim Rendern angewendet."
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Bereits wirksam: Auflösung, Bildrate, Resampling und Abtastrate. Die übrigen Optionen werden im Projekt gespeichert und in künftigen Versionen beim Rendern angewendet.",
+  "Divisão inteligente": "Intelligentes Teilen",
+  "Fluxo de deformação": "Verformungsfluss",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "Wählen Sie zwei oder mehr Ereignisse auf einer Spur aus, um die Lücken dazwischen zu schließen",
+  "Espaços fechados entre os eventos selecionados": "Lücken zwischen den ausgewählten Ereignissen geschlossen",
+  "Não há espaços para fechar entre os eventos selecionados": "Keine Lücken zwischen den ausgewählten Ereignissen zu schließen",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "Legen Sie eine Zeitauswahl über den zu entfernenden Abschnitt für das intelligente Teilen fest",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "Intelligentes Teilen mit Verformungsfluss-Übergang angewendet",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "Wählen Sie ein entsperrtes Videoereignis aus, das die gesamte Zeitauswahl umfasst"
 }

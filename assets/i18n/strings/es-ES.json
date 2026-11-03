@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "Reducir parpadeo",
   "Reduzir cintilação do entrelaçamento": "Reducir parpadeo de entrelazado",
   "Vale só para eventos de vídeo desbloqueados": "Solo se aplica a eventos de vídeo desbloqueados",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Ya están activos en el programa: resolución, frecuencia de fotogramas, remuestreo y frecuencia de muestreo. Las demás opciones se guardan en el proyecto y se aplicarán al renderizado en próximas versiones."
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Ya están activos en el programa: resolución, frecuencia de fotogramas, remuestreo y frecuencia de muestreo. Las demás opciones se guardan en el proyecto y se aplicarán al renderizado en próximas versiones.",
+  "Divisão inteligente": "División inteligente",
+  "Fluxo de deformação": "Flujo de deformación",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "Seleccione dos o más eventos en una pista para cerrar los espacios entre ellos",
+  "Espaços fechados entre os eventos selecionados": "Espacios cerrados entre los eventos seleccionados",
+  "Não há espaços para fechar entre os eventos selecionados": "No hay espacios para cerrar entre los eventos seleccionados",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "Defina una selección de tiempo sobre el tramo a eliminar en la división inteligente",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "División inteligente aplicada con transición de flujo de deformación",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "Seleccione un evento de vídeo desbloqueado que contenga toda la selección de tiempo"
 }

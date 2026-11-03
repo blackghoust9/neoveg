@@ -255,11 +255,12 @@ pub(super) fn composite_request(
         if track_state.muted {
             continue;
         }
-        let crossfades = if settings.auto_crossfade {
-            find_crossfades(&track.events)
-        } else {
-            Vec::new()
-        };
+        let crossfades =
+            if settings.auto_crossfade || track.events.iter().any(|e| e.transition_in.is_some()) {
+                find_crossfades(&track.events)
+            } else {
+                Vec::new()
+            };
         let mut active: Vec<&TrackEvent> = track
             .events
             .iter()
@@ -268,11 +269,15 @@ pub(super) fn composite_request(
         active.sort_by(|a, b| a.start.total_cmp(&b.start));
         // Adjustment events of this track act on the tracks below it, so they go before its own layer
         for e in active.iter().filter(|e| e.adjustment) {
-            let cross_in = crossfades
-                .iter()
-                .filter(|c| c.later == e.id)
-                .map(Crossfade::length)
-                .fold(0.0, f64::max);
+            let cross_in = if settings.auto_crossfade || e.transition_in.is_some() {
+                crossfades
+                    .iter()
+                    .filter(|c| c.later == e.id)
+                    .map(Crossfade::length)
+                    .fold(0.0, f64::max)
+            } else {
+                0.0
+            };
             let (opacity, _) = clip_look(e, time, cross_in);
             nodes.push(TrackCompositeNode::Adjust {
                 effects: effects_for(
@@ -291,11 +296,15 @@ pub(super) fn composite_request(
             .filter_map(|e| {
                 let media_id = e.media_id?;
                 let source = resolve(media_id)?;
-                let cross_in = crossfades
-                    .iter()
-                    .filter(|c| c.later == e.id)
-                    .map(Crossfade::length)
-                    .fold(0.0, f64::max);
+                let cross_in = if settings.auto_crossfade || e.transition_in.is_some() {
+                    crossfades
+                        .iter()
+                        .filter(|c| c.later == e.id)
+                        .map(Crossfade::length)
+                        .fold(0.0, f64::max)
+                } else {
+                    0.0
+                };
                 let (opacity, transitions) = clip_look(e, time, cross_in);
                 let speed = velocity_of(e, track.id, settings);
                 Some(VideoClipRequest {
@@ -1367,5 +1376,33 @@ mod tests {
             inspect(&tl, ProjectResample::Disable),
             (ProjectResample::Disable, true, true)
         );
+    }
+
+    #[test]
+    fn explicit_transition_in_over_overlap_runs_even_when_auto_crossfade_is_off() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let first = event(&mut tl, 1, 0.0, 4.0);
+        let mut second = event(&mut tl, 2, 3.8, 4.0);
+        second.transition_in = Some(neoveg_engine::TrackEffect::new(
+            neoveg_video::transitions::WARP_FLOW,
+        ));
+        track.events.extend([first, second]);
+        tl.tracks.push(track);
+
+        let mut off = settings();
+        off.auto_crossfade = false;
+        let request = composite_request(&tl, 3.9, &off, &resolve).unwrap();
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("expected video track node");
+        };
+        assert_eq!(clips.len(), 2);
+        assert_eq!(clips[1].transitions.len(), 1);
+        assert_eq!(
+            clips[1].transitions[0].kind,
+            neoveg_video::transitions::WARP_FLOW
+        );
+        assert!(clips[1].transitions[0].entering);
+        assert!((clips[1].transitions[0].progress - 0.5).abs() < 1e-5);
     }
 }

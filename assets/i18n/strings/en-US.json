@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "Reduce flicker",
   "Reduzir cintilação do entrelaçamento": "Reduce interlace flicker",
   "Vale só para eventos de vídeo desbloqueados": "Applies only to unlocked video events",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "In effect now: resolution, frame rate, resampling and sample rate. The other options are saved in the project and will be applied to rendering in future versions."
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "In effect now: resolution, frame rate, resampling and sample rate. The other options are saved in the project and will be applied to rendering in future versions.",
+  "Divisão inteligente": "Smart split",
+  "Fluxo de deformação": "Warp flow",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "Select two or more events on a track to close the gaps between them",
+  "Espaços fechados entre os eventos selecionados": "Gaps closed between selected events",
+  "Não há espaços para fechar entre os eventos selecionados": "No gaps to close between selected events",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "Make a time selection over the section to remove with smart split",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "Smart split applied with warp flow transition",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "Select an unlocked video event that spans the entire time selection"
 }

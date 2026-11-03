@@ -1292,5 +1292,13 @@
   "Reduzir cintilação": "Уменьшить мерцание",
   "Reduzir cintilação do entrelaçamento": "Уменьшить мерцание чересстрочной развёртки",
   "Vale só para eventos de vídeo desbloqueados": "Применяется только к разблокированным видеособытиям",
-  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Уже действуют в программе: разрешение, частота кадров, ресемплинг и частота дискретизации. Остальные параметры сохраняются в проекте и будут применены при рендеринге в следующих версиях."
+  "Já valem no programa: resolução, taxa de quadros, reamostragem e taxa de amostragem. As demais opções ficam gravadas no projeto e serão aplicadas à renderização nas próximas versões.": "Уже действуют в программе: разрешение, частота кадров, ресемплинг и частота дискретизации. Остальные параметры сохраняются в проекте и будут применены при рендеринге в следующих версиях.",
+  "Divisão inteligente": "Умное разделение",
+  "Fluxo de deformação": "Поток деформации",
+  "Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles": "Выберите два или более событий на дорожке, чтобы закрыть промежутки между ними",
+  "Espaços fechados entre os eventos selecionados": "Промежутки между выбранными событиями закрыты",
+  "Não há espaços para fechar entre os eventos selecionados": "Нет промежутков для закрытия между выбранными событиями",
+  "Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente": "Выделите по времени участок для удаления при умном разделении",
+  "Divisão inteligente aplicada com transição de fluxo de deformação": "Умное разделение применено с переходом потока деформации",
+  "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo": "Выберите разблокированное видеособытие, полностью охватывающее выделение времени"
 }

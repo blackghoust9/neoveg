@@ -15,7 +15,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
-| Editar | 100 | 100 | 22 | 65 | 13 | 0 | 54 % |
+| Editar | 100 | 100 | 22 | 68 | 10 | 0 | 56 % |
 | Inserir | 32 | 30 | 17 | 11 | 2 | 2 | 75 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
 | **Total** | **872** | **762** | | | | | **40 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 38 feitas, 37 parciais, 36 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 38 feitas, 38 parciais, 35 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -34,7 +34,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | :--- | :--- | :--- | ---: | :--- |
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
-| P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | previsto |
+| P2 | Divisão inteligente, curar evento dividido e fechar lacunas | Editar | 3 | parcial |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
@@ -101,7 +101,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Excluir eventos ou faixas | 1 | feito | `edit.delete` e `edit.ripple_delete` | - |
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |
-| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | previsto | roteiro (README) | P2 |
+| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | parcial | divisão inteligente (`edit.smart_split`, `Alt+S`, sobreposição de 5 quadros com transição `warp_flow` e agrupamento, manual v21 p.308, 622) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, entre eventos selecionados ou na faixa inteira, manual v21 p.309) feitos; falta curar evento dividido | P2 |
 | Redimensionar eventos de ajuste ao projeto | 2 | feito | `edit.resize_adjustment_to_project` (menu Editar, menu do evento e Inspetor) | - |
 | Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar | 20 | parcial | a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução | P3 |
 | Escopo do ripple pós-edição | 4 | parcial | 3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento | P3 |

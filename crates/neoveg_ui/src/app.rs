@@ -1791,22 +1791,46 @@ impl AppState {
         }
     }
 
-    /// *Fechar espaços na faixa*: the events of the selected track meet each other.
+    /// *Fechar espaços na faixa*: closes gaps between 2+ selected events on each track, or across
+    /// the whole selected track when no event is selected.
     fn close_gaps_on_selected_track(&mut self) {
-        let Some(id) = self.selected_track else {
-            self.status = tr("Selecione uma faixa para fechar os espaços").into();
+        if self.selection.is_empty() {
+            let Some(id) = self.selected_track else {
+                self.status = tr("Selecione uma faixa para fechar os espaços").into();
+                return;
+            };
+            match neoveg_engine::track_ops::close_gaps(&self.timeline, id) {
+                Some(command) => {
+                    if self.history.execute(&mut self.timeline, command) {
+                        self.status = tr("Espaços fechados na faixa").into();
+                        self.last_frame_key = None;
+                        self.last_composite_key = None;
+                        self.restart_audio_if_playing();
+                    }
+                }
+                None => self.status = tr("Não há espaços para fechar nesta faixa").into(),
+            }
             return;
-        };
-        match neoveg_engine::track_ops::close_gaps(&self.timeline, id) {
+        }
+        let refs = self.selection.refs();
+        if !neoveg_engine::track_ops::has_selected_pair(&self.timeline, &refs) {
+            self.status =
+                tr("Selecione dois ou mais eventos em uma faixa para fechar os espaços entre eles")
+                    .into();
+            return;
+        }
+        match neoveg_engine::track_ops::close_selected_gaps(&self.timeline, &refs) {
             Some(command) => {
                 if self.history.execute(&mut self.timeline, command) {
-                    self.status = tr("Espaços fechados na faixa").into();
+                    self.status = tr("Espaços fechados entre os eventos selecionados").into();
                     self.last_frame_key = None;
                     self.last_composite_key = None;
                     self.restart_audio_if_playing();
                 }
             }
-            None => self.status = tr("Não há espaços para fechar nesta faixa").into(),
+            None => {
+                self.status = tr("Não há espaços para fechar entre os eventos selecionados").into();
+            }
         }
     }
 
@@ -1868,6 +1892,31 @@ impl AppState {
             None => ops::split_at(&mut self.timeline, self.playhead, scope),
         };
         self.apply_outcome(outcome);
+    }
+
+    fn smart_split(&mut self) {
+        let Some(range) = self.time_selection.filter(|r| !r.is_empty()) else {
+            self.status =
+                tr("Defina uma seleção de tempo sobre o trecho a remover na divisão inteligente")
+                    .into();
+            return;
+        };
+        let refs = self.selection.refs();
+        let outcome = ops::smart_split(&mut self.timeline, range, &refs, self.project.settings.fps);
+        match self.apply_outcome(outcome) {
+            Some(touched) => {
+                self.selection.set(touched);
+                self.last_composite_key = None;
+                self.status =
+                    tr("Divisão inteligente aplicada com transição de fluxo de deformação").into();
+            }
+            None => {
+                self.status = tr(
+                    "Selecione um evento de vídeo desbloqueado que contenha toda a seleção de tempo",
+                )
+                .into();
+            }
+        }
     }
 
     /// Delete: selected events, or the time selection (all tracks, or only the selected events).
@@ -2990,6 +3039,21 @@ impl AppState {
                     &self.timeline,
                     &self.selection.refs(),
                 )
+            }
+            Command::EditSmartSplit => {
+                ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
+            }
+            Command::EditCloseGaps => {
+                if self.selection.is_empty() {
+                    self.selected_track
+                        .and_then(|id| self.timeline.track(id))
+                        .is_some()
+                } else {
+                    neoveg_engine::track_ops::has_selected_pair(
+                        &self.timeline,
+                        &self.selection.refs(),
+                    )
+                }
             }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
@@ -6622,6 +6686,7 @@ impl AppState {
             }
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
+            Command::EditSmartSplit => self.smart_split(),
             Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -7855,6 +7920,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             for command in [
                 Command::EditSplit,
+                Command::EditSmartSplit,
                 Command::EditCloseGaps,
                 Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
@@ -11503,6 +11569,7 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
     {
         ui.separator();
         command_item(state, ui, Command::TrackDuplicate);
+        command_item(state, ui, Command::EditCloseGaps);
         command_item(state, ui, Command::TrackMute);
         if track.kind == TrackKind::Audio {
             command_item(state, ui, Command::TrackSolo);
@@ -11576,6 +11643,9 @@ fn event_context_menu(
         Command::EditPasteAttributes,
         Command::EditPasteAttributesSelective,
         Command::EditDelete,
+        Command::EditSplit,
+        Command::EditSmartSplit,
+        Command::EditCloseGaps,
         Command::EditGroup,
         Command::EditUngroup,
         Command::EditRemoveFromGroup,
@@ -11848,6 +11918,17 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         let tip = state.with_hint(tr(Command::EditSplit.label()), Command::EditSplit);
         if icon(ui, Icon::Split, &tip) {
             state.split_at_playhead();
+        }
+        let smart_tip =
+            state.with_hint(tr(Command::EditSmartSplit.label()), Command::EditSmartSplit);
+        if ui
+            .add_enabled_ui(state.command_enabled(Command::EditSmartSplit), |ui| {
+                icons::svg_button(ui, icons::SvgIcon::EventFx, &smart_tip, false)
+            })
+            .inner
+            .clicked()
+        {
+            state.smart_split();
         }
         let tip = state.with_hint(tr(Command::EditUndo.label()), Command::EditUndo);
         if icon(ui, Icon::Undo, &tip) {
@@ -12379,6 +12460,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if !state.selection.contains((track_id, event_id)) {
                 state.click_select((track_id, event_id));
             }
+        } else if let Some(p) = pressed {
+            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            if row >= 0.0 {
+                if let Some(track) = state.timeline.tracks.get(row as usize) {
+                    state.selected_track = Some(track.id);
+                }
+            }
         }
     }
     if response.secondary_clicked() {
@@ -12420,6 +12508,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
             }
             (None, None) => {
+                command_item(state, ui, Command::EditCloseGaps);
+                ui.separator();
                 for command in [Command::InsertMarker, Command::InsertRegion] {
                     command_item(state, ui, command);
                 }

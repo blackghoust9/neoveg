@@ -381,7 +381,7 @@ impl WorkerState {
             }
         }
         let inc = crate::composite::fit_layer_to_canvas(incoming, canvas_w, canvas_h);
-        if canvas_w * canvas_h >= 64 * 64 {
+        if !matches!(t, transitions::Resolved::WarpFlow) && canvas_w * canvas_h >= 64 * 64 {
             if let Some(gpu) = self.vfx_gpu() {
                 match gpu.process_transition2(Some(&out), &inc, t, progress) {
                     Ok(done) => return Arc::new(done),
