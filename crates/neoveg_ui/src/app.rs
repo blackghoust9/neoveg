@@ -5067,7 +5067,10 @@ impl AppState {
                 (
                     [Some(first), Some(last)],
                     labels,
-                    [tr("Primeiro quadro"), tr("Último quadro")],
+                    [
+                        tr("Primeiro quadro").to_string(),
+                        tr("Último quadro").to_string(),
+                    ],
                 )
             })
             .or_else(|| self.expanded_edge_preview());
@@ -5138,7 +5141,11 @@ impl AppState {
             labels[slot] = seconds_to_timecode(seconds, source_fps, drop_frame);
             keys[slot] = Some((PathBuf::from(&item.path), seconds));
         }
-        Some((keys, labels, [tr("Saída (A)"), tr("Entrada (B)")]))
+        Some((
+            keys,
+            labels,
+            [tr("Saída (A)").to_string(), tr("Entrada (B)").to_string()],
+        ))
     }
 
     /// Turns expanded edit mode on or off. `picked` is the edge that was double-clicked; without it
@@ -5147,7 +5154,7 @@ impl AppState {
     fn toggle_expanded_edit(&mut self, picked: Option<neoveg_engine::keytrim::Edge>) {
         if self.expanded_edit && (picked.is_none() || picked == self.trim_edge) {
             self.expanded_edit = false;
-            self.status = tr("Edição expandida encerrada");
+            self.status = tr("Edição expandida encerrada").to_string();
             return;
         }
         if let Some(edge) = picked {
@@ -5165,7 +5172,8 @@ impl AppState {
         }
         self.expanded_edit = true;
         self.status =
-            tr("Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)");
+            tr("Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)")
+                .to_string();
     }
 
     /// The files, source times and captions of the two edge frames of the event being dragged, or
@@ -6326,7 +6334,7 @@ impl AppState {
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
             self.expanded_edit = false;
-            self.status = tr("Edição expandida encerrada");
+            self.status = tr("Edição expandida encerrada").to_string();
             return;
         }
         // Esc leaves the keyboard trim mode before it can mean anything else
