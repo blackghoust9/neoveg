@@ -65,6 +65,8 @@ pub struct Preferences {
     pub quantize_audio_edits: bool,
     /// Decode videos on the graphics card when the machine can (falls back to the processor).
     pub hardware_decoding: bool,
+    /// The name the welcome screen greets; empty = the name of the operating system account.
+    pub display_name: String,
 }
 
 impl Default for Preferences {
@@ -94,6 +96,7 @@ impl Default for Preferences {
             quantize_to_frames: true,
             quantize_audio_edits: true,
             hardware_decoding: true,
+            display_name: String::new(),
         }
     }
 }

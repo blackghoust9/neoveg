@@ -212,6 +212,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
     (Command::EditSmartSplit, &["Alt+S"]),
+    (Command::EditMediaProperties, &["Ctrl+Alt+Enter"]),
     (Command::EditHeal, &["Ctrl+Alt+H"]),
     (Command::EditCut, &["Ctrl+X", "Shift+Delete"]),
     (Command::EditCopy, &["Ctrl+C", "Ctrl+Insert"]),

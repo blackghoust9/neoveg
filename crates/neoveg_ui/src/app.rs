@@ -725,6 +725,8 @@ struct AppState {
     current_layout: Option<PathBuf>,
     layout_dialog: Option<LayoutDialog>,
     organize_layouts: bool,
+    /// The list of the templates the user saved (the welcome screen opens it).
+    templates_window: crate::templates_window::TemplatesWindow,
     /// `Alt+D` (load) or `Ctrl+Alt+D` (save) was pressed: the next number picks the layout, until this time.
     layout_chord: Option<(bool, f64)>,
     /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
@@ -1567,7 +1569,8 @@ impl AppState {
             self.project.settings = defaults.clone();
         }
         if self.prefs.show_welcome_on_startup {
-            self.welcome.open_with(&defaults);
+            self.welcome
+                .open_with(&defaults, !self.prefs.recent_projects.is_empty());
         }
         detail
     }
@@ -1781,6 +1784,7 @@ impl AppState {
             current_layout: None,
             layout_dialog: None,
             organize_layouts: false,
+            templates_window: crate::templates_window::TemplatesWindow::default(),
             layout_chord: None,
             auto_ripple: false,
             trim_edge: None,
@@ -4675,6 +4679,27 @@ impl AppState {
         }
     }
 
+    /// What the header of the welcome screen says: the greeting, the version and the build date.
+    fn welcome_info(&self) -> crate::welcome::WelcomeInfo {
+        let chosen = self.prefs.display_name.trim();
+        crate::welcome::WelcomeInfo {
+            name: if chosen.is_empty() {
+                crate::welcome::account_name()
+            } else {
+                chosen.to_owned()
+            },
+            hour: neoveg_common::clock::local_hour(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            updated: env!("NEOVEG_BUILD_DATE").to_owned(),
+        }
+    }
+
+    /// The folder of the projects: where the newest recent project is, otherwise the user's
+    /// documents folder (or the home folder).
+    fn projects_folder(&self) -> std::path::PathBuf {
+        crate::welcome::projects_folder(&self.prefs.recent_projects)
+    }
+
     /// An untitled project with nothing in it and nothing to lose: a file opens right into it.
     fn is_blank_project(&self) -> bool {
         self.project_path.is_none()
@@ -7328,16 +7353,31 @@ impl NeovegApp {
             .show(ctx, &self.state.prefs.custom_templates);
         self.state.run_project_actions(actions);
 
+        for action in self
+            .state
+            .templates_window
+            .show(ctx, &self.state.prefs.custom_templates)
+        {
+            match action {
+                crate::templates_window::TemplatesAction::Delete(name) => {
+                    self.state.prefs.custom_templates.retain(|t| t.name != name);
+                    self.state.persist_preferences();
+                }
+            }
+        }
+
         if !self.state.welcome.open {
             return;
         }
         let recents =
             crate::welcome::recent_entries(&self.state.prefs.recent_projects, &|p| p.exists());
+        let info = self.state.welcome_info();
         let actions = self.state.welcome.show(
             ctx,
             &recents,
             &self.state.prefs.custom_templates,
             self.state.prefs.show_welcome_on_startup,
+            &info,
         );
         for action in actions {
             match action {
@@ -7372,8 +7412,32 @@ impl NeovegApp {
                     self.state.prefs.show_welcome_on_startup = show;
                     self.state.persist_preferences();
                 }
+                WelcomeAction::OpenProjectsFolder => {
+                    if let Err(e) = crate::external::open_folder(&self.state.projects_folder()) {
+                        self.state.status = tr_args("Não foi possível abrir a pasta: {}", &[&e]);
+                    }
+                }
+                WelcomeAction::UserSettings => self.state.show_preferences = true,
+                WelcomeAction::ResolutionPresets => self.state.templates_window.open = true,
+                WelcomeAction::CheckUpdates => {
+                    let info = self.state.welcome_info();
+                    self.state.status = tr_args(
+                        "Versão em uso: {} (de {}). Abrindo a página das versões publicadas.",
+                        &[&info.version, &info.updated],
+                    );
+                    self.open_link(crate::external::Link::Updates);
+                }
+                WelcomeAction::Learn(link) => self.open_link(link),
+                WelcomeAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                 WelcomeAction::Close => self.state.welcome.open = false,
             }
+        }
+    }
+
+    /// Opens one of the web pages of the project; the status line says when the browser would not.
+    fn open_link(&mut self, link: crate::external::Link) {
+        if let Err(e) = crate::external::open_url(&link.url()) {
+            self.state.status = tr_args("Não foi possível abrir a página: {}", &[&e]);
         }
     }
 
@@ -8466,7 +8530,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         scrolling_menu(ui, tr("Ajuda"), |ui| {
             if ui.button(tr("Tela de boas-vindas…")).clicked() {
                 let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
-                state.welcome.open_with(&defaults);
+                let has_recents = !state.prefs.recent_projects.is_empty();
+                state.welcome.open_with(&defaults, has_recents);
                 ui.close_menu();
             }
             if ui.button(tr("Visualizador de logs…")).clicked() {
@@ -8621,7 +8686,8 @@ fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
         ui.separator();
         if icons::svg_button(ui, SvgIcon::Welcome, tr("Tela de boas-vindas"), false).clicked() {
             let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
-            state.welcome.open_with(&defaults);
+            let has_recents = !state.prefs.recent_projects.is_empty();
+            state.welcome.open_with(&defaults, has_recents);
         }
         if icons::svg_button(ui, SvgIcon::Preferences, tr("Preferências"), false).clicked() {
             state.show_preferences = true;
@@ -10128,6 +10194,14 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                                 ui.selectable_value(&mut prefs.language, lang.to_string(), lang);
                             }
                         });
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Nome na saudação da tela de boas-vindas"));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut prefs.display_name)
+                                .hint_text(crate::welcome::account_name())
+                                .desired_width(160.0),
+                        );
+                    });
                     ui.horizontal(|ui| {
                         ui.label(tr("Autosave (minutos, 0 = desligado)"));
                         ui.add(egui::DragValue::new(&mut prefs.autosave_minutes).range(0..=120));

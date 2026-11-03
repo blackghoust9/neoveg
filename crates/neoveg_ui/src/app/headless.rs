@@ -1062,7 +1062,7 @@ fn demo_welcome(scratch: &Path) -> AppState {
         let _ = std::fs::write(&path, b"{}");
         s.prefs.add_recent_project(&path);
     }
-    s.welcome.open_with(&ProjectSettings::default());
+    s.welcome.open_with(&ProjectSettings::default(), true);
     s
 }
 

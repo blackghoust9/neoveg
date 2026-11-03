@@ -50,7 +50,7 @@ Cada projeto aberto tem sua aba (`*` marca alterações não salvas). Um conjunt
 
 ![Tela de boas-vindas](docs/screenshots/ui_welcome_screen.png)
 
-Ao iniciar, a tela de boas-vindas lista os **projetos recentes** (os arquivos que sumiram aparecem avisados), abre um arquivo e cria um **novo projeto** com modelo, resolução e taxa de quadros escolhidos nas listas, mais a escolha entre dois layouts de janela: edição de vídeo ou edição de áudio e mixagem. Ela se desliga em Editar > Preferências ou na própria caixa, e volta por Ajuda > Tela de boas-vindas. Arquivo > Projetos recentes tem a mesma lista.
+Ao iniciar, a tela de boas-vindas lista os **projetos recentes** (os arquivos que sumiram aparecem avisados), abre um arquivo e cria um **novo projeto** com modelo, resolução e taxa de quadros escolhidos nas listas, mais a escolha entre dois layouts de janela: edição de vídeo ou edição de áudio e mixagem. O topo traz a saudação por período do dia (bom dia, boa tarde, boa noite) com o nome da conta do sistema ou o escolhido em Preferências, a versão e a data da última atualização. Sob as duas colunas há **Abrir pasta de projetos…**, **Configurações do Usuário** (abre as preferências), **Configurar presets de resolução** (lista e exclui os modelos salvos), **Verificar atualizações** (diz a versão em uso e abre a página das versões, sem consultar a rede) e os links **Aprender** (Como usar, Atualizações, O que há de novo?, que abrem páginas do projeto no navegador). Sem projetos recentes, aparece primeiro um cartão pequeno com Novo Projeto, Abrir Projeto, Como Usar? e Sair. Ela se desliga em Editar > Preferências ou na própria caixa, e volta por Ajuda > Tela de boas-vindas. Arquivo > Projetos recentes tem a mesma lista.
 
 ### Notas e detalhes de edição
 

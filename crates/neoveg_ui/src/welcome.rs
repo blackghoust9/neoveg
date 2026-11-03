@@ -6,6 +6,7 @@
 //! window layouts to choose from when there are no recent projects, and a preference that turns
 //! the screen off. The window returns [`WelcomeAction`]s; the application carries them out.
 
+use neoveg_common::clock::DayPart;
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
 use neoveg_common::i18n::tr_text;
@@ -16,6 +17,8 @@ use neoveg_common::presets::{
     builtin_templates, frame_rate_of, resolution_named, ProjectTemplate, FRAME_RATES, RESOLUTIONS,
 };
 use neoveg_common::project::ProjectSettings;
+
+use crate::external::Link;
 
 /// The window arrangement a new project starts with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -45,6 +48,28 @@ impl StartLayout {
             }
         }
     }
+}
+
+/// The name of the operating system account: the full name when it has one, otherwise the user
+/// name.
+pub fn account_name() -> String {
+    neoveg_common::sys_info::account_name()
+}
+
+/// The folder to show for "open the projects folder": the folder of the newest recent project that
+/// still exists, otherwise the documents folder, otherwise the home folder.
+pub fn projects_folder(recent: &[String]) -> std::path::PathBuf {
+    recent
+        .iter()
+        .filter_map(|p| Path::new(p).parent().map(Path::to_path_buf))
+        .find(|dir| dir.is_dir())
+        .or_else(|| {
+            let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+            let home = std::path::PathBuf::from(home);
+            let documents = home.join("Documents");
+            Some(if documents.is_dir() { documents } else { home })
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
 }
 
 /// One line of the recent projects list.
@@ -104,7 +129,38 @@ pub enum WelcomeAction {
     },
     /// The "show at startup" checkbox changed.
     ShowAtStartup(bool),
+    /// Show the folder of the projects in the file manager.
+    OpenProjectsFolder,
+    /// Open the preferences, where the name of the user is.
+    UserSettings,
+    /// Open the list of the templates the user saved.
+    ResolutionPresets,
+    /// Tell the version in use and open the page of the published versions.
+    CheckUpdates,
+    /// One of the *Learn* links.
+    Learn(Link),
+    /// Leave the program (the button of the small card).
+    Quit,
     Close,
+}
+
+/// What the header of the screen says: whom it greets and which version this is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WelcomeInfo {
+    /// The name after the greeting.
+    pub name: String,
+    /// The hour on the clock, which decides between good morning, afternoon and night.
+    pub hour: u32,
+    pub version: String,
+    /// Date of the build, `dd/mm/aaaa`.
+    pub updated: String,
+}
+
+impl WelcomeInfo {
+    /// The greeting with the name: "Bom dia, Ana".
+    pub fn greeting(&self) -> String {
+        tr_args(DayPart::of_hour(self.hour).greeting(), &[&self.name])
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -114,13 +170,17 @@ pub struct WelcomeState {
     pub draft: ProjectSettings,
     pub layout: StartLayout,
     pub chosen_template: Option<String>,
+    /// The small card with four buttons, instead of the whole screen.
+    pub compact: bool,
 }
 
 impl WelcomeState {
-    /// Shows the screen. `defaults` are the settings new projects start with.
-    pub fn open_with(&mut self, defaults: &ProjectSettings) {
+    /// Shows the screen. `defaults` are the settings new projects start with. With no recent
+    /// project to pick from, the small card comes first and the form opens from its first button.
+    pub fn open_with(&mut self, defaults: &ProjectSettings, has_recents: bool) {
         self.draft = defaults.clone();
         self.chosen_template = None;
+        self.compact = !has_recents;
         self.open = true;
     }
 
@@ -130,6 +190,7 @@ impl WelcomeState {
         recents: &[RecentEntry],
         custom_templates: &[ProjectTemplate],
         show_at_startup: bool,
+        info: &WelcomeInfo,
     ) -> Vec<WelcomeAction> {
         let mut actions = Vec::new();
         if !self.open {
@@ -141,15 +202,27 @@ impl WelcomeState {
             .resizable(false)
             .default_width(720.0)
             .show(ctx, |ui| {
-                ui.columns(2, |columns| {
-                    self.recent_column(&mut columns[0], recents, &mut actions);
-                    self.new_project_column(
-                        &mut columns[1],
-                        recents.is_empty(),
-                        custom_templates,
-                        &mut actions,
-                    );
-                });
+                ui.heading(info.greeting());
+                ui.weak(tr_args(
+                    "Versão {} · última atualização {}",
+                    &[&info.version, &info.updated],
+                ));
+                ui.add_space(6.0);
+                if self.compact {
+                    self.compact_card(ui, &mut actions);
+                } else {
+                    ui.columns(2, |columns| {
+                        self.recent_column(&mut columns[0], recents, &mut actions);
+                        self.new_project_column(
+                            &mut columns[1],
+                            recents.is_empty(),
+                            custom_templates,
+                            &mut actions,
+                        );
+                    });
+                    ui.separator();
+                    tools_and_links(ui, &mut actions);
+                }
                 ui.separator();
                 let mut show = show_at_startup;
                 if ui
@@ -163,6 +236,26 @@ impl WelcomeState {
             actions.push(WelcomeAction::Close);
         }
         actions
+    }
+
+    /// The small card: four buttons.
+    fn compact_card(&mut self, ui: &mut egui::Ui, actions: &mut Vec<WelcomeAction>) {
+        let wide = egui::vec2(ui.available_width().min(300.0), 30.0);
+        for (label, what) in [
+            ("Novo Projeto", Card::New),
+            ("Abrir Projeto", Card::Open),
+            ("Como Usar?", Card::Help),
+            ("Sair", Card::Quit),
+        ] {
+            if ui.add_sized(wide, egui::Button::new(tr(label))).clicked() {
+                match what {
+                    Card::New => self.compact = false,
+                    Card::Open => actions.push(WelcomeAction::OpenFile),
+                    Card::Help => actions.push(WelcomeAction::Learn(Link::HowToUse)),
+                    Card::Quit => actions.push(WelcomeAction::Quit),
+                }
+            }
+        }
     }
 
     fn recent_column(
@@ -324,6 +417,50 @@ impl WelcomeState {
     }
 }
 
+/// What a button of the small card does.
+#[derive(Clone, Copy)]
+enum Card {
+    New,
+    Open,
+    Help,
+    Quit,
+}
+
+/// The row of tools and the *Learn* links under the two columns.
+fn tools_and_links(ui: &mut egui::Ui, actions: &mut Vec<WelcomeAction>) {
+    ui.horizontal_wrapped(|ui| {
+        for (label, action) in [
+            (
+                "Abrir pasta de projetos…",
+                WelcomeAction::OpenProjectsFolder,
+            ),
+            ("Configurações do Usuário", WelcomeAction::UserSettings),
+            (
+                "Configurar presets de resolução",
+                WelcomeAction::ResolutionPresets,
+            ),
+            ("Verificar atualizações", WelcomeAction::CheckUpdates),
+        ] {
+            if ui.button(tr(label)).clicked() {
+                actions.push(action);
+            }
+        }
+    });
+    ui.add_space(4.0);
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(tr("Aprender")).strong());
+        for (label, link) in [
+            ("Como usar >>", Link::HowToUse),
+            ("Atualizações >>", Link::Updates),
+            ("O que há de novo? >>", Link::WhatsNew),
+        ] {
+            if ui.link(tr(label)).on_hover_text(link.url()).clicked() {
+                actions.push(WelcomeAction::Learn(link));
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,10 +502,46 @@ mod tests {
             ..ProjectSettings::default()
         };
         state.chosen_template = Some("antigo".into());
-        state.open_with(&defaults);
+        state.open_with(&defaults, true);
         assert!(state.open);
+        assert!(!state.compact, "recent projects: the whole screen");
         assert_eq!((state.draft.width, state.draft.height), (1280, 720));
         assert!(state.chosen_template.is_none());
+    }
+
+    #[test]
+    fn with_no_recent_project_the_small_card_comes_first() {
+        let mut state = WelcomeState::default();
+        state.open_with(&ProjectSettings::default(), false);
+        assert!(state.compact);
+        state.open_with(&ProjectSettings::default(), true);
+        assert!(!state.compact);
+    }
+
+    #[test]
+    fn the_greeting_follows_the_hour_and_names_the_user() {
+        let at = |hour| WelcomeInfo {
+            name: "Ana".into(),
+            hour,
+            version: "2.1.0".into(),
+            updated: "03/11/2026".into(),
+        };
+        assert_eq!(at(8).greeting(), "Bom dia, Ana");
+        assert_eq!(at(14).greeting(), "Boa tarde, Ana");
+        assert_eq!(at(21).greeting(), "Boa noite, Ana");
+        assert_eq!(at(3).greeting(), "Boa noite, Ana");
+    }
+
+    #[test]
+    fn the_projects_folder_is_the_one_of_the_newest_project_that_still_exists() {
+        let here = std::env::temp_dir();
+        let recent = vec![
+            "/pasta/que/sumiu/a.neoveg".to_owned(),
+            here.join("b.neoveg").to_string_lossy().into_owned(),
+        ];
+        assert_eq!(projects_folder(&recent), here);
+        // Nothing left: a folder that exists all the same
+        assert!(projects_folder(&[]).is_dir() || projects_folder(&[]).as_os_str() == ".");
     }
 
     #[test]

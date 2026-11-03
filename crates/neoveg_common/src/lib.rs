@@ -2,6 +2,7 @@
 
 pub mod channels;
 pub mod chroma;
+pub mod clock;
 pub mod commands;
 pub mod composite;
 pub mod fade;

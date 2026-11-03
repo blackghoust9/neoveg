@@ -51,6 +51,18 @@ impl SystemInfo {
     }
 }
 
+/// The name of the operating system account: the full name when it has one, otherwise the user
+/// name.
+pub fn account_name() -> String {
+    let full = whoami::realname();
+    let full = full.trim();
+    if full.is_empty() || full.eq_ignore_ascii_case("unknown") {
+        whoami::username()
+    } else {
+        full.to_owned()
+    }
+}
+
 /// Installed memory in bytes, `None` when the system does not say.
 pub fn total_memory_bytes() -> Option<u64> {
     let mut system = System::new();
