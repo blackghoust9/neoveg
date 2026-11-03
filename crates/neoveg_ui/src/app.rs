@@ -387,6 +387,8 @@ enum DragMode {
     StretchRight,
     FadeIn,
     FadeOut,
+    /// Bottom-left / bottom-edge snap-offset flag.
+    SnapOffset,
 }
 
 /// What the dragged edge or block is aligned to right now (drawn as a vertical line).
@@ -3820,12 +3822,32 @@ impl AppState {
         } else {
             Vec::new()
         };
+        let move_span = (drag.mode == DragMode::Move).then(|| {
+            if drag.moving.len() > 1 {
+                neoveg_engine::snapping::move_span(&self.timeline, &drag.moving)
+            } else {
+                None
+            }
+            .unwrap_or((
+                drag.origin.start.max(0.0),
+                drag.origin.snap_point(),
+                drag.origin.end(),
+            ))
+        });
         if snap_enabled && self.snap_sources.grid {
-            // Grid lines around the dragged block's start and end and around the pointer
+            // Grid lines around the dragged snap points and around the pointer
             let step = self.grid_step_seconds();
-            let start = pointer_time - drag.grab_offset;
-            for t in [start, start + drag.origin.duration, pointer_time] {
-                candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+            if let Some((_, left_snap, right_end)) = move_span {
+                let raw = pointer_time - drag.grab_offset;
+                let delta = raw - drag.origin.start;
+                for t in [left_snap + delta, right_end + delta, pointer_time] {
+                    candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+                }
+            } else {
+                let start = pointer_time - drag.grab_offset;
+                for t in [start, start + drag.origin.duration, pointer_time] {
+                    candidates.extend(neoveg_engine::snapping::grid_candidates(t, step));
+                }
             }
         }
         // Audio-only edits are left between frames when the preference says so
@@ -3853,16 +3875,37 @@ impl AppState {
 
         match drag.mode {
             DragMode::Move => {
-                let raw = pointer_time - drag.grab_offset;
-                let snapped = edit::snap_block(raw, drag.origin.duration, &candidates, threshold);
-                let start = snapped.unwrap_or_else(|| quant(raw));
+                let (earliest, left_snap, right_end) = move_span.unwrap_or((
+                    drag.origin.start.max(0.0),
+                    drag.origin.snap_point(),
+                    drag.origin.end(),
+                ));
+                let left_offset = left_snap - drag.origin.start;
+                let right_offset = right_end - drag.origin.start;
+                let min_start = if drag.moving.len() > 1 {
+                    (drag.origin.start - earliest).max(0.0)
+                } else {
+                    0.0
+                };
+                let raw = (pointer_time - drag.grab_offset).max(min_start);
+                let snapped = edit::snap_block_with_offset(
+                    raw,
+                    left_offset,
+                    right_offset,
+                    min_start,
+                    &candidates,
+                    threshold,
+                );
+                let start = match snapped {
+                    Some((s, _)) => s,
+                    None => (quant(raw + left_offset) - left_offset).max(min_start),
+                };
                 drag.snap_mark = match snapped {
-                    // The line goes on whichever edge of the block met the target
-                    Some(_) if candidates.iter().any(|c| (c - start).abs() < 1e-9) => {
-                        Some(SnapMark::Target(start))
+                    Some((_, target)) => Some(SnapMark::Target(target)),
+                    None => {
+                        let aligned = start + left_offset;
+                        ((start - raw).abs() > 1e-6).then_some(SnapMark::Rounded(aligned))
                     }
-                    Some(_) => Some(SnapMark::Target(start + drag.origin.duration)),
-                    None => ((start - raw).abs() > 1e-6).then_some(SnapMark::Rounded(start)),
                 };
                 drag.current = edit::move_to(drag.origin, start);
                 if drag.moving.len() > 1 {
@@ -3965,6 +4008,17 @@ impl AppState {
                 let length = quant(drag.origin.end() - pointer_time);
                 drag.current = edit::set_fade_out(drag.origin, length);
             }
+            DragMode::SnapOffset => {
+                let clamped_pointer = pointer_time.clamp(drag.origin.start, drag.origin.end());
+                let (aligned, mark) = snap(clamped_pointer);
+                let clamped = aligned.clamp(drag.origin.start, drag.origin.end());
+                drag.snap_mark = if (clamped - aligned).abs() <= 1e-6 {
+                    mark
+                } else {
+                    None
+                };
+                drag.current = edit::set_snap_offset(drag.origin, clamped - drag.origin.start);
+            }
         }
         self.drag = Some(drag);
     }
@@ -3984,6 +4038,10 @@ impl AppState {
             return;
         };
         if old != new {
+            let playback_changed = EventGeometry {
+                snap_offset: old.snap_offset,
+                ..new
+            } != old;
             self.history.execute(
                 &mut self.timeline,
                 EditCommand::EditEvent {
@@ -3994,8 +4052,10 @@ impl AppState {
                     new,
                 },
             );
-            self.restart_audio_if_playing();
-            self.last_frame_key = None;
+            if playback_changed {
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+            }
         }
     }
 
@@ -4161,8 +4221,15 @@ impl AppState {
         if d.target_track != d.track_id || !self.selection.contains((d.target_track, d.event_id)) {
             self.selection.select_only((d.target_track, d.event_id));
         }
-        self.restart_audio_if_playing();
-        self.last_frame_key = None;
+        let playback_changed = d.target_track != d.track_id
+            || EventGeometry {
+                snap_offset: d.origin.snap_offset,
+                ..d.current
+            } != d.origin;
+        if playback_changed {
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
+        }
     }
 
     fn earliest_start(&self, events: &[EventRef]) -> f64 {
@@ -8260,7 +8327,7 @@ fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool, alt: bool
     if alt {
         return false;
     }
-    if shift && matches!(mode, Some(DragMode::Move)) {
+    if shift && matches!(mode, Some(DragMode::Move | DragMode::SnapOffset)) {
         !snapping
     } else {
         snapping
@@ -10038,6 +10105,43 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             } else if new.fade_out != g.fade_out {
                 new = edit::set_fade_out(new, new.fade_out);
             }
+            ui.horizontal(|ui| {
+                ui.label(tr("Deslocamento de snap"));
+                let mut offset = new.snap_offset;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut offset)
+                            .range(0.0..=g.duration)
+                            .speed(0.01)
+                            .suffix(" s"),
+                    )
+                    .on_hover_text(tr(
+                        "Ponto interno do evento usado para alinhar (snap) na timeline",
+                    ))
+                    .changed()
+                {
+                    new = edit::set_snap_offset(new, offset);
+                }
+                let cursor_inside = self.playhead > g.start + TIME_EPSILON
+                    && self.playhead < g.end() - TIME_EPSILON;
+                if ui
+                    .add_enabled(cursor_inside, egui::Button::new(tr("No cursor")).small())
+                    .on_hover_text(tr("Definir deslocamento de snap no cursor"))
+                    .clicked()
+                {
+                    new = edit::set_snap_offset(new, self.playhead - g.start);
+                }
+                if ui
+                    .add_enabled(
+                        g.snap_offset > TIME_EPSILON,
+                        egui::Button::new("0 s").small(),
+                    )
+                    .on_hover_text(tr("Restaurar deslocamento de snap"))
+                    .clicked()
+                {
+                    new = edit::set_snap_offset(new, 0.0);
+                }
+            });
             ui.separator();
             // Switches (the ones that make sense for the kind of event)
             ui.horizontal_wrapped(|ui| {
@@ -11004,6 +11108,11 @@ const FADE_HANDLE_PX: f32 = 6.0;
 const FADE_HANDLE_MIN_OFFSET_PX: f32 = 8.0;
 /// Events narrower than this have no fade handles.
 const FADE_HANDLE_MIN_EVENT_PX: f32 = 28.0;
+/// Bottom-left / bottom-edge snap-offset triangle geometry and hit zone.
+const SNAP_OFFSET_HANDLE_PX: f32 = 7.0;
+const SNAP_OFFSET_HIT_HEIGHT: f32 = 10.0;
+const SNAP_OFFSET_TRIANGLE_PX: f32 = 7.0;
+const SNAP_OFFSET_MIN_EVENT_PX: f32 = 20.0;
 
 /// Handle centres (fade-in, fade-out) in pixels for an event spanning `x0..x1`.
 fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) -> (f32, f32) {
@@ -11011,6 +11120,16 @@ fn fade_handle_x(ev_fade_in: f64, ev_fade_out: f64, pps: f64, x0: f32, x1: f32) 
         x0 + ((ev_fade_in * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
         x1 - ((ev_fade_out * pps) as f32).max(FADE_HANDLE_MIN_OFFSET_PX),
     )
+}
+
+/// Horizontal position of an event's snap-offset triangle within `x0..=x1`.
+fn snap_offset_x(snap_offset: f64, duration: f64, pps: f64, x0: f32, x1: f32) -> f32 {
+    let clamped = if duration > 0.0 && snap_offset.is_finite() {
+        snap_offset.clamp(0.0, duration)
+    } else {
+        0.0
+    };
+    (x0 + (clamped * pps) as f32).clamp(x0, x1)
 }
 
 /// The header button of an event under `p`, with the event and the button's rectangle.
@@ -11077,6 +11196,17 @@ fn hit_event(
             }
             if dout <= FADE_HANDLE_PX {
                 return Some((track.id, ev.id, DragMode::FadeOut, ev.geometry()));
+            }
+        }
+        // Snap-offset triangle lives along the bottom strip of the event and wins over trim/move there
+        let row_bottom = row_top + TRACK_HEIGHT - 2.0;
+        if p.y >= row_bottom - SNAP_OFFSET_HIT_HEIGHT
+            && p.y <= row_bottom
+            && x1 - x0 >= SNAP_OFFSET_MIN_EVENT_PX
+        {
+            let sx = snap_offset_x(ev.snap_offset, ev.duration, state.pixels_per_second, x0, x1);
+            if (p.x - sx).abs() <= SNAP_OFFSET_HANDLE_PX {
+                return Some((track.id, ev.id, DragMode::SnapOffset, ev.geometry()));
             }
         }
         let edge = TRIM_EDGE_PX.min((x1 - x0) / 3.0);
@@ -11298,6 +11428,32 @@ fn event_context_menu(
                 ..g
             },
         );
+        ui.close_menu();
+    }
+    let cursor_in_event =
+        state.playhead > g.start + TIME_EPSILON && state.playhead < g.end() - TIME_EPSILON;
+    if ui
+        .add_enabled(
+            cursor_in_event,
+            egui::Button::new(tr("Definir deslocamento de snap no cursor")),
+        )
+        .clicked()
+    {
+        state.apply_geometry(
+            track_id,
+            event_id,
+            edit::set_snap_offset(g, state.playhead - g.start),
+        );
+        ui.close_menu();
+    }
+    if ui
+        .add_enabled(
+            g.snap_offset > TIME_EPSILON,
+            egui::Button::new(tr("Restaurar deslocamento de snap")),
+        )
+        .clicked()
+    {
+        state.apply_geometry(track_id, event_id, edit::set_snap_offset(g, 0.0));
         ui.close_menu();
     }
     ui.separator();
@@ -11660,9 +11816,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
             .and_then(|p| hit_event(state, lanes.left(), lane_top, p));
-        if let Some((track_id, event_id, mode, _)) = on_event {
+        if let Some((track_id, event_id, mode, g)) = on_event {
             if let Some(path) = state.subproject_path_of(track_id, event_id) {
                 state.tabs.open_request = Some(path);
+            } else if mode == DragMode::SnapOffset && g.snap_offset > TIME_EPSILON {
+                state.apply_geometry(track_id, event_id, edit::set_snap_offset(g, 0.0));
             } else {
                 // Double-clicking the edge of an event enters (or leaves) expanded edit mode
                 use neoveg_engine::keytrim::{Edge, EdgeSide};
@@ -12066,7 +12224,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     } else if let Some(drag) = &state.drag {
         ui.ctx().set_cursor_icon(match drag.mode {
-            DragMode::Move => egui::CursorIcon::Grabbing,
+            DragMode::Move | DragMode::SnapOffset => egui::CursorIcon::Grabbing,
             DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
             _ => egui::CursorIcon::ResizeHorizontal,
         });
@@ -12098,38 +12256,38 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 .track(track_id)
                 .is_some_and(|t| t.kind == TrackKind::Video);
             response.clone().on_hover_text(button.tooltip(video));
-        }
-        match hit_event(state, lanes.left(), lane_top, p)
-            .map(|h| h.2)
-            .filter(|_| header_hover.is_none())
-        {
-            Some(
+        } else if let Some((_, _, mode, g)) = hit_event(state, lanes.left(), lane_top, p) {
+            match mode {
+                DragMode::SnapOffset => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    let tc = seconds_to_timecode(g.snap_offset, fps, drop_frame);
+                    response
+                        .clone()
+                        .on_hover_text(tr_args("Deslocamento de snap: {}", &[&tc]));
+                }
                 DragMode::TrimLeft
                 | DragMode::TrimRight
                 | DragMode::StretchLeft
                 | DragMode::StretchRight
                 | DragMode::FadeIn
-                | DragMode::FadeOut,
-            ) => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-            Some(DragMode::Move) => {
-                // The body of an event: the slip and slide tools show the sideways arrows
-                let icon = if state.edit_tool == EditTool::Normal {
-                    egui::CursorIcon::Grab
-                } else {
-                    egui::CursorIcon::ResizeHorizontal
-                };
-                ui.ctx().set_cursor_icon(icon);
-            }
-            Some(
+                | DragMode::FadeOut => {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                }
+                DragMode::Move => {
+                    // The body of an event: the slip and slide tools show the sideways arrows
+                    let icon = if state.edit_tool == EditTool::Normal {
+                        egui::CursorIcon::Grab
+                    } else {
+                        egui::CursorIcon::ResizeHorizontal
+                    };
+                    ui.ctx().set_cursor_icon(icon);
+                }
                 DragMode::Slip
                 | DragMode::Slide
                 | DragMode::Shuffle
                 | DragMode::RollLeft
-                | DragMode::RollRight,
-            )
-            | None => {}
+                | DragMode::RollRight => {}
+            }
         }
     }
 
@@ -12635,6 +12793,45 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 Color32::from_gray(15)
             };
             lane_painter.rect_stroke(ev_rect, Rounding::ZERO, Stroke::new(1.0_f32, border));
+            if x1 - x0 >= SNAP_OFFSET_MIN_EVENT_PX {
+                let sx = snap_offset_x(g.snap_offset, g.duration, state.pixels_per_second, x0, x1);
+                let active_snap = dragging.is_some_and(|d| d.mode == DragMode::SnapOffset);
+                let has_offset = g.snap_offset > TIME_EPSILON;
+                let by = ev_rect.bottom();
+                if has_offset || active_snap {
+                    lane_painter.line_segment(
+                        [pos2(sx, ev_rect.top() + EVENT_HEADER_HEIGHT), pos2(sx, by)],
+                        Stroke::new(
+                            1.0_f32,
+                            Color32::from_white_alpha(if active_snap { 220 } else { 145 }),
+                        ),
+                    );
+                }
+                let tri_points = if !has_offset && (sx - x0).abs() < 0.5 {
+                    vec![
+                        pos2(x0, by - SNAP_OFFSET_TRIANGLE_PX),
+                        pos2((x0 + SNAP_OFFSET_TRIANGLE_PX).min(x1), by),
+                        pos2(x0, by),
+                    ]
+                } else {
+                    let half = 4.5_f32;
+                    vec![
+                        pos2(sx, by - SNAP_OFFSET_TRIANGLE_PX),
+                        pos2((sx + half).min(x1), by),
+                        pos2((sx - half).max(x0), by),
+                    ]
+                };
+                let fill = Color32::from_white_alpha(if selected || active_snap || has_offset {
+                    245
+                } else {
+                    185
+                });
+                lane_painter.add(Shape::convex_polygon(
+                    tri_points,
+                    fill,
+                    Stroke::new(1.0_f32, Color32::from_black_alpha(170)),
+                ));
+            }
         }
         if track.kind == TrackKind::Audio && state.project.settings.auto_crossfade {
             for cf in find_crossfades(&track.events) {
@@ -12707,22 +12904,34 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         );
     }
 
-    // Live read-out while dragging: start and length of the event
+    // Live read-out while dragging: start and length of the event, or the snap offset
     if let (Some(drag), Some(p)) = (&state.drag, ui.input(|i| i.pointer.hover_pos())) {
-        let label = format!(
-            "{}  ·  {:.3} s",
-            seconds_to_timecode(drag.current.start, fps, drop_frame),
-            drag.current.duration
-        );
+        let label = if drag.mode == DragMode::SnapOffset {
+            tr_args(
+                "Deslocamento de snap: {}",
+                &[&seconds_to_timecode(
+                    drag.current.snap_offset,
+                    fps,
+                    drop_frame,
+                )],
+            )
+        } else {
+            format!(
+                "{}  ·  {:.3} s",
+                seconds_to_timecode(drag.current.start, fps, drop_frame),
+                drag.current.duration
+            )
+        };
+        let galley = painter.layout_no_wrap(label, FontId::monospace(10.0), Color32::WHITE);
         let at = pos2(p.x + 14.0, p.y - 22.0);
-        let galley_rect =
-            Rect::from_min_size(at, vec2(label.chars().count() as f32 * 6.4 + 10.0, 16.0));
+        let galley_rect = Rect::from_min_size(at, vec2(galley.size().x + 10.0, 16.0));
         painter.rect_filled(galley_rect, Rounding::ZERO, Color32::from_black_alpha(200));
-        painter.text(
-            galley_rect.left_center() + vec2(5.0, 0.0),
-            Align2::LEFT_CENTER,
-            label,
-            FontId::monospace(10.0),
+        painter.galley(
+            pos2(
+                galley_rect.left() + 5.0,
+                galley_rect.center().y - galley.size().y * 0.5,
+            ),
+            galley,
             Color32::WHITE,
         );
     }
@@ -14520,6 +14729,76 @@ mod tests {
         assert_eq!(mode_at(100.0, 10.0), None);
         assert_eq!(mode_at(400.0, TRACK_HEIGHT + 10.0), None);
         assert_eq!(mode_at(400.0, -5.0), None);
+        // bottom-left strip: snap-offset triangle sits at x0 (200 px) while snap_offset == 0
+        assert_eq!(
+            mode_at(203.0, TRACK_HEIGHT - 5.0),
+            Some((track, ev, DragMode::SnapOffset))
+        );
+        assert_eq!(
+            mode_at(350.0, TRACK_HEIGHT - 5.0),
+            Some((track, ev, DragMode::Move))
+        );
+    }
+
+    #[test]
+    fn snap_offset_drag_snaps_to_playhead_and_moves_align_by_offset() {
+        let (mut s, track, ev) = state_with_clip(); // event 2.0..6.0
+        s.pixels_per_second = 100.0;
+        s.playhead = 3.5;
+
+        // Dragging the lower-left snap-offset flag near the playhead snaps it to 1.5 s inside the event
+        let revision = s.history.revision();
+        s.begin_drag(hit(&s, track, ev, DragMode::SnapOffset), 2.0);
+        s.update_drag(3.46, Some(track), 0.08, true);
+        assert_eq!(
+            s.drag.as_ref().and_then(|d| d.snap_mark),
+            Some(SnapMark::Target(3.5))
+        );
+        s.finish_drag();
+        assert_eq!(s.history.revision(), revision + 1);
+        assert!((geometry(&s, track, ev).snap_offset - 1.5).abs() < 1e-9);
+        assert_eq!(
+            hit_event(&s, 0.0, 0.0, pos2(350.0, TRACK_HEIGHT - 5.0)).map(|h| h.2),
+            Some(DragMode::SnapOffset)
+        );
+
+        // Moving the event near a marker at 10.0 aligns `start + 1.5` to 10.0 (`start == 8.5`)
+        s.timeline.markers.push(neoveg_engine::markers::Marker {
+            id: 99,
+            time: 10.0,
+            name: "beat".into(),
+        });
+        s.begin_drag(hit(&s, track, ev, DragMode::Move), 3.0); // grab_offset = 1.0
+        s.update_drag(9.54, Some(track), 0.1, true); // raw start = 8.54, snap point = 10.04 -> 10.0
+        assert_eq!(
+            s.drag.as_ref().and_then(|d| d.snap_mark),
+            Some(SnapMark::Target(10.0))
+        );
+        s.finish_drag();
+        assert!((geometry(&s, track, ev).start - 8.5).abs() < 1e-9);
+
+        // Single undo restores position, second undo restores snap_offset to 0.0
+        s.history.undo(&mut s.timeline);
+        assert!((geometry(&s, track, ev).start - 2.0).abs() < 1e-9);
+        s.history.undo(&mut s.timeline);
+        assert_eq!(geometry(&s, track, ev).snap_offset, 0.0);
+    }
+
+    #[test]
+    fn group_move_uses_leftmost_event_snap_offset_and_rightmost_end() {
+        let (mut s, track, ev1) = state_with_clip(); // 2.0..6.0
+        let ev2 = add_event(&mut s, track, 6.0, 3.0); // 6.0..9.0
+        let g1 = geometry(&s, track, ev1);
+        s.apply_geometry(track, ev1, edit::set_snap_offset(g1, 1.25));
+        s.selection.set(vec![(track, ev1), (track, ev2)]);
+        s.playhead = 5.0;
+
+        // Dragging the selection aligns ev1's snap point (`start + 1.25`) to playhead 5.0 -> ev1.start == 3.75, ev2.start == 7.75
+        s.begin_drag(hit(&s, track, ev2, DragMode::Move), 7.0); // grab_offset on ev2 = 1.0
+        s.update_drag(8.80, Some(track), 0.1, true); // raw ev2 = 7.80 -> delta = +1.80 -> left_snap = 3.25 + 1.80 = 5.05 -> snaps to 5.0
+        s.finish_drag();
+        assert!((geometry(&s, track, ev1).start - 3.75).abs() < 1e-9);
+        assert!((geometry(&s, track, ev2).start - 7.75).abs() < 1e-9);
     }
 
     #[test]

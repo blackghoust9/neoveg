@@ -59,7 +59,7 @@ O que dá e o que não dá para fazer **no PC de desenvolvimento atual**, com o 
 
 **Edição e linha do tempo**
 - Caixas de início, fim e duração com valor relativo (476); arrastar com `Ctrl` copia e menu do botão direito (479, 562); `[` e `]` selecionam a borda (481); inserir evento vazio (484).
-- Ripple por escopo, `TrimMode`, aparo adjacente, embaralhar e modo de edição expandida A/B (402, 487 a 492, 334, 456); evento em laço com quadros ilegíveis (493); flag de deslocamento de snap por evento (335, 499).
+- Ripple por escopo, `TrimMode`, aparo adjacente, embaralhar e modo de edição expandida A/B (402, 487 a 492, 334, 456); evento em laço com quadros ilegíveis (493).
 - Marcadores: mover e redimensionar etiquetas, marcadores de comando e de mídia (407, 521, 522); subclipes e copiar o quadro atual (529); importar estéreo como mono duplo (530).
 - Faixas: grupos, duplicar, cor e altura (534); faixas pai e filho (410, 549); faixa e evento de ajuste (372); Fechar espaços, Reunir evento e Divisão inteligente (561, 377); L-cut, J-cut e vínculos de sincronização (460, 514); reparo de dessincronia (613).
 - Seleção de canal em mídia multicanal (510), takes (512, 587), esticar com preservação de formantes (389), interruptores de vídeo que faltam (374, 508).
@@ -111,10 +111,10 @@ Neste PC só rodam `cargo fmt`, `cargo check` e `cargo clippy -D warnings`. Desd
 | Ordem | Comando | O que cobre (testes novos) |
 |---|---|---|
 | 1 | `cargo test -p neoveg_common` | mapas de teclado nomeados (4), sequências de atalhos (2), preferências (importar, cores do esmaecer: 2), orçamento de cache e de decodificadores (2) |
-| 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1) |
+| 2 | `cargo test -p neoveg_engine` (o crate inteiro) | SCC (9), envelope de volume (9), envelope de progresso da transição (6), duplicar faixa e Fechar espaços (3), esmaecer com duas cores (2), tempos dos quadros de borda (1), deslocamento de snap por evento (6) |
 | 3 | `cargo test -p neoveg_audio` | curva de ganho do mixer (2); o resto já passou |
 | 4 | `cargo test -p neoveg_video` | nada novo, mas o limite de decodificadores mexeu no worker |
-| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), e a suíte toda (309 antes) |
+| 5 | `cargo test -p neoveg_ui` (segundo plano) | relatório de importação (1), quadros de borda (1), progresso da transição na prévia (1), volume do evento no mixer (1), deslocamento de snap na timeline e em grupos (2), e a suíte toda (309 antes) |
 | 6 | `NEOVEG_SCREENSHOTS=1 cargo test -p neoveg_ui --test headless_screenshot` (segundo plano) | as 18 capturas fora da tela, para ver se a interface nova desenha |
 
 **Por que o `neoveg_engine` inteiro:** o envelope de volume, o de progresso, a duplicação de faixa e o esmaecer mexeram no corte, no aparo, na cópia e no desfazer; os testes antigos de ripple e de seleção são os que mais podem revelar uma regressão.

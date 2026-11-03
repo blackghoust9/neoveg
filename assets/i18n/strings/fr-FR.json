@@ -1257,5 +1257,11 @@
   "Entrada (B)": "Entrée (B)",
   "{} q livres": "{} images libres",
   "Edição expandida encerrada": "Édition étendue terminée",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Édition étendue : images et média inutilisé des deux côtés de la coupe (Échap quitte)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Édition étendue : images et média inutilisé des deux côtés de la coupe (Échap quitte)",
+  "Deslocamento de snap": "Décalage de magnétisme",
+  "Deslocamento de snap: {}": "Décalage de magnétisme : {}",
+  "Definir deslocamento de snap no cursor": "Définir le décalage de magnétisme au curseur",
+  "Restaurar deslocamento de snap": "Réinitialiser le décalage de magnétisme",
+  "No cursor": "Au curseur",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Point interne de l'événement utilisé pour le magnétisme sur la timeline"
 }

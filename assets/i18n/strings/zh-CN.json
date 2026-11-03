@@ -1257,5 +1257,11 @@
   "Entrada (B)": "入点 (B)",
   "{} q livres": "空闲 {} 帧",
   "Edição expandida encerrada": "扩展编辑已结束",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "扩展编辑：剪切点两侧的帧和未使用的素材（Esc 退出）"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "扩展编辑：剪切点两侧的帧和未使用的素材（Esc 退出）",
+  "Deslocamento de snap": "吸附偏移",
+  "Deslocamento de snap: {}": "吸附偏移：{}",
+  "Definir deslocamento de snap no cursor": "在光标处设置吸附偏移",
+  "Restaurar deslocamento de snap": "重置吸附偏移",
+  "No cursor": "光标处",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "时间线上用于吸附对齐的事件内部基准点"
 }

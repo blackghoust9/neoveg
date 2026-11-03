@@ -495,13 +495,24 @@ impl EditCommand {
                 };
                 let left = &mut t.events[i];
                 let left_duration = at - left.start;
+                let right_duration = left.duration - left_duration;
+                let right_snap_offset = if left.snap_offset > TIME_EPSILON {
+                    let shifted = left.snap_offset - left_duration;
+                    if shifted > TIME_EPSILON && shifted <= right_duration + TIME_EPSILON {
+                        shifted.clamp(0.0, right_duration.max(0.0))
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
                 let right = TrackEvent {
                     group: None,
                     id: *new_event_id,
                     name: left.name.clone(),
                     media_id: left.media_id,
                     start: *at,
-                    duration: left.duration - left_duration,
+                    duration: right_duration,
                     trim_in: left.trim_in
                         + left.playback_rate
                             * crate::velocity::source_offset(left.velocity.as_ref(), left_duration),
@@ -536,9 +547,13 @@ impl EditCommand {
                     ),
                     adjustment: left.adjustment,
                     resample: left.resample,
+                    snap_offset: right_snap_offset,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
+                if left.snap_offset >= left_duration - TIME_EPSILON {
+                    left.snap_offset = 0.0;
+                }
                 t.events.insert(i + 1, right);
                 true
             }
@@ -707,8 +722,16 @@ impl EditCommand {
                 ..
             } => {
                 if let Some(t) = tl.track_mut(*track_id) {
+                    let right_snap_offset = t
+                        .events
+                        .iter()
+                        .find(|e| e.id == *new_event_id)
+                        .map_or(0.0, |r| r.snap_offset);
                     t.events.retain(|e| e.id != *new_event_id);
                     if let Some(e) = t.events.iter_mut().find(|e| e.id == *event_id) {
+                        if right_snap_offset > TIME_EPSILON {
+                            e.snap_offset = e.duration + right_snap_offset;
+                        }
                         e.duration = *original_duration;
                         e.fade_out = *original_fade_out;
                     }
@@ -1218,5 +1241,24 @@ mod tests {
             },
         );
         assert!(!history.can_redo());
+    }
+
+    #[test]
+    fn split_event_transfers_and_undoes_snap_offset() {
+        let (mut tl, mut history, track_id, event_id) = timeline_with_event(); // 2.0..6.0
+        tl.track_mut(track_id).unwrap().events[0].snap_offset = 2.5; // timeline snap point at 4.5 s
+
+        let cmd = EditCommand::split(&mut tl, track_id, event_id, 3.5).unwrap();
+        assert!(history.execute(&mut tl, cmd));
+        let events = &tl.track(track_id).unwrap().events;
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].snap_offset, 0.0);
+        assert!((events[1].snap_offset - 1.0).abs() < 1e-9);
+        assert!((events[1].snap_point() - 4.5).abs() < 1e-9);
+
+        assert!(history.undo(&mut tl));
+        let restored = &tl.track(track_id).unwrap().events;
+        assert_eq!(restored.len(), 1);
+        assert!((restored[0].snap_offset - 2.5).abs() < 1e-9);
     }
 }

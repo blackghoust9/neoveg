@@ -1257,5 +1257,11 @@
   "Entrada (B)": "Ein (B)",
   "{} q livres": "{} Bilder frei",
   "Edição expandida encerrada": "Erweiterter Schnittmodus beendet",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Erweiterter Schnitt: Bilder und ungenutztes Material beiderseits des Schnitts (Esc beendet)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Erweiterter Schnitt: Bilder und ungenutztes Material beiderseits des Schnitts (Esc beendet)",
+  "Deslocamento de snap": "Einrastversatz",
+  "Deslocamento de snap: {}": "Einrastversatz: {}",
+  "Definir deslocamento de snap no cursor": "Einrastversatz am Cursor setzen",
+  "Restaurar deslocamento de snap": "Einrastversatz zurücksetzen",
+  "No cursor": "Am Cursor",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Interner Punkt des Ereignisses zum Einrasten in der Zeitleiste"
 }

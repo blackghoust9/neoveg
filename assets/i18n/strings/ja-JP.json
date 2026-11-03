@@ -1257,5 +1257,11 @@
   "Entrada (B)": "イン (B)",
   "{} q livres": "空き {} フレーム",
   "Edição expandida encerrada": "拡張編集を終了しました",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "拡張編集: カットの両側のフレームと未使用メディア (Esc で終了)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "拡張編集: カットの両側のフレームと未使用メディア (Esc で終了)",
+  "Deslocamento de snap": "スナップ オフセット",
+  "Deslocamento de snap: {}": "スナップ オフセット: {}",
+  "Definir deslocamento de snap no cursor": "カーソル位置にスナップ オフセットを設定",
+  "Restaurar deslocamento de snap": "スナップ オフセットをリセット",
+  "No cursor": "カーソル位置",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "タイムライン上でスナップに使うイベント内の基準点"
 }

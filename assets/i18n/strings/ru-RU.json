@@ -1257,5 +1257,11 @@
   "Entrada (B)": "Вход (B)",
   "{} q livres": "{} кадр. свободно",
   "Edição expandida encerrada": "Расширенный монтаж завершён",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Расширенный монтаж: кадры и неиспользованный материал по обе стороны реза (Esc — выход)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Расширенный монтаж: кадры и неиспользованный материал по обе стороны реза (Esc — выход)",
+  "Deslocamento de snap": "Смещение привязки",
+  "Deslocamento de snap: {}": "Смещение привязки: {}",
+  "Definir deslocamento de snap no cursor": "Задать смещение привязки по курсору",
+  "Restaurar deslocamento de snap": "Сбросить смещение привязки",
+  "No cursor": "По курсору",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Внутренняя точка события для привязки на монтажной линейке"
 }

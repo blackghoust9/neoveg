@@ -1257,5 +1257,11 @@
   "Entrada (B)": "Entrada (B)",
   "{} q livres": "{} fotog. libres",
   "Edição expandida encerrada": "Edición expandida terminada",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Edición expandida: fotogramas y medio sin usar a ambos lados del corte (Esc sale)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Edición expandida: fotogramas y medio sin usar a ambos lados del corte (Esc sale)",
+  "Deslocamento de snap": "Desplazamiento de ajuste",
+  "Deslocamento de snap: {}": "Desplazamiento de ajuste: {}",
+  "Definir deslocamento de snap no cursor": "Definir desplazamiento de ajuste en el cursor",
+  "Restaurar deslocamento de snap": "Restablecer desplazamiento de ajuste",
+  "No cursor": "En el cursor",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Punto interno del evento usado para ajustar en la línea de tiempo"
 }

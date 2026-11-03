@@ -126,6 +126,22 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     out.fade_out = out
         .fade_out
         .clamp(0.0, (out.duration - out.fade_in).max(0.0));
+    out.snap_offset = if ev.snap_offset > TIME_EPSILON {
+        let shifted = ev.snap_offset - (start - ev.start);
+        let right_cut = end < ev.end() - TIME_EPSILON;
+        let upper = if right_cut {
+            out.duration - TIME_EPSILON
+        } else {
+            out.duration + TIME_EPSILON
+        };
+        if shifted > TIME_EPSILON && shifted <= upper {
+            shifted.clamp(0.0, out.duration)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
     Some(out)
 }
 
@@ -1032,5 +1048,37 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), total, "no duplicated event id");
+    }
+
+    #[test]
+    fn splitting_an_event_keeps_snap_offset_on_the_piece_that_contains_it() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Audio);
+        let id = tl.alloc_id();
+        track.events.push(TrackEvent {
+            id,
+            start: 2.0,
+            duration: 4.0,
+            snap_offset: 1.5, // timeline snap point at 3.5 s
+            ..TrackEvent::default()
+        });
+        tl.tracks.push(track);
+
+        // Split after the snap point (4.5 s): left keeps 1.5, right resets to 0.0
+        let mut tl_after = tl.clone();
+        let mut history = History::new();
+        let out = split_at(&mut tl_after, 4.5, Scope::AllTracks);
+        run(&mut tl_after, &mut history, out);
+        assert!((tl_after.tracks[0].events[0].snap_offset - 1.5).abs() < 1e-9);
+        assert_eq!(tl_after.tracks[0].events[1].snap_offset, 0.0);
+
+        // Split before the snap point (3.0 s): left resets to 0.0, right keeps 0.5 (3.0 + 0.5 = 3.5 s)
+        let mut tl_before = tl;
+        let mut history = History::new();
+        let out = split_at(&mut tl_before, 3.0, Scope::AllTracks);
+        run(&mut tl_before, &mut history, out);
+        assert_eq!(tl_before.tracks[0].events[0].snap_offset, 0.0);
+        assert!((tl_before.tracks[0].events[1].snap_offset - 0.5).abs() < 1e-9);
+        assert!((tl_before.tracks[0].events[1].snap_point() - 3.5).abs() < 1e-9);
     }
 }

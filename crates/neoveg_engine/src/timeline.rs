@@ -55,6 +55,10 @@ fn is_unity_gain(v: &f32) -> bool {
     (*v - 1.0).abs() < 1e-9
 }
 
+fn is_zero_time(v: &f64) -> bool {
+    v.abs() < TIME_EPSILON
+}
+
 /// How a video event treats footage whose frames do not line up with the project's (slow motion,
 /// a different frame rate): the nearest frame is shown as it is, or the two around the moment are
 /// blended.
@@ -186,6 +190,9 @@ pub struct TrackEvent {
     /// Event switch Resample Mode (video only).
     #[serde(default, skip_serializing_if = "ResampleMode::is_default")]
     pub resample: ResampleMode,
+    /// Snap offset in seconds from `start` (`0.0` = bottom-left corner of the event).
+    #[serde(default, skip_serializing_if = "is_zero_time")]
+    pub snap_offset: f64,
 }
 
 impl Default for TrackEvent {
@@ -220,6 +227,7 @@ impl Default for TrackEvent {
             transition_progress: None,
             adjustment: false,
             resample: ResampleMode::Project,
+            snap_offset: 0.0,
         }
     }
 }
@@ -227,6 +235,16 @@ impl Default for TrackEvent {
 impl TrackEvent {
     pub fn end(&self) -> f64 {
         self.start + self.duration
+    }
+
+    /// Timeline position of this event's left snap point (`start + snap_offset`, clamped to the event).
+    pub fn snap_point(&self) -> f64 {
+        let offset = if self.snap_offset.is_finite() {
+            self.snap_offset.clamp(0.0, self.duration.max(0.0))
+        } else {
+            0.0
+        };
+        self.start + offset
     }
 }
 
@@ -242,6 +260,7 @@ pub struct EventGeometry {
     pub fade_out_curve: FadeCurve,
     pub playback_rate: f64,
     pub preserve_pitch: bool,
+    pub snap_offset: f64,
 }
 
 impl Default for EventGeometry {
@@ -256,6 +275,7 @@ impl Default for EventGeometry {
             fade_out_curve: FadeCurve::default(),
             playback_rate: 1.0,
             preserve_pitch: true,
+            snap_offset: 0.0,
         }
     }
 }
@@ -263,6 +283,16 @@ impl Default for EventGeometry {
 impl EventGeometry {
     pub fn end(&self) -> f64 {
         self.start + self.duration
+    }
+
+    /// Timeline position of this geometry's left snap point (`start + snap_offset`, clamped to `duration`).
+    pub fn snap_point(&self) -> f64 {
+        let offset = if self.snap_offset.is_finite() {
+            self.snap_offset.clamp(0.0, self.duration.max(0.0))
+        } else {
+            0.0
+        };
+        self.start + offset
     }
 }
 
@@ -278,6 +308,7 @@ impl TrackEvent {
             fade_out_curve: self.fade_out_curve,
             playback_rate: self.playback_rate,
             preserve_pitch: self.preserve_pitch,
+            snap_offset: self.snap_offset,
         }
     }
 
@@ -291,6 +322,7 @@ impl TrackEvent {
         self.fade_out_curve = g.fade_out_curve;
         self.playback_rate = g.playback_rate;
         self.preserve_pitch = g.preserve_pitch;
+        self.snap_offset = g.snap_offset;
     }
 }
 
@@ -706,5 +738,31 @@ impl Timeline {
             .events
             .iter()
             .find(|e| !e.muted && time >= e.start - TIME_EPSILON && time < e.end() - TIME_EPSILON)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snap_offset_defaults_to_zero_for_older_projects_and_round_trips_when_set() {
+        let legacy = r#"{"id":1,"name":"clip","media_id":1,"start":2.0,"duration":4.0,"trim_in":0.0,"fade_in":0.0,"fade_out":0.0}"#;
+        let ev: TrackEvent = serde_json::from_str(legacy).unwrap();
+        assert_eq!(ev.snap_offset, 0.0);
+        assert_eq!(ev.snap_point(), 2.0);
+        assert!(
+            !serde_json::to_string(&ev).unwrap().contains("snap_offset"),
+            "zero snap_offset stays omitted"
+        );
+
+        let mut moved = ev;
+        moved.snap_offset = 1.25;
+        assert!((moved.snap_point() - 3.25).abs() < 1e-9);
+        let json = serde_json::to_string(&moved).unwrap();
+        assert!(json.contains("\"snap_offset\":1.25"));
+        let loaded: TrackEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.snap_offset, 1.25);
+        assert_eq!(loaded.geometry().snap_offset, 1.25);
     }
 }

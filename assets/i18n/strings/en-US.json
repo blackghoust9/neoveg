@@ -1257,5 +1257,11 @@
   "Entrada (B)": "In (B)",
   "{} q livres": "{} fr free",
   "Edição expandida encerrada": "Expanded edit ended",
-  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Expanded edit: frames and unused media on both sides of the cut (Esc leaves)"
+  "Edição expandida: quadros e mídia não usada dos dois lados do corte (Esc sai)": "Expanded edit: frames and unused media on both sides of the cut (Esc leaves)",
+  "Deslocamento de snap": "Snap offset",
+  "Deslocamento de snap: {}": "Snap offset: {}",
+  "Definir deslocamento de snap no cursor": "Set snap offset at cursor",
+  "Restaurar deslocamento de snap": "Reset snap offset",
+  "No cursor": "At cursor",
+  "Ponto interno do evento usado para alinhar (snap) na timeline": "Internal point of the event used to snap on the timeline"
 }
