@@ -399,8 +399,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 - [ ] Painel de compositores (modos de mistura), junto do modelo de composição.
 - [ ] Diálogo de propriedades da mídia: timecode do arquivo ou personalizado, taxa de quadros substituta, ordem dos campos, proporção do pixel, canal alfa e cor de fundo.
 - [ ] Esticar o tempo de evento de áudio com preservação de formantes.
-- [ ] Desalocar qualquer janela do programa para outros monitores e ou qualquer lugar, seguindo a ideia do FilmCraft (https://github.com/storytold/filmcraft) além de aproveitar o código-fonte disponível e adaptar para o programa sem afetar a semântica com a do VEGAS Pro.
-- [ ] Adicionar o traço amostragem de frame atual na playhead e sincronizar com a prévia do vídeo, igual ao que tem no Premiere Pro
+- [ ] Adicionar o traço amostragem de frame atual na playhead e sincronizar com a prévia do vídeo, igual ao que tem no Premiere Pro.
 
 **Interoperabilidade**
 - [x] Importar e exportar **AAF** (Arquivo > Importar e Exportar > AAF), pelos crates `neoveg_aaf` e `neoveg_cfb` adaptados do FilmCraft (escritos a partir das especificações públicas da AMWA e do formato de arquivo composto da Microsoft): uma composição com uma trilha por faixa de vídeo e de áudio, preenchimentos e clipes com entrada na fonte, a sobreposição de dois eventos como transição, nomes, caminhos das mídias (com acentos e espaços), marcadores e o timecode; a importação põe os clipes cujas mídias já estão no projeto, em um passo de desfazer. **Ainda não conferido** com o Avid, o Premiere ou o Resolve (não há nenhum aqui): a conferência é a ida e volta pelos próprios leitor e escritor.
