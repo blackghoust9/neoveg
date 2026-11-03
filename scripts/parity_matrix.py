@@ -68,7 +68,7 @@ ROWS: List[Row] = [
     ("edit.excluir", A_EDIT, "Excluir eventos ou faixas", r"^Edit > Delete$", "feito", "`edit.delete` e `edit.ripple_delete`", "-"),
     ("edit.aparar", A_EDIT, "Aparar à seleção, início ou fim ao cursor", r"^Edit > Trim", "feito", "`edit.trim`, `edit.trim_start`, `edit.trim_end`", "-"),
     ("edit.dividir", A_EDIT, "Dividir no cursor", r"^Edit > Split$", "feito", "`edit.split`", "-"),
-    ("edit.edicao_assist", A_EDIT, "Divisão inteligente, curar evento dividido e fechar lacunas", r"^Edit > (Smart Split|Event Heal|Close Gaps)", "feito", "divisão inteligente (`edit.smart_split`, `Alt+S`), curar eventos divididos (`edit.heal`, `ops::heal_events`, manual v21 p.309) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, manual v21 p.309)", "-"),
+    ("edit.edicao_assist", A_EDIT, "Divisão inteligente, curar evento dividido e fechar lacunas", r"^Edit > (Smart Split|Event Heal|Close Gaps)", "feito", "divisão inteligente (`edit.smart_split`, `Alt+S`), curar eventos divididos (`edit.heal`, `Ctrl+Alt+H`, `ops::heal_events`, manual v21 p.309) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, manual v21 p.309)", "-"),
     ("edit.ajuste", A_EDIT, "Redimensionar eventos de ajuste ao projeto", r"^Edit > Resize", "feito", "`edit.resize_adjustment_to_project` (menu Editar, menu do evento e Inspetor)", "-"),
     ("edit.navegar", A_EDIT, "Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar", r"^Edit > Navigate", "parcial", "a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução", "P3"),
     ("edit.ripple_pos", A_EDIT, "Escopo do ripple pós-edição", r"^Edit > Post-Edit Ripple", "parcial", "3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento", "P3"),

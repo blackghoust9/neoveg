@@ -100,7 +100,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Excluir eventos ou faixas | 1 | feito | `edit.delete` e `edit.ripple_delete` | - |
 | Aparar à seleção, início ou fim ao cursor | 3 | feito | `edit.trim`, `edit.trim_start`, `edit.trim_end` | - |
 | Dividir no cursor | 1 | feito | `edit.split` | - |
-| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | feito | divisão inteligente (`edit.smart_split`, `Alt+S`), curar eventos divididos (`edit.heal`, `ops::heal_events`, manual v21 p.309) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, manual v21 p.309) | - |
+| Divisão inteligente, curar evento dividido e fechar lacunas | 3 | feito | divisão inteligente (`edit.smart_split`, `Alt+S`), curar eventos divididos (`edit.heal`, `Ctrl+Alt+H`, `ops::heal_events`, manual v21 p.309) e fechar espaços (`edit.close_gaps`, `Ctrl+Alt+G`, manual v21 p.309) | - |
 | Redimensionar eventos de ajuste ao projeto | 2 | feito | `edit.resize_adjustment_to_project` (menu Editar, menu do evento e Inspetor) | - |
 | Navegar: ir ao tempo, início e fim, quadro, marcador, ponto de edição, centralizar | 20 | parcial | a maioria feita (`cursor.*`); faltam passo por grade, pixel, evento selecionado e cursor para a reprodução | P3 |
 | Escopo do ripple pós-edição | 4 | parcial | 3 dos 4 escopos (`edit.ripple.*`); sem faixas de barramento | P3 |
