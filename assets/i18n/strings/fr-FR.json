@@ -1414,5 +1414,12 @@
   "Presets de resolução": "Préréglages de résolution",
   "{}x{} a {} quadros/s": "{}x{} à {} images/s",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} modèles sont fournis avec Neoveg et ne peuvent pas être modifiés.",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Aucun pour l'instant. Dans les propriétés du projet, réglez la résolution et la cadence, puis utilisez Enregistrer le modèle."
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Aucun pour l'instant. Dans les propriétés du projet, réglez la résolution et la cadence, puis utilisez Enregistrer le modèle.",
+  "Abrir um Projeto Recente": "Ouvrir un projet récent",
+  "Criar novo": "Créer",
+  "Criar novo projeto…": "Créer un nouveau projet…",
+  "Voltar": "Retour",
+  "Versão {}": "Version {}",
+  "Atualizado em {}": "Mis à jour le {}",
+  "Nenhum projeto recente ainda.": "Aucun projet récent pour le moment."
 }

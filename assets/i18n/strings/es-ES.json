@@ -1414,5 +1414,12 @@
   "Presets de resolução": "Ajustes de resolución",
   "{}x{} a {} quadros/s": "{}x{} a {} fotogramas/s",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} plantillas vienen con Neoveg y no se pueden cambiar.",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Ninguna todavía. En las propiedades del proyecto, ajusta la resolución y la velocidad de fotogramas y usa Guardar plantilla."
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Ninguna todavía. En las propiedades del proyecto, ajusta la resolución y la velocidad de fotogramas y usa Guardar plantilla.",
+  "Abrir um Projeto Recente": "Abrir un proyecto reciente",
+  "Criar novo": "Crear nuevo",
+  "Criar novo projeto…": "Crear proyecto nuevo…",
+  "Voltar": "Volver",
+  "Versão {}": "Versión {}",
+  "Atualizado em {}": "Actualizado el {}",
+  "Nenhum projeto recente ainda.": "Aún no hay proyectos recientes."
 }

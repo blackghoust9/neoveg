@@ -1414,5 +1414,12 @@
   "Presets de resolução": "Resolution presets",
   "{}x{} a {} quadros/s": "{}x{} at {} frames/s",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} templates come with Neoveg and cannot be changed.",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "None yet. In the project properties, set the resolution and the frame rate and use Save template."
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "None yet. In the project properties, set the resolution and the frame rate and use Save template.",
+  "Abrir um Projeto Recente": "Open a Recent Project",
+  "Criar novo": "Create new",
+  "Criar novo projeto…": "Create new project…",
+  "Voltar": "Back",
+  "Versão {}": "Version {}",
+  "Atualizado em {}": "Updated on {}",
+  "Nenhum projeto recente ainda.": "No recent projects yet."
 }

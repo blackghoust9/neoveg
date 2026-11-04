@@ -1414,5 +1414,12 @@
   "Presets de resolução": "Auflösungsvorgaben",
   "{}x{} a {} quadros/s": "{}x{} mit {} Bildern/s",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} Vorlagen gehören zu Neoveg und lassen sich nicht ändern.",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Noch keine. Stellen Sie in den Projekteigenschaften Auflösung und Bildrate ein und wählen Sie Vorlage speichern."
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Noch keine. Stellen Sie in den Projekteigenschaften Auflösung und Bildrate ein und wählen Sie Vorlage speichern.",
+  "Abrir um Projeto Recente": "Letztes Projekt öffnen",
+  "Criar novo": "Neu erstellen",
+  "Criar novo projeto…": "Neues Projekt erstellen…",
+  "Voltar": "Zurück",
+  "Versão {}": "Version {}",
+  "Atualizado em {}": "Aktualisiert am {}",
+  "Nenhum projeto recente ainda.": "Noch keine letzten Projekte."
 }

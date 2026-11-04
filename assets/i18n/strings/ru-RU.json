@@ -1414,5 +1414,12 @@
   "Presets de resolução": "Пресеты разрешения",
   "{}x{} a {} quadros/s": "{}x{}, {} кадров/с",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} шаблонов входят в состав Neoveg, их нельзя изменить.",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Пока нет. В свойствах проекта задайте разрешение и частоту кадров и выберите «Сохранить шаблон»."
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "Пока нет. В свойствах проекта задайте разрешение и частоту кадров и выберите «Сохранить шаблон».",
+  "Abrir um Projeto Recente": "Открыть недавний проект",
+  "Criar novo": "Создать",
+  "Criar novo projeto…": "Создать новый проект…",
+  "Voltar": "Назад",
+  "Versão {}": "Версия {}",
+  "Atualizado em {}": "Обновлено {}",
+  "Nenhum projeto recente ainda.": "Недавних проектов пока нет."
 }

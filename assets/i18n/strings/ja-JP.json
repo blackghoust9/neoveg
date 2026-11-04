@@ -1414,5 +1414,12 @@
   "Presets de resolução": "解像度プリセット",
   "{}x{} a {} quadros/s": "{}x{}、{} フレーム/秒",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "{} 個のテンプレートが Neoveg に付属しており、変更できません。",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "まだありません。プロジェクトのプロパティで解像度とフレームレートを設定し、テンプレートを保存を使います。"
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "まだありません。プロジェクトのプロパティで解像度とフレームレートを設定し、テンプレートを保存を使います。",
+  "Abrir um Projeto Recente": "最近のプロジェクトを開く",
+  "Criar novo": "新規作成",
+  "Criar novo projeto…": "新しいプロジェクトを作成…",
+  "Voltar": "戻る",
+  "Versão {}": "バージョン {}",
+  "Atualizado em {}": "更新日 {}",
+  "Nenhum projeto recente ainda.": "最近のプロジェクトはまだありません。"
 }

@@ -1,6 +1,8 @@
-//! Startup screen: a rectangular card with the program's name, version and last update on the
-//! left, what the machine is on the right (operating system, processor, memory, graphics adapter and
-//! user), and a footer with the copyright line and a progress bar.
+//! Startup screen, drawn as in the design of the program (`layouts-neoveg.vectorcraft`): a rounded
+//! card with a blue gradient holding the name, the version and the date of the last update on the
+//! left and, on the right, the operating system, processor, graphics adapter, memory and user, then
+//! a progress bar with the copyright line under it; the line that says what is being loaded sits
+//! under the card.
 //!
 //! The progress is not a fake timer: the application runs its startup steps one per frame
 //! (preferences, graphics, audio device, effects, video decoder, recovery files) and reports each
@@ -13,7 +15,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Rounding, Stroke};
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Rounding};
+use neoveg_common::i18n::tr_args;
 use neoveg_common::sys_info::SystemInfo;
 
 // ---- pacing ----------------------------------------------------------------------------------------
@@ -176,97 +179,134 @@ impl Pacing {
 }
 
 // ---- the card ----------------------------------------------------------------------------------------
+//
+// The layout follows the design of the screen (`layouts-neoveg.vectorcraft`, group `splash`): every
+// position and size below is in the units of that drawing, where the card is 1466 wide and 995 high,
+// and is multiplied by the scale of the card on screen.
 
 /// Version of the program (the workspace version).
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Date of the build, `dd/mm/aaaa` (written by `build.rs`).
 const UPDATED: &str = env!("NEOVEG_BUILD_DATE");
 const COPYRIGHT: &str = "© 2026 Neoveg. Código aberto sob MIT OU Apache-2.0.";
-const TAGLINE: &str = "Editor não linear de vídeo e áudio em Rust";
 
 const SCREEN_BG: Color32 = Color32::from_rgb(0x0B, 0x0F, 0x14);
-const CARD_BG: Color32 = Color32::from_rgb(0x12, 0x1A, 0x24);
-const CARD_BORDER: Color32 = Color32::from_rgb(0x29, 0x80, 0xB9);
-const TEXT: Color32 = Color32::from_rgb(0xE6, 0xED, 0xF3);
-const LABEL: Color32 = Color32::from_rgb(0x7D, 0x8B, 0x99);
-const ACCENT: Color32 = Color32::from_rgb(0x3E, 0xA6, 0xE0);
+const TEXT: Color32 = Color32::WHITE;
+/// The track of the progress bar and the part of it that is done.
+const BAR_TRACK: Color32 = Color32::from_rgb(0xC1, 0xC1, 0xC1);
+const BAR_FILL: Color32 = Color32::from_rgb(0x34, 0x34, 0x34);
 
-/// Size of the card, in points, when the window is large enough.
-const CARD_SIZE: (f32, f32) = (800.0, 330.0);
+/// The drawing of the card: size, corner radius and the places of its parts.
+const DESIGN_W: f32 = 1466.0;
+const DESIGN_H: f32 = 995.0;
+const DESIGN_RADIUS: f32 = 108.0;
+const TITLE_AT: (f32, f32) = (75.0, 105.0);
+const TITLE_SIZE: f32 = 163.5;
+const VERSION_AT: (f32, f32) = (85.0, 326.0);
+const UPDATED_AT: (f32, f32) = (85.0, 395.0);
+const TEXT_SIZE: f32 = 46.7;
+/// The right-hand list: operating system, processor, graphics, memory, user.
+const LIST_X: f32 = 864.0;
+const LIST_Y: [f32; 5] = [286.0, 353.0, 422.0, 491.0, 559.0];
+/// The progress bar (track), the inset of its fill, and the line under the card that says what is
+/// being loaded.
+const BAR: (f32, f32, f32, f32) = (101.0, 895.0, 1282.0, 913.0);
+const BAR_INSET: (f32, f32) = (6.0, 3.0);
+const COPYRIGHT_Y: f32 = 927.0;
+const COPYRIGHT_SIZE: f32 = 23.4;
+const STATUS_AT: (f32, f32) = (107.0, 1067.0);
+const STATUS_SIZE: f32 = 27.6;
+/// Room the status line takes under the card, in design units.
+const STATUS_ROOM: f32 = 150.0;
 
-/// The card centred in `screen`, shrunk to fit a small window.
+/// Widest the card is, in points, when the window is large enough.
+const CARD_WIDTH: f32 = 800.0;
+
+/// The card centred in `screen`, shrunk to fit a small window (the status line sits under it).
 pub fn card_rect(screen: Rect) -> Rect {
-    let size = vec2(
-        CARD_SIZE.0.min(screen.width() - 24.0).max(320.0),
-        CARD_SIZE.1.min(screen.height() - 24.0).max(240.0),
-    );
-    Rect::from_center_size(screen.center(), size)
+    let ratio = DESIGN_H / DESIGN_W;
+    let by_height = (screen.height() - 24.0) / (ratio + STATUS_ROOM / DESIGN_W);
+    let width = CARD_WIDTH
+        .min(screen.width() - 24.0)
+        .min(by_height)
+        .max(320.0);
+    Rect::from_center_size(screen.center(), vec2(width, width * ratio))
 }
 
-/// One labelled value of the right-hand list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Field {
-    pub label: &'static str,
-    pub value: String,
+/// The colour of the card at `t` (`0.0` left edge, `1.0` right edge): deep blue at the left, a
+/// brighter blue from the middle on.
+pub fn gradient_color(t: f32) -> Color32 {
+    const FROM: [f32; 3] = [34.0, 34.0, 174.0];
+    const TO: [f32; 3] = [44.0, 103.0, 255.0];
+    const STOPS: (f32, f32) = (0.0657, 0.5009);
+    let k = ((t - STOPS.0) / (STOPS.1 - STOPS.0)).clamp(0.0, 1.0);
+    let channel = |i: usize| (FROM[i] + (TO[i] - FROM[i]) * k).round() as u8;
+    Color32::from_rgb(channel(0), channel(1), channel(2))
 }
 
-/// The sections of the right-hand list: the operating system, the machine (processor, memory and
-/// graphics adapter) and the user. `info` is `None` while the system is still being asked.
-pub fn sections(info: Option<&SystemInfo>, gpu: &str) -> Vec<(&'static str, Vec<Field>)> {
+/// Fills `rect` with the gradient, rounded at the corners by `radius`: thin vertical strips whose
+/// height follows the corner curve.
+pub fn paint_gradient(painter: &egui::Painter, rect: Rect, radius: f32, opacity: f32) {
+    let radius = radius.min(rect.height() / 2.0).min(rect.width() / 2.0);
+    let strip = 2.0;
+    let count = (rect.width() / strip).ceil().max(1.0) as usize;
+    for i in 0..count {
+        let x0 = rect.left() + i as f32 * strip;
+        let x1 = (x0 + strip + 0.5).min(rect.right());
+        let middle = (x0 + x1) / 2.0;
+        let edge = (middle - rect.left()).min(rect.right() - middle);
+        let inset = if edge < radius {
+            radius - (radius * radius - (radius - edge).powi(2)).max(0.0).sqrt()
+        } else {
+            0.0
+        };
+        let t = (middle - rect.left()) / rect.width();
+        painter.rect_filled(
+            Rect::from_min_max(
+                pos2(x0, rect.top() + inset),
+                pos2(x1, rect.bottom() - inset),
+            ),
+            Rounding::ZERO,
+            fade(gradient_color(t), opacity),
+        );
+    }
+}
+
+/// The five lines of the right-hand list, in the order of the drawing: operating system, processor,
+/// graphics adapter, memory and user. `info` is `None` while the system is still being asked.
+pub fn info_lines(info: Option<&SystemInfo>, gpu: &str) -> [String; 5] {
     let waiting = || "Detectando…".to_owned();
-    let (os, cpu, memory, user) = match info {
-        Some(i) => (
-            i.os.clone(),
-            i.cpu.clone(),
-            i.memory.clone(),
-            i.user.clone(),
-        ),
-        None => (waiting(), waiting(), waiting(), waiting()),
-    };
     let gpu = if gpu.trim().is_empty() {
         "Desconhecido".to_owned()
     } else {
         gpu.trim().to_owned()
     };
-    vec![
-        (
-            "SISTEMA OPERACIONAL",
-            vec![Field {
-                label: "",
-                value: os,
-            }],
-        ),
-        (
-            "CONFIG. DA MÁQUINA",
-            vec![
-                Field {
-                    label: "CPU",
-                    value: cpu,
-                },
-                Field {
-                    label: "MEM",
-                    value: memory,
-                },
-                Field {
-                    label: "GPU",
-                    value: gpu,
-                },
-            ],
-        ),
-        (
-            "USUÁRIO",
-            vec![Field {
-                label: "",
-                value: user,
-            }],
-        ),
-    ]
+    match info {
+        Some(i) => [
+            i.os.clone(),
+            i.cpu.clone(),
+            gpu,
+            i.memory.clone(),
+            i.user.clone(),
+        ],
+        None => [waiting(), waiting(), gpu, waiting(), waiting()],
+    }
+}
+
+/// The line with the version of the program.
+pub fn version_line() -> String {
+    tr_args("Versão {}", &[&VERSION])
+}
+
+/// The line with the date of the last update (the build).
+pub fn updated_line() -> String {
+    tr_args("Atualizado em {}", &[&UPDATED])
 }
 
 pub struct Splash {
     pub pacing: Pacing,
     labels: Vec<String>,
-    /// What the last finished step reported (shown under the bar).
+    /// What the last finished step reported (shown under the card).
     detail: String,
     shown_progress: f32,
     /// The machine facts, filled in by a worker thread.
@@ -354,139 +394,82 @@ impl Splash {
         opacity: f32,
     ) {
         let card = card_rect(screen);
-        painter.rect_filled(card, Rounding::ZERO, fade(CARD_BG, opacity));
-        painter.rect_stroke(
-            card,
-            Rounding::ZERO,
-            Stroke::new(1.0_f32, fade(CARD_BORDER, opacity)),
-        );
-        let pad = 28.0;
-        let inner = card.shrink(pad);
+        let s = card.width() / DESIGN_W;
+        let at = |(x, y): (f32, f32)| card.min + vec2(x, y) * s;
+        let white = fade(TEXT, opacity);
+        paint_gradient(painter, card, DESIGN_RADIUS * s, opacity);
 
         // Left: the name, the version and the date of the last update
-        let left_w = (inner.width() * 0.36).min(280.0);
         painter.text(
-            inner.left_top(),
+            at(TITLE_AT),
             Align2::LEFT_TOP,
             "NEOVEG",
-            FontId::proportional(46.0),
-            fade(TEXT, opacity),
+            FontId::proportional(TITLE_SIZE * s),
+            white,
         );
-        let mut y = inner.top() + 64.0;
-        painter.text(
-            pos2(inner.left(), y),
-            Align2::LEFT_TOP,
-            TAGLINE,
-            FontId::proportional(11.0),
-            fade(LABEL, opacity),
-        );
-        y += 34.0;
-        for (label, value) in [("VERSÃO", VERSION), ("ÚLTIMA ATUALIZAÇÃO", UPDATED)] {
+        for (place, text) in [(VERSION_AT, version_line()), (UPDATED_AT, updated_line())] {
             painter.text(
-                pos2(inner.left(), y),
+                at(place),
                 Align2::LEFT_TOP,
-                label,
-                FontId::proportional(10.0),
-                fade(LABEL, opacity),
+                text,
+                FontId::proportional(TEXT_SIZE * s),
+                white,
             );
-            painter.text(
-                pos2(inner.left(), y + 14.0),
-                Align2::LEFT_TOP,
-                value,
-                FontId::proportional(16.0),
-                fade(TEXT, opacity),
-            );
-            y += 48.0;
         }
-
-        // A thin divider between the two halves
-        let divider_x = inner.left() + left_w + 14.0;
-        painter.line_segment(
-            [
-                pos2(divider_x, inner.top() + 4.0),
-                pos2(divider_x, inner.bottom() - 70.0),
-            ],
-            Stroke::new(1.0_f32, fade(LABEL, opacity * 0.35)),
-        );
 
         // Right: what the machine is
-        let list_left = divider_x + 28.0;
-        let mut y = inner.top() + 2.0;
-        for (heading, fields) in sections(info, &self.gpu) {
+        let room = ((card.right() - at((LIST_X, 0.0)).x - 16.0) / (TEXT_SIZE * s * 0.5)) as usize;
+        for (y, line) in LIST_Y.iter().zip(info_lines(info, &self.gpu)) {
             painter.text(
-                pos2(list_left, y),
+                at((LIST_X, *y)),
                 Align2::LEFT_TOP,
-                heading,
-                FontId::proportional(10.0),
-                fade(ACCENT, opacity),
+                clip(&line, room),
+                FontId::proportional(TEXT_SIZE * s),
+                white,
             );
-            y += 16.0;
-            for field in fields {
-                if !field.label.is_empty() {
-                    painter.text(
-                        pos2(list_left, y),
-                        Align2::LEFT_TOP,
-                        field.label,
-                        FontId::monospace(12.0),
-                        fade(LABEL, opacity),
-                    );
-                }
-                let value_x = if field.label.is_empty() {
-                    list_left
-                } else {
-                    list_left + 44.0
-                };
-                painter.text(
-                    pos2(value_x, y),
-                    Align2::LEFT_TOP,
-                    clip(&field.value, ((inner.right() - value_x) / 7.2) as usize),
-                    FontId::proportional(13.0),
-                    fade(TEXT, opacity),
-                );
-                y += 19.0;
-            }
-            y += 12.0;
         }
 
-        // Footer: the copyright line and the progress bar
-        let footer_top = inner.bottom() - 58.0;
-        painter.text(
-            pos2(inner.left(), footer_top),
-            Align2::LEFT_TOP,
-            COPYRIGHT,
-            FontId::proportional(10.0),
-            fade(LABEL, opacity),
-        );
-        painter.text(
-            pos2(inner.right(), footer_top),
-            Align2::RIGHT_TOP,
-            format!("{:.0}%", self.shown_progress * 100.0),
-            FontId::monospace(10.0),
-            fade(TEXT, opacity),
-        );
-        let bar = Rect::from_min_size(
-            pos2(inner.left(), footer_top + 20.0),
-            vec2(inner.width(), 6.0),
-        );
+        // The progress bar, with the copyright line under it
+        let track = Rect::from_min_max(at((BAR.0, BAR.1)), at((BAR.2, BAR.3)));
         painter.rect_filled(
-            bar,
-            Rounding::ZERO,
-            fade(Color32::from_rgb(0x24, 0x31, 0x40), opacity),
+            track,
+            Rounding::same(track.height() / 2.0),
+            fade(BAR_TRACK, opacity),
+        );
+        let inner = Rect::from_min_max(
+            track.min + vec2(BAR_INSET.0, BAR_INSET.1) * s,
+            track.max - vec2(BAR_INSET.0, BAR_INSET.1) * s,
         );
         let filled = Rect::from_min_size(
-            bar.min,
+            inner.min,
             vec2(
-                bar.width() * self.shown_progress.clamp(0.0, 1.0),
-                bar.height(),
+                inner.width() * self.shown_progress.clamp(0.0, 1.0),
+                inner.height(),
             ),
         );
-        painter.rect_filled(filled, Rounding::ZERO, fade(ACCENT, opacity));
+        painter.rect_filled(
+            filled,
+            Rounding::same(inner.height() / 2.0),
+            fade(BAR_FILL, opacity),
+        );
         painter.text(
-            pos2(inner.left(), bar.bottom() + 6.0),
+            pos2(track.center().x, card.top() + COPYRIGHT_Y * s),
+            Align2::CENTER_TOP,
+            COPYRIGHT,
+            FontId::proportional(COPYRIGHT_SIZE * s),
+            white,
+        );
+
+        // What is being loaded sits under the card
+        painter.text(
+            at(STATUS_AT),
             Align2::LEFT_TOP,
-            clip(&self.step_label(), (inner.width() / 6.0) as usize),
-            FontId::proportional(10.0),
-            fade(LABEL, opacity),
+            clip(
+                &self.step_label(),
+                (card.width() / (STATUS_SIZE * s * 0.5)) as usize,
+            ),
+            FontId::proportional(STATUS_SIZE * s),
+            white,
         );
     }
 }
@@ -522,53 +505,86 @@ mod card_tests {
     }
 
     #[test]
-    fn the_right_hand_list_has_the_sections_and_fields_of_the_model() {
-        let list = sections(Some(&info()), "NVIDIA GeForce RTX 4090 · Vulkan");
-        let headings: Vec<&str> = list.iter().map(|(h, _)| *h).collect();
+    fn the_right_hand_list_has_the_five_lines_of_the_design_in_order() {
+        let lines = info_lines(Some(&info()), "NVIDIA GeForce RTX 4090 · Vulkan");
         assert_eq!(
-            headings,
-            vec!["SISTEMA OPERACIONAL", "CONFIG. DA MÁQUINA", "USUÁRIO"]
-        );
-        assert_eq!(list[0].1[0].value, "Windows 11 Pro 64-bit");
-        let machine: Vec<(&str, &str)> = list[1]
-            .1
-            .iter()
-            .map(|f| (f.label, f.value.as_str()))
-            .collect();
-        assert_eq!(
-            machine,
-            vec![
-                ("CPU", "Intel Core i9-13900K"),
-                ("MEM", "64 GB"),
-                ("GPU", "NVIDIA GeForce RTX 4090 · Vulkan")
+            lines,
+            [
+                "Windows 11 Pro 64-bit",
+                "Intel Core i9-13900K",
+                "NVIDIA GeForce RTX 4090 · Vulkan",
+                "64 GB",
+                "ana"
             ]
         );
-        assert_eq!(list[2].1[0].value, "ana");
     }
 
     #[test]
     fn until_the_system_answers_the_lines_say_so_and_an_unknown_gpu_is_named() {
-        let waiting = sections(None, "");
-        assert_eq!(waiting[0].1[0].value, "Detectando…");
-        assert_eq!(waiting[1].1[2].value, "Desconhecido", "no adapter reported");
-        assert_eq!(waiting[1].1[0].value, "Detectando…");
+        let waiting = info_lines(None, "");
+        assert_eq!(waiting[0], "Detectando…");
+        assert_eq!(waiting[2], "Desconhecido", "no adapter reported");
+        assert_eq!(waiting[3], "Detectando…");
+        assert_eq!(waiting[4], "Detectando…");
     }
 
     #[test]
-    fn the_card_is_centred_fits_small_windows_and_holds_no_logo_text() {
+    fn the_card_keeps_the_proportions_of_the_design_is_centred_and_fits_small_windows() {
         let big = Rect::from_min_size(pos2(0.0, 0.0), vec2(1600.0, 900.0));
         let card = card_rect(big);
         assert_eq!(card.center(), big.center());
-        assert_eq!((card.width(), card.height()), CARD_SIZE);
+        assert_eq!(card.width(), CARD_WIDTH);
+        assert!((card.width() / card.height() - DESIGN_W / DESIGN_H).abs() < 1e-3);
         let small = Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0));
         let shrunk = card_rect(small);
         assert!(
             small.contains_rect(shrunk),
             "the card stays inside a small window"
         );
-        // The mark is the program's icon in the system, not part of this screen
-        let text = format!("{TAGLINE}{COPYRIGHT}");
-        assert!(!text.contains("Nv"));
+        assert!((shrunk.width() / shrunk.height() - DESIGN_W / DESIGN_H).abs() < 1e-3);
+        // The status line has room under the card in a window that is tall enough
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0));
+        let card = card_rect(screen);
+        let status = card.top() + STATUS_AT.1 * (card.width() / DESIGN_W) + STATUS_SIZE;
+        assert!(status < screen.bottom(), "{status}");
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn every_part_of_the_design_sits_inside_the_card_except_the_status_line() {
+        for (x, y) in [TITLE_AT, VERSION_AT, UPDATED_AT] {
+            assert!(x < DESIGN_W && y < DESIGN_H);
+        }
+        for y in LIST_Y {
+            assert!(y + TEXT_SIZE < DESIGN_H);
+        }
+        assert!(BAR.2 < DESIGN_W && BAR.3 < DESIGN_H);
+        assert!(COPYRIGHT_Y + COPYRIGHT_SIZE < DESIGN_H);
+        assert!(STATUS_AT.1 > DESIGN_H, "under the card");
+        // The list does not run into the left column
+        assert!(LIST_X > VERSION_AT.0 + 500.0);
+    }
+
+    #[test]
+    fn the_gradient_goes_from_deep_blue_to_a_brighter_blue_by_the_middle() {
+        let left = gradient_color(0.0);
+        assert_eq!((left.r(), left.g(), left.b()), (34, 34, 174));
+        assert_eq!(gradient_color(0.0657), left, "flat up to the first stop");
+        let right = gradient_color(1.0);
+        assert_eq!((right.r(), right.g(), right.b()), (44, 103, 255));
+        assert_eq!(
+            gradient_color(0.5009),
+            right,
+            "flat from the second stop on"
+        );
+        // In between it only gets brighter
+        let mut last = 0;
+        for i in 0..=20 {
+            let c = gradient_color(0.0657 + (0.5009 - 0.0657) * i as f32 / 20.0);
+            let brightness = u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b());
+            assert!(brightness >= last);
+            last = brightness;
+        }
     }
 
     #[test]
@@ -577,6 +593,8 @@ mod card_tests {
         let parts: Vec<&str> = UPDATED.split('/').collect();
         assert_eq!(parts.len(), 3, "dd/mm/aaaa: {UPDATED}");
         assert_eq!(parts[2].len(), 4);
+        assert!(version_line().contains(VERSION));
+        assert!(updated_line().contains(UPDATED));
     }
 
     #[test]

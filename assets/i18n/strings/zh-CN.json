@@ -1414,5 +1414,12 @@
   "Presets de resolução": "分辨率预设",
   "{}x{} a {} quadros/s": "{}x{}，{} 帧/秒",
   "{} modelos vêm com o Neoveg e não podem ser mudados.": "Neoveg 自带 {} 个模板，无法修改。",
-  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "还没有。在项目属性中设置分辨率和帧率，然后使用“保存模板”。"
+  "Nenhum ainda. Em Propriedades do projeto, ajuste a resolução e a taxa de quadros e use Salvar modelo.": "还没有。在项目属性中设置分辨率和帧率，然后使用“保存模板”。",
+  "Abrir um Projeto Recente": "打开最近的项目",
+  "Criar novo": "新建",
+  "Criar novo projeto…": "新建项目…",
+  "Voltar": "返回",
+  "Versão {}": "版本 {}",
+  "Atualizado em {}": "更新于 {}",
+  "Nenhum projeto recente ainda.": "还没有最近的项目。"
 }
