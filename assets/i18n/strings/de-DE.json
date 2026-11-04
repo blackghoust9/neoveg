@@ -1488,5 +1488,10 @@
   "Título central": "Zentrierter Titel",
   "Terço inferior": "Untere Drittel",
   "Legenda": "Untertitel",
-  "Créditos": "Abspann"
+  "Créditos": "Abspann",
+  "Renderizar e substituir": "Rendern und ersetzen",
+  "Não foi possível criar a pasta {}: {}": "Der Ordner {} konnte nicht erstellt werden: {}",
+  "A renderização falhou: {}": "Das Rendern ist fehlgeschlagen: {}",
+  "Eventos substituídos por {}": "Ereignisse durch {} ersetzt",
+  "Renderizado para nova faixa: {}": "In neue Spur gerendert: {}"
 }

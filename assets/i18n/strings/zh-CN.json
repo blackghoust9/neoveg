@@ -1488,5 +1488,10 @@
   "Título central": "居中标题",
   "Terço inferior": "下三分之一",
   "Legenda": "字幕",
-  "Créditos": "片尾字幕"
+  "Créditos": "片尾字幕",
+  "Renderizar e substituir": "渲染并替换",
+  "Não foi possível criar a pasta {}: {}": "无法创建文件夹 {}：{}",
+  "A renderização falhou: {}": "渲染失败：{}",
+  "Eventos substituídos por {}": "已用 {} 替换事件",
+  "Renderizado para nova faixa: {}": "已渲染到新轨道：{}"
 }

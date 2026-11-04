@@ -217,12 +217,26 @@ impl AppState {
             (true, Some(region)) => (region.start, region.end),
             _ => (0.0, self.timeline.duration()),
         };
+        self.start_render_with(request, range, None, ctx);
+    }
+
+    /// Starts a render of `range`; with `only` the project is rendered with just those events.
+    pub(super) fn start_render_with(
+        &mut self,
+        request: RenderLaunchRequest,
+        range: (f64, f64),
+        only: Option<Vec<neoveg_engine::selection::EventRef>>,
+        ctx: &egui::Context,
+    ) {
         // A sub-project plays through the expansion of its events
         let flat = self.flattened();
-        let timeline = flat
+        let mut timeline = flat
             .as_deref()
             .map_or_else(|| self.timeline.clone(), |f| f.timeline.clone());
-        let clips = self.build_clips();
+        if let Some(refs) = &only {
+            timeline = neoveg_engine::render_track::only_events(&timeline, refs);
+        }
+        let clips = self.build_clips_for(&timeline);
         let sources = self.render_sources(flat.as_deref());
         let title = request
             .output_path

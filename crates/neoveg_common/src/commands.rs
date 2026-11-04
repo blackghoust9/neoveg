@@ -159,7 +159,8 @@ commands! {
     InsertTime => ("insert.time", "Inserir tempo…", Insert, true),
     InsertRegion => ("insert.region", "Inserir região", Insert, true),
     InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, true),
-    RenderToNewTrack => ("tools.render_to_new_track", "Renderizar para nova faixa", Insert, false),
+    RenderToNewTrack => ("tools.render_to_new_track", "Renderizar para nova faixa", Insert, true),
+    RenderAndReplace => ("tools.render_and_replace", "Renderizar e substituir", Insert, true),
 
     // ---- Cursor e seleção
     CursorLeftByFrame => ("cursor.left_by_frame", "Cursor um quadro à esquerda", Cursor, true),

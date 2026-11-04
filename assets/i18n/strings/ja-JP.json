@@ -1488,5 +1488,10 @@
   "Título central": "中央タイトル",
   "Terço inferior": "ローワーサード",
   "Legenda": "キャプション",
-  "Créditos": "クレジット"
+  "Créditos": "クレジット",
+  "Renderizar e substituir": "レンダリングして置き換え",
+  "Não foi possível criar a pasta {}: {}": "フォルダー {} を作成できませんでした: {}",
+  "A renderização falhou: {}": "レンダリングに失敗しました: {}",
+  "Eventos substituídos por {}": "イベントを {} に置き換えました",
+  "Renderizado para nova faixa: {}": "新しいトラックにレンダリングしました: {}"
 }

@@ -14,6 +14,7 @@ mod detached;
 mod dock_footer;
 pub(crate) mod headless;
 mod render_job;
+mod render_to_track;
 mod tabs;
 
 use crate::theme as ui_theme;
@@ -688,6 +689,8 @@ struct AppState {
     context_mark: Option<MarkId>,
     /// The command marker under the pointer when the ruler menu was opened.
     context_command: Option<neoveg_engine::command_markers::CommandId>,
+    /// The render of the selected events that is running or being loaded (*Renderizar para nova faixa*).
+    pending_render: Option<render_to_track::PendingRender>,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1768,6 +1771,7 @@ impl AppState {
             context_envelope: None,
             context_mark: None,
             context_command: None,
+            pending_render: None,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -3384,6 +3388,9 @@ impl AppState {
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
             Command::InsertEmptyEvent => self.selected_track.is_some(),
+            Command::RenderToNewTrack | Command::RenderAndReplace => {
+                !self.selection.refs().is_empty()
+            }
             Command::TrackLock => self.selected_track.is_some(),
             Command::TrackMakeChild | Command::TrackMakeChildGroup => self
                 .selected_track
@@ -3641,6 +3648,7 @@ impl AppState {
                     converted,
                 } => {
                     tracing::error!("[ERROR] import failed: {} ({error})", path.display());
+                    self.rendered_failed(&path);
                     self.status = tr_args("Falha ao importar: {}", &[&error]);
                     // A file of the project that exists but cannot be read: ask what to do with it
                     if let Some(id) = existing_id {
@@ -3665,7 +3673,14 @@ impl AppState {
                 LoadMsg::Loaded {
                     media,
                     existing_id: None,
-                } => self.place_media(media),
+                } => {
+                    if self.takes_rendered(&media.path) {
+                        let (path, duration) = (media.path.clone(), media.duration);
+                        self.place_rendered(path, duration, None, Some(media));
+                    } else {
+                        self.place_media(media);
+                    }
+                }
                 LoadMsg::VideoLoaded {
                     path,
                     info,
@@ -3691,7 +3706,14 @@ impl AppState {
                     info,
                     audio,
                     existing_id: None,
-                } => self.place_video(path, info, audio),
+                } => {
+                    if self.takes_rendered(&path) {
+                        let duration = info.duration;
+                        self.place_rendered(path, duration, Some(info), audio);
+                    } else {
+                        self.place_video(path, info, audio);
+                    }
+                }
             }
         }
     }
@@ -7102,6 +7124,8 @@ impl AppState {
             Command::TrackDuplicate => self.duplicate_selected_track(),
             Command::TrackLock => self.toggle_selected_track_lock(),
             Command::InsertEmptyEvent => self.insert_empty_event(),
+            Command::RenderToNewTrack => self.begin_render_to_track(false, ctx),
+            Command::RenderAndReplace => self.begin_render_to_track(true, ctx),
             Command::InsertCommandMarker => {
                 let (fps, drop_frame) = (self.project.settings.fps, self.drop_frame());
                 self.command_dialog.open_new(self.playhead, fps, drop_frame);
@@ -8186,6 +8210,7 @@ impl NeovegApp {
         self.run_compositors_window(ctx);
         self.run_media_properties_dialog(ctx);
         self.state.run_command_dialog(ctx);
+        self.state.poll_render_to_track(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
@@ -8730,6 +8755,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_inspector = true;
                 ui.close_menu();
             }
+            command_item(state, ui, Command::RenderToNewTrack);
+            command_item(state, ui, Command::RenderAndReplace);
             ui.separator();
             // Video tools
             let video_event = state
@@ -16676,6 +16703,20 @@ mod tests {
         assert!(s.timeline.command_markers.is_empty());
         assert!(s.history.undo(&mut s.timeline));
         assert_eq!(s.timeline.command_markers.len(), 1);
+    }
+
+    #[test]
+    fn render_to_a_new_track_needs_selected_events_and_says_so_otherwise() {
+        let (mut s, track, event) = state_with_clip();
+        s.selection.clear();
+        assert!(!s.command_enabled(Command::RenderToNewTrack));
+        assert!(!s.command_enabled(Command::RenderAndReplace));
+        run(&mut s, Command::RenderToNewTrack);
+        assert!(s.status.contains("Selecione os eventos"));
+        assert!(s.pending_render.is_none());
+        s.selection.set([(track, event)]);
+        assert!(s.command_enabled(Command::RenderToNewTrack));
+        assert!(s.command_enabled(Command::RenderAndReplace));
     }
 
     #[test]

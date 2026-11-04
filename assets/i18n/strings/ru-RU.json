@@ -1488,5 +1488,10 @@
   "Título central": "Заголовок по центру",
   "Terço inferior": "Нижняя треть",
   "Legenda": "Подпись",
-  "Créditos": "Титры"
+  "Créditos": "Титры",
+  "Renderizar e substituir": "Рендер и замена",
+  "Não foi possível criar a pasta {}: {}": "Не удалось создать папку {}: {}",
+  "A renderização falhou: {}": "Рендер не удался: {}",
+  "Eventos substituídos por {}": "События заменены на {}",
+  "Renderizado para nova faixa: {}": "Рендер на новую дорожку: {}"
 }

@@ -34,6 +34,7 @@ pub mod pan_crop;
 pub mod project_file;
 pub mod project_manager;
 pub mod relink;
+pub mod render_track;
 pub mod ripple;
 pub mod selection;
 pub mod slideshow;

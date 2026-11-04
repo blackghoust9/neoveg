@@ -1488,5 +1488,10 @@
   "Título central": "Título centrado",
   "Terço inferior": "Tercio inferior",
   "Legenda": "Leyenda",
-  "Créditos": "Créditos"
+  "Créditos": "Créditos",
+  "Renderizar e substituir": "Renderizar y reemplazar",
+  "Não foi possível criar a pasta {}: {}": "No se pudo crear la carpeta {}: {}",
+  "A renderização falhou: {}": "El renderizado falló: {}",
+  "Eventos substituídos por {}": "Eventos reemplazados por {}",
+  "Renderizado para nova faixa: {}": "Renderizado en una pista nueva: {}"
 }

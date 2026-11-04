@@ -1488,5 +1488,10 @@
   "Título central": "Titre centré",
   "Terço inferior": "Tiers inférieur",
   "Legenda": "Sous-titre",
-  "Créditos": "Générique"
+  "Créditos": "Générique",
+  "Renderizar e substituir": "Rendre et remplacer",
+  "Não foi possível criar a pasta {}: {}": "Impossible de créer le dossier {} : {}",
+  "A renderização falhou: {}": "Le rendu a échoué : {}",
+  "Eventos substituídos por {}": "Événements remplacés par {}",
+  "Renderizado para nova faixa: {}": "Rendu sur une nouvelle piste : {}"
 }
