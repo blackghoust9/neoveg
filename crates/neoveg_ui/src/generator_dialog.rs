@@ -4,6 +4,7 @@
 use eframe::egui::{self, Color32};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
+use neoveg_common::title_style::{self, TitleStyle};
 use neoveg_video::generators::{
     GeneratorKind, GeneratorSpec, GradientShape, TestPatternVariant, TitleAnimation,
 };
@@ -65,6 +66,10 @@ pub struct GeneratorDialogState {
     pub title_font_style: String,
     /// Families and their styles, read from the text engine when the controls first need them.
     font_list: Vec<(String, Vec<String>)>,
+    /// The name typed for a title style.
+    style_name: String,
+    /// The saved styles changed: the caller keeps the preferences.
+    pub styles_dirty: bool,
 }
 
 impl Default for GeneratorDialogState {
@@ -93,6 +98,8 @@ impl Default for GeneratorDialogState {
             title_font: "Inter".into(),
             title_font_style: "Bold".into(),
             font_list: Vec::new(),
+            style_name: String::new(),
+            styles_dirty: false,
         }
     }
 }
@@ -107,7 +114,113 @@ fn edit_rgba(ui: &mut egui::Ui, label: &str, rgba: &mut [u8; 4]) {
     });
 }
 
+/// The animation with the snake-case id of a title style.
+fn animation_of(id: &str) -> TitleAnimation {
+    TitleAnimation::ALL
+        .into_iter()
+        .find(|a| {
+            serde_json::to_value(a)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .as_deref()
+                == Some(id)
+        })
+        .unwrap_or_default()
+}
+
+/// The snake-case id of `animation`.
+fn animation_id(animation: TitleAnimation) -> String {
+    serde_json::to_value(animation)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_else(|| "static".into())
+}
+
 impl GeneratorDialogState {
+    /// The look of the title in the controls, under `name`.
+    pub fn current_style(&self, name: &str) -> TitleStyle {
+        TitleStyle {
+            name: name.to_owned(),
+            font: self.title_font.clone(),
+            font_style: self.title_font_style.clone(),
+            scale: self.title_scale,
+            text_rgba: self.title_rgba,
+            bg_rgba: self.title_bg_rgba,
+            outline_rgba: self.title_outline_rgba,
+            outline_px: self.title_outline_px,
+            shadow_rgba: self.title_shadow_rgba,
+            shadow_offset: self.title_shadow_offset,
+            align_y: self.title_align_y,
+            animation: animation_id(self.title_animation),
+        }
+    }
+
+    /// Puts the look of `style` in the controls; the text of the title stays.
+    pub fn apply_style(&mut self, style: &TitleStyle) {
+        self.title_font = style.font.clone();
+        self.title_font_style = style.font_style.clone();
+        self.title_scale = style.scale;
+        self.title_rgba = style.text_rgba;
+        self.title_bg_rgba = style.bg_rgba;
+        self.title_outline_rgba = style.outline_rgba;
+        self.title_outline_px = style.outline_px;
+        self.title_shadow_rgba = style.shadow_rgba;
+        self.title_shadow_offset = style.shadow_offset;
+        self.title_align_y = style.align_y;
+        self.title_animation = animation_of(&style.animation);
+    }
+
+    /// The row of the styles: pick one to apply it, or name the look in the controls and keep it.
+    fn style_row(&mut self, ui: &mut egui::Ui, saved: &mut Vec<TitleStyle>) {
+        ui.horizontal(|ui| {
+            ui.label(tr("Estilo:"));
+            let mut picked: Option<TitleStyle> = None;
+            egui::ComboBox::from_id_salt("gen_title_style")
+                .selected_text(tr("Escolher…"))
+                .width(130.0)
+                .show_ui(ui, |ui| {
+                    for style in title_style::all(saved) {
+                        if ui.selectable_label(false, &style.name).clicked() {
+                            picked = Some(style);
+                        }
+                    }
+                });
+            if let Some(style) = picked {
+                self.style_name = style.name.clone();
+                self.apply_style(&style);
+            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.style_name)
+                    .hint_text(tr("Nome"))
+                    .desired_width(110.0),
+            );
+            let name = title_style::clean_name(&self.style_name);
+            if ui
+                .add_enabled(name.is_some(), egui::Button::new(tr("Salvar")))
+                .on_hover_text(tr(
+                    "Guarda a aparência do título (sem o texto) sob esse nome",
+                ))
+                .clicked()
+            {
+                if let Some(name) = &name {
+                    let style = self.current_style(name);
+                    self.styles_dirty |= title_style::save(saved, &style);
+                }
+            }
+            let deletable = name
+                .as_deref()
+                .is_some_and(|n| saved.iter().any(|s| s.name == n));
+            if ui
+                .add_enabled(deletable, egui::Button::new(tr("Excluir")))
+                .clicked()
+            {
+                if let Some(name) = &name {
+                    self.styles_dirty |= title_style::remove(saved, name);
+                }
+            }
+        });
+    }
+
     /// Opens the dialog on an existing generated media, with its values in the controls. Applying it
     /// gives back a spec of the same size and rate for the media `media_id`.
     pub fn edit(&mut self, media_id: u64, spec: &GeneratorSpec) {
@@ -238,6 +351,7 @@ impl GeneratorDialogState {
         project_width: u32,
         project_height: u32,
         project_fps: f64,
+        styles: &mut Vec<TitleStyle>,
     ) -> Option<GeneratorSpec> {
         if !self.open {
             return None;
@@ -312,6 +426,7 @@ impl GeneratorDialogState {
                         }
                     }
                     GeneratorTab::TitleText => {
+                        self.style_row(ui, styles);
                         ui.label(tr("Texto do título (suporta múltiplas linhas):"));
                         ui.add(
                             egui::TextEdit::multiline(&mut self.title_text)

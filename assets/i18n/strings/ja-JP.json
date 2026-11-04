@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "プリセットをエクスポートしました: {}",
   "Não foi possível exportar as predefinições: {}": "プリセットをエクスポートできませんでした: {}",
   "{} predefinições importadas": "{} 個のプリセットをインポートしました",
-  "Não foi possível importar as predefinições: {}": "プリセットをインポートできませんでした: {}"
+  "Não foi possível importar as predefinições: {}": "プリセットをインポートできませんでした: {}",
+  "Estilo:": "スタイル:",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "タイトルの見た目（テキストを除く）をこの名前で保存します",
+  "Título central": "中央タイトル",
+  "Terço inferior": "ローワーサード",
+  "Legenda": "キャプション",
+  "Créditos": "クレジット"
 }

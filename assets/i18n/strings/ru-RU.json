@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "Пресеты экспортированы: {}",
   "Não foi possível exportar as predefinições: {}": "Не удалось экспортировать пресеты: {}",
   "{} predefinições importadas": "Импортировано пресетов: {}",
-  "Não foi possível importar as predefinições: {}": "Не удалось импортировать пресеты: {}"
+  "Não foi possível importar as predefinições: {}": "Не удалось импортировать пресеты: {}",
+  "Estilo:": "Стиль:",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "Сохраняет вид заголовка (без текста) под этим именем",
+  "Título central": "Заголовок по центру",
+  "Terço inferior": "Нижняя треть",
+  "Legenda": "Подпись",
+  "Créditos": "Титры"
 }

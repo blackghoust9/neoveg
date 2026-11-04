@@ -27,6 +27,8 @@ pub struct Preferences {
     pub command_templates: Vec<crate::command_template::CommandTemplate>,
     /// Presets of the video effects (values of every parameter under a name, for each effect).
     pub video_effect_presets: Vec<crate::effect_preset::EffectPreset>,
+    /// Styles of titles saved by the user (the built-in ones are in `title_style::builtin`).
+    pub title_styles: Vec<crate::title_style::TitleStyle>,
     /// While an event is slipped or slid, the preview shows its first and last frame side by side.
     pub show_event_edge_frames: bool,
     /// The two colors the fade envelope of a NEW video track goes to: above zero (top) and below zero
@@ -82,6 +84,7 @@ impl Default for Preferences {
             show_welcome_on_startup: true,
             command_templates: Vec::new(),
             video_effect_presets: Vec::new(),
+            title_styles: Vec::new(),
             show_event_edge_frames: true,
             new_track_fade_top: [0, 0, 0],
             new_track_fade_bottom: [255, 255, 255],

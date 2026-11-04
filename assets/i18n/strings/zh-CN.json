@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "已导出预设：{}",
   "Não foi possível exportar as predefinições: {}": "无法导出预设：{}",
   "{} predefinições importadas": "已导入 {} 个预设",
-  "Não foi possível importar as predefinições: {}": "无法导入预设：{}"
+  "Não foi possível importar as predefinições: {}": "无法导入预设：{}",
+  "Estilo:": "样式：",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "以此名称保存标题的外观（不含文字）",
+  "Título central": "居中标题",
+  "Terço inferior": "下三分之一",
+  "Legenda": "字幕",
+  "Créditos": "片尾字幕"
 }

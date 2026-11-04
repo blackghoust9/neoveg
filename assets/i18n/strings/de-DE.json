@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "Voreinstellungen exportiert: {}",
   "Não foi possível exportar as predefinições: {}": "Die Voreinstellungen konnten nicht exportiert werden: {}",
   "{} predefinições importadas": "{} Voreinstellungen importiert",
-  "Não foi possível importar as predefinições: {}": "Die Voreinstellungen konnten nicht importiert werden: {}"
+  "Não foi possível importar as predefinições: {}": "Die Voreinstellungen konnten nicht importiert werden: {}",
+  "Estilo:": "Stil:",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "Speichert das Aussehen des Titels (ohne Text) unter diesem Namen",
+  "Título central": "Zentrierter Titel",
+  "Terço inferior": "Untere Drittel",
+  "Legenda": "Untertitel",
+  "Créditos": "Abspann"
 }

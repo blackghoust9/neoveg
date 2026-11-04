@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "Preajustes exportados: {}",
   "Não foi possível exportar as predefinições: {}": "No se pudieron exportar los preajustes: {}",
   "{} predefinições importadas": "{} preajustes importados",
-  "Não foi possível importar as predefinições: {}": "No se pudieron importar los preajustes: {}"
+  "Não foi possível importar as predefinições: {}": "No se pudieron importar los preajustes: {}",
+  "Estilo:": "Estilo:",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "Guarda el aspecto del título (sin el texto) con este nombre",
+  "Título central": "Título centrado",
+  "Terço inferior": "Tercio inferior",
+  "Legenda": "Leyenda",
+  "Créditos": "Créditos"
 }

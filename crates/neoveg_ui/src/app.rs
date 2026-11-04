@@ -8195,7 +8195,17 @@ impl NeovegApp {
         let settings = &self.state.project.settings;
         let (width, height, fps) = (settings.width, settings.height, settings.fps);
         let editing = self.state.generator_dialog.editing.clone();
-        if let Some(spec) = self.state.generator_dialog.show(ctx, width, height, fps) {
+        let generated = self.state.generator_dialog.show(
+            ctx,
+            width,
+            height,
+            fps,
+            &mut self.state.prefs.title_styles,
+        );
+        if std::mem::take(&mut self.state.generator_dialog.styles_dirty) {
+            self.state.persist_preferences();
+        }
+        if let Some(spec) = generated {
             match editing {
                 Some((media_id, _)) => self.state.apply_generated_edit(media_id, spec, ctx),
                 None => self.state.insert_generated(spec, ctx),

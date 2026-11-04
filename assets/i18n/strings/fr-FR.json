@@ -1482,5 +1482,11 @@
   "Predefinições exportadas: {}": "Préréglages exportés : {}",
   "Não foi possível exportar as predefinições: {}": "Impossible d'exporter les préréglages : {}",
   "{} predefinições importadas": "{} préréglages importés",
-  "Não foi possível importar as predefinições: {}": "Impossible d'importer les préréglages : {}"
+  "Não foi possível importar as predefinições: {}": "Impossible d'importer les préréglages : {}",
+  "Estilo:": "Style :",
+  "Guarda a aparência do título (sem o texto) sob esse nome": "Garde l'aspect du titre (sans le texte) sous ce nom",
+  "Título central": "Titre centré",
+  "Terço inferior": "Tiers inférieur",
+  "Legenda": "Sous-titre",
+  "Créditos": "Générique"
 }
