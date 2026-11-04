@@ -1606,5 +1606,10 @@
   "Maximizar ou restaurar a linha do tempo": "Zeitleiste maximieren oder wiederherstellen",
   "Minimizar ou restaurar a lista de faixas": "Spurliste minimieren oder wiederherstellen",
   "Alternar o foco entre a lista de faixas e a linha do tempo": "Fokus zwischen Spurliste und Zeitleiste wechseln",
-  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Fokus auf der Spurliste: ↑ und ↓ wechseln die Spur (Tab zurück zur Zeitleiste)"
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Fokus auf der Spurliste: ↑ und ↓ wechseln die Spur (Tab zurück zur Zeitleiste)",
+  "Console de mixagem": "Mischpult",
+  "Não há faixas de áudio nem barramentos para mixar.": "Es gibt keine Audiospuren oder Busse zum Mischen.",
+  "Inserts": "Inserts",
+  "Abre o painel de efeitos de áudio nesta cadeia": "Öffnet das Audioeffekt-Panel für diese Kette",
+  "Sem efeitos": "Keine Effekte"
 }

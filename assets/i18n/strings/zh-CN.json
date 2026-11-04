@@ -1606,5 +1606,10 @@
   "Maximizar ou restaurar a linha do tempo": "最大化或还原时间线",
   "Minimizar ou restaurar a lista de faixas": "最小化或还原轨道列表",
   "Alternar o foco entre a lista de faixas e a linha do tempo": "在轨道列表和时间线之间切换焦点",
-  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "焦点在轨道列表：↑ 和 ↓ 切换轨道（按 Tab 返回时间线）"
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "焦点在轨道列表：↑ 和 ↓ 切换轨道（按 Tab 返回时间线）",
+  "Console de mixagem": "调音台",
+  "Não há faixas de áudio nem barramentos para mixar.": "没有可混音的音频轨道或总线。",
+  "Inserts": "插入效果",
+  "Abre o painel de efeitos de áudio nesta cadeia": "在此效果链上打开音频效果面板",
+  "Sem efeitos": "无效果"
 }

@@ -348,6 +348,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewWaveforms, &["Ctrl+Shift+W"]),
     (Command::TrackToggleEnvelopes, &["Ctrl+Shift+E"]),
     (Command::ViewFocusTimeline, &["Alt+0"]),
+    (Command::ViewMixingConsole, &["Ctrl+Alt+5"]),
     (Command::ViewMinimizeDock, &["F11", "Alt+`"]),
     (Command::ViewMaximizeTimeline, &["Ctrl+F11", "Ctrl+Alt+`"]),
     (Command::ViewToggleTrackList, &["Shift+F11", "Alt+Shift+`"]),

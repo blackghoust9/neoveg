@@ -1606,5 +1606,10 @@
   "Maximizar ou restaurar a linha do tempo": "Развернуть или восстановить шкалу времени",
   "Minimizar ou restaurar a lista de faixas": "Свернуть или восстановить список дорожек",
   "Alternar o foco entre a lista de faixas e a linha do tempo": "Переключить фокус между списком дорожек и шкалой времени",
-  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Фокус на списке дорожек: ↑ и ↓ меняют дорожку (Tab возвращает на шкалу времени)"
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Фокус на списке дорожек: ↑ и ↓ меняют дорожку (Tab возвращает на шкалу времени)",
+  "Console de mixagem": "Микшерный пульт",
+  "Não há faixas de áudio nem barramentos para mixar.": "Нет аудиодорожек и шин для микширования.",
+  "Inserts": "Вставки",
+  "Abre o painel de efeitos de áudio nesta cadeia": "Открывает панель аудиоэффектов для этой цепочки",
+  "Sem efeitos": "Нет эффектов"
 }

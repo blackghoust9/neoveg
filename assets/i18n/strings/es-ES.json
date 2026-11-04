@@ -1606,5 +1606,10 @@
   "Maximizar ou restaurar a linha do tempo": "Maximizar o restaurar la línea de tiempo",
   "Minimizar ou restaurar a lista de faixas": "Minimizar o restaurar la lista de pistas",
   "Alternar o foco entre a lista de faixas e a linha do tempo": "Cambiar el foco entre la lista de pistas y la línea de tiempo",
-  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Foco en la lista de pistas: ↑ y ↓ cambian de pista (Tab vuelve a la línea de tiempo)"
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Foco en la lista de pistas: ↑ y ↓ cambian de pista (Tab vuelve a la línea de tiempo)",
+  "Console de mixagem": "Consola de mezcla",
+  "Não há faixas de áudio nem barramentos para mixar.": "No hay pistas de audio ni buses que mezclar.",
+  "Inserts": "Inserciones",
+  "Abre o painel de efeitos de áudio nesta cadeia": "Abre el panel de efectos de audio en esta cadena",
+  "Sem efeitos": "Sin efectos"
 }

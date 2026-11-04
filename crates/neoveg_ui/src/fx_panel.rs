@@ -890,6 +890,19 @@ fn ducking_ui(
     }
 }
 
+/// The name an effect has in the chain: the one of the hosted plug-in, of the built-in effect, or the
+/// registry id when nothing knows it.
+pub fn insert_name(effect: &TrackEffect) -> String {
+    if is_hosted_kind(&effect.kind) {
+        if let Some(info) = hosted_info(&effect.kind) {
+            return info.name.to_string();
+        }
+    } else if let Some(info) = effects::effect_info(&effect.kind) {
+        return info.name.to_string();
+    }
+    effect.kind.clone()
+}
+
 fn effect_ui(
     ui: &mut egui::Ui,
     panel: &mut FxPanelState,

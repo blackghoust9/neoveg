@@ -13,6 +13,7 @@ mod composite;
 mod detached;
 mod dock_footer;
 pub(crate) mod headless;
+mod mixing_console;
 mod render_job;
 mod render_to_track;
 mod scene_detect;
@@ -754,6 +755,8 @@ struct AppState {
     command_palette: crate::command_palette_window::PaletteState,
     /// The track list (the headers at the left of the timeline) is shown.
     track_list_visible: bool,
+    /// *Console de mixagem* is open.
+    mixing_console_open: bool,
     /// The track list has the keyboard focus (`Tab`): the up and down arrows move between tracks.
     focus_track_list: bool,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
@@ -1851,6 +1854,7 @@ impl AppState {
             scene_job: None,
             command_palette: Default::default(),
             track_list_visible: true,
+            mixing_console_open: false,
             focus_track_list: false,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
@@ -8117,6 +8121,7 @@ impl AppState {
             Command::RippleAffectedTracks => self.ripple_key(RippleScope::AffectedTracks),
             Command::RippleWithMarkers => self.ripple_key(RippleScope::AffectedTracksAndMarks),
             Command::RippleAll => self.ripple_key(RippleScope::AllTracksAndMarks),
+            Command::ViewMixingConsole => self.mixing_console_open = !self.mixing_console_open,
             Command::ViewMinimizeDock => {
                 self.window_request = Some(WindowAction::ToggleTimelineMaximized);
             }
@@ -9272,6 +9277,7 @@ impl NeovegApp {
         self.state.run_toolbar_editor(ctx);
         self.state.run_scene_detection(ctx);
         self.state.run_command_palette(ctx);
+        self.state.run_mixing_console(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.state.run_env_value_dialog(ctx);
         self.run_details_window(ctx);
@@ -9965,6 +9971,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             for command in [
+                Command::ViewMixingConsole,
                 Command::ViewMinimizeDock,
                 Command::ViewMaximizeTimeline,
                 Command::ViewToggleTrackList,
@@ -19033,6 +19040,26 @@ mod tests {
             s.window_request.take(),
             Some(WindowAction::ToggleTimelineMaximized)
         ));
+    }
+
+    #[test]
+    fn the_mixing_console_opens_and_its_inserts_switch_the_effects_of_a_track() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let id = s.timeline.tracks[0].id;
+        assert!(!s.mixing_console_open);
+        run(&mut s, Command::ViewMixingConsole);
+        assert!(s.mixing_console_open);
+        run(&mut s, Command::ViewMixingConsole);
+        assert!(!s.mixing_console_open, "the same key closes it");
+        // An insert is switched from the console like in the effects panel, in one undo step
+        let command = fx::add_effect(&s.timeline, FxTarget::Track(id), "compressor")
+            .expect("an effect can be added");
+        assert!(s.history.execute(&mut s.timeline, command));
+        s.apply_fx_actions(FxTarget::Track(id), vec![FxAction::Bypass(0, true)]);
+        assert!(s.timeline.tracks[0].effects[0].bypass);
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(!s.timeline.tracks[0].effects[0].bypass);
     }
 
     #[test]

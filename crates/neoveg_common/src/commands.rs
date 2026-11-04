@@ -246,6 +246,7 @@ commands! {
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewMixingConsole => ("view.mixing_console", "Console de mixagem", View, true),
     ViewMinimizeDock => ("view.minimize_dock", "Minimizar ou restaurar a área de janelas", View, true),
     ViewMaximizeTimeline => ("view.maximize_timeline", "Maximizar ou restaurar a linha do tempo", View, true),
     ViewToggleTrackList => ("view.toggle_track_list", "Minimizar ou restaurar a lista de faixas", View, true),

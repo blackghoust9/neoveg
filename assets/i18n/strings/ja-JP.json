@@ -1606,5 +1606,10 @@
   "Maximizar ou restaurar a linha do tempo": "タイムラインを最大化または復元",
   "Minimizar ou restaurar a lista de faixas": "トラックリストを最小化または復元",
   "Alternar o foco entre a lista de faixas e a linha do tempo": "トラックリストとタイムラインのフォーカスを切り替え",
-  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "トラックリストにフォーカス: ↑ と ↓ でトラックを切り替え（Tab でタイムラインに戻る）"
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "トラックリストにフォーカス: ↑ と ↓ でトラックを切り替え（Tab でタイムラインに戻る）",
+  "Console de mixagem": "ミキシングコンソール",
+  "Não há faixas de áudio nem barramentos para mixar.": "ミックスするオーディオトラックやバスがありません。",
+  "Inserts": "インサート",
+  "Abre o painel de efeitos de áudio nesta cadeia": "このチェーンでオーディオエフェクトパネルを開きます",
+  "Sem efeitos": "エフェクトなし"
 }
