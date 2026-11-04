@@ -645,6 +645,31 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [ ] Opções de interface dos manuais: janela de explorador unificado, botão de alternar o comportamento da barra de espaço, ocultar arquivos de picos
 - [ ] Modos de visualização reais da prévia (desentrelaçamento, rotação, HDR) e das propriedades que hoje só ficam gravadas no projeto: formato de pixel, gama de composição, qualidade da renderização, desfoque de movimento
 
+### Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)
+
+Fonte: `manuais/markdown/premiere_pro_reference.md` (*Ajuda e tutoriais do Adobe Premiere Pro*, junho de 2015, 625 páginas, em português; **p.** é a página impressa do PDF e a seção `## Página N` do `.md` é a impressa mais 5). Regra do projeto: o guia é só fonte de ideias de **capacidades**; nomes, atalhos e comportamento continuam os do VEGAS Pro, e nada de texto, ícone ou tela do Premiere entra no código. Cada ideia foi comparada com o roteiro antes de entrar aqui.
+
+Feitas a partir deste guia (a descrição completa está nas linhas `[x]` do roteiro acima):
+
+- [x] **Predefinições dos efeitos de vídeo**, com importar e exportar (p.476): `Preferences::video_effect_presets`, a lista *Predefinição…* em cada efeito
+- [x] **Estilos de título** (p.444): quatro prontos e os do usuário, no gerador *Títulos e texto*
+- [x] **Renderizar para nova faixa** (`Ctrl+M`) e **Renderizar e substituir** (p.224): os eventos selecionados viram um arquivo e um evento só
+- [x] **Corte suave**, a ideia do *Morph Cut* (p.2): sobreposição no corte mais o morph por fluxo óptico que a Divisão inteligente já usava
+- [x] **Obturador de rolamento (manual)** (p.562): efeito de vídeo com inclinação por linha e por coluna, na GPU e na CPU
+- [x] **Monitor de aparo** (p.322): a saída e a entrada de um corte lado a lado, com os modos Rolar, Aparar a saída e Aparar a entrada
+- [~] **Sincronizar por áudio**, a ideia de *Mesclar clipes* (p.363): feito entre dois ou mais eventos; falta alternar a visão e criar o evento multicâmera
+
+Ainda sem equivalente no Neoveg e que o guia cobre:
+
+- [ ] **Modelos de título com texto trocável** (*Live Text*, p.441): um modelo de título cujos campos de texto são preenchidos na hora de usar; os estilos de título que já existem guardam só a aparência
+- [ ] **Pilha de preenchimento, contorno e sombra por título** (p.456): vários preenchimentos, contornos e sombras empilhados no mesmo texto, em vez de um de cada
+- [ ] **Rolagem horizontal de títulos** (p.461): hoje há a rolagem de créditos na vertical; conferir a horizontal
+- [ ] **Clipes sintéticos** (p.346): barras e tons, contagem regressiva e vídeo preto prontos para inserir (parte vem dos geradores de mídia que já existem; falta a contagem regressiva)
+- [ ] **Painel de eventos de aviso** (p.368): uma lista com os avisos e erros da sessão (mídia ausente, codec, efeito ignorado) e um clique para ir ao evento; o visualizador de logs mostra o texto mas não leva ao evento
+- [ ] **Estabilizador de distorção** (p.493): estabilização de vídeo por análise do movimento (já está no roteiro como estabilização de clipes de vídeo)
+
+Fora do escopo por não existir equivalente no VEGAS ou por depender de serviços da Adobe: Adobe Anywhere, Dynamic Link, bibliotecas da Creative Cloud, aplicativos móveis (Hue e Clip), Prelude e SpeedGrade, captura de fita (DV e HDV) e exportação para fita, e a *emenda de origem* com destinos de faixa (p.362), que tem comportamento diferente do VEGAS (o evento cai na faixa selecionada).
+
 ### Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)
 
 Fonte: `manuais/markdown/DaVinci-Resolve-20_Beginners-Guide.md` (*The Beginner's Guide to DaVinci Resolve 20*, 643 páginas; na tabela, **p.** é a página impressa do livro e a seção `## Página N` do `.md` é a impressa mais 25). Regra do projeto: o guia é só fonte de ideias de **capacidades**; nomes, atalhos e comportamento continuam os do VEGAS Pro, e nada de texto, ícone ou tela do Resolve entra no código. O que o Neoveg já tem ou já está no roteiro acima (smart bins e subclipes, rodas de cor, janelas/máscaras, rastreamento, LUTs, cópia de correção por colar atributos, redução de ruído, fades, ducking, gravação de locução, sincronizar por áudio, medidores de loudness, predefinições de renderização) não foi repetido. Sem equivalente no VEGAS e fora do escopo: composição em nós do Fusion, páginas de trabalho separadas, Blackmagic Cloud e bibliotecas de projeto.
