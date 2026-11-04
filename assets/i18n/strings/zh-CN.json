@@ -1592,5 +1592,8 @@
   "Mídia adicionada como take ativo": "已将媒体添加为当前镜头",
   "Take trocado": "已切换镜头",
   "Take ativo apagado": "已删除当前镜头",
-  "Abra uma mídia no Trimmer para adicioná-la como take": "请先在修剪器中打开媒体，再将其添加为镜头"
+  "Abra uma mídia no Trimmer para adicioná-la como take": "请先在修剪器中打开媒体，再将其添加为镜头",
+  "Paleta de comandos": "命令面板",
+  "Digite o nome de um comando…": "输入命令名称…",
+  "Nenhum comando encontrado": "未找到命令"
 }

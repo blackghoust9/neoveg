@@ -1592,5 +1592,8 @@
   "Mídia adicionada como take ativo": "メディアをアクティブなテイクとして追加しました",
   "Take trocado": "テイクを切り替えました",
   "Take ativo apagado": "アクティブなテイクを削除しました",
-  "Abra uma mídia no Trimmer para adicioná-la como take": "テイクとして追加するメディアをトリマーで開いてください"
+  "Abra uma mídia no Trimmer para adicioná-la como take": "テイクとして追加するメディアをトリマーで開いてください",
+  "Paleta de comandos": "コマンドパレット",
+  "Digite o nome de um comando…": "コマンド名を入力…",
+  "Nenhum comando encontrado": "コマンドが見つかりません"
 }

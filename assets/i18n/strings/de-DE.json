@@ -1592,5 +1592,8 @@
   "Mídia adicionada como take ativo": "Medium als aktiver Take hinzugefügt",
   "Take trocado": "Take gewechselt",
   "Take ativo apagado": "Aktiver Take gelöscht",
-  "Abra uma mídia no Trimmer para adicioná-la como take": "Öffnen Sie ein Medium im Trimmer, um es als Take hinzuzufügen"
+  "Abra uma mídia no Trimmer para adicioná-la como take": "Öffnen Sie ein Medium im Trimmer, um es als Take hinzuzufügen",
+  "Paleta de comandos": "Befehlspalette",
+  "Digite o nome de um comando…": "Namen eines Befehls eingeben…",
+  "Nenhum comando encontrado": "Kein Befehl gefunden"
 }

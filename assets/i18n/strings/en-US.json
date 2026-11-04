@@ -1592,5 +1592,8 @@
   "Mídia adicionada como take ativo": "Media added as the active take",
   "Take trocado": "Take switched",
   "Take ativo apagado": "Active take deleted",
-  "Abra uma mídia no Trimmer para adicioná-la como take": "Open a media in the Trimmer to add it as a take"
+  "Abra uma mídia no Trimmer para adicioná-la como take": "Open a media in the Trimmer to add it as a take",
+  "Paleta de comandos": "Command palette",
+  "Digite o nome de um comando…": "Type the name of a command…",
+  "Nenhum comando encontrado": "No command found"
 }

@@ -1592,5 +1592,8 @@
   "Mídia adicionada como take ativo": "Медиа добавлено как активный дубль",
   "Take trocado": "Дубль переключён",
   "Take ativo apagado": "Активный дубль удалён",
-  "Abra uma mídia no Trimmer para adicioná-la como take": "Откройте медиа в триммере, чтобы добавить его как дубль"
+  "Abra uma mídia no Trimmer para adicioná-la como take": "Откройте медиа в триммере, чтобы добавить его как дубль",
+  "Paleta de comandos": "Палитра команд",
+  "Digite o nome de um comando…": "Введите название команды…",
+  "Nenhum comando encontrado": "Команды не найдены"
 }

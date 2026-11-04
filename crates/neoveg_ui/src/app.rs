@@ -742,6 +742,8 @@ struct AppState {
     /// *Detectar cenas e dividir*: the options window and the detection that is running.
     scene_dialog: crate::scene_window::SceneDialog,
     scene_job: Option<scene_detect::SceneJob>,
+    /// The command palette (*Exibir > Paleta de comandos*).
+    command_palette: crate::command_palette_window::PaletteState,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1835,6 +1837,7 @@ impl AppState {
             toolbar_editor_open: false,
             scene_dialog: Default::default(),
             scene_job: None,
+            command_palette: Default::default(),
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -8051,6 +8054,7 @@ impl AppState {
                 self.window_request = Some(WindowAction::Toggle(Tab::Media));
             }
             Command::ViewTrimMonitor => self.open_trim_monitor(),
+            Command::ViewCommandPalette => self.command_palette.open(),
             Command::ViewTrimmer => {
                 self.media_tab = 1;
                 self.window_request = Some(WindowAction::Toggle(Tab::Media));
@@ -9145,6 +9149,7 @@ impl NeovegApp {
         self.state.run_trim_monitor(ctx);
         self.state.run_toolbar_editor(ctx);
         self.state.run_scene_detection(ctx);
+        self.state.run_command_palette(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.state.run_env_value_dialog(ctx);
         self.run_details_window(ctx);
@@ -9791,6 +9796,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewProjectMedia,
                 Command::ViewTrimmer,
                 Command::ViewTrimMonitor,
+                Command::ViewCommandPalette,
                 Command::ViewAudioEffects,
                 Command::ViewVideoEffects,
                 Command::ViewTransitions,
@@ -10076,6 +10082,55 @@ fn toolbar_item_label(id: &str) -> String {
 }
 
 impl AppState {
+    /// What the command palette offers: every command that works (the palette itself left out),
+    /// with its name in the language of the interface, its group and its shortcut.
+    fn palette_rows(&self) -> (Vec<Command>, Vec<crate::command_palette_window::PaletteRow>) {
+        let commands: Vec<Command> = Command::ALL
+            .iter()
+            .copied()
+            .filter(|c| c.implemented() && *c != Command::ViewCommandPalette)
+            .collect();
+        let rows = commands
+            .iter()
+            .map(|&command| {
+                let shortcut = match self.keymap.shortcuts_for(command).first() {
+                    Some(shortcut) => shortcut.to_string(),
+                    None => self
+                        .keymap
+                        .sequences_for(command)
+                        .first()
+                        .map(|steps| format_sequence(steps))
+                        .unwrap_or_default(),
+                };
+                crate::command_palette_window::PaletteRow {
+                    label: tr(command.label()).to_owned(),
+                    category: tr(command.category().label()).to_owned(),
+                    shortcut,
+                    enabled: self.command_enabled(command),
+                    haystack: format!(
+                        "{} {} {}",
+                        tr(command.label()),
+                        command.label(),
+                        command.id()
+                    ),
+                }
+            })
+            .collect();
+        (commands, rows)
+    }
+
+    /// Every frame while the palette is open: draws it and runs the command that was chosen.
+    fn run_command_palette(&mut self, ctx: &egui::Context) {
+        if !self.command_palette.open {
+            return;
+        }
+        let (commands, rows) = self.palette_rows();
+        if let Some(index) = self.command_palette.show(ctx, &rows) {
+            let now = ctx.input(|i| i.time);
+            self.run_command(commands[index], ctx, now);
+        }
+    }
+
     /// The items of the main toolbar: the user's list, or the standard set.
     fn toolbar_items(&self) -> Vec<String> {
         match &self.prefs.main_toolbar {
@@ -18692,6 +18747,36 @@ mod tests {
         assert!(s.status.contains("Nenhuma troca"));
         s.finish_scene_detection((track, 77), Err("cancelada".into()));
         assert_eq!(s.timeline.tracks[0].events.len(), 1);
+    }
+
+    #[test]
+    fn the_command_palette_lists_the_working_commands_and_finds_them_by_name() {
+        let mut s = AppState::new();
+        run(&mut s, Command::ViewCommandPalette);
+        assert!(s.command_palette.open);
+        let (commands, rows) = s.palette_rows();
+        assert_eq!(commands.len(), rows.len());
+        assert!(commands.iter().all(|c| c.implemented()));
+        assert!(
+            !commands.contains(&Command::ViewCommandPalette),
+            "not itself"
+        );
+        // A name typed without accents and in any case finds the command, with its shortcut
+        s.command_palette.query = "DESFAZER".into();
+        let found = s.command_palette.matches(&rows);
+        assert!(!found.is_empty());
+        let undo = commands
+            .iter()
+            .position(|c| *c == Command::EditUndo)
+            .unwrap();
+        assert!(found.contains(&undo));
+        assert!(!rows[undo].shortcut.is_empty(), "the shortcut is shown");
+        assert!(!rows[undo].enabled, "there is nothing to undo yet");
+        // The id finds it too
+        s.command_palette.query = "edit.undo".into();
+        assert!(s.command_palette.matches(&rows).contains(&undo));
+        s.command_palette.query = "zzzz-nao-existe".into();
+        assert!(s.command_palette.matches(&rows).is_empty());
     }
 
     #[test]

@@ -4,6 +4,7 @@ mod app;
 mod buses_panel;
 mod captions_panel;
 mod command_marker_window;
+mod command_palette_window;
 mod compositors_window;
 mod credits;
 mod curve_editor;
