@@ -1,0 +1,13 @@
+[package]
+name = "neoveg_ofx_sample"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "A tiny OpenFX image effect plug-in that the tests of neoveg_ofx load (it draws nothing: it only describes itself)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+neoveg_ofx = { path = "../neoveg_ofx" }

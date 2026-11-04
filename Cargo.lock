@@ -2954,6 +2954,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "neoveg_ofx"
+version = "2.1.0"
+dependencies = [
+ "libloading",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "neoveg_ofx_sample"
+version = "2.1.0"
+dependencies = [
+ "neoveg_ofx",
+]
+
+[[package]]
 name = "neoveg_text"
 version = "2.1.0"
 dependencies = [

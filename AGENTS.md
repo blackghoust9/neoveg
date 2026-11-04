@@ -35,6 +35,8 @@ Neoveg Workspace
 │   ├── neoveg_audio/          # symphonia decoding, multi-track mixer, cpal output, peak and EBU R128 loudness meters (dsp/ adapted from FilmCraft), waveform source
 │   ├── neoveg_video/          # RGBA frames, generators, wgpu upload, FFmpeg decoding + frame worker (feature `ffmpeg`)
 │   ├── neoveg_engine/         # timeline, undoable commands, edit rules, crossfades, .neoveg files, autosave, relink
+│   ├── neoveg_ofx/            # OpenFX host prototype: a child process (`neoveg_ofx_host`) loads a plug-in library and reports what it describes; the program never loads one itself
+│   ├── neoveg_ofx_sample/     # a tiny OpenFX plug-in (cdylib) that only the tests of `neoveg_ofx` load
 │   └── neoveg_ui/             # egui/eframe application (binary `neoveg`)
 ├── docs/                      # research knowledge base (docs/research/nle_features_research.txt) and the legacy QA dashboard
 ├── Assets/i18n/               # runtime localization resources (pt-BR default)

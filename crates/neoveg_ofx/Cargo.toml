@@ -1,0 +1,16 @@
+[package]
+name = "neoveg_ofx"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "Neoveg OpenFX host prototype: loads an image effect plug-in in a process of its own and reports what it describes"
+
+[dependencies]
+libloading = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+
+[[bin]]
+name = "neoveg_ofx_host"
+path = "src/bin/neoveg_ofx_host.rs"

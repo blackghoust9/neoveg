@@ -146,27 +146,29 @@ def main() -> int:
     args = ap.parse_args()
 
     built = table()
-    if built is None:
+    gpu_built = gpu_table()
+    if built is None and gpu_built is None:
         print("Sem resultados em target/criterion: rode antes `cargo bench -p neoveg_video --bench playback_bench`.", file=sys.stderr)
         return 1
     machine = machine_line()
-    print(built)
-    print()
-    print(machine)
-    gpu_built = gpu_table()
-    if gpu_built:
+    if built:
+        print(built)
         print()
+    if gpu_built:
         print(gpu_built)
+        print()
+    print(machine)
     if args.readme:
         path = ROOT / "README.md"
         text = path.read_text(encoding="utf-8")
-        if BEGIN not in text or END not in text:
-            print(f"README.md não tem os marcadores {BEGIN} / {END}", file=sys.stderr)
-            return 1
-        head, rest = text.split(BEGIN, 1)
-        _, tail = rest.split(END, 1)
-        block = f"{BEGIN}\n{built}\n\nMedido em: {machine}.\n{END}"
-        text = head + block + tail
+        if built:
+            if BEGIN not in text or END not in text:
+                print(f"README.md não tem os marcadores {BEGIN} / {END}", file=sys.stderr)
+                return 1
+            head, rest = text.split(BEGIN, 1)
+            _, tail = rest.split(END, 1)
+            block = f"{BEGIN}\n{built}\n\nMedido em: {machine}.\n{END}"
+            text = head + block + tail
         if gpu_built and GPU_BEGIN in text and GPU_END in text:
             head, rest = text.split(GPU_BEGIN, 1)
             _, tail = rest.split(GPU_END, 1)
