@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "No hay pistas de audio ni buses que mezclar.",
   "Inserts": "Inserciones",
   "Abre o painel de efeitos de áudio nesta cadeia": "Abre el panel de efectos de audio en esta cadena",
-  "Sem efeitos": "Sin efectos"
+  "Sem efeitos": "Sin efectos",
+  "Alinhamento:": "Alineación:",
+  "À esquerda": "A la izquierda",
+  "Centralizado": "Centrado",
+  "À direita": "A la derecha",
+  "Justificado": "Justificado",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "Ancho fijo del párrafo (% de la pantalla; 0 = líneas libres)",
+  "Justificado precisa de uma largura fixa.": "Justificado necesita un ancho fijo.",
+  "Estilos por trecho": "Estilos por tramo",
+  "Negrito": "Negrita",
+  "Itálico": "Cursiva",
+  "Sublinhado": "Subrayado",
+  "Cor": "Color",
+  "Tamanho ×": "Tamaño ×",
+  "Aplicar ao trecho selecionado": "Aplicar al tramo seleccionado",
+  "Selecione parte do texto acima e escolha o estilo": "Selecciona parte del texto de arriba y elige el estilo"
 }

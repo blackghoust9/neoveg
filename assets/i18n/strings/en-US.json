@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "There are no audio tracks or buses to mix.",
   "Inserts": "Inserts",
   "Abre o painel de efeitos de áudio nesta cadeia": "Opens the audio effects panel on this chain",
-  "Sem efeitos": "No effects"
+  "Sem efeitos": "No effects",
+  "Alinhamento:": "Alignment:",
+  "À esquerda": "Left",
+  "Centralizado": "Centered",
+  "À direita": "Right",
+  "Justificado": "Justified",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "Fixed paragraph width (% of the screen; 0 = free lines)",
+  "Justificado precisa de uma largura fixa.": "Justified needs a fixed width.",
+  "Estilos por trecho": "Styles by stretch",
+  "Negrito": "Bold",
+  "Itálico": "Italic",
+  "Sublinhado": "Underline",
+  "Cor": "Color",
+  "Tamanho ×": "Size ×",
+  "Aplicar ao trecho selecionado": "Apply to the selected stretch",
+  "Selecione parte do texto acima e escolha o estilo": "Select part of the text above and choose the style"
 }

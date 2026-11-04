@@ -32,6 +32,16 @@ pub struct TitleStyle {
     pub align_y: f32,
     /// `static`, `fade_in`, `typewriter`, `slide_up` or `credit_roll`.
     pub animation: String,
+    /// `left`, `center`, `right` or `justify`.
+    #[serde(default = "default_align")]
+    pub align: String,
+    /// Width of the paragraphs as a fraction of the frame width; `0` sets the lines free.
+    #[serde(default)]
+    pub box_width: f32,
+}
+
+fn default_align() -> String {
+    "center".into()
 }
 
 impl Default for TitleStyle {
@@ -49,6 +59,8 @@ impl Default for TitleStyle {
             shadow_offset: [4, 4],
             align_y: 0.5,
             animation: "static".into(),
+            align: default_align(),
+            box_width: 0.0,
         }
     }
 }
@@ -67,6 +79,8 @@ pub fn builtin() -> Vec<TitleStyle> {
             align_y: 0.82,
             bg_rgba: [0, 0, 0, 140],
             animation: "slide_up".into(),
+            align: "left".into(),
+            box_width: 0.8,
             ..TitleStyle::default()
         },
         TitleStyle {
@@ -130,6 +144,15 @@ pub fn sanitized(style: &TitleStyle) -> Option<TitleStyle> {
             defaults.align_y
         },
         animation,
+        align: match style.align.as_str() {
+            known @ ("left" | "center" | "right" | "justify") => known.into(),
+            _ => defaults.align,
+        },
+        box_width: if style.box_width.is_finite() {
+            style.box_width.clamp(0.0, 1.0)
+        } else {
+            0.0
+        },
     })
 }
 

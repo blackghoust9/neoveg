@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "Es gibt keine Audiospuren oder Busse zum Mischen.",
   "Inserts": "Inserts",
   "Abre o painel de efeitos de áudio nesta cadeia": "Öffnet das Audioeffekt-Panel für diese Kette",
-  "Sem efeitos": "Keine Effekte"
+  "Sem efeitos": "Keine Effekte",
+  "Alinhamento:": "Ausrichtung:",
+  "À esquerda": "Links",
+  "Centralizado": "Zentriert",
+  "À direita": "Rechts",
+  "Justificado": "Blocksatz",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "Feste Absatzbreite (% des Bildschirms; 0 = freie Zeilen)",
+  "Justificado precisa de uma largura fixa.": "Blocksatz braucht eine feste Breite.",
+  "Estilos por trecho": "Stile pro Abschnitt",
+  "Negrito": "Fett",
+  "Itálico": "Kursiv",
+  "Sublinhado": "Unterstrichen",
+  "Cor": "Farbe",
+  "Tamanho ×": "Größe ×",
+  "Aplicar ao trecho selecionado": "Auf den markierten Abschnitt anwenden",
+  "Selecione parte do texto acima e escolha o estilo": "Einen Teil des Textes oben markieren und den Stil wählen"
 }

@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "ミックスするオーディオトラックやバスがありません。",
   "Inserts": "インサート",
   "Abre o painel de efeitos de áudio nesta cadeia": "このチェーンでオーディオエフェクトパネルを開きます",
-  "Sem efeitos": "エフェクトなし"
+  "Sem efeitos": "エフェクトなし",
+  "Alinhamento:": "配置:",
+  "À esquerda": "左揃え",
+  "Centralizado": "中央揃え",
+  "À direita": "右揃え",
+  "Justificado": "両端揃え",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "段落の固定幅（画面の %、0 = 自由な行）",
+  "Justificado precisa de uma largura fixa.": "両端揃えには固定幅が必要です。",
+  "Estilos por trecho": "範囲ごとのスタイル",
+  "Negrito": "太字",
+  "Itálico": "斜体",
+  "Sublinhado": "下線",
+  "Cor": "色",
+  "Tamanho ×": "サイズ ×",
+  "Aplicar ao trecho selecionado": "選択した範囲に適用",
+  "Selecione parte do texto acima e escolha o estilo": "上のテキストの一部を選択してスタイルを選んでください"
 }

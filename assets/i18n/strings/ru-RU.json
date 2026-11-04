@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "Нет аудиодорожек и шин для микширования.",
   "Inserts": "Вставки",
   "Abre o painel de efeitos de áudio nesta cadeia": "Открывает панель аудиоэффектов для этой цепочки",
-  "Sem efeitos": "Нет эффектов"
+  "Sem efeitos": "Нет эффектов",
+  "Alinhamento:": "Выравнивание:",
+  "À esquerda": "По левому краю",
+  "Centralizado": "По центру",
+  "À direita": "По правому краю",
+  "Justificado": "По ширине",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "Фиксированная ширина абзаца (% экрана; 0 = свободные строки)",
+  "Justificado precisa de uma largura fixa.": "Для выравнивания по ширине нужна фиксированная ширина.",
+  "Estilos por trecho": "Стили по фрагментам",
+  "Negrito": "Жирный",
+  "Itálico": "Курсив",
+  "Sublinhado": "Подчёркнутый",
+  "Cor": "Цвет",
+  "Tamanho ×": "Размер ×",
+  "Aplicar ao trecho selecionado": "Применить к выделенному фрагменту",
+  "Selecione parte do texto acima e escolha o estilo": "Выделите часть текста выше и выберите стиль"
 }

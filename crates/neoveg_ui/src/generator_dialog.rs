@@ -6,7 +6,8 @@ use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
 use neoveg_common::title_style::{self, TitleStyle};
 use neoveg_video::generators::{
-    GeneratorKind, GeneratorSpec, GradientShape, TestPatternVariant, TitleAnimation,
+    GeneratorKind, GeneratorSpec, GradientShape, TestPatternVariant, TitleAlign, TitleAnimation,
+    TitleLayout, TitleSpan,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -64,6 +65,13 @@ pub struct GeneratorDialogState {
     pub title_animation: TitleAnimation,
     pub title_font: String,
     pub title_font_style: String,
+    /// Alignment, fixed width and styles of stretches of the title.
+    pub title_layout: TitleLayout,
+    /// The style the next stretch gets (*Aplicar ao trecho selecionado*).
+    span_draft: TitleSpan,
+    span_with_color: bool,
+    /// The characters that were selected in the text box the last time (start, end).
+    text_selection: Option<(usize, usize)>,
     /// Families and their styles, read from the text engine when the controls first need them.
     font_list: Vec<(String, Vec<String>)>,
     /// The name typed for a title style.
@@ -97,6 +105,10 @@ impl Default for GeneratorDialogState {
             title_animation: TitleAnimation::Static,
             title_font: "Inter".into(),
             title_font_style: "Bold".into(),
+            title_layout: TitleLayout::default(),
+            span_draft: TitleSpan::new(0, 0),
+            span_with_color: false,
+            text_selection: None,
             font_list: Vec::new(),
             style_name: String::new(),
             styles_dirty: false,
@@ -128,6 +140,25 @@ fn animation_of(id: &str) -> TitleAnimation {
         .unwrap_or_default()
 }
 
+/// The alignment with the id of a title style.
+fn align_of(id: &str) -> TitleAlign {
+    TitleAlign::ALL
+        .into_iter()
+        .find(|a| align_id(*a) == id)
+        .unwrap_or_default()
+}
+
+/// The id of `align` in a title style.
+fn align_id(align: TitleAlign) -> String {
+    match align {
+        TitleAlign::Left => "left",
+        TitleAlign::Center => "center",
+        TitleAlign::Right => "right",
+        TitleAlign::Justify => "justify",
+    }
+    .into()
+}
+
 /// The snake-case id of `animation`.
 fn animation_id(animation: TitleAnimation) -> String {
     serde_json::to_value(animation)
@@ -152,6 +183,8 @@ impl GeneratorDialogState {
             shadow_offset: self.title_shadow_offset,
             align_y: self.title_align_y,
             animation: animation_id(self.title_animation),
+            align: align_id(self.title_layout.align),
+            box_width: self.title_layout.box_width,
         }
     }
 
@@ -168,6 +201,116 @@ impl GeneratorDialogState {
         self.title_shadow_offset = style.shadow_offset;
         self.title_align_y = style.align_y;
         self.title_animation = animation_of(&style.animation);
+        self.title_layout.align = align_of(&style.align);
+        self.title_layout.box_width = style.box_width;
+    }
+
+    /// Alignment, fixed width and the styles of stretches of the title.
+    fn paragraph_controls(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(tr("Alinhamento:"));
+            for align in TitleAlign::ALL {
+                ui.selectable_value(&mut self.title_layout.align, align, align.label());
+            }
+        });
+        ui.horizontal(|ui| {
+            let mut percent = self.title_layout.box_width * 100.0;
+            let slider = egui::Slider::new(&mut percent, 0.0..=100.0)
+                .text(tr(
+                    "Largura fixa do parágrafo (% da tela; 0 = linhas livres)",
+                ))
+                .fixed_decimals(0);
+            if ui.add(slider).changed() {
+                self.title_layout.box_width = (percent / 100.0).clamp(0.0, 1.0);
+            }
+        });
+        if self.title_layout.align == TitleAlign::Justify && self.title_layout.box_width <= 0.0 {
+            ui.weak(tr("Justificado precisa de uma largura fixa."));
+        }
+        ui.collapsing(tr("Estilos por trecho"), |ui| {
+            let draft = &mut self.span_draft;
+            ui.horizontal_wrapped(|ui| {
+                ui.checkbox(&mut draft.bold, tr("Negrito"));
+                ui.checkbox(&mut draft.italic, tr("Itálico"));
+                ui.checkbox(&mut draft.underline, tr("Sublinhado"));
+                ui.checkbox(&mut self.span_with_color, tr("Cor"));
+                if self.span_with_color {
+                    let mut rgba = draft.color.unwrap_or([255, 220, 60, 255]);
+                    let mut color =
+                        Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
+                    if ui.color_edit_button_srgba(&mut color).changed() {
+                        rgba = color.to_srgba_unmultiplied();
+                    }
+                    draft.color = Some(rgba);
+                } else {
+                    draft.color = None;
+                }
+                ui.add(
+                    egui::DragValue::new(&mut draft.scale)
+                        .range(0.25..=4.0)
+                        .speed(0.02)
+                        .prefix(tr("Tamanho ×")),
+                );
+            });
+            let chars = self.title_text.chars().count();
+            let selected = self
+                .text_selection
+                .map(|(a, b)| (a.min(chars), b.min(chars)))
+                .filter(|(a, b)| a < b);
+            if ui
+                .add_enabled(
+                    selected.is_some(),
+                    egui::Button::new(tr("Aplicar ao trecho selecionado")),
+                )
+                .on_hover_text(tr("Selecione parte do texto acima e escolha o estilo"))
+                .clicked()
+            {
+                if let Some((start, end)) = selected {
+                    let mut span = self.span_draft.clone();
+                    (span.start, span.end) = (start, end);
+                    if self.title_layout.spans.len() < 32 {
+                        self.title_layout.spans.push(span);
+                    }
+                }
+            }
+            let mut remove = None;
+            for (index, span) in self.title_layout.spans.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    if ui.small_button("✖").clicked() {
+                        remove = Some(index);
+                    }
+                    let excerpt: String = self
+                        .title_text
+                        .chars()
+                        .skip(span.start)
+                        .take(span.end.saturating_sub(span.start).min(24))
+                        .collect();
+                    let mut flags = String::new();
+                    for (on, mark) in [(span.bold, "N"), (span.italic, "I"), (span.underline, "S")]
+                    {
+                        if on {
+                            flags.push_str(mark);
+                        }
+                    }
+                    ui.label(format!("“{excerpt}”  {flags}"));
+                    if let Some(c) = span.color {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+                        ui.painter().rect_filled(
+                            rect,
+                            2.0,
+                            Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]),
+                        );
+                    }
+                    if (span.scale - 1.0).abs() > 1e-3 {
+                        ui.weak(format!("×{:.2}", span.scale));
+                    }
+                });
+            }
+            if let Some(index) = remove {
+                self.title_layout.spans.remove(index);
+            }
+        });
     }
 
     /// The row of the styles: pick one to apply it, or name the look in the controls and keep it.
@@ -259,8 +402,10 @@ impl GeneratorDialogState {
                 animation,
                 font,
                 font_style,
+                layout,
             } => {
                 self.tab = GeneratorTab::TitleText;
+                self.title_layout = layout.clone();
                 self.title_font = font.clone();
                 self.title_font_style = font_style.clone();
                 self.title_text = text.clone();
@@ -325,6 +470,7 @@ impl GeneratorDialogState {
                         animation: self.title_animation,
                         font: self.title_font.clone(),
                         font_style: self.title_font_style.clone(),
+                        layout: self.title_layout.clone(),
                     },
                 )
             }
@@ -428,11 +574,15 @@ impl GeneratorDialogState {
                     GeneratorTab::TitleText => {
                         self.style_row(ui, styles);
                         ui.label(tr("Texto do título (suporta múltiplas linhas):"));
-                        ui.add(
-                            egui::TextEdit::multiline(&mut self.title_text)
-                                .desired_rows(3)
-                                .desired_width(f32::INFINITY),
-                        );
+                        let edited = egui::TextEdit::multiline(&mut self.title_text)
+                            .desired_rows(3)
+                            .desired_width(f32::INFINITY)
+                            .show(ui);
+                        if let Some(range) = edited.cursor_range {
+                            let (a, b) = (range.primary.ccursor.index, range.secondary.ccursor.index);
+                            self.text_selection = Some((a.min(b), a.max(b)));
+                        }
+                        self.paragraph_controls(ui);
                         ui.horizontal(|ui| {
                             ui.label(tr("Fonte:"));
                             if self.font_list.is_empty() {

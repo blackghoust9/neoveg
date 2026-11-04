@@ -1611,5 +1611,20 @@
   "Não há faixas de áudio nem barramentos para mixar.": "没有可混音的音频轨道或总线。",
   "Inserts": "插入效果",
   "Abre o painel de efeitos de áudio nesta cadeia": "在此效果链上打开音频效果面板",
-  "Sem efeitos": "无效果"
+  "Sem efeitos": "无效果",
+  "Alinhamento:": "对齐：",
+  "À esquerda": "左对齐",
+  "Centralizado": "居中",
+  "À direita": "右对齐",
+  "Justificado": "两端对齐",
+  "Largura fixa do parágrafo (% da tela; 0 = linhas livres)": "段落固定宽度（屏幕的 %，0 = 自由行）",
+  "Justificado precisa de uma largura fixa.": "两端对齐需要固定宽度。",
+  "Estilos por trecho": "分段样式",
+  "Negrito": "粗体",
+  "Itálico": "斜体",
+  "Sublinhado": "下划线",
+  "Cor": "颜色",
+  "Tamanho ×": "大小 ×",
+  "Aplicar ao trecho selecionado": "应用到所选文字",
+  "Selecione parte do texto acima e escolha o estilo": "请在上方选择部分文字并选择样式"
 }

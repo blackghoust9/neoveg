@@ -147,7 +147,153 @@ pub enum GeneratorKind {
         font: String,
         #[serde(default = "default_title_style")]
         font_style: String,
+        /// How the paragraphs are set: alignment, a fixed width and the styles of stretches of the
+        /// text. Left out of the manifest while it is the plain centred title.
+        #[serde(default, skip_serializing_if = "TitleLayout::is_default")]
+        layout: TitleLayout,
     },
+}
+
+/// Alignment of the lines of a title.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TitleAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
+    /// Both edges straight; needs a fixed width, or the lines have no edge to fill.
+    Justify,
+}
+
+impl TitleAlign {
+    pub const ALL: [Self; 4] = [Self::Left, Self::Center, Self::Right, Self::Justify];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Left => tr("À esquerda"),
+            Self::Center => tr("Centralizado"),
+            Self::Right => tr("À direita"),
+            Self::Justify => tr("Justificado"),
+        }
+    }
+
+    fn text_align(self) -> neoveg_text::layout::Align {
+        use neoveg_text::layout::Align;
+        match self {
+            Self::Left => Align::Left,
+            Self::Center => Align::Center,
+            Self::Right => Align::Right,
+            Self::Justify => Align::Justify,
+        }
+    }
+}
+
+/// A stretch of the text of a title with a style of its own (characters `start..end`, counted in
+/// characters of the text).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TitleSpan {
+    pub start: usize,
+    pub end: usize,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bold: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub italic: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub underline: bool,
+    /// Its own colour; the colour of the title when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<[u8; 4]>,
+    /// Size of the stretch against the size of the title.
+    #[serde(default = "unit_scale", skip_serializing_if = "is_unit_scale")]
+    pub scale: f32,
+}
+
+fn unit_scale() -> f32 {
+    1.0
+}
+
+fn is_unit_scale(v: &f32) -> bool {
+    (*v - 1.0).abs() < 1e-6
+}
+
+impl TitleSpan {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self {
+            start,
+            end,
+            bold: false,
+            italic: false,
+            underline: false,
+            color: None,
+            scale: 1.0,
+        }
+    }
+}
+
+/// Paragraph setting of a title (`TitleText::layout`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct TitleLayout {
+    #[serde(default)]
+    pub align: TitleAlign,
+    /// Width of the paragraphs as a fraction of the frame width (`0` sets the lines free, each as
+    /// long as it is).
+    #[serde(default)]
+    pub box_width: f32,
+    #[serde(default)]
+    pub spans: Vec<TitleSpan>,
+}
+
+impl TitleLayout {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// The width of the box in pixels for a frame `frame_width` wide, or `None` for free lines.
+    pub fn box_pixels(&self, frame_width: u32) -> Option<f32> {
+        (self.box_width.is_finite() && self.box_width > 0.0)
+            .then(|| frame_width as f32 * self.box_width.clamp(0.1, 1.0))
+    }
+}
+
+/// The style runs of the visible part of a title: one for each span that falls on the text, in the
+/// style of the title changed as the span says, with the colour the span asks for. Characters are
+/// counted as `char`s, so a span stays on the same letters whatever they weigh in bytes.
+pub fn title_runs(
+    visible: &str,
+    spans: &[TitleSpan],
+    base: &neoveg_text::layout::TextStyle,
+) -> Vec<(neoveg_text::layout::StyleRun, Option<[u8; 4]>)> {
+    let bytes: Vec<usize> = visible
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(visible.len()))
+        .collect();
+    let chars = bytes.len() - 1;
+    spans
+        .iter()
+        .filter_map(|span| {
+            let (start, end) = (span.start.min(chars), span.end.min(chars));
+            (start < end).then(|| {
+                let mut style = base.clone();
+                if span.bold {
+                    style.style = "Bold".into();
+                }
+                style.faux_italic |= span.italic;
+                style.underline |= span.underline;
+                if span.scale.is_finite() && span.scale > 0.0 {
+                    style.size = base.size * span.scale.clamp(0.25, 4.0);
+                }
+                (
+                    neoveg_text::layout::StyleRun {
+                        range: bytes[start]..bytes[end],
+                        style,
+                    },
+                    span.color,
+                )
+            })
+        })
+        .collect()
 }
 
 fn default_title_font() -> String {
@@ -186,6 +332,7 @@ impl GeneratorKind {
             animation: TitleAnimation::Static,
             font: default_title_font(),
             font_style: default_title_style(),
+            layout: TitleLayout::default(),
         }
     }
 }
@@ -266,6 +413,7 @@ impl GeneratorSpec {
                 animation,
                 font,
                 font_style,
+                layout,
             } => {
                 let eff_scale = ((*scale as f32 * scale_ratio).round() as u32).max(1);
                 let eff_outline = ((*outline_px as f32 * scale_ratio).round() as u32)
@@ -288,6 +436,7 @@ impl GeneratorSpec {
                     eff_shadow,
                     *align_y,
                     *animation,
+                    layout,
                     seconds,
                     self.duration.max(0.1),
                 )
@@ -437,10 +586,11 @@ fn render_title_text(
     shadow_offset: [i32; 2],
     align_y: f32,
     animation: TitleAnimation,
+    look: &TitleLayout,
     seconds: f64,
     duration: f64,
 ) -> FrameBuffer {
-    use neoveg_text::layout::{Align, ParagraphStyle, TextStyle};
+    use neoveg_text::layout::{ParagraphStyle, TextStyle};
     use neoveg_text::mask::{stroke, StrokeKind};
     use neoveg_text::raster::Mask;
 
@@ -471,12 +621,22 @@ fn render_title_text(
         size: scale.max(1) as f32 * 10.0,
         ..TextStyle::default()
     };
+    let box_width = look.box_pixels(w);
     let para = ParagraphStyle {
-        align: Align::Center,
+        align: look.align.text_align(),
+        width: box_width,
         ..ParagraphStyle::default()
     };
-    let laid = neoveg_text::layout(&visible_str, &style, &para);
-    let [_, top, _, bottom] = laid.bounds;
+    // The styles of stretches of the text, each with the colour it asks for (or the title's)
+    let runs = title_runs(&visible_str, &look.spans, &style);
+    let run_colors: Vec<[u8; 4]> = runs
+        .iter()
+        .map(|(_, color)| color.unwrap_or(text_rgba))
+        .collect();
+    let style_runs: Vec<neoveg_text::layout::StyleRun> =
+        runs.into_iter().map(|(run, _)| run).collect();
+    let laid = neoveg_text::layout_rich(&visible_str, &style, &style_runs, &para);
+    let [left, top, right, bottom] = laid.bounds;
     let total_h = (bottom - top).ceil().max(1.0) as i32;
 
     let base_y = match animation {
@@ -497,7 +657,14 @@ fn render_title_text(
 
     // The glyphs go on a mask with room around them for the outline; the origin of a centred point
     // text is the middle of the first baseline.
-    let origin = neoveg_text::render::at(w as f32 / 2.0, base_y as f32 - top);
+    // A fixed width puts its box in the middle of the frame (the lines are aligned inside it); free
+    // lines put the block in the middle, which for centred lines is the old place of the origin.
+    let origin_x = match box_width {
+        Some(width) => (w as f32 - width) / 2.0,
+        None if look.align == TitleAlign::Center => w as f32 / 2.0,
+        None => w as f32 / 2.0 - (left + right) / 2.0,
+    };
+    let origin = neoveg_text::render::at(origin_x, base_y as f32 - top);
     let (glyphs, gx, gy) = neoveg_text::render::rasterize(&laid, &origin);
     let pad = outline_px as usize + 2;
     let mut padded = Mask::new(glyphs.w + 2 * pad, glyphs.h + 2 * pad);
@@ -540,7 +707,20 @@ fn render_title_text(
         let ring = stroke(&padded, outline_px as f32, StrokeKind::Outer);
         blit(&mut frame, &ring, mx, my, outline_rgba);
     }
-    blit(&mut frame, &padded, mx, my, text_rgba);
+    if style_runs.is_empty() {
+        blit(&mut frame, &padded, mx, my, text_rgba);
+    } else {
+        // Each style is drawn in its own colour: the base style first, then the runs in order
+        let mut base = Mask::new(padded.w, padded.h);
+        neoveg_text::render::draw_run(&laid, &origin, &mut base, (mx, my), Some(0));
+        blit(&mut frame, &base, mx, my, text_rgba);
+        for (index, color) in run_colors.iter().enumerate() {
+            let mut own = Mask::new(padded.w, padded.h);
+            let run = u16::try_from(index + 1).unwrap_or(u16::MAX);
+            neoveg_text::render::draw_run(&laid, &origin, &mut own, (mx, my), Some(run));
+            blit(&mut frame, &own, mx, my, *color);
+        }
+    }
     frame
 }
 
@@ -583,6 +763,7 @@ mod tests {
                 animation: TitleAnimation::Static,
                 font: font.into(),
                 font_style: style.into(),
+                layout: TitleLayout::default(),
             },
         };
         let lit = |f: &FrameBuffer| {
@@ -674,6 +855,7 @@ mod tests {
                 animation: TitleAnimation::Typewriter,
                 font: "Inter".into(),
                 font_style: "Bold".into(),
+                layout: TitleLayout::default(),
             },
         };
         let path = dir.join("titulo.neoveggen");
@@ -706,5 +888,157 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn title_with(text: &str, layout: TitleLayout) -> FrameBuffer {
+        GeneratorSpec {
+            name: "T".into(),
+            width: 400,
+            height: 160,
+            fps: 25.0,
+            duration: 4.0,
+            kind: GeneratorKind::TitleText {
+                text: text.into(),
+                scale: 4,
+                text_rgba: [255, 255, 255, 255],
+                bg_rgba: [0, 0, 0, 0],
+                outline_rgba: [0, 0, 0, 255],
+                outline_px: 0,
+                shadow_rgba: [0, 0, 0, 0],
+                shadow_offset: [0, 0],
+                align_y: 0.5,
+                animation: TitleAnimation::Static,
+                font: "Inter".into(),
+                font_style: "Bold".into(),
+                layout,
+            },
+        }
+        .render(0.0, 0)
+    }
+
+    /// The columns of the picture that hold text: first and last.
+    fn text_columns(f: &FrameBuffer) -> (usize, usize) {
+        let (mut first, mut last) = (usize::MAX, 0);
+        for (i, p) in f.rgba.as_chunks::<4>().0.iter().enumerate() {
+            if p[3] > 40 {
+                first = first.min(i % f.width as usize);
+                last = last.max(i % f.width as usize);
+            }
+        }
+        (first, last)
+    }
+
+    #[test]
+    fn a_fixed_width_wraps_the_lines_and_the_alignment_puts_them_in_the_box() {
+        let text = "uma frase bem longa que não cabe numa linha só";
+        let free = title_with(text, TitleLayout::default());
+        let boxed = |align| {
+            title_with(
+                text,
+                TitleLayout {
+                    align,
+                    box_width: 0.5,
+                    spans: Vec::new(),
+                },
+            )
+        };
+        // Free, the line is as wide as it is; boxed, no line is wider than half of the frame
+        let (a, b) = text_columns(&free);
+        let (c, d) = text_columns(&boxed(TitleAlign::Left));
+        assert!(b - a > 200, "the free line is wide: {a} {b}");
+        assert!(d - c <= 205, "the boxed lines stay in 200 px: {c} {d}");
+        // Left lines start at the left edge of the box, right lines end at its right edge
+        let (l0, _) = text_columns(&boxed(TitleAlign::Left));
+        let (_, r1) = text_columns(&boxed(TitleAlign::Right));
+        assert!((l0 as i32 - 100).abs() <= 12, "left edge of the box: {l0}");
+        assert!((r1 as i32 - 300).abs() <= 12, "right edge of the box: {r1}");
+        assert_ne!(boxed(TitleAlign::Left), boxed(TitleAlign::Center));
+        assert_ne!(boxed(TitleAlign::Left), boxed(TitleAlign::Justify));
+    }
+
+    #[test]
+    fn a_stretch_of_the_text_has_its_own_colour_size_and_weight() {
+        let plain = title_with("ABCD", TitleLayout::default());
+        let red = |f: &FrameBuffer| {
+            f.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| p[3] > 200 && p[0] > 200 && p[1] < 60)
+                .count()
+        };
+        assert_eq!(red(&plain), 0);
+        let mut span = TitleSpan::new(1, 3);
+        span.color = Some([255, 0, 0, 255]);
+        let coloured = title_with(
+            "ABCD",
+            TitleLayout {
+                spans: vec![span.clone()],
+                ..TitleLayout::default()
+            },
+        );
+        assert!(red(&coloured) > 100, "the middle letters are red");
+        // A bigger stretch makes the picture wider
+        span.color = None;
+        span.scale = 1.6;
+        let bigger = title_with(
+            "ABCD",
+            TitleLayout {
+                spans: vec![span],
+                ..TitleLayout::default()
+            },
+        );
+        let (a, b) = text_columns(&plain);
+        let (c, d) = text_columns(&bigger);
+        assert!(d - c > b - a, "{c}-{d} against {a}-{b}");
+    }
+
+    #[test]
+    fn the_runs_follow_the_characters_and_the_old_manifests_load() {
+        let base = neoveg_text::layout::TextStyle::default();
+        // "ação": the span 1..3 covers the two letters "çã" whatever their bytes
+        let mut bold = TitleSpan::new(1, 3);
+        bold.bold = true;
+        bold.scale = 2.0;
+        let runs = title_runs(
+            "ação",
+            &[bold, TitleSpan::new(9, 12), TitleSpan::new(2, 2)],
+            &base,
+        );
+        assert_eq!(
+            runs.len(),
+            1,
+            "a span outside the text or empty is left out"
+        );
+        let (run, color) = &runs[0];
+        assert_eq!(&"ação"[run.range.clone()], "çã");
+        assert_eq!(run.style.style, "Bold");
+        assert_eq!(run.style.size, base.size * 2.0);
+        assert_eq!(*color, None);
+        // The layout is left out of the manifest while it is the plain one, and spans round trip
+        assert!(TitleLayout::default().is_default());
+        let layout = TitleLayout {
+            align: TitleAlign::Justify,
+            box_width: 0.6,
+            spans: vec![TitleSpan::new(0, 2)],
+        };
+        let json = serde_json::to_string(&layout).unwrap();
+        assert_eq!(serde_json::from_str::<TitleLayout>(&json).unwrap(), layout);
+        assert_eq!(layout.box_pixels(1000), Some(600.0));
+        assert_eq!(TitleLayout::default().box_pixels(1000), None);
+        let old = serde_json::to_string(&title_spec_without_layout()).unwrap();
+        assert!(!old.contains("layout"));
+        assert!(serde_json::from_str::<GeneratorSpec>(&old).is_ok());
+    }
+
+    fn title_spec_without_layout() -> GeneratorSpec {
+        GeneratorSpec {
+            name: "T".into(),
+            width: 64,
+            height: 36,
+            fps: 25.0,
+            duration: 1.0,
+            kind: GeneratorKind::default_title(),
+        }
     }
 }
