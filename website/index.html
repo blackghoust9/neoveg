@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neoveg — Editor não linear de vídeo e áudio em Rust</title>
+<meta name="description" content="Neoveg é um editor não linear de vídeo e áudio de código aberto, escrito 100% em Rust, com linha do tempo, mixer, efeitos na GPU e renderização H.264/AAC sem FFmpeg.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#topo">NEO<span>VEG</span></a>
+    <nav>
+      <a href="#recursos">Recursos</a>
+      <a href="#telas">Telas</a>
+      <a href="#tecnologia">Tecnologia</a>
+      <a href="historico.html">O que já foi feito</a>
+      <a href="#baixar">Baixar</a>
+    </nav>
+  </div>
+</header>
+
+<main id="topo">
+<div class="hero wrap">
+  <h1>Edite vídeo e áudio com um motor <em>100% Rust</em></h1>
+  <p class="lead">Neoveg é um editor não linear de código aberto: linha do tempo multifaixa, mixer com barramentos, efeitos e transições na GPU e exportação H.264/AAC escrita em Rust puro.</p>
+  <div class="btns">
+    <a class="btn primary" href="#baixar">Baixar para Windows</a>
+    <a class="btn" href="https://github.com/blackghoust9/neoveg">Ver no GitHub</a>
+  </div>
+  <div class="shot"><img src="img/ui_main_layout.png" alt="Visão geral do Neoveg: Mídia, Visualização, Barramento Master e Linha do Tempo"></div>
+</div>
+
+<section id="numeros" class="alt">
+  <div class="wrap stats">
+    <div><b>100%</b><span>Rust</span></div>
+    <div><b>36</b><span>efeitos de vídeo na GPU</span></div>
+    <div><b>16</b><span>transições</span></div>
+    <div><b>8</b><span>idiomas na interface</span></div>
+    <div><b>7</b><span>temas visuais</span></div>
+  </div>
+</section>
+
+<section id="recursos">
+  <div class="wrap">
+    <h2>O que o Neoveg faz</h2>
+    <p class="sub">Um espaço de trabalho acoplável, pensado para quem edita todo dia: tudo tem atalho, desfazer e abas por projeto.</p>
+    <div class="grid">
+      <div class="card"><h3>Linha do tempo</h3><p>Faixas de vídeo e áudio com forma de onda real, régua SMPTE com drop-frame, crossfade automático, envelopes, marcadores e regiões.</p></div>
+      <div class="card"><h3>Ferramentas de edição</h3><p>Mover, aparar, dividir, Slip, Slide, Shuffle, ripple, stretch, agrupamento e alinhamento a quadros, ao cursor e a outros eventos.</p></div>
+      <div class="card"><h3>Mixer de áudio</h3><p>Volume, pan, mudo e solo por faixa, até 26 barramentos com sends, medidor de loudness BS.1770 e efeitos VST3 e CLAP.</p></div>
+      <div class="card"><h3>Efeitos e transições</h3><p>Correção de cor, curvas, croma key, desfoque, vinheta e mais, rodando em compute shaders <code>wgpu</code> com referência na CPU testada.</p></div>
+      <div class="card"><h3>Pan/Crop e movimento</h3><p>Quadros-chave de posição, zoom e rotação no evento e na trilha, para picture-in-picture e animações.</p></div>
+      <div class="card"><h3>Velocidade variável</h3><p>Envelope de velocidade de −100 % a 300 %, com congelamento, reverso e câmera lenta no mesmo evento.</p></div>
+      <div class="card"><h3>Legendas por Whisper</h3><p>Transcrição automática de fala em Rust puro, com nove idiomas e detecção automática, direto na aba Legendas.</p></div>
+      <div class="card"><h3>Vários projetos</h3><p>Abas por projeto e sub-projetos aninhados que aparecem como um único evento na linha do tempo do projeto pai.</p></div>
+      <div class="card"><h3>Troca com outros editores</h3><p>Importa e exporta EDL CMX 3600, XML do Final Cut Pro 7, FCPXML e OpenTimelineIO.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="telas" class="alt">
+  <div class="wrap">
+    <h2>Conheça as telas</h2>
+    <p class="sub">Todas as imagens abaixo foram geradas pelo próprio programa, fora da tela, com um projeto de demonstração.</p>
+
+    <div class="feat">
+      <div class="txt"><h3>Linha do tempo</h3><p>Forma de onda real, crossfade automático onde dois eventos se sobrepõem, envelope de volume, marcadores e interruptores por evento: mudo, trava, laço, normalizar e inverter fase.</p></div>
+      <img src="img/ui_timeline_events.png" alt="Linha do tempo do Neoveg" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Efeitos de vídeo</h3><p>Cadeias de efeitos por evento, mídia, faixa ou projeto. Ao arrastar um controle, a prévia mostra o resultado ao vivo antes de soltar.</p></div>
+      <img src="img/ui_video_effects.png" alt="Aba de efeitos de vídeo" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Transições</h3><p>Dezesseis transições na GPU — dissolver, íris, relógio, espiral, rolar página e outras — que seguem a curva do fade do evento.</p></div>
+      <img src="img/ui_transitions.png" alt="Aba de transições" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Pan/Crop e movimento da trilha</h3><p>Recorte, zoom e rotação com quadros-chave. Posicione uma camada menor no quadro para fazer picture-in-picture.</p></div>
+      <img src="img/ui_pan_crop.png" alt="Janela Pan/Crop do evento" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Velocidade do evento</h3><p>Desenhe a velocidade ao longo do clipe. O evento mantém o comprimento; o envelope decide quanto da mídia toca.</p></div>
+      <img src="img/ui_velocity.png" alt="Envelope de velocidade do evento" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Renderização</h3><p>MP4 H.264 com áudio AAC escrito em Rust puro, com qualidade CRF e relatório de loudness. FFmpeg é opcional, para HEVC, ProRes e WebM.</p></div>
+      <img src="img/ui_render_dialog.png" alt="Diálogo de renderização" loading="lazy">
+    </div>
+    <div class="feat">
+      <div class="txt"><h3>Boas-vindas e projetos</h3><p>Projetos recentes, novo projeto com modelo, resolução e taxa de quadros (de SD a 8K), e dois layouts iniciais: edição de vídeo ou de áudio.</p></div>
+      <img src="img/ui_welcome_screen.png" alt="Tela de boas-vindas" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="tecnologia">
+  <div class="wrap">
+    <h2>Tecnologia</h2>
+    <p class="sub">Um único workspace, em puro Rust.</p>
+    <ul class="chk">
+      <li>Interface com <code>egui</code> / <code>eframe</code> e painéis acopláveis (<code>egui_dock</code>)</li>
+      <li>Gráficos e efeitos na GPU com <code>wgpu</code></li>
+      <li>Áudio com <code>cpal</code> e <code>symphonia</code></li>
+      <li>H.264, AAC e MP4 em crates próprias (<code>neoveg_h264</code>, <code>neoveg_aac</code>, <code>neoveg_media</code>)</li>
+      <li>Projetos <code>.neoveg</code> (ZIP com JSON), autosave e recuperação após falha</li>
+      <li>Reprodução de vídeo sincronizada ao relógio de áudio</li>
+      <li>Interface em pt-BR, en-US, de-DE, es-ES, fr-FR, ru-RU, ja-JP e zh-CN</li>
+      <li>Licença MIT, código aberto</li>
+    </ul>
+    <p style="margin-top:24px" class="note">O Neoveg está em desenvolvimento ativo. Hoje o foco é o Windows 10/11; Linux e macOS rodam na integração contínua em modo experimental, até a fase do porte.</p>
+  </div>
+</section>
+
+<section id="baixar" class="alt">
+  <div class="wrap">
+    <h2>Baixar para Windows</h2>
+    <p class="sub">Versão 2.1.0 para Windows 10 e 11 (64 bits), portátil: extraia o ZIP e abra <code>neoveg.exe</code>. Não precisa instalar nada.</p>
+    <div class="btns" style="justify-content:flex-start;margin-bottom:12px">
+      <a class="btn primary" href="download/Neoveg_v2.1.0_win-x64_Portable.zip" download>Baixar Neoveg 2.1.0 (ZIP, 10 MB)</a>
+    </div>
+    <p class="note" style="margin-bottom:40px">SHA-256: <code style="word-break:break-all">f86fe3c9bab587962eb9276b2a80b258fa1125a498b268b297a7e933651879ff</code><br>Este pacote foi gerado em 28/10/2026 e não traz as DLLs do FFmpeg: sem elas a prévia de vídeo não decodifica. Linux e macOS ainda não têm versão.</p>
+    <h2>Compilar do código-fonte</h2>
+    <p class="sub">Veja as versões publicadas no GitHub ou compile você mesmo com Rust 1.88 ou mais novo.</p>
+    <pre><code>git clone https://github.com/blackghoust9/neoveg
+cd neoveg
+cargo run --release -p neoveg_ui</code></pre>
+    <p>Para gerar o pacote portátil do Windows: <code>python build_portable.py build --ffmpeg</code>.</p>
+    <div class="btns" style="justify-content:flex-start;margin-top:20px">
+      <a class="btn" href="historico.html">Tudo que já foi feito</a>
+      <a class="btn primary" href="https://github.com/blackghoust9/neoveg/releases">Versões</a>
+      <a class="btn" href="https://github.com/blackghoust9/neoveg">Código-fonte</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">Neoveg · Licença MIT · Feito em Rust</div>
+</footer>
+</body>
+</html>
