@@ -11818,6 +11818,69 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
                     }
                 }
             });
+            if kind == TrackKind::Video {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Opacidade do evento"));
+                    let draft_id = egui::Id::new(("inspector_opacity_draft", track_id, event_id));
+                    let mut pct: f32 = ui
+                        .data(|d| d.get_temp(draft_id))
+                        .unwrap_or_else(|| (ev.opacity * 100.0).clamp(0.0, 100.0));
+                    let resp = ui.add_enabled(
+                        !ev.locked,
+                        egui::Slider::new(&mut pct, 0.0..=100.0)
+                            .suffix(" %")
+                            .fixed_decimals(1),
+                    );
+                    if resp.dragged() {
+                        ui.data_mut(|d| d.insert_temp(draft_id, pct));
+                    } else if resp.drag_stopped() || (resp.changed() && !resp.dragged()) {
+                        ui.data_mut(|d| d.remove::<f32>(draft_id));
+                        opacity_change = Some((pct / 100.0).clamp(0.0, 1.0));
+                    }
+                    if ui
+                        .add_enabled(
+                            !ev.locked && (ev.opacity - 1.0).abs() > 1e-4,
+                            egui::Button::new("100 %").small(),
+                        )
+                        .clicked()
+                    {
+                        ui.data_mut(|d| d.remove::<f32>(draft_id));
+                        opacity_change = Some(1.0);
+                    }
+                });
+            }
+            if kind == TrackKind::Audio {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Ganho do evento"));
+                    let (lo, hi) = neoveg_engine::TrackMix::VOLUME_RANGE_DB;
+                    let draft_id = egui::Id::new(("inspector_gain_draft", track_id, event_id));
+                    let mut db: f32 = ui
+                        .data(|d| d.get_temp(draft_id))
+                        .unwrap_or_else(|| ev.gain_db.clamp(lo, hi));
+                    let resp = ui.add_enabled(
+                        !ev.locked,
+                        egui::Slider::new(&mut db, lo..=hi)
+                            .suffix(" dB")
+                            .fixed_decimals(1),
+                    );
+                    if resp.dragged() {
+                        ui.data_mut(|d| d.insert_temp(draft_id, db));
+                    } else if resp.drag_stopped() || (resp.changed() && !resp.dragged()) {
+                        ui.data_mut(|d| d.remove::<f32>(draft_id));
+                        gain_change = Some(db.clamp(lo, hi));
+                    }
+                    if ui
+                        .add_enabled(
+                            !ev.locked && ev.gain_db.abs() > 1e-3,
+                            egui::Button::new("0 dB").small(),
+                        )
+                        .clicked()
+                    {
+                        ui.data_mut(|d| d.remove::<f32>(draft_id));
+                        gain_change = Some(0.0);
+                    }
+                });
+            }
             if kind == TrackKind::Video && !ev.adjustment {
                 ui.horizontal(|ui| {
                     ui.label(tr("Reamostragem"));
