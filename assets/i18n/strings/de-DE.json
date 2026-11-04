@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "Spur-Videoeffekte…",
   "Modo de automação": "Automationsmodus",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "Event-Deckkraft: {} % (Strg = Feineinstellung)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "Event-Verstärkung: {} (Strg = Feineinstellung)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "Event-Verstärkung: {} (Strg = Feineinstellung)",
+  "Personalizar barra de ferramentas": "Symbolleiste anpassen",
+  "Personalizar barra de ferramentas…": "Symbolleiste anpassen…",
+  "Botões na barra": "Schaltflächen in der Leiste",
+  "Botões disponíveis": "Verfügbare Schaltflächen",
+  "Tirar da barra": "Aus der Leiste entfernen",
+  "— separador —": "— Trenner —",
+  "separador": "Trenner",
+  "Restaurar a barra padrão": "Standardleiste wiederherstellen",
+  "Volta aos botões e à ordem de fábrica": "Kehrt zu den Standardschaltflächen und ihrer Reihenfolge zurück"
 }

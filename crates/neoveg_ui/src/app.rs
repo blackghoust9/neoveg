@@ -732,6 +732,8 @@ struct AppState {
     /// The trim monitor: the window and the thread that draws its pictures.
     trim_monitor: crate::trim_monitor_window::TrimMonitorState,
     trim_worker: Option<trim_monitor::TrimWorker>,
+    /// *Personalizar barra de ferramentas* is open.
+    toolbar_editor_open: bool,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1820,6 +1822,7 @@ impl AppState {
             pending_render: None,
             trim_monitor: Default::default(),
             trim_worker: None,
+            toolbar_editor_open: false,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -8894,6 +8897,7 @@ impl NeovegApp {
         self.state.run_command_dialog(ctx);
         self.state.poll_render_to_track(ctx);
         self.state.run_trim_monitor(ctx);
+        self.state.run_toolbar_editor(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.state.run_env_value_dialog(ctx);
         self.run_details_window(ctx);
@@ -9572,6 +9576,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
             });
+            if ui
+                .button(tr("Personalizar barra de ferramentas…"))
+                .clicked()
+            {
+                state.toolbar_editor_open = true;
+                ui.close_menu();
+            }
             ui.menu_button(tr("Rolar as faixas"), |ui| {
                 for command in [
                     Command::ViewScrollTracksUp,
@@ -9748,63 +9759,220 @@ fn switch_item(state: &mut AppState, ui: &mut egui::Ui, switch: Switch, command:
     }
 }
 
-/// The main toolbar under the menu: file, clipboard and history commands, as an icon each (names and
-/// shortcuts are in the tooltips).
+/// The icon of a command in the toolbar; only the commands that have one can be put there.
+fn toolbar_icon(command: Command) -> Option<icons::SvgIcon> {
+    use icons::SvgIcon as I;
+    Some(match command {
+        Command::FileNew => I::NewProject,
+        Command::FileOpen => I::OpenProject,
+        Command::FileSave => I::SaveProject,
+        Command::FileProperties => I::ProjectProperties,
+        Command::EditCut => I::Cut,
+        Command::EditCopy => I::Copy,
+        Command::EditPaste => I::Paste,
+        Command::EditDelete => I::Delete,
+        Command::EditUndo => I::Undo,
+        Command::EditRedo => I::Redo,
+        Command::EditSplit => I::Split,
+        Command::EditSmartSplit => I::EventFx,
+        Command::EditTrimStart => I::TrimStart,
+        Command::EditTrimEnd => I::TrimEnd,
+        Command::EditGroup => I::Group,
+        Command::EditUngroup => I::Ungroup,
+        Command::InsertAudioTrack => I::AddAudioTrack,
+        Command::InsertVideoTrack => I::AddVideoTrack,
+        Command::TransportPlayToggle => I::TransportPlay,
+        Command::TransportStop => I::TransportStop,
+        Command::TransportRecord => I::TransportRecord,
+        Command::CursorProjectStart => I::GotoStart,
+        Command::CursorProjectEnd => I::GotoEnd,
+        Command::OptionsSnapping => I::Snapping,
+        Command::OptionsAutoRipple => I::AutoRipple,
+        Command::OptionsAutoCrossfade => I::Crossfade,
+        Command::OptionsLockEnvelopes => I::ToolEnvelope,
+        Command::TrackMute => I::MuteTrack,
+        Command::TrackSolo => I::SoloTrack,
+        Command::TrackVolumeEnvelope => I::EnvelopeVolume,
+        Command::TrackPanEnvelope => I::EnvelopePan,
+        _ => return None,
+    })
+}
+
+/// The icon of an item of the main toolbar (a command or a program button).
+fn toolbar_item_icon(id: &str) -> Option<icons::SvgIcon> {
+    use neoveg_common::toolbar as tb;
+    match id {
+        tb::RENDER => Some(icons::SvgIcon::ExportRender),
+        tb::WELCOME => Some(icons::SvgIcon::Welcome),
+        tb::PREFERENCES => Some(icons::SvgIcon::Preferences),
+        _ => Command::from_id(id).and_then(toolbar_icon),
+    }
+}
+
+/// The name of an item of the main toolbar.
+fn toolbar_item_label(id: &str) -> String {
+    use neoveg_common::toolbar as tb;
+    match id {
+        tb::RENDER => tr("Renderizar como… (Make Movie)").to_owned(),
+        tb::WELCOME => tr("Tela de boas-vindas").to_owned(),
+        tb::PREFERENCES => tr("Preferências").to_owned(),
+        _ => Command::from_id(id)
+            .map(|c| tr(c.label()).to_owned())
+            .unwrap_or_else(|| id.to_owned()),
+    }
+}
+
+impl AppState {
+    /// The items of the main toolbar: the user's list, or the standard set.
+    fn toolbar_items(&self) -> Vec<String> {
+        match &self.prefs.main_toolbar {
+            Some(items) => neoveg_common::toolbar::sanitized(items),
+            None => neoveg_common::toolbar::default_items(),
+        }
+    }
+
+    /// Whether the button of `command` is shown as on (a switch that is turned on).
+    fn toolbar_command_on(&self, command: Command) -> bool {
+        match command {
+            Command::OptionsSnapping => self.snapping,
+            Command::OptionsLockEnvelopes => self.prefs.lock_envelopes_to_events,
+            Command::TransportLoop => self.looping,
+            _ => false,
+        }
+    }
+
+    /// Applies what the user did in *Personalizar barra de ferramentas* and keeps the preferences.
+    fn change_toolbar(&mut self, actions: Vec<crate::toolbar_editor_window::ToolbarAction>) {
+        use crate::toolbar_editor_window::ToolbarAction;
+        use neoveg_common::toolbar as tb;
+        if actions.is_empty() {
+            return;
+        }
+        let mut items = self.toolbar_items();
+        let mut reset = false;
+        for action in actions {
+            match action {
+                ToolbarAction::Add(id) => {
+                    tb::add_item(&mut items, &id);
+                }
+                ToolbarAction::Remove(index) => {
+                    tb::remove_item(&mut items, index);
+                }
+                ToolbarAction::Move { index, up } => {
+                    tb::move_item(&mut items, index, up);
+                }
+                ToolbarAction::Reset => reset = true,
+            }
+        }
+        self.prefs.main_toolbar = if reset {
+            None
+        } else {
+            Some(tb::sanitized(&items))
+        };
+        self.persist_preferences();
+    }
+
+    fn run_toolbar_editor(&mut self, ctx: &egui::Context) {
+        if !self.toolbar_editor_open {
+            return;
+        }
+        let items = self.toolbar_items();
+        let available: Vec<String> = neoveg_common::toolbar::APP_ITEMS
+            .iter()
+            .map(|id| (*id).to_owned())
+            .chain(
+                Command::ALL
+                    .iter()
+                    .filter(|c| toolbar_icon(**c).is_some())
+                    .map(|c| c.id().to_owned()),
+            )
+            .filter(|id| !items.contains(id))
+            .collect();
+        let view = crate::toolbar_editor_window::ToolbarView {
+            items: &items,
+            available: &available,
+            label: &toolbar_item_label,
+            icon: &toolbar_item_icon,
+        };
+        let mut open = true;
+        let actions = crate::toolbar_editor_window::show(ctx, &mut open, &view);
+        self.toolbar_editor_open = open;
+        self.change_toolbar(actions);
+    }
+}
+
+/// The main toolbar under the menu: the buttons the user chose (the standard set at first), as an
+/// icon each (names and shortcuts are in the tooltips). A right click opens *Personalizar barra de
+/// ferramentas*.
 fn main_toolbar(ui: &mut egui::Ui, state: &mut AppState) {
-    use icons::SvgIcon;
-    let groups: [&[(SvgIcon, Command)]; 3] = [
-        &[
-            (SvgIcon::NewProject, Command::FileNew),
-            (SvgIcon::OpenProject, Command::FileOpen),
-            (SvgIcon::SaveProject, Command::FileSave),
-            (SvgIcon::ProjectProperties, Command::FileProperties),
-        ],
-        &[
-            (SvgIcon::Cut, Command::EditCut),
-            (SvgIcon::Copy, Command::EditCopy),
-            (SvgIcon::Paste, Command::EditPaste),
-            (SvgIcon::Delete, Command::EditDelete),
-        ],
-        &[
-            (SvgIcon::Undo, Command::EditUndo),
-            (SvgIcon::Redo, Command::EditRedo),
-        ],
-    ];
-    ui.horizontal(|ui| {
+    use neoveg_common::toolbar as tb;
+    let items = state.toolbar_items();
+    let bar = ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        for (i, group) in groups.iter().enumerate() {
-            if i > 0 {
+        for id in &items {
+            if id == tb::SEPARATOR {
                 ui.separator();
+                continue;
             }
-            for &(icon, command) in *group {
-                let enabled = state.command_enabled(command);
-                let tooltip = state.with_hint(tr(command.label()), command);
-                let clicked = ui
-                    .add_enabled_ui(enabled, |ui| icons::svg_button(ui, icon, &tooltip, false))
-                    .inner
-                    .clicked();
-                if clicked {
-                    let ctx = ui.ctx().clone();
-                    let now = ctx.input(|i| i.time);
-                    state.run_command(command, &ctx, now);
+            match id.as_str() {
+                tb::RENDER => {
+                    let tooltip = tr("Renderizar como… (Make Movie)");
+                    if icons::svg_button(ui, icons::SvgIcon::ExportRender, tooltip, false).clicked()
+                    {
+                        state.render_dialog.open = true;
+                    }
                 }
-            }
-            // Render sits with the file commands, as in the manuals' toolbar
-            if i == 0 {
-                let tooltip = tr("Renderizar como… (Make Movie)");
-                if icons::svg_button(ui, SvgIcon::ExportRender, tooltip, false).clicked() {
-                    state.render_dialog.open = true;
+                tb::WELCOME => {
+                    if icons::svg_button(
+                        ui,
+                        icons::SvgIcon::Welcome,
+                        tr("Tela de boas-vindas"),
+                        false,
+                    )
+                    .clicked()
+                    {
+                        let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
+                        let has_recents = !state.prefs.recent_projects.is_empty();
+                        state.welcome.open_with(&defaults, has_recents);
+                    }
+                }
+                tb::PREFERENCES => {
+                    if icons::svg_button(ui, icons::SvgIcon::Preferences, tr("Preferências"), false)
+                        .clicked()
+                    {
+                        state.show_preferences = true;
+                    }
+                }
+                other => {
+                    let Some(command) = Command::from_id(other) else {
+                        continue;
+                    };
+                    let Some(icon) = toolbar_icon(command) else {
+                        continue;
+                    };
+                    let enabled = state.command_enabled(command);
+                    let on = state.toolbar_command_on(command);
+                    let tooltip = state.with_hint(tr(command.label()), command);
+                    let clicked = ui
+                        .add_enabled_ui(enabled, |ui| icons::svg_button(ui, icon, &tooltip, on))
+                        .inner
+                        .clicked();
+                    if clicked {
+                        let ctx = ui.ctx().clone();
+                        let now = ctx.input(|i| i.time);
+                        state.run_command(command, &ctx, now);
+                    }
                 }
             }
         }
-        ui.separator();
-        if icons::svg_button(ui, SvgIcon::Welcome, tr("Tela de boas-vindas"), false).clicked() {
-            let defaults = state.prefs.new_project_settings.clone().unwrap_or_default();
-            let has_recents = !state.prefs.recent_projects.is_empty();
-            state.welcome.open_with(&defaults, has_recents);
-        }
-        if icons::svg_button(ui, SvgIcon::Preferences, tr("Preferências"), false).clicked() {
-            state.show_preferences = true;
+    });
+    bar.response.context_menu(|ui| {
+        if ui
+            .button(tr("Personalizar barra de ferramentas…"))
+            .clicked()
+        {
+            state.toolbar_editor_open = true;
+            ui.close_menu();
         }
     });
 }
@@ -18088,6 +18256,46 @@ mod tests {
             neoveg_engine::trim_monitor::edges(&s.timeline, track, 1, 2),
             Some((4.0, 4.0))
         );
+    }
+
+    #[test]
+    fn the_main_toolbar_follows_the_users_list_and_goes_back_to_the_standard_set() {
+        use crate::toolbar_editor_window::ToolbarAction;
+        let mut s = AppState::new();
+        assert_eq!(s.toolbar_items(), neoveg_common::toolbar::default_items());
+        let start = s.toolbar_items().len();
+        s.change_toolbar(vec![
+            ToolbarAction::Remove(0),
+            ToolbarAction::Add(Command::EditSplit.id().to_owned()),
+            ToolbarAction::Add("no.such".to_owned()),
+        ]);
+        let items = s.toolbar_items();
+        assert_eq!(
+            items.len(),
+            start,
+            "one out, one in, the unknown one refused"
+        );
+        assert!(!items.contains(&Command::FileNew.id().to_owned()));
+        assert_eq!(
+            items.last().map(String::as_str),
+            Some(Command::EditSplit.id())
+        );
+        assert!(s.prefs.main_toolbar.is_some());
+        s.change_toolbar(vec![ToolbarAction::Move {
+            index: 0,
+            up: false,
+        }]);
+        assert_eq!(s.toolbar_items()[1], Command::FileOpen.id());
+        s.change_toolbar(vec![ToolbarAction::Reset]);
+        assert!(s.prefs.main_toolbar.is_none());
+        assert_eq!(s.toolbar_items(), neoveg_common::toolbar::default_items());
+        // Every standard button has an icon: nothing in the standard bar goes missing
+        for id in neoveg_common::toolbar::default_items() {
+            assert!(
+                id == neoveg_common::toolbar::SEPARATOR || toolbar_item_icon(&id).is_some(),
+                "{id}"
+            );
+        }
     }
 
     #[test]

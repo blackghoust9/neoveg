@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "Effets vidéo de la piste…",
   "Modo de automação": "Mode d'automation",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "Opacité de l'événement : {} % (Ctrl = réglage fin)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "Gain de l'événement : {} (Ctrl = réglage fin)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "Gain de l'événement : {} (Ctrl = réglage fin)",
+  "Personalizar barra de ferramentas": "Personnaliser la barre d'outils",
+  "Personalizar barra de ferramentas…": "Personnaliser la barre d'outils…",
+  "Botões na barra": "Boutons de la barre",
+  "Botões disponíveis": "Boutons disponibles",
+  "Tirar da barra": "Retirer de la barre",
+  "— separador —": "— séparateur —",
+  "separador": "séparateur",
+  "Restaurar a barra padrão": "Rétablir la barre standard",
+  "Volta aos botões e à ordem de fábrica": "Revient aux boutons et à l'ordre d'origine"
 }

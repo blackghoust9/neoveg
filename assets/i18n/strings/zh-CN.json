@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "轨道视频特效…",
   "Modo de automação": "自动化模式",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "事件不透明度：{} %（Ctrl = 微调）",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "事件增益：{}（Ctrl = 微调）"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "事件增益：{}（Ctrl = 微调）",
+  "Personalizar barra de ferramentas": "自定义工具栏",
+  "Personalizar barra de ferramentas…": "自定义工具栏…",
+  "Botões na barra": "工具栏中的按钮",
+  "Botões disponíveis": "可用按钮",
+  "Tirar da barra": "从工具栏移除",
+  "— separador —": "— 分隔符 —",
+  "separador": "分隔符",
+  "Restaurar a barra padrão": "恢复标准工具栏",
+  "Volta aos botões e à ordem de fábrica": "恢复为出厂的按钮和顺序"
 }

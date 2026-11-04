@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "Track video effects…",
   "Modo de automação": "Automation mode",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "Event opacity: {} % (Ctrl = fine adjust)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "Event gain: {} (Ctrl = fine adjust)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "Event gain: {} (Ctrl = fine adjust)",
+  "Personalizar barra de ferramentas": "Customize toolbar",
+  "Personalizar barra de ferramentas…": "Customize toolbar…",
+  "Botões na barra": "Buttons in the toolbar",
+  "Botões disponíveis": "Available buttons",
+  "Tirar da barra": "Take out of the toolbar",
+  "— separador —": "— separator —",
+  "separador": "separator",
+  "Restaurar a barra padrão": "Restore the standard toolbar",
+  "Volta aos botões e à ordem de fábrica": "Goes back to the factory buttons and order"
 }

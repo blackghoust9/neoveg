@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "トラック ビデオ FX…",
   "Modo de automação": "オートメーション モード",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "イベントの不透明度: {} % (Ctrl = 微調整)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "イベントのゲイン: {} (Ctrl = 微調整)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "イベントのゲイン: {} (Ctrl = 微調整)",
+  "Personalizar barra de ferramentas": "ツールバーのカスタマイズ",
+  "Personalizar barra de ferramentas…": "ツールバーのカスタマイズ…",
+  "Botões na barra": "ツールバーのボタン",
+  "Botões disponíveis": "使用可能なボタン",
+  "Tirar da barra": "ツールバーから外す",
+  "— separador —": "— 区切り —",
+  "separador": "区切り",
+  "Restaurar a barra padrão": "標準のツールバーに戻す",
+  "Volta aos botões e à ordem de fábrica": "初期のボタンと順序に戻します"
 }

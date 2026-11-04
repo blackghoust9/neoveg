@@ -39,6 +39,7 @@ mod splash;
 mod templates_window;
 mod theme;
 mod timeline_scroll;
+mod toolbar_editor_window;
 mod transitions_panel;
 mod trim_monitor_window;
 mod velocity_editor;

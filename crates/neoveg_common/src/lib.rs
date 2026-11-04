@@ -27,4 +27,5 @@ pub mod sys_info;
 pub mod theme;
 pub mod timecode;
 pub mod title_style;
+pub mod toolbar;
 pub mod window_layout;

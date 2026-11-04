@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "Efectos de vídeo de la pista…",
   "Modo de automação": "Modo de automatización",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "Opacidad del evento: {} % (Ctrl = ajuste fino)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "Ganancia del evento: {} (Ctrl = ajuste fino)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "Ganancia del evento: {} (Ctrl = ajuste fino)",
+  "Personalizar barra de ferramentas": "Personalizar la barra de herramientas",
+  "Personalizar barra de ferramentas…": "Personalizar la barra de herramientas…",
+  "Botões na barra": "Botones de la barra",
+  "Botões disponíveis": "Botones disponibles",
+  "Tirar da barra": "Quitar de la barra",
+  "— separador —": "— separador —",
+  "separador": "separador",
+  "Restaurar a barra padrão": "Restaurar la barra estándar",
+  "Volta aos botões e à ordem de fábrica": "Vuelve a los botones y al orden de fábrica"
 }

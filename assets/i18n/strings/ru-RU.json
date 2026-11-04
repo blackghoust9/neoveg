@@ -1556,5 +1556,14 @@
   "Efeitos de vídeo da faixa…": "Видеоэффекты дорожки…",
   "Modo de automação": "Режим автоматизации",
   "Opacidade do evento: {} % (Ctrl = ajuste fino)": "Непрозрачность события: {} % (Ctrl = точно)",
-  "Ganho do evento: {} (Ctrl = ajuste fino)": "Усиление события: {} (Ctrl = точно)"
+  "Ganho do evento: {} (Ctrl = ajuste fino)": "Усиление события: {} (Ctrl = точно)",
+  "Personalizar barra de ferramentas": "Настроить панель инструментов",
+  "Personalizar barra de ferramentas…": "Настроить панель инструментов…",
+  "Botões na barra": "Кнопки на панели",
+  "Botões disponíveis": "Доступные кнопки",
+  "Tirar da barra": "Убрать с панели",
+  "— separador —": "— разделитель —",
+  "separador": "разделитель",
+  "Restaurar a barra padrão": "Восстановить стандартную панель",
+  "Volta aos botões e à ordem de fábrica": "Возвращает исходные кнопки и порядок"
 }
