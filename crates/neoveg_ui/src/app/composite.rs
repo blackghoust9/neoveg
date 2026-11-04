@@ -15,7 +15,9 @@ use crate::video_fx_panel::{effects_for, VfxDraft};
 use neoveg_common::composite::CompositeMode;
 use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
-use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
+use neoveg_video::worker::{
+    CompositeFrameRequest, GroupLook, TrackCompositeNode, VideoClipRequest,
+};
 
 /// Where a media id is on disk and how it plays.
 #[derive(Debug, Clone)]
@@ -244,6 +246,7 @@ fn assemble_tree(
     timeline: &Timeline,
     mut per_track: Vec<Vec<TrackCompositeNode>>,
     time: f64,
+    settings: &FrameSettings,
 ) -> Vec<TrackCompositeNode> {
     let levels = neoveg_engine::track_tree::effective_levels(&timeline.tracks);
     build_level(
@@ -253,7 +256,29 @@ fn assemble_tree(
         0..timeline.tracks.len(),
         0,
         time,
+        settings,
     )
+}
+
+/// What the track of a compositing parent does to its whole group: its effects, its fade to a
+/// colour and its motion.
+fn group_look(
+    track: &neoveg_engine::timeline::Track,
+    time: f64,
+    settings: &FrameSettings,
+) -> GroupLook {
+    let state = envelope::video_track_state(track, time);
+    let (fade_color, fade_amount) = envelope::fade_mix(track, state.fade);
+    GroupLook {
+        effects: effects_for(
+            &track.video_effects,
+            VideoFxTarget::Track(track.id),
+            settings.fx_draft.as_ref(),
+        ),
+        fade_color,
+        fade_amount,
+        motion: track_motion_frame(track, time, settings),
+    }
 }
 
 /// The nodes of the tracks `range`, whose siblings are at level `base`.
@@ -264,6 +289,7 @@ fn build_level(
     range: std::ops::Range<usize>,
     base: u8,
     time: f64,
+    settings: &FrameSettings,
 ) -> Vec<TrackCompositeNode> {
     let tracks = &timeline.tracks;
     let takes_part = |i: usize| tracks[i].kind == TrackKind::Video && !tracks[i].adjustment;
@@ -304,6 +330,7 @@ fn build_level(
             parent + 1..last,
             base + 1,
             time,
+            settings,
         );
         let mut clips = Vec::new();
         let mut mode = tracks[parent].composite_mode;
@@ -333,6 +360,7 @@ fn build_level(
             parent_mode: mode,
             group_mode: CompositeMode::SourceAlpha,
             group_level: level,
+            look: group_look(&tracks[parent], time, settings),
         });
     }
     out
@@ -489,7 +517,7 @@ pub(super) fn composite_request(
         }
         per_track[index] = nodes;
     }
-    let nodes = assemble_tree(timeline, per_track, time);
+    let nodes = assemble_tree(timeline, per_track, time, settings);
     // Adjustments with no picture under them show nothing
     if nodes
         .iter()
@@ -752,6 +780,7 @@ mod tests {
             parent_mode,
             group_mode,
             group_level,
+            ..
         } = &request.nodes[1]
         else {
             panic!("the parent with its child is a group");
@@ -773,6 +802,45 @@ mod tests {
         tl.track_mut(ids[0]).unwrap().muted = true;
         let muted = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
         assert_eq!(muted.nodes.len(), 1, "only the track S is left");
+    }
+
+    #[test]
+    fn the_effects_and_the_fade_of_the_parent_track_ride_the_group() {
+        use neoveg_engine::TrackEffect;
+        let mut tl = Timeline::new();
+        let mut ids = Vec::new();
+        for media in [1u64, 2] {
+            let mut track = tl.new_track(TrackKind::Video);
+            let e = event(&mut tl, media, 0.0, 4.0);
+            track.events.push(e);
+            ids.push(track.id);
+            tl.tracks.push(track);
+        }
+        tl.track_mut(ids[1]).unwrap().compose_level = 1;
+        let look_of = |tl: &Timeline| {
+            let request = composite_request(tl, 1.0, &settings(), &resolve).unwrap();
+            let TrackCompositeNode::Group { look, children, .. } = &request.nodes[0] else {
+                panic!("a group");
+            };
+            let TrackCompositeNode::Track { effects, .. } = &children[0] else {
+                panic!("the child is a track");
+            };
+            (look.clone(), effects.len())
+        };
+        let (look, child_effects) = look_of(&tl);
+        assert!(look.is_neutral() && child_effects == 0);
+        // An effect on the track of the parent goes to the group, not to the child
+        tl.track_mut(ids[0])
+            .unwrap()
+            .video_effects
+            .push(TrackEffect::new("vignette"));
+        let (look, child_effects) = look_of(&tl);
+        assert_eq!(look.effects.len(), 1);
+        assert!(!look.is_neutral());
+        assert_eq!(child_effects, 0, "the child keeps its own chain only");
+        // A fade colour of the parent
+        tl.track_mut(ids[0]).unwrap().video_effects.clear();
+        assert!(look_of(&tl).0.is_neutral());
     }
 
     #[test]

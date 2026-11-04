@@ -113,7 +113,28 @@ pub enum TrackCompositeNode {
         parent_mode: CompositeMode,
         group_mode: CompositeMode,
         group_level: f32,
+        /// What the track of the parent does to the composited group: effects, fade to a colour and
+        /// where it sits in the frame.
+        look: GroupLook,
     },
+}
+
+/// The track effects, fade colour and motion of a compositing parent, applied to its whole group.
+#[derive(Debug, Clone, Default)]
+pub struct GroupLook {
+    pub effects: Vec<VideoEffect>,
+    pub fade_color: [u8; 3],
+    pub fade_amount: f32,
+    pub motion: Option<PanCropFrame>,
+}
+
+impl GroupLook {
+    /// `true` when the group is left as it is.
+    pub fn is_neutral(&self) -> bool {
+        self.effects.is_empty()
+            && self.fade_amount <= 0.0
+            && self.motion.is_none_or(|m| m.is_full())
+    }
 }
 
 /// Full timeline preview composite request evaluated off the UI thread.
@@ -714,11 +735,24 @@ fn hash_node(h: &mut impl Hasher, node: &TrackCompositeNode, max_width: u32) {
             parent_mode,
             group_mode,
             group_level,
+            look,
         } => {
             1u8.hash(h);
             parent_mode.code().hash(h);
             group_mode.code().hash(h);
             hash_f32(h, *group_level);
+            vfx::hash_chain(&look.effects, h);
+            look.fade_color.hash(h);
+            hash_f32(h, look.fade_amount);
+            match &look.motion {
+                Some(m) => {
+                    1u8.hash(h);
+                    for v in [m.x_center, m.y_center, m.width, m.height, m.rotation_deg] {
+                        hash_f32(h, v);
+                    }
+                }
+                None => 0u8.hash(h),
+            }
             children.len().hash(h);
             for c in children {
                 hash_node(h, c, max_width);
@@ -1015,6 +1049,7 @@ fn build_decoded_tree(
                 parent_mode,
                 group_mode,
                 group_level,
+                look,
             } => {
                 if *group_level <= 0.0 {
                     continue;
@@ -1031,12 +1066,45 @@ fn build_decoded_tree(
                 if decoded_children.is_empty() && parent_layer.is_none() {
                     continue;
                 }
-                out.push(CompositeNode::Group {
-                    children: decoded_children,
-                    parent_layer,
-                    group_mode: *group_mode,
-                    group_opacity: group_level.clamp(0.0, 1.0),
-                });
+                if look.is_neutral() {
+                    out.push(CompositeNode::Group {
+                        children: decoded_children,
+                        parent_layer,
+                        group_mode: *group_mode,
+                        group_opacity: group_level.clamp(0.0, 1.0),
+                    });
+                    continue;
+                }
+                // The track of the parent has effects, a fade or motion: the group is put together on
+                // a transparent canvas first, those are applied to it, and it goes in as one layer
+                let merged = composite_nodes_cpu(
+                    canvas_w,
+                    canvas_h,
+                    [0, 0, 0, 0],
+                    &[CompositeNode::Group {
+                        children: decoded_children,
+                        parent_layer,
+                        group_mode: CompositeMode::SourceAlpha,
+                        group_opacity: 1.0,
+                    }],
+                );
+                let frame = state.apply_effects(Arc::new(merged), &look.effects);
+                let frame = if look.fade_amount > 0.0 {
+                    let mut faded = (*frame).clone();
+                    crate::grading::fade_to_color(&mut faded, look.fade_color, look.fade_amount);
+                    Arc::new(faded)
+                } else {
+                    frame
+                };
+                let frame = match look.motion.filter(|m| !m.is_full()) {
+                    Some(m) => Arc::new(pan_crop::place(&frame, &m, canvas_w, canvas_h)),
+                    None => frame,
+                };
+                out.push(CompositeNode::Layer(DecodedLayer {
+                    frame,
+                    mode: *group_mode,
+                    opacity: group_level.clamp(0.0, 1.0),
+                }));
             }
         }
     }
@@ -1314,6 +1382,82 @@ mod tests {
             .unwrap();
         let (r, g, _) = top_left(&frame);
         assert!(g > 150 && r < 60, "the readable picture keeps its colour");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_group_takes_the_fade_of_its_parent_track_and_a_neutral_look_leaves_it_alone() {
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_group_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let green = dir.join("green.png");
+        write_png(&green, 48, 36, [10, 250, 10, 255]);
+        let worker = FrameWorker::spawn(|| {}).unwrap();
+        let request = |fade_amount: f32| CompositeFrameRequest {
+            timeline_seconds: 0.0,
+            fps: 25.0,
+            playing: false,
+            shuttle_speed: 1.0,
+            canvas_width: 48,
+            canvas_height: 36,
+            max_width: 0,
+            nodes: vec![TrackCompositeNode::Group {
+                children: vec![TrackCompositeNode::Track {
+                    clips: vec![VideoClipRequest {
+                        media_id: 1,
+                        path: green.clone(),
+                        seconds: 0.0,
+                        source_fps: 25.0,
+                        playback_rate: 1.0,
+                        event_opacity: 1.0,
+                        apply_chroma: false,
+                        effects: Vec::new(),
+                        pan_crop: None,
+                        transitions: Vec::new(),
+                        resample: ClipResample::Disable,
+                        maintain_aspect_ratio: true,
+                        reduce_interlace_flicker: false,
+                        media_look: Default::default(),
+                    }],
+                    mode: CompositeMode::SourceAlpha,
+                    level: 1.0,
+                    effects: Vec::new(),
+                    fade_color: [0, 0, 0],
+                    fade_amount: 0.0,
+                    motion: None,
+                }],
+                parent_clips: Vec::new(),
+                parent_mode: CompositeMode::SourceAlpha,
+                group_mode: CompositeMode::SourceAlpha,
+                group_level: 1.0,
+                look: GroupLook {
+                    fade_color: [250, 10, 10],
+                    fade_amount,
+                    ..GroupLook::default()
+                },
+            }],
+            lut: None,
+            grade: Grade::default(),
+            chroma_key: ChromaKey::default(),
+            project_effects: Vec::new(),
+        };
+        worker.request_composite(request(0.0));
+        let plain = worker
+            .composite_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .result
+            .unwrap();
+        assert_eq!(plain.pixel(4, 4), [10, 250, 10, 255]);
+        worker.request_composite(request(1.0));
+        let faded = worker
+            .composite_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .result
+            .unwrap();
+        let px = faded.pixel(4, 4);
+        assert!(px[0] > 200 && px[1] < 60, "faded to red: {px:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
