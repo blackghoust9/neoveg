@@ -1439,5 +1439,17 @@
   "Destravar faixa": "Разблокировать дорожку",
   "Faixa travada": "Дорожка заблокирована",
   "Faixa destravada": "Дорожка разблокирована",
-  "Selecione uma faixa para travar": "Выберите дорожку для блокировки"
+  "Selecione uma faixa para travar": "Выберите дорожку для блокировки",
+  "Propriedades do comando": "Свойства команды",
+  "Modelo": "Шаблон",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "Сохраняет команду, параметр и комментарий под этим именем",
+  "Comando": "Команда",
+  "Parâmetro": "Параметр",
+  "Comentário": "Комментарий",
+  "Posição": "Позиция",
+  "Marcador de comando removido": "Маркер команды удалён",
+  "Marcador de comando gravado": "Маркер команды сохранён",
+  "Modelo {} salvo": "Шаблон {} сохранён",
+  "Editar marcador de comando…": "Изменить маркер команды…",
+  "Excluir marcador de comando": "Удалить маркер команды"
 }

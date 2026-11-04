@@ -1439,5 +1439,17 @@
   "Destravar faixa": "Déverrouiller la piste",
   "Faixa travada": "Piste verrouillée",
   "Faixa destravada": "Piste déverrouillée",
-  "Selecione uma faixa para travar": "Sélectionnez une piste à verrouiller"
+  "Selecione uma faixa para travar": "Sélectionnez une piste à verrouiller",
+  "Propriedades do comando": "Propriétés de la commande",
+  "Modelo": "Modèle",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "Garde la commande, le paramètre et le commentaire sous ce nom",
+  "Comando": "Commande",
+  "Parâmetro": "Paramètre",
+  "Comentário": "Commentaire",
+  "Posição": "Position",
+  "Marcador de comando removido": "Marqueur de commande supprimé",
+  "Marcador de comando gravado": "Marqueur de commande enregistré",
+  "Modelo {} salvo": "Modèle {} enregistré",
+  "Editar marcador de comando…": "Modifier le marqueur de commande…",
+  "Excluir marcador de comando": "Supprimer le marqueur de commande"
 }

@@ -210,6 +210,11 @@ pub enum EditCommand {
         before: Option<MediaProps>,
         after: Option<MediaProps>,
     },
+    /// Any change to the command markers: the whole list before and after.
+    ReplaceCommandMarkers {
+        before: Vec<crate::command_markers::CommandMarker>,
+        after: Vec<crate::command_markers::CommandMarker>,
+    },
     /// Locks or unlocks a track (see `track_lock`).
     SetTrackLocked {
         track_id: TrackId,
@@ -518,6 +523,10 @@ impl EditCommand {
                 put_media_props(tl, *media_id, after);
                 true
             }
+            Self::ReplaceCommandMarkers { after, .. } => {
+                tl.command_markers = after.clone();
+                true
+            }
             Self::SetTrackLocked { track_id, locked } => match tl.track_mut(*track_id) {
                 Some(t) => {
                     t.locked = *locked;
@@ -779,6 +788,9 @@ impl EditCommand {
             Self::SetMediaProps {
                 media_id, before, ..
             } => put_media_props(tl, *media_id, before),
+            Self::ReplaceCommandMarkers { before, .. } => {
+                tl.command_markers = before.clone();
+            }
             Self::SetTrackLocked { track_id, locked } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.locked = !*locked;

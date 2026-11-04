@@ -1439,5 +1439,17 @@
   "Destravar faixa": "Spur entsperren",
   "Faixa travada": "Spur gesperrt",
   "Faixa destravada": "Spur entsperrt",
-  "Selecione uma faixa para travar": "Wählen Sie eine Spur zum Sperren"
+  "Selecione uma faixa para travar": "Wählen Sie eine Spur zum Sperren",
+  "Propriedades do comando": "Befehlseigenschaften",
+  "Modelo": "Vorlage",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "Speichert Befehl, Parameter und Kommentar unter diesem Namen",
+  "Comando": "Befehl",
+  "Parâmetro": "Parameter",
+  "Comentário": "Kommentar",
+  "Posição": "Position",
+  "Marcador de comando removido": "Befehlsmarke entfernt",
+  "Marcador de comando gravado": "Befehlsmarke gespeichert",
+  "Modelo {} salvo": "Vorlage {} gespeichert",
+  "Editar marcador de comando…": "Befehlsmarke bearbeiten…",
+  "Excluir marcador de comando": "Befehlsmarke löschen"
 }

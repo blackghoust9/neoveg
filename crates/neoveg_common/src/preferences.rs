@@ -23,6 +23,8 @@ pub struct Preferences {
     pub still_image_seconds: f64,
     /// Show the welcome screen (recent projects, new project) when the program starts.
     pub show_welcome_on_startup: bool,
+    /// Templates of command markers (command, parameter and comment under a name).
+    pub command_templates: Vec<crate::command_template::CommandTemplate>,
     /// While an event is slipped or slid, the preview shows its first and last frame side by side.
     pub show_event_edge_frames: bool,
     /// The two colors the fade envelope of a NEW video track goes to: above zero (top) and below zero
@@ -76,6 +78,7 @@ impl Default for Preferences {
             auto_fade_on_import: false,
             still_image_seconds: 5.0,
             show_welcome_on_startup: true,
+            command_templates: Vec::new(),
             show_event_edge_frames: true,
             new_track_fade_top: [0, 0, 0],
             new_track_fade_bottom: [255, 255, 255],

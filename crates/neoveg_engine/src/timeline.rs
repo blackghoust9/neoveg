@@ -673,6 +673,9 @@ pub struct Timeline {
     /// Named spans on the ruler (older projects have none).
     #[serde(default)]
     pub regions: Vec<Region>,
+    /// Commands pinned to a time of the project, in time order (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub command_markers: Vec<crate::command_markers::CommandMarker>,
     /// Subtitles (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub captions: Vec<Caption>,

@@ -1439,5 +1439,17 @@
   "Destravar faixa": "トラックのロックを解除",
   "Faixa travada": "トラックをロックしました",
   "Faixa destravada": "トラックのロックを解除しました",
-  "Selecione uma faixa para travar": "ロックするトラックを選択してください"
+  "Selecione uma faixa para travar": "ロックするトラックを選択してください",
+  "Propriedades do comando": "コマンドのプロパティ",
+  "Modelo": "テンプレート",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "コマンド、パラメーター、コメントをこの名前で保存します",
+  "Comando": "コマンド",
+  "Parâmetro": "パラメーター",
+  "Comentário": "コメント",
+  "Posição": "位置",
+  "Marcador de comando removido": "コマンドマーカーを削除しました",
+  "Marcador de comando gravado": "コマンドマーカーを保存しました",
+  "Modelo {} salvo": "テンプレート {} を保存しました",
+  "Editar marcador de comando…": "コマンドマーカーを編集…",
+  "Excluir marcador de comando": "コマンドマーカーを削除"
 }

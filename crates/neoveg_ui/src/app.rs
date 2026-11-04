@@ -686,6 +686,10 @@ struct AppState {
     context_envelope: Option<EnvelopeHit>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
     context_mark: Option<MarkId>,
+    /// The command marker under the pointer when the ruler menu was opened.
+    context_command: Option<neoveg_engine::command_markers::CommandId>,
+    /// Command Properties (Inserir marcador de comando).
+    command_dialog: crate::command_marker_window::CommandDialog,
     /// Whether the timeline context menu was opened over the track header column.
     context_header: bool,
     name_edit: Option<NameEdit>,
@@ -1761,6 +1765,8 @@ impl AppState {
             context_event: None,
             context_envelope: None,
             context_mark: None,
+            context_command: None,
+            command_dialog: Default::default(),
             context_header: false,
             name_edit: None,
             mark_drag: None,
@@ -1956,6 +1962,84 @@ impl AppState {
             self.selected_track = Some(id);
             self.last_frame_key = None;
             self.last_composite_key = None;
+        }
+    }
+
+    /// Opens Command Properties on the command marker `id`.
+    fn edit_command_marker(&mut self, id: neoveg_engine::command_markers::CommandId) {
+        let (fps, drop_frame) = (self.project.settings.fps, self.drop_frame());
+        if let Some(marker) = neoveg_engine::command_markers::get(&self.timeline, id).cloned() {
+            self.command_dialog.open_edit(&marker, fps, drop_frame);
+        }
+    }
+
+    /// Takes the command marker `id` out of the project (one undo step).
+    fn remove_command_marker(&mut self, id: neoveg_engine::command_markers::CommandId) {
+        if let Some(command) = neoveg_engine::command_markers::remove(&self.timeline, id) {
+            if self.history.execute(&mut self.timeline, command) {
+                self.status = tr("Marcador de comando removido").into();
+            }
+        }
+    }
+
+    /// What Command Properties asked for: the marker itself is an edit of the project, a template
+    /// is a preference.
+    fn run_command_dialog(&mut self, ctx: &egui::Context) {
+        use crate::command_marker_window::CommandDialogAction;
+        let actions = self.command_dialog.show(ctx, &self.prefs.command_templates);
+        for action in actions {
+            match action {
+                CommandDialogAction::Apply {
+                    id,
+                    time,
+                    command,
+                    parameter,
+                    comment,
+                } => {
+                    let made = match id {
+                        Some(id) => neoveg_engine::command_markers::update(
+                            &self.timeline,
+                            &neoveg_engine::command_markers::CommandMarker {
+                                id,
+                                time,
+                                command,
+                                parameter,
+                                comment,
+                            },
+                        ),
+                        None => neoveg_engine::command_markers::insert(
+                            &mut self.timeline,
+                            time,
+                            &command,
+                            &parameter,
+                            &comment,
+                        )
+                        .map(|(_, command)| command),
+                    };
+                    if let Some(command) = made {
+                        if self.history.execute(&mut self.timeline, command) {
+                            self.status = tr("Marcador de comando gravado").into();
+                        }
+                    }
+                }
+                CommandDialogAction::SaveTemplate(template) => {
+                    if neoveg_common::command_template::save(
+                        &mut self.prefs.command_templates,
+                        &template,
+                    ) {
+                        self.persist_preferences();
+                        self.status = tr_args("Modelo {} salvo", &[&template.name]);
+                    }
+                }
+                CommandDialogAction::DeleteTemplate(name) => {
+                    if neoveg_common::command_template::remove(
+                        &mut self.prefs.command_templates,
+                        &name,
+                    ) {
+                        self.persist_preferences();
+                    }
+                }
+            }
         }
     }
 
@@ -6882,6 +6966,10 @@ impl AppState {
             Command::TrackDuplicate => self.duplicate_selected_track(),
             Command::TrackLock => self.toggle_selected_track_lock(),
             Command::InsertEmptyEvent => self.insert_empty_event(),
+            Command::InsertCommandMarker => {
+                let (fps, drop_frame) = (self.project.settings.fps, self.drop_frame());
+                self.command_dialog.open_new(self.playhead, fps, drop_frame);
+            }
             Command::TrackMakeChild => self.nest_selected_track(true, false),
             Command::TrackMakeParent => self.nest_selected_track(false, false),
             Command::TrackMakeChildGroup => self.nest_selected_track(true, true),
@@ -7961,6 +8049,7 @@ impl NeovegApp {
         self.run_notes_window(ctx);
         self.run_compositors_window(ctx);
         self.run_media_properties_dialog(ctx);
+        self.state.run_command_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -8428,6 +8517,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             command_item(state, ui, Command::InsertEmptyEvent);
+            command_item(state, ui, Command::InsertCommandMarker);
             command_item(state, ui, Command::InsertTime);
             command_item(state, ui, Command::TrackDuplicate);
             command_item(state, ui, Command::TrackLock);
@@ -12692,7 +12782,39 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             }
         }
     }
-    if response.double_clicked() {
+    // A command marker tag: a double click edits it, a click takes the cursor to it
+    let command_at = |state: &AppState, p: Pos2| {
+        in_mark_strip(p)
+            .then(|| {
+                neoveg_engine::command_markers::hit_test(
+                    &state.timeline,
+                    x_to_time(state, lanes.left(), p.x),
+                    mark_tolerance,
+                )
+            })
+            .flatten()
+    };
+    let command_double = if response.double_clicked() {
+        response
+            .interact_pointer_pos()
+            .and_then(|p| command_at(state, p))
+    } else {
+        None
+    };
+    if let Some(id) = command_double {
+        state.edit_command_marker(id);
+    }
+    if response.clicked() {
+        if let Some(marker) = response
+            .interact_pointer_pos()
+            .and_then(|p| command_at(state, p))
+            .and_then(|id| neoveg_engine::command_markers::get(&state.timeline, id))
+        {
+            state.playhead = marker.time;
+            state.blink_origin = now;
+        }
+    }
+    if response.double_clicked() && command_double.is_none() {
         let hit = response
             .interact_pointer_pos()
             .filter(|p| in_mark_strip(*p))
@@ -13027,6 +13149,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 .map(|h| (h.0, h.1))
         };
         state.context_mark = None;
+        state.context_command = None;
         if let Some(env_hit) = &state.context_envelope {
             state.selected_track = Some(env_hit.track_id);
         } else if let Some((track_id, event_id)) = state.context_event {
@@ -13047,10 +13170,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let in_ruler = response
             .interact_pointer_pos()
             .filter(|p| p.x >= lanes.left() && p.y < ruler_bottom);
-        state.context_mark = in_ruler.and_then(|p| {
-            let tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
-            state.mark_at(x_to_time(state, lanes.left(), p.x), tolerance)
-        });
+        state.context_command = in_ruler.and_then(|p| command_at(state, p));
+        state.context_mark = if state.context_command.is_some() {
+            None
+        } else {
+            in_ruler.and_then(|p| {
+                let tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
+                state.mark_at(x_to_time(state, lanes.left(), p.x), tolerance)
+            })
+        };
     }
     response.context_menu(|ui| {
         if state.context_header {
@@ -13059,6 +13187,17 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         }
         if let Some(env_hit) = state.context_envelope.clone() {
             envelope_context_menu(state, ui, &env_hit);
+            return;
+        }
+        if let Some(id) = state.context_command {
+            if ui.button(tr("Editar marcador de comando…")).clicked() {
+                state.edit_command_marker(id);
+                ui.close_menu();
+            }
+            if ui.button(tr("Excluir marcador de comando")).clicked() {
+                state.remove_command_marker(id);
+                ui.close_menu();
+            }
             return;
         }
         match (state.context_event, state.context_mark) {
@@ -13324,6 +13463,34 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             pos2(x + MARK_STRIP_HEIGHT * 0.9, strip_top),
             Align2::LEFT_TOP,
             &marker.name,
+            FontId::proportional(9.0),
+            color,
+        );
+    }
+
+    // Command markers: an orange diamond with the command, on the strip of the marks
+    for marker in &state.timeline.command_markers {
+        let x = to_x(marker.time);
+        if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
+            continue;
+        }
+        let color = Color32::from_rgb(0xE6, 0x7E, 0x22);
+        let half = MARK_STRIP_HEIGHT * 0.45;
+        let center = pos2(x, strip_top + MARK_STRIP_HEIGHT * 0.5);
+        ruler_painter.add(Shape::convex_polygon(
+            vec![
+                pos2(x, center.y - half),
+                pos2(x + half, center.y),
+                pos2(x, center.y + half),
+                pos2(x - half, center.y),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+        ruler_painter.text(
+            pos2(x + half + 2.0, strip_top),
+            Align2::LEFT_TOP,
+            &marker.command,
             FontId::proportional(9.0),
             color,
         );
@@ -16307,6 +16474,29 @@ mod tests {
         // Each is one undo step
         assert!(s.history.undo(&mut s.timeline));
         assert_eq!(s.timeline.track(track).unwrap().events.len(), 1);
+    }
+
+    #[test]
+    fn the_command_marker_command_opens_the_dialog_at_the_cursor_and_the_marker_can_be_removed() {
+        let mut s = AppState::new();
+        assert!(s.command_enabled(Command::InsertCommandMarker));
+        s.playhead = 4.0;
+        run(&mut s, Command::InsertCommandMarker);
+        assert!(s.command_dialog.is_open());
+        let (_, command) = neoveg_engine::command_markers::insert(
+            &mut s.timeline,
+            4.0,
+            "URL",
+            "https://example.org",
+            "",
+        )
+        .unwrap();
+        assert!(s.history.execute(&mut s.timeline, command));
+        let id = s.timeline.command_markers[0].id;
+        s.remove_command_marker(id);
+        assert!(s.timeline.command_markers.is_empty());
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline.command_markers.len(), 1);
     }
 
     #[test]

@@ -1439,5 +1439,17 @@
   "Destravar faixa": "解锁轨道",
   "Faixa travada": "轨道已锁定",
   "Faixa destravada": "轨道已解锁",
-  "Selecione uma faixa para travar": "请选择要锁定的轨道"
+  "Selecione uma faixa para travar": "请选择要锁定的轨道",
+  "Propriedades do comando": "命令属性",
+  "Modelo": "模板",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "以此名称保存命令、参数和注释",
+  "Comando": "命令",
+  "Parâmetro": "参数",
+  "Comentário": "注释",
+  "Posição": "位置",
+  "Marcador de comando removido": "已删除命令标记",
+  "Marcador de comando gravado": "已保存命令标记",
+  "Modelo {} salvo": "已保存模板 {}",
+  "Editar marcador de comando…": "编辑命令标记…",
+  "Excluir marcador de comando": "删除命令标记"
 }

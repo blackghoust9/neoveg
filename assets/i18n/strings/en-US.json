@@ -1439,5 +1439,17 @@
   "Destravar faixa": "Unlock track",
   "Faixa travada": "Track locked",
   "Faixa destravada": "Track unlocked",
-  "Selecione uma faixa para travar": "Select a track to lock"
+  "Selecione uma faixa para travar": "Select a track to lock",
+  "Propriedades do comando": "Command properties",
+  "Modelo": "Template",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "Keeps the command, the parameter and the comment under this name",
+  "Comando": "Command",
+  "Parâmetro": "Parameter",
+  "Comentário": "Comment",
+  "Posição": "Position",
+  "Marcador de comando removido": "Command marker removed",
+  "Marcador de comando gravado": "Command marker saved",
+  "Modelo {} salvo": "Template {} saved",
+  "Editar marcador de comando…": "Edit command marker…",
+  "Excluir marcador de comando": "Delete command marker"
 }

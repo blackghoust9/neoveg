@@ -158,7 +158,7 @@ commands! {
     InsertEmptyEvent => ("insert.empty_event", "Inserir evento vazio", Insert, true),
     InsertTime => ("insert.time", "Inserir tempo…", Insert, true),
     InsertRegion => ("insert.region", "Inserir região", Insert, true),
-    InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, false),
+    InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, true),
     RenderToNewTrack => ("tools.render_to_new_track", "Renderizar para nova faixa", Insert, false),
 
     // ---- Cursor e seleção

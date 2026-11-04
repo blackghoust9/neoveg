@@ -9,6 +9,7 @@ pub mod caption_mcc;
 pub mod caption_scc;
 pub mod captions;
 pub mod command;
+pub mod command_markers;
 pub mod compositing;
 pub mod crossfade;
 pub mod details;

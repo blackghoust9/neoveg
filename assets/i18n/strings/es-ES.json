@@ -1439,5 +1439,17 @@
   "Destravar faixa": "Desbloquear pista",
   "Faixa travada": "Pista bloqueada",
   "Faixa destravada": "Pista desbloqueada",
-  "Selecione uma faixa para travar": "Seleccione una pista para bloquear"
+  "Selecione uma faixa para travar": "Seleccione una pista para bloquear",
+  "Propriedades do comando": "Propiedades del comando",
+  "Modelo": "Plantilla",
+  "Guarda o comando, o parâmetro e o comentário sob esse nome": "Guarda el comando, el parámetro y el comentario con este nombre",
+  "Comando": "Comando",
+  "Parâmetro": "Parámetro",
+  "Comentário": "Comentario",
+  "Posição": "Posición",
+  "Marcador de comando removido": "Marcador de comando eliminado",
+  "Marcador de comando gravado": "Marcador de comando guardado",
+  "Modelo {} salvo": "Plantilla {} guardada",
+  "Editar marcador de comando…": "Editar marcador de comando…",
+  "Excluir marcador de comando": "Eliminar marcador de comando"
 }
