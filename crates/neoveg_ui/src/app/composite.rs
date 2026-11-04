@@ -12,6 +12,7 @@ use super::*;
 use crate::pan_crop_window::{EditTarget, PanCropDraft};
 use crate::velocity_editor::VelocityDraft;
 use crate::video_fx_panel::{effects_for, VfxDraft};
+use neoveg_common::composite::CompositeMode;
 use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
 use neoveg_video::worker::{CompositeFrameRequest, TrackCompositeNode, VideoClipRequest};
@@ -234,6 +235,109 @@ pub(super) fn visible_clips(timeline: &Timeline, time: f64) -> usize {
         .sum()
 }
 
+/// Puts what each track contributes (`per_track`, by the place of the track in the list) in the
+/// order the compositor takes it: bottom to top, where a compositing parent with children becomes a
+/// group. The children are composited together first, then the parent layer goes over them in the
+/// mode of the parent, and the group goes over what is below. The effects, the fade colour and the
+/// motion of the track of a parent that has children are not applied to the group.
+fn assemble_tree(
+    timeline: &Timeline,
+    mut per_track: Vec<Vec<TrackCompositeNode>>,
+    time: f64,
+) -> Vec<TrackCompositeNode> {
+    let levels = neoveg_engine::track_tree::effective_levels(&timeline.tracks);
+    build_level(
+        timeline,
+        &levels,
+        &mut per_track,
+        0..timeline.tracks.len(),
+        0,
+        time,
+    )
+}
+
+/// The nodes of the tracks `range`, whose siblings are at level `base`.
+fn build_level(
+    timeline: &Timeline,
+    levels: &[u8],
+    per_track: &mut [Vec<TrackCompositeNode>],
+    range: std::ops::Range<usize>,
+    base: u8,
+    time: f64,
+) -> Vec<TrackCompositeNode> {
+    let tracks = &timeline.tracks;
+    let takes_part = |i: usize| tracks[i].kind == TrackKind::Video && !tracks[i].adjustment;
+    // Each sibling with the end of its children: the video tracks right under it that are deeper
+    // (an audio track in between does not end the group)
+    let mut subtrees: Vec<(usize, usize)> = Vec::new();
+    let mut i = range.start;
+    while i < range.end {
+        let mut last = i + 1;
+        if takes_part(i) {
+            let mut end = i + 1;
+            while end < range.end {
+                if tracks[end].kind != TrackKind::Video {
+                    end += 1;
+                    continue;
+                }
+                if tracks[end].adjustment || levels[end] <= base {
+                    break;
+                }
+                end += 1;
+                last = end;
+            }
+        }
+        subtrees.push((i, last));
+        i = last;
+    }
+    let mut out = Vec::new();
+    for (parent, last) in subtrees.into_iter().rev() {
+        let own = std::mem::take(&mut per_track[parent]);
+        if last == parent + 1 {
+            out.extend(own);
+            continue;
+        }
+        let children = build_level(
+            timeline,
+            levels,
+            per_track,
+            parent + 1..last,
+            base + 1,
+            time,
+        );
+        let mut clips = Vec::new();
+        let mut mode = tracks[parent].composite_mode;
+        let mut level = envelope::video_track_state(&tracks[parent], time).level;
+        for node in own {
+            match node {
+                TrackCompositeNode::Track {
+                    clips: c,
+                    mode: m,
+                    level: l,
+                    ..
+                } => {
+                    clips = c;
+                    mode = m;
+                    level = l;
+                }
+                // An adjustment event of the parent acts on what is below the whole group
+                other => out.push(other),
+            }
+        }
+        if children.is_empty() && clips.is_empty() {
+            continue;
+        }
+        out.push(TrackCompositeNode::Group {
+            children,
+            parent_clips: clips,
+            parent_mode: mode,
+            group_mode: CompositeMode::SourceAlpha,
+            group_level: level,
+        });
+    }
+    out
+}
+
 /// The request for the frame at `time`, or `None` when no video clip is visible there (black).
 pub(super) fn composite_request(
     timeline: &Timeline,
@@ -241,14 +345,18 @@ pub(super) fn composite_request(
     settings: &FrameSettings,
     resolve: &dyn Fn(u64) -> Option<Source>,
 ) -> Option<CompositeFrameRequest> {
-    let mut nodes = Vec::new();
+    // What each track contributes, by its place in the track list (compositing parents and children
+    // are put together afterwards)
+    let mut per_track: Vec<Vec<TrackCompositeNode>> = vec![Vec::new(); timeline.tracks.len()];
     // The first track is the top layer, so walk them from the bottom up
-    for track in timeline
+    for (index, track) in timeline
         .tracks
         .iter()
+        .enumerate()
         .rev()
-        .filter(|t| t.kind == TrackKind::Video && timeline.audible(t))
+        .filter(|(_, t)| t.kind == TrackKind::Video && timeline.audible(t))
     {
+        let mut nodes: Vec<TrackCompositeNode> = Vec::new();
         // The track's level, fade to color and mute envelopes at this instant
         let track_state = envelope::video_track_state(track, time);
         if track_state.muted {
@@ -379,7 +487,9 @@ pub(super) fn composite_request(
                 motion: track_motion_frame(track, time, settings),
             });
         }
+        per_track[index] = nodes;
     }
+    let nodes = assemble_tree(timeline, per_track, time);
     // Adjustments with no picture under them show nothing
     if nodes
         .iter()
@@ -416,6 +526,13 @@ pub(super) fn has_effects(
     project_resample: neoveg_common::presets::ResampleMode,
 ) -> bool {
     let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
+    // A compositing parent with children is put together by the composite path
+    if neoveg_engine::track_tree::effective_levels(&timeline.tracks)
+        .iter()
+        .any(|level| *level > 0)
+    {
+        return true;
+    }
     let mut visible = false;
     // Walk bottom to top so an adjustment track only counts when a visible clip sits below it
     for track in timeline
@@ -536,7 +653,6 @@ mod tests {
 
     #[test]
     fn a_track_blends_with_its_mode_and_a_mode_sends_the_preview_through_the_composite_path() {
-        use neoveg_common::composite::CompositeMode;
         let mut tl = Timeline::new();
         let mut track = tl.new_track(TrackKind::Video);
         let e = event(&mut tl, 1, 0.0, 4.0);
@@ -600,6 +716,104 @@ mod tests {
         tl.tracks[0].events[0].trim_in = 1.0;
         let trimmed = clip_at(&tl, 4.0);
         assert!((trimmed.seconds - 5.0).abs() < 1e-9, "{}", trimmed.seconds);
+    }
+
+    #[test]
+    fn a_parent_track_with_children_becomes_a_group_and_the_other_tracks_stay_flat() {
+        let mut tl = Timeline::new();
+        // Top to bottom: P (parent) > C (child), then S (a track of its own)
+        let mut ids = Vec::new();
+        for media in [1u64, 2, 3] {
+            let mut track = tl.new_track(TrackKind::Video);
+            let e = event(&mut tl, media, 0.0, 4.0);
+            track.events.push(e);
+            ids.push(track.id);
+            tl.tracks.push(track);
+        }
+        tl.track_mut(ids[0]).unwrap().composite_mode = CompositeMode::Multiply;
+        // Nothing nested yet: three flat tracks, bottom first
+        let flat = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(flat.nodes.len(), 3);
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        tl.track_mut(ids[1]).unwrap().compose_level = 1;
+        assert!(
+            has_effects(&tl, 1.0, ProjectResample::Disable),
+            "a group goes through the composite path"
+        );
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(request.nodes.len(), 2, "the track S and the group");
+        let TrackCompositeNode::Track { clips, .. } = &request.nodes[0] else {
+            panic!("the lowest track stays a track");
+        };
+        assert_eq!(clips[0].media_id, 3);
+        let TrackCompositeNode::Group {
+            children,
+            parent_clips,
+            parent_mode,
+            group_mode,
+            group_level,
+        } = &request.nodes[1]
+        else {
+            panic!("the parent with its child is a group");
+        };
+        assert_eq!(
+            *parent_mode,
+            CompositeMode::Multiply,
+            "the mask of the children"
+        );
+        assert_eq!(*group_mode, CompositeMode::SourceAlpha);
+        assert_eq!(parent_clips[0].media_id, 1);
+        assert_eq!(children.len(), 1);
+        let TrackCompositeNode::Track { clips, .. } = &children[0] else {
+            panic!("the child is a track");
+        };
+        assert_eq!(clips[0].media_id, 2);
+        assert!((*group_level - 1.0).abs() < 1e-6);
+        // Muting the parent takes the children with it
+        tl.track_mut(ids[0]).unwrap().muted = true;
+        let muted = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(muted.nodes.len(), 1, "only the track S is left");
+    }
+
+    #[test]
+    fn nested_groups_and_a_parent_without_clips_are_put_together_too() {
+        let mut tl = Timeline::new();
+        // A > B > C, and only C has a clip at this time
+        let mut ids = Vec::new();
+        for media in [1u64, 2, 3] {
+            let mut track = tl.new_track(TrackKind::Video);
+            if media == 3 {
+                let e = event(&mut tl, media, 0.0, 4.0);
+                track.events.push(e);
+            }
+            ids.push(track.id);
+            tl.tracks.push(track);
+        }
+        tl.track_mut(ids[1]).unwrap().compose_level = 1;
+        tl.track_mut(ids[2]).unwrap().compose_level = 2;
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(request.nodes.len(), 1);
+        let TrackCompositeNode::Group {
+            children,
+            parent_clips,
+            ..
+        } = &request.nodes[0]
+        else {
+            panic!("A is a group");
+        };
+        assert!(parent_clips.is_empty(), "A shows nothing of its own here");
+        assert_eq!(children.len(), 1);
+        let TrackCompositeNode::Group {
+            children: inner, ..
+        } = &children[0]
+        else {
+            panic!("B is a group inside A");
+        };
+        assert_eq!(inner.len(), 1);
+        assert!(matches!(inner[0], TrackCompositeNode::Track { .. }));
+        // With no clip anywhere in the group there is no group
+        let empty = composite_request(&tl, 9.0, &settings(), &resolve);
+        assert!(empty.is_none());
     }
 
     #[test]

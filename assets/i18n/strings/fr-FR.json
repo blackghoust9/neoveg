@@ -1421,5 +1421,14 @@
   "Voltar": "Retour",
   "Versão {}": "Version {}",
   "Atualizado em {}": "Mis à jour le {}",
-  "Nenhum projeto recente ainda.": "Aucun projet récent pour le moment."
+  "Nenhum projeto recente ainda.": "Aucun projet récent pour le moment.",
+  "Tornar a faixa filha de composição": "Faire de la piste un enfant de composition",
+  "Tornar a faixa mãe de composição": "Faire de la piste un parent de composition",
+  "Tornar a faixa e suas filhas filhas de composição": "Faire de la piste et de ses enfants des enfants de composition",
+  "Tornar a faixa e suas filhas mães de composição": "Faire de la piste et de ses enfants des parents de composition",
+  "Selecione uma faixa de vídeo": "Sélectionnez une piste vidéo",
+  "Faixa filha de composição": "Piste devenue enfant de composition",
+  "Faixa mãe de composição": "Piste devenue parent de composition",
+  "Essa faixa não pode ser filha da faixa de cima": "Cette piste ne peut pas être l'enfant de la piste du dessus",
+  "Essa faixa já está no nível mais alto": "Cette piste est déjà au niveau le plus haut"
 }

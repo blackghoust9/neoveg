@@ -1421,5 +1421,14 @@
   "Voltar": "Назад",
   "Versão {}": "Версия {}",
   "Atualizado em {}": "Обновлено {}",
-  "Nenhum projeto recente ainda.": "Недавних проектов пока нет."
+  "Nenhum projeto recente ainda.": "Недавних проектов пока нет.",
+  "Tornar a faixa filha de composição": "Сделать дорожку дочерней для композитинга",
+  "Tornar a faixa mãe de composição": "Сделать дорожку родительской для композитинга",
+  "Tornar a faixa e suas filhas filhas de composição": "Сделать дорожку и её дочерние дочерними для композитинга",
+  "Tornar a faixa e suas filhas mães de composição": "Сделать дорожку и её дочерние родительскими для композитинга",
+  "Selecione uma faixa de vídeo": "Выберите видеодорожку",
+  "Faixa filha de composição": "Дорожка стала дочерней",
+  "Faixa mãe de composição": "Дорожка стала родительской",
+  "Essa faixa não pode ser filha da faixa de cima": "Эта дорожка не может быть дочерней для дорожки выше",
+  "Essa faixa já está no nível mais alto": "Эта дорожка уже на верхнем уровне"
 }

@@ -421,7 +421,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Marcadores de comando e réguas adicionais
 - [x] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
 - [x] Aninhar projetos (*nesting*) em abas, com validação de ciclos
-- [ ] Faixas de composição pai/filho
+- [x] Faixas de composição pai/filho (manual v21 p.741-742): uma faixa de vídeo pode ser filha da faixa de cima, em até 8 níveis (`Track::compose_level`, lido sempre por `track_tree::effective_levels`, que põe o nível no intervalo certo: excluir ou mover faixas nunca deixa uma árvore errada). `Faixas > Tornar a faixa filha / mãe de composição` (`Ctrl+Alt+Shift+→` / `←`; `↓` / `↑` levam também as filhas, como o `Ctrl` do manual), o menu de contexto do cabeçalho e as setas do Painel de compositores, cada um um passo de desfazer (`EditCommand::SetComposeLevels`). O cabeçalho mostra o recuo (tracinhos laranja e o nome deslocado). A prévia e a renderização montam um grupo para cada mãe com filhas: as filhas se compõem primeiro, numa tela transparente, a faixa-mãe entra por cima no seu modo (a mãe em *Multiplicar* mascara só as filhas) e o grupo entra sobre o que está embaixo; mudo na mãe cala as filhas. Faixas de áudio e de ajuste não entram na árvore (uma faixa de ajuste encerra o grupo). Falta: efeitos de faixa, cor de fade e movimento da faixa-mãe ainda não valem para o grupo, o movimento da mãe sobre as filhas (*Parent Motion*), o solo em cascata, e selecionar o grupo pela barra vertical. Os testes novos (`track_tree.rs`, `app/composite.rs`, `compositors_window.rs`, `app.rs`) ainda não rodaram neste PC
 - [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
 - [ ] Personalizar teclado, barras de ferramentas e layouts de janela (salvar/restaurar)
 
@@ -560,7 +560,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 9 — Movimento, máscaras e composição (entrada 15)**
 - [x] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico e menu de contexto; faltam sombra e brilho)
 - [ ] Máscaras (âncoras, positivo/negativo, pena, formas retângulo/elipse) e máscara de FX
-- [ ] `parent: Option<TrackId>`, `composite_mode` (**feito** na faixa) e `level` por faixa; árvore pai/filho no engine
+- [x] `composite_mode` (**feito** na faixa), `level` por faixa e a árvore pai/filho no engine (**feito** como nível de aninhamento por faixa, `track_tree`, em vez de um `parent` por faixa)
 - [x] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump) — **o compositor** (`neoveg_video::composite`, `wgpu` e referência na CPU, teste `gpu_compositor_matches_cpu_reference_across_all_17_modes`) **já tem os 17 modos**; falta a faixa guardar o modo (hoje a interface só usa Source Alpha) e o painel de compositores
 
 **Fase 10 — Fluxos de trabalho (entrada 16)**

@@ -1421,5 +1421,14 @@
   "Voltar": "Zurück",
   "Versão {}": "Version {}",
   "Atualizado em {}": "Aktualisiert am {}",
-  "Nenhum projeto recente ainda.": "Noch keine letzten Projekte."
+  "Nenhum projeto recente ainda.": "Noch keine letzten Projekte.",
+  "Tornar a faixa filha de composição": "Spur zum Kompositions-Kind machen",
+  "Tornar a faixa mãe de composição": "Spur zum Kompositions-Elternteil machen",
+  "Tornar a faixa e suas filhas filhas de composição": "Spur und ihre Kinder zu Kompositions-Kindern machen",
+  "Tornar a faixa e suas filhas mães de composição": "Spur und ihre Kinder zu Kompositions-Eltern machen",
+  "Selecione uma faixa de vídeo": "Wählen Sie eine Videospur",
+  "Faixa filha de composição": "Spur ist jetzt Kompositions-Kind",
+  "Faixa mãe de composição": "Spur ist jetzt Kompositions-Elternteil",
+  "Essa faixa não pode ser filha da faixa de cima": "Diese Spur kann kein Kind der Spur darüber sein",
+  "Essa faixa já está no nível mais alto": "Diese Spur ist schon auf der obersten Ebene"
 }

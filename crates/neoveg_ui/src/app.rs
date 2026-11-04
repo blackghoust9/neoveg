@@ -1805,6 +1805,41 @@ impl AppState {
 
     // ---- editing -----------------------------------------------------------------------------
 
+    /// *Tornar a faixa filha / mãe de composição*: moves the selected video track one level in
+    /// (`child`) or out of the compositing tree, with all its children when `with_children`.
+    fn nest_selected_track(&mut self, child: bool, with_children: bool) {
+        let Some(id) = self.selected_track else {
+            self.status = tr("Selecione uma faixa de vídeo").into();
+            return;
+        };
+        let command = if child {
+            neoveg_engine::track_tree::make_child(&self.timeline, id, with_children)
+        } else {
+            neoveg_engine::track_tree::make_parent(&self.timeline, id, with_children)
+        };
+        match command {
+            Some(command) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.last_frame_key = None;
+                    self.last_composite_key = None;
+                    self.status = if child {
+                        tr("Faixa filha de composição").into()
+                    } else {
+                        tr("Faixa mãe de composição").into()
+                    };
+                }
+            }
+            None => {
+                self.status = tr(if child {
+                    "Essa faixa não pode ser filha da faixa de cima"
+                } else {
+                    "Essa faixa já está no nível mais alto"
+                })
+                .into();
+            }
+        }
+    }
+
     /// *Duplicar faixa*: a copy of the selected track with its events, selected afterwards.
     fn duplicate_selected_track(&mut self) {
         let Some(id) = self.selected_track else {
@@ -3133,6 +3168,12 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
+            Command::TrackMakeChild | Command::TrackMakeChildGroup => self
+                .selected_track
+                .is_some_and(|id| neoveg_engine::track_tree::can_make_child(&self.timeline, id)),
+            Command::TrackMakeParent | Command::TrackMakeParentGroup => self
+                .selected_track
+                .is_some_and(|id| neoveg_engine::track_tree::can_make_parent(&self.timeline, id)),
             Command::EditResizeAdjustmentToProject => {
                 neoveg_engine::adjustment::can_resize_to_project(
                     &self.timeline,
@@ -6767,6 +6808,10 @@ impl AppState {
             Command::EditRippleDelete => self.ripple_delete_selection(),
             Command::EditCloseGaps => self.close_gaps_on_selected_track(),
             Command::TrackDuplicate => self.duplicate_selected_track(),
+            Command::TrackMakeChild => self.nest_selected_track(true, false),
+            Command::TrackMakeParent => self.nest_selected_track(false, false),
+            Command::TrackMakeChildGroup => self.nest_selected_track(true, true),
+            Command::TrackMakeParentGroup => self.nest_selected_track(false, true),
             Command::OptionsAutoRipple => {
                 self.auto_ripple = !self.auto_ripple;
                 self.status = if self.auto_ripple {
@@ -8310,6 +8355,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             command_item(state, ui, Command::InsertTime);
             command_item(state, ui, Command::TrackDuplicate);
+            for command in [
+                Command::TrackMakeChild,
+                Command::TrackMakeParent,
+                Command::TrackMakeChildGroup,
+                Command::TrackMakeParentGroup,
+            ] {
+                command_item(state, ui, command);
+            }
             ui.separator();
             for command in [
                 Command::TrackMute,
@@ -11984,6 +12037,10 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
     {
         ui.separator();
         command_item(state, ui, Command::TrackDuplicate);
+        if track.kind == TrackKind::Video && !track.adjustment {
+            command_item(state, ui, Command::TrackMakeChild);
+            command_item(state, ui, Command::TrackMakeParent);
+        }
         command_item(state, ui, Command::EditCloseGaps);
         command_item(state, ui, Command::TrackMute);
         if track.kind == TrackKind::Audio {
@@ -13674,6 +13731,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     );
     // Only the selected track's number-box dot blinks (white/black); the others stay static
     let blink_on = ((now / BLINK_SECONDS) as i64) % 2 == 0;
+    let tree_levels = neoveg_engine::track_tree::effective_levels(&state.timeline.tracks);
     for (i, track) in state.timeline.tracks.iter().enumerate() {
         let y = lane_top + i as f32 * TRACK_HEIGHT;
         let row = Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
@@ -13715,8 +13773,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::monospace(11.0),
             ui.visuals().text_color(),
         );
+        // A compositing child is nested: one orange tick for each level on the left and the name
+        // moved in
+        let nest = tree_levels.get(i).copied().unwrap_or(0).min(4);
+        for level in 0..nest {
+            let tick = Rect::from_min_size(
+                pos2(row.left() + 1.0 + f32::from(level) * 4.0, row.top()),
+                vec2(3.0, row.height()),
+            );
+            header_painter.rect_filled(tick, Rounding::ZERO, Color32::from_rgb(0xE6, 0x7E, 0x22));
+        }
         header_painter.text(
-            row.min + vec2(46.0, 8.0),
+            row.min + vec2(46.0 + f32::from(nest) * 5.0, 8.0),
             Align2::LEFT_TOP,
             &track.name,
             FontId::proportional(11.0),
@@ -16064,6 +16132,45 @@ mod tests {
         // Exactly on a boundary the frame starts there
         s.playhead = 10.0 / fps;
         assert!((s.sampled_time() - s.playhead).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_nesting_commands_move_the_selected_video_track_in_and_out_of_the_tree() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        s.add_track(TrackKind::Video);
+        let ids: Vec<TrackId> = s.timeline.tracks.iter().map(|t| t.id).collect();
+        let (first, second) = (ids[0], ids[1]);
+        // The first video track has nothing above it; the command is off and says why when forced
+        s.selected_track = Some(first);
+        assert!(!s.command_enabled(Command::TrackMakeChild));
+        assert!(!s.command_enabled(Command::TrackMakeParent));
+        s.selected_track = Some(second);
+        assert!(s.command_enabled(Command::TrackMakeChild));
+        run(&mut s, Command::TrackMakeChild);
+        assert_eq!(
+            neoveg_engine::track_tree::parent_of(&s.timeline, second),
+            Some(first)
+        );
+        assert!(
+            !s.command_enabled(Command::TrackMakeChild),
+            "one level under the track above"
+        );
+        assert!(s.command_enabled(Command::TrackMakeParent));
+        // One undo step takes it back
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(neoveg_engine::track_tree::parent_of(&s.timeline, second).is_none());
+        run(&mut s, Command::TrackMakeChildGroup);
+        assert_eq!(
+            neoveg_engine::track_tree::effective_levels(&s.timeline.tracks)[1],
+            1
+        );
+        run(&mut s, Command::TrackMakeParentGroup);
+        assert!(neoveg_engine::track_tree::parent_of(&s.timeline, second).is_none());
+        // With no track selected the command only says what to do
+        s.selected_track = None;
+        run(&mut s, Command::TrackMakeChild);
+        assert!(s.status.contains("Selecione"));
     }
 
     #[test]

@@ -1421,5 +1421,14 @@
   "Voltar": "Volver",
   "Versão {}": "Versión {}",
   "Atualizado em {}": "Actualizado el {}",
-  "Nenhum projeto recente ainda.": "Aún no hay proyectos recientes."
+  "Nenhum projeto recente ainda.": "Aún no hay proyectos recientes.",
+  "Tornar a faixa filha de composição": "Hacer la pista hija de composición",
+  "Tornar a faixa mãe de composição": "Hacer la pista madre de composición",
+  "Tornar a faixa e suas filhas filhas de composição": "Hacer la pista y sus hijas hijas de composición",
+  "Tornar a faixa e suas filhas mães de composição": "Hacer la pista y sus hijas madres de composición",
+  "Selecione uma faixa de vídeo": "Seleccione una pista de vídeo",
+  "Faixa filha de composição": "Pista hija de composición",
+  "Faixa mãe de composição": "Pista madre de composición",
+  "Essa faixa não pode ser filha da faixa de cima": "Esa pista no puede ser hija de la pista de arriba",
+  "Essa faixa já está no nível mais alto": "Esa pista ya está en el nivel más alto"
 }

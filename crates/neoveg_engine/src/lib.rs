@@ -40,6 +40,7 @@ pub mod switches;
 pub mod timeline;
 pub mod track_motion;
 pub mod track_ops;
+pub mod track_tree;
 pub mod transition_progress;
 pub mod transitions;
 pub mod trimmer;

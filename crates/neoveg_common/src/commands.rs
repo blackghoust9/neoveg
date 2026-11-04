@@ -220,6 +220,10 @@ commands! {
     TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, true),
     TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, true),
     TrackDuplicate => ("track.duplicate", "Duplicar faixa", Track, true),
+    TrackMakeChild => ("track.make_child", "Tornar a faixa filha de composição", Track, true),
+    TrackMakeParent => ("track.make_parent", "Tornar a faixa mãe de composição", Track, true),
+    TrackMakeChildGroup => ("track.make_child_group", "Tornar a faixa e suas filhas filhas de composição", Track, true),
+    TrackMakeParentGroup => ("track.make_parent_group", "Tornar a faixa e suas filhas mães de composição", Track, true),
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),

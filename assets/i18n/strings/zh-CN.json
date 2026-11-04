@@ -1421,5 +1421,14 @@
   "Voltar": "返回",
   "Versão {}": "版本 {}",
   "Atualizado em {}": "更新于 {}",
-  "Nenhum projeto recente ainda.": "还没有最近的项目。"
+  "Nenhum projeto recente ainda.": "还没有最近的项目。",
+  "Tornar a faixa filha de composição": "将轨道设为合成子轨道",
+  "Tornar a faixa mãe de composição": "将轨道设为合成父轨道",
+  "Tornar a faixa e suas filhas filhas de composição": "将轨道及其子轨道设为合成子轨道",
+  "Tornar a faixa e suas filhas mães de composição": "将轨道及其子轨道设为合成父轨道",
+  "Selecione uma faixa de vídeo": "请选择视频轨道",
+  "Faixa filha de composição": "已将轨道设为合成子轨道",
+  "Faixa mãe de composição": "已将轨道设为合成父轨道",
+  "Essa faixa não pode ser filha da faixa de cima": "该轨道不能成为上方轨道的子轨道",
+  "Essa faixa já está no nível mais alto": "该轨道已在最高层级"
 }

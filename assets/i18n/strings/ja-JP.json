@@ -1421,5 +1421,14 @@
   "Voltar": "戻る",
   "Versão {}": "バージョン {}",
   "Atualizado em {}": "更新日 {}",
-  "Nenhum projeto recente ainda.": "最近のプロジェクトはまだありません。"
+  "Nenhum projeto recente ainda.": "最近のプロジェクトはまだありません。",
+  "Tornar a faixa filha de composição": "トラックをコンポジットの子にする",
+  "Tornar a faixa mãe de composição": "トラックをコンポジットの親にする",
+  "Tornar a faixa e suas filhas filhas de composição": "トラックとその子をコンポジットの子にする",
+  "Tornar a faixa e suas filhas mães de composição": "トラックとその子をコンポジットの親にする",
+  "Selecione uma faixa de vídeo": "ビデオトラックを選択してください",
+  "Faixa filha de composição": "トラックをコンポジットの子にしました",
+  "Faixa mãe de composição": "トラックをコンポジットの親にしました",
+  "Essa faixa não pode ser filha da faixa de cima": "このトラックは上のトラックの子にできません",
+  "Essa faixa já está no nível mais alto": "このトラックはすでに最上位です"
 }

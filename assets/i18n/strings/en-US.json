@@ -1421,5 +1421,14 @@
   "Voltar": "Back",
   "Versão {}": "Version {}",
   "Atualizado em {}": "Updated on {}",
-  "Nenhum projeto recente ainda.": "No recent projects yet."
+  "Nenhum projeto recente ainda.": "No recent projects yet.",
+  "Tornar a faixa filha de composição": "Make track a compositing child",
+  "Tornar a faixa mãe de composição": "Make track a compositing parent",
+  "Tornar a faixa e suas filhas filhas de composição": "Make track and its children compositing children",
+  "Tornar a faixa e suas filhas mães de composição": "Make track and its children compositing parents",
+  "Selecione uma faixa de vídeo": "Select a video track",
+  "Faixa filha de composição": "Track made a compositing child",
+  "Faixa mãe de composição": "Track made a compositing parent",
+  "Essa faixa não pode ser filha da faixa de cima": "That track cannot be a child of the track above",
+  "Essa faixa já está no nível mais alto": "That track is already at the top level"
 }

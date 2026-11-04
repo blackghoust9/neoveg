@@ -604,6 +604,14 @@ pub struct Track {
     /// How this video track blends over the tracks below it (older projects: Source Alpha).
     #[serde(default, skip_serializing_if = "CompositeMode::is_default")]
     pub composite_mode: CompositeMode,
+    /// How deep the track is nested as a compositing child (`0`: not a child; older projects: 0). See
+    /// `track_tree`: read it through `track_tree::effective_levels`, which puts it in range.
+    #[serde(default, skip_serializing_if = "is_zero_level")]
+    pub compose_level: u8,
+}
+
+fn is_zero_level(level: &u8) -> bool {
+    *level == 0
 }
 
 fn is_black(color: &[u8; 3]) -> bool {
@@ -763,6 +771,7 @@ impl Timeline {
             sends: Vec::new(),
             adjustment: false,
             composite_mode: CompositeMode::default(),
+            compose_level: 0,
         }
     }
 
@@ -770,6 +779,15 @@ impl Timeline {
     /// while any audio track is soloed, soloed.
     pub fn audible(&self, track: &Track) -> bool {
         if track.muted {
+            return false;
+        }
+        // Muting a compositing parent mutes its children too
+        if track.kind == TrackKind::Video
+            && track.compose_level > 0
+            && crate::track_tree::ancestors(self, track.id)
+                .iter()
+                .any(|id| self.track(*id).is_some_and(|p| p.muted))
+        {
             return false;
         }
         if track.kind != TrackKind::Audio {

@@ -11,6 +11,7 @@ use neoveg_common::i18n::tr;
 use neoveg_engine::command::EditCommand;
 use neoveg_engine::compositing;
 use neoveg_engine::timeline::{Timeline, TrackId, TrackKind};
+use neoveg_engine::track_tree;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompositorAction {
@@ -18,6 +19,9 @@ pub enum CompositorAction {
     Set(TrackId, CompositeMode),
     /// Every video track blends with this mode.
     SetAll(CompositeMode),
+    /// Move the track one level into the compositing tree (`true`: it becomes a child of the track
+    /// above) or out of it (`false`).
+    Nest(TrackId, bool),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -75,6 +79,8 @@ pub fn command_for(timeline: &Timeline, action: &CompositorAction) -> Option<Edi
     match action {
         CompositorAction::Set(track, mode) => compositing::set_mode(timeline, *track, *mode),
         CompositorAction::SetAll(mode) => compositing::set_mode_all(timeline, *mode),
+        CompositorAction::Nest(track, true) => track_tree::make_child(timeline, *track, false),
+        CompositorAction::Nest(track, false) => track_tree::make_parent(timeline, *track, false),
     }
 }
 
@@ -130,12 +136,24 @@ impl CompositorsState {
                 ui.weak(tr(
                     "Como a imagem de cada faixa se mistura com as faixas de baixo",
                 ));
+                let levels = track_tree::effective_levels(&timeline.tracks);
                 egui::Grid::new("compositors_grid")
-                    .num_columns(2)
+                    .num_columns(3)
                     .spacing([12.0, 6.0])
                     .show(ui, |ui| {
                         for track in &video {
-                            let name = egui::RichText::new(&track.name);
+                            let level = timeline
+                                .tracks
+                                .iter()
+                                .position(|t| t.id == track.id)
+                                .and_then(|i| levels.get(i))
+                                .copied()
+                                .unwrap_or(0);
+                            let name = egui::RichText::new(format!(
+                                "{}{}",
+                                "    ".repeat(usize::from(level)),
+                                track.name
+                            ));
                             ui.label(if Some(track.id) == selected {
                                 name.strong()
                             } else {
@@ -148,6 +166,28 @@ impl CompositorsState {
                             {
                                 actions.push(CompositorAction::Set(track.id, mode));
                             }
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .add_enabled(
+                                        track_tree::can_make_child(timeline, track.id),
+                                        egui::Button::new("→").small(),
+                                    )
+                                    .on_hover_text(tr("Tornar a faixa filha de composição"))
+                                    .clicked()
+                                {
+                                    actions.push(CompositorAction::Nest(track.id, true));
+                                }
+                                if ui
+                                    .add_enabled(
+                                        track_tree::can_make_parent(timeline, track.id),
+                                        egui::Button::new("←").small(),
+                                    )
+                                    .on_hover_text(tr("Tornar a faixa mãe de composição"))
+                                    .clicked()
+                                {
+                                    actions.push(CompositorAction::Nest(track.id, false));
+                                }
+                            });
                             ui.end_row();
                         }
                     });
@@ -191,6 +231,26 @@ mod tests {
         tl.tracks.push(video);
         tl.tracks.push(audio);
         (tl, v, a)
+    }
+
+    #[test]
+    fn the_arrows_of_the_panel_nest_a_track_under_the_one_above_and_back() {
+        let mut tl = Timeline::new();
+        let top = tl.new_track(TrackKind::Video);
+        let below = tl.new_track(TrackKind::Video);
+        let (a, b) = (top.id, below.id);
+        tl.tracks.push(top);
+        tl.tracks.push(below);
+        // The first track has nothing above to be a child of, and the top level has nowhere out
+        assert!(command_for(&tl, &CompositorAction::Nest(a, true)).is_none());
+        assert!(command_for(&tl, &CompositorAction::Nest(b, false)).is_none());
+        let command = command_for(&tl, &CompositorAction::Nest(b, true)).unwrap();
+        let mut history = neoveg_engine::command::History::new();
+        assert!(history.execute(&mut tl, command));
+        assert_eq!(track_tree::parent_of(&tl, b), Some(a));
+        let back = command_for(&tl, &CompositorAction::Nest(b, false)).unwrap();
+        assert!(history.execute(&mut tl, back));
+        assert_eq!(track_tree::parent_of(&tl, b), None);
     }
 
     #[test]

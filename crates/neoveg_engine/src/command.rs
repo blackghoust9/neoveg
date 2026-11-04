@@ -210,6 +210,10 @@ pub enum EditCommand {
         before: Option<MediaProps>,
         after: Option<MediaProps>,
     },
+    /// The nesting level of video tracks as compositing children: `(track, before, after)`.
+    SetComposeLevels {
+        changes: Vec<(TrackId, u8, u8)>,
+    },
     /// The compositing mode of a video track (how it blends over the tracks below).
     SetCompositeMode {
         track_id: TrackId,
@@ -509,6 +513,14 @@ impl EditCommand {
                 put_media_props(tl, *media_id, after);
                 true
             }
+            Self::SetComposeLevels { changes } => {
+                for (id, _, after) in changes {
+                    if let Some(t) = tl.track_mut(*id) {
+                        t.compose_level = *after;
+                    }
+                }
+                !changes.is_empty()
+            }
             Self::SetCompositeMode {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -755,6 +767,13 @@ impl EditCommand {
             Self::SetMediaProps {
                 media_id, before, ..
             } => put_media_props(tl, *media_id, before),
+            Self::SetComposeLevels { changes } => {
+                for (id, before, _) in changes {
+                    if let Some(t) = tl.track_mut(*id) {
+                        t.compose_level = *before;
+                    }
+                }
+            }
             Self::SetCompositeMode {
                 track_id, before, ..
             } => {
