@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "已将轨道设为合成子轨道",
   "Faixa mãe de composição": "已将轨道设为合成父轨道",
   "Essa faixa não pode ser filha da faixa de cima": "该轨道不能成为上方轨道的子轨道",
-  "Essa faixa já está no nível mais alto": "该轨道已在最高层级"
+  "Essa faixa já está no nível mais alto": "该轨道已在最高层级",
+  "Inserir evento vazio": "插入空事件",
+  "Selecione a faixa onde inserir o evento vazio": "请选择要插入空事件的轨道",
+  "Evento vazio inserido": "已插入空事件",
+  "Envelopes de áudio": "音频包络"
 }

@@ -1900,6 +1900,28 @@ impl AppState {
     }
 
     fn add_track(&mut self, kind: TrackKind) {
+        // The manual puts a new audio track at the end of the list and a new video track at the top
+        // (the top layer)
+        let index = match kind {
+            TrackKind::Audio => self.timeline.tracks.len(),
+            TrackKind::Video => 0,
+        };
+        self.insert_track_at(kind, index);
+    }
+
+    /// *Inserir faixa* from the menu of a track header: the new track goes above the selected one
+    /// (at the usual place when no track is selected).
+    fn insert_track_above(&mut self, kind: TrackKind) {
+        let above = self
+            .selected_track
+            .and_then(|id| self.timeline.tracks.iter().position(|t| t.id == id));
+        match above {
+            Some(index) => self.insert_track_at(kind, index),
+            None => self.add_track(kind),
+        }
+    }
+
+    fn insert_track_at(&mut self, kind: TrackKind, index: usize) {
         let mut track = self.timeline.new_track(kind);
         if kind == TrackKind::Video {
             // The colors the fade envelope of a new video track goes to come from the preferences
@@ -1907,11 +1929,39 @@ impl AppState {
             track.fade_color_bottom = self.prefs.new_track_fade_bottom;
         }
         let id = track.id;
-        if self
-            .history
-            .execute(&mut self.timeline, EditCommand::AddTrack { track })
-        {
+        if self.history.execute(
+            &mut self.timeline,
+            EditCommand::InsertTrack { track, index },
+        ) {
             self.selected_track = Some(id);
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+        }
+    }
+
+    /// *Inserir evento vazio*: a blank event on the selected track, as long as the time selection
+    /// (from its start) or, with none, a default time from the cursor.
+    fn insert_empty_event(&mut self) {
+        let Some(track) = self.selected_track else {
+            self.status = tr("Selecione a faixa onde inserir o evento vazio").into();
+            return;
+        };
+        let (start, duration) = match self.time_selection {
+            Some(range) if range.end - range.start > TIME_EPSILON => {
+                (range.start, range.end - range.start)
+            }
+            _ => (self.playhead, self.prefs.still_image_seconds.max(0.1)),
+        };
+        let Some((id, command)) =
+            neoveg_engine::empty_event::insert(&mut self.timeline, track, start, duration)
+        else {
+            return;
+        };
+        if self.history.execute(&mut self.timeline, command) {
+            self.selection.select_only((track, id));
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+            self.status = tr("Evento vazio inserido").into();
         }
     }
 
@@ -3168,6 +3218,7 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
+            Command::InsertEmptyEvent => self.selected_track.is_some(),
             Command::TrackMakeChild | Command::TrackMakeChildGroup => self
                 .selected_track
                 .is_some_and(|id| neoveg_engine::track_tree::can_make_child(&self.timeline, id)),
@@ -6808,6 +6859,7 @@ impl AppState {
             Command::EditRippleDelete => self.ripple_delete_selection(),
             Command::EditCloseGaps => self.close_gaps_on_selected_track(),
             Command::TrackDuplicate => self.duplicate_selected_track(),
+            Command::InsertEmptyEvent => self.insert_empty_event(),
             Command::TrackMakeChild => self.nest_selected_track(true, false),
             Command::TrackMakeParent => self.nest_selected_track(false, false),
             Command::TrackMakeChildGroup => self.nest_selected_track(true, true),
@@ -8353,6 +8405,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.slideshow.open = true;
                 ui.close_menu();
             }
+            command_item(state, ui, Command::InsertEmptyEvent);
             command_item(state, ui, Command::InsertTime);
             command_item(state, ui, Command::TrackDuplicate);
             for command in [
@@ -8373,13 +8426,13 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 command_item(state, ui, command);
             }
             ui.separator();
-            for command in [
-                Command::TrackVolumeEnvelope,
-                Command::TrackPanEnvelope,
-                Command::TrackToggleEnvelopes,
-            ] {
-                command_item(state, ui, command);
-            }
+            // The envelopes are inserted from a submenu of their own, as in the reference
+            ui.menu_button(tr("Envelopes de áudio"), |ui| {
+                for command in [Command::TrackVolumeEnvelope, Command::TrackPanEnvelope] {
+                    command_item(state, ui, command);
+                }
+            });
+            command_item(state, ui, Command::TrackToggleEnvelopes);
             let video_track = state
                 .selected_track
                 .and_then(|id| state.timeline.track(id))
@@ -12027,8 +12080,18 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
 }
 
 fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
-    command_item(state, ui, Command::InsertAudioTrack);
-    command_item(state, ui, Command::InsertVideoTrack);
+    // The tracks inserted from here go above the selected one (the menu bar puts them at the end
+    // of the list, or at the top for video)
+    for (command, kind) in [
+        (Command::InsertAudioTrack, TrackKind::Audio),
+        (Command::InsertVideoTrack, TrackKind::Video),
+    ] {
+        let label = state.with_hint(tr(command.label()), command);
+        if ui.button(label).clicked() {
+            state.insert_track_above(kind);
+            ui.close_menu();
+        }
+    }
     command_item(state, ui, Command::InsertAdjustmentTrack);
     if let Some(track) = state
         .selected_track
@@ -16132,6 +16195,78 @@ mod tests {
         // Exactly on a boundary the frame starts there
         s.playhead = 10.0 / fps;
         assert!((s.sampled_time() - s.playhead).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_new_audio_track_goes_to_the_end_and_a_new_video_track_to_the_top() {
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertAudioTrack);
+        run(&mut s, Command::InsertVideoTrack);
+        run(&mut s, Command::InsertAudioTrack);
+        run(&mut s, Command::InsertVideoTrack);
+        let kinds: Vec<TrackKind> = s.timeline.tracks.iter().map(|t| t.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                TrackKind::Video,
+                TrackKind::Video,
+                TrackKind::Audio,
+                TrackKind::Audio
+            ]
+        );
+        // The newest video track is the top layer and is the one selected
+        assert_eq!(s.selected_track, Some(s.timeline.tracks[0].id));
+        // One undo step takes the track out again
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline.tracks.len(), 3);
+    }
+
+    #[test]
+    fn the_header_menu_puts_the_new_track_above_the_selected_one() {
+        let mut s = AppState::new();
+        run(&mut s, Command::InsertAudioTrack);
+        run(&mut s, Command::InsertAudioTrack);
+        let ids: Vec<TrackId> = s.timeline.tracks.iter().map(|t| t.id).collect();
+        s.selected_track = Some(ids[1]);
+        s.insert_track_above(TrackKind::Audio);
+        let order: Vec<TrackId> = s.timeline.tracks.iter().map(|t| t.id).collect();
+        assert_eq!(order.len(), 3);
+        assert_eq!(order[0], ids[0]);
+        assert_eq!(order[2], ids[1], "the selected track moved down by one");
+        assert_eq!(s.selected_track, Some(order[1]), "the new one is selected");
+        // With no track selected it goes where the menu bar puts it
+        s.selected_track = None;
+        s.insert_track_above(TrackKind::Video);
+        assert_eq!(s.timeline.tracks[0].kind, TrackKind::Video);
+    }
+
+    #[test]
+    fn an_empty_event_takes_the_time_selection_or_a_default_time_from_the_cursor() {
+        let mut s = AppState::new();
+        // No track: the command says what to do
+        assert!(!s.command_enabled(Command::InsertEmptyEvent));
+        run(&mut s, Command::InsertEmptyEvent);
+        assert!(s.status.contains("Selecione"));
+        run(&mut s, Command::InsertVideoTrack);
+        let track = s.selected_track.unwrap();
+        assert!(s.command_enabled(Command::InsertEmptyEvent));
+        // A time selection gives the place and the length
+        s.time_selection = Some(neoveg_engine::selection::TimeRange::new(2.0, 5.0));
+        run(&mut s, Command::InsertEmptyEvent);
+        let event = s.timeline.track(track).unwrap().events[0].clone();
+        assert!(event.media_id.is_none());
+        assert_eq!((event.start, event.duration), (2.0, 3.0));
+        assert_eq!(s.selection.refs(), vec![(track, event.id)]);
+        // Without a selection: from the cursor, for the default time
+        s.time_selection = None;
+        s.playhead = 10.0;
+        run(&mut s, Command::InsertEmptyEvent);
+        let second = s.timeline.track(track).unwrap().events[1].clone();
+        assert_eq!(second.start, 10.0);
+        assert!((second.duration - s.prefs.still_image_seconds.max(0.1)).abs() < 1e-9);
+        // Each is one undo step
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline.track(track).unwrap().events.len(), 1);
     }
 
     #[test]

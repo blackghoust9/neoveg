@@ -155,6 +155,7 @@ commands! {
     InsertAdjustmentEvent => ("insert.adjustment_event", "Inserir evento de ajuste", Insert, true),
     InsertAudioBus => ("insert.audio_bus", "Inserir barramento de áudio", Insert, true),
     InsertMarker => ("insert.marker", "Inserir marcador", Insert, true),
+    InsertEmptyEvent => ("insert.empty_event", "Inserir evento vazio", Insert, true),
     InsertTime => ("insert.time", "Inserir tempo…", Insert, true),
     InsertRegion => ("insert.region", "Inserir região", Insert, true),
     InsertCommandMarker => ("insert.command", "Inserir marcador de comando…", Insert, false),

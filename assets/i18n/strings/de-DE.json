@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "Spur ist jetzt Kompositions-Kind",
   "Faixa mãe de composição": "Spur ist jetzt Kompositions-Elternteil",
   "Essa faixa não pode ser filha da faixa de cima": "Diese Spur kann kein Kind der Spur darüber sein",
-  "Essa faixa já está no nível mais alto": "Diese Spur ist schon auf der obersten Ebene"
+  "Essa faixa já está no nível mais alto": "Diese Spur ist schon auf der obersten Ebene",
+  "Inserir evento vazio": "Leeres Ereignis einfügen",
+  "Selecione a faixa onde inserir o evento vazio": "Wählen Sie die Spur für das leere Ereignis",
+  "Evento vazio inserido": "Leeres Ereignis eingefügt",
+  "Envelopes de áudio": "Audio-Hüllkurven"
 }

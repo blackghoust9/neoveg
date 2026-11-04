@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "Track made a compositing child",
   "Faixa mãe de composição": "Track made a compositing parent",
   "Essa faixa não pode ser filha da faixa de cima": "That track cannot be a child of the track above",
-  "Essa faixa já está no nível mais alto": "That track is already at the top level"
+  "Essa faixa já está no nível mais alto": "That track is already at the top level",
+  "Inserir evento vazio": "Insert empty event",
+  "Selecione a faixa onde inserir o evento vazio": "Select the track to insert the empty event on",
+  "Evento vazio inserido": "Empty event inserted",
+  "Envelopes de áudio": "Audio envelopes"
 }

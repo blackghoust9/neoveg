@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "Дорожка стала дочерней",
   "Faixa mãe de composição": "Дорожка стала родительской",
   "Essa faixa não pode ser filha da faixa de cima": "Эта дорожка не может быть дочерней для дорожки выше",
-  "Essa faixa já está no nível mais alto": "Эта дорожка уже на верхнем уровне"
+  "Essa faixa já está no nível mais alto": "Эта дорожка уже на верхнем уровне",
+  "Inserir evento vazio": "Вставить пустое событие",
+  "Selecione a faixa onde inserir o evento vazio": "Выберите дорожку для пустого события",
+  "Evento vazio inserido": "Пустое событие вставлено",
+  "Envelopes de áudio": "Аудиоогибающие"
 }

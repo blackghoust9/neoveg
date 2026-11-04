@@ -203,6 +203,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::FileNewQuick, &["Ctrl+Alt+Q"]),
     (Command::EditCloseGaps, &["Ctrl+Alt+G"]),
     (Command::TrackDuplicate, &["Ctrl+Shift+D"]),
+    (Command::InsertEmptyEvent, &["Ctrl+Alt+Shift+E"]),
     (Command::TrackMakeChild, &["Ctrl+Alt+Shift+Right"]),
     (Command::TrackMakeParent, &["Ctrl+Alt+Shift+Left"]),
     (Command::TrackMakeChildGroup, &["Ctrl+Alt+Shift+Down"]),

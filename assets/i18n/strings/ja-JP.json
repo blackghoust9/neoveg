@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "トラックをコンポジットの子にしました",
   "Faixa mãe de composição": "トラックをコンポジットの親にしました",
   "Essa faixa não pode ser filha da faixa de cima": "このトラックは上のトラックの子にできません",
-  "Essa faixa já está no nível mais alto": "このトラックはすでに最上位です"
+  "Essa faixa já está no nível mais alto": "このトラックはすでに最上位です",
+  "Inserir evento vazio": "空のイベントを挿入",
+  "Selecione a faixa onde inserir o evento vazio": "空のイベントを挿入するトラックを選択してください",
+  "Evento vazio inserido": "空のイベントを挿入しました",
+  "Envelopes de áudio": "オーディオエンベロープ"
 }

@@ -15,6 +15,7 @@ pub mod details;
 pub mod edit;
 pub mod edl;
 pub mod effects;
+pub mod empty_event;
 pub mod envelope;
 pub mod event_pitch;
 pub mod event_volume;

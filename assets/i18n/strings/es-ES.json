@@ -1430,5 +1430,9 @@
   "Faixa filha de composição": "Pista hija de composición",
   "Faixa mãe de composição": "Pista madre de composición",
   "Essa faixa não pode ser filha da faixa de cima": "Esa pista no puede ser hija de la pista de arriba",
-  "Essa faixa já está no nível mais alto": "Esa pista ya está en el nivel más alto"
+  "Essa faixa já está no nível mais alto": "Esa pista ya está en el nivel más alto",
+  "Inserir evento vazio": "Insertar evento vacío",
+  "Selecione a faixa onde inserir o evento vazio": "Seleccione la pista donde insertar el evento vacío",
+  "Evento vazio inserido": "Evento vacío insertado",
+  "Envelopes de áudio": "Envolventes de audio"
 }
