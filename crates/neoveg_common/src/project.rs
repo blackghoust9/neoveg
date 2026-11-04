@@ -57,6 +57,12 @@ pub struct ProjectSettings {
     /// How the captions look when they are burned into a rendered movie.
     #[serde(default)]
     pub caption_style: CaptionStyle,
+    /// How the ruler and the cursor read a time.
+    #[serde(default)]
+    pub ruler_format: crate::ruler_format::RulerFormat,
+    /// The time the ruler reads at the origin of the project, seconds.
+    #[serde(default)]
+    pub ruler_start: f64,
 }
 
 /// How the captions are drawn into the picture when a movie is rendered. Sizes are fractions of the
@@ -169,6 +175,8 @@ impl Default for ProjectSettings {
             audio_bit_depth: 24,
             master_bus: MasterBusMode::default(),
             caption_style: CaptionStyle::default(),
+            ruler_format: Default::default(),
+            ruler_start: 0.0,
         }
     }
 }

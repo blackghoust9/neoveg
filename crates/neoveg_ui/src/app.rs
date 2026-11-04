@@ -688,6 +688,8 @@ struct AppState {
     context_mark: Option<MarkId>,
     /// The command marker under the pointer when the ruler menu was opened.
     context_command: Option<neoveg_engine::command_markers::CommandId>,
+    /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
+    ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
     command_dialog: crate::command_marker_window::CommandDialog,
     /// Whether the timeline context menu was opened over the track header column.
@@ -1766,6 +1768,7 @@ impl AppState {
             context_envelope: None,
             context_mark: None,
             context_command: None,
+            ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
             name_edit: None,
@@ -1807,6 +1810,23 @@ impl AppState {
 
     fn drop_frame(&self) -> bool {
         is_drop_frame_rate(self.project.settings.fps)
+    }
+
+    /// A time of the project as the ruler reads it (the format chosen in *Exibir > Formato da régua*).
+    fn ruler_label(&self, seconds: f64) -> String {
+        let settings = &self.project.settings;
+        neoveg_common::ruler_format::format_time(
+            seconds,
+            settings.ruler_format,
+            &neoveg_common::ruler_format::RulerContext {
+                fps: settings.fps,
+                drop_frame: self.drop_frame(),
+                sample_rate: settings.sample_rate,
+                bpm: f64::from(settings.bpm),
+                beats_per_bar: settings.beats_per_bar,
+                start: settings.ruler_start,
+            },
+        )
     }
 
     // ---- editing -----------------------------------------------------------------------------
@@ -1962,6 +1982,47 @@ impl AppState {
             self.selected_track = Some(id);
             self.last_frame_key = None;
             self.last_composite_key = None;
+        }
+    }
+
+    /// *Definir o tempo no cursor*: what the ruler reads at the cursor, in seconds or `hh:mm:ss:qq`;
+    /// it moves the whole ruler (the origin of the project reads that much earlier).
+    fn run_ruler_start_dialog(&mut self, ctx: &egui::Context) {
+        let Some(mut text) = self.ruler_start_dialog.take() else {
+            return;
+        };
+        let fps = self.project.settings.fps;
+        let mut open = true;
+        let mut done = false;
+        crate::dialogs::dialog(ctx, tr("Definir o tempo no cursor"))
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.add(egui::TextEdit::singleline(&mut text).font(egui::TextStyle::Monospace));
+                let typed = crate::media_properties_window::parse_start(&text, fps);
+                if typed.is_none() {
+                    ui.colored_label(
+                        ui.visuals().error_fg_color,
+                        tr("Timecode inválido (hh:mm:ss:qq)"),
+                    );
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(typed.is_some(), egui::Button::new(tr("Aplicar")))
+                        .clicked()
+                    {
+                        if let Some(time) = typed {
+                            self.project.settings.ruler_start = time - self.playhead;
+                            done = true;
+                        }
+                    }
+                    if ui.button(tr("Cancelar")).clicked() {
+                        done = true;
+                    }
+                });
+            });
+        if open && !done {
+            self.ruler_start_dialog = Some(text);
         }
     }
 
@@ -8050,6 +8111,7 @@ impl NeovegApp {
         self.run_compositors_window(ctx);
         self.run_media_properties_dialog(ctx);
         self.state.run_command_dialog(ctx);
+        self.state.run_ruler_start_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -8677,6 +8739,32 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            ui.menu_button(tr("Formato da régua"), |ui| {
+                for format in neoveg_common::ruler_format::RulerFormat::ALL {
+                    let chosen = state.project.settings.ruler_format == format;
+                    if ui.radio(chosen, tr(format.label())).clicked() {
+                        state.project.settings.ruler_format = format;
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                if ui.button(tr("Definir o tempo no cursor…")).clicked() {
+                    let shown = neoveg_common::ruler_format::shown_time(
+                        state.playhead,
+                        state.project.settings.ruler_start,
+                    );
+                    state.ruler_start_dialog = Some(seconds_to_timecode(
+                        shown,
+                        state.project.settings.fps,
+                        state.drop_frame(),
+                    ));
+                    ui.close_menu();
+                }
+                if ui.button(tr("Zerar o tempo inicial da régua")).clicked() {
+                    state.project.settings.ruler_start = 0.0;
+                    ui.close_menu();
+                }
+            });
             ui.menu_button(tr("Rolar as faixas"), |ui| {
                 for command in [
                     Command::ViewScrollTracksUp,
@@ -13362,11 +13450,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             major,
         );
         let ink = ui.visuals().weak_text_color();
-        let galley = ruler_painter.layout_no_wrap(
-            seconds_to_timecode(t, fps, drop_frame),
-            FontId::monospace(10.0),
-            ink,
-        );
+        let galley =
+            ruler_painter.layout_no_wrap(state.ruler_label(t), FontId::monospace(10.0), ink);
         // A label that would run past the right edge is left out instead of being cut in half
         if x + 3.0 + galley.size().x <= lanes.right() {
             ruler_painter.galley(pos2(x + 3.0, rect.top() + 3.0), galley, ink);
@@ -14295,8 +14380,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             blue,
             Stroke::new(1.0_f32, bright),
         ));
-        let tc = seconds_to_timecode(state.playhead, fps, drop_frame);
-        let flag = Rect::from_min_size(pos2(px + 6.0, top), vec2(78.0, 12.0));
+        let tc = state.ruler_label(state.playhead);
+        let flag = Rect::from_min_size(pos2(px + 6.0, top), vec2(96.0, 12.0));
         lane_painter.rect_filled(flag, Rounding::ZERO, blue);
         lane_painter.text(
             flag.center(),

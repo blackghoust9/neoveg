@@ -20,6 +20,7 @@ pub mod pitch_change;
 pub mod preferences;
 pub mod presets;
 pub mod project;
+pub mod ruler_format;
 pub mod sys_info;
 pub mod theme;
 pub mod timecode;
