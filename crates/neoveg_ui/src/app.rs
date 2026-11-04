@@ -223,6 +223,8 @@ enum TrimmerAdd {
 /// What a window command asks of the dock.
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum WindowAction {
+    /// Show only the timeline (the other windows hide), or bring them back.
+    ToggleTimelineMaximized,
     /// Show the window (bring it to the front, or put it back when it was closed); when it is
     /// already in front, close it.
     Toggle(Tab),
@@ -750,6 +752,10 @@ struct AppState {
     scene_job: Option<scene_detect::SceneJob>,
     /// The command palette (*Exibir > Paleta de comandos*).
     command_palette: crate::command_palette_window::PaletteState,
+    /// The track list (the headers at the left of the timeline) is shown.
+    track_list_visible: bool,
+    /// The track list has the keyboard focus (`Tab`): the up and down arrows move between tracks.
+    focus_track_list: bool,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1844,6 +1850,8 @@ impl AppState {
             scene_dialog: Default::default(),
             scene_job: None,
             command_palette: Default::default(),
+            track_list_visible: true,
+            focus_track_list: false,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -1939,6 +1947,15 @@ impl AppState {
             MAX_PIXELS_PER_SECOND,
         );
         self.zoom_at_cursor(wanted / self.pixels_per_second);
+    }
+
+    /// Width of the track list at the left of the timeline (nothing while it is hidden).
+    fn header_width(&self) -> f32 {
+        if self.track_list_visible {
+            HEADER_WIDTH
+        } else {
+            0.0
+        }
     }
 
     fn drop_frame(&self) -> bool {
@@ -8100,12 +8117,41 @@ impl AppState {
             Command::RippleAffectedTracks => self.ripple_key(RippleScope::AffectedTracks),
             Command::RippleWithMarkers => self.ripple_key(RippleScope::AffectedTracksAndMarks),
             Command::RippleAll => self.ripple_key(RippleScope::AllTracksAndMarks),
+            Command::ViewMinimizeDock => {
+                self.window_request = Some(WindowAction::ToggleTimelineMaximized);
+            }
+            Command::ViewMaximizeTimeline => {
+                // Everything else is hidden, or shown again: the other windows and the track list
+                let restore = self.maximized_dock.is_some() || !self.track_list_visible;
+                self.track_list_visible = restore;
+                if restore == self.maximized_dock.is_some() {
+                    self.window_request = Some(WindowAction::ToggleTimelineMaximized);
+                }
+            }
+            Command::ViewToggleTrackList => {
+                self.track_list_visible = !self.track_list_visible;
+                if !self.track_list_visible {
+                    self.focus_track_list = false;
+                }
+            }
+            Command::ViewToggleFocus => {
+                self.focus_track_list = self.track_list_visible && !self.focus_track_list;
+                self.status = if self.focus_track_list {
+                    "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)"
+                } else {
+                    "Foco na linha do tempo"
+                }
+                .into();
+            }
+            Command::ViewZoomIn if self.focus_track_list => self.move_track_focus(-1),
+            Command::ViewZoomOut if self.focus_track_list => self.move_track_focus(1),
             Command::ViewZoomIn => self.zoom_at_cursor(ZOOM_STEP),
             Command::ViewZoomOut => self.zoom_at_cursor(1.0 / ZOOM_STEP),
             Command::ViewZoomInLarge => self.zoom_large(true),
             Command::ViewZoomOutLarge => self.zoom_large(false),
             Command::ViewZoomOneFrame => self.zoom_one_frame(),
             Command::ViewFocusTimeline => {
+                self.focus_track_list = false;
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
             }
             Command::ViewLayoutLoad | Command::ViewLayoutSave => {
@@ -8929,6 +8975,14 @@ impl NeovegApp {
                         Some(found) => self.dock.set_active_tab(found),
                         None => self.dock.push_to_focused_leaf(tab),
                     }
+                }
+            }
+            WindowAction::ToggleTimelineMaximized => {
+                if self.state.maximized_dock.is_some() {
+                    self.restore_maximized();
+                } else {
+                    let shown = dock_footer::maximized_dock(&[Tab::Timeline], Tab::Timeline);
+                    self.state.maximized_dock = Some(std::mem::replace(&mut self.dock, shown));
                 }
             }
             WindowAction::Toggle(tab) => {
@@ -9909,6 +9963,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             {
                 state.toolbar_editor_open = true;
                 ui.close_menu();
+            }
+            for command in [
+                Command::ViewMinimizeDock,
+                Command::ViewMaximizeTimeline,
+                Command::ViewToggleTrackList,
+                Command::ViewToggleFocus,
+            ] {
+                command_item(state, ui, command);
             }
             ui.menu_button(tr("Zoom"), |ui| {
                 for command in [
@@ -14337,7 +14399,7 @@ fn timeline_hscrollbar(state: &mut AppState, ui: &mut egui::Ui) {
     ui.painter()
         .rect_filled(bar, Rounding::ZERO, ui_theme::palette().header);
     let track = Rect::from_min_max(
-        pos2(bar.left() + HEADER_WIDTH, bar.top()),
+        pos2(bar.left() + state.header_width(), bar.top()),
         pos2(bar.right() - timeline_scroll::BAR, bar.bottom()),
     );
     let view = f64::from(state.lanes_width.max(1.0)) / state.pixels_per_second;
@@ -14608,7 +14670,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     let now = ui.input(|i| i.time);
     let fps = state.project.settings.fps;
     let drop_frame = state.drop_frame();
-    let lanes = Rect::from_min_max(pos2(rect.left() + HEADER_WIDTH, rect.top()), rect.max);
+    let lanes = Rect::from_min_max(
+        pos2(rect.left() + state.header_width(), rect.top()),
+        rect.max,
+    );
     state.lanes_width = lanes.width();
 
     // ---- zoom / scroll (zoom anchored at the pointer) ------------------------------------------
@@ -16139,6 +16204,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         Rounding::ZERO,
         pal.header,
     );
+    if state.focus_track_list {
+        header_painter.rect_stroke(
+            Rect::from_min_max(
+                pos2(rect.left(), ruler_bottom),
+                pos2(lanes.left(), rect.bottom()),
+            ),
+            Rounding::ZERO,
+            Stroke::new(2.0_f32, Color32::from_rgb(0x3A, 0x8F, 0xE0)),
+        );
+    }
     // Only the selected track's number-box dot blinks (white/black); the others stay static
     let blink_on = ((now / BLINK_SECONDS) as i64) % 2 == 0;
     let tree_levels = neoveg_engine::track_tree::effective_levels(&state.timeline.tracks);
@@ -18899,6 +18974,65 @@ mod tests {
         run(&mut s, Command::ViewZoomOneFrame);
         let expected = (s.project.settings.fps * THUMBNAIL_WIDTH).min(MAX_PIXELS_PER_SECOND);
         assert!((s.pixels_per_second - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_track_list_hides_and_takes_the_arrow_keys_when_it_has_the_focus() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        s.add_track(TrackKind::Audio);
+        assert_eq!(s.header_width(), HEADER_WIDTH);
+        run(&mut s, Command::ViewToggleTrackList);
+        assert_eq!(s.header_width(), 0.0);
+        run(&mut s, Command::ViewToggleTrackList);
+        assert_eq!(s.header_width(), HEADER_WIDTH);
+        // Tab moves the focus to the track list, where the arrows walk the tracks instead of zooming
+        let first = s.timeline.tracks[0].id;
+        s.selected_track = Some(first);
+        let zoom = s.pixels_per_second;
+        run(&mut s, Command::ViewToggleFocus);
+        assert!(s.focus_track_list);
+        run(&mut s, Command::ViewZoomOut);
+        assert_ne!(s.selected_track, Some(first), "Down went to the next track");
+        assert_eq!(s.pixels_per_second, zoom, "and did not zoom");
+        run(&mut s, Command::ViewToggleFocus);
+        assert!(!s.focus_track_list);
+        run(&mut s, Command::ViewZoomOut);
+        assert!(
+            s.pixels_per_second < zoom,
+            "back on the timeline, Down zooms out"
+        );
+        // A hidden track list cannot have the focus
+        s.focus_track_list = true;
+        run(&mut s, Command::ViewToggleTrackList);
+        assert!(!s.focus_track_list);
+        run(&mut s, Command::ViewToggleFocus);
+        assert!(!s.focus_track_list);
+    }
+
+    #[test]
+    fn the_maximize_commands_ask_for_the_timeline_alone_and_the_track_list_follows_ctrl_f11() {
+        let mut s = AppState::new();
+        run(&mut s, Command::ViewMinimizeDock);
+        assert!(matches!(
+            s.window_request.take(),
+            Some(WindowAction::ToggleTimelineMaximized)
+        ));
+        assert!(s.track_list_visible, "F11 keeps the track list");
+        // Ctrl+F11 hides the track list too, and a second one brings both back
+        run(&mut s, Command::ViewMaximizeTimeline);
+        assert!(!s.track_list_visible);
+        assert!(matches!(
+            s.window_request.take(),
+            Some(WindowAction::ToggleTimelineMaximized)
+        ));
+        s.maximized_dock = Some(DockState::new(vec![Tab::Timeline]));
+        run(&mut s, Command::ViewMaximizeTimeline);
+        assert!(s.track_list_visible);
+        assert!(matches!(
+            s.window_request.take(),
+            Some(WindowAction::ToggleTimelineMaximized)
+        ));
     }
 
     #[test]

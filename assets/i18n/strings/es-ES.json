@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "Alejar la línea de tiempo",
   "Ampliar o zoom em passo grande ou na seleção": "Acercar en un paso grande o a la selección",
   "Reduzir o zoom em passo grande": "Alejar en un paso grande",
-  "Zoom até uma miniatura de vídeo por quadro": "Zoom hasta que una miniatura de vídeo sea un fotograma"
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom hasta que una miniatura de vídeo sea un fotograma",
+  "Minimizar ou restaurar a área de janelas": "Minimizar o restaurar el área de ventanas",
+  "Maximizar ou restaurar a linha do tempo": "Maximizar o restaurar la línea de tiempo",
+  "Minimizar ou restaurar a lista de faixas": "Minimizar o restaurar la lista de pistas",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "Cambiar el foco entre la lista de pistas y la línea de tiempo",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Foco en la lista de pistas: ↑ y ↓ cambian de pista (Tab vuelve a la línea de tiempo)"
 }

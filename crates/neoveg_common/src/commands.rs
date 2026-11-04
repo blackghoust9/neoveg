@@ -246,6 +246,10 @@ commands! {
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewMinimizeDock => ("view.minimize_dock", "Minimizar ou restaurar a área de janelas", View, true),
+    ViewMaximizeTimeline => ("view.maximize_timeline", "Maximizar ou restaurar a linha do tempo", View, true),
+    ViewToggleTrackList => ("view.toggle_track_list", "Minimizar ou restaurar a lista de faixas", View, true),
+    ViewToggleFocus => ("view.toggle_focus", "Alternar o foco entre a lista de faixas e a linha do tempo", View, true),
     ViewZoomIn => ("view.zoom_in", "Ampliar o zoom da linha do tempo", View, true),
     ViewZoomOut => ("view.zoom_out", "Reduzir o zoom da linha do tempo", View, true),
     ViewZoomInLarge => ("view.zoom_in_large", "Ampliar o zoom em passo grande ou na seleção", View, true),

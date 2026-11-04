@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "Zoom the timeline out",
   "Ampliar o zoom em passo grande ou na seleção": "Zoom in by a large step or to the selection",
   "Reduzir o zoom em passo grande": "Zoom out by a large step",
-  "Zoom até uma miniatura de vídeo por quadro": "Zoom until a video thumbnail is one frame"
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom until a video thumbnail is one frame",
+  "Minimizar ou restaurar a área de janelas": "Minimize or restore the window area",
+  "Maximizar ou restaurar a linha do tempo": "Maximize or restore the timeline",
+  "Minimizar ou restaurar a lista de faixas": "Minimize or restore the track list",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "Switch the focus between the track list and the timeline",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Track list focused: ↑ and ↓ change the track (Tab goes back to the timeline)"
 }

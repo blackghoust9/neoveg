@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "Zeitleiste verkleinern",
   "Ampliar o zoom em passo grande ou na seleção": "Großer Zoomschritt oder auf die Auswahl zoomen",
   "Reduzir o zoom em passo grande": "Großer Zoomschritt nach außen",
-  "Zoom até uma miniatura de vídeo por quadro": "Zoom, bis eine Videominiatur ein Bild ist"
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom, bis eine Videominiatur ein Bild ist",
+  "Minimizar ou restaurar a área de janelas": "Fensterbereich minimieren oder wiederherstellen",
+  "Maximizar ou restaurar a linha do tempo": "Zeitleiste maximieren oder wiederherstellen",
+  "Minimizar ou restaurar a lista de faixas": "Spurliste minimieren oder wiederherstellen",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "Fokus zwischen Spurliste und Zeitleiste wechseln",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Fokus auf der Spurliste: ↑ und ↓ wechseln die Spur (Tab zurück zur Zeitleiste)"
 }

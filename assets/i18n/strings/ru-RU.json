@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "Уменьшить масштаб шкалы времени",
   "Ampliar o zoom em passo grande ou na seleção": "Увеличить крупным шагом или по выделению",
   "Reduzir o zoom em passo grande": "Уменьшить крупным шагом",
-  "Zoom até uma miniatura de vídeo por quadro": "Масштаб до одного кадра на миниатюру"
+  "Zoom até uma miniatura de vídeo por quadro": "Масштаб до одного кадра на миниатюру",
+  "Minimizar ou restaurar a área de janelas": "Свернуть или восстановить область окон",
+  "Maximizar ou restaurar a linha do tempo": "Развернуть или восстановить шкалу времени",
+  "Minimizar ou restaurar a lista de faixas": "Свернуть или восстановить список дорожек",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "Переключить фокус между списком дорожек и шкалой времени",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "Фокус на списке дорожек: ↑ и ↓ меняют дорожку (Tab возвращает на шкалу времени)"
 }

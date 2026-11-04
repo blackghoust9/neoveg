@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "タイムラインを縮小",
   "Ampliar o zoom em passo grande ou na seleção": "大きなステップまたは選択範囲に合わせて拡大",
   "Reduzir o zoom em passo grande": "大きなステップで縮小",
-  "Zoom até uma miniatura de vídeo por quadro": "ビデオサムネイルが1フレームになるまでズーム"
+  "Zoom até uma miniatura de vídeo por quadro": "ビデオサムネイルが1フレームになるまでズーム",
+  "Minimizar ou restaurar a área de janelas": "ウィンドウ領域を最小化または復元",
+  "Maximizar ou restaurar a linha do tempo": "タイムラインを最大化または復元",
+  "Minimizar ou restaurar a lista de faixas": "トラックリストを最小化または復元",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "トラックリストとタイムラインのフォーカスを切り替え",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "トラックリストにフォーカス: ↑ と ↓ でトラックを切り替え（Tab でタイムラインに戻る）"
 }

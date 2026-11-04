@@ -1601,5 +1601,10 @@
   "Reduzir o zoom da linha do tempo": "缩小时间线",
   "Ampliar o zoom em passo grande ou na seleção": "大步放大或缩放到选区",
   "Reduzir o zoom em passo grande": "大步缩小",
-  "Zoom até uma miniatura de vídeo por quadro": "缩放到每个视频缩略图一帧"
+  "Zoom até uma miniatura de vídeo por quadro": "缩放到每个视频缩略图一帧",
+  "Minimizar ou restaurar a área de janelas": "最小化或还原窗口区域",
+  "Maximizar ou restaurar a linha do tempo": "最大化或还原时间线",
+  "Minimizar ou restaurar a lista de faixas": "最小化或还原轨道列表",
+  "Alternar o foco entre a lista de faixas e a linha do tempo": "在轨道列表和时间线之间切换焦点",
+  "Foco na lista de faixas: ↑ e ↓ trocam de faixa (Tab volta para a linha do tempo)": "焦点在轨道列表：↑ 和 ↓ 切换轨道（按 Tab 返回时间线）"
 }
