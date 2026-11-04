@@ -38,6 +38,7 @@ pub mod render_track;
 pub mod ripple;
 pub mod selection;
 pub mod slideshow;
+pub mod smooth_cut;
 pub mod snapping;
 pub mod switches;
 pub mod timeline;

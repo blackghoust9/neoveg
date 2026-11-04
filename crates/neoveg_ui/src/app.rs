@@ -3429,6 +3429,11 @@ impl AppState {
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
             Command::EditSyncByAudio => self.selection.len() >= 2,
+            Command::EditSmoothCut => self
+                .timeline
+                .tracks
+                .iter()
+                .any(|t| t.kind == TrackKind::Video),
             Command::EditSwitchMute
             | Command::EditSwitchLock
             | Command::EditSwitchInvertPhase
@@ -6489,6 +6494,69 @@ impl AppState {
         Some((media.stereo.to_vec(first, count), rate, event.start))
     }
 
+    /// The cut *Corte suave* works on: two selected events of a video track that meet, else the cut
+    /// at the cursor on the selected track (or on any video track when none is selected).
+    fn smooth_cut_target(&self) -> Option<(TrackId, EventId, EventId)> {
+        let fps = self.project.settings.fps;
+        let tolerance = (0.5 / fps.max(1.0)).max(neoveg_engine::smooth_cut::CUT_TOLERANCE);
+        let refs = self.selection.refs();
+        if refs.len() == 2 && refs[0].0 == refs[1].0 {
+            let track = self.timeline.track(refs[0].0)?;
+            let mut pair: Vec<&TrackEvent> = refs
+                .iter()
+                .filter_map(|(_, id)| track.events.iter().find(|e| e.id == *id))
+                .collect();
+            pair.sort_by(|a, b| a.start.total_cmp(&b.start));
+            if let [left, right] = pair[..] {
+                return Some((track.id, left.id, right.id));
+            }
+        }
+        let tracks: Vec<TrackId> = match self.selected_track.and_then(|id| self.timeline.track(id))
+        {
+            Some(t) if t.kind == TrackKind::Video => vec![t.id],
+            _ => self
+                .timeline
+                .tracks
+                .iter()
+                .filter(|t| t.kind == TrackKind::Video)
+                .map(|t| t.id)
+                .collect(),
+        };
+        tracks.into_iter().find_map(|id| {
+            neoveg_engine::smooth_cut::find_cut(&self.timeline, id, self.playhead, tolerance)
+                .map(|(l, r)| (id, l.1, r.1))
+        })
+    }
+
+    /// *Corte suave* (`Editar > Corte suave`): the cut gets an overlap and the optical-flow morph.
+    fn smooth_cut_here(&mut self) {
+        let Some((track, left, right)) = self.smooth_cut_target() else {
+            self.status =
+                "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois".into();
+            return;
+        };
+        let overlap =
+            neoveg_engine::smooth_cut::OVERLAP_FRAMES / self.project.settings.fps.max(1.0);
+        let source_len = self.source_len(track, left);
+        match neoveg_engine::smooth_cut::smooth_cut(
+            &self.timeline,
+            track,
+            left,
+            right,
+            overlap,
+            source_len,
+        ) {
+            Some(command) => {
+                self.history.execute(&mut self.timeline, command);
+                self.last_frame_key = None;
+                self.status = "Corte suave aplicado".into();
+            }
+            None => {
+                self.status = "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave".into();
+            }
+        }
+    }
+
     /// *Sincronizar por áudio*: the last event selected stays where it is and every other selected
     /// event is moved to where its sound lines up with it; one undo step.
     fn sync_selection_by_audio(&mut self) {
@@ -7378,6 +7446,7 @@ impl AppState {
             Command::SelectionSetOut => self.set_selection_edge(false),
             Command::EditGroup => self.group_selection(),
             Command::EditSyncByAudio => self.sync_selection_by_audio(),
+            Command::EditSmoothCut => self.smooth_cut_here(),
             Command::EditUngroup => self.ungroup_selection(),
             Command::EditRemoveFromGroup => self.remove_selection_from_groups(),
             Command::EditSelectGroup => self.select_group_members(),
@@ -8652,6 +8721,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             for command in [
                 Command::EditGroup,
                 Command::EditSyncByAudio,
+                Command::EditSmoothCut,
                 Command::EditUngroup,
                 Command::EditRemoveFromGroup,
                 Command::EditSelectGroup,
@@ -16794,6 +16864,16 @@ mod tests {
         run(&mut s, Command::EditSyncByAudio);
         assert_eq!(s.timeline, before);
         assert!(s.status.contains("Não foi possível") || s.status.contains("referência"));
+    }
+
+    #[test]
+    fn the_smooth_cut_command_says_what_it_needs_when_the_cursor_is_not_on_a_cut() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        assert!(s.command_enabled(Command::EditSmoothCut));
+        run(&mut s, Command::EditSmoothCut);
+        assert!(s.status.contains("corte"));
+        assert!(!s.history.undo(&mut s.timeline));
     }
 
     #[test]

@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "Obturador rodante (manual)",
   "Inclinação horizontal (por linha)": "Inclinación horizontal (por línea)",
   "Inclinação vertical (por coluna)": "Inclinación vertical (por columna)",
-  "Ampliar para esconder as bordas": "Ampliar para ocultar los bordes"
+  "Ampliar para esconder as bordas": "Ampliar para ocultar los bordes",
+  "Corte suave": "Corte suave",
+  "Corte suave aplicado": "Corte suave aplicado",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Coloca el cursor en un corte entre dos eventos de vídeo, o selecciona los dos",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "No se puede suavizar este corte: el primer evento no tiene material después de su final, o el corte ya es suave"
 }

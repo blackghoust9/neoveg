@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "ローリングシャッター（手動）",
   "Inclinação horizontal (por linha)": "水平方向の傾き（行ごと）",
   "Inclinação vertical (por coluna)": "垂直方向の傾き（列ごと）",
-  "Ampliar para esconder as bordas": "端を隠すために拡大"
+  "Ampliar para esconder as bordas": "端を隠すために拡大",
+  "Corte suave": "スムーズカット",
+  "Corte suave aplicado": "スムーズカットを適用しました",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "2 つのビデオイベントの間のカットにカーソルを置くか、両方を選択してください",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "このカットは滑らかにできません: 最初のイベントの終了後に残りのメディアがないか、すでに滑らかです"
 }

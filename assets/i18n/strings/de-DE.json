@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "Rolling Shutter (manuell)",
   "Inclinação horizontal (por linha)": "Horizontale Neigung (pro Zeile)",
   "Inclinação vertical (por coluna)": "Vertikale Neigung (pro Spalte)",
-  "Ampliar para esconder as bordas": "Vergrößern, um die Ränder zu verbergen"
+  "Ampliar para esconder as bordas": "Vergrößern, um die Ränder zu verbergen",
+  "Corte suave": "Sanfter Schnitt",
+  "Corte suave aplicado": "Sanfter Schnitt angewendet",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Den Cursor auf einen Schnitt zwischen zwei Videoereignissen setzen oder beide auswählen",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Dieser Schnitt lässt sich nicht glätten: Das erste Ereignis hat nach seinem Ende kein Material mehr, oder der Schnitt ist bereits sanft"
 }

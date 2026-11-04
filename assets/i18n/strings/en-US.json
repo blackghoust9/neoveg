@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "Rolling shutter (manual)",
   "Inclinação horizontal (por linha)": "Horizontal skew (per row)",
   "Inclinação vertical (por coluna)": "Vertical skew (per column)",
-  "Ampliar para esconder as bordas": "Enlarge to hide the edges"
+  "Ampliar para esconder as bordas": "Enlarge to hide the edges",
+  "Corte suave": "Smooth cut",
+  "Corte suave aplicado": "Smooth cut applied",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Put the cursor on a cut between two video events, or select both",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "This cut cannot be smoothed: the first event has no media left after its end, or the cut is smooth already"
 }

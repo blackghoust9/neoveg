@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "Скользящий затвор (вручную)",
   "Inclinação horizontal (por linha)": "Горизонтальный наклон (по строке)",
   "Inclinação vertical (por coluna)": "Вертикальный наклон (по столбцу)",
-  "Ampliar para esconder as bordas": "Увеличить, чтобы скрыть края"
+  "Ampliar para esconder as bordas": "Увеличить, чтобы скрыть края",
+  "Corte suave": "Плавная склейка",
+  "Corte suave aplicado": "Плавная склейка применена",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Поставьте курсор на стык двух видеособытий или выделите оба",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Этот стык нельзя сгладить: у первого события нет материала после конца или стык уже плавный"
 }

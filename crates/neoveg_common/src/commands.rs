@@ -131,6 +131,7 @@ commands! {
     EditSelectNone => ("edit.select_none", "Desfazer seleção", Edit, true),
     EditGroup => ("edit.group", "Agrupar eventos", Edit, true),
     EditSyncByAudio => ("edit.sync_by_audio", "Sincronizar por áudio", Edit, true),
+    EditSmoothCut => ("edit.smooth_cut", "Corte suave", Edit, true),
     EditUngroup => ("edit.ungroup", "Desagrupar (dissolver o grupo inteiro)", Edit, true),
     EditRemoveFromGroup => ("edit.remove_from_group", "Remover evento(s) do grupo", Edit, true),
     EditSelectGroup => ("edit.select_group", "Selecionar todos os eventos do grupo", Edit, true),

@@ -1500,5 +1500,9 @@
   "Obturador de rolamento (manual)": "Obturateur roulant (manuel)",
   "Inclinação horizontal (por linha)": "Inclinaison horizontale (par ligne)",
   "Inclinação vertical (por coluna)": "Inclinaison verticale (par colonne)",
-  "Ampliar para esconder as bordas": "Agrandir pour masquer les bords"
+  "Ampliar para esconder as bordas": "Agrandir pour masquer les bords",
+  "Corte suave": "Coupe douce",
+  "Corte suave aplicado": "Coupe douce appliquée",
+  "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Placez le curseur sur une coupe entre deux événements vidéo, ou sélectionnez les deux",
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Cette coupe ne peut pas être adoucie : le premier événement n'a plus de média après sa fin, ou la coupe est déjà douce"
 }
