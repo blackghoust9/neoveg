@@ -16,8 +16,6 @@
   <img alt="Visão geral do Neoveg: Mídia, Visualização, Barramento Master e Linha do Tempo" src="docs/screenshots/ui_main_layout.png" width="920">
 </p>
 
-> **Em migração.** A branch `refactor/100-percent-rust` substitui a arquitetura anterior (C# / Avalonia, Rust FFI, C++ e Python) por um único workspace Rust. Os diretórios legados (`desktop-host/`, `desktop-host.Tests/`, `rust-core/`, `cpp-extensions/`, `python-backend/`) foram removidos; continuam no histórico do Git (commit `36b1d19` e anteriores).
-
 Consulte [AGENTS.md](./AGENTS.md) para os padrões de arquitetura e codificação (Parte I) e [REQUIREMENTS.md](./REQUIREMENTS.md) para o detalhe de versões.
 
 ## Galeria visual
