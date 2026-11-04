@@ -350,7 +350,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewFocusTimeline, &["Alt+0"]),
     (Command::ViewLayoutLoad, &["Alt+D"]),
     (Command::ViewLayoutSave, &["Ctrl+Alt+D"]),
-    (Command::ViewTrimMonitor, &["Ctrl+Alt+Shift+J"]),
+    (Command::ViewTrimMonitor, &["Ctrl+Alt+Shift+O"]),
     (Command::ViewCommandPalette, &["Ctrl+Alt+P"]),
     (Command::ViewTrimmer, &["Alt+2"]),
     (Command::ViewMasterBus, &["Alt+3"]),
