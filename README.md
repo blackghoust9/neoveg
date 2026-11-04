@@ -443,7 +443,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [ ] Escolha do dispositivo de entrada, armar faixas e gravação com monitoramento
 
 **Vídeo e composição**
-- [ ] Composição multicamada na prévia e modos de composição (mistura)
+- [x] Composição multicamada na prévia e modos de composição (mistura): a prévia vai pelo compositor sempre que há mais de um clipe visível, um efeito ou uma faixa aninhada (`request_composite_frame`, o mesmo pedido da renderização), empilhando as faixas de baixo para cima com nível, esmaecimento, transições e *Pan/Crop*; cada faixa mistura com o seu modo (os 17 modos, na CPU e na GPU: `Track::composite_mode`, Painel de compositores) e as faixas mãe/filha formam grupos (ver *Faixas de composição pai/filho*). O que falta fica nos itens próprios: o modo no cabeçalho da faixa, efeitos e movimento da faixa-mãe sobre o grupo e a máscara de FX
 - [x] Track Motion, Pan/Crop de evento com caixa de seleção e keyframes (faltam máscaras, centro de rotação próprio e o botão no cabeçalho do evento)
 - [ ] Transições: as oito básicas estão prontas; faltam categorias, presets, miniaturas e transições 3D. Faltam também os efeitos de vídeo na GPU e o OFX
 - [x] LUT de cor do projeto (`.cube` 1D e 3D, interpolação trilinear) aplicada ao quadro decodificado na thread de vídeo; Ferramentas → LUT de cor do vídeo (incluídas em `assets/luts` ou arquivo próprio), um passo de desfazer
