@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "In neue Spur gerendert: {}",
   "Sincronizar por áudio": "Per Audio synchronisieren",
   "{} eventos sincronizados por áudio": "{} Ereignisse per Audio synchronisiert",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} Ereignisse per Audio synchronisiert ({} ohne Übereinstimmung)"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} Ereignisse per Audio synchronisiert ({} ohne Übereinstimmung)",
+  "Obturador de rolamento (manual)": "Rolling Shutter (manuell)",
+  "Inclinação horizontal (por linha)": "Horizontale Neigung (pro Zeile)",
+  "Inclinação vertical (por coluna)": "Vertikale Neigung (pro Spalte)",
+  "Ampliar para esconder as bordas": "Vergrößern, um die Ränder zu verbergen"
 }

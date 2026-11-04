@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "已渲染到新轨道：{}",
   "Sincronizar por áudio": "按音频同步",
   "{} eventos sincronizados por áudio": "已按音频同步 {} 个事件",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "已按音频同步 {} 个事件（{} 个无匹配）"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "已按音频同步 {} 个事件（{} 个无匹配）",
+  "Obturador de rolamento (manual)": "卷帘快门（手动）",
+  "Inclinação horizontal (por linha)": "水平倾斜（每行）",
+  "Inclinação vertical (por coluna)": "垂直倾斜（每列）",
+  "Ampliar para esconder as bordas": "放大以隐藏边缘"
 }

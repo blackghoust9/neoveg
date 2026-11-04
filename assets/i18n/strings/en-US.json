@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "Rendered to a new track: {}",
   "Sincronizar por áudio": "Sync by audio",
   "{} eventos sincronizados por áudio": "{} events synchronized by audio",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} events synchronized by audio ({} without a match)"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} events synchronized by audio ({} without a match)",
+  "Obturador de rolamento (manual)": "Rolling shutter (manual)",
+  "Inclinação horizontal (por linha)": "Horizontal skew (per row)",
+  "Inclinação vertical (por coluna)": "Vertical skew (per column)",
+  "Ampliar para esconder as bordas": "Enlarge to hide the edges"
 }

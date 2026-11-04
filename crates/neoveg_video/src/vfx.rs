@@ -92,6 +92,7 @@ pub const COLOR_REPLACE: &str = "color_replace";
 pub const PROC_AMP: &str = "proc_amp";
 pub const THREE_WAY_COLOR: &str = "three_way_color";
 pub const COLOR_CURVES: &str = "color_curves";
+pub const ROLLING_SHUTTER: &str = "rolling_shutter";
 
 /// Every effect the video layer can run, in the order of the effect list.
 pub const EFFECTS: &[EffectSpec] = &[
@@ -1826,6 +1827,39 @@ pub const EFFECTS: &[EffectSpec] = &[
             },
         ],
     },
+    // Manual repair of the skew a rolling shutter gives to something that moves: the picture is
+    // sheared back by hand (the repair of the reference analyses the motion between frames, which
+    // a chain that sees one frame at a time cannot do)
+    EffectSpec {
+        id: ROLLING_SHUTTER,
+        label: "Obturador de rolamento (manual)",
+        params: &[
+            ParamSpec {
+                id: "skew_x",
+                label: "Inclinação horizontal (por linha)",
+                min: -0.5,
+                max: 0.5,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "skew_y",
+                label: "Inclinação vertical (por coluna)",
+                min: -0.5,
+                max: 0.5,
+                default: 0.0,
+                percent: true,
+            },
+            ParamSpec {
+                id: "zoom",
+                label: "Ampliar para esconder as bordas",
+                min: 1.0,
+                max: 2.0,
+                default: 1.0,
+                percent: false,
+            },
+        ],
+    },
 ];
 
 /// The registry entry of `id`.
@@ -1911,6 +1945,11 @@ impl VideoEffect {
             MIRROR => Resolved::Mirror {
                 angle: self.value(spec, "angle"),
                 center: [self.value(spec, "center_x"), self.value(spec, "center_y")],
+            },
+            ROLLING_SHUTTER => Resolved::RollingShutter {
+                skew_x: self.value(spec, "skew_x"),
+                skew_y: self.value(spec, "skew_y"),
+                zoom: self.value(spec, "zoom"),
             },
             SEPIA => Resolved::Sepia {
                 tint: [
@@ -2199,6 +2238,14 @@ pub enum Resolved {
         angle: f32,
         center: [f32; 2],
     },
+    /// A shear about the centre of the frame (see [`rolling_shutter`]): `skew_x` is the horizontal
+    /// shift per unit of distance from the centre row, `skew_y` the vertical one per column, and
+    /// `zoom` enlarges the picture first.
+    RollingShutter {
+        skew_x: f32,
+        skew_y: f32,
+        zoom: f32,
+    },
     /// A filter colour on the luma of the picture, `strength` `0..=1` of the way.
     Sepia {
         tint: [f32; 3],
@@ -2374,6 +2421,11 @@ impl Resolved {
             // Blocks of a single pixel are the picture itself
             Resolved::Pixelate { h_size, v_size } => h_size <= 0.0 && v_size <= 0.0,
             Resolved::Mirror { .. } => false,
+            Resolved::RollingShutter {
+                skew_x,
+                skew_y,
+                zoom,
+            } => skew_x == 0.0 && skew_y == 0.0 && zoom == 1.0,
             Resolved::Sepia { strength, .. } => strength <= 0.0,
             Resolved::Swirl { ratio, .. } => ratio == 0.0,
             Resolved::RadialBlur { level, .. } => level <= 0.0,
@@ -2870,6 +2922,52 @@ fn mirror(work: &Work, angle: f32, center: [f32; 2]) -> Work {
                 let (rx, ry) = (qx - 2.0 * side * normal.0, qy - 2.0 * side * normal.1);
                 px.push(sample_work(work, rx, h as f32 - ry));
             }
+        }
+    }
+    Work {
+        width: w,
+        height: h,
+        px,
+    }
+}
+
+/// Where the picture of the rolling shutter repair is read from for the pixel at `(x, y)` (centres
+/// at `+ 0.5`, origin at the top left) of a `width` by `height` frame: the offset from the centre is
+/// first divided by `zoom`, then each row is shifted by `skew_x` times its distance from the centre
+/// row and each column by `skew_y` times its distance from the centre column. A skew of `0` and a
+/// zoom of `1` read the pixel itself.
+pub fn rolling_shutter_source(
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    skew_x: f32,
+    skew_y: f32,
+    zoom: f32,
+) -> (f32, f32) {
+    let zoom = zoom.max(1e-3);
+    let (dx, dy) = ((x - width * 0.5) / zoom, (y - height * 0.5) / zoom);
+    (
+        width * 0.5 + dx + skew_x * dy,
+        height * 0.5 + dy + skew_y * dx,
+    )
+}
+
+fn rolling_shutter(work: &Work, skew_x: f32, skew_y: f32, zoom: f32) -> Work {
+    let (w, h) = (work.width, work.height);
+    let mut px = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let (sx, sy) = rolling_shutter_source(
+                x as f32 + 0.5,
+                y as f32 + 0.5,
+                w as f32,
+                h as f32,
+                skew_x,
+                skew_y,
+                zoom,
+            );
+            px.push(sample_work(work, sx, sy));
         }
     }
     Work {
@@ -3647,6 +3745,11 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
         } => brightness_contrast(work, brightness, contrast),
         Resolved::Pixelate { h_size, v_size } => *work = pixelate(work, h_size, v_size),
         Resolved::Mirror { angle, center } => *work = mirror(work, angle, center),
+        Resolved::RollingShutter {
+            skew_x,
+            skew_y,
+            zoom,
+        } => *work = rolling_shutter(work, skew_x, skew_y, zoom),
         Resolved::Sepia { tint, strength } => sepia(work, tint, strength),
         Resolved::Swirl {
             center,
@@ -4733,5 +4836,39 @@ mod curves_tests {
             (green_quarter - expected).abs() < 0.01,
             "{green_quarter} vs {expected}"
         );
+    }
+
+    #[test]
+    fn the_rolling_shutter_repair_shears_the_rows_back_and_leaves_a_neutral_setting_alone() {
+        let mut frame = FrameBuffer::solid(8, 8, [0, 0, 0, 255]);
+        for y in 0..8usize {
+            for x in 0..8usize {
+                frame.rgba[(y * 8 + x) * 4] = (x * 30) as u8;
+            }
+        }
+        let mut same = frame.clone();
+        apply_chain_cpu(&mut same, &[VideoEffect::new(ROLLING_SHUTTER)]);
+        assert_eq!(
+            same.rgba, frame.rgba,
+            "no skew and no zoom is the picture itself"
+        );
+        // A positive skew reads the rows below the centre from the right and the rows above it
+        // from the left, so a picture that grows to the right gets brighter at the bottom row
+        let mut sheared = frame.clone();
+        apply_chain_cpu(
+            &mut sheared,
+            &[VideoEffect::new(ROLLING_SHUTTER).with("skew_x", 0.3)],
+        );
+        let at = |f: &FrameBuffer, x: usize, y: usize| f.rgba[(y * 8 + x) * 4];
+        assert!(at(&sheared, 3, 7) > at(&frame, 3, 7));
+        assert!(at(&sheared, 3, 0) < at(&frame, 3, 0));
+        // The source point is the pixel itself without the repair, and moves with the skew
+        let (sx, sy) = rolling_shutter_source(2.5, 6.5, 8.0, 8.0, 0.0, 0.0, 1.0);
+        assert_eq!((sx, sy), (2.5, 6.5));
+        let (sx, _) = rolling_shutter_source(2.5, 6.5, 8.0, 8.0, 0.5, 0.0, 1.0);
+        assert!((sx - (2.5 + 0.5 * 2.5)).abs() < 1e-6);
+        // Zoom reads nearer to the centre
+        let (zx, _) = rolling_shutter_source(0.5, 4.0, 8.0, 8.0, 0.0, 0.0, 2.0);
+        assert!((zx - 2.25).abs() < 1e-6);
     }
 }

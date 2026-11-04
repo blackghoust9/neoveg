@@ -243,6 +243,17 @@ fn mirror(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
+// a = horizontal skew, b = vertical skew, c = zoom (see `rolling_shutter_source` in vfx.rs)
+@compute @workgroup_size(8, 8, 1)
+fn rolling_shutter(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= p.width || id.y >= p.height) { return; }
+    let w = f32(p.width);
+    let h = f32(p.height);
+    let d = vec2<f32>(f32(id.x) + 0.5 - w * 0.5, f32(id.y) + 0.5 - h * 0.5) / max(p.c, 0.001);
+    let s = vec2<f32>(w * 0.5 + d.x + p.a * d.y, h * 0.5 + d.y + p.b * d.x);
+    dst[id.y * p.width + id.x] = sample_bilinear(s.x, s.y);
+}
+
 // a = strength, b/c/d = filter colour
 @compute @workgroup_size(8, 8, 1)
 fn sepia(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -1103,6 +1114,7 @@ pub struct VfxGpu {
     brightness_contrast: wgpu::ComputePipeline,
     pixelate: wgpu::ComputePipeline,
     mirror: wgpu::ComputePipeline,
+    rolling_shutter: wgpu::ComputePipeline,
     sepia: wgpu::ComputePipeline,
     swirl: wgpu::ComputePipeline,
     radial_blur: wgpu::ComputePipeline,
@@ -1168,6 +1180,7 @@ enum Pass {
     BrightnessContrast,
     Pixelate,
     Mirror,
+    RollingShutter,
     Sepia,
     Swirl,
     RadialBlur,
@@ -1265,6 +1278,7 @@ impl VfxGpu {
             brightness_contrast: make("brightness_contrast"),
             pixelate: make("pixelate"),
             mirror: make("mirror"),
+            rolling_shutter: make("rolling_shutter"),
             sepia: make("sepia"),
             swirl: make("swirl"),
             radial_blur: make("radial_blur"),
@@ -1320,6 +1334,7 @@ impl VfxGpu {
             Pass::BrightnessContrast => &self.brightness_contrast,
             Pass::Pixelate => &self.pixelate,
             Pass::Mirror => &self.mirror,
+            Pass::RollingShutter => &self.rolling_shutter,
             Pass::Sepia => &self.sepia,
             Pass::Swirl => &self.swirl,
             Pass::RadialBlur => &self.radial_blur,
@@ -1827,6 +1842,19 @@ impl VfxGpu {
                     run(&mut encoder, Pass::Mirror, p, cur, dst, None, None);
                     cur = dst;
                 }
+                Resolved::RollingShutter {
+                    skew_x,
+                    skew_y,
+                    zoom,
+                } => {
+                    let dst = (cur + 1) % 3;
+                    let mut p = Params::new(w, h);
+                    p.a = skew_x;
+                    p.b = skew_y;
+                    p.c = zoom;
+                    run(&mut encoder, Pass::RollingShutter, p, cur, dst, None, None);
+                    cur = dst;
+                }
                 Resolved::Sepia { tint, strength } => {
                     let dst = (cur + 1) % 3;
                     let mut p = Params::new(w, h);
@@ -2184,7 +2212,7 @@ mod tests {
     use crate::vfx::{
         apply_chain_cpu, resolve_chain, VideoEffect, BLACK_AND_WHITE, BRIGHTNESS_CONTRAST,
         GAUSSIAN_BLUR, HSL_ADJUST, INVERT, LINEAR_BLUR, MEDIAN, MIRROR, PIXELATE, RADIAL_BLUR,
-        SEPIA, SHARPEN, SWIRL, UNSHARP_MASK, VIGNETTE,
+        ROLLING_SHUTTER, SEPIA, SHARPEN, SWIRL, UNSHARP_MASK, VIGNETTE,
     };
 
     fn gpu() -> Option<VfxGpu> {
@@ -2264,6 +2292,10 @@ mod tests {
             VideoEffect::new(MIRROR)
                 .with("angle", 270.0)
                 .with("center_y", 0.7),
+            VideoEffect::new(ROLLING_SHUTTER)
+                .with("skew_x", 0.12)
+                .with("skew_y", -0.07)
+                .with("zoom", 1.15),
             VideoEffect::new(SEPIA),
             VideoEffect::new(SEPIA)
                 .with("strength", 0.4)

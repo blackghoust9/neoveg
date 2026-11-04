@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "新しいトラックにレンダリングしました: {}",
   "Sincronizar por áudio": "オーディオで同期",
   "{} eventos sincronizados por áudio": "{} 個のイベントをオーディオで同期しました",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} 個のイベントをオーディオで同期しました（{} 個は一致なし）"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} 個のイベントをオーディオで同期しました（{} 個は一致なし）",
+  "Obturador de rolamento (manual)": "ローリングシャッター（手動）",
+  "Inclinação horizontal (por linha)": "水平方向の傾き（行ごと）",
+  "Inclinação vertical (por coluna)": "垂直方向の傾き（列ごと）",
+  "Ampliar para esconder as bordas": "端を隠すために拡大"
 }

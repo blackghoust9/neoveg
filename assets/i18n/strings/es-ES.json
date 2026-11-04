@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "Renderizado en una pista nueva: {}",
   "Sincronizar por áudio": "Sincronizar por audio",
   "{} eventos sincronizados por áudio": "{} eventos sincronizados por audio",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} eventos sincronizados por audio ({} sin coincidencia)"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} eventos sincronizados por audio ({} sin coincidencia)",
+  "Obturador de rolamento (manual)": "Obturador rodante (manual)",
+  "Inclinação horizontal (por linha)": "Inclinación horizontal (por línea)",
+  "Inclinação vertical (por coluna)": "Inclinación vertical (por columna)",
+  "Ampliar para esconder as bordas": "Ampliar para ocultar los bordes"
 }

@@ -1496,5 +1496,9 @@
   "Renderizado para nova faixa: {}": "Рендер на новую дорожку: {}",
   "Sincronizar por áudio": "Синхронизировать по звуку",
   "{} eventos sincronizados por áudio": "Событий синхронизировано по звуку: {}",
-  "{} eventos sincronizados por áudio ({} sem correspondência)": "Событий синхронизировано по звуку: {} (без совпадения: {})"
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "Событий синхронизировано по звуку: {} (без совпадения: {})",
+  "Obturador de rolamento (manual)": "Скользящий затвор (вручную)",
+  "Inclinação horizontal (por linha)": "Горизонтальный наклон (по строке)",
+  "Inclinação vertical (por coluna)": "Вертикальный наклон (по столбцу)",
+  "Ampliar para esconder as bordas": "Увеличить, чтобы скрыть края"
 }
