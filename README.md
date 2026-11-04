@@ -645,6 +645,27 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [ ] Opções de interface dos manuais: janela de explorador unificado, botão de alternar o comportamento da barra de espaço, ocultar arquivos de picos
 - [ ] Modos de visualização reais da prévia (desentrelaçamento, rotação, HDR) e das propriedades que hoje só ficam gravadas no projeto: formato de pixel, gama de composição, qualidade da renderização, desfoque de movimento
 
+### Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)
+
+Fonte: `manuais/markdown/DaVinci-Resolve-20_Beginners-Guide.md` (*The Beginner's Guide to DaVinci Resolve 20*, 643 páginas; na tabela, **p.** é a página impressa do livro e a seção `## Página N` do `.md` é a impressa mais 25). Regra do projeto: o guia é só fonte de ideias de **capacidades**; nomes, atalhos e comportamento continuam os do VEGAS Pro, e nada de texto, ícone ou tela do Resolve entra no código. O que o Neoveg já tem ou já está no roteiro acima (smart bins e subclipes, rodas de cor, janelas/máscaras, rastreamento, LUTs, cópia de correção por colar atributos, redução de ruído, fades, ducking, gravação de locução, sincronizar por áudio, medidores de loudness, predefinições de renderização) não foi repetido. Sem equivalente no VEGAS e fora do escopo: composição em nós do Fusion, páginas de trabalho separadas, Blackmagic Cloud e bibliotecas de projeto.
+
+- [ ] **Fila de renderização** com vários trabalhos (p.581-586): enfileirar renderizações com formatos e intervalos diferentes (região de laço, seleção, projeto) e rodar em sequência com a lista de estados; hoje só há uma por vez (também limita *Renderizar para nova faixa*)
+- [ ] **Exportação rápida** (p.174): um comando que renderiza o projeto com um destino pronto (web, arquivo, só áudio) sem abrir o diálogo, ligado às predefinições de renderização por finalidade
+- [ ] **Prévia em tela cheia** (p.173): a visualização ocupando a tela (ou outro monitor) para revisar, com `Esc` para voltar
+- [ ] **Duplicar o projeto como nova aba** (p.70): copiar a linha do tempo atual numa aba nova para testar uma versão alternativa da edição sem perder a original (os projetos em abas já existem)
+- [ ] **Inserir terminando no cursor** (*backtiming*, p.59): colocar o evento ou a mídia com o **fim** (e não o começo) no cursor, ou entre o cursor e a marca, útil para preencher até um ponto fixo
+- [ ] **Adicionar ao fim da faixa** (p.42): acrescentar a mídia logo depois do último evento da faixa selecionada
+- [ ] **Substituir evento pelo clipe da fonte** (*Replace edit*, p.89): trocar o conteúdo de um evento mantendo posição e comprimento, alinhando o quadro do cursor com o quadro da fonte
+- [ ] **Cor automática** (p.211): balanço de branco e níveis calculados por análise do quadro, aplicados no corretor de cor do evento como um ponto de partida editável
+- [ ] **Galeria de quadros de referência** (p.306): guardar quadros com a correção aplicada e compará-los com o quadro atual por cortina ou lado a lado (o VEGAS copia o quadro; a galeria é nova)
+- [ ] **Destacar eventos sem correção de cor** (p.300): filtro ou marca visível nos eventos de vídeo que ainda não têm correção, para revisar o filme inteiro
+- [ ] **Exportar e importar a correção de cor** (p.317): gravar a correção de um evento em arquivo e aplicá-la em outro projeto (a predefinição de efeitos de vídeo já existe; falta o arquivo da correção primária)
+- [ ] **Nivelar diálogo** (*AI Dialogue Leveler*, p.442): um efeito de áudio que iguala o volume da fala ao longo do evento (compressão adaptativa com expansor, sem IA)
+- [ ] **Alinhar ao transiente** (*aligning sound effects*, p.467): mover um evento de áudio para que o primeiro pico forte caia no cursor ou no marcador mais próximo
+- [ ] **Renomear eventos e mídias por metadados** (p.384): modelo de nome com data, câmera e número a partir dos metadados do arquivo
+- [ ] **Alvo de loudness na renderização** (p.571): normalizar a mixagem para um alvo (EBU R128, streaming, podcast) ao renderizar, usando o medidor BS.1770 que já existe
+- [ ] **Reenquadrar para vertical** (p.545-566): duplicar o projeto em 9:16 e reenquadrar cada evento (Pan/Crop) com um assistente que centraliza o assunto (sem IA, com ajuste manual por evento)
+
 ## Integração e adaptação do FilmCraft
 
 O [FilmCraft](https://github.com/storytold/filmcraft) (`MIT OR Apache-2.0`, integrado sob os termos da licença **MIT** em [`third_party/filmcraft/`](./third_party/filmcraft/)) é um editor não linear escrito 100 % em Rust seguro (`unsafe_code = "forbid"`). Ele oferece dezenas de motores de baixo nível — DSP de áudio, codecs de vídeo e áudio, contêineres profissionais, tipografia, intercâmbio, legendas, visão computacional e shaders `wgpu` — que permitem eliminar pendências técnicas do Neoveg sem depender de bibliotecas externas em C/C++.
