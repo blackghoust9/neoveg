@@ -1471,5 +1471,16 @@
   "SMPTE Non-Drop (29,97 fps)": "SMPTE Non-Drop (29,97 i/s)",
   "SMPTE Drop Frame (29,97 fps)": "SMPTE Drop Frame (29,97 i/s)",
   "SMPTE (30 fps)": "SMPTE (30 i/s)",
-  "CD de áudio (75 fps)": "CD audio (75 i/s)"
+  "CD de áudio (75 fps)": "CD audio (75 i/s)",
+  "Importar predefinições…": "Importer des préréglages…",
+  "Lê de um arquivo as predefinições dos efeitos de vídeo": "Lit dans un fichier les préréglages des effets vidéo",
+  "Exportar predefinições…": "Exporter les préréglages…",
+  "Predefinição…": "Préréglage…",
+  "Nenhuma predefinição salva": "Aucun préréglage enregistré",
+  "Guarda os valores deste efeito sob esse nome": "Garde les valeurs de cet effet sous ce nom",
+  "Predefinição {} salva": "Préréglage {} enregistré",
+  "Predefinições exportadas: {}": "Préréglages exportés : {}",
+  "Não foi possível exportar as predefinições: {}": "Impossible d'exporter les préréglages : {}",
+  "{} predefinições importadas": "{} préréglages importés",
+  "Não foi possível importar as predefinições: {}": "Impossible d'importer les préréglages : {}"
 }

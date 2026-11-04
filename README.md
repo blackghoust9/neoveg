@@ -391,6 +391,7 @@ Vêm das notas de `docs_obsidian/05 - Referencia Funcional/` (resumo em palavras
 
 **Áudio**
 - [ ] VST3 em processo isolado, reaproveitando o modelo de latência do `BlockMixer`, e gerenciador de plug-ins.
+- [x] Predefinições dos efeitos de vídeo (ideia do Premiere Pro CC 2015, p.476, com a semântica de predefinições do VEGAS: cada uma pertence a um efeito e vale para todos os projetos): em cada efeito do painel *Efeitos de vídeo* há a lista *Predefinição…*, a caixa de nome com *Salvar* e *Excluir*, e no topo do painel *Importar predefinições…* e *Exportar predefinições…* (JSON). Aplicar uma predefinição é um passo de desfazer; os valores são limitados à faixa do efeito e o que faltar fica no padrão. Fica em `Preferences::video_effect_presets` (`neoveg_common::effect_preset`: salvar, excluir, exportar, importar com saneamento e limite de 512). Falta o mesmo para os efeitos de áudio (item abaixo). Os testes novos ainda não rodaram neste PC; os de `effect_preset.rs` rodaram num harness avulso
 - [ ] Predefinições (presets) de cada efeito de áudio e importação de presets.
 
 **Janelas e projeto**

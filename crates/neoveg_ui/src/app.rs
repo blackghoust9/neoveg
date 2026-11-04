@@ -6450,6 +6450,59 @@ impl AppState {
         }
     }
 
+    /// Keeps the effect at `index` of the chain `target` as a preset called `name`.
+    fn save_effect_preset(&mut self, target: VideoFxTarget, index: usize, name: &str) {
+        let preset = vfxe::chain(&self.timeline, target)
+            .and_then(|chain| chain.get(index))
+            .and_then(|effect| video_fx_panel::preset_of(effect, name));
+        if let Some(preset) = preset {
+            if neoveg_common::effect_preset::save(&mut self.prefs.video_effect_presets, &preset) {
+                self.persist_preferences();
+                self.status = tr_args("Predefinição {} salva", &[&preset.name]);
+            }
+        }
+    }
+
+    /// Writes every preset of the video effects to a file.
+    fn export_effect_presets(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Predefinições de efeitos (JSON)", &["json"])
+            .set_file_name("neoveg_predefinicoes_video.json")
+            .save_file()
+        else {
+            return;
+        };
+        let text = neoveg_common::effect_preset::to_json(&self.prefs.video_effect_presets, None);
+        self.status = match std::fs::write(&path, text) {
+            Ok(()) => tr_args("Predefinições exportadas: {}", &[&path.display()]),
+            Err(e) => tr_args("Não foi possível exportar as predefinições: {}", &[&e]),
+        };
+    }
+
+    /// Reads presets from a file and adds them to the ones kept (the same effect and name replaces).
+    fn import_effect_presets(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Predefinições de efeitos (JSON)", &["json"])
+            .pick_file()
+        else {
+            return;
+        };
+        let read = std::fs::read_to_string(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| neoveg_common::effect_preset::from_json(&text));
+        self.status = match read {
+            Ok(incoming) => {
+                let kept = neoveg_common::effect_preset::merge(
+                    &mut self.prefs.video_effect_presets,
+                    &incoming,
+                );
+                self.persist_preferences();
+                tr_args("{} predefinições importadas", &[&kept])
+            }
+            Err(e) => tr_args("Não foi possível importar as predefinições: {}", &[&e]),
+        };
+    }
+
     /// Runs what the user did in the video effects panel; each action is one undo step and the
     /// preview is asked for a new frame.
     fn apply_vfx_actions(&mut self, target: VideoFxTarget, actions: Vec<VfxAction>) {
@@ -6470,6 +6523,28 @@ impl AppState {
                 }
                 VfxAction::SetParams { index, values } => {
                     vfxe::set_params(&self.timeline, target, index, &values)
+                }
+                VfxAction::SavePreset { index, name } => {
+                    self.save_effect_preset(target, index, &name);
+                    None
+                }
+                VfxAction::DeletePreset { kind, name } => {
+                    if neoveg_common::effect_preset::remove(
+                        &mut self.prefs.video_effect_presets,
+                        &kind,
+                        &name,
+                    ) {
+                        self.persist_preferences();
+                    }
+                    None
+                }
+                VfxAction::ExportPresets => {
+                    self.export_effect_presets();
+                    None
+                }
+                VfxAction::ImportPresets => {
+                    self.import_effect_presets();
+                    None
                 }
                 VfxAction::FadeColor { bottom, color } => match target {
                     VideoFxTarget::Track(id) if bottom => {
@@ -11718,7 +11793,16 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
             .map(|t| (t.fade_color, t.fade_color_bottom)),
         _ => None,
     };
-    let actions = video_fx_panel::vfx_ui(ui, &mut state.vfx, &title, &chain, scopes, fade_color);
+    let presets = state.prefs.video_effect_presets.clone();
+    let actions = video_fx_panel::vfx_ui(
+        ui,
+        &mut state.vfx,
+        &title,
+        &chain,
+        scopes,
+        fade_color,
+        &presets,
+    );
     // A slider being dragged shows in the preview at once; the project changes on release
     state.vfx_draft = state.vfx.draft_view().map(|(index, values)| VfxDraft {
         target,

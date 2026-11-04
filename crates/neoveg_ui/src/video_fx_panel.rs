@@ -6,6 +6,7 @@
 //! effects themselves (names, parameters, ranges) come from the registry in `neoveg_video::vfx`.
 
 use eframe::egui::{self, Slider};
+use neoveg_common::effect_preset::{self, EffectPreset};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_text;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
@@ -38,6 +39,18 @@ pub enum VfxAction {
         index: usize,
         values: Vec<(String, f32)>,
     },
+    /// Keeps the values of the effect at `index` under `name` (a preset of that effect).
+    SavePreset {
+        index: usize,
+        name: String,
+    },
+    DeletePreset {
+        kind: String,
+        name: String,
+    },
+    /// Writes the presets to a file the user picks / reads some from one.
+    ExportPresets,
+    ImportPresets,
     /// The color the video track fades to (track chain only).
     /// A color of the fade envelope: the bottom one when `bottom` is true.
     FadeColor {
@@ -86,6 +99,8 @@ pub struct VfxPanelState {
     draft: Option<Draft>,
     /// The editor of the colour curves.
     curves: CurveState,
+    /// The name typed for a new preset.
+    preset_name: String,
 }
 
 impl VfxPanelState {
@@ -206,7 +221,37 @@ pub fn format_value(spec: &ParamSpec, value: f32) -> String {
     }
 }
 
+/// The values of every parameter of `spec` when `preset` is applied: the ones it holds clamped to
+/// their ranges, the defaults for the rest.
+pub fn preset_values(spec: &vfx::EffectSpec, preset: &EffectPreset) -> Vec<(String, f32)> {
+    spec.params
+        .iter()
+        .map(|p| {
+            let value = match preset.params.get(p.id) {
+                Some(v) if v.is_finite() => v.clamp(p.min, p.max),
+                _ => p.default,
+            };
+            (p.id.to_owned(), value)
+        })
+        .collect()
+}
+
+/// A preset of `effect` under `name`: every parameter as it is shown.
+pub fn preset_of(effect: &TrackEffect, name: &str) -> Option<EffectPreset> {
+    let spec = vfx::spec(&effect.kind)?;
+    Some(EffectPreset {
+        kind: effect.kind.clone(),
+        name: name.to_owned(),
+        params: spec
+            .params
+            .iter()
+            .map(|p| (p.id.to_owned(), effective_value(effect, p)))
+            .collect(),
+    })
+}
+
 /// Draws the panel and returns what the user did.
+#[allow(clippy::too_many_arguments)]
 pub fn vfx_ui(
     ui: &mut egui::Ui,
     panel: &mut VfxPanelState,
@@ -214,6 +259,7 @@ pub fn vfx_ui(
     chain: &[TrackEffect],
     scopes: VfxScopes,
     fade_colors: Option<([u8; 3], [u8; 3])>,
+    presets: &[EffectPreset],
 ) -> Vec<VfxAction> {
     let mut actions = Vec::new();
     panel.scope = scopes.resolve(panel.scope);
@@ -243,6 +289,24 @@ pub fn vfx_ui(
                     }
                 }
             });
+    });
+    ui.horizontal(|ui| {
+        if ui
+            .small_button(tr("Importar predefinições…"))
+            .on_hover_text(tr("Lê de um arquivo as predefinições dos efeitos de vídeo"))
+            .clicked()
+        {
+            actions.push(VfxAction::ImportPresets);
+        }
+        if ui
+            .add_enabled(
+                !presets.is_empty(),
+                egui::Button::new(tr("Exportar predefinições…")).small(),
+            )
+            .clicked()
+        {
+            actions.push(VfxAction::ExportPresets);
+        }
     });
     if let Some((top, bottom)) = fade_colors {
         for (label, current, is_bottom) in [
@@ -285,7 +349,7 @@ pub fn vfx_ui(
     egui::ScrollArea::vertical().show(ui, |ui| {
         for (index, effect) in chain.iter().enumerate() {
             ui.separator();
-            effect_ui(ui, panel, index, chain.len(), effect, &mut actions);
+            effect_ui(ui, panel, index, chain.len(), effect, presets, &mut actions);
         }
     });
     actions
@@ -297,6 +361,7 @@ fn effect_ui(
     index: usize,
     count: usize,
     effect: &TrackEffect,
+    presets: &[EffectPreset],
     actions: &mut Vec<VfxAction>,
 ) {
     let spec = vfx::spec(&effect.kind);
@@ -354,6 +419,7 @@ fn effect_ui(
     if spec.params.is_empty() {
         ui.weak(tr("Sem parâmetros."));
     }
+    preset_row(ui, panel, index, spec, presets, actions);
     ui.add_enabled_ui(!effect.bypass, |ui| {
         if spec.id == vfx::COLOR_CURVES {
             curves_row(ui, panel, index, effect, actions);
@@ -361,6 +427,67 @@ fn effect_ui(
         }
         for param in spec.params {
             param_row(ui, panel, index, effect, param, actions);
+        }
+    });
+}
+
+/// The presets of one effect: a list to apply one, and a name box to keep the values as they are.
+fn preset_row(
+    ui: &mut egui::Ui,
+    panel: &mut VfxPanelState,
+    index: usize,
+    spec: &vfx::EffectSpec,
+    presets: &[EffectPreset],
+    actions: &mut Vec<VfxAction>,
+) {
+    ui.horizontal(|ui| {
+        egui::ComboBox::from_id_salt(("vfx_preset", index))
+            .selected_text(tr("Predefinição…"))
+            .width(130.0)
+            .show_ui(ui, |ui| {
+                let mut any = false;
+                for preset in effect_preset::for_kind(presets, spec.id) {
+                    any = true;
+                    if ui.selectable_label(false, &preset.name).clicked() {
+                        panel.preset_name = preset.name.clone();
+                        actions.push(VfxAction::SetParams {
+                            index,
+                            values: preset_values(spec, preset),
+                        });
+                    }
+                }
+                if !any {
+                    ui.weak(tr("Nenhuma predefinição salva"));
+                }
+            });
+        ui.add(
+            egui::TextEdit::singleline(&mut panel.preset_name)
+                .hint_text(tr("Nome"))
+                .desired_width(90.0),
+        );
+        let name = effect_preset::clean_name(&panel.preset_name);
+        if ui
+            .add_enabled(name.is_some(), egui::Button::new(tr("Salvar")).small())
+            .on_hover_text(tr("Guarda os valores deste efeito sob esse nome"))
+            .clicked()
+        {
+            if let Some(name) = name.clone() {
+                actions.push(VfxAction::SavePreset { index, name });
+            }
+        }
+        let exists = name
+            .as_deref()
+            .is_some_and(|n| effect_preset::for_kind(presets, spec.id).any(|p| p.name == n));
+        if ui
+            .add_enabled(exists, egui::Button::new(tr("Excluir")).small())
+            .clicked()
+        {
+            if let Some(name) = name {
+                actions.push(VfxAction::DeletePreset {
+                    kind: spec.id.to_owned(),
+                    name,
+                });
+            }
         }
     });
 }
@@ -490,6 +617,25 @@ mod tests {
         fx.params.insert("h_range".into(), f32::NAN);
         assert_eq!(effective_value(&fx, spec), spec.default);
         assert_eq!(format_value(spec, 0.025), "2.5 %");
+    }
+
+    #[test]
+    fn a_preset_keeps_every_shown_value_and_applies_clamped_with_defaults_for_the_rest() {
+        let mut effect = TrackEffect::new(vfx::GAUSSIAN_BLUR);
+        effect.params.insert("h_range".into(), 0.03);
+        let preset = preset_of(&effect, "Suave").unwrap();
+        let spec = vfx::spec(vfx::GAUSSIAN_BLUR).unwrap();
+        assert_eq!(preset.params.len(), spec.params.len());
+        assert_eq!(preset.params["h_range"], 0.03);
+        assert!(preset_of(&TrackEffect::new("nao-existe"), "x").is_none());
+        // Applying: a value out of range is clamped, a missing one takes the default
+        let mut odd = preset.clone();
+        odd.params.insert("h_range".into(), 9.0);
+        odd.params.remove("v_range");
+        let values = preset_values(spec, &odd);
+        let get = |id: &str| values.iter().find(|(p, _)| p == id).unwrap().1;
+        assert_eq!(get("h_range"), spec.param("h_range").unwrap().max);
+        assert_eq!(get("v_range"), spec.param("v_range").unwrap().default);
     }
 
     #[test]
