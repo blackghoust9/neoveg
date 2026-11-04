@@ -1840,6 +1840,26 @@ impl AppState {
         }
     }
 
+    /// *Travar faixa*: locks the selected track, or unlocks it when it is locked.
+    fn toggle_selected_track_lock(&mut self) {
+        let Some(id) = self.selected_track else {
+            self.status = tr("Selecione uma faixa para travar").into();
+            return;
+        };
+        let locked = neoveg_engine::track_lock::is_track_locked(&self.timeline, id);
+        if let Some(command) = neoveg_engine::track_lock::set(&self.timeline, id, !locked) {
+            if self.history.execute(&mut self.timeline, command) {
+                // What was selected on the track can no longer be edited
+                self.selection.retain_existing(&self.timeline);
+                self.status = if locked {
+                    tr("Faixa destravada").into()
+                } else {
+                    tr("Faixa travada").into()
+                };
+            }
+        }
+    }
+
     /// *Duplicar faixa*: a copy of the selected track with its events, selected afterwards.
     fn duplicate_selected_track(&mut self) {
         let Some(id) = self.selected_track else {
@@ -3219,6 +3239,7 @@ impl AppState {
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Video),
             Command::InsertEmptyEvent => self.selected_track.is_some(),
+            Command::TrackLock => self.selected_track.is_some(),
             Command::TrackMakeChild | Command::TrackMakeChildGroup => self
                 .selected_track
                 .is_some_and(|id| neoveg_engine::track_tree::can_make_child(&self.timeline, id)),
@@ -6859,6 +6880,7 @@ impl AppState {
             Command::EditRippleDelete => self.ripple_delete_selection(),
             Command::EditCloseGaps => self.close_gaps_on_selected_track(),
             Command::TrackDuplicate => self.duplicate_selected_track(),
+            Command::TrackLock => self.toggle_selected_track_lock(),
             Command::InsertEmptyEvent => self.insert_empty_event(),
             Command::TrackMakeChild => self.nest_selected_track(true, false),
             Command::TrackMakeParent => self.nest_selected_track(false, false),
@@ -8408,6 +8430,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertEmptyEvent);
             command_item(state, ui, Command::InsertTime);
             command_item(state, ui, Command::TrackDuplicate);
+            command_item(state, ui, Command::TrackLock);
             for command in [
                 Command::TrackMakeChild,
                 Command::TrackMakeParent,
@@ -12100,6 +12123,20 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
     {
         ui.separator();
         command_item(state, ui, Command::TrackDuplicate);
+        {
+            let label = state.with_hint(
+                tr(if track.locked {
+                    "Destravar faixa"
+                } else {
+                    "Travar faixa"
+                }),
+                Command::TrackLock,
+            );
+            if ui.button(label).clicked() {
+                state.toggle_selected_track_lock();
+                ui.close_menu();
+            }
+        }
         if track.kind == TrackKind::Video && !track.adjustment {
             command_item(state, ui, Command::TrackMakeChild);
             command_item(state, ui, Command::TrackMakeParent);
@@ -13584,7 +13621,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 // A muted event is darkened: it is out of playback
                 lane_painter.rect_filled(ev_rect, Rounding::ZERO, Color32::from_black_alpha(150));
             }
-            if ev.locked && x1 - x0 >= 18.0 {
+            if (ev.locked || track.locked) && x1 - x0 >= 18.0 {
                 paint_lock_mark(
                     &lane_painter,
                     pos2(ev_rect.right() - 16.0, ev_rect.top() + 2.0),
@@ -13836,6 +13873,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             FontId::monospace(11.0),
             ui.visuals().text_color(),
         );
+        if track.locked {
+            paint_lock_mark(&header_painter, pos2(row.right() - 14.0, row.top() + 3.0));
+        }
         // A compositing child is nested: one orange tick for each level on the left and the name
         // moved in
         let nest = tree_levels.get(i).copied().unwrap_or(0).min(4);
@@ -16847,6 +16887,45 @@ mod tests {
                 .any(|e| e.id == a.1),
             "Delete leaves the locked event"
         );
+    }
+
+    #[test]
+    fn a_locked_track_refuses_drags_edits_and_deletes_until_it_is_unlocked() {
+        let (mut s, [a, b, _]) = state_with_three_events();
+        let track = a.0;
+        s.selected_track = Some(track);
+        assert!(s.command_enabled(Command::TrackLock));
+        run(&mut s, Command::TrackLock);
+        assert!(neoveg_engine::track_lock::is_track_locked(
+            &s.timeline,
+            track
+        ));
+        // Its events count as locked, with no switch of their own
+        assert!(switches::is_locked(&s.timeline, a));
+        assert!(!flags(&s, a).1, "the event itself is not marked");
+        let hit = (a.0, a.1, DragMode::Move, geometry(&s, a.0, a.1));
+        s.begin_drag(hit, 3.0);
+        assert!(s.drag.is_none(), "the drag is refused");
+        // Delete and split leave the track as it was
+        let events = s.timeline.track(track).unwrap().events.clone();
+        s.selection.set([a, b]);
+        run(&mut s, Command::EditDelete);
+        s.playhead = 3.0;
+        run(&mut s, Command::EditSplit);
+        assert_eq!(s.timeline.track(track).unwrap().events, events);
+        // One more press unlocks it, and the same delete works again
+        run(&mut s, Command::TrackLock);
+        assert!(!neoveg_engine::track_lock::is_track_locked(
+            &s.timeline,
+            track
+        ));
+        s.selection.set([a, b]);
+        run(&mut s, Command::EditDelete);
+        assert!(s.timeline.track(track).unwrap().events.len() < events.len());
+        // With no track selected the command only says what to do
+        s.selected_track = None;
+        run(&mut s, Command::TrackLock);
+        assert!(s.status.contains("Selecione"));
     }
 
     #[test]

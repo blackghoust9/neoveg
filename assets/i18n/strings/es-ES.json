@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "Insertar evento vacío",
   "Selecione a faixa onde inserir o evento vazio": "Seleccione la pista donde insertar el evento vacío",
   "Evento vazio inserido": "Evento vacío insertado",
-  "Envelopes de áudio": "Envolventes de audio"
+  "Envelopes de áudio": "Envolventes de audio",
+  "Travar faixa": "Bloquear pista",
+  "Destravar faixa": "Desbloquear pista",
+  "Faixa travada": "Pista bloqueada",
+  "Faixa destravada": "Pista desbloqueada",
+  "Selecione uma faixa para travar": "Seleccione una pista para bloquear"
 }

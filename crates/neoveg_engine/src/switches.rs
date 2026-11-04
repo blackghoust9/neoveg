@@ -72,12 +72,15 @@ impl Switch {
     }
 }
 
-/// `true` when the event exists and is locked.
+/// `true` when the event exists and is locked, by its own switch or because its track is.
 pub fn is_locked(timeline: &Timeline, event: EventRef) -> bool {
-    timeline
-        .track(event.0)
-        .and_then(|t| t.events.iter().find(|e| e.id == event.1))
-        .is_some_and(|e| e.locked)
+    timeline.track(event.0).is_some_and(|t| {
+        t.locked
+            || t.events
+                .iter()
+                .find(|e| e.id == event.1)
+                .is_some_and(|e| e.locked)
+    })
 }
 
 /// The events of `events` that are not locked, in the same order.

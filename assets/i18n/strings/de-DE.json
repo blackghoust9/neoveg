@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "Leeres Ereignis einfügen",
   "Selecione a faixa onde inserir o evento vazio": "Wählen Sie die Spur für das leere Ereignis",
   "Evento vazio inserido": "Leeres Ereignis eingefügt",
-  "Envelopes de áudio": "Audio-Hüllkurven"
+  "Envelopes de áudio": "Audio-Hüllkurven",
+  "Travar faixa": "Spur sperren",
+  "Destravar faixa": "Spur entsperren",
+  "Faixa travada": "Spur gesperrt",
+  "Faixa destravada": "Spur entsperrt",
+  "Selecione uma faixa para travar": "Wählen Sie eine Spur zum Sperren"
 }

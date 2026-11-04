@@ -416,7 +416,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Modos de edição de ripple por faixa/tudo ao arrastar e aparar: aparar e esticar bordas seguem o escopo com o Auto Ripple ligado, e o ripple ao mover e ao colar também existe (`ripple_move`, `paste_with_ripple`)
 - [x] *Velocity* (envelope de velocidade) de eventos (slip e slide já existem)
 - [x] Seleção múltipla, agrupar (`G`) e desagrupar (`U`)
-- [ ] Travar faixa/evento
+- [x] Travar faixa/evento: o evento já tinha o interruptor *Bloquear evento* (`Ctrl+Alt+L`); a **faixa** agora também trava (`Faixas > Travar faixa`, `Ctrl+Alt+Shift+L`, ou o menu do cabeçalho; `Track::locked`, `EditCommand::SetTrackLocked`, um passo de desfazer). Numa faixa travada os eventos não podem ser movidos, aparados, divididos, apagados, trocados nem receber efeitos, nada entra na faixa e nenhum evento sai dela; mudo, solo e mixagem continuam livres. A regra fica num lugar só: `track_lock::strip_locked` tira de cada comando as partes que tocam eventos de faixa travada, e `History::execute` passa todo comando por ela, então uma operação sobre uma seleção que atravessa uma faixa travada e uma livre age só na livre (como com o evento travado). A interface arrasta e seleciona como com o evento travado (cadeado no cabeçalho e nos eventos). Os testes novos (`track_lock.rs`, `app.rs`) ainda não rodaram neste PC
 - [x] Marcadores (`M`), regiões e loop
 - [ ] Marcadores de comando e réguas adicionais
 - [x] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)

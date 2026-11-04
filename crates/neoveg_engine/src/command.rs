@@ -210,6 +210,11 @@ pub enum EditCommand {
         before: Option<MediaProps>,
         after: Option<MediaProps>,
     },
+    /// Locks or unlocks a track (see `track_lock`).
+    SetTrackLocked {
+        track_id: TrackId,
+        locked: bool,
+    },
     /// The nesting level of video tracks as compositing children: `(track, before, after)`.
     SetComposeLevels {
         changes: Vec<(TrackId, u8, u8)>,
@@ -513,6 +518,13 @@ impl EditCommand {
                 put_media_props(tl, *media_id, after);
                 true
             }
+            Self::SetTrackLocked { track_id, locked } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.locked = *locked;
+                    true
+                }
+                None => false,
+            },
             Self::SetComposeLevels { changes } => {
                 for (id, _, after) in changes {
                     if let Some(t) = tl.track_mut(*id) {
@@ -767,6 +779,11 @@ impl EditCommand {
             Self::SetMediaProps {
                 media_id, before, ..
             } => put_media_props(tl, *media_id, before),
+            Self::SetTrackLocked { track_id, locked } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.locked = !*locked;
+                }
+            }
             Self::SetComposeLevels { changes } => {
                 for (id, before, _) in changes {
                     if let Some(t) = tl.track_mut(*id) {
@@ -1069,6 +1086,10 @@ impl History {
 
     /// Applies `command`; returns `false` (and records nothing) when it does not apply.
     pub fn execute(&mut self, timeline: &mut Timeline, command: EditCommand) -> bool {
+        // The events of a locked track are not touched: what is left of the command applies
+        let Some(command) = crate::track_lock::strip_locked(timeline, command) else {
+            return false;
+        };
         // A trim or slide of an event with a velocity envelope keeps the picture in place
         let command = crate::velocity::keep_picture(timeline, command);
         // ... and one with a volume envelope keeps the level over the same sound

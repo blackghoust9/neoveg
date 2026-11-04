@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "Insérer un événement vide",
   "Selecione a faixa onde inserir o evento vazio": "Sélectionnez la piste où insérer l'événement vide",
   "Evento vazio inserido": "Événement vide inséré",
-  "Envelopes de áudio": "Enveloppes audio"
+  "Envelopes de áudio": "Enveloppes audio",
+  "Travar faixa": "Verrouiller la piste",
+  "Destravar faixa": "Déverrouiller la piste",
+  "Faixa travada": "Piste verrouillée",
+  "Faixa destravada": "Piste déverrouillée",
+  "Selecione uma faixa para travar": "Sélectionnez une piste à verrouiller"
 }

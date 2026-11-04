@@ -608,6 +608,9 @@ pub struct Track {
     /// `track_tree`: read it through `track_tree::effective_levels`, which puts it in range.
     #[serde(default, skip_serializing_if = "is_zero_level")]
     pub compose_level: u8,
+    /// A locked track keeps its events as they are (see `track_lock`; older projects: unlocked).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
 }
 
 fn is_zero_level(level: &u8) -> bool {
@@ -772,6 +775,7 @@ impl Timeline {
             adjustment: false,
             composite_mode: CompositeMode::default(),
             compose_level: 0,
+            locked: false,
         }
     }
 

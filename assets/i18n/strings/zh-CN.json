@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "插入空事件",
   "Selecione a faixa onde inserir o evento vazio": "请选择要插入空事件的轨道",
   "Evento vazio inserido": "已插入空事件",
-  "Envelopes de áudio": "音频包络"
+  "Envelopes de áudio": "音频包络",
+  "Travar faixa": "锁定轨道",
+  "Destravar faixa": "解锁轨道",
+  "Faixa travada": "轨道已锁定",
+  "Faixa destravada": "轨道已解锁",
+  "Selecione uma faixa para travar": "请选择要锁定的轨道"
 }

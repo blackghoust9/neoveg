@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "Insert empty event",
   "Selecione a faixa onde inserir o evento vazio": "Select the track to insert the empty event on",
   "Evento vazio inserido": "Empty event inserted",
-  "Envelopes de áudio": "Audio envelopes"
+  "Envelopes de áudio": "Audio envelopes",
+  "Travar faixa": "Lock track",
+  "Destravar faixa": "Unlock track",
+  "Faixa travada": "Track locked",
+  "Faixa destravada": "Track unlocked",
+  "Selecione uma faixa para travar": "Select a track to lock"
 }

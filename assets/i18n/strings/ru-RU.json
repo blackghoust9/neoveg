@@ -1434,5 +1434,10 @@
   "Inserir evento vazio": "Вставить пустое событие",
   "Selecione a faixa onde inserir o evento vazio": "Выберите дорожку для пустого события",
   "Evento vazio inserido": "Пустое событие вставлено",
-  "Envelopes de áudio": "Аудиоогибающие"
+  "Envelopes de áudio": "Аудиоогибающие",
+  "Travar faixa": "Заблокировать дорожку",
+  "Destravar faixa": "Разблокировать дорожку",
+  "Faixa travada": "Дорожка заблокирована",
+  "Faixa destravada": "Дорожка разблокирована",
+  "Selecione uma faixa para travar": "Выберите дорожку для блокировки"
 }
