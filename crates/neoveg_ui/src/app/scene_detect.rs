@@ -185,8 +185,11 @@ impl AppState {
             self.scene_dialog.open = false;
             return;
         }
-        let events = [event];
-        let Some(outcome) = split_at_times(&mut self.timeline, &times, Scope::Events(&events))
+        // The track is the scope, not the event: the halves a first cut makes are new events, and
+        // the next cuts have to find them (the cuts are all inside this event, where the track
+        // holds nothing else)
+        let tracks = [event.0];
+        let Some(outcome) = split_at_times(&mut self.timeline, &times, Scope::Tracks(&tracks))
         else {
             self.status = "O evento não pôde ser dividido (travado ou mudou de lugar)".into();
             return;

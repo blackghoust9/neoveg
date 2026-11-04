@@ -647,6 +647,9 @@ impl EditCommand {
                     snap_offset: right_snap_offset,
                     opacity: left.opacity,
                     gain_db: left.gain_db,
+                    // Every take goes on in the right half (offsets are relative to the in point)
+                    takes: left.takes.clone(),
+                    active_take: left.active_take,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;

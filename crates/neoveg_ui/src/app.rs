@@ -635,6 +635,10 @@ struct AppState {
     active_player: Option<ActivePlayer>,
 
     show_bars: bool,
+    /// `Ctrl+Shift+W`: waveforms drawn on the audio events.
+    show_waveforms: bool,
+    /// The last time selections, for `Backspace`.
+    selection_history: navigation::TimeSelectionHistory,
     /// Scopes of the frame at the cursor, and a counter that changes with every new frame.
     frame_scopes: Option<Scopes>,
     frame_scopes_version: u64,
@@ -1755,6 +1759,8 @@ impl AppState {
             master_volume: 1.0,
             active_player: None,
             show_bars: false,
+            show_waveforms: true,
+            selection_history: navigation::TimeSelectionHistory::default(),
             frame_scopes: None,
             frame_scopes_version: 0,
             bars_scopes: None,
@@ -2400,6 +2406,79 @@ impl AppState {
         match media {
             Some(id) => self.open_media_properties(id),
             None => self.status = "Selecione um evento que toque uma mídia".into(),
+        }
+    }
+
+    // ---- takes (neoveg_engine::takes) -------------------------------------------------------------
+
+    /// Whether any selected event has more than one take.
+    fn selection_has_takes(&self) -> bool {
+        self.selection.refs().iter().any(|(track, event)| {
+            self.timeline
+                .track(*track)
+                .and_then(|t| t.events.iter().find(|e| e.id == *event))
+                .is_some_and(|e| neoveg_engine::takes::count(e) > 1)
+        })
+    }
+
+    /// Runs a take edit as one undo step and refreshes what plays and what is drawn.
+    fn apply_take_command(&mut self, command: Option<EditCommand>, done: &'static str) {
+        let Some(command) = command else {
+            self.status = tr("Nada a fazer com os takes dos eventos selecionados").into();
+            return;
+        };
+        if self.history.execute(&mut self.timeline, command) {
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+            self.status = tr(done).into();
+        }
+    }
+
+    /// *Add as take*: the media becomes a take of the selected events and plays from `trim_in`.
+    fn add_take(&mut self, media_id: u64, trim_in: f64) {
+        let name = self
+            .project
+            .media_pool
+            .iter()
+            .find(|m| m.id == media_id)
+            .and_then(|m| std::path::Path::new(&m.path).file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let command = neoveg_engine::takes::add(
+            &self.timeline,
+            &self.selection.refs(),
+            media_id,
+            &name,
+            trim_in,
+        );
+        self.apply_take_command(command, "Mídia adicionada como take ativo");
+    }
+
+    /// `T` / `Shift+T`: the next or the previous take of the selected events.
+    fn step_take(&mut self, delta: isize) {
+        let command = neoveg_engine::takes::step(&self.timeline, &self.selection.refs(), delta);
+        self.apply_take_command(command, "Take trocado");
+    }
+
+    fn set_active_take(&mut self, index: usize) {
+        let command =
+            neoveg_engine::takes::set_active(&self.timeline, &self.selection.refs(), index);
+        self.apply_take_command(command, "Take trocado");
+    }
+
+    fn delete_active_take(&mut self) {
+        let command = neoveg_engine::takes::delete_active(&self.timeline, &self.selection.refs());
+        self.apply_take_command(command, "Take ativo apagado");
+    }
+
+    /// The media in the Trimmer as a take of the selected events, from the Trimmer's in mark.
+    fn add_trimmer_media_as_take(&mut self) {
+        match self.trimmer.as_ref().map(|t| (t.media_id, t.selection().0)) {
+            Some((media_id, start)) => self.add_take(media_id, start),
+            None => {
+                self.status = tr("Abra uma mídia no Trimmer para adicioná-la como take").into();
+            }
         }
     }
 
@@ -3377,6 +3456,98 @@ impl AppState {
         }
     }
 
+    /// `,` / `.`: cursor to the previous / next region edge.
+    fn jump_to_region_edge(&mut self, forward: bool, now: f64) {
+        let target = if forward {
+            navigation::next_region_edge(&self.timeline, self.playhead)
+        } else {
+            navigation::previous_region_edge(&self.timeline, self.playhead)
+        };
+        match target {
+            Some(t) => self.go_to_time(t, now),
+            None => {
+                self.status = if forward {
+                    "Não há região adiante".into()
+                } else {
+                    "Não há região antes".into()
+                };
+            }
+        }
+    }
+
+    /// `Ctrl+[` / `Ctrl+]` move the cursor to the start of the previous / the end of the next
+    /// selected event; with `select` (`Ctrl+Shift+[` / `Ctrl+Shift+]`) the time of that event
+    /// becomes the time selection instead.
+    fn go_to_selected_event(&mut self, forward: bool, select: bool, now: f64) {
+        let selected = self.selection.refs();
+        let span = if forward {
+            navigation::next_selected_event(&self.timeline, &selected, self.playhead)
+        } else {
+            navigation::previous_selected_event(&self.timeline, &selected, self.playhead)
+        };
+        let Some(span) = span else {
+            self.status = if selected.is_empty() {
+                "Selecione um evento primeiro".into()
+            } else if forward {
+                "Não há evento selecionado adiante".into()
+            } else {
+                "Não há evento selecionado antes".into()
+            };
+            return;
+        };
+        if select {
+            self.time_selection = Some(span);
+        }
+        self.go_to_time(if forward { span.end } else { span.start }, now);
+    }
+
+    /// Records the current time selection in the history that `Backspace` walks back through.
+    fn observe_time_selection(&mut self) {
+        self.selection_history.observe(self.time_selection);
+    }
+
+    /// `Backspace`: the previous time selection, up to five back.
+    fn restore_time_selection(&mut self) {
+        self.observe_time_selection();
+        match self.selection_history.restore() {
+            Some(range) => {
+                self.time_selection = Some(range);
+                self.status = "Seleção de tempo anterior restaurada".into();
+            }
+            None => self.status = "Não há seleção de tempo anterior".into(),
+        }
+    }
+
+    /// `Shift+V` / `Shift+P`: removes the volume / pan envelope of the selected audio track.
+    fn remove_track_envelope(&mut self, command: Command) {
+        let Some(track_id) = self.selected_track else {
+            self.status = "Selecione uma faixa primeiro".into();
+            return;
+        };
+        let Some(track) = self.timeline.track(track_id) else {
+            return;
+        };
+        let video = track.kind == TrackKind::Video;
+        let auto_target = match command {
+            Command::TrackRemoveVolumeEnvelope if video => AutomationTarget::VideoLevel,
+            Command::TrackRemoveVolumeEnvelope => AutomationTarget::Volume,
+            _ if video => {
+                self.status = "O envelope de pan vale para faixas de áudio".into();
+                return;
+            }
+            _ => AutomationTarget::Pan,
+        };
+        match envelope::remove_envelope(&self.timeline, FxTarget::Track(track_id), &auto_target) {
+            Some(cmd) => {
+                if self.history.execute(&mut self.timeline, cmd) {
+                    self.restart_audio_if_playing();
+                    self.last_frame_key = None;
+                }
+            }
+            None => self.status = "A faixa não tem esse envelope".into(),
+        }
+    }
+
     /// `\`: scrolls so the cursor is in the middle of the view.
     fn center_view_on_cursor(&mut self) {
         let visible = f64::from(self.lanes_width.max(50.0)) / self.pixels_per_second;
@@ -3541,6 +3712,10 @@ impl AppState {
                 !self.selection.refs().is_empty()
             }
             Command::TrackLock => self.selected_track.is_some(),
+            Command::EditNextTake | Command::EditPreviousTake | Command::EditDeleteTake => {
+                self.selection_has_takes()
+            }
+            Command::EditAddTake => has_events && self.trimmer.is_some(),
             Command::TrackMakeChild | Command::TrackMakeChildGroup => self
                 .selected_track
                 .is_some_and(|id| neoveg_engine::track_tree::can_make_child(&self.timeline, id)),
@@ -3608,6 +3783,30 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some(),
+            Command::CursorPreviousSelectedEvent
+            | Command::CursorNextSelectedEvent
+            | Command::SelectionPreviousSelectedEvent
+            | Command::SelectionNextSelectedEvent => has_events,
+            Command::SelectionRestorePrevious => !self.selection_history.is_empty(),
+            Command::TrackRemoveVolumeEnvelope => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some_and(|t| {
+                    let target = if t.kind == TrackKind::Video {
+                        AutomationTarget::VideoLevel
+                    } else {
+                        AutomationTarget::Volume
+                    };
+                    t.envelopes.iter().any(|e| e.target == target)
+                }),
+            Command::TrackRemovePanEnvelope => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some_and(|t| {
+                    t.envelopes
+                        .iter()
+                        .any(|e| e.target == AutomationTarget::Pan)
+                }),
             Command::TrackSolo
             | Command::TrackSoloExclusive
             | Command::TrackPanEnvelope
@@ -7889,6 +8088,10 @@ impl AppState {
             Command::EditSmartSplit => self.smart_split(),
             Command::EditHeal => self.heal_selected_events(),
             Command::EditMediaProperties => self.open_selected_media_properties(),
+            Command::EditNextTake => self.step_take(1),
+            Command::EditPreviousTake => self.step_take(-1),
+            Command::EditAddTake => self.add_trimmer_media_as_take(),
+            Command::EditDeleteTake => self.delete_active_take(),
             Command::EditResizeAdjustmentToProject => self.resize_adjustment_events_to_project(),
             Command::InsertAudioTrack => self.add_track(TrackKind::Audio),
             Command::InsertVideoTrack => self.add_track(TrackKind::Video),
@@ -8046,6 +8249,30 @@ impl AppState {
                 self.stop();
             }
             Command::SelectionLoopRegion => self.set_loop_region(),
+            Command::CursorPreviousRegion => self.jump_to_region_edge(false, now),
+            Command::CursorNextRegion => self.jump_to_region_edge(true, now),
+            Command::CursorPreviousSelectedEvent | Command::SelectionPreviousSelectedEvent => {
+                self.go_to_selected_event(
+                    false,
+                    command == Command::SelectionPreviousSelectedEvent,
+                    now,
+                );
+            }
+            Command::CursorNextSelectedEvent | Command::SelectionNextSelectedEvent => {
+                self.go_to_selected_event(
+                    true,
+                    command == Command::SelectionNextSelectedEvent,
+                    now,
+                );
+            }
+            Command::SelectionRestorePrevious => self.restore_time_selection(),
+            Command::ViewWaveforms => {
+                self.show_waveforms = !self.show_waveforms;
+                self.status = Self::toggle_text("Ondas nos eventos", self.show_waveforms);
+            }
+            Command::TrackRemoveVolumeEnvelope | Command::TrackRemovePanEnvelope => {
+                self.remove_track_envelope(command);
+            }
             Command::InsertMarker => self.insert_marker(),
             Command::InsertRegion => self.insert_region(),
             Command::CursorProjectStart => self.go_to_time(0.0, now),
@@ -8827,6 +9054,10 @@ impl NeovegApp {
         self.state.update_edge_frames();
         self.state.request_preview_frame(ctx.pixels_per_point());
         self.state.selection.retain_existing(&self.state.timeline);
+        // A time selection being dragged is only kept in the history once the mouse is released
+        if !ctx.input(|i| i.pointer.any_down()) {
+            self.state.observe_time_selection();
+        }
         self.state.handle_shortcuts(ctx);
         self.state.advance_transport(ctx);
         // Master fader drives the live output gain
@@ -9305,6 +9536,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.menu_button(tr("Interruptores"), |ui| switch_items(state, ui));
             ui.menu_button(tr("Canais de áudio"), |ui| channel_items(state, ui));
+            ui.menu_button(tr("Take"), |ui| take_items(state, ui));
             ui.menu_button(tr("Ferramenta de edição"), |ui| {
                 for tool in EditTool::ALL {
                     if ui.radio(state.edit_tool == tool, tool.label()).clicked() {
@@ -9340,6 +9572,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             command_item(state, ui, Command::EditSelectAll);
             command_item(state, ui, Command::EditSelectNone);
+            command_item(state, ui, Command::SelectionRestorePrevious);
             ui.separator();
             let mut auto = state.project.settings.auto_crossfade;
             let crossfade_label =
@@ -9426,7 +9659,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.menu_button(tr("Envelopes de áudio"), |ui| {
                 for command in [
                     Command::TrackVolumeEnvelope,
+                    Command::TrackRemoveVolumeEnvelope,
                     Command::TrackPanEnvelope,
+                    Command::TrackRemovePanEnvelope,
                     Command::TrackMuteEnvelope,
                 ] {
                     command_item(state, ui, command);
@@ -9563,6 +9798,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewLoudnessMeters,
                 Command::ViewVideoScopes,
                 Command::ViewEventEdgeFrames,
+                Command::ViewWaveforms,
                 Command::ViewFocusTimeline,
             ] {
                 command_item(state, ui, command);
@@ -10033,6 +10269,41 @@ fn channel_items(state: &mut AppState, ui: &mut egui::Ui) {
             .clicked()
         {
             state.set_event_channels(mode);
+            ui.close_menu();
+        }
+    }
+}
+
+/// Editar > Take (and the same entries in the event context menu): add the media of the Trimmer as
+/// a take, switch between the takes of the first selected event, delete the active one.
+fn take_items(state: &mut AppState, ui: &mut egui::Ui) {
+    command_item(state, ui, Command::EditAddTake);
+    command_item(state, ui, Command::EditNextTake);
+    command_item(state, ui, Command::EditPreviousTake);
+    command_item(state, ui, Command::EditDeleteTake);
+    let listed = state.selection.refs().first().and_then(|&(t, id)| {
+        let event = state
+            .timeline
+            .track(t)?
+            .events
+            .iter()
+            .find(|e| e.id == id)?;
+        let n = neoveg_engine::takes::count(event);
+        let names: Vec<String> = (0..n)
+            .map(|i| neoveg_engine::takes::take_name(event, i))
+            .collect();
+        Some((neoveg_engine::takes::active_index(event), names))
+    });
+    let Some((active, names)) = listed.filter(|(_, names)| names.len() > 1) else {
+        return;
+    };
+    ui.separator();
+    for (i, name) in names.iter().enumerate() {
+        if ui
+            .radio(i == active, format!("{}  {}", i + 1, name))
+            .clicked()
+        {
+            state.set_active_take(i);
             ui.close_menu();
         }
     }
@@ -12525,6 +12796,8 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
     }
     let mut open = None;
     let mut properties = None;
+    let mut as_take = None;
+    let can_take = !state.selection.is_empty();
     for item in &state.project.media_pool {
         if let Some(m) = state.media.get(&item.id) {
             let row = ui
@@ -12544,6 +12817,16 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
                     properties = Some(item.id);
                     ui.close_menu();
                 }
+                if ui
+                    .add_enabled(
+                        can_take,
+                        egui::Button::new(tr("Adicionar como take do evento")),
+                    )
+                    .clicked()
+                {
+                    as_take = Some(item.id);
+                    ui.close_menu();
+                }
             });
         }
     }
@@ -12552,6 +12835,9 @@ fn project_media_ui(state: &mut AppState, ui: &mut egui::Ui) {
     }
     if let Some(id) = properties {
         state.open_media_properties(id);
+    }
+    if let Some(id) = as_take {
+        state.add_take(id, 0.0);
     }
 }
 
@@ -13787,6 +14073,7 @@ fn event_context_menu(
     }
     ui.menu_button(tr("Interruptores"), |ui| switch_items(state, ui));
     ui.menu_button(tr("Canais de áudio"), |ui| channel_items(state, ui));
+    ui.menu_button(tr("Take"), |ui| take_items(state, ui));
     if ui.button(tr("Selecionar eventos até o fim")).clicked() {
         state
             .selection
@@ -15239,6 +15526,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if ev.looping {
                 title.push_str(" [laço]");
             }
+            if ev.takes.len() > 1 {
+                title.push_str(&format!(
+                    " [take {}/{}]",
+                    neoveg_engine::takes::active_index(ev) + 1,
+                    ev.takes.len()
+                ));
+            }
             if let Some(tag) = ev.channels.tag() {
                 title.push_str(&format!(" [{tag}]"));
             }
@@ -15349,7 +15643,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 ));
             }
 
-            if let Some(media) = ev.media_id.and_then(|id| state.media.get(&id)) {
+            if let Some(media) = ev
+                .media_id
+                .filter(|_| state.show_waveforms)
+                .and_then(|id| state.media.get(&id))
+            {
                 let wave_rect = Rect::from_min_max(
                     pos2(
                         ev_rect.left().max(lanes.left()),
@@ -17758,6 +18056,51 @@ mod tests {
         s.run_command(command, &egui::Context::default(), 0.0);
     }
 
+    #[test]
+    fn takes_are_added_switched_and_deleted_with_t_shift_t() {
+        let (mut s, track, id) = state_with_clip();
+        s.project.media_pool.push(MediaRef {
+            subproject: false,
+            format: None,
+            id: 2,
+            path: "y.wav".into(),
+            duration_seconds: 10.0,
+        });
+        let take_of = |s: &AppState| {
+            let e = s.timeline.track(track).unwrap().events[0].clone();
+            (e.media_id, neoveg_engine::takes::count(&e), e.takes.len())
+        };
+        // Nothing selected, nothing to do
+        assert!(!s.command_enabled(Command::EditAddTake));
+        s.selection.select_only((track, id));
+        assert!(
+            !s.command_enabled(Command::EditAddTake),
+            "needs a Trimmer media"
+        );
+        s.open_in_trimmer(2);
+        assert!(s.command_enabled(Command::EditAddTake));
+        assert!(!s.command_enabled(Command::EditNextTake));
+        run(&mut s, Command::EditAddTake);
+        assert_eq!(take_of(&s), (Some(2), 2, 2));
+        assert!(s.command_enabled(Command::EditNextTake));
+        assert!(s.command_enabled(Command::EditDeleteTake));
+        // T goes on (wrapping to the first take), Shift+T goes back
+        run(&mut s, Command::EditNextTake);
+        assert_eq!(take_of(&s).0, Some(1));
+        run(&mut s, Command::EditPreviousTake);
+        assert_eq!(take_of(&s).0, Some(2));
+        // One undo step per command
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(take_of(&s).0, Some(1));
+        assert!(s.history.redo(&mut s.timeline));
+        run(&mut s, Command::EditDeleteTake);
+        assert_eq!(take_of(&s), (Some(1), 1, 0));
+        assert!(
+            !s.command_enabled(Command::EditDeleteTake),
+            "the last take stays"
+        );
+    }
+
     /// One frame of the ruler, in seconds.
     fn frame_seconds(s: &AppState) -> f64 {
         1.0 / s.project.settings.fps
@@ -18669,6 +19012,118 @@ mod tests {
         assert!(s.looping && s.loop_args().is_some());
         run(&mut s, Command::TransportLoop);
         assert!(!s.looping && s.loop_args().is_none());
+    }
+
+    #[test]
+    fn comma_and_period_jump_between_region_edges() {
+        let (mut s, _, _) = state_with_clip();
+        s.time_selection = Some(TimeRange::new(6.0, 9.0));
+        run(&mut s, Command::InsertRegion);
+        s.commit_name_edit();
+        s.playhead = 0.0;
+        run(&mut s, Command::CursorNextRegion);
+        assert_eq!(s.playhead, 6.0);
+        run(&mut s, Command::CursorNextRegion);
+        assert_eq!(s.playhead, 9.0);
+        run(&mut s, Command::CursorNextRegion);
+        assert_eq!(s.playhead, 9.0, "no region is left ahead");
+        run(&mut s, Command::CursorPreviousRegion);
+        assert_eq!(s.playhead, 6.0);
+        run(&mut s, Command::CursorPreviousRegion);
+        assert_eq!(s.playhead, 6.0, "no region is left behind");
+    }
+
+    #[test]
+    fn selected_event_edges_move_the_cursor_and_the_time_selection() {
+        let (mut s, track, _) = state_with_clip();
+        add_event(&mut s, track, 10.0, 2.0);
+        // Nothing selected: the commands are off and do nothing
+        assert!(!s.command_enabled(Command::CursorNextSelectedEvent));
+        run(&mut s, Command::CursorNextSelectedEvent);
+        assert_eq!(s.playhead, 0.0);
+
+        s.select_all_events();
+        assert!(s.command_enabled(Command::CursorNextSelectedEvent));
+        run(&mut s, Command::CursorNextSelectedEvent);
+        assert_eq!(s.playhead, 6.0);
+        run(&mut s, Command::CursorNextSelectedEvent);
+        assert_eq!(s.playhead, 12.0);
+        run(&mut s, Command::CursorPreviousSelectedEvent);
+        assert_eq!(s.playhead, 10.0);
+        run(&mut s, Command::CursorPreviousSelectedEvent);
+        assert_eq!(s.playhead, 2.0);
+
+        s.playhead = 0.0;
+        run(&mut s, Command::SelectionNextSelectedEvent);
+        assert_eq!(s.time_selection, Some(TimeRange::new(2.0, 6.0)));
+        assert_eq!(s.playhead, 6.0);
+        run(&mut s, Command::SelectionNextSelectedEvent);
+        assert_eq!(s.time_selection, Some(TimeRange::new(10.0, 12.0)));
+        run(&mut s, Command::SelectionPreviousSelectedEvent);
+        assert_eq!(s.time_selection, Some(TimeRange::new(10.0, 12.0)));
+        assert_eq!(s.playhead, 10.0);
+        run(&mut s, Command::SelectionPreviousSelectedEvent);
+        assert_eq!(s.time_selection, Some(TimeRange::new(2.0, 6.0)));
+    }
+
+    #[test]
+    fn backspace_walks_back_through_the_time_selections() {
+        let (mut s, _, _) = state_with_clip();
+        assert!(!s.command_enabled(Command::SelectionRestorePrevious));
+        for n in 1..=4 {
+            s.time_selection = Some(TimeRange::new(f64::from(n), f64::from(n) + 1.0));
+            s.observe_time_selection();
+        }
+        assert!(s.command_enabled(Command::SelectionRestorePrevious));
+        run(&mut s, Command::SelectionRestorePrevious);
+        assert_eq!(s.time_selection, Some(TimeRange::new(3.0, 4.0)));
+        run(&mut s, Command::SelectionRestorePrevious);
+        assert_eq!(s.time_selection, Some(TimeRange::new(2.0, 3.0)));
+        // A selection that was cleared comes back too
+        s.time_selection = None;
+        run(&mut s, Command::SelectionRestorePrevious);
+        assert_eq!(s.time_selection, Some(TimeRange::new(2.0, 3.0)));
+        run(&mut s, Command::SelectionRestorePrevious);
+        assert_eq!(s.time_selection, Some(TimeRange::new(1.0, 2.0)));
+        run(&mut s, Command::SelectionRestorePrevious);
+        assert_eq!(s.time_selection, Some(TimeRange::new(1.0, 2.0)));
+        assert!(s.status.contains("anterior"));
+    }
+
+    #[test]
+    fn shift_v_and_shift_p_remove_the_track_envelopes() {
+        let (mut s, track, _) = state_with_clip();
+        assert!(!s.command_enabled(Command::TrackRemoveVolumeEnvelope));
+        run(&mut s, Command::TrackVolumeEnvelope);
+        run(&mut s, Command::TrackPanEnvelope);
+        let has = |s: &AppState, target: AutomationTarget| {
+            s.timeline
+                .track(track)
+                .unwrap()
+                .envelopes
+                .iter()
+                .any(|e| e.target == target)
+        };
+        assert!(has(&s, AutomationTarget::Volume) && has(&s, AutomationTarget::Pan));
+        assert!(s.command_enabled(Command::TrackRemoveVolumeEnvelope));
+        run(&mut s, Command::TrackRemoveVolumeEnvelope);
+        assert!(!has(&s, AutomationTarget::Volume) && has(&s, AutomationTarget::Pan));
+        assert!(!s.command_enabled(Command::TrackRemoveVolumeEnvelope));
+        run(&mut s, Command::TrackRemovePanEnvelope);
+        assert!(!has(&s, AutomationTarget::Pan));
+        // One undo brings the pan envelope back
+        s.history.undo(&mut s.timeline);
+        assert!(has(&s, AutomationTarget::Pan));
+    }
+
+    #[test]
+    fn ctrl_shift_w_toggles_the_waveforms() {
+        let (mut s, _, _) = state_with_clip();
+        assert!(s.show_waveforms);
+        run(&mut s, Command::ViewWaveforms);
+        assert!(!s.show_waveforms);
+        run(&mut s, Command::ViewWaveforms);
+        assert!(s.show_waveforms);
     }
 
     #[test]

@@ -63,6 +63,10 @@ fn is_unity_gain(v: &f32) -> bool {
     (*v - 1.0).abs() < 1e-9
 }
 
+fn is_zero_index(v: &usize) -> bool {
+    *v == 0
+}
+
 fn is_zero_time(v: &f64) -> bool {
     v.abs() < TIME_EPSILON
 }
@@ -128,6 +132,21 @@ impl ResampleMode {
     pub fn blends(self) -> bool {
         self == ResampleMode::FrameBlend
     }
+}
+
+/// One version of the media of an event (manual v21, *Using takes as alternate versions of events*).
+/// See `neoveg_engine::takes`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Take {
+    /// Media pool id of this take (`None` for an empty take).
+    pub media_id: Option<u64>,
+    /// Where this take begins in its source, *relative to the in point of the event's active take*:
+    /// slipping, trimming or splitting the event moves every take together.
+    #[serde(default)]
+    pub trim_offset: f64,
+    /// Name of the take (the file name of the media it was made from).
+    #[serde(default)]
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -242,6 +261,14 @@ pub struct TrackEvent {
     /// Audio event overall gain trim in dB (`-60.0..=12.0`, `0.0` = unity), controlled by the top bar.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub gain_db: f32,
+    /// Versions of the media of the event, the active one included at `active_take`; empty when the
+    /// event has only one (older projects). `media_id` and `trim_in` always are those of the active
+    /// take, so playback and display need no lookup.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub takes: Vec<Take>,
+    /// Index into `takes` of the take that plays.
+    #[serde(default, skip_serializing_if = "is_zero_index")]
+    pub active_take: usize,
 }
 
 impl Default for TrackEvent {
@@ -282,6 +309,8 @@ impl Default for TrackEvent {
             snap_offset: 0.0,
             opacity: 1.0,
             gain_db: 0.0,
+            takes: Vec::new(),
+            active_take: 0,
         }
     }
 }

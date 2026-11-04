@@ -148,8 +148,10 @@ commands! {
     EditToolNormal => ("edit.tool.normal", "Ferramenta normal", Edit, true),
     EditToolNext => ("edit.tool.next", "Próxima ferramenta de edição", Edit, true),
     EditToolPrevious => ("edit.tool.previous", "Ferramenta de edição anterior", Edit, true),
-    EditNextTake => ("edit.take.next", "Próximo take", Edit, false),
-    EditPreviousTake => ("edit.take.previous", "Take anterior", Edit, false),
+    EditNextTake => ("edit.take.next", "Próximo take", Edit, true),
+    EditPreviousTake => ("edit.take.previous", "Take anterior", Edit, true),
+    EditAddTake => ("edit.take.add", "Adicionar mídia do Trimmer como take", Edit, true),
+    EditDeleteTake => ("edit.take.delete", "Apagar take ativo", Edit, true),
 
     // ---- Inserir
     InsertAudioTrack => ("insert.audio_track", "Inserir faixa de áudio", Insert, true),
@@ -191,6 +193,13 @@ commands! {
     SelectionSetIn => ("selection.set_in", "Definir ponto de entrada", Cursor, true),
     SelectionSetOut => ("selection.set_out", "Definir ponto de saída", Cursor, true),
     SelectionLoopRegion => ("selection.loop_region", "Selecionar a região de laço", Cursor, true),
+    CursorPreviousRegion => ("cursor.previous_region", "Borda de região anterior", Cursor, true),
+    CursorNextRegion => ("cursor.next_region", "Próxima borda de região", Cursor, true),
+    CursorPreviousSelectedEvent => ("cursor.previous_selected_event", "Cursor no início do evento selecionado anterior", Cursor, true),
+    CursorNextSelectedEvent => ("cursor.next_selected_event", "Cursor no fim do próximo evento selecionado", Cursor, true),
+    SelectionPreviousSelectedEvent => ("selection.previous_selected_event", "Selecionar o tempo do evento selecionado anterior", Cursor, true),
+    SelectionNextSelectedEvent => ("selection.next_selected_event", "Selecionar o tempo do próximo evento selecionado", Cursor, true),
+    SelectionRestorePrevious => ("selection.restore_previous", "Restaurar a seleção de tempo anterior (últimas cinco)", Cursor, true),
 
     // ---- Reprodução
     TransportPlayToggle => ("transport.play_toggle", "Reproduzir / pausar", Transport, true),
@@ -225,6 +234,8 @@ commands! {
     TrackVolumeEnvelope => ("track.volume_envelope", "Envelope de volume da faixa", Track, true),
     TrackPanEnvelope => ("track.pan_envelope", "Envelope de pan da faixa", Track, true),
     TrackMuteEnvelope => ("track.mute_envelope", "Envelope de mudo da faixa", Track, true),
+    TrackRemoveVolumeEnvelope => ("track.remove_volume_envelope", "Remover o envelope de volume da faixa", Track, true),
+    TrackRemovePanEnvelope => ("track.remove_pan_envelope", "Remover o envelope de pan da faixa", Track, true),
     TrackToggleEnvelopes => ("track.toggle_envelopes", "Mostrar/ocultar envelopes", Track, true),
     TrackDuplicate => ("track.duplicate", "Duplicar faixa", Track, true),
     TrackLock => ("track.lock", "Travar faixa", Track, true),
@@ -244,6 +255,7 @@ commands! {
     ViewPreview => ("view.preview", "Prévia de vídeo", View, true),
     ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
     ViewVideoScopes => ("view.video_scopes", "Scopes de vídeo", View, true),
+    ViewWaveforms => ("view.waveforms", "Mostrar/ocultar ondas nos eventos", View, true),
     ViewEventEdgeFrames => ("view.event_edge_frames", "Quadros de borda do evento", View, true),
     ViewScrollTracksUp => ("view.scroll_tracks_up", "Rolar as faixas para cima", View, true),
     ViewScrollTracksDown => ("view.scroll_tracks_down", "Rolar as faixas para baixo", View, true),

@@ -41,6 +41,7 @@ pub mod slideshow;
 pub mod smooth_cut;
 pub mod snapping;
 pub mod switches;
+pub mod takes;
 pub mod timeline;
 pub mod track_lock;
 pub mod track_motion;
