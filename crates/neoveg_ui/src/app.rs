@@ -52,7 +52,7 @@ use neoveg_engine::crossfade::{find_crossfades, Crossfade};
 use neoveg_engine::edit;
 use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
-use neoveg_engine::envelope::{self, AutomationTarget, EnvelopeShape};
+use neoveg_engine::envelope::{self, AutomationTarget, EnvelopePoint, EnvelopeShape};
 use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
 use neoveg_engine::fcpxml;
 use neoveg_engine::groups;
@@ -6913,16 +6913,15 @@ impl AppState {
                             }
                         }
                         VideoFxTarget::Media(media_id) => {
-                            let mapped = self.selection.primary().and_then(|(tid, eid)| {
-                                let ev = self
-                                    .timeline
-                                    .track(tid)?
-                                    .events
-                                    .iter()
-                                    .find(|e| e.id == eid && e.media_id == Some(media_id))?;
-                                let rate = edit::clamp_playback_rate(ev.playback_rate);
-                                Some((ev.start + (local_t - ev.trim_in) / rate).max(0.0))
-                            });
+                            let mapped =
+                                self.selection.primary().and_then(|(tid, eid)| {
+                                    let ev =
+                                        self.timeline.track(tid)?.events.iter().find(|e| {
+                                            e.id == eid && e.media_id == Some(media_id)
+                                        })?;
+                                    let rate = edit::clamp_playback_rate(ev.playback_rate);
+                                    Some((ev.start + (local_t - ev.trim_in) / rate).max(0.0))
+                                });
                             self.playhead = mapped.unwrap_or_else(|| local_t.max(0.0));
                             sought = true;
                         }
@@ -7257,21 +7256,20 @@ impl AppState {
                     }
                     mix::set_automation_mode(&self.timeline, track_id, mode)
                 }
-                MixAction::AutoPoint(ctrl, val) => {
-                    self.auto_control_spec(track_id, ctrl)
-                        .and_then(|(auto_target, bounds, init)| {
-                            envelope::record_automation_pass(
-                                &self.timeline,
-                                FxTarget::Track(track_id),
-                                auto_target,
-                                init,
-                                &[(self.playhead.max(0.0), val)],
-                                None,
-                                bounds,
-                                0.0,
-                            )
-                        })
-                }
+                MixAction::AutoPoint(ctrl, val) => self.auto_control_spec(track_id, ctrl).and_then(
+                    |(auto_target, bounds, init)| {
+                        envelope::record_automation_pass(
+                            &self.timeline,
+                            FxTarget::Track(track_id),
+                            auto_target,
+                            init,
+                            &[(self.playhead.max(0.0), val)],
+                            None,
+                            bounds,
+                            0.0,
+                        )
+                    },
+                ),
                 MixAction::FinishTouch(ctrl) => {
                     changed |= self.finish_touch_pass(track_id, ctrl);
                     None
@@ -11977,6 +11975,18 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             neoveg_engine::switches::set(&state.timeline, &[(track_id, event_id)], which, on)
         } else if let Some(mode) = resample {
             neoveg_engine::switches::set_resample(&state.timeline, &[(track_id, event_id)], mode)
+        } else if let Some(opacity) = opacity_change {
+            neoveg_engine::switches::set_event_opacity(
+                &state.timeline,
+                &[(track_id, event_id)],
+                opacity,
+            )
+        } else if let Some(gain_db) = gain_change {
+            neoveg_engine::switches::set_event_gain_db(
+                &state.timeline,
+                &[(track_id, event_id)],
+                gain_db,
+            )
         } else if let Some(pitch) = pitch_change {
             neoveg_engine::event_pitch::set(&state.timeline, &[(track_id, event_id)], &pitch)
         } else if let Some(envelope) = volume {
@@ -12597,6 +12607,47 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         _ => None,
     };
     let presets = state.prefs.video_effect_presets.clone();
+    let (local_time, span_duration) = match target {
+        VideoFxTarget::Event { track_id, event_id } => state
+            .timeline
+            .track(track_id)
+            .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+            .map_or((0.0, 5.0), |ev| {
+                (
+                    (state.playhead - ev.start).clamp(0.0, ev.duration),
+                    ev.duration.max(0.05),
+                )
+            }),
+        VideoFxTarget::Media(media_id) => {
+            let media_dur = state
+                .project
+                .media_pool
+                .iter()
+                .find(|m| m.id == media_id)
+                .map_or(10.0, |m| m.duration_seconds.max(0.05));
+            let local = state
+                .selection
+                .primary()
+                .and_then(|(tid, eid)| {
+                    let ev = state
+                        .timeline
+                        .track(tid)?
+                        .events
+                        .iter()
+                        .find(|e| e.id == eid && e.media_id == Some(media_id))?;
+                    let rate = edit::clamp_playback_rate(ev.playback_rate);
+                    Some(
+                        (ev.trim_in + (state.playhead - ev.start).max(0.0) * rate)
+                            .clamp(0.0, media_dur),
+                    )
+                })
+                .unwrap_or_else(|| state.playhead.clamp(0.0, media_dur));
+            (local, media_dur)
+        }
+        VideoFxTarget::Track(_) | VideoFxTarget::Project => {
+            (state.playhead.max(0.0), state.timeline.duration().max(10.0))
+        }
+    };
     let actions = video_fx_panel::vfx_ui(
         ui,
         &mut state.vfx,
@@ -12605,6 +12656,8 @@ fn video_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         scopes,
         fade_color,
         &presets,
+        local_time,
+        span_duration,
     );
     // A slider being dragged shows in the preview at once; the project changes on release
     state.vfx_draft = state.vfx.draft_view().map(|(index, values)| VfxDraft {
@@ -12737,6 +12790,22 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
                         state.apply_mix_actions(video.id, vec![action]);
                     }
                     ui.label(&video.name);
+                    egui::ComboBox::from_id_salt(("video_track_auto_mode", video.id))
+                        .selected_text(video.automation_mode.label())
+                        .width(108.0)
+                        .show_ui(ui, |ui| {
+                            for mode in neoveg_common::envelope::AutomationMode::ALL {
+                                if ui
+                                    .selectable_label(video.automation_mode == mode, mode.label())
+                                    .clicked()
+                                {
+                                    state.apply_mix_actions(
+                                        video.id,
+                                        vec![MixAction::Automation(mode)],
+                                    );
+                                }
+                            }
+                        });
                 });
                 ui.weak(tr("Faixa de vídeo: sem efeitos de áudio."));
             } else {
@@ -12749,8 +12818,14 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     };
     if let FxTarget::Track(id) = target {
         if let Some(track) = state.timeline.track(id).cloned() {
-            let mix_actions =
-                mixer_panel::mixer_ui(ui, &mut state.mixer, &track, state.timeline.pan_law);
+            let mix_actions = mixer_panel::mixer_ui(
+                ui,
+                &mut state.mixer,
+                &track,
+                state.timeline.pan_law,
+                state.playhead,
+                state.playing,
+            );
             if let (Some(active), Some(preview)) =
                 (&state.active_player, state.mixer.preview_mix(&track))
             {
@@ -12763,6 +12838,11 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
                             invert: preview.invert_phase,
                         },
                     );
+                }
+            }
+            if state.playing && track.automation_mode.records() {
+                if let Some((ctrl, val)) = state.mixer.active_auto_draft(id) {
+                    state.record_automation_sample(id, ctrl, val);
                 }
             }
             state.apply_mix_actions(id, mix_actions);
@@ -13004,6 +13084,114 @@ fn header_button_at(
     })
 }
 
+fn event_level_bounds(kind: TrackKind) -> (f32, f32) {
+    match kind {
+        TrackKind::Video => (0.0, 1.0),
+        TrackKind::Audio => neoveg_engine::TrackMix::VOLUME_RANGE_DB,
+    }
+}
+
+fn event_level_y(ev_rect: Rect, kind: TrackKind, value: f32) -> f32 {
+    let top_y = ev_rect.top() + EVENT_HEADER_HEIGHT + 2.0;
+    let bot_y = (ev_rect.bottom() - 4.0).max(top_y + 1.0);
+    let (lo, hi) = event_level_bounds(kind);
+    let norm = ((value - lo) / (hi - lo).max(1e-6)).clamp(0.0, 1.0);
+    bot_y - norm * (bot_y - top_y)
+}
+
+fn y_to_event_level(ev_rect: Rect, kind: TrackKind, y: f32) -> f32 {
+    let top_y = ev_rect.top() + EVENT_HEADER_HEIGHT + 2.0;
+    let bot_y = (ev_rect.bottom() - 4.0).max(top_y + 1.0);
+    let (lo, hi) = event_level_bounds(kind);
+    let norm = ((bot_y - y) / (bot_y - top_y)).clamp(0.0, 1.0);
+    (lo + norm * (hi - lo)).clamp(lo, hi)
+}
+
+/// Hit-tests the horizontal opacity/gain bar inside an unlocked event body.
+fn hit_event_level_bar(
+    state: &AppState,
+    lanes_left: f32,
+    lane_top: f32,
+    p: Pos2,
+) -> Option<EventLevelDrag> {
+    if state.edit_tool != EditTool::Normal {
+        return None;
+    }
+    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    if row < 0.0 {
+        return None;
+    }
+    let track = state.timeline.tracks.get(row as usize)?;
+    if track.locked {
+        return None;
+    }
+    let row_top = lane_top + row * TRACK_HEIGHT;
+    let row_bottom = row_top + TRACK_HEIGHT - 2.0;
+    let to_px = |t: f64| lanes_left + ((t - state.scroll_seconds) * state.pixels_per_second) as f32;
+    track.events.iter().rev().find_map(|ev| {
+        if ev.locked {
+            return None;
+        }
+        let (x0, x1) = (to_px(ev.start), to_px(ev.end()));
+        if x1 - x0 < 28.0 {
+            return None;
+        }
+        let edge = TRIM_EDGE_PX.min((x1 - x0) / 3.0);
+        if p.x <= x0 + edge || p.x >= x1 - edge {
+            return None;
+        }
+        if x1 - x0 >= FADE_HANDLE_MIN_EVENT_PX {
+            let (hin, hout) =
+                fade_handle_x(ev.fade_in, ev.fade_out, state.pixels_per_second, x0, x1);
+            if (p.x - hin).abs() <= FADE_HANDLE_PX + 2.0
+                || (p.x - hout).abs() <= FADE_HANDLE_PX + 2.0
+            {
+                return None;
+            }
+        }
+        if p.y >= row_bottom - SNAP_OFFSET_HIT_HEIGHT {
+            return None;
+        }
+        let ev_rect = Rect::from_min_max(pos2(x0, row_top + 2.0), pos2(x1, row_bottom));
+        let val = match track.kind {
+            TrackKind::Video => ev.opacity.clamp(0.0, 1.0),
+            TrackKind::Audio => {
+                let (lo, hi) = neoveg_engine::TrackMix::VOLUME_RANGE_DB;
+                ev.gain_db.clamp(lo, hi)
+            }
+        };
+        let line_y = event_level_y(ev_rect, track.kind, val);
+        if (p.y - line_y).abs() > 4.0 {
+            return None;
+        }
+        let primary = (track.id, ev.id);
+        let refs = if state.selection.contains(primary) {
+            state
+                .selection
+                .refs()
+                .into_iter()
+                .filter(|&(tid, eid)| {
+                    state.timeline.track(tid).is_some_and(|t| {
+                        t.kind == track.kind
+                            && !t.locked
+                            && t.events.iter().any(|e| e.id == eid && !e.locked)
+                    })
+                })
+                .collect()
+        } else {
+            vec![primary]
+        };
+        Some(EventLevelDrag {
+            kind: track.kind,
+            refs,
+            primary,
+            origin: val,
+            current: val,
+            press_y: p.y,
+        })
+    })
+}
+
 /// Event under `p` and what a drag from there would do.
 fn hit_event(
     state: &AppState,
@@ -13098,6 +13286,17 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
 
     let mut cmd_to_run = None;
     if let Some(idx) = hit.point_index {
+        let current_val = env.points.get(idx).map_or(hit.value, |p| p.value);
+        if ui.button(tr("Definir valor…")).clicked() {
+            state.env_value_dialog = Some(EnvelopeValueDialog {
+                track_id: hit.track_id,
+                target: hit.target.clone(),
+                index: idx,
+                bounds: hit.bounds,
+                text: format!("{current_val:.2}"),
+            });
+            ui.close_menu();
+        }
         let current_shape = env
             .points
             .get(idx)
@@ -13145,6 +13344,79 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
     }
 
     ui.separator();
+    let has_sel = state.time_selection.is_some_and(|r| !r.is_empty());
+    let thin_tol = (hit.bounds.1 - hit.bounds.0).abs() * 0.015;
+    if ui.button(tr("Inverter todos os pontos")).clicked() {
+        cmd_to_run = envelope::flip_envelope(
+            &state.timeline,
+            target,
+            &hit.target,
+            None,
+            hit.bounds,
+            hit.default,
+        );
+        ui.close_menu();
+    }
+    if ui
+        .add_enabled(has_sel, egui::Button::new(tr("Inverter na seleção")))
+        .clicked()
+    {
+        cmd_to_run = envelope::flip_envelope(
+            &state.timeline,
+            target,
+            &hit.target,
+            state.time_selection,
+            hit.bounds,
+            hit.default,
+        );
+        ui.close_menu();
+    }
+    if ui.button(tr("Afinar todos os pontos")).clicked() {
+        cmd_to_run = envelope::thin_envelope(&state.timeline, target, &hit.target, None, thin_tol);
+        ui.close_menu();
+    }
+    if ui
+        .add_enabled(has_sel, egui::Button::new(tr("Afinar na seleção")))
+        .clicked()
+    {
+        cmd_to_run = envelope::thin_envelope(
+            &state.timeline,
+            target,
+            &hit.target,
+            state.time_selection,
+            thin_tol,
+        );
+        ui.close_menu();
+    }
+    if ui.button(tr("Copiar pontos")).clicked() {
+        let copied = envelope::copy_points(&env, state.time_selection);
+        if !copied.is_empty() {
+            state.env_clipboard = Some(copied);
+        }
+        ui.close_menu();
+    }
+    let has_clip = state
+        .env_clipboard
+        .as_ref()
+        .is_some_and(|pts| !pts.is_empty());
+    if ui
+        .add_enabled(has_clip, egui::Button::new(tr("Colar pontos no cursor")))
+        .clicked()
+    {
+        if let Some(clip) = state.env_clipboard.as_deref() {
+            cmd_to_run = envelope::paste_points(
+                &state.timeline,
+                target,
+                &hit.target,
+                clip,
+                state.playhead,
+                hit.bounds,
+            );
+        }
+        ui.close_menu();
+    }
+
+    ui.separator();
     let mut enabled = env.enabled;
     if ui.checkbox(&mut enabled, tr("Automação ativa")).changed() {
         cmd_to_run = envelope::set_envelope_enabled(&state.timeline, target, &hit.target, enabled);
@@ -13163,6 +13435,8 @@ fn envelope_context_menu(state: &mut AppState, ui: &mut egui::Ui, hit: &Envelope
     if let Some(cmd) = cmd_to_run {
         if state.history.execute(&mut state.timeline, cmd) {
             state.restart_audio_if_playing();
+            state.last_frame_key = None;
+            state.last_composite_key = None;
         }
     }
 }
@@ -13210,7 +13484,31 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
         command_item(state, ui, Command::TrackMute);
         if track.kind == TrackKind::Audio {
             command_item(state, ui, Command::TrackSolo);
+            ui.menu_button(tr("Inserir/remover envelope"), |ui| {
+                for command in [
+                    Command::TrackVolumeEnvelope,
+                    Command::TrackPanEnvelope,
+                    Command::TrackMuteEnvelope,
+                    Command::TrackToggleEnvelopes,
+                ] {
+                    command_item(state, ui, command);
+                }
+            });
         } else {
+            ui.menu_button(tr("Inserir/remover envelope"), |ui| {
+                for (label, target, initial) in [
+                    (tr("Nível da faixa"), AutomationTarget::VideoLevel, 1.0),
+                    (tr("Esmaecer para cor"), AutomationTarget::VideoFade, 0.0),
+                    (tr("Mudo da faixa"), AutomationTarget::VideoMute, 0.0),
+                ] {
+                    if ui.button(label).clicked() {
+                        state.toggle_video_envelope(target, initial);
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                command_item(state, ui, Command::TrackToggleEnvelopes);
+            });
             if ui.button(tr("Efeitos de vídeo da faixa…")).clicked() {
                 state.vfx.scope = VfxScope::Track;
                 state.window_request = Some(WindowAction::Show(Tab::VideoFx));
@@ -13221,6 +13519,17 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
                 ui.close_menu();
             }
         }
+        ui.menu_button(tr("Modo de automação"), |ui| {
+            for mode in neoveg_common::envelope::AutomationMode::ALL {
+                if ui
+                    .selectable_label(track.automation_mode == mode, mode.label())
+                    .clicked()
+                {
+                    state.apply_mix_actions(track.id, vec![MixAction::Automation(mode)]);
+                    ui.close_menu();
+                }
+            }
+        });
     }
 }
 
@@ -13625,6 +13934,21 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         {
             state.toggle_event_switch(Switch::Lock);
         }
+        let lock_env_tip = state.with_hint(
+            tr(Command::OptionsLockEnvelopes.label()),
+            Command::OptionsLockEnvelopes,
+        );
+        if icons::svg_button(
+            ui,
+            icons::SvgIcon::ToolEnvelope,
+            &lock_env_tip,
+            state.prefs.lock_envelopes_to_events,
+        )
+        .clicked()
+        {
+            let ctx = ui.ctx().clone();
+            state.run_command(Command::OptionsLockEnvelopes, &ctx, now);
+        }
         ui.separator();
         for tool in EditTool::ALL {
             let selected = state.edit_tool == tool;
@@ -13847,6 +14171,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if let Some(cmd) = cmd {
                 if state.history.execute(&mut state.timeline, cmd) {
                     state.restart_audio_if_playing();
+                    state.last_frame_key = None;
+                    state.last_composite_key = None;
                 }
             }
         }
@@ -13941,7 +14267,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 && header_button_at(state, lanes, lane_top, *p).is_none()
         }) {
             let t = x_to_time(state, lanes.left(), p.x);
-            let env_node = envelope_canvas::hit_test(
+            let shift = ui.input(|i| i.modifiers.shift);
+            let env_hit = envelope_canvas::hit_test(
                 &state.timeline.tracks,
                 lanes.left(),
                 lane_top,
@@ -13949,9 +14276,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 state.scroll_seconds,
                 state.pixels_per_second,
                 p,
-            )
-            .filter(|h| h.point_index.is_some());
-            if let Some(h) = env_node {
+            );
+            if shift && env_hit.is_some() {
+                if let Some(h) = env_hit {
+                    state.selected_track = Some(h.track_id);
+                    state.env_brush = Some(EnvelopeBrush {
+                        track_id: h.track_id,
+                        target: h.target,
+                        samples: vec![(t.max(0.0), h.value)],
+                        bounds: h.bounds,
+                    });
+                }
+            } else if let Some(h) = env_hit.filter(|h| h.point_index.is_some()) {
                 state.selected_track = Some(h.track_id);
                 state.env_drag = Some(EnvelopeDrag {
                     track_id: h.track_id,
@@ -13959,8 +14295,20 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     index: h.point_index.unwrap_or(0),
                     time: h.time,
                     value: h.value,
+                    origin_time: h.time,
+                    origin_value: h.value,
+                    press_y: p.y,
                     bounds: h.bounds,
                 });
+            } else if let Some(level_drag) = (!shift)
+                .then(|| hit_event_level_bar(state, lanes.left(), lane_top, p))
+                .flatten()
+            {
+                state.selected_track = Some(level_drag.primary.0);
+                if !state.selection.contains(level_drag.primary) {
+                    state.click_select(level_drag.primary);
+                }
+                state.event_level_drag = Some(level_drag);
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
                 if ui.input(|i| i.modifiers.command) {
                     let adjacent = ui.input(|i| i.modifiers.alt);
@@ -13972,9 +14320,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         (other, _) => other,
                     };
                 }
-                state.drag_ignores_group = ui.input(|i| i.modifiers.shift);
+                state.drag_ignores_group = shift;
                 state.begin_drag(hit, t);
-            } else if ui.input(|i| i.modifiers.shift) {
+            } else if shift {
                 // Shift + drag over empty lane: rectangular selection
                 let row = (p.y - lane_top) / TRACK_HEIGHT;
                 state.marquee = Some(Marquee {
@@ -14057,6 +14405,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             state.env_drag = None;
         } else if let Some(p) = response.interact_pointer_pos() {
             let t = x_to_time(state, lanes.left(), p.x).max(0.0);
+            let (command, alt) = ui.input(|i| (i.modifiers.command, i.modifiers.alt));
             if let Some(d) = &mut state.env_drag {
                 if let Some(row) = state
                     .timeline
@@ -14065,19 +14414,91 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     .position(|tr| tr.id == d.track_id)
                 {
                     let y0 = lane_top + row as f32 * TRACK_HEIGHT;
-                    let sensitivity = if ui.input(|i| i.modifiers.command) {
-                        0.2
-                    } else {
-                        1.0
-                    };
                     let raw_v =
                         envelope_canvas::y_to_value(y0, TRACK_HEIGHT, p.y, d.bounds.0, d.bounds.1);
-                    d.time = t;
-                    d.value = if sensitivity < 1.0 {
-                        (d.value + (raw_v - d.value) * sensitivity).clamp(d.bounds.0, d.bounds.1)
+                    let usable_h = (TRACK_HEIGHT - 12.0).max(1.0);
+                    let fine_v = (d.origin_value
+                        + ((d.press_y - p.y) / usable_h) * (d.bounds.1 - d.bounds.0) * 0.1)
+                        .clamp(d.bounds.0, d.bounds.1);
+                    match (command, alt) {
+                        // Ctrl: lock time + fine vertical adjustment
+                        (true, false) => {
+                            d.time = d.origin_time;
+                            d.value = fine_v;
+                        }
+                        // Ctrl+Alt: lock time + normal vertical adjustment
+                        (true, true) => {
+                            d.time = d.origin_time;
+                            d.value = raw_v;
+                        }
+                        // Alt: lock value + move horizontally in time
+                        (false, true) => {
+                            d.time = t;
+                            d.value = d.origin_value;
+                        }
+                        (false, false) => {
+                            d.time = t;
+                            d.value = raw_v;
+                        }
+                    }
+                }
+            }
+            ui.ctx().request_repaint();
+        }
+    }
+    if state.env_brush.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.env_brush = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let t = x_to_time(state, lanes.left(), p.x).max(0.0);
+            if let Some(b) = &mut state.env_brush {
+                if let Some(row) = state
+                    .timeline
+                    .tracks
+                    .iter()
+                    .position(|tr| tr.id == b.track_id)
+                {
+                    let y0 = lane_top + row as f32 * TRACK_HEIGHT;
+                    let raw_v =
+                        envelope_canvas::y_to_value(y0, TRACK_HEIGHT, p.y, b.bounds.0, b.bounds.1);
+                    if b.samples
+                        .last()
+                        .is_none_or(|&(lt, lv)| (t - lt).abs() > 1e-4 || (raw_v - lv).abs() > 1e-4)
+                    {
+                        b.samples.push((t, raw_v));
+                    }
+                }
+            }
+            ui.ctx().request_repaint();
+        }
+    }
+    if state.event_level_drag.is_some() {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.event_level_drag = None;
+        } else if let Some(p) = response.interact_pointer_pos() {
+            let fine = ui.input(|i| i.modifiers.command);
+            if let Some(d) = &mut state.event_level_drag {
+                if let Some(row) = state
+                    .timeline
+                    .tracks
+                    .iter()
+                    .position(|tr| tr.id == d.primary.0)
+                {
+                    let row_top = lane_top + row as f32 * TRACK_HEIGHT;
+                    let ev_rect = Rect::from_min_max(
+                        pos2(lanes.left(), row_top + 2.0),
+                        pos2(lanes.right(), row_top + TRACK_HEIGHT - 2.0),
+                    );
+                    let (lo, hi) = event_level_bounds(d.kind);
+                    if fine {
+                        let span_px =
+                            (ev_rect.bottom() - 4.0 - (ev_rect.top() + EVENT_HEADER_HEIGHT + 2.0))
+                                .max(1.0);
+                        d.current = (d.origin + ((d.press_y - p.y) / span_px) * (hi - lo) * 0.15)
+                            .clamp(lo, hi);
                     } else {
-                        raw_v
-                    };
+                        d.current = y_to_event_level(ev_rect, d.kind, p.y);
+                    }
                 }
             }
             ui.ctx().request_repaint();
@@ -14085,6 +14506,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     }
     if response.drag_stopped() {
         state.finish_envelope_drag();
+        state.finish_envelope_brush();
+        state.finish_event_level_drag();
         state.finish_mark_drag();
         state.finish_marquee();
         state.finish_drag();
@@ -14219,6 +14642,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // Cursor feedback
     if state.env_drag.is_some() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    } else if state.env_brush.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    } else if state.event_level_drag.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
     } else if let Some(drag) = &state.drag {
         ui.ctx().set_cursor_icon(match drag.mode {
             DragMode::Move | DragMode::SnapOffset => egui::CursorIcon::Grabbing,
@@ -14245,6 +14672,16 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         .hover_pos()
         .filter(|p| p.x >= lanes.left() && p.y >= ruler_bottom)
     {
+        let shift_hover = ui.input(|i| i.modifiers.shift);
+        let env_hover = envelope_canvas::hit_test(
+            &state.timeline.tracks,
+            lanes.left(),
+            lane_top,
+            TRACK_HEIGHT,
+            state.scroll_seconds,
+            state.pixels_per_second,
+            p,
+        );
         let header_hover = header_button_at(state, lanes, lane_top, p);
         if let Some((track_id, _, button, _)) = header_hover {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -14253,6 +14690,23 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 .track(track_id)
                 .is_some_and(|t| t.kind == TrackKind::Video);
             response.clone().on_hover_text(button.tooltip(video));
+        } else if shift_hover && env_hover.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        } else if env_hover.is_some_and(|h| h.point_index.is_some()) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+        } else if let Some(ld) = hit_event_level_bar(state, lanes.left(), lane_top, p) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+            let tip = match ld.kind {
+                TrackKind::Video => tr_args(
+                    "Opacidade do evento: {} % (Ctrl = ajuste fino)",
+                    &[&format!("{:.0}", ld.current * 100.0)],
+                ),
+                TrackKind::Audio => tr_args(
+                    "Ganho do evento: {} (Ctrl = ajuste fino)",
+                    &[&mixer_panel::format_db(ld.current)],
+                ),
+            };
+            response.clone().on_hover_text(tip);
         } else if let Some((_, _, mode, g)) = hit_event(state, lanes.left(), lane_top, p) {
             match mode {
                 DragMode::SnapOffset => {
@@ -14809,6 +15263,93 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     );
                 }
             }
+            if x1 - x0 >= 12.0 {
+                let active_ld = state
+                    .event_level_drag
+                    .as_ref()
+                    .filter(|d| d.refs.contains(&(track.id, ev.id)));
+                let level_val = match (active_ld, track.kind) {
+                    (Some(d), _) => d.current,
+                    (None, TrackKind::Video) => ev.opacity.clamp(0.0, 1.0),
+                    (None, TrackKind::Audio) => {
+                        let (lo, hi) = neoveg_engine::TrackMix::VOLUME_RANGE_DB;
+                        ev.gain_db.clamp(lo, hi)
+                    }
+                };
+                let ly = event_level_y(ev_rect, track.kind, level_val);
+                let non_default = match track.kind {
+                    TrackKind::Video => (level_val - 1.0).abs() > 1e-3,
+                    TrackKind::Audio => level_val.abs() > 1e-2,
+                };
+                if non_default || active_ld.is_some() || selected {
+                    let body_top = ev_rect.top() + EVENT_HEADER_HEIGHT;
+                    if track.kind == TrackKind::Video && ly > body_top + 2.5 {
+                        lane_painter.rect_filled(
+                            Rect::from_min_max(
+                                pos2(ev_rect.left() + 1.0, body_top),
+                                pos2(ev_rect.right() - 1.0, ly),
+                            ),
+                            Rounding::ZERO,
+                            Color32::from_black_alpha(75),
+                        );
+                    }
+                    let line_color = if active_ld.is_some() {
+                        Color32::from_rgb(0x4F, 0xD2, 0xFF)
+                    } else if non_default {
+                        Color32::from_rgba_unmultiplied(0x58, 0xD6, 0xFF, 220)
+                    } else {
+                        Color32::from_white_alpha(95)
+                    };
+                    lane_painter.line_segment(
+                        [
+                            pos2(ev_rect.left() + 1.0, ly),
+                            pos2(ev_rect.right() - 1.0, ly),
+                        ],
+                        Stroke::new(
+                            if active_ld.is_some() {
+                                2.0_f32
+                            } else {
+                                1.3_f32
+                            },
+                            line_color,
+                        ),
+                    );
+                }
+                if let Some(d) = active_ld.filter(|d| d.primary == (track.id, ev.id)) {
+                    let txt = match d.kind {
+                        TrackKind::Video => format!("{:.0} %", d.current * 100.0),
+                        TrackKind::Audio => mixer_panel::format_db(d.current),
+                    };
+                    lane_painter.text(
+                        pos2((ev_rect.left() + 6.0).max(lanes.left() + 4.0), ly - 2.0),
+                        Align2::LEFT_BOTTOM,
+                        txt,
+                        FontId::monospace(10.0),
+                        Color32::WHITE,
+                    );
+                }
+            }
+            if track.kind == TrackKind::Audio && x1 - x0 >= 12.0 {
+                if let Some(venv) = ev
+                    .volume_envelope
+                    .as_ref()
+                    .filter(|e| e.enabled && e.visible && !e.points.is_empty())
+                {
+                    let steps = (((x1 - x0) / 4.0).ceil() as usize).clamp(4, 180);
+                    let mut curve_pts = Vec::with_capacity(steps + 1);
+                    for s in 0..=steps {
+                        let u = s as f64 / steps as f64;
+                        let local_t = u * g.duration;
+                        let px = x0 + (u as f32) * (x1 - x0);
+                        let db = venv.value_at(local_t, 0.0);
+                        curve_pts.push(pos2(px, event_level_y(ev_rect, TrackKind::Audio, db)));
+                    }
+                    lane_painter.add(Shape::line(
+                        curve_pts,
+                        Stroke::new(1.5_f32, Color32::from_rgb(0x6D, 0xD4, 0x7E)),
+                    ));
+                }
+            }
             let border = if selected {
                 Color32::WHITE
             } else {
@@ -14883,6 +15424,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             state.pixels_per_second,
             track,
             state.env_drag.as_ref(),
+            state.env_brush.as_ref(),
         );
     }
 
