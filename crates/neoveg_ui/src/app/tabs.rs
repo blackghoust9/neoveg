@@ -344,7 +344,7 @@ impl AppState {
         Some(PathBuf::from(&media.path))
     }
 
-    /// Ctrl+Shift+N: the selected events become a project of their own and are replaced, in this
+    /// Alt+C: the selected events become a project of their own and are replaced, in this
     /// project, by one event that plays it. Double-click that event to open the sub-project.
     pub(super) fn create_subproject_from_selection(&mut self) {
         let events = self.selection.refs();
