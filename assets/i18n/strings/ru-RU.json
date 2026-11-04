@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "Откройте медиа в триммере, чтобы добавить его как дубль",
   "Paleta de comandos": "Палитра команд",
   "Digite o nome de um comando…": "Введите название команды…",
-  "Nenhum comando encontrado": "Команды не найдены"
+  "Nenhum comando encontrado": "Команды не найдены",
+  "Zoom": "Масштаб",
+  "Ampliar o zoom da linha do tempo": "Увеличить масштаб шкалы времени",
+  "Reduzir o zoom da linha do tempo": "Уменьшить масштаб шкалы времени",
+  "Ampliar o zoom em passo grande ou na seleção": "Увеличить крупным шагом или по выделению",
+  "Reduzir o zoom em passo grande": "Уменьшить крупным шагом",
+  "Zoom até uma miniatura de vídeo por quadro": "Масштаб до одного кадра на миниатюру"
 }

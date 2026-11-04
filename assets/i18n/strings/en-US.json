@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "Open a media in the Trimmer to add it as a take",
   "Paleta de comandos": "Command palette",
   "Digite o nome de um comando…": "Type the name of a command…",
-  "Nenhum comando encontrado": "No command found"
+  "Nenhum comando encontrado": "No command found",
+  "Zoom": "Zoom",
+  "Ampliar o zoom da linha do tempo": "Zoom the timeline in",
+  "Reduzir o zoom da linha do tempo": "Zoom the timeline out",
+  "Ampliar o zoom em passo grande ou na seleção": "Zoom in by a large step or to the selection",
+  "Reduzir o zoom em passo grande": "Zoom out by a large step",
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom until a video thumbnail is one frame"
 }

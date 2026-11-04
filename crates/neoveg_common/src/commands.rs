@@ -246,6 +246,11 @@ commands! {
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewZoomIn => ("view.zoom_in", "Ampliar o zoom da linha do tempo", View, true),
+    ViewZoomOut => ("view.zoom_out", "Reduzir o zoom da linha do tempo", View, true),
+    ViewZoomInLarge => ("view.zoom_in_large", "Ampliar o zoom em passo grande ou na seleção", View, true),
+    ViewZoomOutLarge => ("view.zoom_out_large", "Reduzir o zoom em passo grande", View, true),
+    ViewZoomOneFrame => ("view.zoom_one_frame", "Zoom até uma miniatura de vídeo por quadro", View, true),
     ViewLayoutLoad => ("view.layout_load", "Carregar layout (depois, um número de 1 a 9)", View, true),
     ViewLayoutSave => ("view.layout_save", "Salvar layout (depois, um número de 1 a 9)", View, true),
     ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, true),

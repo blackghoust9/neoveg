@@ -146,6 +146,12 @@ const TRACK_HEIGHT: f32 = 64.0;
 const EVENT_HEADER_HEIGHT: f32 = 14.0;
 const MIN_PIXELS_PER_SECOND: f64 = 15.0;
 const MAX_PIXELS_PER_SECOND: f64 = 480_000.0;
+/// Factor of a small zoom step (the up and down arrows).
+const ZOOM_STEP: f64 = 1.25;
+/// Factor of a large zoom step (`Ctrl` with the arrows).
+const ZOOM_STEP_LARGE: f64 = 2.0;
+/// Width of a video thumbnail, in points: the zoom of *one frame per thumbnail*.
+const THUMBNAIL_WIDTH: f64 = 114.0;
 const OFFSCREEN_CLAMP_PX: f32 = 10_000.0;
 const BLINK_SECONDS: f64 = 0.5;
 const FADE_CURVE_STEPS: u32 = 20;
@@ -1876,6 +1882,63 @@ impl AppState {
             loader_tx,
             loader_rx,
         }
+    }
+
+    /// Zooms by `factor` about the edit cursor (about the middle of the view when the cursor is out
+    /// of it), as the arrows, the toolbar and the zoom menu do.
+    fn zoom_at_cursor(&mut self, factor: f64) {
+        let view = self.lanes_width as f64 / self.pixels_per_second;
+        let inside =
+            self.playhead >= self.scroll_seconds && self.playhead <= self.scroll_seconds + view;
+        let anchor = if inside {
+            self.playhead
+        } else {
+            self.scroll_seconds + view * 0.5
+        };
+        let (zoom, scroll) = timeline_scroll::zoom_about(
+            self.pixels_per_second,
+            self.scroll_seconds,
+            anchor,
+            factor,
+            MIN_PIXELS_PER_SECOND,
+            MAX_PIXELS_PER_SECOND,
+        );
+        self.pixels_per_second = zoom;
+        self.scroll_seconds = scroll;
+    }
+
+    /// `Ctrl+Up` / `Ctrl+Down`: a large step; in, with a time selection, the whole selection is shown.
+    fn zoom_large(&mut self, zoom_in: bool) {
+        let selection = self.time_selection.filter(|range| !range.is_empty());
+        if let (true, Some(range)) = (zoom_in, selection) {
+            if let Some((zoom, scroll)) = timeline_scroll::fit_range(
+                range.start,
+                range.end,
+                f64::from(self.lanes_width),
+                MIN_PIXELS_PER_SECOND,
+                MAX_PIXELS_PER_SECOND,
+            ) {
+                self.pixels_per_second = zoom;
+                self.scroll_seconds = scroll;
+                return;
+            }
+        }
+        self.zoom_at_cursor(if zoom_in {
+            ZOOM_STEP_LARGE
+        } else {
+            1.0 / ZOOM_STEP_LARGE
+        });
+    }
+
+    /// `Alt+Up`: zooms in until a frame is as wide as a video thumbnail, about the cursor.
+    fn zoom_one_frame(&mut self) {
+        let wanted = timeline_scroll::pixels_for_frame(
+            self.project.settings.fps,
+            THUMBNAIL_WIDTH,
+            MIN_PIXELS_PER_SECOND,
+            MAX_PIXELS_PER_SECOND,
+        );
+        self.zoom_at_cursor(wanted / self.pixels_per_second);
     }
 
     fn drop_frame(&self) -> bool {
@@ -8037,6 +8100,11 @@ impl AppState {
             Command::RippleAffectedTracks => self.ripple_key(RippleScope::AffectedTracks),
             Command::RippleWithMarkers => self.ripple_key(RippleScope::AffectedTracksAndMarks),
             Command::RippleAll => self.ripple_key(RippleScope::AllTracksAndMarks),
+            Command::ViewZoomIn => self.zoom_at_cursor(ZOOM_STEP),
+            Command::ViewZoomOut => self.zoom_at_cursor(1.0 / ZOOM_STEP),
+            Command::ViewZoomInLarge => self.zoom_large(true),
+            Command::ViewZoomOutLarge => self.zoom_large(false),
+            Command::ViewZoomOneFrame => self.zoom_one_frame(),
             Command::ViewFocusTimeline => {
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
             }
@@ -9842,6 +9910,17 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.toolbar_editor_open = true;
                 ui.close_menu();
             }
+            ui.menu_button(tr("Zoom"), |ui| {
+                for command in [
+                    Command::ViewZoomIn,
+                    Command::ViewZoomOut,
+                    Command::ViewZoomInLarge,
+                    Command::ViewZoomOutLarge,
+                    Command::ViewZoomOneFrame,
+                ] {
+                    command_item(state, ui, command);
+                }
+            });
             ui.menu_button(tr("Rolar as faixas"), |ui| {
                 for command in [
                     Command::ViewScrollTracksUp,
@@ -14512,10 +14591,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             (Icon::ZoomIn, "Ampliar zoom", 2.0),
         ] {
             if icon(ui, which, tip) {
-                let offset = state.playhead - state.scroll_seconds;
-                state.pixels_per_second = (state.pixels_per_second * factor)
-                    .clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND);
-                state.scroll_seconds = (state.playhead - offset * (1.0 / factor)).max(0.0);
+                state.zoom_at_cursor(factor);
             }
         }
     });
@@ -14537,8 +14613,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // ---- zoom / scroll (zoom anchored at the pointer) ------------------------------------------
     if response.hovered() {
-        let zoom = ui.input(|i| i.zoom_delta()) as f64;
-        let scroll = ui.input(|i| i.smooth_scroll_delta);
+        let (zoom, scroll, modifiers) =
+            ui.input(|i| (i.zoom_delta() as f64, i.smooth_scroll_delta, i.modifiers));
         if let Some(p) = response.hover_pos() {
             let anchor = x_to_time(state, lanes.left(), p.x);
             if p.x < lanes.left() {
@@ -14546,15 +14622,30 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 if scroll != egui::Vec2::ZERO {
                     state.scroll_y = (state.scroll_y - scroll.y).max(0.0);
                 }
-            } else if (zoom - 1.0).abs() > 1e-6 {
-                state.pixels_per_second = (state.pixels_per_second * zoom)
-                    .clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND);
-                state.scroll_seconds =
-                    (anchor - (p.x - lanes.left()) as f64 / state.pixels_per_second).max(0.0);
-            } else if scroll != egui::Vec2::ZERO {
-                state.scroll_seconds = (state.scroll_seconds
-                    - (scroll.x + scroll.y) as f64 / state.pixels_per_second)
-                    .max(0.0);
+            } else {
+                // The wheel alone zooms about the pointer; `Shift` scrolls in time, `Ctrl` the tracks
+                match timeline_scroll::wheel(
+                    (scroll.x, scroll.y),
+                    zoom,
+                    modifiers.ctrl || modifiers.command,
+                    modifiers.shift,
+                ) {
+                    timeline_scroll::Wheel::Zoom(factor) => {
+                        state.pixels_per_second = (state.pixels_per_second * factor)
+                            .clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND);
+                        state.scroll_seconds = (anchor
+                            - (p.x - lanes.left()) as f64 / state.pixels_per_second)
+                            .max(0.0);
+                    }
+                    timeline_scroll::Wheel::ScrollTime(points) => {
+                        state.scroll_seconds =
+                            (state.scroll_seconds + points / state.pixels_per_second).max(0.0);
+                    }
+                    timeline_scroll::Wheel::ScrollTracks(points) => {
+                        state.scroll_y = (state.scroll_y + points as f32).max(0.0);
+                    }
+                    timeline_scroll::Wheel::Nothing => {}
+                }
             }
         }
     }
@@ -18777,6 +18868,37 @@ mod tests {
         assert!(s.command_palette.matches(&rows).contains(&undo));
         s.command_palette.query = "zzzz-nao-existe".into();
         assert!(s.command_palette.matches(&rows).is_empty());
+    }
+
+    #[test]
+    fn the_zoom_keys_zoom_about_the_cursor_and_fit_the_time_selection() {
+        let mut s = AppState::new();
+        s.lanes_width = 1100.0;
+        s.pixels_per_second = 100.0;
+        s.scroll_seconds = 10.0;
+        s.playhead = 12.0;
+        run(&mut s, Command::ViewZoomIn);
+        assert!((s.pixels_per_second - 125.0).abs() < 1e-9);
+        // The cursor is still 200 px from the left edge of the view
+        assert!(((s.playhead - s.scroll_seconds) * s.pixels_per_second - 200.0).abs() < 1e-6);
+        run(&mut s, Command::ViewZoomOut);
+        assert!((s.pixels_per_second - 100.0).abs() < 1e-9);
+        // Large: a factor of two; with a time selection the whole selection is shown
+        run(&mut s, Command::ViewZoomInLarge);
+        assert!((s.pixels_per_second - 200.0).abs() < 1e-9);
+        s.time_selection = Some(neoveg_engine::selection::TimeRange::new(30.0, 40.0));
+        run(&mut s, Command::ViewZoomInLarge);
+        assert!(
+            (s.pixels_per_second - 100.0).abs() < 1e-9,
+            "10 s across 1100 px"
+        );
+        assert!(s.scroll_seconds < 30.0 && s.scroll_seconds + 11.0 > 40.0);
+        run(&mut s, Command::ViewZoomOutLarge);
+        assert!((s.pixels_per_second - 50.0).abs() < 1e-9);
+        // One frame per thumbnail: the frame rate times the thumbnail width
+        run(&mut s, Command::ViewZoomOneFrame);
+        let expected = (s.project.settings.fps * THUMBNAIL_WIDTH).min(MAX_PIXELS_PER_SECOND);
+        assert!((s.pixels_per_second - expected).abs() < 1e-6);
     }
 
     #[test]

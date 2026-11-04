@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "テイクとして追加するメディアをトリマーで開いてください",
   "Paleta de comandos": "コマンドパレット",
   "Digite o nome de um comando…": "コマンド名を入力…",
-  "Nenhum comando encontrado": "コマンドが見つかりません"
+  "Nenhum comando encontrado": "コマンドが見つかりません",
+  "Zoom": "ズーム",
+  "Ampliar o zoom da linha do tempo": "タイムラインを拡大",
+  "Reduzir o zoom da linha do tempo": "タイムラインを縮小",
+  "Ampliar o zoom em passo grande ou na seleção": "大きなステップまたは選択範囲に合わせて拡大",
+  "Reduzir o zoom em passo grande": "大きなステップで縮小",
+  "Zoom até uma miniatura de vídeo por quadro": "ビデオサムネイルが1フレームになるまでズーム"
 }

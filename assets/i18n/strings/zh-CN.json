@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "请先在修剪器中打开媒体，再将其添加为镜头",
   "Paleta de comandos": "命令面板",
   "Digite o nome de um comando…": "输入命令名称…",
-  "Nenhum comando encontrado": "未找到命令"
+  "Nenhum comando encontrado": "未找到命令",
+  "Zoom": "缩放",
+  "Ampliar o zoom da linha do tempo": "放大时间线",
+  "Reduzir o zoom da linha do tempo": "缩小时间线",
+  "Ampliar o zoom em passo grande ou na seleção": "大步放大或缩放到选区",
+  "Reduzir o zoom em passo grande": "大步缩小",
+  "Zoom até uma miniatura de vídeo por quadro": "缩放到每个视频缩略图一帧"
 }

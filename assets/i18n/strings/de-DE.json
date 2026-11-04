@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "Öffnen Sie ein Medium im Trimmer, um es als Take hinzuzufügen",
   "Paleta de comandos": "Befehlspalette",
   "Digite o nome de um comando…": "Namen eines Befehls eingeben…",
-  "Nenhum comando encontrado": "Kein Befehl gefunden"
+  "Nenhum comando encontrado": "Kein Befehl gefunden",
+  "Zoom": "Zoom",
+  "Ampliar o zoom da linha do tempo": "Zeitleiste vergrößern",
+  "Reduzir o zoom da linha do tempo": "Zeitleiste verkleinern",
+  "Ampliar o zoom em passo grande ou na seleção": "Großer Zoomschritt oder auf die Auswahl zoomen",
+  "Reduzir o zoom em passo grande": "Großer Zoomschritt nach außen",
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom, bis eine Videominiatur ein Bild ist"
 }

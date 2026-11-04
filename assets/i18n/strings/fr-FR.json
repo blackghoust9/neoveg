@@ -1595,5 +1595,11 @@
   "Abra uma mídia no Trimmer para adicioná-la como take": "Ouvrez un média dans le Trimmer pour l'ajouter comme prise",
   "Paleta de comandos": "Palette de commandes",
   "Digite o nome de um comando…": "Tapez le nom d'une commande…",
-  "Nenhum comando encontrado": "Aucune commande trouvée"
+  "Nenhum comando encontrado": "Aucune commande trouvée",
+  "Zoom": "Zoom",
+  "Ampliar o zoom da linha do tempo": "Agrandir le zoom de la ligne de temps",
+  "Reduzir o zoom da linha do tempo": "Réduire le zoom de la ligne de temps",
+  "Ampliar o zoom em passo grande ou na seleção": "Agrandir par grand pas ou sur la sélection",
+  "Reduzir o zoom em passo grande": "Réduire par grand pas",
+  "Zoom até uma miniatura de vídeo por quadro": "Zoom jusqu'à une vignette vidéo par image"
 }
