@@ -149,6 +149,25 @@ pub fn detect_cuts(diffs: &[f32], opt: &SceneOptions) -> Vec<usize> {
     cuts
 }
 
+/// Frames between the frames that are looked at, so that an event of `frames` frames gives at most
+/// `max_samples` of them (`1` looks at every frame).
+pub fn sampling_step(frames: usize, max_samples: usize) -> usize {
+    frames.div_ceil(max_samples.max(1)).max(1)
+}
+
+/// The times (seconds) where the shots begin, from the indices `cuts` of the frames that were looked
+/// at: the sample `i` is the frame `i * step` of an event that starts at `start`.
+pub fn cut_times_at(cuts: &[usize], step: usize, fps: f64, start: f64) -> Vec<f64> {
+    let rate = if fps.is_finite() && fps > 0.0 {
+        fps
+    } else {
+        29.97
+    };
+    cuts.iter()
+        .map(|&i| start + (i * step.max(1)) as f64 / rate)
+        .collect()
+}
+
 /// Streaming scene cut detector fed sequentially with decoded video frames.
 #[derive(Clone, Debug, Default)]
 pub struct SceneDetector {
@@ -348,5 +367,29 @@ mod tests {
         assert!(detect_cuts(&[0.0], &SceneOptions::default()).is_empty());
         let s = signature(&[], 0, 0);
         assert_eq!(difference(&s, &s), 0.0);
+    }
+
+    #[test]
+    fn a_long_event_is_looked_at_every_few_frames_and_the_cuts_come_back_as_times() {
+        assert_eq!(sampling_step(100, 6000), 1);
+        assert_eq!(sampling_step(6000, 6000), 1);
+        assert_eq!(sampling_step(6001, 6000), 2);
+        assert_eq!(sampling_step(0, 6000), 1);
+        assert_eq!(
+            sampling_step(10, 0),
+            10,
+            "a limit of nothing still looks at something"
+        );
+        let times = cut_times_at(&[10, 25], 2, 25.0, 4.0);
+        assert!(
+            (times[0] - 4.8).abs() < 1e-9 && (times[1] - 6.0).abs() < 1e-9,
+            "{times:?}"
+        );
+        assert!(cut_times_at(&[], 1, 25.0, 0.0).is_empty());
+        assert_eq!(
+            cut_times_at(&[25], 1, f64::NAN, 0.0).len(),
+            1,
+            "a bad rate still answers"
+        );
     }
 }

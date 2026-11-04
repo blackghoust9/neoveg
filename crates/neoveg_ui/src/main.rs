@@ -32,6 +32,7 @@ mod pan_crop_window;
 mod precision_slider;
 mod project_dialog;
 mod render_dialog;
+mod scene_window;
 mod scopes_panel;
 mod shortcuts;
 mod slideshow_window;

@@ -1565,5 +1565,13 @@
   "— separador —": "— 分隔符 —",
   "separador": "分隔符",
   "Restaurar a barra padrão": "恢复标准工具栏",
-  "Volta aos botões e à ordem de fábrica": "恢复为出厂的按钮和顺序"
+  "Volta aos botões e à ordem de fábrica": "恢复为出厂的按钮和顺序",
+  "Detectar cenas e dividir": "检测场景并分割",
+  "Evento: {}": "事件：{}",
+  "Sensibilidade": "灵敏度",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "低：仅检测明显的剪切。高：也检测细微的镜头变化。",
+  "Plano mínimo (quadros): ": "最短镜头（帧）：",
+  "Detectar e dividir": "检测并分割",
+  "A detecção de cenas parou: {}": "场景检测已停止：{}",
+  "Evento dividido em {} cenas": "事件已分割为 {} 个场景"
 }

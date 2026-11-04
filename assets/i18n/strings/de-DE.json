@@ -1565,5 +1565,13 @@
   "— separador —": "— Trenner —",
   "separador": "Trenner",
   "Restaurar a barra padrão": "Standardleiste wiederherstellen",
-  "Volta aos botões e à ordem de fábrica": "Kehrt zu den Standardschaltflächen und ihrer Reihenfolge zurück"
+  "Volta aos botões e à ordem de fábrica": "Kehrt zu den Standardschaltflächen und ihrer Reihenfolge zurück",
+  "Detectar cenas e dividir": "Szenen erkennen und teilen",
+  "Evento: {}": "Ereignis: {}",
+  "Sensibilidade": "Empfindlichkeit",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "Niedrig: nur die offensichtlichen Schnitte. Hoch: auch feine Einstellungswechsel.",
+  "Plano mínimo (quadros): ": "Kürzeste Einstellung (Bilder): ",
+  "Detectar e dividir": "Erkennen und teilen",
+  "A detecção de cenas parou: {}": "Die Szenenerkennung wurde beendet: {}",
+  "Evento dividido em {} cenas": "Ereignis in {} Szenen geteilt"
 }

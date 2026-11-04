@@ -1565,5 +1565,13 @@
   "— separador —": "— separator —",
   "separador": "separator",
   "Restaurar a barra padrão": "Restore the standard toolbar",
-  "Volta aos botões e à ordem de fábrica": "Goes back to the factory buttons and order"
+  "Volta aos botões e à ordem de fábrica": "Goes back to the factory buttons and order",
+  "Detectar cenas e dividir": "Detect scenes and split",
+  "Evento: {}": "Event: {}",
+  "Sensibilidade": "Sensitivity",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "Low: only the obvious cuts. High: the subtle shot changes too.",
+  "Plano mínimo (quadros): ": "Shortest shot (frames): ",
+  "Detectar e dividir": "Detect and split",
+  "A detecção de cenas parou: {}": "The scene detection stopped: {}",
+  "Evento dividido em {} cenas": "Event split into {} scenes"
 }

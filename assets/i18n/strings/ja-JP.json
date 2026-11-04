@@ -1565,5 +1565,13 @@
   "— separador —": "— 区切り —",
   "separador": "区切り",
   "Restaurar a barra padrão": "標準のツールバーに戻す",
-  "Volta aos botões e à ordem de fábrica": "初期のボタンと順序に戻します"
+  "Volta aos botões e à ordem de fábrica": "初期のボタンと順序に戻します",
+  "Detectar cenas e dividir": "シーンを検出して分割",
+  "Evento: {}": "イベント: {}",
+  "Sensibilidade": "感度",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "低: 明らかなカットのみ。高: わずかなショットの変化も検出します。",
+  "Plano mínimo (quadros): ": "最短ショット（フレーム）: ",
+  "Detectar e dividir": "検出して分割",
+  "A detecção de cenas parou: {}": "シーン検出が停止しました: {}",
+  "Evento dividido em {} cenas": "イベントを {} 個のシーンに分割しました"
 }

@@ -1565,5 +1565,13 @@
   "— separador —": "— séparateur —",
   "separador": "séparateur",
   "Restaurar a barra padrão": "Rétablir la barre standard",
-  "Volta aos botões e à ordem de fábrica": "Revient aux boutons et à l'ordre d'origine"
+  "Volta aos botões e à ordem de fábrica": "Revient aux boutons et à l'ordre d'origine",
+  "Detectar cenas e dividir": "Détecter les scènes et diviser",
+  "Evento: {}": "Événement : {}",
+  "Sensibilidade": "Sensibilité",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "Basse : seulement les coupes évidentes. Haute : aussi les changements de plan discrets.",
+  "Plano mínimo (quadros): ": "Plan minimal (images) : ",
+  "Detectar e dividir": "Détecter et diviser",
+  "A detecção de cenas parou: {}": "La détection de scènes s'est arrêtée : {}",
+  "Evento dividido em {} cenas": "Événement divisé en {} scènes"
 }

@@ -15,6 +15,7 @@ mod dock_footer;
 pub(crate) mod headless;
 mod render_job;
 mod render_to_track;
+mod scene_detect;
 mod tabs;
 mod trim_monitor;
 
@@ -734,6 +735,9 @@ struct AppState {
     trim_worker: Option<trim_monitor::TrimWorker>,
     /// *Personalizar barra de ferramentas* is open.
     toolbar_editor_open: bool,
+    /// *Detectar cenas e dividir*: the options window and the detection that is running.
+    scene_dialog: crate::scene_window::SceneDialog,
+    scene_job: Option<scene_detect::SceneJob>,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1823,6 +1827,8 @@ impl AppState {
             trim_monitor: Default::default(),
             trim_worker: None,
             toolbar_editor_open: false,
+            scene_dialog: Default::default(),
+            scene_job: None,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -3577,6 +3583,14 @@ impl AppState {
                 .tracks
                 .iter()
                 .any(|t| t.kind == TrackKind::Video),
+            Command::EditDetectScenes => {
+                self.scene_job.is_none()
+                    && self.selection.primary().is_some_and(|(track, _)| {
+                        self.timeline
+                            .track(track)
+                            .is_some_and(|t| t.kind == TrackKind::Video)
+                    })
+            }
             Command::EditSwitchMute
             | Command::EditSwitchLock
             | Command::EditSwitchInvertPhase
@@ -8000,6 +8014,7 @@ impl AppState {
             Command::EditGroup => self.group_selection(),
             Command::EditSyncByAudio => self.sync_selection_by_audio(),
             Command::EditSmoothCut => self.smooth_cut_here(),
+            Command::EditDetectScenes => self.open_scene_detection(),
             Command::EditUngroup => self.ungroup_selection(),
             Command::EditRemoveFromGroup => self.remove_selection_from_groups(),
             Command::EditSelectGroup => self.select_group_members(),
@@ -8898,6 +8913,7 @@ impl NeovegApp {
         self.state.poll_render_to_track(ctx);
         self.state.run_trim_monitor(ctx);
         self.state.run_toolbar_editor(ctx);
+        self.state.run_scene_detection(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.state.run_env_value_dialog(ctx);
         self.run_details_window(ctx);
@@ -9279,6 +9295,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditGroup,
                 Command::EditSyncByAudio,
                 Command::EditSmoothCut,
+                Command::EditDetectScenes,
                 Command::EditUngroup,
                 Command::EditRemoveFromGroup,
                 Command::EditSelectGroup,
@@ -18296,6 +18313,42 @@ mod tests {
                 "{id}"
             );
         }
+    }
+
+    #[test]
+    fn scene_detection_needs_a_selected_video_event_and_says_so_otherwise() {
+        let mut s = AppState::new();
+        assert!(!s.command_enabled(Command::EditDetectScenes));
+        run(&mut s, Command::EditDetectScenes);
+        assert!(!s.scene_dialog.open);
+        assert!(s.status.contains("Selecione um evento de vídeo"));
+        s.add_track(TrackKind::Video);
+        let track = s.timeline.tracks[0].id;
+        s.timeline.tracks[0].events.push(TrackEvent {
+            id: 77,
+            start: 0.0,
+            duration: 10.0,
+            media_id: Some(5),
+            ..Default::default()
+        });
+        s.selection.select_only((track, 77));
+        assert!(s.command_enabled(Command::EditDetectScenes));
+        run(&mut s, Command::EditDetectScenes);
+        assert!(
+            s.scene_dialog.open,
+            "the options open on the selected event"
+        );
+        // A detection that found cuts splits the event at them, in one undo step
+        s.finish_scene_detection((track, 77), Ok(vec![2.0, 6.5]));
+        assert_eq!(s.timeline.tracks[0].events.len(), 3);
+        assert!(!s.scene_dialog.open);
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline.tracks[0].events.len(), 1);
+        // A detection that found nothing, or failed, changes nothing
+        s.finish_scene_detection((track, 77), Ok(Vec::new()));
+        assert!(s.status.contains("Nenhuma troca"));
+        s.finish_scene_detection((track, 77), Err("cancelada".into()));
+        assert_eq!(s.timeline.tracks[0].events.len(), 1);
     }
 
     #[test]

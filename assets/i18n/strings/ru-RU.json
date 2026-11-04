@@ -1565,5 +1565,13 @@
   "— separador —": "— разделитель —",
   "separador": "разделитель",
   "Restaurar a barra padrão": "Восстановить стандартную панель",
-  "Volta aos botões e à ordem de fábrica": "Возвращает исходные кнопки и порядок"
+  "Volta aos botões e à ordem de fábrica": "Возвращает исходные кнопки и порядок",
+  "Detectar cenas e dividir": "Найти сцены и разделить",
+  "Evento: {}": "Событие: {}",
+  "Sensibilidade": "Чувствительность",
+  "Baixa: só os cortes óbvios. Alta: também as trocas sutis de plano.": "Низкая: только очевидные склейки. Высокая: и незаметные смены плана.",
+  "Plano mínimo (quadros): ": "Минимальный план (кадры): ",
+  "Detectar e dividir": "Найти и разделить",
+  "A detecção de cenas parou: {}": "Поиск сцен остановлен: {}",
+  "Evento dividido em {} cenas": "Событие разделено на сцен: {}"
 }
