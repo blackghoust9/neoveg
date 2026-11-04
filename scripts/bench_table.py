@@ -14,6 +14,11 @@ The block of README.md is the text between `<!-- bench:begin -->` and `<!-- benc
 the median of the Criterion samples, in milliseconds per frame. The frames-per-second figures are
 1000 / the time of the stages of that kind of frame: a ceiling of what the CPU path alone could do
 (no decoding, no GPU).
+
+The groups `crossfade_gpu` and `effects_gpu` (the same work on the graphics card, upload and read-back
+included, next to `crossfade` and `effects_cpu` on the processor) make a second table, written between
+`<!-- bench-gpu:begin -->` and `<!-- bench-gpu:end -->`. A machine without a graphics adapter has no
+such results and the second table is left out.
 Python standard library only.
 """
 from __future__ import annotations
@@ -29,6 +34,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BEGIN = "<!-- bench:begin -->"
 END = "<!-- bench:end -->"
+GPU_BEGIN = "<!-- bench-gpu:begin -->"
+GPU_END = "<!-- bench-gpu:end -->"
 GROUPS = ("generate", "grade", "scopes", "crossfade")
 RESOLUTIONS = (
     ("480p", 854, 480),
@@ -106,6 +113,29 @@ def table() -> str | None:
     return head + "\n" + "\n".join(rows)
 
 
+def gpu_table() -> str | None:
+    """CPU against GPU for the crossfade and for a chain of three effects, or `None` without results."""
+    rows = []
+    for name, width, height in RESOLUTIONS:
+        cross_cpu, cross_gpu, fx_cpu, fx_gpu = (
+            median_ms(g, name) for g in ("crossfade", "crossfade_gpu", "effects_cpu", "effects_gpu")
+        )
+        if None in (cross_cpu, cross_gpu, fx_cpu, fx_gpu):
+            continue
+        rows.append(
+            f"| {name} | {width}x{height} | {fmt(cross_cpu)} | {fmt(cross_gpu)} ({cross_cpu / cross_gpu:.1f}x) "
+            f"| {fmt(fx_cpu)} | {fmt(fx_gpu)} ({fx_cpu / fx_gpu:.1f}x) |"
+        )
+    if not rows:
+        return None
+    head = (
+        "| Resolução | Tamanho | Crossfade (CPU) | Crossfade (GPU, vezes mais rápido) "
+        "| Três efeitos (CPU) | Três efeitos (GPU, vezes mais rápido) |\n"
+        "| --- | --- | ---: | ---: | ---: | ---: |"
+    )
+    return head + "\n" + "\n".join(rows)
+
+
 def fmt(ms: float) -> str:
     return f"{ms:.2f} ms" if ms < 100 else f"{ms:.0f} ms"
 
@@ -123,6 +153,10 @@ def main() -> int:
     print(built)
     print()
     print(machine)
+    gpu_built = gpu_table()
+    if gpu_built:
+        print()
+        print(gpu_built)
     if args.readme:
         path = ROOT / "README.md"
         text = path.read_text(encoding="utf-8")
@@ -132,7 +166,12 @@ def main() -> int:
         head, rest = text.split(BEGIN, 1)
         _, tail = rest.split(END, 1)
         block = f"{BEGIN}\n{built}\n\nMedido em: {machine}.\n{END}"
-        path.write_text(head + block + tail, encoding="utf-8", newline="")
+        text = head + block + tail
+        if gpu_built and GPU_BEGIN in text and GPU_END in text:
+            head, rest = text.split(GPU_BEGIN, 1)
+            _, tail = rest.split(GPU_END, 1)
+            text = f"{head}{GPU_BEGIN}\n{gpu_built}\n\nMedido em: {machine}.\n{GPU_END}{tail}"
+        path.write_text(text, encoding="utf-8", newline="")
         print("README.md atualizado")
     return 0
 
