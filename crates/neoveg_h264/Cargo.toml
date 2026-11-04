@@ -1,0 +1,17 @@
+[package]
+name = "neoveg_h264"
+version.workspace = true
+# The code uses let chains, which need the 2024 edition (the rest of the workspace is on 2021)
+edition = "2024"
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "Neoveg H.264/AVC encoder in pure Rust: High/Main/Baseline, CABAC/CAVLC, B-frames and rate control (adapted from FilmCraft)"
+
+[features]
+default = ["threads"]
+threads = ["dep:rayon"]
+
+[dependencies]
+neoveg_media = { path = "../neoveg_media" }
+thiserror = "2"
+rayon = { version = "1", optional = true }

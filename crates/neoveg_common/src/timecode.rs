@@ -1,0 +1,239 @@
+//! SMPTE timecode math (non-drop and drop-frame), derived from integer frame indices only.
+
+/// 29.97 (30000/1001) and 59.94 (60000/1001) fps are drop-frame by default. 30 and 60 fps are not:
+/// the tolerance is a hundredth of a frame, enough for the rounded 29.97 and 59.94 that are typed or
+/// stored, and far from the whole-number rates a tolerance of 0.06 used to swallow.
+pub fn is_drop_frame_rate(fps: f64) -> bool {
+    (fps - 30_000.0 / 1001.0).abs() < 0.01 || (fps - 60_000.0 / 1001.0).abs() < 0.01
+}
+
+/// Nominal (rounded) frame rate used for the HH:MM:SS:FF fields.
+pub fn nominal_fps(fps: f64) -> i64 {
+    (fps.round() as i64).max(1)
+}
+
+/// Frame numbers skipped at each non-tenth minute (2 at 29.97, 4 at 59.94, 0 otherwise).
+fn drop_per_minute(fps: f64, drop_frame: bool) -> i64 {
+    match (drop_frame, nominal_fps(fps)) {
+        (true, 30) => 2,
+        (true, 60) => 4,
+        _ => 0,
+    }
+}
+
+/// Frame index to `HH:MM:SS:FF` (`HH:MM:SS;FF` for drop-frame).
+pub fn frame_to_timecode(frame: i64, fps: f64, drop_frame: bool) -> String {
+    let nominal = nominal_fps(fps);
+    let drop = drop_per_minute(fps, drop_frame);
+    let mut frame = frame.max(0);
+
+    if drop > 0 {
+        let frames_per_10_min = nominal * 600 - 9 * drop;
+        let frames_per_minute = nominal * 60 - drop;
+        let tens = frame / frames_per_10_min;
+        let rem = frame % frames_per_10_min;
+        frame += 9 * drop * tens;
+        if rem > drop {
+            frame += drop * ((rem - drop) / frames_per_minute);
+        }
+    }
+
+    let ff = frame % nominal;
+    let total_seconds = frame / nominal;
+    let ss = total_seconds % 60;
+    let mm = (total_seconds / 60) % 60;
+    let hh = total_seconds / 3600;
+    let sep = if drop > 0 { ';' } else { ':' };
+    format!("{hh:02}:{mm:02}:{ss:02}{sep}{ff:02}")
+}
+
+/// The frame a moment in time falls in: frame `n` covers `n / fps` up to (not including) `(n + 1) / fps`.
+/// This is the frame the timecode reads and the one the preview shows, so the two never differ.
+pub fn frame_index(seconds: f64, fps: f64) -> i64 {
+    if !seconds.is_finite() || !(fps.is_finite() && fps > 0.0) {
+        return 0;
+    }
+    (seconds.max(0.0) * fps + 1e-6).floor() as i64
+}
+
+/// The time at which the frame that `seconds` falls in starts.
+pub fn frame_start(seconds: f64, fps: f64) -> f64 {
+    if !(fps.is_finite() && fps > 0.0) {
+        return seconds.max(0.0);
+    }
+    frame_index(seconds, fps) as f64 / fps
+}
+
+/// Seconds to a timecode string at the given frame rate.
+pub fn seconds_to_timecode(seconds: f64, fps: f64, drop_frame: bool) -> String {
+    frame_to_timecode(frame_index(seconds, fps), fps, drop_frame)
+}
+
+/// Frame number at which the timecode reads `timecode_seconds` with `;00` / `:00` frames.
+/// At a dropped minute boundary the first frame of that second is `;02` (`;04` at 59.94).
+pub fn timecode_seconds_to_frame(timecode_seconds: i64, fps: f64) -> i64 {
+    let nominal = nominal_fps(fps);
+    let mut frames = timecode_seconds * nominal;
+    let drop = drop_per_minute(fps, is_drop_frame_rate(fps));
+    if drop > 0 {
+        let total_minutes = timecode_seconds / 60;
+        frames -= drop * (total_minutes - total_minutes / 10);
+        if timecode_seconds % 60 == 0 && total_minutes % 10 != 0 {
+            frames += drop;
+        }
+    }
+    frames
+}
+
+/// Frame index of `HH:MM:SS:FF` (or `HH:MM:SS;FF`) at `fps`; `drop_frame` skips the dropped frame
+/// numbers like [`frame_to_timecode`]. The inverse of that function for every valid timecode.
+pub fn timecode_to_frame(h: i64, m: i64, s: i64, f: i64, fps: f64, drop_frame: bool) -> i64 {
+    let nominal = nominal_fps(fps);
+    let drop = drop_per_minute(fps, drop_frame);
+    let total_minutes = h * 60 + m;
+    (total_minutes * 60 + s) * nominal + f - drop * (total_minutes - total_minutes / 10)
+}
+
+/// Parses `HH:MM:SS:FF`, `HH:MM:SS;FF` or `HH:MM:SS.FF` into `(frame, drop_frame)`. A `;` (or a
+/// `.` in the last place, as some EDL writers use) means drop-frame. `None` for anything else.
+pub fn parse_timecode(text: &str, fps: f64) -> Option<(i64, bool)> {
+    let text = text.trim();
+    let parts: Vec<&str> = text.split([':', ';', '.', ',']).collect();
+    if parts.len() != 4
+        || parts
+            .iter()
+            .any(|p| p.is_empty() || p.len() > 4 || !p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return None;
+    }
+    let n: Vec<i64> = parts.iter().map(|p| p.parse().unwrap_or(0)).collect();
+    if n[1] >= 60 || n[2] >= 60 {
+        return None;
+    }
+    let drop = text.contains(';') || text.rsplit_once('.').is_some_and(|(_, f)| f.len() <= 3);
+    let drop = drop && is_drop_frame_rate(fps);
+    Some((timecode_to_frame(n[0], n[1], n[2], n[3], fps, drop), drop))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_moment_belongs_to_the_frame_it_falls_in_and_the_timecode_agrees() {
+        let fps = 25.0;
+        assert_eq!(frame_index(0.0, fps), 0);
+        assert_eq!(frame_index(0.039, fps), 0, "just before the second frame");
+        assert_eq!(frame_index(0.04, fps), 1, "exactly on the boundary");
+        assert_eq!(
+            frame_index(0.0799, fps),
+            1,
+            "the second half of a frame is still that frame"
+        );
+        assert_eq!(frame_index(0.08, fps), 2);
+        // A float error under a boundary does not fall back a frame
+        assert_eq!(frame_index(3.0 * (1.0 / 25.0) - 1e-12, fps), 3);
+        assert!((frame_start(0.0799, fps) - 0.04).abs() < 1e-12);
+        assert_eq!(frame_start(-1.0, fps), 0.0);
+        // Odd input never panics or goes negative
+        assert_eq!(frame_index(f64::NAN, fps), 0);
+        assert_eq!(frame_index(1.0, 0.0), 0);
+        assert_eq!(frame_start(2.0, f64::NAN), 2.0);
+        // The timecode reads the same frame the index names, over a second of every standard rate
+        for fps in [23.976, 24.0, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0] {
+            let drop = is_drop_frame_rate(fps);
+            for step in 0..(fps as i64 * 3) {
+                let t = (step as f64 + 0.7) / fps;
+                assert_eq!(
+                    seconds_to_timecode(t, fps, drop),
+                    frame_to_timecode(frame_index(t, fps), fps, drop)
+                );
+                assert_eq!(
+                    seconds_to_timecode(t, fps, drop),
+                    seconds_to_timecode(frame_start(t, fps), fps, drop),
+                    "{fps} fps at {t}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn only_29_97_and_59_94_are_drop_frame_and_30_and_60_are_not() {
+        for fps in [29.97, 30_000.0 / 1001.0, 59.94, 60_000.0 / 1001.0] {
+            assert!(is_drop_frame_rate(fps), "{fps}");
+        }
+        for fps in [
+            23.976, 24.0, 25.0, 29.9, 30.0, 48.0, 50.0, 59.0, 60.0, 120.0,
+        ] {
+            assert!(!is_drop_frame_rate(fps), "{fps}");
+        }
+        // A 30 fps project counts frames ;00 to ;29 in every second and never skips a number
+        assert_eq!(timecode_seconds_to_frame(60, 30.0), 1800);
+        assert_eq!(timecode_seconds_to_frame(3600, 30.0), 108_000);
+        assert_eq!(
+            frame_to_timecode(1800, 30.0, is_drop_frame_rate(30.0)),
+            "00:01:00:00"
+        );
+    }
+
+    #[test]
+    fn non_drop_formats_plainly() {
+        assert_eq!(frame_to_timecode(0, 25.0, false), "00:00:00:00");
+        assert_eq!(frame_to_timecode(25 * 3661 + 7, 25.0, false), "01:01:01:07");
+    }
+
+    #[test]
+    fn drop_frame_skips_minute_boundaries() {
+        assert_eq!(frame_to_timecode(1799, 29.97, true), "00:00:59;29");
+        assert_eq!(frame_to_timecode(1800, 29.97, true), "00:01:00;02");
+        // the tenth minute is not dropped
+        assert_eq!(frame_to_timecode(17982, 29.97, true), "00:10:00;00");
+    }
+
+    #[test]
+    fn timecode_second_lands_on_the_matching_frame() {
+        for secs in [1_i64, 59, 60, 61, 120, 600, 3600] {
+            let frame = timecode_seconds_to_frame(secs, 29.97);
+            let tc = frame_to_timecode(frame, 29.97, true);
+            let ss = secs % 60;
+            assert!(tc.contains(&format!(":{ss:02};")), "{secs}s -> {tc}");
+        }
+        assert_eq!(timecode_seconds_to_frame(60, 29.97), 1800);
+        assert_eq!(timecode_seconds_to_frame(60, 25.0), 1500);
+    }
+
+    #[test]
+    fn timecodes_parse_back_to_the_same_frame() {
+        for fps in [24.0, 25.0, 29.97, 30.0, 59.94] {
+            let drop = is_drop_frame_rate(fps);
+            for frame in [
+                0_i64, 1, 29, 1799, 1800, 1801, 17_981, 17_982, 107_892, 215_784, 500_001,
+            ] {
+                let text = frame_to_timecode(frame, fps, drop);
+                assert_eq!(
+                    parse_timecode(&text, fps),
+                    Some((frame, drop)),
+                    "{fps} fps frame {frame} = {text}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bad_timecodes_are_rejected() {
+        for bad in [
+            "",
+            "1:2:3",
+            "00:61:00:00",
+            "00:00:61:00",
+            "aa:bb:cc:dd",
+            "00:00:00:00:00",
+            "00:00:00:",
+        ] {
+            assert_eq!(parse_timecode(bad, 25.0), None, "{bad}");
+        }
+        // A semicolon only means drop-frame at a rate that has it
+        assert_eq!(parse_timecode("00:01:00;00", 25.0), Some((1500, false)));
+        assert_eq!(parse_timecode("00:01:00:00", 29.97), Some((1800, false)));
+    }
+}

@@ -12,13 +12,44 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 
 ---
 
+## 1-A. Código de terceiros adaptado no workspace Rust (`crates/`)
+
+| Origem | Autores / Organização | Licença (SPDX) | Onde está no Neoveg | Utilização |
+| :--- | :--- | :--- | :--- | :--- |
+| **FilmCraft — `filmcraft-cfb` e a parte AAF de `filmcraft-interchange`** | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_cfb/` e `crates/neoveg_aaf/` | Importar e exportar AAF (arquivo composto, armazenamento estruturado e AAF Edit Protocol) |
+| **FilmCraft — `filmcraft-h264enc` e `filmcraft-aac`**, e `craft-media` (`storytold/craft-libs`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_h264/`, `crates/neoveg_aac/` e `crates/neoveg_media/` | Codificadores H.264 e AAC e leitura e escrita de MP4 para a renderização sem FFmpeg |
+| **FilmCraft — `filmcraft-text`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8d925e9`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_text/` | Motor de texto: composição, fontes e rasterização dos títulos |
+| **Inter, JetBrains Mono e Noto Serif** (fontes) | The Inter Project Authors; The JetBrains Mono Project Authors; The Noto Project Authors | `OFL-1.1` (textos em `crates/neoveg_text/fonts/OFL-*.txt`) | `crates/neoveg_text/fonts/` (arquivos sem alteração, embutidos no programa) | Fontes padrão dos títulos |
+| **FilmCraft — `filmcraft-audio-dsp`** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `8fda2f2`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_audio/src/dsp/` (`loudness.rs`, `biquad.rs`, `oversample.rs`, `smooth.rs`, `effect.rs`, `design.rs`, `fft.rs`, `ducking.rs`, `effects/`) `crates/neoveg_engine/src/captions.rs` (legendas) e, como fórmulas reescritas, os efeitos de cor de `crates/neoveg_video/src/vfx.rs` e `vfx_gpu.rs` | Medidor de loudness ITU-R BS.1770-4 / EBU R128 do painel **Loudness**, os efeitos de áudio das faixas e do master (equalizadores, filtros, compressor, gate, limitador, delay, reverb, DeHum e DeNoise) e a análise do auto-ducking |
+| **FilmCraft — `filmcraft-captions`, `filmcraft-render` e `craft-media` (`still/psd`)** ([`storytold/filmcraft`](https://github.com/storytold/filmcraft), commit `57dc82e`) | ArtCraft Team and the FilmCraft contributors | `MIT OR Apache-2.0` (usado sob a `MIT`) | `crates/neoveg_engine/src/caption_mcc.rs`, `crates/neoveg_video/src/psd.rs`, `crates/neoveg_video/src/scene.rs` e `crates/neoveg_video/src/{vfx,vfx_gpu}.rs` | Closed captions MacCaption `.mcc` (CEA-608/708), decodificação em Rust puro da imagem composta `.psd` (`8BPS`), detecção de cortes bruscos de cena e terceiro lote de efeitos de vídeo em CPU e GPU (Limitador de vídeo, Substituir cor, Amplificador de processamento e Corretor de cor de três vias) |
+
+| **nnnoiseless** ([`jneem/nnnoiseless`](https://github.com/jneem/nnnoiseless) 0.5.2), porte do **RNNoise** | Joe Neeman; RNNoise: Jean-Marc Valin, Mozilla Corporation, Xiph.Org Foundation | `BSD-3-Clause` | Dependência do Cargo de `neoveg_audio` (não copiada); texto em [`third_party/nnnoiseless/COPYING`](third_party/nnnoiseless/COPYING) | Efeito **Redução de ruído por IA (RNNoise)** |
+| **vst3 (`vst3-rs`)** ([`coupler-rs/vst3-rs`](https://github.com/coupler-rs/vst3-rs) 0.3) | Micah Johnston and the vst3-rs contributors | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_audio` (não copiada); o plug-in de ganho de exemplo está em `crates/neoveg_audio/src/vst3_host/test_gain.rs`, só para testes | Host de plug-ins de áudio **VST3** (`.vst3`) em `crates/neoveg_audio/src/vst3_host.rs` |
+| **clack (`clack-host` / `clack-extensions`)** ([`prokopyl/clack`](https://github.com/prokopyl/clack) 0.2) | Prokopyl and the Clack contributors | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_audio` (não copiada) | Host de plug-ins de áudio **CLAP** (`.clap`) em `crates/neoveg_audio/src/clap_host.rs`, com compensação de latência (PDC) e automação |
+| **Candle (`candle-core` / `candle-nn` / `candle-transformers`)** ([`huggingface/candle`](https://github.com/huggingface/candle) 0.11) | Laurent Mazare, Hugging Face and the Candle contributors | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_audio` (não copiada) | Transcrição automática de fala para legendas com **Whisper** em Rust puro (`crates/neoveg_audio/src/whisper.rs`, pesos `.safetensors` e `.gguf`) |
+| **roxmltree** ([`RazrFalcon/roxmltree`](https://github.com/RazrFalcon/roxmltree)) | Yevhenii Reizner | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_engine` (não copiada) | Leitura do XML do Final Cut Pro 7 e FCPXML |
+| **image (`image-rs`)** ([`image-rs/image`](https://github.com/image-rs/image) 0.25) | The image-rs Developers | `MIT OR Apache-2.0` | Dependência do Cargo de `neoveg_video` (não copiada) | Importação e decodificação em Rust puro de imagens estáticas (PNG, JPEG, BMP, GIF, WebP, TIFF, TGA, ICO, PNM) e sequências numeradas de quadros (`crates/neoveg_video/src/still.rs`) |
+| **Formato CMX 3600** (listas de edição `.edl`) | Especificação pública do formato (CMX Systems) | — (formato, não código) | `crates/neoveg_engine/src/edl.rs` (código próprio do Neoveg) | Importar e exportar listas de edição; o tratamento dos comentários `* FROM CLIP NAME:` e `* SOURCE FILE:` foi conferido contra a documentação do módulo `edl` do FilmCraft, sem copiar código |
+
+- Copyright (c) 2026 ArtCraft Team and the FilmCraft contributors. O texto da licença MIT está em [`third_party/filmcraft/LICENSE-MIT`](third_party/filmcraft/LICENSE-MIT) e vai em todos os pacotes; a origem, a lista de arquivos e as alterações feitas estão em [`third_party/filmcraft/README.md`](third_party/filmcraft/README.md).
+- A marca, o nome e os logotipos da ArtCraft **não** fazem parte da licença do FilmCraft e não são usados no Neoveg.
+- Os créditos também aparecem na interface, em **Ajuda → Créditos e licenças…**.
+
+---
+
+## 1-B. Arte própria
+
+- **Tela de carregamento** (`crates/neoveg_ui/src/splash.rs`): as formas 3D, o carretel de filme com a fita de quadros, o playhead e a animação do nome NEOVEG são trabalho original do Neoveg, desenhados em código com formas do egui, sem imagens nem fontes de terceiros, e liberados com o projeto sob a licença **MIT**. Nenhuma arte, ícone ou imagem de outro editor foi usada como base.
+
+---
+
 ## 2. Camada Desktop & Interface Gráfica (`desktop-host/Neoveg.csproj` — C# / .NET)
 
 | Pacote / Biblioteca | Versão | Autores / Organização | Licença (SPDX) | Utilização no Neoveg |
 | :--- | :--- | :--- | :--- | :--- |
 | **`Avalonia`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Motor principal de UI XAML multiplataforma (Windows, Linux, macOS) |
 | **`Avalonia.Desktop`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Backends de janela nativa Win32, X11/Wayland e Cocoa/macOS |
-| **`Avalonia.Themes.Fluent`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Base de estilos de controles para o `VegasThemeManager` |
+| **`Avalonia.Themes.Fluent`** | `11.2.3` | AvaloniaUI OÜ & Contributors | `MIT` | Base de estilos de controles para o `NeovegThemeManager` |
 | **`Avalonia.Fonts.Inter`** | `11.2.3` | Rasmus Andersson & AvaloniaUI OÜ | `OFL-1.1` / `MIT` | Tipografia de alta legibilidade em timecodes, réguas e inspetores |
 | **`Microsoft.CodeAnalysis.CSharp.Scripting`** | `4.11.0` | Microsoft Corporation & .NET Foundation | `MIT` | Compilador e motor dinâmico **Roslyn C#** (`Neoveg.Scripting` / `.cs` & `.dll`) |
 | **`SkiaSharp` / `HarfBuzzSharp`** | `2.88.x` | Google Inc., Microsoft & Mono Project | `MIT` | Renderização 2D acelerada por GPU (Timeline, Gizmo `'F'` Pan/Crop, Scopes, `RenderStatusRuler`) |
@@ -58,13 +89,15 @@ Este documento cataloga os autores, mantenedores e licenças de todos os compone
 | SDK / Biblioteca | Repositório / Origem | Autores / Organização | Licença (SPDX) | Utilização no Neoveg |
 | :--- | :--- | :--- | :--- | :--- |
 | **`neoveg_cpp_engine`** | `cpp-extensions/` | Neoveg Core Team | `MIT` | Biblioteca C++17 compartilhada (`.dll`, `.so`, `.dylib`) com Shared Memory IPC (`NVSH`), matriz afim Pan/Crop e host de plugins |
-| **`OpenFX Core (`ofxCore.h`, `ofxImageEffect.h`)`** | [`AcademySoftwareFoundation/openfx`](https://github.com/AcademySoftwareFoundation/openfx) | Bruno Nicoletti, The Foundry & ASWF | `BSD-3-Clause` / `Apache-2.0` | API padrão da indústria para efeitos visuais (`OfxHost`, `OfxImageEffectSuiteV1`) |
-| **`VST3 SDK (`ivstaudioprocessor.h`)`** | [`steinbergmedia/vst3sdk`](https://github.com/steinbergmedia/vst3sdk) | Steinberg Media Technologies GmbH | `GPL-3.0-or-later` | Interface de processamento de barramentos de áudio em 32-bit/64-bit float (`Steinberg::Vst::IAudioProcessor`) |
-| **`Voukoder Connector (`voukoder_bridge.h`)`** | [`Vouk/voukoder`](https://github.com/Vouk/voukoder) | Daniel Stankewitz (`Vouk`) | `LGPL-2.1-or-later` / `GPL-2.0-only` | Ponte para codificadores profissionais de hardware e broadcast (`NVENC`, `AMF`, `QSV`, `SVT-AV1`, `ProRes 4444`, `FFV1`) |
-| **`Frei0r Video Effects`** | [`dyne/frei0r`](https://github.com/dyne/frei0r) | Dyne.org Foundation & Contributors | `GPL-2.0-or-later` | Plugins minimalistas de efeitos de vídeo e geradores (`frei0r_openfx_bridge.py`) |
 | **`LADSPA Audio DSP (`ladspa.h`)`** | [`ladspa.org`](https://www.ladspa.org/) | Richard W.E. Furse, Paul Barton-Davis, Stefan Westerfeld | `LGPL-2.1-or-later` | Plugins de processamento dinâmico e equalização de áudio (`ladspa_audio_dsp.py`) |
 | **`Audacity Waveform & Audio DSP Architecture`** | [`audacity/audacity`](https://github.com/audacity/audacity) | Audacity Team & Audacity Contributors | `GPL-3.0-or-later` (`GPLv3`) | Estudo arquitetural do algoritmo de amostragem multi-zoom de picos de forma de onda (`min`, `max`, `rms` em `rust-core/src/audio_peaks.rs` e `AudioWaveformRenderer.cs`) e processamento DSP (`Neoveg.AudioEngine`) |
 | **`Kdenlive / Neoveg Presets & Color Scopes`** | [`KDE/kdenlive`](https://invent.kde.org/multimedia/kdenlive) | Jean-Baptiste Mardelle, Simon Andreas Eugster & KDE Community | `GPL-3.0-only` | Coeficientes CIE Rec.601/Rec.709 (`colorconstants.h`), LUTs `.cube`, perfis de proxy e miniaturas `.webp` de transições |
+
+| **`Lucide Icons`** | [`lucide-icons/lucide`](https://github.com/lucide-icons/lucide) | Cole Bemis & Lucide Contributors | `ISC` (`MIT`) | 62 ícones monocromáticos BMP em `crates/neoveg_ui/assets/icons/`, via `scripts/fetch_and_convert_icons.py` |
+| **`Phosphor Icons`** | [`phosphor-icons/core`](https://github.com/phosphor-icons/core) | Helena Zhang & Tobias Fried | `MIT` | 20 ícones monocromáticos BMP (transporte, metrônomo, curvas) em `crates/neoveg_ui/assets/icons/` |
+| **`Remix Icon`** | [`Remix-Design/RemixIcon`](https://github.com/Remix-Design/RemixIcon) | Remix Design Studio | `Apache-2.0` | 8 ícones monocromáticos BMP (mídia, faixas, mixer) em `crates/neoveg_ui/assets/icons/` |
+| **`Material Symbols`** | [`google/material-design-icons`](https://github.com/google/material-design-icons) | Google LLC | `Apache-2.0` | 9 ícones monocromáticos BMP (timeline, transições, áudio) em `crates/neoveg_ui/assets/icons/` |
+| **`Flat Color Icons`** | [`icons8/flat-color-icons`](https://github.com/icons8/flat-color-icons) | Icons8 | `MIT` | 27 ícones coloridos opcionais (BMP) em `crates/neoveg_ui/assets/icons_color/`, via Iconify |
 
 ---
 

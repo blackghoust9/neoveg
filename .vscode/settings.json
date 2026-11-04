@@ -1,6 +1,7 @@
 {
   "cmake.sourceDirectory": "${workspaceFolder}/cpp-extensions",
-  "cmake.buildDirectory": "${workspaceFolder}/cpp-extensions/build",
+  "cmake.buildDirectory": "${workspaceFolder}/cpp-extensions/build/ninja",
+  "cmake.generator": "Ninja",
   "cmake.enableAutomaticKitScan": true,
   "cmake.configureOnOpen": true,
   "cmake.exportCompileCommandsFile": true,

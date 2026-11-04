@@ -6,6 +6,15 @@ logs/
 AppCache/
 temp/
 docs/coverage/
+coverage/qa/dotnet/
+coverage/qa/python/
+coverage/qa/cpp/
+coverage/qa/rust/
+.ninja_deps
+.ninja_log
+Testing/
+*.gcda
+*.gcno
 
 # Generated release and publish outputs
 /dist/
@@ -87,3 +96,63 @@ env/
 *.gslides
 *.gdoc
 *.gsheet
+*.tmp.driveupload/
+
+# OmniRoute (local AI router): independent Git repository checked out inside this workspace.
+# Never commit it here — its .env holds provider API keys and secrets, and node_modules is huge.
+OmniRoute/
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Runtime error log written by the app and the test suites
+log_erros.txt
+
+# Manuais de referencia (PDFs grandes, uso local)
+manuais/
+
+# macOS SDK for the cross-compilation image (Apple license: never commit)
+docker/sdk/*.tar.*
+/.neoveg_env/
+
+# Local tooling state and generated QA reports (rewritten by every QA run)
+.claude/settings.json
+coverage/qa/qa_report.json
+docs/qa_report.js
+
+# Obsidian vault (docs_obsidian/): tracked, except the per-machine workspace state
+.obsidian/workspace.json
+docs_obsidian/.obsidian/workspace.json
+docs_obsidian/.obsidian/workspace-mobile.json
+
+# Proprietary research & raw extracted dumps
+results_assets/
+/VegasScan/
+icons 22/
+*.ico
+*.bmp
+!crates/neoveg_ui/assets/icons/*.bmp
+!crates/neoveg_ui/assets/icons_color/*.bmp
+*.dll
+*.exe
+G:/*
+
+
+# Exported AI chat transcripts kept in the checkout folder (local paths, not part of the project)
+/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt
+
+# Local research notes (reverse-engineering inventory): kept on disk, not part of the repository
+/results.md
+/results_assets/
+/VegasScan/
+
+# log do instalador do LLVM/FFmpeg
+scripts/install_llvm_ffmpeg.log
+
+# filmes de teste baixados por scripts/fetch_test_media.py
+test_media/
+.aider*
+
+# página do neoveg
+/site-neoveg/

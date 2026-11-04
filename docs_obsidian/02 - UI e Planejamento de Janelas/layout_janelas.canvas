@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {"id": "titulo", "type": "text", "text": "# Layout padrão do dock (egui_dock)\nReflete `default_dock()` em `neoveg_ui/src/app.rs`. Proporções: Timeline embaixo (48%), Mídia à esquerda (28%), Master à direita (18%).", "x": 0, "y": -170, "width": 1600, "height": 130, "color": "5"},
+    {"id": "media", "type": "text", "text": "## Mídia do Projeto\nAbas de rodapé: Mídia do Projeto · Trimmer · Legendas\n\nVer [[especificacao_janelas]]", "x": 0, "y": 0, "width": 450, "height": 250, "color": "4"},
+    {"id": "audiofx", "type": "text", "text": "## Efeitos de Áudio\nCadeia da faixa selecionada (até 8 efeitos)", "x": 0, "y": 270, "width": 450, "height": 160, "color": "4"},
+    {"id": "preview", "type": "text", "text": "## Visualização (Video Preview)\nQualidade: Draft · Preview · Good · Best · Auto\nSobreposições começam desligadas", "x": 470, "y": 0, "width": 820, "height": 430, "color": "1"},
+    {"id": "master", "type": "text", "text": "## Barramento Master (Audio Mixer)\nMedidores L/R em dBFS + fader master\n[[neoveg_audio]]", "x": 1310, "y": 0, "width": 290, "height": 200, "color": "6"},
+    {"id": "loudness", "type": "text", "text": "## Loudness\nM · S · I · LRA · TP", "x": 1310, "y": 220, "width": 140, "height": 210, "color": "6"},
+    {"id": "scopes", "type": "text", "text": "## Scopes de Vídeo\nAba ao lado de Loudness", "x": 1460, "y": 220, "width": 140, "height": 210, "color": "6"},
+    {"id": "timeline", "type": "text", "text": "## Linha do Tempo (Timeline)\nRégua de status de render · régua SMPTE · lanes · barra de ferramentas logo abaixo", "x": 220, "y": 450, "width": 1380, "height": 400, "color": "2"},
+    {"id": "headers", "type": "text", "text": "## Cabeçalhos de Faixa (Track Headers)\nNúmero com ponto pulsante · mute/solo · fader · pan", "x": 0, "y": 450, "width": 200, "height": 400, "color": "2"},
+    {"id": "especificacao", "type": "file", "file": "02 - UI e Planejamento de Janelas/especificacao_janelas.md", "x": 0, "y": 880, "width": 600, "height": 200},
+    {"id": "index", "type": "file", "file": "00 - Mapa Geral/Index.md", "x": 650, "y": 880, "width": 400, "height": 200}
+  ],
+  "edges": [
+    {"id": "e1", "fromNode": "media", "fromSide": "bottom", "toNode": "audiofx", "toSide": "top", "label": "split abaixo 55%"},
+    {"id": "e2", "fromNode": "media", "fromSide": "right", "toNode": "preview", "toSide": "left", "label": "split à esquerda 28%"},
+    {"id": "e3", "fromNode": "preview", "fromSide": "right", "toNode": "master", "toSide": "left", "label": "split à direita 82%"},
+    {"id": "e4", "fromNode": "master", "fromSide": "bottom", "toNode": "loudness", "toSide": "top"},
+    {"id": "e5", "fromNode": "loudness", "fromSide": "right", "toNode": "scopes", "toSide": "left", "label": "abas"},
+    {"id": "e6", "fromNode": "preview", "fromSide": "bottom", "toNode": "timeline", "toSide": "top", "label": "split abaixo 52%"},
+    {"id": "e7", "fromNode": "headers", "fromSide": "right", "toNode": "timeline", "toSide": "left", "label": "rolagem vertical compartilhada"},
+    {"id": "e8", "fromNode": "titulo", "fromSide": "bottom", "toNode": "preview", "toSide": "top"},
+    {"id": "e9", "fromNode": "especificacao", "fromSide": "right", "toNode": "index", "toSide": "left"}
+  ]
+}

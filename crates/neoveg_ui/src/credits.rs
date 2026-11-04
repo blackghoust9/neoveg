@@ -1,0 +1,374 @@
+//! "Créditos e licenças" window: who wrote the code and libraries Neoveg is built on.
+//!
+//! The list mirrors `AUTHORS.md` and `third_party/README.md`; a test keeps the FilmCraft entry
+//! (adapted source code, so its licence text must ship with Neoveg) in sync with them.
+
+use eframe::egui;
+use neoveg_common::i18n::{tr, tr_text};
+
+pub struct Credit {
+    pub name: &'static str,
+    /// What Neoveg uses it for.
+    pub used_for: &'static str,
+    pub authors: &'static str,
+    /// SPDX expression.
+    pub license: &'static str,
+    pub url: &'static str,
+}
+
+pub const CREDITS: &[Credit] = &[
+    Credit {
+        name: "Neoveg",
+        used_for: "Editor de vídeo e áudio: timeline, motor de edição, mixer e interface",
+        authors: "Neoveg Contributors",
+        license: "MIT",
+        url: "https://github.com/blackghoust9/neoveg",
+    },
+    Credit {
+        name: "FilmCraft (filmcraft-audio-dsp)",
+        used_for: "Medidor de loudness ITU-R BS.1770-4 / EBU R128 (loudness momentâneo, de curto \
+                   prazo e integrado, faixa de loudness e pico verdadeiro) e efeitos de áudio das \
+                   faixas e do master (equalizadores, filtros, compressor, gate, limitador, delay, reverb, \
+                   DeHum, DeNoise, chorus, phaser, pitch, multibanda, DeEsser e outros) e análise do \
+                   auto-ducking, em neoveg_audio::dsp; e a leitura e a escrita de legendas SRT e \
+                   WebVTT, em neoveg_engine::captions",
+        authors: "ArtCraft Team and the FilmCraft contributors",
+        license: "MIT OR Apache-2.0 (usado sob a MIT)",
+        url: "https://github.com/storytold/filmcraft",
+    },
+    Credit {
+        name: "FilmCraft (vídeo, texto, codecs, AAF e legendas)",
+        used_for: "Motor de texto e fontes (neoveg_text), codificadores H.264, AAC e MP4 em Rust puro \
+                   (neoveg_h264, neoveg_aac, neoveg_media), intercâmbio AAF (neoveg_cfb, neoveg_aaf), \
+                   closed captions MacCaption .mcc (neoveg_engine::caption_mcc), leitura de imagens \
+                   compostas .psd (neoveg_video::psd), detecção de cortes de cena (neoveg_video::scene) \
+                   e 18 efeitos de cor e vídeo em CPU e GPU",
+        authors: "ArtCraft Team and the FilmCraft contributors",
+        license: "MIT OR Apache-2.0 (usado sob a MIT)",
+        url: "https://github.com/storytold/filmcraft",
+    },
+    Credit {
+        name: "Lucide Icons",
+        used_for: "Ícones BMP de ferramentas, cursores, edição e janelas da interface",
+        authors: "Cole Bemis and Lucide Contributors",
+        license: "ISC",
+        url: "https://lucide.dev",
+    },
+    Credit {
+        name: "Phosphor Icons",
+        used_for: "Ícones BMP da barra de transporte, metrônomo, curvas e envelopes",
+        authors: "Helena Zhang and Tobias Fried",
+        license: "MIT",
+        url: "https://phosphoricons.com",
+    },
+    Credit {
+        name: "Remix Icon",
+        used_for: "Ícones BMP de mídia, faixas de áudio/vídeo e console de mixagem",
+        authors: "Remix Design Studio",
+        license: "Apache-2.0",
+        url: "https://remixicon.com",
+    },
+    Credit {
+        name: "Material Symbols",
+        used_for: "Ícones BMP de timeline, transições, quadros e ganho de áudio",
+        authors: "Google LLC",
+        license: "Apache-2.0",
+        url: "https://fonts.google.com/icons",
+    },
+    Credit {
+        name: "Flat Color Icons",
+        used_for: "Ícones coloridos opcionais da interface (27 imagens BMP derivadas)",
+        authors: "Icons8",
+        license: "MIT",
+        url: "https://github.com/icons8/flat-color-icons",
+    },
+    Credit {
+        name: "Tela de carregamento e ícones do Neoveg",
+        used_for: "Formas 3D, carretel de filme animado, animação do nome e ícones vetoriais: \
+                   arte original desenhada em código",
+        authors: "Neoveg Contributors",
+        license: "MIT",
+        url: "https://github.com/blackghoust9/neoveg",
+    },
+    Credit {
+        name: "nnnoiseless (RNNoise)",
+        used_for: "Redução de ruído por rede neural (efeito RNNoise); o RNNoise original é de Jean-Marc Valin, Mozilla e Xiph.Org",
+        authors: "Joe Neeman; RNNoise: Jean-Marc Valin, Mozilla Corporation, Xiph.Org Foundation",
+        license: "BSD-3-Clause",
+        url: "https://github.com/jneem/nnnoiseless",
+    },
+    Credit {
+        name: "Listas de edição CMX 3600",
+        used_for: "Importar e exportar EDL (código próprio do Neoveg, sobre o formato público)",
+        authors: "Neoveg Contributors",
+        license: "MIT",
+        url: "https://github.com/blackghoust9/neoveg",
+    },
+    Credit {
+        name: "egui / eframe",
+        used_for: "Interface gráfica",
+        authors: "Emil Ernerfeldt and contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/emilk/egui",
+    },
+    Credit {
+        name: "egui_dock",
+        used_for: "Painéis acopláveis",
+        authors: "egui_dock contributors",
+        license: "MIT",
+        url: "https://github.com/Adanos020/egui_dock",
+    },
+    Credit {
+        name: "wgpu",
+        used_for: "Vídeo, compositor multicamada de 17 modos e interface na GPU (WebGPU)",
+        authors: "wgpu contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/gfx-rs/wgpu",
+    },
+    Credit {
+        name: "image (image-rs)",
+        used_for: "Importação e decodificação em Rust puro de imagens estáticas e sequências \
+                   numeradas de quadros (PNG, JPEG, BMP, GIF, WebP, TIFF, TGA, ICO, PNM)",
+        authors: "The image-rs Developers",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/image-rs/image",
+    },
+    Credit {
+        name: "clack (clack-host / clack-extensions)",
+        used_for: "Host de plug-ins de áudio CLAP nas cadeias de faixa e do master, com \
+                   automação de parâmetros e compensação de latência (PDC)",
+        authors: "Prokopyl and the Clack contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/prokopyl/clack",
+    },
+    Credit {
+        name: "vst3 (vst3-rs)",
+        used_for: "Bindings Rust da API VST 3 para hospedar plug-ins de áudio VST3 nas cadeias de faixa e do master",
+        authors: "Micah Johnston and the vst3-rs contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/coupler-rs/vst3-rs",
+    },
+    Credit {
+        name: "Candle (candle-core / candle-nn / candle-transformers)",
+        used_for: "Transcrição automática de fala para legendas com modelos OpenAI Whisper \
+                   (safetensors e GGUF) em Rust puro",
+        authors: "Laurent Mazare, Hugging Face and the Candle contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://github.com/huggingface/candle",
+    },
+    Credit {
+        name: "cpal",
+        used_for: "Saída de áudio no hardware",
+        authors: "RustAudio contributors",
+        license: "Apache-2.0",
+        url: "https://github.com/RustAudio/cpal",
+    },
+    Credit {
+        name: "Symphonia",
+        used_for: "Decodificação de áudio",
+        authors: "Symphonia contributors",
+        license: "MPL-2.0",
+        url: "https://github.com/pdeljanov/Symphonia",
+    },
+    Credit {
+        name: "FFmpeg (opcional)",
+        used_for: "Decodificação de vídeo (recurso `ffmpeg`, biblioteca compartilhada)",
+        authors: "FFmpeg developers",
+        license: "LGPL-2.1-or-later",
+        url: "https://ffmpeg.org",
+    },
+    Credit {
+        name: "serde / serde_json",
+        used_for: "Arquivos de projeto e preferências",
+        authors: "Erick Tryzelaar, David Tolnay and contributors",
+        license: "MIT OR Apache-2.0",
+        url: "https://serde.rs",
+    },
+    Credit {
+        name: "zip, rfd, tracing",
+        used_for: "Contêiner .neoveg, diálogos de arquivo e logs",
+        authors: "zip-rs, rfd and Tokio contributors",
+        license: "MIT",
+        url: "https://crates.io",
+    },
+];
+
+/// Contents of the window.
+pub fn credits_ui(ui: &mut egui::Ui) {
+    ui.label(tr(
+        "O Neoveg é distribuído sob a licença MIT. Ele usa e adapta o trabalho de terceiros \
+         listado abaixo; as licenças completas estão em AUTHORS.md e em third_party/.",
+    ));
+    ui.add_space(6.0);
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        for credit in CREDITS {
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.strong(tr_text(credit.name));
+                ui.label(format!("· {}", credit.license));
+            });
+            ui.label(tr_text(credit.used_for));
+            ui.horizontal(|ui| {
+                ui.weak(credit.authors);
+                ui.hyperlink_to(tr("página do projeto"), credit.url);
+            });
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn repo_file(path: &str) -> String {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        std::fs::read_to_string(root.join(path)).unwrap_or_else(|e| panic!("{path}: {e}"))
+    }
+
+    #[test]
+    fn every_credit_has_every_field() {
+        assert!(!CREDITS.is_empty());
+        for c in CREDITS {
+            for field in [c.name, c.used_for, c.authors, c.license, c.url] {
+                assert!(!field.trim().is_empty(), "{} has an empty field", c.name);
+            }
+            assert!(c.url.starts_with("https://"), "{}", c.name);
+        }
+    }
+
+    #[test]
+    fn the_adapted_filmcraft_code_is_credited_with_its_licence_and_author() {
+        let filmcraft = CREDITS
+            .iter()
+            .find(|c| c.name.contains("FilmCraft"))
+            .expect("FilmCraft credit");
+        assert!(filmcraft.license.contains("MIT"));
+        assert!(filmcraft.authors.contains("FilmCraft contributors"));
+
+        // The licence text shipped with the sources and with the packages
+        let licence = repo_file("third_party/filmcraft/LICENSE-MIT");
+        assert!(licence.contains("ArtCraft Team and the FilmCraft contributors"));
+        assert!(licence.contains("Permission is hereby granted"));
+        for doc in ["AUTHORS.md", "third_party/README.md"] {
+            assert!(
+                repo_file(doc).contains("filmcraft"),
+                "{doc} does not mention filmcraft"
+            );
+        }
+    }
+
+    #[test]
+    fn the_rnnoise_dependency_is_credited_and_its_licence_ships() {
+        let rnnoise = CREDITS
+            .iter()
+            .find(|c| c.name.contains("RNNoise"))
+            .expect("RNNoise credit");
+        assert_eq!(rnnoise.license, "BSD-3-Clause");
+        assert!(rnnoise.authors.contains("Xiph.Org"));
+        let licence = repo_file("third_party/nnnoiseless/COPYING");
+        assert!(licence.contains("Jean-Marc Valin"));
+        assert!(licence.contains("Redistribution and use in source and binary forms"));
+        assert!(repo_file("crates/neoveg_audio/Cargo.toml").contains("nnnoiseless"));
+        for doc in ["AUTHORS.md", "third_party/README.md"] {
+            assert!(repo_file(doc).contains("nnnoiseless"), "{doc}");
+        }
+        assert!(repo_file("build_portable.py").contains("third_party/nnnoiseless/COPYING"));
+    }
+
+    #[test]
+    fn open_source_bmp_icon_libraries_are_credited_and_their_licences_ship() {
+        for (name, licence_path) in [
+            ("Lucide Icons", "third_party/lucide/LICENSE"),
+            ("Phosphor Icons", "third_party/phosphor-icons/LICENSE-MIT"),
+            ("Remix Icon", "third_party/remix-icon/LICENSE-APACHE"),
+            (
+                "Material Symbols",
+                "third_party/material-symbols/LICENSE-APACHE",
+            ),
+        ] {
+            let entry = CREDITS
+                .iter()
+                .find(|c| c.name == name)
+                .unwrap_or_else(|| panic!("missing credit for {name}"));
+            assert!(!entry.license.is_empty());
+            assert!(!repo_file(licence_path).trim().is_empty(), "{licence_path}");
+            assert!(repo_file("AUTHORS.md").contains(name), "AUTHORS.md: {name}");
+            assert!(
+                repo_file("third_party/README.md").contains(name),
+                "third_party/README.md: {name}"
+            );
+            assert!(
+                repo_file("build_portable.py").contains(licence_path),
+                "build_portable.py: {licence_path}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_adapted_subtitle_code_carries_its_attribution() {
+        let text = repo_file("crates/neoveg_engine/src/captions.rs");
+        assert!(text.contains("adapted from `filmcraft-captions`"));
+        assert!(text.contains("ArtCraft Team and the FilmCraft contributors"));
+        assert!(repo_file("AUTHORS.md").contains("captions.rs"));
+    }
+
+    #[test]
+    fn the_adapted_mcc_psd_and_scene_files_carry_their_attribution() {
+        for (path, short) in [
+            ("crates/neoveg_engine/src/caption_mcc.rs", "caption_mcc.rs"),
+            ("crates/neoveg_video/src/psd.rs", "psd.rs"),
+            ("crates/neoveg_video/src/scene.rs", "scene.rs"),
+        ] {
+            let text = repo_file(path);
+            assert!(
+                text.contains("Adapted from")
+                    && text.contains("ArtCraft Team and the FilmCraft contributors"),
+                "{path} lost its attribution header"
+            );
+            assert!(
+                repo_file("AUTHORS.md").contains(short),
+                "AUTHORS.md: {short}"
+            );
+            assert!(
+                repo_file("third_party/filmcraft/README.md").contains(short),
+                "third_party/filmcraft/README.md: {short}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_adapted_source_file_carries_the_attribution_header() {
+        for file in [
+            "biquad.rs",
+            "loudness.rs",
+            "oversample.rs",
+            "smooth.rs",
+            "effect.rs",
+            "effects/mod.rs",
+            "effects/eq.rs",
+            "effects/dynamics.rs",
+            "effects/time.rs",
+            "effects/modulation.rs",
+            "effects/pitch.rs",
+            "effects/declick.rs",
+            "effects/essential.rs",
+            "effects/multiband.rs",
+            "effects/channel.rs",
+            "effects/util.rs",
+            "effects/filters.rs",
+            "effects/restoration.rs",
+            "effects/stft.rs",
+            "design.rs",
+            "fft.rs",
+            "ducking.rs",
+        ] {
+            let text = repo_file(&format!("crates/neoveg_audio/src/dsp/{file}"));
+            assert!(
+                text.contains("Adapted from `filmcraft-audio-dsp`")
+                    && text.contains("ArtCraft Team and the FilmCraft contributors"),
+                "{file} lost its attribution header"
+            );
+        }
+    }
+}

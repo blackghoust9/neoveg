@@ -1,0 +1,478 @@
+//! Multi-track mixer: sums every clip active at a timeline position into one stereo frame.
+
+use std::sync::Arc;
+
+use neoveg_common::fade::FadeCurve;
+
+use crate::pcm::PcmStore;
+
+/// One audio event prepared for playback.
+#[derive(Debug, Clone, Default)]
+pub struct MixClip {
+    /// Interleaved stereo `f32` at `source_rate`.
+    pub samples: Arc<PcmStore>,
+    pub source_rate: u32,
+    /// Timeline position (seconds) where the clip starts.
+    pub start: f64,
+    pub duration: f64,
+    /// Offset (seconds) into the source where the clip begins.
+    pub trim_in: f64,
+    pub gain: f32,
+    pub fade_in: f64,
+    pub fade_out: f64,
+    pub fade_in_curve: FadeCurve,
+    pub fade_out_curve: FadeCurve,
+    /// Length of the automatic crossfade at the start (0 = none); uses `cross_in_curve`.
+    pub cross_in: f64,
+    pub cross_in_curve: FadeCurve,
+    /// Length of the automatic crossfade at the end (0 = none); uses `cross_out_curve`.
+    pub cross_out: f64,
+    pub cross_out_curve: FadeCurve,
+    /// Index of the track the clip belongs to (its effect chain is found by this index).
+    pub track: usize,
+    /// Seconds of the source, counted from `trim_in`, that repeat when the clip runs past them
+    /// (the Loop switch); `0` plays the source once.
+    pub loop_len: f64,
+    /// Non-destructive channel conversion of the clip (Both = untouched).
+    pub channels: neoveg_common::channels::ChannelMode,
+    /// Level of the clip over its own time (the volume envelope of the event); `None` leaves the
+    /// level alone.
+    pub volume: Option<Arc<GainCurve>>,
+}
+
+/// One keyframe of a [`GainCurve`]: `db` at `time` seconds from the start of the clip. `curve` shapes
+/// the stretch that leaves this keyframe towards the next one (`None` holds this level until then).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GainPoint {
+    pub time: f64,
+    pub db: f32,
+    pub curve: Option<FadeCurve>,
+}
+
+/// The level of a clip over time, in dB: keyframes in seconds from the clip start, the first level
+/// before the first keyframe and the last after the last one. `-60 dB` and below is silence.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GainCurve {
+    pub points: Vec<GainPoint>,
+}
+
+impl GainCurve {
+    /// Lowest level, dB: at or below it the clip is silent.
+    pub const SILENCE_DB: f32 = -60.0;
+
+    /// Linear gain `time` seconds from the clip start (`1.0` without keyframes).
+    pub fn gain_at(&self, time: f64) -> f32 {
+        let (Some(first), Some(last)) = (self.points.first(), self.points.last()) else {
+            return 1.0;
+        };
+        let db = if time <= first.time {
+            first.db
+        } else if time >= last.time {
+            last.db
+        } else {
+            let next = self.points.partition_point(|p| p.time <= time);
+            let (a, b) = (self.points[next - 1], self.points[next]);
+            let span = b.time - a.time;
+            if span <= 1e-9 {
+                b.db
+            } else {
+                // The curve that leaves `a` shapes the way to `b`; a hold stays until `b`
+                let u = a
+                    .curve
+                    .map_or(0.0, |c| c.gain((time - a.time) / span) as f32);
+                a.db + (b.db - a.db) * u
+            }
+        };
+        if !db.is_finite() {
+            1.0
+        } else if db <= Self::SILENCE_DB {
+            0.0
+        } else {
+            10f32.powf(db / 20.0)
+        }
+    }
+}
+
+/// Highest absolute sample of the stereo `samples` between `from` and `from + length` seconds.
+/// The window is clamped to the sound; `0.0` for an empty window.
+pub fn peak_in_window(samples: &PcmStore, sample_rate: u32, from: f64, length: f64) -> f32 {
+    let frames = samples.frames();
+    let rate = f64::from(sample_rate);
+    let start = ((from.max(0.0) * rate).floor() as usize).min(frames);
+    let end = (((from + length).max(0.0) * rate).ceil() as usize).clamp(start, frames);
+    samples.peak(start, end)
+}
+
+/// Linear gain that brings a signal whose highest sample is `peak` to `target_db` dBFS. A silent
+/// or invalid peak gives unity, so normalizing silence changes nothing.
+pub fn normalize_gain(peak: f32, target_db: f64) -> f32 {
+    if !peak.is_finite() || peak <= 1e-9 {
+        return 1.0;
+    }
+    (10.0_f64.powf(target_db / 20.0) / f64::from(peak)) as f32
+}
+
+/// Gain of a ramp `length` seconds long when `position` seconds are left until its full-gain end
+/// (distance from the clip start for a fade-in, remaining time for a fade-out).
+fn ramp(curve: FadeCurve, length: f64, position: f64) -> f32 {
+    if length > 0.0 && position < length {
+        curve.gain(position / length) as f32
+    } else {
+        1.0
+    }
+}
+
+impl MixClip {
+    pub fn end(&self) -> f64 {
+        self.start + self.duration
+    }
+
+    /// Gain at `local` seconds from the clip start: own fades times automatic crossfades.
+    fn envelope(&self, local: f64) -> f32 {
+        let remaining = self.duration - local;
+        self.gain
+            * ramp(self.fade_in_curve, self.fade_in, local)
+            * ramp(self.fade_out_curve, self.fade_out, remaining.max(0.0))
+            * ramp(self.cross_in_curve, self.cross_in, local)
+            * ramp(self.cross_out_curve, self.cross_out, remaining.max(0.0))
+            * self.volume.as_ref().map_or(1.0, |v| v.gain_at(local))
+    }
+
+    /// Stereo sample at timeline time `t` (linear interpolation, silence outside the clip).
+    pub fn sample_at(&self, t: f64) -> (f32, f32) {
+        if t < self.start || t >= self.end() {
+            return (0.0, 0.0);
+        }
+        let local = t - self.start;
+        let looped = if self.loop_len > 0.0 {
+            local.rem_euclid(self.loop_len)
+        } else {
+            local
+        };
+        let pos = (looped + self.trim_in) * self.source_rate as f64;
+        if pos < 0.0 {
+            return (0.0, 0.0);
+        }
+        let i = pos.floor() as usize;
+        if i >= self.samples.frames() {
+            return (0.0, 0.0);
+        }
+        let ((l0, r0), next) = self.samples.pair(i);
+        let (l, r) = match next {
+            Some((l1, r1)) => {
+                let f = (pos - i as f64) as f32;
+                (l0 + (l1 - l0) * f, r0 + (r1 - r0) * f)
+            }
+            None => (l0, r0),
+        };
+        let (l, r) = self.channels.apply(l, r);
+        let g = self.envelope(local);
+        (l * g, r * g)
+    }
+}
+
+/// Sum of every clip at timeline time `t`.
+pub fn mix_frame(clips: &[MixClip], t: f64) -> (f32, f32) {
+    clips.iter().fold((0.0, 0.0), |(l, r), clip| {
+        let (cl, cr) = clip.sample_at(t);
+        (l + cl, r + cr)
+    })
+}
+
+/// End of the last clip.
+pub fn plan_end(clips: &[MixClip]) -> f64 {
+    clips.iter().map(MixClip::end).fold(0.0, f64::max)
+}
+
+/// Renders `out.len() / 2` stereo frames starting at `t0`, advancing `step` seconds per frame.
+pub fn render(clips: &[MixClip], t0: f64, step: f64, out: &mut [f32]) {
+    for (i, frame) in out.as_chunks_mut::<2>().0.iter_mut().enumerate() {
+        let (l, r) = mix_frame(clips, t0 + i as f64 * step);
+        frame[0] = l;
+        frame[1] = r;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clip(value: f32, start: f64, duration: f64) -> MixClip {
+        // 1 second at 100 Hz of constant stereo value
+        MixClip {
+            samples: PcmStore::shared(vec![value; 200]),
+            source_rate: 100,
+            start,
+            duration,
+            gain: 1.0,
+            ..Default::default()
+        }
+    }
+
+    fn point(time: f64, db: f32, curve: Option<FadeCurve>) -> GainPoint {
+        GainPoint { time, db, curve }
+    }
+
+    #[test]
+    fn a_gain_curve_follows_its_keyframes_holds_the_ends_and_silences_at_minus_sixty() {
+        let ramp = GainCurve {
+            points: vec![
+                point(0.0, 0.0, Some(FadeCurve::Linear)),
+                point(2.0, -12.0, Some(FadeCurve::Linear)),
+            ],
+        };
+        assert_eq!(
+            GainCurve::default().gain_at(1.0),
+            1.0,
+            "no keyframes, no change"
+        );
+        assert_eq!(ramp.gain_at(-1.0), 1.0, "the first level holds before");
+        let half = ramp.gain_at(1.0); // -6 dB
+        assert!((half - 0.501_187_2).abs() < 1e-5, "{half}");
+        let end = ramp.gain_at(9.0); // -12 dB holds after
+        assert!((end - 0.251_188_64).abs() < 1e-5, "{end}");
+        let step = GainCurve {
+            points: vec![
+                point(0.0, 0.0, None),
+                point(1.0, -60.0, Some(FadeCurve::Linear)),
+            ],
+        };
+        assert_eq!(
+            step.gain_at(0.99),
+            1.0,
+            "a hold stays until the next keyframe"
+        );
+        assert_eq!(step.gain_at(1.0), 0.0, "-60 dB is silence");
+        let bad = GainCurve {
+            points: vec![point(0.0, f32::NAN, None)],
+        };
+        assert_eq!(bad.gain_at(0.5), 1.0);
+    }
+
+    #[test]
+    fn a_clip_with_a_volume_curve_plays_at_the_level_of_its_own_time() {
+        let mut c = clip(0.8, 5.0, 1.0);
+        c.volume = Some(Arc::new(GainCurve {
+            points: vec![
+                point(0.0, 0.0, Some(FadeCurve::Linear)),
+                point(1.0, -20.0, Some(FadeCurve::Linear)),
+            ],
+        }));
+        // The curve is in the time of the clip, not of the timeline
+        assert!((c.sample_at(5.0).0 - 0.8).abs() < 1e-6);
+        let mid = c.sample_at(5.5).0; // -10 dB
+        assert!((mid - 0.8 * 0.316_227_77).abs() < 1e-4, "{mid}");
+        c.volume = None;
+        assert!((c.sample_at(5.5).0 - 0.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn silence_outside_the_clip() {
+        let c = clip(0.5, 1.0, 0.5);
+        assert_eq!(c.sample_at(0.99), (0.0, 0.0));
+        assert_eq!(c.sample_at(1.5), (0.0, 0.0));
+        assert_eq!(c.sample_at(1.2), (0.5, 0.5));
+    }
+
+    #[test]
+    fn a_looping_clip_repeats_its_source_instead_of_going_silent() {
+        // Source: a ramp of 100 stereo frames at 100 Hz (1 s); the clip lasts 2.5 s
+        let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
+        let mut c = MixClip {
+            samples: PcmStore::shared(ramp),
+            source_rate: 100,
+            duration: 2.5,
+            gain: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            c.sample_at(1.5),
+            (0.0, 0.0),
+            "without Loop the tail is silent"
+        );
+        c.loop_len = 1.0;
+        assert_eq!(c.sample_at(1.5), c.sample_at(0.5));
+        assert_eq!(c.sample_at(2.25), c.sample_at(0.25));
+        assert_ne!(c.sample_at(1.5), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_loop_restarts_at_the_trimmed_in_point() {
+        let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
+        let c = MixClip {
+            samples: PcmStore::shared(ramp),
+            source_rate: 100,
+            duration: 3.0,
+            trim_in: 0.5,
+            loop_len: 0.5,
+            gain: 1.0,
+            ..Default::default()
+        };
+        // 0.5 s of source remain after the in point, so the repeat starts at 0.5 again
+        assert_eq!(c.sample_at(0.0), c.sample_at(0.5));
+        assert_eq!(c.sample_at(0.25), c.sample_at(1.25));
+    }
+
+    #[test]
+    fn the_peak_of_a_window_ignores_what_lies_outside_it() {
+        // 1 s at 100 Hz: quiet, with a loud frame at 0.5 s and another at 0.9 s
+        let mut s = vec![0.1_f32; 200];
+        s[100] = -0.8;
+        s[180] = 0.95;
+        let s = PcmStore::from_vec(s);
+        assert_eq!(peak_in_window(&s, 100, 0.0, 1.0), 0.95);
+        assert_eq!(peak_in_window(&s, 100, 0.0, 0.8), 0.8);
+        assert_eq!(peak_in_window(&s, 100, 0.0, 0.4), 0.1);
+        assert_eq!(
+            peak_in_window(&s, 100, 5.0, 1.0),
+            0.0,
+            "a window past the end is empty"
+        );
+    }
+
+    #[test]
+    fn normalizing_reaches_the_target_and_leaves_silence_alone() {
+        let gain = normalize_gain(0.5, 0.0);
+        assert!((gain - 2.0).abs() < 1e-6);
+        let to_minus_6 = normalize_gain(0.5, -6.0206);
+        assert!((to_minus_6 * 0.5 - 0.5).abs() < 1e-3);
+        assert_eq!(normalize_gain(0.0, 0.0), 1.0);
+        assert_eq!(normalize_gain(f32::NAN, 0.0), 1.0);
+    }
+
+    #[test]
+    fn channel_modes_change_how_the_two_channels_reach_the_mix() {
+        use neoveg_common::channels::ChannelMode;
+        // 1 s at 100 Hz: left 0.8, right 0.2
+        let samples: Vec<f32> = (0..100).flat_map(|_| [0.8_f32, 0.2]).collect();
+        let mut clip = MixClip {
+            samples: PcmStore::shared(samples),
+            source_rate: 100,
+            duration: 1.0,
+            gain: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(clip.sample_at(0.5), (0.8, 0.2));
+        clip.channels = ChannelMode::Left;
+        assert_eq!(clip.sample_at(0.5), (0.8, 0.8));
+        clip.channels = ChannelMode::Swap;
+        assert_eq!(clip.sample_at(0.5), (0.2, 0.8));
+        clip.channels = ChannelMode::Combine;
+        let (l, r) = clip.sample_at(0.5);
+        assert!((l - 0.5).abs() < 1e-6 && l == r);
+        // The gain and fades still apply after the conversion
+        clip.gain = -1.0;
+        assert!((clip.sample_at(0.5).0 + 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_negative_gain_inverts_the_phase_and_cancels_the_original() {
+        let mut inverted = clip(0.5, 0.0, 1.0);
+        inverted.gain = -1.0;
+        assert_eq!(inverted.sample_at(0.5), (-0.5, -0.5));
+        let clips = [clip(0.5, 0.0, 1.0), inverted];
+        assert_eq!(mix_frame(&clips, 0.5), (0.0, 0.0));
+    }
+
+    #[test]
+    fn overlapping_clips_are_summed() {
+        let clips = [clip(0.25, 0.0, 1.0), clip(0.5, 0.0, 1.0)];
+        assert_eq!(mix_frame(&clips, 0.5), (0.75, 0.75));
+        assert_eq!(plan_end(&clips), 1.0);
+    }
+
+    #[test]
+    fn fades_ramp_linearly_to_silence() {
+        let mut c = clip(1.0, 0.0, 1.0);
+        c.fade_in = 0.5;
+        c.fade_out = 0.5;
+        assert_eq!(c.sample_at(0.0).0, 0.0);
+        assert!((c.sample_at(0.25).0 - 0.5).abs() < 1e-6);
+        assert_eq!(c.sample_at(0.5).0, 1.0);
+        assert!((c.sample_at(0.75).0 - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn each_curve_shapes_the_fade_in() {
+        // quarter of the way through a 1 s fade-in
+        let expected = [
+            (FadeCurve::Linear, 0.25),
+            (FadeCurve::Fast, 0.4375),
+            (FadeCurve::Slow, 0.0625),
+            (FadeCurve::Smooth, 0.156_25),
+        ];
+        for (curve, gain) in expected {
+            let mut c = clip(1.0, 0.0, 2.0);
+            c.fade_in = 1.0;
+            c.fade_in_curve = curve;
+            assert!((c.sample_at(0.25).0 - gain).abs() < 1e-5, "{curve:?}");
+        }
+        let mut sharp = clip(1.0, 0.0, 2.0);
+        sharp.fade_in = 1.0;
+        sharp.fade_in_curve = FadeCurve::Sharp;
+        assert!(sharp.sample_at(0.25).0 > 0.25);
+    }
+
+    #[test]
+    fn fade_out_mirrors_the_curve_at_the_end() {
+        let mut c = clip(1.0, 0.0, 1.0);
+        c.fade_out = 0.5;
+        c.fade_out_curve = FadeCurve::Slow;
+        // 0.25 s before the end: remaining fraction 0.5, slow curve gives 0.25
+        assert!((c.sample_at(0.75).0 - 0.25).abs() < 1e-5);
+        assert_eq!(c.sample_at(0.4).0, 1.0);
+    }
+
+    #[test]
+    fn crossfade_of_symmetric_curves_keeps_constant_amplitude() {
+        // A (0..1) fades out over 0.4..1.0 while B (0.4..1.4) fades in
+        for curve in [FadeCurve::Linear, FadeCurve::Smooth, FadeCurve::Sharp] {
+            let a = MixClip {
+                cross_out: 0.6,
+                cross_out_curve: curve,
+                ..clip(1.0, 0.0, 1.0)
+            };
+            let b = MixClip {
+                cross_in: 0.6,
+                cross_in_curve: curve,
+                ..clip(1.0, 0.4, 1.0)
+            };
+            let clips = [a, b];
+            for i in 0..60 {
+                let t = 0.4 + 0.6 * f64::from(i) / 60.0;
+                let (l, _) = mix_frame(&clips, t);
+                assert!((l - 1.0).abs() < 0.02, "{curve:?} at {t}: {l}");
+            }
+        }
+    }
+
+    #[test]
+    fn crossfade_is_inactive_outside_the_overlap() {
+        let a = MixClip {
+            cross_out: 0.6,
+            ..clip(1.0, 0.0, 1.0)
+        };
+        assert_eq!(a.sample_at(0.2).0, 1.0);
+        assert!(a.sample_at(0.9).0 < 0.5);
+    }
+
+    #[test]
+    fn trim_in_offsets_into_the_source() {
+        let mut samples = vec![0.0f32; 200];
+        samples[100..].fill(0.8); // second half of the source is loud
+        let c = MixClip {
+            samples: PcmStore::shared(samples),
+            trim_in: 0.5,
+            ..clip(0.0, 2.0, 0.5)
+        };
+        assert!((c.sample_at(2.0).0 - 0.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn render_fills_interleaved_frames() {
+        let c = [clip(0.5, 0.0, 1.0)];
+        let mut out = [0.0f32; 8];
+        render(&c, 0.0, 0.01, &mut out);
+        assert!(out.iter().all(|&v| v == 0.5));
+    }
+}

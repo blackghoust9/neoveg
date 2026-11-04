@@ -1,0 +1,103 @@
+# FilmCraft (código adaptado)
+
+| | |
+| :--- | :--- |
+| Projeto | **FilmCraft**, editor não linear em Rust puro |
+| Repositório | <https://github.com/storytold/filmcraft> (commits `8fda2f2`, `8d925e9` e `57dc82e` / `v0.17.0`) |
+| Autores | ArtCraft Team and the FilmCraft contributors |
+| Licença | `MIT OR Apache-2.0`. O Neoveg usa o código **sob a licença MIT**; o texto está em [`LICENSE-MIT`](LICENSE-MIT) e acompanha todos os pacotes |
+| Crates de origem | `audio-dsp`, `captions`, `render`, `gpu`, `text`, `h264enc`, `aac`, `cfb`, `interchange` e `media` |
+
+## O que foi copiado
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_audio/src/dsp/loudness.rs` | `audio-dsp/src/loudness.rs` | Medidor ITU-R BS.1770-4 / EBU R128: filtro K, loudness momentâneo (400 ms), de curto prazo (3 s) e integrado (porta dupla), faixa de loudness (EBU Tech 3342), pico de amostra e pico verdadeiro |
+| `crates/neoveg_audio/src/dsp/biquad.rs` | `audio-dsp/src/biquad.rs` | Filtros biquad (receitas RBJ) usados pelo filtro K |
+| `crates/neoveg_audio/src/dsp/oversample.rs` | `audio-dsp/src/oversample.rs` | Sobreamostragem polifásica do pico verdadeiro |
+| `crates/neoveg_audio/src/dsp/effect.rs` | trecho de `audio-dsp/src/lib.rs` | Trait `AudioEffect`, descrição de parâmetros (`ParamSpec`, `Unit`) e funções auxiliares |
+| `crates/neoveg_audio/src/dsp/smooth.rs` | `audio-dsp/src/smooth.rs` | Suavização de parâmetros por amostra |
+| `crates/neoveg_audio/src/dsp/effects/eq.rs` | `audio-dsp/src/effects/eq.rs` | Equalizador paramétrico e de 3 bandas |
+| `crates/neoveg_audio/src/dsp/effects/dynamics.rs` | `audio-dsp/src/effects/dynamics.rs` | Compressor, expansor/gate e limitador de pico verdadeiro |
+| `crates/neoveg_audio/src/dsp/effects/time.rs` | `audio-dsp/src/effects/time.rs` | Delay e reverb |
+| `crates/neoveg_audio/src/dsp/effects/filters.rs` | `audio-dsp/src/effects/filters.rs` | Equalizadores gráficos de 10, 20 e 30 bandas, paramétrico completo, notch, filtros clássicos (Butterworth, Chebyshev, Bessel, Elíptico) e filtro FFT |
+| `crates/neoveg_audio/src/dsp/effects/restoration.rs` | `audio-dsp/src/effects/restoration.rs` | DeHum (pente de notches em 50/60 Hz) e DeNoise (porta espectral por STFT) |
+| `crates/neoveg_audio/src/dsp/effects/stft.rs` | `audio-dsp/src/effects/stft.rs` | Processamento por STFT usado pelo DeNoise e pelo filtro FFT |
+| `crates/neoveg_audio/src/dsp/design.rs` | `audio-dsp/src/design.rs` | Projeto de filtros clássicos em seções biquad |
+| `crates/neoveg_audio/src/dsp/fft.rs` | `audio-dsp/src/fft.rs` | FFT |
+| `crates/neoveg_audio/src/dsp/ducking.rs` | `audio-dsp/src/ducking.rs` | Análise do auto-ducking: regiões de atividade e curva de ganho (os keyframes de descida e subida) |
+| `crates/neoveg_audio/src/dsp/effects/modulation.rs` | `audio-dsp/src/effects/modulation.rs` | Chorus/flanger, flanger, phaser, delay analógico e delay de várias batidas |
+| `crates/neoveg_audio/src/dsp/effects/pitch.rs` | `audio-dsp/src/effects/pitch.rs` | Mudança de tom (pitch shifter por STFT) |
+| `crates/neoveg_audio/src/dsp/effects/declick.rs` | `audio-dsp/src/effects/declick.rs` | Removedor automático de cliques |
+| `crates/neoveg_audio/src/dsp/effects/essential.rs` | `audio-dsp/src/effects/essential.rs` | DeEsser, DeReverb, realce de fala e largura estéreo |
+| `crates/neoveg_audio/src/dsp/effects/multiband.rs` | `audio-dsp/src/effects/multiband.rs` | Compressor multibanda, rack de dinâmica e compressor valvulado |
+| `crates/neoveg_audio/src/dsp/effects/channel.rs` | `audio-dsp/src/effects/channel.rs` | Amplificar, volume por canal, balanço e inverter fase |
+| `crates/neoveg_audio/src/dsp/effects/util.rs` | `audio-dsp/src/effects/util.rs` | Linhas de atraso, filtros de um polo, LFOs e envelopes usados pelos efeitos |
+| `crates/neoveg_engine/src/captions.rs` | `captions/src/srt.rs`, `captions/src/vtt.rs` e funções de relógio e de decodificação de `captions/src/lib.rs` | Leitura e escrita de legendas SubRip (`.srt`) e WebVTT (`.vtt`) tolerantes a arquivos reais |
+| `crates/neoveg_engine/src/caption_mcc.rs` | `captions/src/mcc.rs` (commit `57dc82e`) | Leitura e escrita de closed captions MacCaption (`.mcc`, pacotes SMPTE ST 334-2 CDP com CEA-608 e CEA-708 serviço 1 e compressão de repetições do MacCaption) |
+| `crates/neoveg_video/src/psd.rs` | `media/src/still/psd.rs` e `psd/tests.rs` (commit `57dc82e`) | Leitura e decodificação em Rust puro da imagem composta de arquivos `.psd` (`8BPS`, 8 e 16 bits por canal, tons de cinza e RGB, bruto e PackBits RLE, alfa reto) |
+| `crates/neoveg_video/src/scene.rs` | `render/src/scene.rs` (commit `57dc82e`) | Detecção de cortes bruscos de cena por assinatura híbrida (grade espacial 32×18 de luminância BT.709 e histograma RGB de 16 faixas) com limiar adaptativo local |
+| `crates/neoveg_audio/src/dsp/effects/mod.rs` | trecho de `audio-dsp/src/effects/mod.rs` | Registro dos efeitos (só os 7 que o Neoveg oferece) e seus testes de consistência |
+
+## O que foi adaptado (reescrito)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_video/src/vfx.rs` e `crates/neoveg_video/src/vfx_gpu.rs` | `render/src/gpufx.rs` (`FxOp::eval` e `FxOp::apply`) e `gpu/src/fx.wgsl` | Fórmulas dos 18 efeitos Equilíbrio de cor, Níveis, Correção de gama, Posterizar, Extrair, Matiz, Misturador de canais, ASC CDL, Manter cor, Trocar por cor, Passar cor, Ajuste de alfa, Espelhar na horizontal e na vertical, Deslocar, Limitador de vídeo, Substituir cor, Amplificador de processamento e Corretor de cor (três vias), reescritas para o buffer de trabalho do Neoveg (cor codificada e pré-multiplicada, parâmetros numéricos do registro `ParamSpec`) e conferidas por teste entre a CPU e a GPU |
+
+## O motor de texto (copiado)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_text/src/` (`fonts.rs`, `layout.rs`, `layout/tests.rs`, `raster.rs`, `render.rs`, `mask.rs`, `sfnt.rs`, `lib.rs`) | `crates/text/src/` (`filmcraft-text`, commit `8d925e9`) | Banco de fontes (embutidas e do sistema), composição com HarfBuzz (`harfrust`), texto bidirecional, quebra de linha, parágrafos, estilos por trecho e rasterização com antisserrilhado (traço, desfoque e sombra) |
+| `crates/neoveg_text/fonts/` | `assets/fonts/` | Inter (5 estilos), JetBrains Mono e Noto Serif, sem alteração, sob a licença OFL-1.1 (os textos `OFL-*.txt` e os arquivos `.attribution` vêm junto) |
+
+Alterações: o crate usa a edição 2024 (o código usa `let` encadeado), a lista de fontes opcionais `craft-fonts` ficou vazia (não há `build.rs`) e o caminho das fontes embutidas mudou. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
+
+## Codificadores e contêineres (copiados)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_h264/src/` | `crates/h264enc/src/` (`filmcraft-h264enc`, commit `8d925e9`) | Codificador H.264/AVC em Rust puro, escrito a partir da especificação pública: Baseline, Main e High, CABAC e CAVLC, quadros B, desbloqueio, controle de taxa (QP constante, qualidade constante, ABR com VBV e VBR em duas passagens) |
+| `crates/neoveg_aac/src/` | `crates/aac/src/` (`filmcraft-aac`) | Codificador e decodificador AAC-LC (ISO/IEC 14496-3) em Rust puro |
+| `crates/neoveg_media/src/` | `crates/media/src/` do repositório `storytold/craft-libs` (`craft-media`, commit `1b5582a`): `bitstream.rs` e `isobmff/` | Leitura e escrita de bits (Exp-Golomb, NAL) e leitura e escrita de MP4 e MOV (progressivo, com `faststart`, e fragmentado) |
+
+Alterações: os três crates usam a edição 2024; `filmcraft_bitstream` virou `neoveg_media::bitstream`; o `matroska` do `craft-media` não foi copiado; os testes de integração com o `ffmpeg` como oráculo (pastas `tests/`) não foram copiados. O resto é o código original, formatado pelo `rustfmt` do Neoveg.
+
+## AAF e arquivo composto (copiados)
+
+| Arquivo no Neoveg | Origem | Função |
+| :--- | :--- | :--- |
+| `crates/neoveg_cfb/src/` | `crates/cfb/src/` (`filmcraft-cfb`) | Leitor e escritor do arquivo composto da Microsoft (MS-CFB), o contêiner do AAF, com setores de 512 e de 4096 bytes |
+| `crates/neoveg_aaf/src/` (`ids.rs`, `store.rs`, `read.rs`, `write.rs`) | `crates/interchange/src/aaf/` | O armazenamento estruturado do AAF, os identificadores das classes e a leitura e a escrita da composição (AAF Edit Protocol) |
+| `crates/neoveg_aaf/src/model.rs` | `crates/interchange/src/comp.rs` (só os tipos neutros) | O modelo neutro de composições, trilhas, clipes, transições e fontes de mídia |
+| `crates/neoveg_aaf/src/time.rs` | `crates/time/src/lib.rs` | `Tick` e `FrameRate` |
+| `crates/neoveg_aaf/src/support.rs` | `crates/interchange/src/common.rs` e `wav.rs` (algumas funções) | URLs de arquivo, nomes de arquivo, cabeçalho WAV; os tipos de erro e de relatório foram reescritos |
+
+O adaptador entre a linha do tempo do Neoveg e esse modelo, `crates/neoveg_engine/src/aaf.rs`, é código próprio do Neoveg. Alterações: os crates usam a edição 2024 e os testes que dependiam do modelo de projeto do FilmCraft não foram copiados.
+
+Cada arquivo copiado mantém, no topo, o aviso de origem e de copyright.
+
+## Alterações feitas pelo Neoveg
+
+- Caminhos de módulo adaptados para `neoveg_audio::dsp` (`crate::...` virou `super::...`).
+- Formatação com `rustfmt`; o código segue com o estilo original.
+- Em `dsp/mod.rs`, as funções auxiliares (`flush` e utilitários de teste) foram reproduzidas a partir
+  de `audio-dsp/src/lib.rs`, e alguns lints do clippy foram silenciados só nesse módulo.
+- Em `effects/mod.rs` só foram registrados os 28 efeitos usados (os de `audio-dsp` que dependem de convolução, ambisonics, guitarra e do modelo de projeto ficaram de fora); os nomes dos efeitos, dos parâmetros e das opções de escolha ficaram em pt-BR (mantendo os identificadores internos dos parâmetros) e foram acrescentados `has_latency` e `Category::label`.
+- Em `captions.rs` o tempo passou de ticks para segundos (`f64`), as cadeias `let` da edição 2024 foram reescritas para a 2021, e o modelo de projeto do FilmCraft (faixas de legenda, ticks) foi trocado pelo `Caption` e pelos comandos do Neoveg, que são código próprio.
+- Em `caption_mcc.rs`, `psd.rs` e `scene.rs`, as cadeias `let` da edição 2024 foram reescritas para a 2021, os tempos foram convertidos para segundos (`f64`), os diagnósticos de linha malformada foram traduzidos para pt-BR e os buffers foram ligados a `neoveg_video::still` e `neoveg_video::FrameBuffer`.
+- Os testes unitários de todos os arquivos copiados foram mantidos. Os testes de oráculo contra o `ffmpeg`
+  (`audio-dsp/tests/loudness_oracle.rs`) **não** foram trazidos.
+
+## Como o Neoveg usa
+
+- **Loudness:** o callback de áudio (`neoveg_audio::playback`) alimenta o medidor com as amostras estéreo que vão de fato para a placa de som e publica as leituras por atômicos (`neoveg_audio::readout`). O painel **Loudness** da interface mostra essas leituras.
+- **Auto-ducking:** `neoveg_audio::duck` mede o nível das faixas de controle a cada 10 ms, acha os trechos com som com as funções do FilmCraft (`dsp::ducking`) e monta a curva de ganho da faixa abaixada; a análise roda ao iniciar a reprodução. A medição do nível é código do Neoveg.
+- **Efeitos:** a cadeia de cada faixa e a do master ficam no projeto (`neoveg_engine::effects`); `neoveg_audio::fxmixer` cria os efeitos fora do callback e roda as cadeias em blocos dentro dele. O painel **Efeitos de Áudio** edita a cadeia da faixa selecionada ou do master.
+- Nada disso aloca memória durante a reprodução.
+
+## Créditos
+
+Os créditos aparecem em **Ajuda → Créditos e licenças…**, em [`AUTHORS.md`](../../AUTHORS.md) e na
+tabela de [`third_party/README.md`](../README.md).

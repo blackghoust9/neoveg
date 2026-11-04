@@ -1,0 +1,179 @@
+name: Rust
+
+# O foco atual do projeto é o Windows 10/11: ele é o sistema que precisa passar para a CI ficar verde.
+# Linux (x64) e macOS (arm64 e x64) rodam os mesmos portões de qualidade e também geram pacotes portáteis
+# com `--ffmpeg` como acompanhamento contínuo (`experimental: true`), sem travar o resultado enquanto o
+# porte estiver em andamento; para torná-los obrigatórios, basta trocar `experimental` para `false`.
+
+on:
+  push:
+    branches: ["main", "refactor/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    name: Gates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            experimental: false
+            python: python
+          - os: ubuntu-latest
+            experimental: true
+            python: python3
+          - os: macos-latest
+            experimental: true
+            python: python3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Setup FFmpeg 7.1, LLVM and system libraries
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          prefer-cli-x264: "true"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Install cargo-deny
+        if: runner.os == 'Windows'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: cargo-deny (licenses, bans, sources)
+        if: runner.os == 'Windows'
+        run: cargo deny check licenses bans sources
+
+      - name: clippy (without FFmpeg)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: clippy (with FFmpeg)
+        run: cargo clippy --workspace --all-targets --features neoveg_ui/ffmpeg --locked -- -D warnings
+
+      - name: build (with FFmpeg)
+        run: cargo build --workspace --features neoveg_ui/ffmpeg --locked
+
+      - name: tests (pure-Rust video fallback)
+        run: cargo test -p neoveg_video --locked
+
+      - name: tests (workspace with FFmpeg and libx264)
+        if: runner.os != 'Linux'
+        run: cargo test --workspace --features neoveg_ui/ffmpeg --locked
+
+      - name: tests (workspace with FFmpeg and libx264, Xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a cargo test --workspace --features neoveg_ui/ffmpeg --locked
+
+      # The packaging driver is Python (standard library only); its tests stage packages from fake binaries
+      - name: packaging driver tests
+        run: ${{ matrix.python }} scripts/test_build_portable.py
+
+  coverage:
+    name: Coverage (windows-latest)
+    runs-on: windows-latest
+    # Informative: a drop in coverage does not block a change
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Setup FFmpeg 7.1 and LLVM
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          prefer-cli-x264: "true"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: coverage
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: cargo llvm-cov (with FFmpeg and libx264)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force coverage | Out-Null
+          cargo llvm-cov --workspace --features neoveg_ui/ffmpeg --locked --lcov --output-path coverage/lcov.info
+          cargo llvm-cov report --summary-only
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neoveg-coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: warn
+
+  package:
+    name: Portable package (${{ matrix.rid }})
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            experimental: false
+            python: python
+          - rid: linux-x64
+            os: ubuntu-latest
+            experimental: true
+            python: python3
+          - rid: osx-arm64
+            os: macos-latest
+            experimental: true
+            python: python3
+          - rid: osx-x64
+            os: macos-15-intel
+            experimental: true
+            python: python3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Packaging uses `prefer-cli-x264: "false"` so redistributed bundles only ever touch LGPL v2.1+ libs
+      - name: Setup FFmpeg 7.1 LGPL and LLVM
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          prefer-cli-x264: "false"
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The quality job already ran the gates for this commit; package all three OS families with `--ffmpeg`
+      - name: Build and package (${{ matrix.rid }})
+        run: ${{ matrix.python }} build_portable.py build --ffmpeg --targets ${{ matrix.rid }} --skip-qa --keep-target
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neoveg-${{ matrix.rid }}
+          path: |
+            dist/Neoveg_v*_Portable.*
+            dist/neoveg_v*
+            dist/SHA256SUMS.txt
+            dist/build_manifest.json
+          if-no-files-found: error
