@@ -55,7 +55,9 @@ pub mod video_effects;
 
 pub use captions::{Caption, CaptionId};
 pub use command::{EditCommand, FxTarget, History, TrackChange, VideoFxTarget};
-pub use envelope::{AutomationTarget, EnvelopePoint, EnvelopeShape, TrackEnvelope};
+pub use envelope::{
+    AutomationMode, AutomationTarget, Envelope, EnvelopePoint, EnvelopeShape, TrackEnvelope,
+};
 pub use markers::{MarkId, Marker, Marks, Region};
 pub use selection::{EventRef, Selection, TimeRange};
 pub use timeline::{

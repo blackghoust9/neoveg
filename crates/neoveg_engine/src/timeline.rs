@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use neoveg_common::channels::ChannelMode;
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
+use neoveg_common::envelope::{eval_points_opt, AutomationMode, EnvelopePoint};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::media_props::MediaProps;
@@ -235,6 +236,12 @@ pub struct TrackEvent {
     /// Snap offset in seconds from `start` (`0.0` = bottom-left corner of the event).
     #[serde(default, skip_serializing_if = "is_zero_time")]
     pub snap_offset: f64,
+    /// Video event overall opacity (`0.0..=1.0`, `1.0` = fully opaque), controlled by the top bar.
+    #[serde(default = "default_gain", skip_serializing_if = "is_unity_gain")]
+    pub opacity: f32,
+    /// Audio event overall gain trim in dB (`-60.0..=12.0`, `0.0` = unity), controlled by the top bar.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gain_db: f32,
 }
 
 impl Default for TrackEvent {
@@ -273,11 +280,27 @@ impl Default for TrackEvent {
             maintain_aspect_ratio: true,
             reduce_interlace_flicker: false,
             snap_offset: 0.0,
+            opacity: 1.0,
+            gain_db: 0.0,
         }
     }
 }
 
 impl TrackEvent {
+    /// Linear gain corresponding to [`Self::gain_db`] (`0.0` at `-60 dB` and below, `1.0` at `0 dB`).
+    pub fn gain_linear(&self) -> f32 {
+        let (lo, hi) = TrackMix::VOLUME_RANGE_DB;
+        if !self.gain_db.is_finite() {
+            return 1.0;
+        }
+        let db = self.gain_db.clamp(lo, hi);
+        if db <= lo {
+            0.0
+        } else {
+            10f32.powf(db / 20.0)
+        }
+    }
+
     pub fn end(&self) -> f64 {
         self.start + self.duration
     }
@@ -381,6 +404,11 @@ pub struct TrackEffect {
     pub bypass: bool,
     #[serde(default)]
     pub params: BTreeMap<String, f32>,
+    /// Keyframed parameter curves (`param_id -> sorted points`), in seconds (from the start of
+    /// the event for Event FX, source media seconds for Media FX, timeline seconds for Track /
+    /// Project FX). Older projects have none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub keyframes: BTreeMap<String, Vec<EnvelopePoint>>,
 }
 
 impl TrackEffect {
@@ -389,7 +417,32 @@ impl TrackEffect {
             kind: kind.to_owned(),
             bypass: false,
             params: BTreeMap::new(),
+            keyframes: BTreeMap::new(),
         }
+    }
+
+    /// `true` when at least one parameter has active keyframes.
+    pub fn is_animated(&self) -> bool {
+        self.keyframes.values().any(|pts| !pts.is_empty())
+    }
+
+    /// `true` when parameter `id` has at least one keyframe.
+    pub fn param_is_animated(&self, id: &str) -> bool {
+        self.keyframes.get(id).is_some_and(|pts| !pts.is_empty())
+    }
+
+    /// Evaluates parameter `id` at `time` seconds, falling back to [`Self::params`] or `default`.
+    pub fn param_at(&self, id: &str, default: f32, time: f64) -> f32 {
+        if let Some(val) = self
+            .keyframes
+            .get(id)
+            .and_then(|pts| eval_points_opt(pts, time))
+        {
+            if val.is_finite() {
+                return val;
+            }
+        }
+        self.params.get(id).copied().unwrap_or(default)
     }
 }
 
@@ -611,6 +664,9 @@ pub struct Track {
     /// A locked track keeps its events as they are (see `track_lock`; older projects: unlocked).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub locked: bool,
+    /// Automation mode of the track (`Off`, `Read`, `Touch`, `Latch`; older projects: `Read`).
+    #[serde(default, skip_serializing_if = "AutomationMode::is_default")]
+    pub automation_mode: AutomationMode,
 }
 
 fn is_zero_level(level: &u8) -> bool {
@@ -779,6 +835,7 @@ impl Timeline {
             composite_mode: CompositeMode::default(),
             compose_level: 0,
             locked: false,
+            automation_mode: AutomationMode::default(),
         }
     }
 

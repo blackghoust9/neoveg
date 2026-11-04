@@ -336,6 +336,118 @@ pub fn set_resample(
     (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
 }
 
+/// Shared opacity (`0.0..=1.0`) of the video events among `events`, or `None` when none or mixed.
+pub fn opacity_of(timeline: &Timeline, events: &[EventRef]) -> Option<f32> {
+    let mut vals = events.iter().filter_map(|&(track_id, event_id)| {
+        let track = timeline.track(track_id)?;
+        if track.kind != TrackKind::Video {
+            return None;
+        }
+        track
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+            .map(|e| e.opacity.clamp(0.0, 1.0))
+    });
+    let first = vals.next()?;
+    vals.all(|v| (v - first).abs() < 1e-4).then_some(first)
+}
+
+/// Sets overall `opacity` (`0.0..=1.0`) on unlocked video events (including adjustment events).
+pub fn set_event_opacity(
+    timeline: &Timeline,
+    events: &[EventRef],
+    opacity: f32,
+) -> Option<EditCommand> {
+    if !opacity.is_finite() {
+        return None;
+    }
+    let opacity = opacity.clamp(0.0, 1.0);
+    let mut changes = Vec::new();
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Video && !t.locked)
+    {
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            if events.contains(&(track.id, event.id))
+                && !event.locked
+                && (event.opacity - opacity).abs() > 1e-6
+            {
+                event.opacity = opacity;
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(TrackChange {
+                track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
+/// Shared gain trim in dB (`-60.0..=12.0`) of the audio events among `events`, or `None` when mixed.
+pub fn gain_db_of(timeline: &Timeline, events: &[EventRef]) -> Option<f32> {
+    let (lo, hi) = crate::timeline::TrackMix::VOLUME_RANGE_DB;
+    let mut vals = events.iter().filter_map(|&(track_id, event_id)| {
+        let track = timeline.track(track_id)?;
+        if track.kind != TrackKind::Audio {
+            return None;
+        }
+        track
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+            .map(|e| e.gain_db.clamp(lo, hi))
+    });
+    let first = vals.next()?;
+    vals.all(|v| (v - first).abs() < 1e-3).then_some(first)
+}
+
+/// Sets overall `gain_db` (`-60.0..=12.0`) on unlocked audio events.
+pub fn set_event_gain_db(
+    timeline: &Timeline,
+    events: &[EventRef],
+    gain_db: f32,
+) -> Option<EditCommand> {
+    if !gain_db.is_finite() {
+        return None;
+    }
+    let (lo, hi) = crate::timeline::TrackMix::VOLUME_RANGE_DB;
+    let gain_db = gain_db.clamp(lo, hi);
+    let mut changes = Vec::new();
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Audio && !t.locked)
+    {
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            if events.contains(&(track.id, event.id))
+                && !event.locked
+                && (event.gain_db - gain_db).abs() > 1e-5
+            {
+                event.gain_db = gain_db;
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(TrackChange {
+                track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -778,5 +890,27 @@ mod tests {
             "a locked event is frozen"
         );
         assert!(rename_event(&tl, (tid, 999), "Outro").is_none());
+    }
+
+    #[test]
+    fn event_opacity_and_gain_db_apply_by_track_kind_and_respect_lock() {
+        let (mut tl, a0, a1, v0) = timeline();
+        let mut h = History::new();
+        assert_eq!(opacity_of(&tl, &[v0]), Some(1.0));
+        assert_eq!(gain_db_of(&tl, &[a0, a1]), Some(0.0));
+
+        let cmd = set_event_opacity(&tl, &[a0, v0], 0.35).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert!((opacity_of(&tl, &[v0]).unwrap() - 0.35).abs() < 1e-5);
+        assert_eq!(tl.track(a0.0).unwrap().events[0].opacity, 1.0);
+
+        let cmd = set_event_gain_db(&tl, &[a0, a1, v0], -6.0).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert!((gain_db_of(&tl, &[a0, a1]).unwrap() - (-6.0)).abs() < 1e-4);
+        assert_eq!(tl.track(v0.0).unwrap().events[0].gain_db, 0.0);
+
+        assert!(h.undo(&mut tl) && h.undo(&mut tl));
+        assert_eq!(opacity_of(&tl, &[v0]), Some(1.0));
+        assert_eq!(gain_db_of(&tl, &[a0, a1]), Some(0.0));
     }
 }

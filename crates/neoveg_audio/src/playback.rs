@@ -344,6 +344,17 @@ impl AudioPlayer {
         self.live.set_track_mix(track, spec)
     }
 
+    /// Overrides a track's automated volume dB, pan, or mute live during `Touch` / `Latch` passes.
+    pub fn set_track_automation(
+        &self,
+        track: usize,
+        vol_db: Option<f32>,
+        pan: Option<f32>,
+        mute: Option<bool>,
+    ) -> bool {
+        self.live.set_track_automation(track, vol_db, pan, mute)
+    }
+
     /// Updates the fader, pan and phase of audio bus `bus` (its place in the project's list) live.
     pub fn set_user_bus_mix(&self, bus: usize, spec: TrackMixSpec) -> bool {
         self.live.set_user_bus_mix(bus, spec)

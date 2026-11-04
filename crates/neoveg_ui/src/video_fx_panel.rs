@@ -7,6 +7,7 @@
 
 use eframe::egui::{self, Slider};
 use neoveg_common::effect_preset::{self, EffectPreset};
+use neoveg_common::envelope::{EnvelopePoint, EnvelopeShape};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_text;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
@@ -57,6 +58,43 @@ pub enum VfxAction {
         bottom: bool,
         color: [u8; 3],
     },
+    /// Enables or disables keyframe animation for `param` on effect `index`.
+    ToggleAnimate {
+        index: usize,
+        param: String,
+        default_value: f32,
+    },
+    /// Inserts or updates a keyframe on `param` of effect `index`.
+    UpsertKeyframe {
+        index: usize,
+        param: String,
+        point: EnvelopePoint,
+        bounds: (f32, f32),
+    },
+    /// Moves keyframe `key_index` on `param` of effect `index`.
+    MoveKeyframe {
+        index: usize,
+        param: String,
+        key_index: usize,
+        time: f64,
+        value: f32,
+        bounds: (f32, f32),
+    },
+    /// Removes keyframe `key_index` on `param` of effect `index`.
+    RemoveKeyframe {
+        index: usize,
+        param: String,
+        key_index: usize,
+    },
+    /// Sets the outgoing curve shape of keyframe `key_index` on `param` of effect `index`.
+    SetKeyframeShape {
+        index: usize,
+        param: String,
+        key_index: usize,
+        shape: EnvelopeShape,
+    },
+    /// Seeks the timeline playhead from the Keyframe Controller when `sync_cursor` is active (`local_time` offset).
+    SeekLocal(f64),
 }
 
 /// Colors offered for the fade to color of a video track.
@@ -92,15 +130,37 @@ pub enum VfxScope {
     Project,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct VfxPanelState {
     /// The chain the user chose; it falls back to one that exists (see [`VfxScopes::resolve`]).
     pub scope: VfxScope,
+    /// When on, the Keyframe Controller cursor and main timeline cursor move together.
+    pub sync_cursor: bool,
+    local_cursor: f64,
+    selected_anim: Option<(usize, String)>,
+    selected_key: usize,
+    key_drag: Option<(usize, String, usize, f64, f32, (f32, f32))>,
     draft: Option<Draft>,
     /// The editor of the colour curves.
     curves: CurveState,
     /// The name typed for a new preset.
     preset_name: String,
+}
+
+impl Default for VfxPanelState {
+    fn default() -> Self {
+        Self {
+            scope: VfxScope::default(),
+            sync_cursor: true,
+            local_cursor: 0.0,
+            selected_anim: None,
+            selected_key: 0,
+            key_drag: None,
+            draft: None,
+            curves: CurveState::default(),
+            preset_name: String::new(),
+        }
+    }
 }
 
 impl VfxPanelState {
@@ -171,45 +231,76 @@ impl VfxDraft {
     }
 }
 
-/// The worker's chain for `target`: the stored chain with the dragged value of `draft` put in when
-/// the draft belongs to this chain.
+/// The worker's chain for `target` at `0.0` s: the stored chain with the dragged value of `draft`
+/// put in when the draft belongs to this chain.
 pub fn effects_for(
     stored: &[TrackEffect],
     target: VideoFxTarget,
     draft: Option<&VfxDraft>,
 ) -> Vec<VideoEffect> {
-    match draft.filter(|d| d.target == target) {
-        Some(d) => {
-            let mut chain = stored.to_vec();
-            if let Some(effect) = chain.get_mut(d.index) {
-                for (param, value) in &d.values {
-                    effect.params.insert(param.clone(), *value);
-                }
-            }
-            to_worker_chain(&chain)
+    effects_for_at(stored, target, draft, 0.0)
+}
+
+/// Time-evaluated worker chain for `target` at `time` seconds (local event time for Event FX,
+/// source seconds for Media FX, timeline seconds for Track / Project FX), with `draft` overlaid.
+pub fn effects_for_at(
+    stored: &[TrackEffect],
+    target: VideoFxTarget,
+    draft: Option<&VfxDraft>,
+    time: f64,
+) -> Vec<VideoEffect> {
+    let mut out = Vec::new();
+    let active_draft = draft.filter(|d| d.target == target);
+    for (i, e) in stored.iter().enumerate() {
+        if e.bypass {
+            continue;
         }
-        None => to_worker_chain(stored),
+        let Some(spec) = vfx::spec(&e.kind) else {
+            continue;
+        };
+        let mut params = e.params.clone();
+        for (param_id, pts) in &e.keyframes {
+            if !pts.is_empty() {
+                let def = spec.param(param_id).map_or(0.0, |p| p.default);
+                params.insert(param_id.clone(), e.param_at(param_id, def, time));
+            }
+        }
+        if let Some(d) = active_draft.filter(|d| d.index == i) {
+            for (param, value) in &d.values {
+                params.insert(param.clone(), *value);
+            }
+        }
+        out.push(VideoEffect {
+            kind: e.kind.clone(),
+            params,
+        });
     }
+    out
 }
 
 /// The worker's version of a stored chain: bypassed effects and unknown ids are left out, values
 /// stay as stored (the video layer clamps them).
 pub fn to_worker_chain(chain: &[TrackEffect]) -> Vec<VideoEffect> {
-    chain
-        .iter()
-        .filter(|e| !e.bypass && vfx::spec(&e.kind).is_some())
-        .map(|e| VideoEffect {
-            kind: e.kind.clone(),
-            params: e.params.clone(),
-        })
-        .collect()
+    to_worker_chain_at(chain, 0.0)
+}
+
+/// Time-evaluated worker chain without a live slider draft.
+pub fn to_worker_chain_at(chain: &[TrackEffect], time: f64) -> Vec<VideoEffect> {
+    effects_for_at(chain, VideoFxTarget::Project, None, time)
 }
 
 /// The value shown for a parameter: the stored one clamped to its range, or the default.
 pub fn effective_value(effect: &TrackEffect, spec: &ParamSpec) -> f32 {
-    match effect.params.get(spec.id) {
-        Some(v) if v.is_finite() => v.clamp(spec.min, spec.max),
-        _ => spec.default,
+    effective_value_at(effect, spec, 0.0)
+}
+
+/// The value shown for a parameter at `time` seconds (evaluating keyframes when animated).
+pub fn effective_value_at(effect: &TrackEffect, spec: &ParamSpec, time: f64) -> f32 {
+    let v = effect.param_at(spec.id, spec.default, time);
+    if v.is_finite() {
+        v.clamp(spec.min, spec.max)
+    } else {
+        spec.default
     }
 }
 
@@ -260,9 +351,19 @@ pub fn vfx_ui(
     scopes: VfxScopes,
     fade_colors: Option<([u8; 3], [u8; 3])>,
     presets: &[EffectPreset],
+    local_time: f64,
+    span_duration: f64,
 ) -> Vec<VfxAction> {
     let mut actions = Vec::new();
     panel.scope = scopes.resolve(panel.scope);
+    let span = span_duration.max(0.05);
+    let effective_time = if panel.sync_cursor {
+        let t = local_time.max(0.0);
+        panel.local_cursor = t;
+        t
+    } else {
+        panel.local_cursor.clamp(0.0, span)
+    };
     ui.horizontal(|ui| {
         ui.add_enabled_ui(scopes.event, |ui| {
             ui.selectable_value(&mut panel.scope, VfxScope::Event, tr("Evento"));
@@ -349,12 +450,23 @@ pub fn vfx_ui(
     egui::ScrollArea::vertical().show(ui, |ui| {
         for (index, effect) in chain.iter().enumerate() {
             ui.separator();
-            effect_ui(ui, panel, index, chain.len(), effect, presets, &mut actions);
+            effect_ui(
+                ui,
+                panel,
+                index,
+                chain.len(),
+                effect,
+                presets,
+                effective_time,
+                span,
+                &mut actions,
+            );
         }
     });
     actions
 }
 
+#[allow(clippy::too_many_arguments)]
 fn effect_ui(
     ui: &mut egui::Ui,
     panel: &mut VfxPanelState,
@@ -362,6 +474,8 @@ fn effect_ui(
     count: usize,
     effect: &TrackEffect,
     presets: &[EffectPreset],
+    effective_time: f64,
+    span_duration: f64,
     actions: &mut Vec<VfxAction>,
 ) {
     let spec = vfx::spec(&effect.kind);
@@ -426,7 +540,19 @@ fn effect_ui(
             return;
         }
         for param in spec.params {
-            param_row(ui, panel, index, effect, param, actions);
+            param_row(ui, panel, index, effect, param, effective_time, actions);
+        }
+        if spec.params.iter().any(|p| effect.param_is_animated(p.id)) {
+            keyframe_controller_ui(
+                ui,
+                panel,
+                index,
+                effect,
+                spec,
+                effective_time,
+                span_duration,
+                actions,
+            );
         }
     });
 }
@@ -522,14 +648,37 @@ fn param_row(
     index: usize,
     effect: &TrackEffect,
     spec: &'static ParamSpec,
+    effective_time: f64,
     actions: &mut Vec<VfxAction>,
 ) {
-    let current = effective_value(effect, spec);
+    let animated = effect.param_is_animated(spec.id);
+    let current = effective_value_at(effect, spec, effective_time);
     ui.horizontal(|ui| {
-        ui.add_sized(
-            [120.0, 18.0],
-            egui::Label::new(tr_text(spec.label)).truncate(),
+        let label_resp = ui.add_sized(
+            [112.0, 18.0],
+            egui::Label::new(if animated {
+                egui::RichText::new(tr_text(spec.label))
+                    .color(egui::Color32::from_rgb(0x2E, 0xCC, 0x71))
+            } else {
+                egui::RichText::new(tr_text(spec.label))
+            })
+            .truncate()
+            .sense(egui::Sense::click()),
         );
+        if label_resp.clicked() && animated {
+            panel.selected_anim = Some((index, spec.id.into()));
+        }
+        let anim_btn = ui
+            .selectable_label(animated, "◆")
+            .on_hover_text(tr("Animar este parâmetro com keyframes"));
+        if anim_btn.clicked() {
+            panel.selected_anim = Some((index, spec.id.into()));
+            actions.push(VfxAction::ToggleAnimate {
+                index,
+                param: spec.id.into(),
+                default_value: current,
+            });
+        }
         // While a drag is in progress the slider follows the draft; the project changes on release
         let dragging = panel
             .draft
@@ -546,6 +695,9 @@ fn param_row(
             })
             .inner;
         if response.changed() {
+            if animated {
+                panel.selected_anim = Some((index, spec.id.into()));
+            }
             panel.draft = Some(Draft {
                 index,
                 values: vec![(spec.id.into(), value)],
@@ -560,7 +712,26 @@ fn param_row(
                 .take_if(|d| d.index == index && d.values.len() == 1 && d.values[0].0 == spec.id)
             {
                 let (param, value) = draft.values[0].clone();
-                if (value - current).abs() > f32::EPSILON {
+                if animated {
+                    let shape = effect
+                        .keyframes
+                        .get(spec.id)
+                        .and_then(|pts| {
+                            let pos = pts.partition_point(|p| p.time <= effective_time);
+                            pos.checked_sub(1).and_then(|i| pts.get(i)).map(|p| p.shape)
+                        })
+                        .unwrap_or(EnvelopeShape::Linear);
+                    actions.push(VfxAction::UpsertKeyframe {
+                        index,
+                        param,
+                        point: EnvelopePoint {
+                            time: effective_time,
+                            value,
+                            shape,
+                        },
+                        bounds: (spec.min, spec.max),
+                    });
+                } else if (value - current).abs() > f32::EPSILON {
                     actions.push(VfxAction::SetParam {
                         index,
                         param,
@@ -578,6 +749,298 @@ fn param_row(
                 ui.close_menu();
             }
         });
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn keyframe_controller_ui(
+    ui: &mut egui::Ui,
+    panel: &mut VfxPanelState,
+    index: usize,
+    effect: &TrackEffect,
+    spec: &'static vfx::EffectSpec,
+    effective_time: f64,
+    span_duration: f64,
+    actions: &mut Vec<VfxAction>,
+) {
+    let anim_params: Vec<&'static ParamSpec> = spec
+        .params
+        .iter()
+        .filter(|p| effect.param_is_animated(p.id))
+        .collect();
+    if anim_params.is_empty() {
+        return;
+    }
+    let active_spec = panel
+        .selected_anim
+        .as_ref()
+        .filter(|(idx, _)| *idx == index)
+        .and_then(|(_, pid)| anim_params.iter().copied().find(|p| p.id == pid))
+        .unwrap_or(anim_params[0]);
+    panel.selected_anim = Some((index, active_spec.id.into()));
+
+    let Some(points) = effect.keyframes.get(active_spec.id) else {
+        return;
+    };
+    if points.is_empty() {
+        return;
+    }
+    if panel.selected_key >= points.len() {
+        panel.selected_key = points.len() - 1;
+    }
+
+    ui.add_space(4.0);
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            if anim_params.len() > 1 {
+                egui::ComboBox::from_id_salt(("vfx_kf_param", index))
+                    .selected_text(tr_text(active_spec.label))
+                    .width(110.0)
+                    .show_ui(ui, |ui| {
+                        for p in &anim_params {
+                            if ui
+                                .selectable_label(p.id == active_spec.id, tr_text(p.label))
+                                .clicked()
+                            {
+                                panel.selected_anim = Some((index, p.id.into()));
+                                panel.selected_key = 0;
+                            }
+                        }
+                    });
+            } else {
+                ui.strong(tr_text(active_spec.label));
+            }
+            ui.checkbox(&mut panel.sync_cursor, tr("Sincronizar cursor"));
+
+            if ui
+                .small_button("◀")
+                .on_hover_text(tr("Keyframe anterior"))
+                .clicked()
+            {
+                let prev = points
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, p)| p.time < effective_time - 1e-4)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0);
+                panel.selected_key = prev;
+                let t = points[prev].time;
+                panel.local_cursor = t;
+                if panel.sync_cursor {
+                    actions.push(VfxAction::SeekLocal(t));
+                }
+            }
+            if ui
+                .small_button("+")
+                .on_hover_text(tr("Adicionar keyframe no cursor"))
+                .clicked()
+            {
+                let val = effective_value_at(effect, active_spec, effective_time);
+                let shape = points
+                    .get(panel.selected_key)
+                    .map_or(EnvelopeShape::Linear, |p| p.shape);
+                actions.push(VfxAction::UpsertKeyframe {
+                    index,
+                    param: active_spec.id.into(),
+                    point: EnvelopePoint {
+                        time: effective_time,
+                        value: val,
+                        shape,
+                    },
+                    bounds: (active_spec.min, active_spec.max),
+                });
+            }
+            if ui
+                .add_enabled(points.len() > 1, egui::Button::new("✕").small())
+                .on_hover_text(tr("Remover keyframe selecionado"))
+                .clicked()
+            {
+                actions.push(VfxAction::RemoveKeyframe {
+                    index,
+                    param: active_spec.id.into(),
+                    key_index: panel.selected_key,
+                });
+            }
+            if ui
+                .small_button("▶")
+                .on_hover_text(tr("Próximo keyframe"))
+                .clicked()
+            {
+                let next = points
+                    .iter()
+                    .enumerate()
+                    .find(|(_, p)| p.time > effective_time + 1e-4)
+                    .map(|(i, _)| i)
+                    .unwrap_or(points.len() - 1);
+                panel.selected_key = next;
+                let t = points[next].time;
+                panel.local_cursor = t;
+                if panel.sync_cursor {
+                    actions.push(VfxAction::SeekLocal(t));
+                }
+            }
+            let cur_shape = points[panel.selected_key].shape;
+            egui::ComboBox::from_id_salt(("vfx_kf_shape", index))
+                .selected_text(tr(cur_shape.label()))
+                .width(96.0)
+                .show_ui(ui, |ui| {
+                    for shape in EnvelopeShape::ALL {
+                        if ui
+                            .selectable_label(cur_shape == shape, tr(shape.label()))
+                            .clicked()
+                        {
+                            actions.push(VfxAction::SetKeyframeShape {
+                                index,
+                                param: active_spec.id.into(),
+                                key_index: panel.selected_key,
+                                shape,
+                            });
+                        }
+                    }
+                });
+        });
+
+        // Interactive horizontal diamond keyframe lane
+        let span = span_duration.max(
+            points
+                .last()
+                .map_or(0.05, |p| (p.time + 0.5).max(span_duration)),
+        );
+        let width = ui.available_width().max(100.0);
+        let (rect, resp) =
+            ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::click_and_drag());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 3.0, ui.visuals().extreme_bg_color);
+        painter.rect_stroke(rect, 3.0, ui.visuals().widgets.noninteractive.bg_stroke);
+        let pad = 7.0;
+        let inner_w = (rect.width() - 2.0 * pad).max(1.0);
+        let to_x = |t: f64| rect.left() + pad + ((t / span).clamp(0.0, 1.0) as f32) * inner_w;
+        let from_x =
+            |x: f32| f64::from(((x - (rect.left() + pad)) / inner_w).clamp(0.0, 1.0)) * span;
+        let mid_y = rect.center().y;
+        painter.line_segment(
+            [
+                egui::pos2(rect.left() + pad, mid_y),
+                egui::pos2(rect.right() - pad, mid_y),
+            ],
+            egui::Stroke::new(1.0, egui::Color32::from_gray(70)),
+        );
+
+        // Playhead line
+        let cx = to_x(effective_time);
+        painter.line_segment(
+            [
+                egui::pos2(cx, rect.top() + 2.0),
+                egui::pos2(cx, rect.bottom() - 2.0),
+            ],
+            egui::Stroke::new(1.5, egui::Color32::from_rgb(0xF3, 0x9C, 0x12)),
+        );
+
+        let hit_key = |pos: egui::Pos2| -> Option<usize> {
+            points.iter().enumerate().rev().find_map(|(ki, pt)| {
+                ((pos.x - to_x(pt.time)).abs() <= 7.0 && (pos.y - mid_y).abs() <= 9.0)
+                    .then_some(ki)
+            })
+        };
+
+        if resp.clicked() {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                let t = if let Some(ki) = hit_key(pos) {
+                    panel.selected_key = ki;
+                    points[ki].time
+                } else {
+                    from_x(pos.x)
+                };
+                panel.local_cursor = t;
+                if panel.sync_cursor {
+                    actions.push(VfxAction::SeekLocal(t));
+                }
+            }
+        }
+        if resp.double_clicked() {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                let t = from_x(pos.x);
+                let val = effective_value_at(effect, active_spec, t);
+                actions.push(VfxAction::UpsertKeyframe {
+                    index,
+                    param: active_spec.id.into(),
+                    point: EnvelopePoint {
+                        time: t,
+                        value: val,
+                        shape: EnvelopeShape::Linear,
+                    },
+                    bounds: (active_spec.min, active_spec.max),
+                });
+            }
+        }
+        if resp.drag_started_by(egui::PointerButton::Primary) {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                if let Some(ki) = hit_key(pos) {
+                    panel.selected_key = ki;
+                    let pt = points[ki];
+                    panel.key_drag = Some((
+                        index,
+                        active_spec.id.into(),
+                        ki,
+                        pt.time,
+                        pt.value,
+                        (active_spec.min, active_spec.max),
+                    ));
+                }
+            }
+        }
+        if resp.dragged_by(egui::PointerButton::Primary) {
+            if let (Some((di, dparam, ki, ref mut dt, _, _)), Some(pos)) =
+                (&mut panel.key_drag, resp.interact_pointer_pos())
+            {
+                if *di == index && dparam == active_spec.id {
+                    *dt = from_x(pos.x);
+                }
+            }
+        }
+        if resp.drag_stopped() {
+            if let Some((di, dparam, ki, dt, dv, bounds)) = panel.key_drag.take() {
+                if di == index && dparam == active_spec.id {
+                    actions.push(VfxAction::MoveKeyframe {
+                        index: di,
+                        param: dparam,
+                        key_index: ki,
+                        time: dt,
+                        value: dv,
+                        bounds,
+                    });
+                }
+            }
+        }
+
+        // Paint diamond markers
+        for (ki, pt) in points.iter().enumerate() {
+            let shown_t = panel
+                .key_drag
+                .as_ref()
+                .filter(|(di, dp, dki, ..)| *di == index && dp == active_spec.id && *dki == ki)
+                .map_or(pt.time, |(_, _, _, dt, ..)| *dt);
+            let x = to_x(shown_t);
+            let sel = ki == panel.selected_key;
+            let r = if sel { 5.5 } else { 4.5 };
+            let diamond = vec![
+                egui::pos2(x, mid_y - r),
+                egui::pos2(x + r, mid_y),
+                egui::pos2(x, mid_y + r),
+                egui::pos2(x - r, mid_y),
+            ];
+            let fill = if sel {
+                egui::Color32::WHITE
+            } else {
+                egui::Color32::from_rgb(0x2E, 0xCC, 0x71)
+            };
+            painter.add(egui::Shape::convex_polygon(
+                diamond,
+                fill,
+                egui::Stroke::new(1.0, egui::Color32::from_black_alpha(200)),
+            ));
+        }
     });
 }
 

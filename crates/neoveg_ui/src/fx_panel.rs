@@ -521,7 +521,9 @@ fn collect_param_envelopes(
 pub fn fx_plan(timeline: &Timeline) -> FxPlan {
     let mut param_envelopes = Vec::new();
     for (ti, t) in timeline.tracks.iter().enumerate() {
-        collect_param_envelopes(Some(ti), &t.effects, &t.envelopes, &mut param_envelopes);
+        if t.automation_mode.reads_envelopes() {
+            collect_param_envelopes(Some(ti), &t.effects, &t.envelopes, &mut param_envelopes);
+        }
     }
     collect_param_envelopes(
         None,
@@ -558,20 +560,45 @@ pub fn fx_plan(timeline: &Timeline) -> FxPlan {
             .tracks
             .iter()
             .map(|t| {
-                t.envelopes
-                    .iter()
-                    .find(|e| e.target == AutomationTarget::Volume)
-                    .and_then(to_automation_curve)
+                t.automation_mode
+                    .reads_envelopes()
+                    .then(|| {
+                        t.envelopes
+                            .iter()
+                            .find(|e| e.target == AutomationTarget::Volume)
+                            .and_then(to_automation_curve)
+                    })
+                    .flatten()
             })
             .collect(),
         track_pan_envelopes: timeline
             .tracks
             .iter()
             .map(|t| {
-                t.envelopes
-                    .iter()
-                    .find(|e| e.target == AutomationTarget::Pan)
-                    .and_then(to_automation_curve)
+                t.automation_mode
+                    .reads_envelopes()
+                    .then(|| {
+                        t.envelopes
+                            .iter()
+                            .find(|e| e.target == AutomationTarget::Pan)
+                            .and_then(to_automation_curve)
+                    })
+                    .flatten()
+            })
+            .collect(),
+        track_mute_envelopes: timeline
+            .tracks
+            .iter()
+            .map(|t| {
+                t.automation_mode
+                    .reads_envelopes()
+                    .then(|| {
+                        t.envelopes
+                            .iter()
+                            .find(|e| e.target == AutomationTarget::AudioMute)
+                            .and_then(to_automation_curve)
+                    })
+                    .flatten()
             })
             .collect(),
         param_envelopes,

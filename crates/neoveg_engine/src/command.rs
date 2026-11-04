@@ -9,6 +9,7 @@ use crate::timeline::{
 };
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
+use neoveg_common::envelope::AutomationMode;
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::grade::Grade;
 use neoveg_common::media_props::MediaProps;
@@ -305,6 +306,12 @@ pub enum EditCommand {
         before: Vec<TrackEnvelope>,
         after: Vec<TrackEnvelope>,
     },
+    /// Changes the automation mode (`Off`, `Read`, `Touch`, `Latch`) of one track.
+    SetTrackAutomation {
+        track_id: TrackId,
+        before: AutomationMode,
+        after: AutomationMode,
+    },
 }
 
 impl EditCommand {
@@ -555,6 +562,15 @@ impl EditCommand {
                 track_id, after, ..
             } => set_ducking(tl, *track_id, after),
             Self::SetEnvelopes { target, after, .. } => set_envelopes(tl, *target, after),
+            Self::SetTrackAutomation {
+                track_id, after, ..
+            } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.automation_mode = *after;
+                    true
+                }
+                None => false,
+            },
             Self::SplitEvent {
                 track_id,
                 event_id,
@@ -605,7 +621,10 @@ impl EditCommand {
                     normalize: left.normalize,
                     normalize_gain: left.normalize_gain,
                     channels: left.channels,
-                    video_effects: left.video_effects.clone(),
+                    video_effects: crate::video_effects::shift_chain_keyframes(
+                        &left.video_effects,
+                        left_duration,
+                    ),
                     // The left half keeps its keys (so undoing the split restores it as it was)
                     pan_crop: left.pan_crop.from_offset(left_duration),
                     // The new event starts at the cut without a transition; it ends where the
@@ -626,6 +645,8 @@ impl EditCommand {
                     maintain_aspect_ratio: left.maintain_aspect_ratio,
                     reduce_interlace_flicker: left.reduce_interlace_flicker,
                     snap_offset: right_snap_offset,
+                    opacity: left.opacity,
+                    gain_db: left.gain_db,
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -817,6 +838,13 @@ impl EditCommand {
             }
             Self::SetEnvelopes { target, before, .. } => {
                 set_envelopes(tl, *target, before);
+            }
+            Self::SetTrackAutomation {
+                track_id, before, ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.automation_mode = *before;
+                }
             }
             Self::SplitEvent {
                 track_id,

@@ -6,7 +6,8 @@
 //! (see [`TrackEffect`]). `neoveg_video::vfx` clamps the values and runs the chain.
 
 use crate::command::{EditCommand, VideoFxTarget};
-use crate::timeline::{Timeline, TrackEffect, TrackKind};
+use crate::timeline::{Timeline, TrackEffect, TrackKind, TIME_EPSILON};
+use neoveg_common::envelope::{eval_points, sort_points, EnvelopePoint, EnvelopeShape};
 
 /// Longest video effect chain of an event or a track.
 pub const MAX_VIDEO_EFFECTS: usize = 32;
@@ -173,9 +174,220 @@ pub fn reset_param(
     param: &str,
 ) -> Option<EditCommand> {
     edit(timeline, target, |list| match list.get_mut(index) {
-        Some(effect) => effect.params.remove(param).is_some(),
+        Some(effect) => {
+            let removed_val = effect.params.remove(param).is_some();
+            let removed_kf = effect.keyframes.remove(param).is_some();
+            removed_val || removed_kf
+        }
         None => false,
     })
+}
+
+/// Toggles keyframe animation on `param` of the `index`-th video effect: turning it on seeds a key
+/// at `0.0 s` with the current static value (or `default_value`); turning it off collapses the
+/// curve back to its value at `0.0 s`.
+pub fn toggle_param_animation(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    param: &str,
+    default_value: f32,
+) -> Option<EditCommand> {
+    edit(timeline, target, |list| {
+        let Some(effect) = list.get_mut(index) else {
+            return false;
+        };
+        if effect.param_is_animated(param) {
+            let val = effect.param_at(param, default_value, 0.0);
+            effect.keyframes.remove(param);
+            effect.params.insert(param.to_owned(), val);
+        } else {
+            let val = effect.params.get(param).copied().unwrap_or(default_value);
+            effect.keyframes.insert(
+                param.to_owned(),
+                vec![EnvelopePoint {
+                    time: 0.0,
+                    value: val,
+                    shape: EnvelopeShape::Linear,
+                }],
+            );
+        }
+        true
+    })
+}
+
+/// Inserts or updates a keyframe on `param` of the `index`-th video effect within `tolerance` s.
+pub fn upsert_param_keyframe(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    param: &str,
+    point: EnvelopePoint,
+    bounds: (f32, f32),
+    tolerance: f64,
+) -> Option<EditCommand> {
+    if !point.time.is_finite() || !point.value.is_finite() {
+        return None;
+    }
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    let t = point.time.max(0.0);
+    let v = point.value.clamp(lo, hi);
+    let tol = tolerance.max(TIME_EPSILON);
+    edit(timeline, target, |list| {
+        let Some(effect) = list.get_mut(index) else {
+            return false;
+        };
+        let pts = effect.keyframes.entry(param.to_owned()).or_default();
+        if let Some(existing) = pts.iter_mut().find(|p| (p.time - t).abs() <= tol) {
+            existing.time = t;
+            existing.value = v;
+            existing.shape = point.shape;
+        } else {
+            pts.push(EnvelopePoint {
+                time: t,
+                value: v,
+                shape: point.shape,
+            });
+        }
+        sort_points(pts);
+        effect.params.insert(param.to_owned(), v);
+        true
+    })
+}
+
+/// Moves keyframe `key_index` of `param`, clamping time between neighbouring keys and value to `bounds`.
+pub fn move_param_keyframe(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    param: &str,
+    key_index: usize,
+    pos: (f64, f32),
+    bounds: (f32, f32),
+) -> Option<EditCommand> {
+    if !pos.0.is_finite() || !pos.1.is_finite() {
+        return None;
+    }
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    edit(timeline, target, |list| {
+        let Some(effect) = list.get_mut(index) else {
+            return false;
+        };
+        let Some(pts) = effect.keyframes.get_mut(param) else {
+            return false;
+        };
+        if key_index >= pts.len() {
+            return false;
+        }
+        let min_t = if key_index > 0 {
+            pts[key_index - 1].time + 1e-4
+        } else {
+            0.0
+        };
+        let max_t = if key_index + 1 < pts.len() {
+            (pts[key_index + 1].time - 1e-4).max(min_t)
+        } else {
+            f64::INFINITY
+        };
+        pts[key_index].time = pos.0.clamp(min_t, max_t);
+        pts[key_index].value = pos.1.clamp(lo, hi);
+        true
+    })
+}
+
+/// Removes keyframe `key_index` of `param` (when more than one keyframe exists).
+pub fn remove_param_keyframe(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    param: &str,
+    key_index: usize,
+) -> Option<EditCommand> {
+    edit(timeline, target, |list| {
+        let Some(effect) = list.get_mut(index) else {
+            return false;
+        };
+        let Some(pts) = effect.keyframes.get_mut(param) else {
+            return false;
+        };
+        if pts.len() <= 1 || key_index >= pts.len() {
+            return false;
+        }
+        pts.remove(key_index);
+        true
+    })
+}
+
+/// Changes the interpolation curve shape of keyframe `key_index` on `param`.
+pub fn set_param_keyframe_shape(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    param: &str,
+    key_index: usize,
+    shape: EnvelopeShape,
+) -> Option<EditCommand> {
+    edit(timeline, target, |list| {
+        let Some(effect) = list.get_mut(index) else {
+            return false;
+        };
+        let Some(pt) = effect.keyframes.get_mut(param).and_then(|pts| pts.get_mut(key_index))
+        else {
+            return false;
+        };
+        pt.shape = shape;
+        true
+    })
+}
+
+/// Shifts animated parameter keyframes in `chain` when the front of an event is cut off by `offset`
+/// seconds (during split or left-edge trim): the interpolated value at `offset` becomes the new
+/// keyframe at `0.0 s` and later keyframes shift back by `offset`.
+pub fn shift_chain_keyframes(chain: &[TrackEffect], offset: f64) -> Vec<TrackEffect> {
+    if offset <= TIME_EPSILON {
+        return chain.to_vec();
+    }
+    chain
+        .iter()
+        .map(|fx| {
+            let mut out = fx.clone();
+            for (param, pts) in &mut out.keyframes {
+                if pts.is_empty() {
+                    continue;
+                }
+                let fallback = out.params.get(param).copied().unwrap_or(0.0);
+                let first_val = eval_points(pts, offset, fallback);
+                let shape = pts
+                    .iter()
+                    .rfind(|p| p.time <= offset)
+                    .map_or(EnvelopeShape::Linear, |p| p.shape);
+                let mut shifted = vec![EnvelopePoint {
+                    time: 0.0,
+                    value: first_val,
+                    shape,
+                }];
+                shifted.extend(
+                    pts.iter()
+                        .filter(|p| p.time > offset + TIME_EPSILON)
+                        .map(|p| EnvelopePoint {
+                            time: p.time - offset,
+                            ..*p
+                        }),
+                );
+                *pts = shifted;
+                out.params.insert(param.clone(), first_val);
+            }
+            out
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -410,5 +622,42 @@ mod tests {
         assert!(tl.video_effects.is_empty() && tl.media_video_effects.is_empty());
         let json = serde_json::to_string(&tl).unwrap();
         assert!(!json.contains("video_effects") && !json.contains("media_video_effects"));
+    }
+
+    #[test]
+    fn parameter_keyframes_animate_split_at_offset_and_round_trip() {
+        let (mut tl, mut h, track_id, event_id) = setup();
+        let target = VideoFxTarget::Event { track_id, event_id };
+        exec!(tl, h, add_effect(&tl, target, "gaussian_blur"));
+        exec!(tl, h, toggle_param_animation(&tl, target, 0, "h_range", 0.01));
+        assert!(chain(&tl, target).unwrap()[0].param_is_animated("h_range"));
+
+        exec!(
+            tl,
+            h,
+            upsert_param_keyframe(
+                &tl,
+                target,
+                0,
+                "h_range",
+                EnvelopePoint {
+                    time: 4.0,
+                    value: 0.09,
+                    shape: EnvelopeShape::Linear,
+                },
+                (0.0, 0.2),
+                1e-3,
+            )
+        );
+        let fx = &chain(&tl, target).unwrap()[0];
+        assert!((fx.param_at("h_range", 0.01, 2.0) - 0.05).abs() < 1e-5);
+
+        // Splitting at 2.0 s gives the second half a curve starting at 0.05 -> 0.09 at 2.0 s!
+        let split = EditCommand::split(&mut tl, track_id, event_id, 2.0).unwrap();
+        assert!(h.execute(&mut tl, split));
+        let right = &tl.track(track_id).unwrap().events[1];
+        assert!((right.video_effects[0].param_at("h_range", 0.01, 0.0) - 0.05).abs() < 1e-5);
+        assert!((right.video_effects[0].param_at("h_range", 0.01, 2.0) - 0.09).abs() < 1e-5);
+        assert!(h.undo(&mut tl));
     }
 }

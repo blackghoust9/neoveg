@@ -24,6 +24,18 @@ pub struct EnvelopeDrag {
     pub index: usize,
     pub time: f64,
     pub value: f32,
+    pub origin_time: f64,
+    pub origin_value: f32,
+    pub press_y: f32,
+    pub bounds: (f32, f32),
+}
+
+/// Live freehand brush stroke (`Shift`+drag) across an automation envelope.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnvelopeBrush {
+    pub track_id: TrackId,
+    pub target: AutomationTarget,
+    pub samples: Vec<(f64, f32)>,
     pub bounds: (f32, f32),
 }
 
@@ -45,6 +57,7 @@ pub fn target_bounds(chain: &[TrackEffect], target: &AutomationTarget) -> (f32, 
         AutomationTarget::Volume
         | AutomationTarget::EventVolume
         | AutomationTarget::Pan
+        | AutomationTarget::AudioMute
         | AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
         | AutomationTarget::VideoMute
@@ -83,7 +96,9 @@ pub fn target_color(target: &AutomationTarget) -> Color32 {
         AutomationTarget::Pan => Color32::from_rgb(0xE6, 0x7E, 0x22),
         AutomationTarget::VideoLevel => Color32::from_rgb(0xF1, 0xC4, 0x0F),
         AutomationTarget::VideoFade => Color32::from_rgb(0xE9, 0x1E, 0x8C),
-        AutomationTarget::VideoMute => Color32::from_rgb(0xE7, 0x4C, 0x3C),
+        AutomationTarget::AudioMute | AutomationTarget::VideoMute => {
+            Color32::from_rgb(0xE7, 0x4C, 0x3C)
+        }
         AutomationTarget::EventVelocity | AutomationTarget::EventTransitionProgress => {
             Color32::from_rgb(0xF1, 0xC4, 0x0F)
         }
@@ -97,7 +112,8 @@ pub fn target_title(chain: &[TrackEffect], target: &AutomationTarget) -> String 
         AutomationTarget::Volume => tr("Volume").into(),
         AutomationTarget::EventVolume | AutomationTarget::EventTransitionProgress => target.label(),
         AutomationTarget::Pan => tr("Pan").into(),
-        AutomationTarget::VideoLevel
+        AutomationTarget::AudioMute
+        | AutomationTarget::VideoLevel
         | AutomationTarget::VideoFade
         | AutomationTarget::VideoMute
         | AutomationTarget::EventVelocity => target.label(),
@@ -159,9 +175,16 @@ pub fn format_envelope_value(
         | AutomationTarget::EventVelocity => format!("{:.0} %", value * 100.0),
         AutomationTarget::VideoMute => {
             if value >= 0.5 {
-                "Oculta".into()
+                tr("Oculta").into()
             } else {
-                "Visível".into()
+                tr("Visível").into()
+            }
+        }
+        AutomationTarget::AudioMute => {
+            if value >= 0.5 {
+                tr("Mudo").into()
+            } else {
+                tr("Ativo").into()
             }
         }
         AutomationTarget::EffectParam {
@@ -284,6 +307,7 @@ pub fn paint_track_envelopes(
     pps: f64,
     track: &Track,
     drag: Option<&EnvelopeDrag>,
+    brush: Option<&EnvelopeBrush>,
 ) {
     if pps <= 0.0 {
         return;
@@ -294,10 +318,10 @@ pub fn paint_track_envelopes(
         let env = preview_envelope(raw_env, drag, track.id);
         let (min, max, default) = target_bounds(&track.effects, &env.target);
         let base_color = target_color(&env.target);
-        let color = if env.enabled {
+        let color = if env.enabled && track.automation_mode.reads_envelopes() {
             base_color
         } else {
-            base_color.gamma_multiply(0.45)
+            base_color.gamma_multiply(0.38)
         };
         let to_x = |t: f64| lanes.left() + ((t - scroll_seconds) * pps) as f32;
         let to_y = |v: f32| value_to_y(lane_y, track_height, v, min, max);
@@ -412,16 +436,41 @@ pub fn paint_track_envelopes(
                 color,
             );
         }
+
+        // Live freehand brush stroke (`Shift`+drag)
+        if let Some(stroke_pts) = brush
+            .filter(|b| b.track_id == track.id && b.target == env.target && b.samples.len() >= 2)
+        {
+            let mut bpoly: Vec<Pos2> = stroke_pts
+                .samples
+                .iter()
+                .map(|&(t, v)| {
+                    pos2(
+                        to_x(t).clamp(lanes.left(), lanes.right()),
+                        to_y(v.clamp(min, max)),
+                    )
+                })
+                .collect();
+            bpoly.dedup();
+            if bpoly.len() >= 2 {
+                painter.add(Shape::line(bpoly, Stroke::new(2.0_f32, Color32::WHITE)));
+            }
+        }
     }
 }
 
 /// Builds a new keyframe [`EnvelopePoint`] inheriting the shape of the preceding keyframe.
 pub fn new_point_on_curve(env: &TrackEnvelope, time: f64, value: f32) -> EnvelopePoint {
     let idx = env.points.partition_point(|p| p.time <= time);
+    let default_shape = if env.target.is_mute() {
+        EnvelopeShape::Hold
+    } else {
+        EnvelopeShape::Linear
+    };
     let shape = idx
         .checked_sub(1)
         .and_then(|i| env.points.get(i))
-        .map_or(EnvelopeShape::Linear, |p| p.shape);
+        .map_or(default_shape, |p| p.shape);
     EnvelopePoint { time, value, shape }
 }
 

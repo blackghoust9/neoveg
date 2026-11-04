@@ -6,6 +6,7 @@
 use crate::command::EditCommand;
 use crate::timeline::{Timeline, TrackId, TrackKind, TrackMix};
 use neoveg_common::chroma::ChromaKey;
+use neoveg_common::envelope::AutomationMode;
 use neoveg_common::grade::Grade;
 use neoveg_common::pan::PanLaw;
 
@@ -108,6 +109,20 @@ pub fn set_invert_phase(
     invert: bool,
 ) -> Option<EditCommand> {
     replace(timeline, track_id, |m| m.invert_phase = invert)
+}
+
+/// Sets the automation mode (`Off`, `Read`, `Touch`, `Latch`) of `track_id`.
+pub fn set_automation_mode(
+    timeline: &Timeline,
+    track_id: TrackId,
+    mode: AutomationMode,
+) -> Option<EditCommand> {
+    let before = timeline.track(track_id)?.automation_mode;
+    (before != mode).then_some(EditCommand::SetTrackAutomation {
+        track_id,
+        before,
+        after: mode,
+    })
 }
 
 pub fn set_pan_law(timeline: &Timeline, law: PanLaw) -> Option<EditCommand> {

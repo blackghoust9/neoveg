@@ -15,6 +15,7 @@ use crate::dsp::AudioEffect;
 use crate::duck::{analyze, DuckCurve, SidechainFollower};
 use crate::mixer::{plan_end, MixClip};
 use crate::vst3_host::{create_vst3_effect, is_vst3_kind};
+use neoveg_common::envelope::{EnvelopePoint, EnvelopeShape};
 use neoveg_common::fade::FadeCurve;
 use neoveg_common::pan::PanLaw;
 
@@ -56,6 +57,27 @@ pub struct AutomationCurve {
 }
 
 impl AutomationCurve {
+    /// Converts generic [`EnvelopePoint`] keyframes into a zero-allocation [`AutomationCurve`].
+    pub fn from_envelope_points(points: &[EnvelopePoint]) -> Self {
+        Self {
+            keys: points
+                .iter()
+                .map(|p| AutomationKey {
+                    time: p.time,
+                    value: p.value,
+                    curve: match p.shape {
+                        EnvelopeShape::Linear => Some(FadeCurve::Linear),
+                        EnvelopeShape::Fast => Some(FadeCurve::Fast),
+                        EnvelopeShape::Slow => Some(FadeCurve::Slow),
+                        EnvelopeShape::Smooth => Some(FadeCurve::Smooth),
+                        EnvelopeShape::Sharp => Some(FadeCurve::Sharp),
+                        EnvelopeShape::Hold => None,
+                    },
+                })
+                .collect(),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
@@ -224,6 +246,8 @@ pub struct FxPlan {
     pub track_vol_envelopes: Vec<Option<AutomationCurve>>,
     /// Optional pan automation curves (`-1.0..=1.0`), indexed like `tracks`.
     pub track_pan_envelopes: Vec<Option<AutomationCurve>>,
+    /// Optional mute automation curves (`0.0..=1.0`, `>= 0.5` mutes), indexed like `tracks`.
+    pub track_mute_envelopes: Vec<Option<AutomationCurve>>,
     /// Effect parameter automation curves for track and master chains.
     pub param_envelopes: Vec<ParamAutomationSpec>,
     /// The user buses (submixes).
@@ -247,6 +271,10 @@ impl FxPlan {
                 .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
             && self
                 .track_pan_envelopes
+                .iter()
+                .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
+            && self
+                .track_mute_envelopes
                 .iter()
                 .all(|c| c.as_ref().is_none_or(AutomationCurve::is_empty))
             && self.param_envelopes.iter().all(|p| p.curve.is_empty())
@@ -320,6 +348,12 @@ struct LiveBusSlot {
     bus: usize,
     gain_l: AtomicU32,
     gain_r: AtomicU32,
+    base_gain: AtomicU32,
+    base_pan: AtomicU32,
+    invert: AtomicBool,
+    auto_vol_db: AtomicU32,
+    auto_pan: AtomicU32,
+    auto_mute: AtomicU32,
     dirty: AtomicBool,
 }
 
@@ -369,6 +403,32 @@ impl LiveControls {
         let (gl, gr) = spec.gains(self.pan_law);
         slot.gain_l.store(gl.to_bits(), Ordering::Relaxed);
         slot.gain_r.store(gr.to_bits(), Ordering::Relaxed);
+        slot.base_gain.store(spec.gain.to_bits(), Ordering::Relaxed);
+        slot.base_pan.store(spec.pan.to_bits(), Ordering::Relaxed);
+        slot.invert.store(spec.invert, Ordering::Relaxed);
+        slot.dirty.store(true, Ordering::Relaxed);
+        self.any_dirty.store(true, Ordering::Relaxed);
+        true
+    }
+
+    /// Overrides (when `Some`) or releases back to the curve (when `None`) live Touch/Latch
+    /// automation values on `track` for the next audio block.
+    pub fn set_track_automation(
+        &self,
+        track: usize,
+        vol_db: Option<f32>,
+        pan: Option<f32>,
+        mute: Option<f32>,
+    ) -> bool {
+        let Some(slot) = self.buses.iter().find(|s| s.track == track) else {
+            return false;
+        };
+        slot.auto_vol_db
+            .store(vol_db.unwrap_or(f32::NAN).to_bits(), Ordering::Relaxed);
+        slot.auto_pan
+            .store(pan.unwrap_or(f32::NAN).to_bits(), Ordering::Relaxed);
+        slot.auto_mute
+            .store(mute.unwrap_or(f32::NAN).to_bits(), Ordering::Relaxed);
         slot.dirty.store(true, Ordering::Relaxed);
         self.any_dirty.store(true, Ordering::Relaxed);
         true
@@ -438,22 +498,57 @@ struct BusMixAutoSlot {
     pan_law: PanLaw,
     vol_curve: Option<AutomationCurve>,
     pan_curve: Option<AutomationCurve>,
+    mute_curve: Option<AutomationCurve>,
+    live_vol_db: Option<f32>,
+    live_pan: Option<f32>,
+    live_mute: Option<f32>,
 }
 
 impl BusMixAutoSlot {
     #[inline]
+    fn is_active(&self) -> bool {
+        self.vol_curve.is_some()
+            || self.pan_curve.is_some()
+            || self.mute_curve.is_some()
+            || self.live_vol_db.is_some()
+            || self.live_pan.is_some()
+            || self.live_mute.is_some()
+    }
+
+    #[inline]
     fn gains_at(&self, t: f64) -> (f32, f32) {
-        let gain = match self.vol_curve.as_ref().and_then(|c| c.value_at(t)) {
-            Some(db) if db <= -60.0 => 0.0,
-            Some(db) => 10.0_f32.powf(db / 20.0),
+        let mute_val = self
+            .live_mute
+            .or_else(|| self.mute_curve.as_ref().and_then(|c| c.value_at(t)));
+        if mute_val.is_some_and(|v| v >= 0.5) {
+            return (0.0, 0.0);
+        }
+        let env_db = self
+            .live_vol_db
+            .or_else(|| self.vol_curve.as_ref().and_then(|c| c.value_at(t)));
+        let gain = match env_db {
+            Some(db) => {
+                if self.base_gain <= 1e-3 || db <= -60.0 {
+                    0.0
+                } else {
+                    let trim_db = 20.0 * self.base_gain.log10();
+                    let total_db = (trim_db + db).clamp(-60.0, 12.0);
+                    if total_db <= -60.0 {
+                        0.0
+                    } else {
+                        10.0_f32.powf(total_db / 20.0)
+                    }
+                }
+            }
             None => self.base_gain,
         };
-        let pan = self
-            .pan_curve
-            .as_ref()
-            .and_then(|c| c.value_at(t))
-            .unwrap_or(self.base_pan)
-            .clamp(-1.0, 1.0);
+        let env_pan = self
+            .live_pan
+            .or_else(|| self.pan_curve.as_ref().and_then(|c| c.value_at(t)));
+        let pan = match env_pan {
+            Some(p) => (self.base_pan + p).clamp(-1.0, 1.0),
+            None => self.base_pan.clamp(-1.0, 1.0),
+        };
         let (l, r) = self.pan_law.gains(pan);
         let sign = if self.invert { -1.0 } else { 1.0 };
         (l * gain * sign, r * gain * sign)
@@ -583,6 +678,7 @@ impl BlockMixer {
             .max(plan.mix.len())
             .max(plan.track_vol_envelopes.len())
             .max(plan.track_pan_envelopes.len())
+            .max(plan.track_mute_envelopes.len())
             .max(max_param_track)
             .max(max_clip_track);
         let mut bus_of_track = Vec::with_capacity(track_count);
@@ -630,6 +726,12 @@ impl BlockMixer {
                 .and_then(Option::as_ref)
                 .filter(|c| !c.is_empty())
                 .cloned();
+            let mute_curve = plan
+                .track_mute_envelopes
+                .get(t)
+                .and_then(Option::as_ref)
+                .filter(|c| !c.is_empty())
+                .cloned();
             let has_param_auto = plan
                 .param_envelopes
                 .iter()
@@ -652,6 +754,7 @@ impl BlockMixer {
                 && !is_rt_controller
                 && vol_curve.is_none()
                 && pan_curve.is_none()
+                && mute_curve.is_none()
                 && !has_param_auto
                 && default_route;
             if (!live_mode && plain && mix.is_neutral()) || (live_mode && !has_clips && plain) {
@@ -660,11 +763,18 @@ impl BlockMixer {
                 let bus = chains.len();
                 let (gl, gr) = mix.gains(plan.pan_law);
                 if live_mode {
+                    let nan = f32::NAN.to_bits();
                     live_buses.push(LiveBusSlot {
                         track: t,
                         bus,
                         gain_l: AtomicU32::new(gl.to_bits()),
                         gain_r: AtomicU32::new(gr.to_bits()),
+                        base_gain: AtomicU32::new(mix.gain.to_bits()),
+                        base_pan: AtomicU32::new(mix.pan.to_bits()),
+                        invert: AtomicBool::new(mix.invert),
+                        auto_vol_db: AtomicU32::new(nan),
+                        auto_pan: AtomicU32::new(nan),
+                        auto_mute: AtomicU32::new(nan),
                         dirty: AtomicBool::new(false),
                     });
                     for (fx_index, fx) in chain.iter().enumerate() {
@@ -692,15 +802,22 @@ impl BlockMixer {
                         }
                     }
                 }
-                let mix_auto =
-                    (vol_curve.is_some() || pan_curve.is_some()).then_some(BusMixAutoSlot {
-                        base_gain: mix.gain,
-                        base_pan: mix.pan,
-                        invert: mix.invert,
-                        pan_law: plan.pan_law,
-                        vol_curve,
-                        pan_curve,
-                    });
+                let mix_auto = (live_mode
+                    || vol_curve.is_some()
+                    || pan_curve.is_some()
+                    || mute_curve.is_some())
+                .then_some(BusMixAutoSlot {
+                    base_gain: mix.gain,
+                    base_pan: mix.pan,
+                    invert: mix.invert,
+                    pan_law: plan.pan_law,
+                    vol_curve,
+                    pan_curve,
+                    mute_curve,
+                    live_vol_db: None,
+                    live_pan: None,
+                    live_mute: None,
+                });
                 bus_of_track.push(bus);
                 chains.push(chain);
                 ducks.push(curve);
@@ -968,6 +1085,17 @@ impl BlockMixer {
                 if let Some(entry) = self.bus_mix.get_mut(slot.bus) {
                     *entry = (gl, gr);
                 }
+                if let Some(Some(auto_mix)) = self.bus_mix_auto.get_mut(slot.bus) {
+                    auto_mix.base_gain = f32::from_bits(slot.base_gain.load(Ordering::Relaxed));
+                    auto_mix.base_pan = f32::from_bits(slot.base_pan.load(Ordering::Relaxed));
+                    auto_mix.invert = slot.invert.load(Ordering::Relaxed);
+                    let av = f32::from_bits(slot.auto_vol_db.load(Ordering::Relaxed));
+                    let ap = f32::from_bits(slot.auto_pan.load(Ordering::Relaxed));
+                    let am = f32::from_bits(slot.auto_mute.load(Ordering::Relaxed));
+                    auto_mix.live_vol_db = av.is_finite().then_some(av);
+                    auto_mix.live_pan = ap.is_finite().then_some(ap);
+                    auto_mix.live_mute = am.is_finite().then_some(am);
+                }
             }
         }
         for slot in &live.user_buses {
@@ -1067,7 +1195,7 @@ impl BlockMixer {
                 .bus_mix_auto
                 .get(bus)
                 .and_then(Option::as_ref)
-                .filter(|_| self.block_has_time && n > 0)
+                .filter(|a| self.block_has_time && n > 0 && a.is_active())
             {
                 let (gl0, gr0) = auto_mix.gains_at(self.block_t0);
                 let (gl1, gr1) = auto_mix.gains_at(self.block_t1);
@@ -1988,5 +2116,87 @@ mod tests {
         let (l, _) = render(&mut mixer, 1200, 512);
         // Main 0.5 plus the send 0.5 * 0.5 (level) * 0.5 (bus fader)
         assert!((l[1000] - 0.625).abs() < 1e-6, "{}", l[1000]);
+    }
+
+    #[test]
+    fn fader_and_pan_trim_sum_with_envelopes_and_mute_envelope_silences_track() {
+        let mute_pts = vec![
+            EnvelopePoint {
+                time: 0.0,
+                value: 0.0,
+                shape: EnvelopeShape::Hold,
+            },
+            EnvelopePoint {
+                time: 0.02,
+                value: 1.0,
+                shape: EnvelopeShape::Hold,
+            },
+            EnvelopePoint {
+                time: 0.04,
+                value: 0.0,
+                shape: EnvelopeShape::Hold,
+            },
+        ];
+        let vol_pts = vec![EnvelopePoint {
+            time: 0.0,
+            value: -6.0206,
+            shape: EnvelopeShape::Linear,
+        }];
+        let pan_pts = vec![EnvelopePoint {
+            time: 0.0,
+            value: 0.5,
+            shape: EnvelopeShape::Linear,
+        }];
+        // Static trim: -6.0206 dB (0.5) and -0.5 pan -> net -12.0412 dB (0.25) and 0.0 centre pan!
+        let plan = FxPlan {
+            mix: vec![TrackMixSpec {
+                gain: 0.5,
+                pan: -0.5,
+                invert: false,
+            }],
+            track_vol_envelopes: vec![Some(AutomationCurve::from_envelope_points(&vol_pts))],
+            track_pan_envelopes: vec![Some(AutomationCurve::from_envelope_points(&pan_pts))],
+            track_mute_envelopes: vec![Some(AutomationCurve::from_envelope_points(&mute_pts))],
+            ..Default::default()
+        };
+        let (mut mixer, live) =
+            BlockMixer::with_live_controls(vec![constant(0, 0.8, 0.1)], &plan, RATE as f32);
+        let step = 1.0 / f64::from(RATE);
+
+        // t = 0.005 s (unmuted): 0.8 * 0.25 = 0.20 on both L and R
+        mixer.begin(64);
+        for i in 0..64 {
+            mixer.add_frame(i, 0.005 + i as f64 * step);
+        }
+        mixer.finish(64);
+        assert!((mixer.out().0[0] - 0.2).abs() < 1e-3, "{}", mixer.out().0[0]);
+        assert!((mixer.out().1[0] - 0.2).abs() < 1e-3, "{}", mixer.out().1[0]);
+
+        // t = 0.025 s (muted by Hold envelope): 0.0 on both L and R
+        mixer.begin(64);
+        for i in 0..64 {
+            mixer.add_frame(i, 0.025 + i as f64 * step);
+        }
+        mixer.finish(64);
+        assert_eq!(mixer.out().0[0], 0.0);
+        assert_eq!(mixer.out().1[0], 0.0);
+
+        // Live Touch override: +6.0206 dB cancels -6.0206 dB trim -> unity (0.8), unmuted (0.0)
+        assert!(live.set_track_automation(0, Some(6.0206), Some(0.5), Some(0.0)));
+        mixer.begin(64);
+        for i in 0..64 {
+            mixer.add_frame(i, 0.025 + i as f64 * step);
+        }
+        mixer.finish(64);
+        assert!((mixer.out().0[0] - 0.8).abs() < 1e-3, "{}", mixer.out().0[0]);
+
+        // Release Touch override -> returns to muted curve at t = 0.025 s
+        assert!(live.set_track_automation(0, None, None, None));
+        mixer.begin(64);
+        for i in 0..64 {
+            mixer.add_frame(i, 0.025 + i as f64 * step);
+        }
+        mixer.finish(64);
+        assert_eq!(mixer.out().0[0], 0.0);
     }
 }

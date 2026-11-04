@@ -126,6 +126,10 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     }
     if start > ev.start + TIME_EPSILON {
         out.fade_in = 0.0;
+        if !ev.video_effects.is_empty() {
+            out.video_effects =
+                crate::video_effects::shift_chain_keyframes(&ev.video_effects, start - ev.start);
+        }
     }
     if end < ev.end() - TIME_EPSILON {
         out.fade_out = 0.0;

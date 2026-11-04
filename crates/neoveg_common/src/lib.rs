@@ -7,6 +7,7 @@ pub mod command_template;
 pub mod commands;
 pub mod composite;
 pub mod effect_preset;
+pub mod envelope;
 pub mod fade;
 pub mod grade;
 pub mod i18n;

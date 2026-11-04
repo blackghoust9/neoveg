@@ -4,79 +4,19 @@
 //! Envelopes are pure functions in the engine; [`BlockMixer`](../../neoveg_audio/fxmixer/index.html)
 //! evaluates them per audio block/sample with zero allocations inside the real-time callback.
 
-use neoveg_common::fade::FadeCurve;
+use neoveg_common::envelope::{
+    eval_points_opt, flip_points, sort_points as sort_pts, thin_points,
+};
+pub use neoveg_common::envelope::{AutomationMode, Envelope, EnvelopePoint, EnvelopeShape};
 use neoveg_common::i18n::tr;
 use serde::{Deserialize, Serialize};
 
 use crate::command::{EditCommand, FxTarget};
-use crate::timeline::{Timeline, TrackKind, TrackMix, TIME_EPSILON};
+use crate::selection::TimeRange;
+use crate::timeline::{Timeline, TrackId, TrackKind, TrackMix, TIME_EPSILON};
 
 fn default_true() -> bool {
     true
-}
-
-/// Interpolation curve from one keyframe to the next.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum EnvelopeShape {
-    #[default]
-    Linear,
-    Fast,
-    Slow,
-    Smooth,
-    Sharp,
-    /// Holds the keyframe's value constant until the next keyframe's timestamp.
-    Hold,
-}
-
-impl EnvelopeShape {
-    pub const ALL: [EnvelopeShape; 6] = [
-        EnvelopeShape::Linear,
-        EnvelopeShape::Fast,
-        EnvelopeShape::Slow,
-        EnvelopeShape::Smooth,
-        EnvelopeShape::Sharp,
-        EnvelopeShape::Hold,
-    ];
-
-    /// Evaluates progress `u` in `[0, 1]` into an interpolation factor in `[0, 1]`.
-    pub fn eval(self, u: f64) -> f64 {
-        let u = u.clamp(0.0, 1.0);
-        match self {
-            EnvelopeShape::Linear => FadeCurve::Linear.gain(u),
-            EnvelopeShape::Fast => FadeCurve::Fast.gain(u),
-            EnvelopeShape::Slow => FadeCurve::Slow.gain(u),
-            EnvelopeShape::Smooth => FadeCurve::Smooth.gain(u),
-            EnvelopeShape::Sharp => FadeCurve::Sharp.gain(u),
-            EnvelopeShape::Hold => {
-                if u >= 1.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-        }
-    }
-
-    /// Label in pt-BR.
-    pub fn label(self) -> &'static str {
-        match self {
-            EnvelopeShape::Linear => tr("Linear"),
-            EnvelopeShape::Fast => tr("Rápida"),
-            EnvelopeShape::Slow => tr("Lenta"),
-            EnvelopeShape::Smooth => tr("Suave"),
-            EnvelopeShape::Sharp => tr("Acentuada"),
-            EnvelopeShape::Hold => tr("Degrau (manter)"),
-        }
-    }
-}
-
-/// One automation keyframe on an envelope.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct EnvelopePoint {
-    pub time: f64,
-    pub value: f32,
-    #[serde(default)]
-    pub shape: EnvelopeShape,
 }
 
 /// What parameter an automation envelope drives on its track (or master bus).
@@ -86,6 +26,8 @@ pub enum AutomationTarget {
     Volume,
     /// Track pan (`-1.0..=1.0`).
     Pan,
+    /// Audio track mute (`0.0..=1.0`, `0.5` and above silence the track; `Hold` step curve).
+    AudioMute,
     /// Parameter `param_id` of the `effect_index`-th effect in the chain.
     EffectParam {
         effect_index: usize,
@@ -119,11 +61,17 @@ impl AutomationTarget {
         )
     }
 
+    /// `true` for on/off mute targets whose keyframes step without fading (`Hold`).
+    pub fn is_mute(&self) -> bool {
+        matches!(self, AutomationTarget::AudioMute | AutomationTarget::VideoMute)
+    }
+
     /// Human-readable short name in pt-BR.
     pub fn label(&self) -> String {
         match self {
             AutomationTarget::Volume => tr("Volume").into(),
             AutomationTarget::Pan => tr("Pan").into(),
+            AutomationTarget::AudioMute => tr("Mudo da faixa").into(),
             AutomationTarget::VideoLevel => tr("Nível da faixa").into(),
             AutomationTarget::VideoFade => tr("Esmaecer para cor").into(),
             AutomationTarget::VideoMute => tr("Mudo da faixa").into(),
@@ -145,6 +93,7 @@ impl AutomationTarget {
                 (lo, hi, 0.0)
             }
             AutomationTarget::Pan => (-1.0, 1.0, 0.0),
+            AutomationTarget::AudioMute => (0.0, 1.0, 0.0),
             AutomationTarget::VideoLevel => (0.0, 1.0, 1.0),
             AutomationTarget::EventVelocity => (-1.0, 3.0, 1.0),
             AutomationTarget::EventTransitionProgress => (0.0, 1.0, 1.0),
@@ -173,6 +122,11 @@ pub struct TrackEnvelope {
 
 impl TrackEnvelope {
     pub fn new(target: AutomationTarget, initial_value: f32) -> Self {
+        let shape = if target.is_mute() {
+            EnvelopeShape::Hold
+        } else {
+            EnvelopeShape::Linear
+        };
         Self {
             target,
             visible: true,
@@ -180,8 +134,16 @@ impl TrackEnvelope {
             points: vec![EnvelopePoint {
                 time: 0.0,
                 value: initial_value,
-                shape: EnvelopeShape::Linear,
+                shape,
             }],
+        }
+    }
+
+    /// Projects this track envelope into the generic [`Envelope`] curve representation.
+    pub fn to_generic(&self) -> Envelope {
+        Envelope {
+            enabled: self.enabled,
+            points: self.points.clone(),
         }
     }
 
@@ -191,30 +153,7 @@ impl TrackEnvelope {
         if !self.enabled {
             return fallback;
         }
-        let (Some(first), Some(last)) = (self.points.first(), self.points.last()) else {
-            return fallback;
-        };
-        if time <= first.time {
-            return first.value;
-        }
-        if time >= last.time {
-            return last.value;
-        }
-        let idx = self.points.partition_point(|p| p.time <= time);
-        if idx == 0 {
-            return first.value;
-        }
-        if idx >= self.points.len() {
-            return last.value;
-        }
-        let a = self.points[idx - 1];
-        let b = self.points[idx];
-        let span = b.time - a.time;
-        if span <= TIME_EPSILON {
-            return b.value;
-        }
-        let u = a.shape.eval((time - a.time) / span) as f32;
-        a.value + (b.value - a.value) * u
+        eval_points_opt(&self.points, time).unwrap_or(fallback)
     }
 
     /// Inserts a keyframe or updates an existing one within `tolerance` seconds, keeping `points`
@@ -356,7 +295,7 @@ pub fn toggle_envelope(
     if target == FxTarget::Master
         && matches!(
             auto_target,
-            AutomationTarget::Volume | AutomationTarget::Pan
+            AutomationTarget::Volume | AutomationTarget::Pan | AutomationTarget::AudioMute
         )
     {
         return None;
@@ -510,7 +449,470 @@ pub fn remove_keyframe(
     })
 }
 
-// ---- video track state --------------------------------------------------------------------------
+/// Sets the exact numeric `value` of keyframe `index` (*Definir valor…*), clamped to `bounds`.
+pub fn set_keyframe_value(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: &AutomationTarget,
+    index: usize,
+    value: f32,
+    bounds: (f32, f32),
+) -> Option<EditCommand> {
+    if !value.is_finite() {
+        return None;
+    }
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    edit(timeline, target, |list| {
+        let Some(env) = list.iter_mut().find(|e| &e.target == auto_target) else {
+            return false;
+        };
+        let Some(pt) = env.points.get_mut(index) else {
+            return false;
+        };
+        pt.value = value.clamp(lo, hi);
+        true
+    })
+}
+
+/// Reflects all points (or points inside `range`) around `center`, clamped to `bounds`.
+pub fn flip_envelope(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: &AutomationTarget,
+    range: Option<TimeRange>,
+    bounds: (f32, f32),
+    center: f32,
+) -> Option<EditCommand> {
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    let span = range.filter(|r| !r.is_empty()).map(|r| (r.start, r.end));
+    edit(timeline, target, |list| {
+        let Some(env) = list.iter_mut().find(|e| &e.target == auto_target) else {
+            return false;
+        };
+        env.points = flip_points(&env.points, span, center, lo, hi);
+        true
+    })
+}
+
+/// Simplifies redundant interior keyframes across the whole envelope or inside `range`.
+pub fn thin_envelope(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: &AutomationTarget,
+    range: Option<TimeRange>,
+    tolerance: f32,
+) -> Option<EditCommand> {
+    let span = range.filter(|r| !r.is_empty()).map(|r| (r.start, r.end));
+    edit(timeline, target, |list| {
+        let Some(env) = list.iter_mut().find(|e| &e.target == auto_target) else {
+            return false;
+        };
+        env.points = thin_points(&env.points, span, tolerance);
+        true
+    })
+}
+
+/// Commits a freehand brush stroke (`Shift`+drag) over `auto_target`, replacing existing points in
+/// the stroke's time span and thinning redundant intermediate points by `tolerance`.
+pub fn brush_envelope(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: &AutomationTarget,
+    stroke: &[(f64, f32)],
+    bounds: (f32, f32),
+    tolerance: f32,
+) -> Option<EditCommand> {
+    if stroke.is_empty() {
+        return None;
+    }
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    let shape = if auto_target.is_mute() {
+        EnvelopeShape::Hold
+    } else {
+        EnvelopeShape::Linear
+    };
+    let mut drawn: Vec<EnvelopePoint> = stroke
+        .iter()
+        .filter(|(t, v)| t.is_finite() && v.is_finite())
+        .map(|&(t, v)| EnvelopePoint {
+            time: t.max(0.0),
+            value: v.clamp(lo, hi),
+            shape,
+        })
+        .collect();
+    if drawn.is_empty() {
+        return None;
+    }
+    sort_pts(&mut drawn);
+    drawn.dedup_by(|b, a| (b.time - a.time).abs() <= TIME_EPSILON);
+    let drawn = thin_points(&drawn, None, tolerance);
+    let (t_min, t_max) = (drawn[0].time, drawn[drawn.len() - 1].time);
+
+    edit(timeline, target, |list| {
+        let Some(env) = list.iter_mut().find(|e| &e.target == auto_target) else {
+            return false;
+        };
+        env.points
+            .retain(|p| p.time < t_min - TIME_EPSILON || p.time > t_max + TIME_EPSILON);
+        env.points.extend(drawn);
+        env.sort_points();
+        true
+    })
+}
+
+/// Copies envelope keyframes (either all points or those within `range`) normalized so the first
+/// copied timestamp starts at `0.0 s` (or relative to `range.start` when a range is active).
+pub fn copy_points(env: &TrackEnvelope, range: Option<TimeRange>) -> Vec<EnvelopePoint> {
+    let span = range.filter(|r| !r.is_empty());
+    let selected: Vec<EnvelopePoint> = env
+        .points
+        .iter()
+        .copied()
+        .filter(|p| match span {
+            None => true,
+            Some(r) => p.time >= r.start - TIME_EPSILON && p.time <= r.end + TIME_EPSILON,
+        })
+        .collect();
+    let Some(origin) = span
+        .map(|r| r.start)
+        .or_else(|| selected.first().map(|p| p.time))
+    else {
+        return Vec::new();
+    };
+    selected
+        .into_iter()
+        .map(|p| EnvelopePoint {
+            time: (p.time - origin).max(0.0),
+            ..p
+        })
+        .collect()
+}
+
+/// Pastes `clip` keyframes starting at `at_time` on `auto_target`, replacing existing keyframes in
+/// the pasted span and clamping values to `bounds`.
+pub fn paste_points(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: &AutomationTarget,
+    clip: &[EnvelopePoint],
+    at_time: f64,
+    bounds: (f32, f32),
+) -> Option<EditCommand> {
+    if clip.is_empty() || !at_time.is_finite() {
+        return None;
+    }
+    let base = at_time.max(0.0);
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    let mut shifted: Vec<EnvelopePoint> = clip
+        .iter()
+        .map(|p| EnvelopePoint {
+            time: (base + p.time.max(0.0)).max(0.0),
+            value: p.value.clamp(lo, hi),
+            shape: if auto_target.is_mute() {
+                EnvelopeShape::Hold
+            } else {
+                p.shape
+            },
+        })
+        .collect();
+    sort_pts(&mut shifted);
+    let (t_min, t_max) = (shifted[0].time, shifted[shifted.len() - 1].time);
+    edit(timeline, target, |list| {
+        let Some(env) = list.iter_mut().find(|e| &e.target == auto_target) else {
+            return false;
+        };
+        env.points
+            .retain(|p| p.time < t_min - TIME_EPSILON || p.time > t_max + TIME_EPSILON);
+        env.points.extend(shifted);
+        env.sort_points();
+        true
+    })
+}
+
+/// Commits a recorded `Touch` (`hold_until == None`) or `Latch` (`hold_until == Some(stop_time)`)
+/// automation pass onto `auto_target` as one undo step, creating the envelope if needed and
+/// anchoring the pre-existing curve immediately outside the recorded time window.
+#[allow(clippy::too_many_arguments)]
+pub fn record_automation_pass(
+    timeline: &Timeline,
+    target: FxTarget,
+    auto_target: AutomationTarget,
+    initial_value: f32,
+    samples: &[(f64, f32)],
+    hold_until: Option<f64>,
+    bounds: (f32, f32),
+    tolerance: f32,
+) -> Option<EditCommand> {
+    if samples.is_empty() {
+        return None;
+    }
+    if target == FxTarget::Master
+        && matches!(
+            auto_target,
+            AutomationTarget::Volume | AutomationTarget::Pan | AutomationTarget::AudioMute
+        )
+    {
+        return None;
+    }
+    if let FxTarget::Track(id) = target {
+        let is_video_track = timeline.track(id)?.kind == TrackKind::Video;
+        if auto_target.is_video() != is_video_track {
+            return None;
+        }
+    }
+    let (lo, hi) = if bounds.0 <= bounds.1 {
+        bounds
+    } else {
+        (bounds.1, bounds.0)
+    };
+    let shape = if auto_target.is_mute() {
+        EnvelopeShape::Hold
+    } else {
+        EnvelopeShape::Linear
+    };
+    let mut pts: Vec<EnvelopePoint> = samples
+        .iter()
+        .filter(|(t, v)| t.is_finite() && v.is_finite())
+        .map(|&(t, v)| EnvelopePoint {
+            time: t.max(0.0),
+            value: v.clamp(lo, hi),
+            shape,
+        })
+        .collect();
+    if pts.is_empty() {
+        return None;
+    }
+    sort_pts(&mut pts);
+    pts.dedup_by(|b, a| (b.time - a.time).abs() <= TIME_EPSILON);
+    if let Some(end_t) = hold_until.filter(|t| t.is_finite()) {
+        let last = *pts.last().unwrap();
+        if end_t > last.time + 1e-4 {
+            pts.push(EnvelopePoint {
+                time: end_t,
+                value: last.value,
+                shape,
+            });
+        }
+    }
+    let pts = thin_points(&pts, None, tolerance);
+    let (t_min, t_max) = (pts[0].time, pts[pts.len() - 1].time);
+
+    edit(timeline, target, |list| {
+        let env = match list.iter_mut().find(|e| e.target == auto_target) {
+            Some(existing) => {
+                existing.visible = true;
+                existing.enabled = true;
+                existing
+            }
+            None => {
+                list.push(TrackEnvelope::new(
+                    auto_target.clone(),
+                    initial_value.clamp(lo, hi),
+                ));
+                list.last_mut().unwrap()
+            }
+        };
+        let has_before = env.points.iter().any(|p| p.time < t_min - 1e-3);
+        let has_after = env.points.iter().any(|p| p.time > t_max + 1e-3);
+        let pre_anchor = has_before.then(|| {
+            let t = (t_min - 1e-3).max(0.0);
+            EnvelopePoint {
+                time: t,
+                value: env.value_at(t, initial_value).clamp(lo, hi),
+                shape,
+            }
+        });
+        let post_anchor = has_after.then(|| {
+            let t = t_max + 1e-3;
+            EnvelopePoint {
+                time: t,
+                value: env.value_at(t, initial_value).clamp(lo, hi),
+                shape,
+            }
+        });
+        env.points
+            .retain(|p| p.time < t_min - 1e-3 || p.time > t_max + 1e-3);
+        if let Some(a) = pre_anchor {
+            env.points.push(a);
+        }
+        env.points.extend(pts);
+        if let Some(b) = post_anchor {
+            env.points.push(b);
+        }
+        env.sort_points();
+        true
+    })
+}
+
+/// *Lock Envelopes to Events*: augments an event-moving command so track-level envelope keyframes
+/// and track motion keyframes falling inside any moved event's `[old_start, old_end]` travel by
+/// the same delta on the same track, wrapped into a single undoable [`EditCommand`].
+pub fn with_locked_envelopes(timeline: &Timeline, command: EditCommand) -> EditCommand {
+    let mut moves: Vec<(TrackId, f64, f64, f64)> = Vec::new();
+    collect_same_track_moves(timeline, &command, &mut moves);
+    if moves.is_empty() {
+        return command;
+    }
+    let mut by_track: std::collections::BTreeMap<TrackId, Vec<(f64, f64, f64)>> =
+        std::collections::BTreeMap::new();
+    for (tid, s, e, d) in moves {
+        by_track.entry(tid).or_default().push((s, e, d));
+    }
+
+    let mut extra = Vec::new();
+    for (track_id, spans) in by_track {
+        let Some(track) = timeline.track(track_id) else {
+            continue;
+        };
+        if !track.envelopes.is_empty() {
+            let mut after = track.envelopes.clone();
+            for env in &mut after {
+                for pt in &mut env.points {
+                    if let Some(&(_, _, delta)) = spans.iter().find(|&&(s, e, _)| {
+                        pt.time >= s - TIME_EPSILON && pt.time <= e + TIME_EPSILON
+                    }) {
+                        pt.time = (pt.time + delta).max(0.0);
+                    }
+                }
+                env.sort_points();
+            }
+            if after != track.envelopes {
+                extra.push(EditCommand::SetEnvelopes {
+                    target: FxTarget::Track(track_id),
+                    before: track.envelopes.clone(),
+                    after,
+                });
+            }
+        }
+        if !track.motion.keys.is_empty() {
+            let mut after = track.motion.clone();
+            for key in &mut after.keys {
+                if let Some(&(_, _, delta)) = spans.iter().find(|&&(s, e, _)| {
+                    key.time >= s - TIME_EPSILON && key.time <= e + TIME_EPSILON
+                }) {
+                    key.time = (key.time + delta).max(0.0);
+                }
+            }
+            after
+                .keys
+                .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+            if after != track.motion {
+                extra.push(EditCommand::SetTrackMotion {
+                    track_id,
+                    before: track.motion.clone(),
+                    after,
+                });
+            }
+        }
+    }
+
+    if extra.is_empty() {
+        command
+    } else {
+        let mut all = match command {
+            EditCommand::Batch(list) => list,
+            single => vec![single],
+        };
+        all.extend(extra);
+        EditCommand::Batch(all)
+    }
+}
+
+fn collect_same_track_moves(
+    timeline: &Timeline,
+    command: &EditCommand,
+    out: &mut Vec<(TrackId, f64, f64, f64)>,
+) {
+    match command {
+        EditCommand::MoveEvent {
+            track_id,
+            event_id,
+            old_start,
+            new_start,
+        } => {
+            let delta = *new_start - *old_start;
+            if delta.abs() <= TIME_EPSILON {
+                return;
+            }
+            if let Some(ev) = timeline
+                .track(*track_id)
+                .and_then(|t| t.events.iter().find(|e| e.id == *event_id))
+            {
+                out.push((*track_id, *old_start, *old_start + ev.duration, delta));
+            }
+        }
+        EditCommand::EditEvent {
+            from_track,
+            to_track,
+            old,
+            new,
+            ..
+        } if from_track == to_track => {
+            let delta = new.start - old.start;
+            let pure_move = delta.abs() > TIME_EPSILON
+                && (new.duration - old.duration).abs() <= 1e-5
+                && (new.trim_in - old.trim_in).abs() <= 1e-5;
+            if pure_move {
+                out.push((*from_track, old.start, old.end(), delta));
+            }
+        }
+        EditCommand::ReplaceEvents { changes } => {
+            for change in changes {
+                for before in &change.before {
+                    if let Some(after) = change.after.iter().find(|e| e.id == before.id) {
+                        let delta = after.start - before.start;
+                        let pure_move = delta.abs() > TIME_EPSILON
+                            && (after.duration - before.duration).abs() <= 1e-5
+                            && (after.trim_in - before.trim_in).abs() <= 1e-5;
+                        if pure_move {
+                            out.push((change.track_id, before.start, before.end(), delta));
+                        }
+                    }
+                }
+            }
+        }
+        EditCommand::Batch(list) => {
+            for sub in list {
+                collect_same_track_moves(timeline, sub, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+// ---- audio & video track state ------------------------------------------------------------------
+
+/// `true` when `track` is silenced at timeline `time` by an enabled [`AutomationTarget::AudioMute`]
+/// envelope while the track's automation mode reads envelopes.
+pub fn audio_track_muted(track: &crate::timeline::Track, time: f64) -> bool {
+    if !track.automation_mode.reads_envelopes() {
+        return false;
+    }
+    track
+        .envelopes
+        .iter()
+        .filter(|e| e.enabled && e.target == AutomationTarget::AudioMute)
+        .any(|e| {
+            let v = e.value_at(time, 0.0);
+            v.is_finite() && v >= 0.5
+        })
+}
 
 /// What the video envelopes of a track say at one instant.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -537,6 +939,9 @@ impl Default for VideoTrackState {
 /// The level, fade and mute of `track` at timeline `time`, from its enabled envelopes. Values are
 /// clamped to their range, so a damaged file cannot produce a level above 1 or a NaN.
 pub fn video_track_state(track: &crate::timeline::Track, time: f64) -> VideoTrackState {
+    if !track.automation_mode.reads_envelopes() {
+        return VideoTrackState::default();
+    }
     let mut state = VideoTrackState::default();
     for env in track.envelopes.iter().filter(|e| e.enabled) {
         let (min, max, default) = env.target.default_bounds();
@@ -872,5 +1277,166 @@ mod tests {
             set_fade_color(&tl, aid, [1, 2, 3]).is_none(),
             "audio tracks have no fade color"
         );
+    }
+
+    #[test]
+    fn audio_mute_envelope_defaults_to_hold_and_respects_automation_mode_off() {
+        let mut tl = Timeline::new();
+        let mut h = crate::command::History::new();
+        let audio = tl.new_track(TrackKind::Audio);
+        let aid = audio.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: audio }));
+
+        let cmd = toggle_envelope(&tl, FxTarget::Track(aid), AutomationTarget::AudioMute, 0.0)
+            .expect("audio mute envelope");
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(
+            tl.track(aid).unwrap().envelopes[0].points[0].shape,
+            EnvelopeShape::Hold
+        );
+        let cmd = upsert_keyframe(
+            &tl,
+            FxTarget::Track(aid),
+            &AutomationTarget::AudioMute,
+            EnvelopePoint {
+                time: 2.0,
+                value: 1.0,
+                shape: EnvelopeShape::Hold,
+            },
+            (0.0, 1.0),
+            1e-4,
+        )
+        .unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert!(!audio_track_muted(tl.track(aid).unwrap(), 1.9));
+        assert!(audio_track_muted(tl.track(aid).unwrap(), 2.0));
+
+        // AutomationMode::Off bypasses envelope reading
+        let off = crate::mix::set_automation_mode(&tl, aid, AutomationMode::Off).unwrap();
+        assert!(h.execute(&mut tl, off));
+        assert!(!audio_track_muted(tl.track(aid).unwrap(), 2.5));
+    }
+
+    #[test]
+    fn flip_thin_brush_copy_paste_and_touch_latch_recording_are_pure_undoable_steps() {
+        let mut tl = Timeline::new();
+        let mut h = crate::command::History::new();
+        let audio = tl.new_track(TrackKind::Audio);
+        let aid = audio.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: audio }));
+        let target = FxTarget::Track(aid);
+
+        // Touch pass creates Volume envelope and thins collinear points
+        let pass = record_automation_pass(
+            &tl,
+            target,
+            AutomationTarget::Volume,
+            0.0,
+            &[(1.0, -3.0), (1.5, -4.5), (2.0, -6.0)],
+            Some(4.0), // Latch hold until 4.0 s
+            (-60.0, 12.0),
+            0.05,
+        )
+        .unwrap();
+        assert!(h.execute(&mut tl, pass));
+        let env = &tl.track(aid).unwrap().envelopes[0];
+        assert!((env.value_at(1.5, 0.0) - (-4.5)).abs() < 0.05);
+        assert!((env.value_at(3.5, 0.0) - (-6.0)).abs() < 0.05);
+
+        // Flip around 0 dB -> +6 dB at 3.5 s
+        let flip = flip_envelope(
+            &tl,
+            target,
+            &AutomationTarget::Volume,
+            None,
+            (-60.0, 12.0),
+            0.0,
+        )
+        .unwrap();
+        assert!(h.execute(&mut tl, flip));
+        assert!((tl.track(aid).unwrap().envelopes[0].value_at(3.5, 0.0) - 6.0).abs() < 0.05);
+
+        // Copy & paste points at 6.0 s
+        let clip = copy_points(&tl.track(aid).unwrap().envelopes[0], Some(TimeRange::new(1.0, 4.0)));
+        assert!(!clip.is_empty());
+        let paste = paste_points(
+            &tl,
+            target,
+            &AutomationTarget::Volume,
+            &clip,
+            6.0,
+            (-60.0, 12.0),
+        )
+        .unwrap();
+        assert!(h.execute(&mut tl, paste));
+        assert!(tl.track(aid).unwrap().envelopes[0].points.last().unwrap().time >= 8.9);
+
+        // Brush stroke replaces interior span
+        let brush = brush_envelope(
+            &tl,
+            target,
+            &AutomationTarget::Volume,
+            &[(2.0, -12.0), (2.5, -12.0), (3.0, -12.0)],
+            (-60.0, 12.0),
+            0.1,
+        )
+        .unwrap();
+        assert!(h.execute(&mut tl, brush));
+        assert!((tl.track(aid).unwrap().envelopes[0].value_at(2.5, 0.0) - (-12.0)).abs() < 0.05);
+    }
+
+    #[test]
+    fn lock_envelopes_to_events_shifts_track_envelopes_and_track_motion_with_moved_event() {
+        use neoveg_common::pan_crop::PanCropFrame;
+        let mut tl = Timeline::new();
+        let mut h = crate::command::History::new();
+        let mut video = tl.new_track(TrackKind::Video);
+        let vid = video.id;
+        let eid = tl.alloc_id();
+        video.events.push( crate::timeline::TrackEvent {
+            id: eid,
+            start: 2.0,
+            duration: 3.0,
+            ..Default::default()
+        });
+        let mut lvl = TrackEnvelope::new(AutomationTarget::VideoLevel, 1.0);
+        lvl.upsert_point(3.0, 0.4, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        lvl.upsert_point(8.0, 0.9, EnvelopeShape::Linear, 0.0, 1.0, 1e-4);
+        video.envelopes.push(lvl);
+        video.motion.upsert_key(
+            3.5,
+            PanCropFrame {
+                x_center: 0.25,
+                ..PanCropFrame::FULL
+            },
+            1e-3,
+        );
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track: video }));
+
+        let raw_move = EditCommand::MoveEvent {
+            track_id: vid,
+            event_id: eid,
+            old_start: 2.0,
+            new_start: 4.0,
+        };
+        let locked = with_locked_envelopes(&tl, raw_move);
+        assert!(h.execute(&mut tl, locked));
+        let track = tl.track(vid).unwrap();
+        // Point at 3.0 s (inside [2, 5]) moved +2.0 s to 5.0 s; point at 8.0 s stayed at 8.0 s!
+        assert!(track.envelopes[0]
+            .points
+            .iter()
+            .any(|p| (p.time - 5.0).abs() < 1e-5 && (p.value - 0.4).abs() < 1e-5));
+        assert!(track.envelopes[0]
+            .points
+            .iter()
+            .any(|p| (p.time - 8.0).abs() < 1e-5));
+        // Track motion key at 3.5 s moved +2.0 s to 5.5 s!
+        assert!((track.motion.keys[0].time - 5.5).abs() < 1e-5);
+
+        // One undo reverts event, envelope, and track motion together!
+        assert!(h.undo(&mut tl));
+        assert!((tl.track(vid).unwrap().events[0].start - 2.0).abs() < 1e-6);
+        assert!((tl.track(vid).unwrap().motion.keys[0].time - 3.5).abs() < 1e-5);
     }
 }

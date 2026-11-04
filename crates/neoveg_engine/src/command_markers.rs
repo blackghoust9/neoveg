@@ -70,17 +70,18 @@ pub fn insert(
     parameter: &str,
     comment: &str,
 ) -> Option<(CommandId, EditCommand)> {
+    let command = clean(command);
+    if command.is_empty() {
+        return None;
+    }
     let id = timeline.alloc_id();
     let marker = sanitized(&CommandMarker {
         id,
         time,
-        command: command.to_owned(),
+        command,
         parameter: parameter.to_owned(),
         comment: comment.to_owned(),
     });
-    if marker.command.is_empty() {
-        return None;
-    }
     let mut after = timeline.command_markers.clone();
     after.push(marker);
     replace(timeline, after).map(|command| (id, command))
@@ -145,7 +146,7 @@ mod tests {
     #[test]
     fn a_command_marker_is_inserted_edited_and_removed_as_undo_steps_and_kept_in_time_order() {
         let mut tl = Timeline::new();
-        let original = tl.clone();
+        let mut original = tl.clone();
         let mut history = History::new();
         let (late, command) = insert(&mut tl, 8.0, "URL", "https://example.org", "page").unwrap();
         run(&mut tl, &mut history, |_| Some(command));
@@ -169,6 +170,7 @@ mod tests {
         for _ in 0..4 {
             assert!(history.undo(&mut tl));
         }
+        original.adopt_ids_of(&tl);
         assert_eq!(tl, original);
     }
 

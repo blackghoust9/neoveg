@@ -83,13 +83,13 @@ use neoveg_video::worker::{probe, FrameRequest, FrameWorker, SourceRequest};
 use tabs::{close_tab_window, project_tab_bar, Tabs};
 
 use crate::captions_panel::{self, CaptionAction, CaptionsPanelState};
-use crate::envelope_canvas::{self, EnvelopeDrag, EnvelopeHit};
+use crate::envelope_canvas::{self, EnvelopeBrush, EnvelopeDrag, EnvelopeHit};
 use crate::event_header;
 use crate::footer_tabs::GroupAction;
 use crate::frame_grid::{snap_to_device_pixel, FrameGrid};
 use crate::fx_panel::{self, DuckAction, FxAction, FxPanelState};
 use crate::icons::{self, Icon};
-use crate::mixer_panel::{self, MixAction, MixerPanelState};
+use crate::mixer_panel::{self, AutoControl, MixAction, MixerPanelState};
 use crate::pan_crop_window::{EditTarget, PanCropAction, PanCropDraft, PanCropView, PanCropWindow};
 use crate::precision_slider::PrecisionSlider;
 use crate::scopes_panel::{scopes_ui, ScopesPanelState};
@@ -100,6 +100,38 @@ use crate::transitions_panel::{TransitionAction, TransitionsPanelState, Transiti
 use crate::velocity_editor::{VelocityAction, VelocityDraft, VelocityEditor, VelocityView};
 use crate::video_fx_panel::{self, VfxAction, VfxDraft, VfxPanelState, VfxScope, VfxScopes};
 use crate::waveform_paint::paint_waveform;
+
+/// Live drag of an event's top horizontal bar (video opacity `0..=1` or audio gain `-60..=12 dB`).
+#[derive(Debug, Clone)]
+struct EventLevelDrag {
+    kind: TrackKind,
+    refs: Vec<EventRef>,
+    primary: EventRef,
+    origin: f32,
+    current: f32,
+    press_y: f32,
+}
+
+/// Modal input for setting an exact numeric value on an envelope keyframe (*Definir valor…*).
+#[derive(Debug, Clone)]
+struct EnvelopeValueDialog {
+    track_id: TrackId,
+    target: AutomationTarget,
+    index: usize,
+    bounds: (f32, f32),
+    text: String,
+}
+
+/// Live `Touch` or `Latch` automation recording pass on a track control during playback.
+#[derive(Debug, Clone)]
+struct AutomationPass {
+    track_id: TrackId,
+    target: AutomationTarget,
+    initial_value: f32,
+    bounds: (f32, f32),
+    samples: Vec<(f64, f32)>,
+    latched_value: Option<f32>,
+}
 
 const HEADER_WIDTH: f32 = 150.0;
 const RULER_HEIGHT: f32 = 24.0;
@@ -684,6 +716,11 @@ struct AppState {
     /// two events around it.
     expanded_edit: bool,
     env_drag: Option<EnvelopeDrag>,
+    env_brush: Option<EnvelopeBrush>,
+    env_clipboard: Option<Vec<EnvelopePoint>>,
+    env_value_dialog: Option<EnvelopeValueDialog>,
+    event_level_drag: Option<EventLevelDrag>,
+    automation_passes: Vec<AutomationPass>,
     context_event: Option<(TrackId, EventId)>,
     context_envelope: Option<EnvelopeHit>,
     /// Marker or region under the pointer when the ruler's context menu was opened.
@@ -1771,6 +1808,11 @@ impl AppState {
             window_title: String::new(),
             drag: None,
             env_drag: None,
+            env_brush: None,
+            env_clipboard: None,
+            env_value_dialog: None,
+            event_level_drag: None,
+            automation_passes: Vec::new(),
             context_event: None,
             context_envelope: None,
             context_mark: None,
@@ -2036,6 +2078,85 @@ impl AppState {
         }
     }
 
+    /// *Definir valor…* on an automation keyframe node: parses a number (in `%` when the target is
+    /// displayed in percent, else in raw units / dB) and commits one undo step.
+    fn run_env_value_dialog(&mut self, ctx: &egui::Context) {
+        let Some(mut dlg) = self.env_value_dialog.take() else {
+            return;
+        };
+        let is_pct = matches!(
+            dlg.target,
+            AutomationTarget::VideoLevel
+                | AutomationTarget::VideoFade
+                | AutomationTarget::EventTransitionProgress
+                | AutomationTarget::EventVelocity
+                | AutomationTarget::Pan
+        );
+        let mut open = true;
+        let mut done = false;
+        crate::dialogs::dialog(ctx, tr("Definir valor do ponto"))
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                let unit_hint = match dlg.target {
+                    AutomationTarget::Volume | AutomationTarget::EventVolume => "dB",
+                    AutomationTarget::Pan => "% (-100 E .. +100 D)",
+                    AutomationTarget::VideoLevel
+                    | AutomationTarget::VideoFade
+                    | AutomationTarget::EventTransitionProgress
+                    | AutomationTarget::EventVelocity => "%",
+                    _ => "",
+                };
+                if !unit_hint.is_empty() {
+                    ui.weak(format!("{}: {unit_hint}", tr("Unidade")));
+                }
+                let edit_resp = ui.add(
+                    egui::TextEdit::singleline(&mut dlg.text).font(egui::TextStyle::Monospace),
+                );
+                let parsed = dlg
+                    .text
+                    .trim()
+                    .replace(',', ".")
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|v| v.is_finite())
+                    .map(|v| if is_pct { v / 100.0 } else { v });
+                let enter_pressed =
+                    edit_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(parsed.is_some(), egui::Button::new(tr("Aplicar")))
+                        .clicked()
+                        || (enter_pressed && parsed.is_some())
+                    {
+                        if let Some(raw_val) = parsed {
+                            if let Some(cmd) = envelope::set_keyframe_value(
+                                &self.timeline,
+                                FxTarget::Track(dlg.track_id),
+                                &dlg.target,
+                                dlg.index,
+                                raw_val,
+                                dlg.bounds,
+                            ) {
+                                if self.history.execute(&mut self.timeline, cmd) {
+                                    self.restart_audio_if_playing();
+                                    self.last_frame_key = None;
+                                    self.last_composite_key = None;
+                                }
+                            }
+                            done = true;
+                        }
+                    }
+                    if ui.button(tr("Cancelar")).clicked() {
+                        done = true;
+                    }
+                });
+            });
+        if open && !done {
+            self.env_value_dialog = Some(dlg);
+        }
+    }
+
     /// Opens Command Properties on the command marker `id`.
     fn edit_command_marker(&mut self, id: neoveg_engine::command_markers::CommandId) {
         let (fps, drop_frame) = (self.project.settings.fps, self.drop_frame());
@@ -2142,19 +2263,32 @@ impl AppState {
 
     // ---- selection, clipboard and compound edits ---------------------------------------------------
 
+    /// Executes `command` on the timeline, shifting locked track envelopes and track motion along
+    /// with moved events when *Travar envelopes aos eventos* is enabled.
+    fn execute_timeline(&mut self, command: EditCommand) -> bool {
+        let wrapped = if self.prefs.lock_envelopes_to_events {
+            envelope::with_locked_envelopes(&self.timeline, command)
+        } else {
+            command
+        };
+        let ok = self.history.execute(&mut self.timeline, wrapped);
+        if ok {
+            self.last_composite_key = None;
+        }
+        ok
+    }
+
     /// Runs an operation from `neoveg_engine::ops` as one undo step. Returns the outcome's
     /// `touched` events when something changed.
     fn apply_outcome(&mut self, outcome: Option<ops::Outcome>) -> Option<Vec<EventRef>> {
         let outcome = outcome?;
         let touched = outcome.touched.clone();
-        self.history
-            .execute(&mut self.timeline, outcome.command)
-            .then(|| {
-                self.selection.retain_existing(&self.timeline);
-                self.restart_audio_if_playing();
-                self.last_frame_key = None;
-                touched
-            })
+        self.execute_timeline(outcome.command).then(|| {
+            self.selection.retain_existing(&self.timeline);
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
+            touched
+        })
     }
 
     /// Events the next trim/split acts on: the selection, or the event under the cursor on the
@@ -3457,7 +3591,10 @@ impl AppState {
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some(),
-            Command::TrackSolo | Command::TrackSoloExclusive | Command::TrackPanEnvelope => self
+            Command::TrackSolo
+            | Command::TrackSoloExclusive
+            | Command::TrackPanEnvelope
+            | Command::TrackMuteEnvelope => self
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Audio),
@@ -4561,16 +4698,13 @@ impl AppState {
                 snap_offset: old.snap_offset,
                 ..new
             } != old;
-            self.history.execute(
-                &mut self.timeline,
-                EditCommand::EditEvent {
-                    from_track: track_id,
-                    to_track: track_id,
-                    event_id,
-                    old,
-                    new,
-                },
-            );
+            self.execute_timeline(EditCommand::EditEvent {
+                from_track: track_id,
+                to_track: track_id,
+                event_id,
+                old,
+                new,
+            });
             if playback_changed {
                 self.restart_audio_if_playing();
                 self.last_frame_key = None;
@@ -4587,7 +4721,7 @@ impl AppState {
             // The whole selection moved by the same amount: one undo step, selection unchanged
             let delta = d.current.start - d.origin.start;
             if let Some(outcome) = groups::move_events(&self.timeline, &d.moving, delta) {
-                self.history.execute(&mut self.timeline, outcome.command);
+                self.execute_timeline(outcome.command);
                 self.restart_audio_if_playing();
                 self.last_frame_key = None;
             }
@@ -4609,8 +4743,7 @@ impl AppState {
                 commands.push(edit_of(p.event_id, p.origin, p.current));
             }
             if !commands.is_empty() {
-                self.history
-                    .execute(&mut self.timeline, EditCommand::Batch(commands));
+                self.execute_timeline(EditCommand::Batch(commands));
                 self.restart_audio_if_playing();
                 self.last_frame_key = None;
             }
@@ -4702,7 +4835,7 @@ impl AppState {
                 d.current,
                 self.ripple_scope,
             ) {
-                self.history.execute(&mut self.timeline, outcome.command);
+                self.execute_timeline(outcome.command);
                 self.selected_track = Some(d.track_id);
                 self.selection.select_only((d.track_id, d.event_id));
                 self.restart_audio_if_playing();
@@ -4710,16 +4843,13 @@ impl AppState {
                 return;
             }
         }
-        self.history.execute(
-            &mut self.timeline,
-            EditCommand::EditEvent {
-                from_track: d.track_id,
-                to_track: d.target_track,
-                event_id: d.event_id,
-                old: d.origin,
-                new: d.current,
-            },
-        );
+        self.execute_timeline(EditCommand::EditEvent {
+            from_track: d.track_id,
+            to_track: d.target_track,
+            event_id: d.event_id,
+            old: d.origin,
+            new: d.current,
+        });
         if matches!(
             d.mode,
             DragMode::TrimLeft
@@ -6183,7 +6313,7 @@ impl AppState {
                     gain: {
                         let sign = if e.invert_phase { -1.0 } else { 1.0 };
                         let level = if e.normalize { e.normalize_gain } else { 1.0 };
-                        sign * level
+                        sign * level * e.gain_linear()
                     },
                     fade_in: e.fade_in,
                     fade_out: e.fade_out,
@@ -6593,8 +6723,7 @@ impl AppState {
         }
         let moved = moves.len();
         if moved > 0 {
-            self.history
-                .execute(&mut self.timeline, EditCommand::Batch(moves));
+            self.execute_timeline(EditCommand::Batch(moves));
             self.last_frame_key = None;
         }
         self.status = match (moved, failed) {
@@ -6664,6 +6793,7 @@ impl AppState {
     /// preview is asked for a new frame.
     fn apply_vfx_actions(&mut self, target: VideoFxTarget, actions: Vec<VfxAction>) {
         let mut changed = false;
+        let mut sought = false;
         for action in actions {
             let command = match action {
                 VfxAction::Add(kind) => vfxe::add_effect(&self.timeline, target, kind),
@@ -6710,13 +6840,107 @@ impl AppState {
                     VideoFxTarget::Track(id) => envelope::set_fade_color(&self.timeline, id, color),
                     _ => None,
                 },
+                VfxAction::ToggleAnimate {
+                    index,
+                    param,
+                    default_value,
+                } => vfxe::toggle_param_animation(
+                    &self.timeline,
+                    target,
+                    index,
+                    &param,
+                    default_value,
+                ),
+                VfxAction::UpsertKeyframe {
+                    index,
+                    param,
+                    point,
+                    bounds,
+                } => vfxe::upsert_param_keyframe(
+                    &self.timeline,
+                    target,
+                    index,
+                    &param,
+                    point,
+                    bounds,
+                    1e-3,
+                ),
+                VfxAction::MoveKeyframe {
+                    index,
+                    param,
+                    key_index,
+                    time,
+                    value,
+                    bounds,
+                } => vfxe::move_param_keyframe(
+                    &self.timeline,
+                    target,
+                    index,
+                    &param,
+                    key_index,
+                    (time, value),
+                    bounds,
+                ),
+                VfxAction::RemoveKeyframe {
+                    index,
+                    param,
+                    key_index,
+                } => vfxe::remove_param_keyframe(&self.timeline, target, index, &param, key_index),
+                VfxAction::SetKeyframeShape {
+                    index,
+                    param,
+                    key_index,
+                    shape,
+                } => vfxe::set_param_keyframe_shape(
+                    &self.timeline,
+                    target,
+                    index,
+                    &param,
+                    key_index,
+                    shape,
+                ),
+                VfxAction::SeekLocal(local_t) => {
+                    match target {
+                        VideoFxTarget::Event { track_id, event_id } => {
+                            if let Some(ev) = self
+                                .timeline
+                                .track(track_id)
+                                .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+                            {
+                                self.playhead =
+                                    (ev.start + local_t.clamp(0.0, ev.duration)).max(0.0);
+                                sought = true;
+                            }
+                        }
+                        VideoFxTarget::Media(media_id) => {
+                            let mapped = self.selection.primary().and_then(|(tid, eid)| {
+                                let ev = self
+                                    .timeline
+                                    .track(tid)?
+                                    .events
+                                    .iter()
+                                    .find(|e| e.id == eid && e.media_id == Some(media_id))?;
+                                let rate = edit::clamp_playback_rate(ev.playback_rate);
+                                Some((ev.start + (local_t - ev.trim_in) / rate).max(0.0))
+                            });
+                            self.playhead = mapped.unwrap_or_else(|| local_t.max(0.0));
+                            sought = true;
+                        }
+                        VideoFxTarget::Track(_) | VideoFxTarget::Project => {
+                            self.playhead = local_t.max(0.0);
+                            sought = true;
+                        }
+                    }
+                    None
+                }
             };
             if let Some(command) = command {
                 changed |= self.history.execute(&mut self.timeline, command);
             }
         }
-        if changed {
+        if changed || sought {
             self.last_frame_key = None;
+            self.last_composite_key = None;
         }
     }
 
@@ -6794,6 +7018,225 @@ impl AppState {
         }
     }
 
+    fn auto_control_spec(
+        &self,
+        track_id: TrackId,
+        ctrl: AutoControl,
+    ) -> Option<(AutomationTarget, (f32, f32), f32)> {
+        let track = self.timeline.track(track_id)?;
+        match ctrl {
+            AutoControl::Volume if track.kind == TrackKind::Audio => Some((
+                AutomationTarget::Volume,
+                neoveg_engine::TrackMix::VOLUME_RANGE_DB,
+                0.0,
+            )),
+            AutoControl::Volume => Some((AutomationTarget::VideoLevel, (0.0, 1.0), 1.0)),
+            AutoControl::Pan if track.kind == TrackKind::Audio => {
+                Some((AutomationTarget::Pan, (-1.0, 1.0), 0.0))
+            }
+            AutoControl::Pan => None,
+            AutoControl::Mute if track.kind == TrackKind::Audio => {
+                Some((AutomationTarget::AudioMute, (0.0, 1.0), 0.0))
+            }
+            AutoControl::Mute => Some((AutomationTarget::VideoMute, (0.0, 1.0), 0.0)),
+        }
+    }
+
+    fn sync_live_track_automation(&self, track_id: TrackId) {
+        let Some(active) = &self.active_player else {
+            return;
+        };
+        let Some(idx) = self.timeline.tracks.iter().position(|t| t.id == track_id) else {
+            return;
+        };
+        let mut vol_db = None;
+        let mut pan = None;
+        let mut mute = None;
+        for pass in self
+            .automation_passes
+            .iter()
+            .filter(|p| p.track_id == track_id)
+        {
+            if let Some(v) = pass.latched_value {
+                match pass.target {
+                    AutomationTarget::Volume => vol_db = Some(v),
+                    AutomationTarget::Pan => pan = Some(v),
+                    AutomationTarget::AudioMute => mute = Some(v >= 0.5),
+                    _ => {}
+                }
+            }
+        }
+        if let Some((ctrl, v)) = self.mixer.active_auto_draft(track_id) {
+            match ctrl {
+                AutoControl::Volume => vol_db = Some(v),
+                AutoControl::Pan => pan = Some(v),
+                AutoControl::Mute => mute = Some(v >= 0.5),
+            }
+        }
+        active.player.set_track_automation(idx, vol_db, pan, mute);
+    }
+
+    fn record_automation_sample(&mut self, track_id: TrackId, ctrl: AutoControl, value: f32) {
+        let Some((target, bounds, initial_value)) = self.auto_control_spec(track_id, ctrl) else {
+            return;
+        };
+        let v = value.clamp(bounds.0, bounds.1);
+        let t = self.playhead.max(0.0);
+        if let Some(pass) = self
+            .automation_passes
+            .iter_mut()
+            .find(|p| p.track_id == track_id && p.target == target)
+        {
+            pass.latched_value = None;
+            if pass
+                .samples
+                .last()
+                .is_none_or(|&(lt, lv)| (t - lt).abs() >= 0.015 || (v - lv).abs() >= 1e-4)
+            {
+                pass.samples.push((t, v));
+            }
+        } else {
+            self.automation_passes.push(AutomationPass {
+                track_id,
+                target,
+                initial_value,
+                bounds,
+                samples: vec![(t, v)],
+                latched_value: None,
+            });
+        }
+        self.sync_live_track_automation(track_id);
+    }
+
+    fn finish_touch_pass(&mut self, track_id: TrackId, ctrl: AutoControl) -> bool {
+        let Some((target, _, _)) = self.auto_control_spec(track_id, ctrl) else {
+            return false;
+        };
+        let Some(pos) = self
+            .automation_passes
+            .iter()
+            .position(|p| p.track_id == track_id && p.target == target)
+        else {
+            return false;
+        };
+        let pass = self.automation_passes.remove(pos);
+        self.sync_live_track_automation(track_id);
+        let tol = (pass.bounds.1 - pass.bounds.0).abs() * 0.008;
+        envelope::record_automation_pass(
+            &self.timeline,
+            FxTarget::Track(track_id),
+            pass.target,
+            pass.initial_value,
+            &pass.samples,
+            None,
+            pass.bounds,
+            tol,
+        )
+        .is_some_and(|cmd| self.history.execute(&mut self.timeline, cmd))
+    }
+
+    fn latch_hold_pass(&mut self, track_id: TrackId, ctrl: AutoControl, value: f32) {
+        let Some((target, bounds, initial_value)) = self.auto_control_spec(track_id, ctrl) else {
+            return;
+        };
+        let v = value.clamp(bounds.0, bounds.1);
+        let t = self.playhead.max(0.0);
+        if let Some(pass) = self
+            .automation_passes
+            .iter_mut()
+            .find(|p| p.track_id == track_id && p.target == target)
+        {
+            pass.samples.push((t, v));
+            pass.latched_value = Some(v);
+        } else {
+            self.automation_passes.push(AutomationPass {
+                track_id,
+                target,
+                initial_value,
+                bounds,
+                samples: vec![(t, v)],
+                latched_value: Some(v),
+            });
+        }
+        self.sync_live_track_automation(track_id);
+    }
+
+    fn tick_automation_passes(&mut self) {
+        if !self.playing {
+            return;
+        }
+        let t = self.playhead.max(0.0);
+        let mut touched_tracks = Vec::new();
+        for pass in &mut self.automation_passes {
+            if let Some(v) = pass.latched_value {
+                if pass.samples.last().is_none_or(|&(lt, _)| t >= lt + 0.03) {
+                    pass.samples.push((t, v));
+                }
+                if !touched_tracks.contains(&pass.track_id) {
+                    touched_tracks.push(pass.track_id);
+                }
+            }
+        }
+        for tid in touched_tracks {
+            self.sync_live_track_automation(tid);
+        }
+    }
+
+    fn flush_track_automation_passes(&mut self, track_id: TrackId, stop_time: f64) -> bool {
+        let mut changed = false;
+        let mut remaining = Vec::new();
+        for pass in std::mem::take(&mut self.automation_passes) {
+            if pass.track_id != track_id {
+                remaining.push(pass);
+                continue;
+            }
+            let hold_until = pass.latched_value.map(|_| stop_time.max(0.0));
+            let tol = (pass.bounds.1 - pass.bounds.0).abs() * 0.008;
+            if let Some(cmd) = envelope::record_automation_pass(
+                &self.timeline,
+                FxTarget::Track(pass.track_id),
+                pass.target,
+                pass.initial_value,
+                &pass.samples,
+                hold_until,
+                pass.bounds,
+                tol,
+            ) {
+                changed |= self.history.execute(&mut self.timeline, cmd);
+            }
+        }
+        self.automation_passes = remaining;
+        self.sync_live_track_automation(track_id);
+        changed
+    }
+
+    fn flush_all_automation_passes(&mut self, stop_time: f64) {
+        if self.automation_passes.is_empty() {
+            return;
+        }
+        let mut changed = false;
+        for pass in std::mem::take(&mut self.automation_passes) {
+            let hold_until = pass.latched_value.map(|_| stop_time.max(0.0));
+            let tol = (pass.bounds.1 - pass.bounds.0).abs() * 0.008;
+            if let Some(cmd) = envelope::record_automation_pass(
+                &self.timeline,
+                FxTarget::Track(pass.track_id),
+                pass.target,
+                pass.initial_value,
+                &pass.samples,
+                hold_until,
+                pass.bounds,
+                tol,
+            ) {
+                changed |= self.history.execute(&mut self.timeline, cmd);
+            }
+        }
+        if changed {
+            self.last_frame_key = None;
+            self.last_composite_key = None;
+        }
+    }
+
     /// Runs what the user did in a track's mixer strip; each action is one undo step.
     fn apply_mix_actions(&mut self, track_id: TrackId, actions: Vec<MixAction>) {
         let mut changed = false;
@@ -6807,6 +7250,36 @@ impl AppState {
                 MixAction::Volume(db) => mix::set_volume_db(&self.timeline, track_id, db),
                 MixAction::Pan(pan) => mix::set_pan(&self.timeline, track_id, pan),
                 MixAction::PanLaw(law) => mix::set_pan_law(&self.timeline, law),
+                MixAction::Automation(mode) => {
+                    if !mode.records() {
+                        self.mixer.clear_auto_draft();
+                        changed |= self.flush_track_automation_passes(track_id, self.playhead);
+                    }
+                    mix::set_automation_mode(&self.timeline, track_id, mode)
+                }
+                MixAction::AutoPoint(ctrl, val) => {
+                    self.auto_control_spec(track_id, ctrl)
+                        .and_then(|(auto_target, bounds, init)| {
+                            envelope::record_automation_pass(
+                                &self.timeline,
+                                FxTarget::Track(track_id),
+                                auto_target,
+                                init,
+                                &[(self.playhead.max(0.0), val)],
+                                None,
+                                bounds,
+                                0.0,
+                            )
+                        })
+                }
+                MixAction::FinishTouch(ctrl) => {
+                    changed |= self.finish_touch_pass(track_id, ctrl);
+                    None
+                }
+                MixAction::LatchHold(ctrl, val) => {
+                    self.latch_hold_pass(track_id, ctrl, val);
+                    None
+                }
             };
             if let Some(command) = command {
                 changed |= self.history.execute(&mut self.timeline, command);
@@ -6815,6 +7288,7 @@ impl AppState {
         if changed {
             self.restart_audio_if_playing();
             self.last_frame_key = None;
+            self.last_composite_key = None;
         }
     }
 
@@ -6864,12 +7338,9 @@ impl AppState {
             Command::TrackVolumeEnvelope if is_video => {
                 envelope::toggle_envelope(&self.timeline, target, AutomationTarget::VideoLevel, 1.0)
             }
-            Command::TrackVolumeEnvelope => envelope::toggle_envelope(
-                &self.timeline,
-                target,
-                AutomationTarget::Volume,
-                track.volume_db,
-            ),
+            Command::TrackVolumeEnvelope => {
+                envelope::toggle_envelope(&self.timeline, target, AutomationTarget::Volume, 0.0)
+            }
             Command::TrackPanEnvelope if is_video => {
                 self.status =
                     "O envelope de pan vale para faixas de áudio; veja Faixas > Envelopes de vídeo"
@@ -6877,8 +7348,18 @@ impl AppState {
                 return;
             }
             Command::TrackPanEnvelope => {
-                envelope::toggle_envelope(&self.timeline, target, AutomationTarget::Pan, track.pan)
+                envelope::toggle_envelope(&self.timeline, target, AutomationTarget::Pan, 0.0)
             }
+            Command::TrackMuteEnvelope => envelope::toggle_envelope(
+                &self.timeline,
+                target,
+                if is_video {
+                    AutomationTarget::VideoMute
+                } else {
+                    AutomationTarget::AudioMute
+                },
+                0.0,
+            ),
             Command::TrackToggleEnvelopes => envelope::toggle_all_envelopes(&self.timeline, target),
             _ => None,
         };
@@ -6886,6 +7367,7 @@ impl AppState {
             if self.history.execute(&mut self.timeline, cmd) {
                 self.restart_audio_if_playing();
                 self.last_frame_key = None;
+                self.last_composite_key = None;
             }
         }
     }
@@ -6907,6 +7389,7 @@ impl AppState {
             Some(cmd) => {
                 if self.history.execute(&mut self.timeline, cmd) {
                     self.last_frame_key = None;
+                    self.last_composite_key = None;
                 }
             }
             None => self.status = "Os envelopes de vídeo valem para faixas de vídeo".into(),
@@ -6929,6 +7412,54 @@ impl AppState {
             if self.history.execute(&mut self.timeline, cmd) {
                 self.restart_audio_if_playing();
                 self.last_frame_key = None;
+                self.last_composite_key = None;
+            }
+        }
+    }
+
+    /// Commits a finished `Shift`+drag freehand envelope brush stroke as a single undo step.
+    fn finish_envelope_brush(&mut self) {
+        let Some(brush) = self.env_brush.take() else {
+            return;
+        };
+        if brush.samples.len() < 2 {
+            return;
+        }
+        let tol = (brush.bounds.1 - brush.bounds.0).abs() * 0.015;
+        if let Some(cmd) = envelope::brush_envelope(
+            &self.timeline,
+            FxTarget::Track(brush.track_id),
+            &brush.target,
+            &brush.samples,
+            brush.bounds,
+            tol,
+        ) {
+            if self.history.execute(&mut self.timeline, cmd) {
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                self.last_composite_key = None;
+            }
+        }
+    }
+
+    /// Commits a finished horizontal event level drag (video opacity or audio gain) as one undo step.
+    fn finish_event_level_drag(&mut self) {
+        let Some(drag) = self.event_level_drag.take() else {
+            return;
+        };
+        let cmd = match drag.kind {
+            TrackKind::Video => {
+                switches::set_event_opacity(&self.timeline, &drag.refs, drag.current)
+            }
+            TrackKind::Audio => {
+                switches::set_event_gain_db(&self.timeline, &drag.refs, drag.current)
+            }
+        };
+        if let Some(cmd) = cmd {
+            if self.history.execute(&mut self.timeline, cmd) {
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                self.last_composite_key = None;
             }
         }
     }
@@ -6954,6 +7485,7 @@ impl AppState {
             self.selection.retain_existing(&self.timeline);
             self.restart_audio_if_playing();
             self.last_frame_key = None;
+            self.last_composite_key = None;
         }
     }
 
@@ -6962,6 +7494,7 @@ impl AppState {
             self.selection.retain_existing(&self.timeline);
             self.restart_audio_if_playing();
             self.last_frame_key = None;
+            self.last_composite_key = None;
         }
     }
 
@@ -7064,10 +7597,13 @@ impl AppState {
     }
 
     fn stop(&mut self) {
+        let stop_time = self.playhead;
         if let Some(active) = self.active_player.take() {
             active.player.stop();
         }
         self.playing = false;
+        self.mixer.clear_auto_draft();
+        self.flush_all_automation_passes(stop_time);
         // Meters stay zeroed whenever nothing is playing
         self.meter.reset();
     }
@@ -7095,6 +7631,7 @@ impl AppState {
                 false
             }
         };
+        self.tick_automation_passes();
         let finished = ended || self.playhead >= self.timeline.duration();
         if finished && self.loop_args().is_none() {
             self.stop();
@@ -7415,6 +7952,14 @@ impl AppState {
                 self.persist_preferences();
                 self.status = Self::toggle_text("Quantizar para quadros", self.quantize_frames);
             }
+            Command::OptionsLockEnvelopes => {
+                self.prefs.lock_envelopes_to_events = !self.prefs.lock_envelopes_to_events;
+                self.persist_preferences();
+                self.status = Self::toggle_text(
+                    "Travar envelopes aos eventos",
+                    self.prefs.lock_envelopes_to_events,
+                );
+            }
             Command::OptionsAutoCrossfade => {
                 self.project.settings.auto_crossfade = !self.project.settings.auto_crossfade;
                 self.forced_dirty = true;
@@ -7515,6 +8060,7 @@ impl AppState {
             | Command::TrackSoloExclusive => self.run_track_mix_command(command),
             Command::TrackVolumeEnvelope
             | Command::TrackPanEnvelope
+            | Command::TrackMuteEnvelope
             | Command::TrackToggleEnvelopes => self.run_track_envelope_command(command),
             c if c.marker_number().is_some() => {
                 self.jump_to_marker_number(c.marker_number().unwrap_or(1), now);
@@ -8351,6 +8897,7 @@ impl NeovegApp {
         self.state.poll_render_to_track(ctx);
         self.state.run_trim_monitor(ctx);
         self.state.run_ruler_start_dialog(ctx);
+        self.state.run_env_value_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
             self.state
@@ -8792,6 +9339,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     state.snap_sources.all_events,
                 ),
                 (Command::OptionsQuantizeToFrames, state.quantize_frames),
+                (
+                    Command::OptionsLockEnvelopes,
+                    state.prefs.lock_envelopes_to_events,
+                ),
             ] {
                 let mut checked = on;
                 let label = state.with_hint(tr(command.label()), command);
@@ -8854,7 +9405,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             // The envelopes are inserted from a submenu of their own, as in the reference
             ui.menu_button(tr("Envelopes de áudio"), |ui| {
-                for command in [Command::TrackVolumeEnvelope, Command::TrackPanEnvelope] {
+                for command in [
+                    Command::TrackVolumeEnvelope,
+                    Command::TrackPanEnvelope,
+                    Command::TrackMuteEnvelope,
+                ] {
                     command_item(state, ui, command);
                 }
             });
@@ -10776,6 +11331,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         tr("Quantizar para quadros também as edições só de áudio"),
                     );
                     ui.checkbox(
+                        &mut prefs.lock_envelopes_to_events,
+                        tr("Travar envelopes aos eventos ao mover na timeline"),
+                    );
+                    ui.checkbox(
                         &mut prefs.color_icons,
                         tr("Ícones coloridos (BMP) onde existirem; o tema High Contrast usa sempre os monocromáticos"),
                     );
@@ -10999,6 +11558,8 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
     let mut rename: Option<String> = None;
     let mut switch: Option<(Switch, bool)> = None;
     let mut resample: Option<neoveg_engine::ResampleMode> = None;
+    let mut opacity_change: Option<f32> = None;
+    let mut gain_change: Option<f32> = None;
     let mut pitch_change: Option<neoveg_common::pitch_change::PitchChange> = None;
     let mut volume: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;
     let mut progress: Option<Option<neoveg_engine::envelope::TrackEnvelope>> = None;

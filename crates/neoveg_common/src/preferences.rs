@@ -71,6 +71,8 @@ pub struct Preferences {
     pub quantize_audio_edits: bool,
     /// Decode videos on the graphics card when the machine can (falls back to the processor).
     pub hardware_decoding: bool,
+    /// Move track-level envelope points and track motion keyframes along with events moved on the track.
+    pub lock_envelopes_to_events: bool,
     /// The name the welcome screen greets; empty = the name of the operating system account.
     pub display_name: String,
 }
@@ -105,6 +107,7 @@ impl Default for Preferences {
             quantize_to_frames: true,
             quantize_audio_edits: true,
             hardware_decoding: true,
+            lock_envelopes_to_events: false,
             display_name: String::new(),
         }
     }
@@ -262,6 +265,7 @@ mod tests {
         // Files written before the snap switches existed keep today's behaviour
         assert!(!p.snap_to_grid && p.snap_to_markers && p.snap_to_all_events);
         assert!(p.quantize_to_frames && p.quantize_audio_edits);
+        assert!(!p.lock_envelopes_to_events);
     }
 
     #[test]

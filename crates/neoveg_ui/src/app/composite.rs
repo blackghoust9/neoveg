@@ -11,7 +11,7 @@
 use super::*;
 use crate::pan_crop_window::{EditTarget, PanCropDraft};
 use crate::velocity_editor::VelocityDraft;
-use crate::video_fx_panel::{effects_for, VfxDraft};
+use crate::video_fx_panel::{effects_for_at, VfxDraft};
 use neoveg_common::composite::CompositeMode;
 use neoveg_engine::velocity;
 use neoveg_video::pan_crop::PanCropRequest;
@@ -140,7 +140,12 @@ pub(super) fn clip_look(
             gain_out = progress;
         }
     }
-    if gain_in <= 0.0 || gain_out <= 0.0 {
+    let base_opacity = if event.opacity.is_finite() {
+        event.opacity.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    if base_opacity <= 0.0 || gain_in <= 0.0 || gain_out <= 0.0 {
         return (0.0, Vec::new());
     }
     let mut list = Vec::new();
@@ -157,8 +162,9 @@ pub(super) fn clip_look(
             }
             gain as f32
         };
-    let opacity =
-        part(gain_in, &event.transition_in, true) * part(gain_out, &event.transition_out, false);
+    let opacity = part(gain_in, &event.transition_in, true)
+        * part(gain_out, &event.transition_out, false)
+        * base_opacity;
     (opacity, list)
 }
 
@@ -270,10 +276,11 @@ fn group_look(
     let state = envelope::video_track_state(track, time);
     let (fade_color, fade_amount) = envelope::fade_mix(track, state.fade);
     GroupLook {
-        effects: effects_for(
+        effects: effects_for_at(
             &track.video_effects,
             VideoFxTarget::Track(track.id),
             settings.fx_draft.as_ref(),
+            time,
         ),
         fade_color,
         fade_amount,
@@ -415,13 +422,14 @@ pub(super) fn composite_request(
             };
             let (opacity, _) = clip_look(e, time, cross_in);
             nodes.push(TrackCompositeNode::Adjust {
-                effects: effects_for(
+                effects: effects_for_at(
                     &e.video_effects,
                     VideoFxTarget::Event {
                         track_id: track.id,
                         event_id: e.id,
                     },
                     settings.fx_draft.as_ref(),
+                    (time - e.start).max(0.0),
                 ),
                 opacity: opacity * track_state.level,
             });
@@ -445,11 +453,11 @@ pub(super) fn composite_request(
                 let look = neoveg_engine::media_props::props_of(timeline, media_id);
                 // A substitute frame rate plays the picture faster or slower than the file says
                 let factor = look.rate_factor(source.fps);
+                let clip_seconds = e.trim_in
+                    + (source_seconds_with(e, speed, time, source.duration) - e.trim_in) * factor;
                 Some(VideoClipRequest {
                     media_id,
-                    seconds: e.trim_in
-                        + (source_seconds_with(e, speed, time, source.duration) - e.trim_in)
-                            * factor,
+                    seconds: clip_seconds,
                     source_fps: source.fps,
                     path: source.path,
                     // The sign says which way the picture runs (the decoder reads ahead with it)
@@ -470,28 +478,31 @@ pub(super) fn composite_request(
                             .media_video_effects
                             .get(&media_id)
                             .map_or(&[][..], Vec::as_slice);
-                        let mut chain = effects_for(
+                        let mut chain = effects_for_at(
                             stored,
                             VideoFxTarget::Media(media_id),
                             settings.fx_draft.as_ref(),
+                            clip_seconds,
                         );
-                        chain.extend(effects_for(
+                        chain.extend(effects_for_at(
                             &e.video_effects,
                             VideoFxTarget::Event {
                                 track_id: track.id,
                                 event_id: e.id,
                             },
                             settings.fx_draft.as_ref(),
+                            (time - e.start).max(0.0),
                         ));
                         chain
                     },
                 })
             })
             .collect();
-        let track_effects = effects_for(
+        let track_effects = effects_for_at(
             &track.video_effects,
             VideoFxTarget::Track(track.id),
             settings.fx_draft.as_ref(),
+            time,
         );
         let layer_effects = if track.adjustment {
             if !track_effects.is_empty() && track_state.level > 0.0 {
@@ -537,10 +548,11 @@ pub(super) fn composite_request(
         lut: settings.lut.clone(),
         grade: settings.grade,
         chroma_key: settings.chroma_key,
-        project_effects: effects_for(
+        project_effects: effects_for_at(
             &timeline.video_effects,
             VideoFxTarget::Project,
             settings.fx_draft.as_ref(),
+            time,
         ),
     })
 }
@@ -603,10 +615,12 @@ pub(super) fn has_effects(
             let velocity_on = e.velocity.as_ref().is_some_and(|v| v.enabled)
                 || e.adjustment
                 || switch_or_resample_on;
-            let envelope_on = track
-                .envelopes
-                .iter()
-                .any(|env| env.enabled && env.target.is_video());
+            let opacity_on = (e.opacity - 1.0).abs() > 1e-4;
+            let envelope_on = track.automation_mode.reads_envelopes()
+                && track
+                    .envelopes
+                    .iter()
+                    .any(|env| env.enabled && env.target.is_video());
             if on(&e.video_effects)
                 || on(&track.video_effects)
                 || media_on
@@ -614,6 +628,7 @@ pub(super) fn has_effects(
                 || pan_crop_on
                 || transition_on
                 || velocity_on
+                || opacity_on
                 || !track.composite_mode.is_default()
                 || media_props_on
             {

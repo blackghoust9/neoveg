@@ -76,10 +76,13 @@ pub fn apply(
         target.muted = source.muted;
         target.locked = source.locked;
         target.looping = source.looping;
-        if video && !target.adjustment {
-            target.resample = source.resample;
-            target.maintain_aspect_ratio = source.maintain_aspect_ratio;
-            target.reduce_interlace_flicker = source.reduce_interlace_flicker;
+        if video {
+            target.opacity = source.opacity;
+            if !target.adjustment {
+                target.resample = source.resample;
+                target.maintain_aspect_ratio = source.maintain_aspect_ratio;
+                target.reduce_interlace_flicker = source.reduce_interlace_flicker;
+            }
         }
         if !video {
             target.invert_phase = source.invert_phase;
@@ -92,6 +95,7 @@ pub fn apply(
         target.pitch = source.pitch;
     }
     if set.volume && !video {
+        target.gain_db = source.gain_db;
         target.volume_envelope = source.volume_envelope.clone();
     }
     if video {
