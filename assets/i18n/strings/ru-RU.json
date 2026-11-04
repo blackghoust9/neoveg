@@ -1626,5 +1626,22 @@
   "Cor": "Цвет",
   "Tamanho ×": "Размер ×",
   "Aplicar ao trecho selecionado": "Применить к выделенному фрагменту",
-  "Selecione parte do texto acima e escolha o estilo": "Выделите часть текста выше и выберите стиль"
+  "Selecione parte do texto acima e escolha o estilo": "Выделите часть текста выше и выберите стиль",
+  "Tom do evento: subir um semitom": "Высота события: вверх на полутон",
+  "Tom do evento: descer um semitom": "Высота события: вниз на полутон",
+  "Tom do evento: subir um centésimo de semitom": "Высота события: вверх на цент",
+  "Tom do evento: descer um centésimo de semitom": "Высота события: вниз на цент",
+  "Tom do evento: subir uma oitava": "Высота события: вверх на октаву",
+  "Tom do evento: descer uma oitava": "Высота события: вниз на октаву",
+  "Tom do evento: voltar ao tom original": "Высота события: вернуть исходную высоту",
+  "O tom do evento já está nesse limite": "Высота события уже на этом пределе",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "Выберите незаблокированное аудиособытие, чтобы изменить высоту",
+  "Tom do evento: {} semitons": "Высота события: {} полутонов",
+  "Ruído": "Шум",
+  "Colorido (cada canal ao acaso)": "Цветной (каждый канал случайно)",
+  "Cor dos pontos mais escuros:": "Цвет самых тёмных точек:",
+  "Cor dos pontos mais claros:": "Цвет самых светлых точек:",
+  "Tamanho do grão (pixels):": "Размер зерна (пиксели):",
+  "Semente:": "Начальное число:",
+  "Animado (muda a cada quadro)": "Анимированный (меняется в каждом кадре)"
 }

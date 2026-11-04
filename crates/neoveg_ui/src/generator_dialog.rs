@@ -16,14 +16,16 @@ pub enum GeneratorTab {
     SolidColor,
     TestPattern,
     Gradient,
+    Noise,
     TitleText,
 }
 
 impl GeneratorTab {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::SolidColor,
         Self::TestPattern,
         Self::Gradient,
+        Self::Noise,
         Self::TitleText,
     ];
 
@@ -32,6 +34,7 @@ impl GeneratorTab {
             Self::SolidColor => tr("Cor sólida"),
             Self::TestPattern => tr("Padrão de teste"),
             Self::Gradient => tr("Gradiente"),
+            Self::Noise => tr("Ruído"),
             Self::TitleText => tr("Títulos e texto"),
         }
     }
@@ -52,6 +55,13 @@ pub struct GeneratorDialogState {
     pub grad_start: [u8; 4],
     pub grad_end: [u8; 4],
     pub grad_angle_deg: f32,
+    // Noise
+    pub noise_colored: bool,
+    pub noise_dark: [u8; 4],
+    pub noise_light: [u8; 4],
+    pub noise_grain: u32,
+    pub noise_seed: u32,
+    pub noise_animated: bool,
     // Title & text
     pub title_text: String,
     pub title_scale: u32,
@@ -93,6 +103,12 @@ impl Default for GeneratorDialogState {
             grad_start: [18, 28, 54, 255],
             grad_end: [232, 118, 52, 255],
             grad_angle_deg: 35.0,
+            noise_colored: false,
+            noise_dark: [0, 0, 0, 255],
+            noise_light: [255, 255, 255, 255],
+            noise_grain: 1,
+            noise_seed: 1,
+            noise_animated: true,
             title_text: "NEOVEG STUDIO".into(),
             title_scale: 6,
             title_rgba: [255, 255, 255, 255],
@@ -389,6 +405,22 @@ impl GeneratorDialogState {
                 self.grad_end = *end_rgba;
                 self.grad_angle_deg = *angle_deg;
             }
+            GeneratorKind::Noise {
+                colored,
+                dark_rgba,
+                light_rgba,
+                grain,
+                seed,
+                animated,
+            } => {
+                self.tab = GeneratorTab::Noise;
+                self.noise_colored = *colored;
+                self.noise_dark = *dark_rgba;
+                self.noise_light = *light_rgba;
+                self.noise_grain = *grain;
+                self.noise_seed = *seed;
+                self.noise_animated = *animated;
+            }
             GeneratorKind::TitleText {
                 text,
                 scale,
@@ -445,6 +477,17 @@ impl GeneratorDialogState {
                     start_rgba: self.grad_start,
                     end_rgba: self.grad_end,
                     angle_deg: self.grad_angle_deg,
+                },
+            ),
+            GeneratorTab::Noise => (
+                tr("Ruído").to_string(),
+                GeneratorKind::Noise {
+                    colored: self.noise_colored,
+                    dark_rgba: self.noise_dark,
+                    light_rgba: self.noise_light,
+                    grain: self.noise_grain.clamp(1, 64),
+                    seed: self.noise_seed,
+                    animated: self.noise_animated,
                 },
             ),
             GeneratorTab::TitleText => {
@@ -570,6 +613,28 @@ impl GeneratorDialogState {
                                     .text(tr("Ângulo (°)")),
                             );
                         }
+                    }
+                    GeneratorTab::Noise => {
+                        ui.checkbox(
+                            &mut self.noise_colored,
+                            tr("Colorido (cada canal ao acaso)"),
+                        );
+                        ui.add_enabled_ui(!self.noise_colored, |ui| {
+                            edit_rgba(ui, tr("Cor dos pontos mais escuros:"), &mut self.noise_dark);
+                            edit_rgba(ui, tr("Cor dos pontos mais claros:"), &mut self.noise_light);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Tamanho do grão (pixels):"));
+                            ui.add(egui::DragValue::new(&mut self.noise_grain).range(1..=64));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Semente:"));
+                            ui.add(egui::DragValue::new(&mut self.noise_seed));
+                        });
+                        ui.checkbox(
+                            &mut self.noise_animated,
+                            tr("Animado (muda a cada quadro)"),
+                        );
                     }
                     GeneratorTab::TitleText => {
                         self.style_row(ui, styles);

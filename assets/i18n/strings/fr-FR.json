@@ -1626,5 +1626,22 @@
   "Cor": "Couleur",
   "Tamanho ×": "Taille ×",
   "Aplicar ao trecho selecionado": "Appliquer au passage sélectionné",
-  "Selecione parte do texto acima e escolha o estilo": "Sélectionnez une partie du texte ci-dessus et choisissez le style"
+  "Selecione parte do texto acima e escolha o estilo": "Sélectionnez une partie du texte ci-dessus et choisissez le style",
+  "Tom do evento: subir um semitom": "Hauteur de l'événement : monter d'un demi-ton",
+  "Tom do evento: descer um semitom": "Hauteur de l'événement : descendre d'un demi-ton",
+  "Tom do evento: subir um centésimo de semitom": "Hauteur de l'événement : monter d'un cent",
+  "Tom do evento: descer um centésimo de semitom": "Hauteur de l'événement : descendre d'un cent",
+  "Tom do evento: subir uma oitava": "Hauteur de l'événement : monter d'une octave",
+  "Tom do evento: descer uma oitava": "Hauteur de l'événement : descendre d'une octave",
+  "Tom do evento: voltar ao tom original": "Hauteur de l'événement : revenir à la hauteur d'origine",
+  "O tom do evento já está nesse limite": "La hauteur de l'événement est déjà à cette limite",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "Sélectionnez un événement audio déverrouillé pour changer la hauteur",
+  "Tom do evento: {} semitons": "Hauteur de l'événement : {} demi-tons",
+  "Ruído": "Bruit",
+  "Colorido (cada canal ao acaso)": "En couleur (chaque canal au hasard)",
+  "Cor dos pontos mais escuros:": "Couleur des points les plus sombres :",
+  "Cor dos pontos mais claros:": "Couleur des points les plus clairs :",
+  "Tamanho do grão (pixels):": "Taille du grain (pixels) :",
+  "Semente:": "Graine :",
+  "Animado (muda a cada quadro)": "Animé (change à chaque image)"
 }

@@ -2587,6 +2587,59 @@ impl AppState {
         }
     }
 
+    /// The pitch keys: moves the pitch of the selected audio events by `semitones` (one undo step).
+    fn nudge_selected_pitch(&mut self, semitones: f64) {
+        let refs = self.selection.refs();
+        let command = neoveg_engine::event_pitch::nudge(&self.timeline, &refs, semitones);
+        self.finish_pitch_keys(command, &refs);
+    }
+
+    /// The pitch keys with Ctrl+Shift: back to the original pitch, keeping the formant settings.
+    fn reset_selected_pitch(&mut self) {
+        let refs = self.selection.refs();
+        let command = neoveg_engine::event_pitch::set_semitones(&self.timeline, &refs, 0.0);
+        self.finish_pitch_keys(command, &refs);
+    }
+
+    /// Runs a pitch edit and says where the pitch ended up; with nothing to change it says why.
+    fn finish_pitch_keys(
+        &mut self,
+        command: Option<neoveg_engine::EditCommand>,
+        refs: &[EventRef],
+    ) {
+        let Some(command) = command else {
+            self.status = if neoveg_engine::event_pitch::can_change(&self.timeline, refs) {
+                tr("O tom do evento já está nesse limite").into()
+            } else {
+                tr("Selecione um evento de áudio desbloqueado para mudar o tom").into()
+            };
+            return;
+        };
+        if !self.execute_timeline(command) {
+            return;
+        }
+        self.last_frame_key = None;
+        self.last_composite_key = None;
+        self.restart_audio_if_playing();
+        let shown = refs
+            .iter()
+            .find(|(track, _)| {
+                self.timeline
+                    .track(*track)
+                    .is_some_and(|t| t.kind == TrackKind::Audio)
+            })
+            .and_then(|(track, event)| {
+                self.timeline
+                    .track(*track)?
+                    .events
+                    .iter()
+                    .find(|e| e.id == *event)
+                    .map(|e| e.pitch.semitones)
+            })
+            .unwrap_or(0.0);
+        self.status = tr_args("Tom do evento: {} semitons", &[&format!("{shown:+.2}")]);
+    }
+
     /// Delete: selected events, or the time selection (all tracks, or only the selected events).
     /// Deletes the selected events and moves the later ones of each track earlier to close the gap.
     fn ripple_delete_selection(&mut self) {
@@ -3819,6 +3872,15 @@ impl AppState {
                 ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
             }
             Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
+            Command::EditPitchUp
+            | Command::EditPitchDown
+            | Command::EditPitchCentUp
+            | Command::EditPitchCentDown
+            | Command::EditPitchOctaveUp
+            | Command::EditPitchOctaveDown
+            | Command::EditPitchReset => {
+                neoveg_engine::event_pitch::can_change(&self.timeline, &self.selection.refs())
+            }
             Command::EditMediaProperties => self.selection.refs().iter().any(|(track, event)| {
                 self.timeline
                     .track(*track)
@@ -8210,6 +8272,13 @@ impl AppState {
             Command::EditSplit => self.split_at_playhead(),
             Command::EditSmartSplit => self.smart_split(),
             Command::EditHeal => self.heal_selected_events(),
+            Command::EditPitchUp => self.nudge_selected_pitch(1.0),
+            Command::EditPitchDown => self.nudge_selected_pitch(-1.0),
+            Command::EditPitchCentUp => self.nudge_selected_pitch(0.01),
+            Command::EditPitchCentDown => self.nudge_selected_pitch(-0.01),
+            Command::EditPitchOctaveUp => self.nudge_selected_pitch(12.0),
+            Command::EditPitchOctaveDown => self.nudge_selected_pitch(-12.0),
+            Command::EditPitchReset => self.reset_selected_pitch(),
             Command::EditMediaProperties => self.open_selected_media_properties(),
             Command::EditNextTake => self.step_take(1),
             Command::EditPreviousTake => self.step_take(-1),
@@ -9702,6 +9771,19 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ] {
                 command_item(state, ui, command);
             }
+            ui.menu_button(tr("Tom do evento de áudio"), |ui| {
+                for command in [
+                    Command::EditPitchUp,
+                    Command::EditPitchDown,
+                    Command::EditPitchCentUp,
+                    Command::EditPitchCentDown,
+                    Command::EditPitchOctaveUp,
+                    Command::EditPitchOctaveDown,
+                    Command::EditPitchReset,
+                ] {
+                    command_item(state, ui, command);
+                }
+            });
             ui.separator();
             command_item(state, ui, Command::EditSelectAll);
             command_item(state, ui, Command::EditSelectNone);
@@ -11960,11 +12042,20 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
             ui.separator();
             match tab {
                 PrefsTab::General => {
+                    // The names are in their own language; the saved value stays the tag
+                    let ideographs = neoveg_common::i18n::language_has_ideographs(&state.prefs.language);
                     egui::ComboBox::from_label(tr("Idioma"))
-                        .selected_text(prefs.language.clone())
+                        .selected_text(neoveg_common::i18n::language_name(
+                            &prefs.language,
+                            ideographs,
+                        ))
                         .show_ui(ui, |ui| {
                             for lang in LANGUAGES {
-                                ui.selectable_value(&mut prefs.language, lang.to_string(), lang);
+                                ui.selectable_value(
+                                    &mut prefs.language,
+                                    lang.to_string(),
+                                    neoveg_common::i18n::language_name(lang, ideographs),
+                                );
                             }
                         });
                     ui.horizontal(|ui| {

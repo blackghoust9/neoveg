@@ -41,6 +41,8 @@ mod splash;
 mod templates_window;
 mod theme;
 mod timeline_scroll;
+#[cfg(test)]
+mod tips_audit;
 mod toolbar_editor_window;
 mod transitions_panel;
 mod trim_monitor_window;

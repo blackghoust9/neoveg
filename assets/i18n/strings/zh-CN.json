@@ -1626,5 +1626,22 @@
   "Cor": "颜色",
   "Tamanho ×": "大小 ×",
   "Aplicar ao trecho selecionado": "应用到所选文字",
-  "Selecione parte do texto acima e escolha o estilo": "请在上方选择部分文字并选择样式"
+  "Selecione parte do texto acima e escolha o estilo": "请在上方选择部分文字并选择样式",
+  "Tom do evento: subir um semitom": "事件音高：升高一个半音",
+  "Tom do evento: descer um semitom": "事件音高：降低一个半音",
+  "Tom do evento: subir um centésimo de semitom": "事件音高：升高一音分",
+  "Tom do evento: descer um centésimo de semitom": "事件音高：降低一音分",
+  "Tom do evento: subir uma oitava": "事件音高：升高一个八度",
+  "Tom do evento: descer uma oitava": "事件音高：降低一个八度",
+  "Tom do evento: voltar ao tom original": "事件音高：恢复原始音高",
+  "O tom do evento já está nesse limite": "事件音高已到该上限",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "请选择未锁定的音频事件以更改音高",
+  "Tom do evento: {} semitons": "事件音高：{} 个半音",
+  "Ruído": "噪点",
+  "Colorido (cada canal ao acaso)": "彩色（每个通道随机）",
+  "Cor dos pontos mais escuros:": "最暗点的颜色：",
+  "Cor dos pontos mais claros:": "最亮点的颜色：",
+  "Tamanho do grão (pixels):": "颗粒大小（像素）：",
+  "Semente:": "种子：",
+  "Animado (muda a cada quadro)": "动画（每一帧都变化）"
 }

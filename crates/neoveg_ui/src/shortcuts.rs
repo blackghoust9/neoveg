@@ -16,6 +16,13 @@ pub fn key_name(key: Key) -> Option<String> {
 
 /// The shortcut produced by pressing `key` with `modifiers`.
 pub fn from_egui(key: Key, modifiers: Modifiers) -> Option<Shortcut> {
+    // `Shift+=` types a plus on most keyboards and reaches egui as the Plus key: it is still the key
+    // of the equals sign, so the shortcut is spelled `Shift+=`
+    let key = if key == Key::Plus && modifiers.shift {
+        Key::Equals
+    } else {
+        key
+    };
     Shortcut::new(
         modifiers.command,
         modifiers.shift,
@@ -48,6 +55,24 @@ mod tests {
     use super::*;
     use neoveg_common::commands::Command;
     use neoveg_common::keymap::KeyMap;
+
+    #[test]
+    fn shift_and_the_plus_key_make_the_shortcut_of_the_equals_key() {
+        let shifted = from_egui(Key::Plus, Modifiers::SHIFT).expect("a shortcut");
+        assert_eq!(shifted.to_string(), "Shift+=");
+        assert_eq!(
+            from_egui(Key::Equals, Modifiers::SHIFT)
+                .unwrap()
+                .to_string(),
+            "Shift+="
+        );
+        // A plus without Shift (the numpad one) is not the equals key
+        assert!(from_egui(Key::Plus, Modifiers::NONE).is_none());
+        assert_eq!(
+            from_egui(Key::Minus, Modifiers::SHIFT).unwrap().to_string(),
+            "Shift+-"
+        );
+    }
 
     #[test]
     fn every_default_shortcut_can_be_matched_in_egui() {

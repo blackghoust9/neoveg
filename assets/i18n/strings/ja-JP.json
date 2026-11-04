@@ -1626,5 +1626,22 @@
   "Cor": "色",
   "Tamanho ×": "サイズ ×",
   "Aplicar ao trecho selecionado": "選択した範囲に適用",
-  "Selecione parte do texto acima e escolha o estilo": "上のテキストの一部を選択してスタイルを選んでください"
+  "Selecione parte do texto acima e escolha o estilo": "上のテキストの一部を選択してスタイルを選んでください",
+  "Tom do evento: subir um semitom": "イベントのピッチ: 半音上げる",
+  "Tom do evento: descer um semitom": "イベントのピッチ: 半音下げる",
+  "Tom do evento: subir um centésimo de semitom": "イベントのピッチ: 1セント上げる",
+  "Tom do evento: descer um centésimo de semitom": "イベントのピッチ: 1セント下げる",
+  "Tom do evento: subir uma oitava": "イベントのピッチ: 1オクターブ上げる",
+  "Tom do evento: descer uma oitava": "イベントのピッチ: 1オクターブ下げる",
+  "Tom do evento: voltar ao tom original": "イベントのピッチ: 元のピッチに戻す",
+  "O tom do evento já está nesse limite": "イベントのピッチはすでにその限度です",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "ピッチを変えるには、ロックされていないオーディオイベントを選択してください",
+  "Tom do evento: {} semitons": "イベントのピッチ: {} 半音",
+  "Ruído": "ノイズ",
+  "Colorido (cada canal ao acaso)": "カラー（チャンネルごとにランダム）",
+  "Cor dos pontos mais escuros:": "最も暗い点の色:",
+  "Cor dos pontos mais claros:": "最も明るい点の色:",
+  "Tamanho do grão (pixels):": "粒の大きさ（ピクセル）:",
+  "Semente:": "シード:",
+  "Animado (muda a cada quadro)": "アニメーション（フレームごとに変化）"
 }

@@ -1626,5 +1626,22 @@
   "Cor": "Color",
   "Tamanho ×": "Tamaño ×",
   "Aplicar ao trecho selecionado": "Aplicar al tramo seleccionado",
-  "Selecione parte do texto acima e escolha o estilo": "Selecciona parte del texto de arriba y elige el estilo"
+  "Selecione parte do texto acima e escolha o estilo": "Selecciona parte del texto de arriba y elige el estilo",
+  "Tom do evento: subir um semitom": "Tono del evento: subir un semitono",
+  "Tom do evento: descer um semitom": "Tono del evento: bajar un semitono",
+  "Tom do evento: subir um centésimo de semitom": "Tono del evento: subir un cent",
+  "Tom do evento: descer um centésimo de semitom": "Tono del evento: bajar un cent",
+  "Tom do evento: subir uma oitava": "Tono del evento: subir una octava",
+  "Tom do evento: descer uma oitava": "Tono del evento: bajar una octava",
+  "Tom do evento: voltar ao tom original": "Tono del evento: volver al tono original",
+  "O tom do evento já está nesse limite": "El tono del evento ya está en ese límite",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "Selecciona un evento de audio desbloqueado para cambiar el tono",
+  "Tom do evento: {} semitons": "Tono del evento: {} semitonos",
+  "Ruído": "Ruido",
+  "Colorido (cada canal ao acaso)": "En color (cada canal al azar)",
+  "Cor dos pontos mais escuros:": "Color de los puntos más oscuros:",
+  "Cor dos pontos mais claros:": "Color de los puntos más claros:",
+  "Tamanho do grão (pixels):": "Tamaño del grano (píxeles):",
+  "Semente:": "Semilla:",
+  "Animado (muda a cada quadro)": "Animado (cambia en cada fotograma)"
 }

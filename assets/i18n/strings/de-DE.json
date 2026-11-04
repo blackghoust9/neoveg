@@ -1626,5 +1626,22 @@
   "Cor": "Farbe",
   "Tamanho ×": "Größe ×",
   "Aplicar ao trecho selecionado": "Auf den markierten Abschnitt anwenden",
-  "Selecione parte do texto acima e escolha o estilo": "Einen Teil des Textes oben markieren und den Stil wählen"
+  "Selecione parte do texto acima e escolha o estilo": "Einen Teil des Textes oben markieren und den Stil wählen",
+  "Tom do evento: subir um semitom": "Ereignis-Tonhöhe: einen Halbton höher",
+  "Tom do evento: descer um semitom": "Ereignis-Tonhöhe: einen Halbton tiefer",
+  "Tom do evento: subir um centésimo de semitom": "Ereignis-Tonhöhe: einen Cent höher",
+  "Tom do evento: descer um centésimo de semitom": "Ereignis-Tonhöhe: einen Cent tiefer",
+  "Tom do evento: subir uma oitava": "Ereignis-Tonhöhe: eine Oktave höher",
+  "Tom do evento: descer uma oitava": "Ereignis-Tonhöhe: eine Oktave tiefer",
+  "Tom do evento: voltar ao tom original": "Ereignis-Tonhöhe: zurück zur ursprünglichen Tonhöhe",
+  "O tom do evento já está nesse limite": "Die Tonhöhe des Ereignisses ist bereits an dieser Grenze",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "Wählen Sie ein nicht gesperrtes Audioereignis, um die Tonhöhe zu ändern",
+  "Tom do evento: {} semitons": "Ereignis-Tonhöhe: {} Halbtöne",
+  "Ruído": "Rauschen",
+  "Colorido (cada canal ao acaso)": "Farbig (jeder Kanal zufällig)",
+  "Cor dos pontos mais escuros:": "Farbe der dunkelsten Punkte:",
+  "Cor dos pontos mais claros:": "Farbe der hellsten Punkte:",
+  "Tamanho do grão (pixels):": "Korngröße (Pixel):",
+  "Semente:": "Startwert:",
+  "Animado (muda a cada quadro)": "Animiert (ändert sich in jedem Bild)"
 }

@@ -22,8 +22,40 @@ pub fn nudge(timeline: &Timeline, events: &[EventRef], semitones: f64) -> Option
         return None;
     }
     apply(timeline, events, |old| PitchChange {
-        semitones: old.semitones + semitones,
+        semitones: snap_to_cent(old.semitones + semitones),
         ..*old
+    })
+}
+
+/// Puts the pitch of every unlocked audio event among `events` at `semitones` (`0.0` takes it back to
+/// the original pitch), keeping each event's formant settings; `None` when nothing changes.
+pub fn set_semitones(
+    timeline: &Timeline,
+    events: &[EventRef],
+    semitones: f64,
+) -> Option<EditCommand> {
+    if !semitones.is_finite() {
+        return None;
+    }
+    apply(timeline, events, |old| PitchChange {
+        semitones: snap_to_cent(semitones),
+        ..*old
+    })
+}
+
+/// `semitones` rounded to a ten-thousandth, so a hundred steps of a cent land on a whole semitone
+/// instead of drifting.
+fn snap_to_cent(semitones: f64) -> f64 {
+    (semitones * 10_000.0).round() / 10_000.0
+}
+
+/// `true` when at least one of `events` is an unlocked audio event, the ones the pitch keys act on.
+pub fn can_change(timeline: &Timeline, events: &[EventRef]) -> bool {
+    events.iter().any(|(track_id, event_id)| {
+        timeline.track(*track_id).is_some_and(|track| {
+            track.kind == TrackKind::Audio
+                && track.events.iter().any(|e| e.id == *event_id && !e.locked)
+        })
     })
 }
 
@@ -71,6 +103,60 @@ mod tests {
     use super::*;
     use crate::command::History;
     use crate::timeline::TrackEvent;
+
+    #[test]
+    fn a_hundred_cents_make_a_semitone_without_drift() {
+        let (mut tl, audio, _video, _locked) = timeline();
+        let mut history = History::new();
+        for _ in 0..100 {
+            let command = nudge(&tl, &[audio], 0.01).expect("a cent moves the pitch");
+            assert!(history.execute(&mut tl, command));
+        }
+        assert_eq!(pitch_of(&tl, audio).semitones, 1.0);
+        // The octave keys stop at the limit instead of passing it
+        let up = nudge(&tl, &[audio], 12.0).unwrap();
+        assert!(history.execute(&mut tl, up));
+        let up = nudge(&tl, &[audio], 12.0).unwrap();
+        assert!(history.execute(&mut tl, up));
+        assert_eq!(pitch_of(&tl, audio).semitones, 24.0);
+        assert!(nudge(&tl, &[audio], 1.0).is_none(), "already at the top");
+    }
+
+    #[test]
+    fn the_pitch_goes_back_to_zero_keeping_the_formant_settings() {
+        let (mut tl, audio, video, locked) = timeline();
+        let mut history = History::new();
+        let shifted = PitchChange {
+            semitones: 5.0,
+            preserve_formants: true,
+            formant_shift: -2.0,
+        };
+        let set_all = set(&tl, &[audio, locked], &shifted).unwrap();
+        assert!(history.execute(&mut tl, set_all));
+        let reset = set_semitones(&tl, &[audio, video, locked], 0.0).unwrap();
+        assert!(history.execute(&mut tl, reset));
+        let back = pitch_of(&tl, audio);
+        assert_eq!(back.semitones, 0.0);
+        assert!(back.preserve_formants && back.formant_shift == -2.0);
+        assert!(
+            set_semitones(&tl, &[audio], 0.0).is_none(),
+            "nothing to reset"
+        );
+        assert!(set_semitones(&tl, &[audio], f64::NAN).is_none());
+        // One undo step takes the pitch back to 5
+        assert!(history.undo(&mut tl));
+        assert_eq!(pitch_of(&tl, audio).semitones, 5.0);
+    }
+
+    #[test]
+    fn the_keys_act_only_when_an_unlocked_audio_event_is_selected() {
+        let (tl, audio, video, locked) = timeline();
+        assert!(can_change(&tl, &[audio]));
+        assert!(can_change(&tl, &[video, audio]));
+        assert!(!can_change(&tl, &[video]));
+        assert!(!can_change(&tl, &[locked]));
+        assert!(!can_change(&tl, &[]));
+    }
 
     fn timeline() -> (Timeline, EventRef, EventRef, EventRef) {
         let mut tl = Timeline::new();

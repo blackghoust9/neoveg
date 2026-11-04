@@ -1126,6 +1126,23 @@ fn composite_tree(
     out_w: u32,
     out_h: u32,
 ) -> FrameBuffer {
+    // One opaque layer that fills the canvas at full opacity is the picture itself: no blank
+    // canvas to draw, nothing to mix (the usual case of a movie that is alone on its track)
+    if let [CompositeNode::Layer(layer)] = tree {
+        if layer.mode == CompositeMode::SourceAlpha
+            && layer.opacity >= 1.0
+            && (layer.frame.width, layer.frame.height) == (out_w.max(2), out_h.max(2))
+            && layer
+                .frame
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| p[3] == 255)
+        {
+            return (*layer.frame).clone();
+        }
+    }
     if tree.is_empty() {
         FrameBuffer::solid(out_w, out_h, [0, 0, 0, 255])
     } else if uses_non_trivial_blend(tree) && (out_w * out_h) >= 64 * 64 {
@@ -1326,6 +1343,40 @@ mod tests {
         ImageBuffer::from_pixel(w, h, Rgba(color))
             .save(path)
             .unwrap();
+    }
+
+    /// A lone opaque layer takes the shortcut and comes out exactly as the general path draws it;
+    /// a see-through one, a smaller one and a faded one do not take it.
+    #[test]
+    fn a_lone_opaque_layer_is_the_same_picture_as_the_general_blend() {
+        let layer = |frame: FrameBuffer, opacity: f32| {
+            vec![CompositeNode::Layer(DecodedLayer {
+                frame: Arc::new(frame),
+                mode: CompositeMode::SourceAlpha,
+                opacity,
+            })]
+        };
+        let mut state = WorkerState::new();
+        let mut picture = crate::generators::smpte_color_bars(96, 54);
+        for px in picture.rgba.as_chunks_mut::<4>().0 {
+            px[3] = 255;
+        }
+        let tree = layer(picture.clone(), 1.0);
+        let general = composite_nodes_cpu(96, 54, [0, 0, 0, 255], &tree);
+        assert_eq!(composite_tree(&mut state, &tree, 96, 54), general);
+        assert_eq!(general, picture);
+
+        // Half see-through pixels, a faded layer and a smaller picture still go the long way
+        let mut see_through = picture.clone();
+        see_through.rgba[3] = 120;
+        for (tree, w, h) in [
+            (layer(see_through, 1.0), 96, 54),
+            (layer(picture.clone(), 0.5), 96, 54),
+            (layer(picture.clone(), 1.0), 128, 72),
+        ] {
+            let expected = composite_nodes_cpu(w, h, [0, 0, 0, 255], &tree);
+            assert_eq!(composite_tree(&mut state, &tree, w, h), expected);
+        }
     }
 
     /// A clip whose picture cannot be read shows red, not nothing: the problem is visible in the

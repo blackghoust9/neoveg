@@ -1626,5 +1626,22 @@
   "Cor": "Color",
   "Tamanho ×": "Size ×",
   "Aplicar ao trecho selecionado": "Apply to the selected stretch",
-  "Selecione parte do texto acima e escolha o estilo": "Select part of the text above and choose the style"
+  "Selecione parte do texto acima e escolha o estilo": "Select part of the text above and choose the style",
+  "Tom do evento: subir um semitom": "Event pitch: up a semitone",
+  "Tom do evento: descer um semitom": "Event pitch: down a semitone",
+  "Tom do evento: subir um centésimo de semitom": "Event pitch: up a cent",
+  "Tom do evento: descer um centésimo de semitom": "Event pitch: down a cent",
+  "Tom do evento: subir uma oitava": "Event pitch: up an octave",
+  "Tom do evento: descer uma oitava": "Event pitch: down an octave",
+  "Tom do evento: voltar ao tom original": "Event pitch: back to the original pitch",
+  "O tom do evento já está nesse limite": "The event pitch is already at that limit",
+  "Selecione um evento de áudio desbloqueado para mudar o tom": "Select an unlocked audio event to change its pitch",
+  "Tom do evento: {} semitons": "Event pitch: {} semitones",
+  "Ruído": "Noise",
+  "Colorido (cada canal ao acaso)": "Coloured (each channel at random)",
+  "Cor dos pontos mais escuros:": "Colour of the darkest points:",
+  "Cor dos pontos mais claros:": "Colour of the lightest points:",
+  "Tamanho do grão (pixels):": "Grain size (pixels):",
+  "Semente:": "Seed:",
+  "Animado (muda a cada quadro)": "Animated (changes every frame)"
 }

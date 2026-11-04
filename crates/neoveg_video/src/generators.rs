@@ -129,6 +129,21 @@ pub enum GeneratorKind {
         end_rgba: [u8; 4],
         angle_deg: f32,
     },
+    /// A texture of random pixels: grey noise between two colours, or a random colour in every
+    /// cell. It depends only on the cell, the frame and the seed, so it is the same on every
+    /// machine and at every preview size.
+    Noise {
+        /// Every channel at random (the two colours are not used).
+        colored: bool,
+        /// The colour of the darkest cells and of the lightest ones.
+        dark_rgba: [u8; 4],
+        light_rgba: [u8; 4],
+        /// Side of a cell of noise, in pixels of the generator's own size.
+        grain: u32,
+        seed: u32,
+        /// A new noise at every frame (film grain) instead of one that stays.
+        animated: bool,
+    },
     TitleText {
         text: String,
         scale: u32,
@@ -314,7 +329,7 @@ impl GeneratorKind {
                     | TitleAnimation::SlideUp
                     | TitleAnimation::CreditRoll,
                 ..
-            }
+            } | Self::Noise { animated: true, .. }
         )
     }
 
@@ -400,6 +415,29 @@ impl GeneratorSpec {
                 end_rgba,
                 angle_deg,
             } => render_gradient(w, h, *shape, *start_rgba, *end_rgba, *angle_deg),
+            GeneratorKind::Noise {
+                colored,
+                dark_rgba,
+                light_rgba,
+                grain,
+                seed,
+                animated,
+            } => {
+                let frame = if *animated {
+                    (seconds.max(0.0) * self.video_info().fps).floor() as u32
+                } else {
+                    0
+                };
+                let look = NoiseLook {
+                    colored: *colored,
+                    dark: *dark_rgba,
+                    light: *light_rgba,
+                    grain: (*grain).clamp(1, 256),
+                    seed: *seed,
+                    frame,
+                };
+                render_noise(w, h, scale_ratio, &look)
+            }
             GeneratorKind::TitleText {
                 text,
                 scale,
@@ -508,6 +546,67 @@ fn render_test_pattern(w: u32, h: u32, variant: TestPatternVariant) -> FrameBuff
             }
             f
         }
+    }
+}
+
+/// What a frame of noise looks like.
+struct NoiseLook {
+    colored: bool,
+    dark: [u8; 4],
+    light: [u8; 4],
+    grain: u32,
+    seed: u32,
+    frame: u32,
+}
+
+/// A random 32-bit number for one lane (a channel) of one cell of one frame, made by mixing the
+/// numbers with integer arithmetic only, so it is the same on every machine.
+fn noise_hash(cx: u32, cy: u32, frame: u32, seed: u32, lane: u32) -> u32 {
+    let mut h = seed.wrapping_mul(0x9E37_79B1)
+        ^ cx.wrapping_mul(0x85EB_CA6B)
+        ^ cy.wrapping_mul(0xC2B2_AE35)
+        ^ frame.wrapping_mul(0x27D4_EB2F)
+        ^ lane.wrapping_mul(0x1656_67B1);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    h = h.wrapping_mul(0x297A_2D39);
+    h ^ (h >> 15)
+}
+
+/// The noise of `look` at `w` by `h` pixels. `scale` is the size of the picture over the size of
+/// the generator: cells are counted in the generator's own pixels, so a small preview shows the
+/// same cells as the full picture.
+fn render_noise(w: u32, h: u32, scale: f32, look: &NoiseLook) -> FrameBuffer {
+    let mut rgba = vec![0u8; (w * h * 4) as usize];
+    let to_source = 1.0 / scale.max(1e-3);
+    // The cell of each column, worked out once
+    let columns: Vec<u32> = (0..w)
+        .map(|x| ((x as f32 + 0.5) * to_source) as u32 / look.grain)
+        .collect();
+    for y in 0..h {
+        let cy = ((y as f32 + 0.5) * to_source) as u32 / look.grain;
+        for (x, cx) in columns.iter().enumerate() {
+            let at = (y as usize * w as usize + x) * 4;
+            let px = &mut rgba[at..at + 4];
+            if look.colored {
+                for (lane, c) in px.iter_mut().take(3).enumerate() {
+                    *c = (noise_hash(*cx, cy, look.frame, look.seed, lane as u32) >> 24) as u8;
+                }
+                px[3] = 255;
+            } else {
+                let t = (noise_hash(*cx, cy, look.frame, look.seed, 0) >> 24) as f32 / 255.0;
+                for ((out, d), l) in px.iter_mut().zip(look.dark).zip(look.light) {
+                    let (d, l) = (f32::from(d), f32::from(l));
+                    *out = (d + (l - d) * t + 0.5).floor().clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+    }
+    FrameBuffer {
+        width: w,
+        height: h,
+        rgba,
     }
 }
 
@@ -734,6 +833,110 @@ mod tests {
         assert_eq!(f.pixel(0, 0), [191, 191, 191, 255]);
         assert_eq!(f.pixel(69, 9), [0, 0, 191, 255]);
         assert_eq!(f.rgba.len(), 70 * 10 * 4);
+    }
+
+    fn noise(colored: bool, grain: u32, seed: u32, animated: bool) -> GeneratorSpec {
+        GeneratorSpec {
+            name: "Ruído".into(),
+            width: 64,
+            height: 48,
+            fps: 25.0,
+            duration: 4.0,
+            kind: GeneratorKind::Noise {
+                colored,
+                dark_rgba: [0, 0, 0, 255],
+                light_rgba: [255, 255, 255, 255],
+                grain,
+                seed,
+                animated,
+            },
+        }
+    }
+
+    #[test]
+    fn noise_is_the_same_every_time_and_a_new_seed_is_a_new_noise() {
+        let a = noise(false, 1, 7, false).render(0.0, 0);
+        assert_eq!(
+            a,
+            noise(false, 1, 7, false).render(2.0, 0),
+            "it stays when not animated"
+        );
+        assert_ne!(a, noise(false, 1, 8, false).render(0.0, 0));
+        assert_eq!((a.width, a.height), (64, 48));
+    }
+
+    #[test]
+    fn grey_noise_spreads_over_the_whole_range_around_the_middle() {
+        let f = noise(false, 1, 3, false).render(0.0, 0);
+        let greys: Vec<u8> = f.rgba.as_chunks::<4>().0.iter().map(|p| p[0]).collect();
+        assert!(f
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p[0] == p[1] && p[1] == p[2] && p[3] == 255));
+        let mean = greys.iter().map(|&g| f64::from(g)).sum::<f64>() / greys.len() as f64;
+        assert!((mean - 127.5).abs() < 8.0, "mean {mean}");
+        assert!(*greys.iter().min().unwrap() < 12 && *greys.iter().max().unwrap() > 243);
+    }
+
+    #[test]
+    fn coloured_noise_is_random_in_each_channel() {
+        let f = noise(true, 1, 3, false).render(0.0, 0);
+        let differs = f
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[0] != p[1] || p[1] != p[2])
+            .count();
+        assert!(
+            differs > f.rgba.len() / 4 * 9 / 10,
+            "{differs} coloured pixels"
+        );
+        assert!(f.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
+    }
+
+    #[test]
+    fn a_grain_makes_blocks_of_one_value() {
+        let f = noise(false, 4, 5, false).render(0.0, 0);
+        for (bx, by) in [(0, 0), (3, 2), (10, 7)] {
+            let first = f.pixel(bx * 4, by * 4);
+            for (dx, dy) in [(1, 0), (3, 3), (0, 2)] {
+                assert_eq!(f.pixel(bx * 4 + dx, by * 4 + dy), first);
+            }
+        }
+        assert_ne!(
+            f.pixel(0, 0),
+            f.pixel(4, 0),
+            "the next block is another value"
+        );
+    }
+
+    #[test]
+    fn animated_noise_changes_at_each_frame_and_not_within_one() {
+        let spec = noise(false, 1, 9, true);
+        assert!(spec.kind.is_time_varying());
+        assert!(!noise(false, 1, 9, false).kind.is_time_varying());
+        let first = spec.render(0.0, 0);
+        assert_eq!(
+            first,
+            spec.render(0.039, 0),
+            "still the first frame at 25 fps"
+        );
+        assert_ne!(first, spec.render(0.041, 0), "the second frame");
+    }
+
+    #[test]
+    fn a_small_preview_shows_the_cells_of_the_full_picture() {
+        let spec = noise(false, 4, 11, false);
+        let full = spec.render(0.0, 0);
+        let half = spec.render(0.0, 32);
+        assert_eq!((half.width, half.height), (32, 24));
+        // The cell of a preview pixel is the cell of the pixels it stands for
+        for (x, y) in [(2, 2), (9, 5), (20, 17)] {
+            assert_eq!(half.pixel(x, y), full.pixel(x * 2, y * 2), "{x},{y}");
+        }
     }
 
     #[test]

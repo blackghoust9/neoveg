@@ -22,6 +22,31 @@ pub const LANGUAGES: [&str; 8] = [
     "pt-BR", "en-US", "de-DE", "es-ES", "fr-FR", "zh-CN", "ja-JP", "ru-RU",
 ];
 
+/// The name of language `tag` in that language, for the language list (a proper name, so it is not
+/// translated). The Japanese and Chinese names need a font with ideographs, which the interface
+/// loads only while one of those two is the language in use: with `ideographs` false they are
+/// given in English instead, so the list never shows empty boxes. An unknown tag is shown as it is.
+pub fn language_name(tag: &str, ideographs: bool) -> String {
+    match (tag, ideographs) {
+        ("pt-BR", _) => "Português (Brasil)".into(),
+        ("en-US", _) => "English (US)".into(),
+        ("de-DE", _) => "Deutsch".into(),
+        ("es-ES", _) => "Español".into(),
+        ("fr-FR", _) => "Français".into(),
+        ("ru-RU", _) => "Русский".into(),
+        ("ja-JP", true) => "日本語".into(),
+        ("zh-CN", true) => "简体中文".into(),
+        ("ja-JP", false) => "Japanese".into(),
+        ("zh-CN", false) => "Chinese (Simplified)".into(),
+        (other, _) => other.to_owned(),
+    }
+}
+
+/// `true` when the interface has a font with ideographs while `language` is in use.
+pub fn language_has_ideographs(language: &str) -> bool {
+    matches!(language, "ja-JP" | "zh-CN")
+}
+
 /// The embedded catalogs. Portuguese is the source text and has none. Japanese and Chinese need a font
 /// with ideographs, which the interface takes from the operating system (`neoveg_ui::fonts`).
 const EMBEDDED: [(&str, &str); 7] = [
@@ -247,6 +272,29 @@ mod tests {
         set_language("zh-CN");
         assert_eq!(tr("Arquivo"), "文件");
         set_language("pt-BR");
+    }
+
+    #[test]
+    fn every_offered_language_has_a_readable_name() {
+        for tag in LANGUAGES {
+            for ideographs in [false, true] {
+                let name = language_name(tag, ideographs);
+                assert!(!name.is_empty() && name != tag, "{tag} has no name");
+                if !ideographs {
+                    // Without the font only letters the built-in fonts have are shown
+                    assert!(
+                        name.chars().all(|c| c.is_ascii()
+                            || "çãéêíóôúáàüöäßñèëïîÿ".contains(c)
+                            || ('А'..='я').contains(&c)),
+                        "{tag}: {name}"
+                    );
+                }
+            }
+        }
+        assert_eq!(language_name("ja-JP", true), "日本語");
+        assert_eq!(language_name("ja-JP", false), "Japanese");
+        assert_eq!(language_name("xx-XX", true), "xx-XX");
+        assert!(language_has_ideographs("zh-CN") && !language_has_ideographs("pt-BR"));
     }
 
     #[test]
