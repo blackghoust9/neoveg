@@ -16,15 +16,15 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
 | Editar | 100 | 100 | 25 | 65 | 10 | 0 | 58 % |
-| Inserir | 32 | 30 | 17 | 11 | 2 | 2 | 75 % |
+| Inserir | 32 | 30 | 18 | 11 | 1 | 2 | 78 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
 | Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
 | Exibir | 75 | 70 | 14 | 41 | 15 | 5 | 49 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
-| Menus de contexto e auxiliares | 501 | 438 | 24 | 249 | 165 | 63 | 34 % |
-| **Total** | **872** | **762** | | | | | **41 %** |
+| Menus de contexto e auxiliares | 501 | 438 | 71 | 202 | 165 | 63 | 39 % |
+| **Total** | **872** | **762** | | | | | **44 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 39 feitas, 37 parciais, 35 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 41 feitas, 36 parciais, 34 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -59,7 +59,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Menu de contexto da faixa (pasta, duplicar, apagar, cores de esmaecimento) | Menus de contexto e auxiliares | 35 | parcial |
 | P2 | Menu de arrastar com o botão direito e do explorador | Menus de contexto e auxiliares | 16 | previsto |
 | P2 | Menus do Trimmer (trilhas de áudio e vídeo, subclipe, captura de quadro) | Menus de contexto e auxiliares | 30 | parcial |
-| P2 | Menus de envelope e de ponto-chave (forma, definir valor, copiar e colar) | Menus de contexto e auxiliares | 47 | parcial |
 | P2 | Menus do console: pan surround, modelos de pan, envios antes ou depois do fader, entradas | Menus de contexto e auxiliares | 33 | previsto |
 | P2 | Interruptores da barra de edição (agrupar, travar envelopes, crossfade, ferramentas) | Menus de contexto e auxiliares | 11 | parcial |
 | P2 | Colunas e vistas da lista de mídia e do explorador (nome, tipo, taxas, tamanho, data, árvore, resumo) | Menus de contexto e auxiliares | 42 | previsto |
@@ -120,7 +119,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Função | Comandos | Estado | No Neoveg | Prio. |
 | :--- | ---: | :--- | :--- | :--- |
 | Envelopes de áudio: volume e pan | 2 | feito | `track.volume_envelope`, `track.pan_envelope` | - |
-| Envelope de mudo de áudio | 1 | previsto | volume e pan feitos; mudo não | P3 |
+| Envelope de mudo de áudio | 1 | feito | `track.mute_envelope` (`Ctrl+Alt+Shift+M`, degrau `Hold` avaliado no mixer) | - |
 | Auto-ducking: controlador e ouvinte | 3 | feito | auto-ducking por faixa (`neoveg_audio::duck`) | - |
 | Envelopes de faixa de vídeo: mudo, nível de composição e esmaecer para cor | 3 | feito | Faixas > Envelopes de vídeo e `V` na faixa de vídeo; vale na prévia e na renderização | - |
 | Envelope do progresso de uma transição de vídeo | 1 | parcial | o progresso segue a curva do fade (cinco curvas); falta o envelope livre com pontos | P2 |
@@ -216,12 +215,12 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Qualidade e zoom da visualização | 31 | parcial | qualidade feita; zoom em passos fixos não | P3 |
 | Opções dos escopos: histograma, vetorscópio, forma de onda, parada, ângulo | 25 | parcial | escopos feitos; opções de canal e ângulo não | P3 |
 | Opções do medidor de loudness e do pico verdadeiro | 35 | parcial | metas, LUFS e pico verdadeiro feitos; escalas e retenção não | P3 |
-| Menus de envelope e de ponto-chave (forma, definir valor, copiar e colar) | 47 | parcial | formas de ponto feitas; copiar e colar quadros-chave não | P2 |
+| Menus de envelope e de ponto-chave (forma, definir valor, copiar e colar) | 47 | feito | formas (incluindo degrau `Hold`), definir valor, inverter, afinar, copiar/colar pontos, modos `Off`/`Read`/`Touch`/`Latch` e quadros-chave de FX | - |
 | Entradas, saídas, canais e sintetizadores MIDI | 56 | sem plano | MIDI fora do escopo | - |
 | Menus do console: pan surround, modelos de pan, envios antes ou depois do fader, entradas | 33 | previsto | roteiro (console e barramentos) | P2 |
 | Menus de marcador, região e seleção (ir para, renomear, apagar) | 11 | feito | menu de marcadores e regiões da régua | - |
 | Modelos de script | 3 | previsto | depende do scripting | P3 |
-| Interruptores da barra de edição (agrupar, travar envelopes, crossfade, ferramentas) | 11 | parcial | agrupar, crossfade, snap, ripple, slip, slide e embaralhar; faltam travar envelopes, esticar e dividir-aparar | P2 |
+| Interruptores da barra de edição (agrupar, travar envelopes, crossfade, ferramentas) | 11 | parcial | agrupar, travar envelopes (`options.lock_envelopes`), crossfade, snap, ripple, slip, slide e embaralhar; faltam esticar e dividir-aparar | P2 |
 | Menu da cadeia de efeitos: bypass, mover e remover efeito | 9 | feito | botões da aba de efeitos (bypass, subir, descer, remover) | - |
 | Colunas e vistas da lista de mídia e do explorador (nome, tipo, taxas, tamanho, data, árvore, resumo) | 42 | previsto | roteiro: janela de mídia com lista, miniaturas, filtros e busca | P2 |
 | Ações da mídia do projeto: proxy, trocar arquivo, remover, cenas, tempo, binário, propriedades do formato | 31 | previsto | roteiro: pastas de mídia, subclipes e proxies | P2 |

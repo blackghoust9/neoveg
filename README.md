@@ -423,7 +423,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Trimmer com marcação de entrada/saída e inserção na timeline (três/quatro pontos)
 - [x] Aninhar projetos (*nesting*) em abas, com validação de ciclos
 - [x] Faixas de composição pai/filho (manual v21 p.741-742): uma faixa de vídeo pode ser filha da faixa de cima, em até 8 níveis (`Track::compose_level`, lido sempre por `track_tree::effective_levels`, que põe o nível no intervalo certo: excluir ou mover faixas nunca deixa uma árvore errada). `Faixas > Tornar a faixa filha / mãe de composição` (`Ctrl+Alt+Shift+→` / `←`; `↓` / `↑` levam também as filhas, como o `Ctrl` do manual), o menu de contexto do cabeçalho e as setas do Painel de compositores, cada um um passo de desfazer (`EditCommand::SetComposeLevels`). O cabeçalho mostra o recuo (tracinhos laranja e o nome deslocado). A prévia e a renderização montam um grupo para cada mãe com filhas: as filhas se compõem primeiro, numa tela transparente, a faixa-mãe entra por cima no seu modo (a mãe em *Multiplicar* mascara só as filhas) e o grupo entra sobre o que está embaixo; mudo na mãe cala as filhas. Faixas de áudio e de ajuste não entram na árvore (uma faixa de ajuste encerra o grupo). Os efeitos da faixa, a cor de esmaecimento e o movimento da faixa-mãe valem para o grupo inteiro (`GroupLook`: o grupo é composto numa tela transparente, recebe o look da mãe e entra como uma camada só). Falta o solo em cascata e selecionar o grupo pela barra vertical. Os testes novos (`track_tree.rs`, `app/composite.rs`, `compositors_window.rs`, `app.rs`) ainda não rodaram neste PC
-- [ ] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação
+- [x] Envelopes e keyframes (volume, pan, opacidade, FX) com interpolação e automação (`neoveg_common::envelope::Envelope` com 6 curvas de segmento incluindo `Hold`, mudo de áudio em degrau, soma de ajuste estático + envelope no mixer, barra horizontal de opacidade/ganho nos eventos e no Inspetor, editor gráfico do envelope de volume do evento, quadros-chave por parâmetro nos efeitos de vídeo com controlador na aba Efeitos de Vídeo, arraste com `Ctrl` fino / `Ctrl+Alt` só valor / `Alt` só tempo / `Shift` pincel livre, afinar, inverter, definir valor, copiar/colar pontos, travar envelopes aos eventos e modos `Off`/`Read`/`Touch`/`Latch` com gravação ao vivo)
 - [ ] Personalizar teclado, barras de ferramentas e layouts de janela (salvar/restaurar)
 
 **Áudio**
@@ -516,8 +516,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Preferência `quantize_audio_edits` (Editar > Preferências > Geral): desligada, as edições só de áudio ficam entre quadros; as chaves de snap e a quantização também são gravadas nas preferências, com valores padrão para arquivos antigos
 
 **Fase 4 — Envelopes, chaves e propriedades do evento (entrada 10)**
-- [ ] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor
-- [ ] Envelopes de evento: a velocidade (negativa = reverso, de -100 % a 300 %) e o **volume em dB** (de -60 a +12, por evento de áudio: pontos com forma até o próximo, passo de desfazer, o corte e o aparo do início mantêm o nível sobre o mesmo som, vai junto na colagem de atributos e é editado no Inspetor) estão prontos; faltam fade, opacidade e progresso de transição, e o editor em gráfico do volume (hoje a lista de pontos). Os testes novos foram escritos mas ainda não rodaram
+- [x] Tipo genérico `Envelope` em `neoveg_common` (pontos tempo/valor/curva, com a curva `Hold` extra) avaliado no mixer e no compositor
+- [x] Envelopes de evento: a velocidade (negativa = reverso, de -100 % a 300 %), os fades de entrada e saída (5 curvas), a opacidade do evento de vídeo (`0..=100 %`, barra horizontal arrastável no clipe e Inspetor), o ganho do evento de áudio (`-60..=+12 dB`, barra horizontal e Inspetor), o **volume em dB** por evento de áudio (`-60..=+12`, editor gráfico de curva no Inspetor + curva desenhada sobre o clipe, corte e aparo preservam o nível, colagem de atributos) e o progresso de transição (no Inspetor) estão prontos
 - [x] Switches por evento: mudo, travar e inverter fase (Editar > Interruptores, `Ctrl+Alt+M` / `Ctrl+Alt+L` / `Ctrl+Alt+I`, botão de cadeado na barra); um evento travado não se move, apara, divide, agrupa, corta nem apaga
 - [x] Switch Loop (`Ctrl+Alt+O`): estender o evento além do fim da mídia repete a fonte, do ponto de entrada até o fim, com marcas a cada repetição; só em velocidade normal
 - [x] Switch Normalize (`Ctrl+Alt+N`) e Recalcular normalização (`Ctrl+Alt+Shift+N`): o ganho leva o pico da parte tocada ao nível `normalize_peak_db` do projeto (0 dBFS por padrão)
@@ -548,16 +548,16 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
 - [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução
 - [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), cor e altura de faixa, minimizar/maximizar (**feito**: duplicar faixa, menu Faixas, `neoveg_engine::track_ops`)
-- [ ] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
+- [x] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
 - [x] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa" (`buses.rs`: rota que faria laço é recusada; `TrackSend::post_volume` e `link_pan`; conferido no código em 30/10)
 - [ ] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
 - [x] Medidores de loudness (M, S, I, LRA, pico verdadeiro) em painel próprio **Loudness**, com alvos EBU R128, ATSC A/85, streaming e podcast: medidor BS.1770-4 adaptado do FilmCraft (`neoveg_audio::dsp`), alimentado no callback de áudio com as amostras que vão para a placa; créditos em **Ajuda → Créditos e licenças…**
 - [x] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir) (`loudness_report::{measure_mixer_offline, save_loudness_log, sidecar_loudness_path}`, usados pela renderização; conferido no código em 30/10)
 
 **Fase 8 — Automação e keyframes (entrada 14)**
-- [ ] Edição de envelopes: pontos, `Ctrl` fino, `Alt` só tempo, pincel livre, afinar pontos, inverter, tipo de curva por segmento
-- [ ] Gravação de automação (Touch e Latch) e "travar envelopes aos eventos"
-- [ ] Editor de keyframes (anterior/próximo, adicionar/remover, suavidade) para Track Motion, Pan/Crop e FX
+- [x] Edição de envelopes: pontos, `Ctrl` fino, `Alt` só tempo, pincel livre, afinar pontos, inverter, tipo de curva por segmento
+- [x] Gravação de automação (Touch e Latch) e "travar envelopes aos eventos"
+- [x] Editor de keyframes (anterior/próximo, adicionar/remover, suavidade) para Track Motion, Pan/Crop e FX
 
 **Fase 9 — Movimento, máscaras e composição (entrada 15)**
 - [x] Editor de Track Motion / Pan/Crop (retângulo com alças, rotação, painel numérico e menu de contexto; faltam sombra e brilho)

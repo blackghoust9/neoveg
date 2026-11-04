@@ -339,7 +339,10 @@ pub fn set_param_keyframe_shape(
         let Some(effect) = list.get_mut(index) else {
             return false;
         };
-        let Some(pt) = effect.keyframes.get_mut(param).and_then(|pts| pts.get_mut(key_index))
+        let Some(pt) = effect
+            .keyframes
+            .get_mut(param)
+            .and_then(|pts| pts.get_mut(key_index))
         else {
             return false;
         };
@@ -629,7 +632,11 @@ mod tests {
         let (mut tl, mut h, track_id, event_id) = setup();
         let target = VideoFxTarget::Event { track_id, event_id };
         exec!(tl, h, add_effect(&tl, target, "gaussian_blur"));
-        exec!(tl, h, toggle_param_animation(&tl, target, 0, "h_range", 0.01));
+        exec!(
+            tl,
+            h,
+            toggle_param_animation(&tl, target, 0, "h_range", 0.01)
+        );
         assert!(chain(&tl, target).unwrap()[0].param_is_animated("h_range"));
 
         exec!(

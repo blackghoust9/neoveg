@@ -170,6 +170,10 @@ impl AutomationMode {
         matches!(self, AutomationMode::Touch | AutomationMode::Latch)
     }
 
+    pub fn records(self) -> bool {
+        self.is_writing()
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             AutomationMode::Off => tr("Automação desligada"),
@@ -302,9 +306,9 @@ fn thin_slice(sub: &[EnvelopePoint], tol: f32) -> Vec<EnvelopePoint> {
     let mut max_err = 0.0f32;
     let mut split_idx = 1usize;
 
-    for i in 1..(sub.len() - 1) {
-        let approx = eval_points(&chord, sub[i].time, first.value);
-        let err = (sub[i].value - approx).abs();
+    for (i, pt) in sub.iter().enumerate().take(sub.len() - 1).skip(1) {
+        let approx = eval_points(&chord, pt.time, first.value);
+        let err = (pt.value - approx).abs();
         if err > max_err {
             max_err = err;
             split_idx = i;

@@ -352,7 +352,8 @@ impl AudioPlayer {
         pan: Option<f32>,
         mute: Option<bool>,
     ) -> bool {
-        self.live.set_track_automation(track, vol_db, pan, mute)
+        self.live
+            .set_track_automation(track, vol_db, pan, mute.map(|m| if m { 1.0 } else { 0.0 }))
     }
 
     /// Updates the fader, pan and phase of audio bus `bus` (its place in the project's list) live.

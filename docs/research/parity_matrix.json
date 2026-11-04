@@ -271,8 +271,8 @@
     {
       "id": "ins.env_audio_mudo",
       "area": "Inserir",
-      "estado": "previsto",
-      "prioridade": "P3",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 1
     },
     {
@@ -768,8 +768,8 @@
     {
       "id": "aux.envelope_menu",
       "area": "Menus de contexto e auxiliares",
-      "estado": "parcial",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 47
     },
     {

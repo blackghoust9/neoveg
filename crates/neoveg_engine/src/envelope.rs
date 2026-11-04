@@ -4,9 +4,7 @@
 //! Envelopes are pure functions in the engine; [`BlockMixer`](../../neoveg_audio/fxmixer/index.html)
 //! evaluates them per audio block/sample with zero allocations inside the real-time callback.
 
-use neoveg_common::envelope::{
-    eval_points_opt, flip_points, sort_points as sort_pts, thin_points,
-};
+use neoveg_common::envelope::{eval_points_opt, flip_points, sort_points as sort_pts, thin_points};
 pub use neoveg_common::envelope::{AutomationMode, Envelope, EnvelopePoint, EnvelopeShape};
 use neoveg_common::i18n::tr;
 use serde::{Deserialize, Serialize};
@@ -63,7 +61,10 @@ impl AutomationTarget {
 
     /// `true` for on/off mute targets whose keyframes step without fading (`Hold`).
     pub fn is_mute(&self) -> bool {
-        matches!(self, AutomationTarget::AudioMute | AutomationTarget::VideoMute)
+        matches!(
+            self,
+            AutomationTarget::AudioMute | AutomationTarget::VideoMute
+        )
     }
 
     /// Human-readable short name in pt-BR.
@@ -809,9 +810,11 @@ pub fn with_locked_envelopes(timeline: &Timeline, command: EditCommand) -> EditC
                     key.time = (key.time + delta).max(0.0);
                 }
             }
-            after
-                .keys
-                .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+            after.keys.sort_by(|a, b| {
+                a.time
+                    .partial_cmp(&b.time)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             if after != track.motion {
                 extra.push(EditCommand::SetTrackMotion {
                     track_id,
@@ -1357,7 +1360,10 @@ mod tests {
         assert!((tl.track(aid).unwrap().envelopes[0].value_at(3.5, 0.0) - 6.0).abs() < 0.05);
 
         // Copy & paste points at 6.0 s
-        let clip = copy_points(&tl.track(aid).unwrap().envelopes[0], Some(TimeRange::new(1.0, 4.0)));
+        let clip = copy_points(
+            &tl.track(aid).unwrap().envelopes[0],
+            Some(TimeRange::new(1.0, 4.0)),
+        );
         assert!(!clip.is_empty());
         let paste = paste_points(
             &tl,
@@ -1369,7 +1375,14 @@ mod tests {
         )
         .unwrap();
         assert!(h.execute(&mut tl, paste));
-        assert!(tl.track(aid).unwrap().envelopes[0].points.last().unwrap().time >= 8.9);
+        assert!(
+            tl.track(aid).unwrap().envelopes[0]
+                .points
+                .last()
+                .unwrap()
+                .time
+                >= 8.9
+        );
 
         // Brush stroke replaces interior span
         let brush = brush_envelope(
@@ -1393,7 +1406,7 @@ mod tests {
         let mut video = tl.new_track(TrackKind::Video);
         let vid = video.id;
         let eid = tl.alloc_id();
-        video.events.push( crate::timeline::TrackEvent {
+        video.events.push(crate::timeline::TrackEvent {
             id: eid,
             start: 2.0,
             duration: 3.0,

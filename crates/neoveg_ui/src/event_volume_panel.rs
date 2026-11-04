@@ -107,7 +107,8 @@ fn draw_curve_canvas(
         let norm = ((v - spec.min) / span_v).clamp(0.0, 1.0);
         plot.top() + (1.0 - norm) * plot.height()
     };
-    let from_x = |x: f32| f64::from(((x - plot.left()) / plot.width().max(1.0)).clamp(0.0, 1.0)) * span_t;
+    let from_x =
+        |x: f32| f64::from(((x - plot.left()) / plot.width().max(1.0)).clamp(0.0, 1.0)) * span_t;
     let from_y = |y: f32| {
         let norm = (1.0 - (y - plot.top()) / plot.height().max(1.0)).clamp(0.0, 1.0);
         spec.min + norm * span_v
@@ -121,16 +122,22 @@ fn draw_curve_canvas(
     };
     let ref_y = to_y(ref_val);
     painter.line_segment(
-        [egui::pos2(plot.left(), ref_y), egui::pos2(plot.right(), ref_y)],
-        egui::Stroke::new(1.0, egui::Color32::from_gray(65)),
+        [
+            egui::pos2(plot.left(), ref_y),
+            egui::pos2(plot.right(), ref_y),
+        ],
+        egui::Stroke::new(1.0_f32, egui::Color32::from_gray(65)),
     );
 
     // Playhead line inside the event
     if (0.0..=span_t).contains(&cursor) {
         let cx = to_x(cursor);
         painter.line_segment(
-            [egui::pos2(cx, rect.top() + 1.0), egui::pos2(cx, rect.bottom() - 1.0)],
-            egui::Stroke::new(1.0, egui::Color32::from_rgb(0xF3, 0x9C, 0x12)),
+            [
+                egui::pos2(cx, rect.top() + 1.0),
+                egui::pos2(cx, rect.bottom() - 1.0),
+            ],
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(0xF3, 0x9C, 0x12)),
         );
     }
 
@@ -300,7 +307,7 @@ fn draw_curve_canvas(
         }
     }
     if poly.len() >= 2 {
-        painter.add(egui::Shape::line(poly, egui::Stroke::new(1.6, color)));
+        painter.add(egui::Shape::line(poly, egui::Stroke::new(1.6_f32, color)));
     }
 
     // Paint keyframe handles
@@ -319,7 +326,7 @@ fn draw_curve_canvas(
         painter.rect_stroke(
             hrect,
             0.0,
-            egui::Stroke::new(1.0, egui::Color32::from_black_alpha(200)),
+            egui::Stroke::new(1.0_f32, egui::Color32::from_black_alpha(200)),
         );
     }
 

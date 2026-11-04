@@ -130,6 +130,8 @@ pub enum VfxScope {
     Project,
 }
 
+type KeyDragState = (usize, String, usize, f64, f32, (f32, f32));
+
 #[derive(Debug)]
 pub struct VfxPanelState {
     /// The chain the user chose; it falls back to one that exists (see [`VfxScopes::resolve`]).
@@ -139,7 +141,7 @@ pub struct VfxPanelState {
     local_cursor: f64,
     selected_anim: Option<(usize, String)>,
     selected_key: usize,
-    key_drag: Option<(usize, String, usize, f64, f32, (f32, f32))>,
+    key_drag: Option<KeyDragState>,
     draft: Option<Draft>,
     /// The editor of the colour curves.
     curves: CurveState,
@@ -233,6 +235,7 @@ impl VfxDraft {
 
 /// The worker's chain for `target` at `0.0` s: the stored chain with the dragged value of `draft`
 /// put in when the draft belongs to this chain.
+#[cfg(test)]
 pub fn effects_for(
     stored: &[TrackEffect],
     target: VideoFxTarget,
@@ -924,7 +927,7 @@ fn keyframe_controller_ui(
                 egui::pos2(rect.left() + pad, mid_y),
                 egui::pos2(rect.right() - pad, mid_y),
             ],
-            egui::Stroke::new(1.0, egui::Color32::from_gray(70)),
+            egui::Stroke::new(1.0_f32, egui::Color32::from_gray(70)),
         );
 
         // Playhead line
@@ -934,13 +937,12 @@ fn keyframe_controller_ui(
                 egui::pos2(cx, rect.top() + 2.0),
                 egui::pos2(cx, rect.bottom() - 2.0),
             ],
-            egui::Stroke::new(1.5, egui::Color32::from_rgb(0xF3, 0x9C, 0x12)),
+            egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(0xF3, 0x9C, 0x12)),
         );
 
         let hit_key = |pos: egui::Pos2| -> Option<usize> {
             points.iter().enumerate().rev().find_map(|(ki, pt)| {
-                ((pos.x - to_x(pt.time)).abs() <= 7.0 && (pos.y - mid_y).abs() <= 9.0)
-                    .then_some(ki)
+                ((pos.x - to_x(pt.time)).abs() <= 7.0 && (pos.y - mid_y).abs() <= 9.0).then_some(ki)
             })
         };
 
@@ -991,7 +993,7 @@ fn keyframe_controller_ui(
             }
         }
         if resp.dragged_by(egui::PointerButton::Primary) {
-            if let (Some((di, dparam, ki, ref mut dt, _, _)), Some(pos)) =
+            if let (Some((di, dparam, _ki, ref mut dt, _, _)), Some(pos)) =
                 (&mut panel.key_drag, resp.interact_pointer_pos())
             {
                 if *di == index && dparam == active_spec.id {
@@ -1038,7 +1040,7 @@ fn keyframe_controller_ui(
             painter.add(egui::Shape::convex_polygon(
                 diamond,
                 fill,
-                egui::Stroke::new(1.0, egui::Color32::from_black_alpha(200)),
+                egui::Stroke::new(1.0_f32, egui::Color32::from_black_alpha(200)),
             ));
         }
     });

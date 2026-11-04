@@ -6,7 +6,7 @@ tags: [neoveg, manual, atalhos]
 Os atalhos são comandos; qualquer um pode ser reatribuído em **Editar → Personalizar teclado…** (guardado em `preferences.json`). Resumo do uso diário em [[guia_de_inicio]].
 
 <!-- auto:begin -->
-Gerado de `commands.rs` e `keymap.rs` (121 comandos, 118 com atalho padrão).
+Gerado de `commands.rs` e `keymap.rs` (148 comandos, 145 com atalho padrão).
 Itens marcados como *planejado* já têm atalho reservado, mas a função ainda não existe.
 
 ### Arquivo
@@ -19,8 +19,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Salvar versão (incremental) | `Ctrl+Alt+S` | `file.save_incremental` | implementado |
 | Novo projeto (em uma nova aba) | `Ctrl+N` | `file.new` | implementado |
 | Criar sub-projeto a partir da seleção | `Ctrl+Shift+N` | `file.create_subproject` | implementado |
-| Novo projeto vazio (sem diálogo) | — | `file.new_quick` | *planejado* |
-| Fechar projeto | `Ctrl+F4` | `file.close` | *planejado* |
+| Novo projeto vazio (sem diálogo) | `Ctrl+Alt+Q` | `file.new_quick` | implementado |
+| Fechar projeto | `Ctrl+F4` | `file.close` | implementado |
 | Propriedades do projeto… | `Alt+Enter` | `file.properties` | implementado |
 
 ### Editar
@@ -31,7 +31,12 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Refazer | `Ctrl+Y` / `Ctrl+Shift+Z` | `edit.redo` | implementado |
 | Excluir seleção | `Delete` | `edit.delete` | implementado |
 | Excluir e fechar o espaço (ripple) | `Ctrl+Delete` | `edit.ripple_delete` | implementado |
+| Fechar espaços na faixa | `Ctrl+Alt+G` | `edit.close_gaps` | implementado |
+| Redimensionar eventos de ajuste ao projeto | — | `edit.resize_adjustment_to_project` | implementado |
 | Dividir no cursor | `S` | `edit.split` | implementado |
+| Divisão inteligente | `Alt+S` | `edit.smart_split` | implementado |
+| Curar eventos divididos | `Ctrl+Alt+H` | `edit.heal` | implementado |
+| Propriedades da mídia… | `Ctrl+Alt+Enter` | `edit.media_properties` | implementado |
 | Recortar | `Ctrl+X` / `Shift+Delete` | `edit.cut` | implementado |
 | Copiar | `Ctrl+C` / `Ctrl+Insert` | `edit.copy` | implementado |
 | Colar | `Ctrl+V` / `Shift+Insert` | `edit.paste` | implementado |
@@ -47,10 +52,13 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Aparo por teclado: esticar a borda um quadro à esquerda | `Shift+Left` | `edit.trim_edge.stretch_left` | implementado |
 | Aparo por teclado: esticar a borda um quadro à direita | `Shift+Right` | `edit.trim_edge.stretch_right` | implementado |
 | Aparo por teclado: mover o corte adjacente um quadro à esquerda | `Ctrl+Shift+Left` | `edit.trim_edge.roll_left` | implementado |
+| Modo de edição expandida | `Ctrl+Alt+5` | `edit.expanded_edit` | implementado |
 | Aparo por teclado: mover o corte adjacente um quadro à direita | `Ctrl+Shift+Right` | `edit.trim_edge.roll_right` | implementado |
 | Selecionar tudo | `Ctrl+A` | `edit.select_all` | implementado |
 | Desfazer seleção | `Ctrl+Shift+A` | `edit.select_none` | implementado |
 | Agrupar eventos | `G` | `edit.group` | implementado |
+| Sincronizar por áudio | `Ctrl+Alt+Y` | `edit.sync_by_audio` | implementado |
+| Corte suave | `Ctrl+Alt+K` | `edit.smooth_cut` | implementado |
 | Desagrupar (dissolver o grupo inteiro) | `Ctrl+U` | `edit.ungroup` | implementado |
 | Remover evento(s) do grupo | `U` | `edit.remove_from_group` | implementado |
 | Selecionar todos os eventos do grupo | `Shift+G` | `edit.select_group` | implementado |
@@ -61,6 +69,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Interruptor: repetir (laço do evento) | `Ctrl+Alt+O` | `edit.switch.loop` | implementado |
 | Interruptor: normalizar | `Ctrl+Alt+N` | `edit.switch.normalize` | implementado |
 | Recalcular a normalização | `Ctrl+Alt+Shift+N` | `edit.normalize.recalculate` | implementado |
+| Interruptor: manter proporção | `Ctrl+Alt+A` | `edit.switch.maintain_aspect` | implementado |
+| Interruptor: reduzir cintilação do entrelaçamento | `Ctrl+Alt+F` | `edit.switch.reduce_interlace_flicker` | implementado |
 | Ferramenta normal | `Ctrl+D` | `edit.tool.normal` | implementado |
 | Próxima ferramenta de edição | `D` | `edit.tool.next` | implementado |
 | Ferramenta de edição anterior | `Shift+D` | `edit.tool.previous` | implementado |
@@ -73,13 +83,16 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | :--- | :--- | :--- | :--- |
 | Inserir faixa de áudio | `Ctrl+Q` | `insert.audio_track` | implementado |
 | Inserir faixa de vídeo | `Ctrl+Shift+Q` | `insert.video_track` | implementado |
+| Inserir faixa de ajuste | `Ctrl+Alt+Shift+Q` | `insert.adjustment_track` | implementado |
 | Inserir evento de ajuste | `Ctrl+Alt+J` | `insert.adjustment_event` | implementado |
 | Inserir barramento de áudio | `Ctrl+Alt+B` | `insert.audio_bus` | implementado |
 | Inserir marcador | `M` | `insert.marker` | implementado |
+| Inserir evento vazio | `Ctrl+Alt+Shift+E` | `insert.empty_event` | implementado |
 | Inserir tempo… | `Ctrl+Alt+T` | `insert.time` | implementado |
 | Inserir região | `R` | `insert.region` | implementado |
-| Inserir marcador de comando… | `C` | `insert.command` | *planejado* |
-| Renderizar para nova faixa | `Ctrl+M` | `tools.render_to_new_track` | *planejado* |
+| Inserir marcador de comando… | `C` | `insert.command` | implementado |
+| Renderizar para nova faixa | `Ctrl+M` | `tools.render_to_new_track` | implementado |
+| Renderizar e substituir | `Ctrl+Alt+R` | `tools.render_and_replace` | implementado |
 
 ### Cursor e seleção
 
@@ -116,8 +129,8 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Ação | Atalho | Id | Estado |
 | :--- | :--- | :--- | :--- |
 | Reproduzir / pausar | `Space` | `transport.play_toggle` | implementado |
-| Parar | `Escape` | `transport.stop` | *planejado* |
-| Reproduzir do início | `Shift+Space` | `transport.play_from_start` | *planejado* |
+| Parar | `Escape` | `transport.stop` | implementado |
+| Reproduzir do início | `Shift+Space` | `transport.play_from_start` | implementado |
 | Reprodução em laço | `Q` | `transport.loop` | implementado |
 | Voltar (J; de novo acelera) | `J` | `transport.shuttle_reverse` | implementado |
 | Pausar (K) | `K` | `transport.shuttle_pause` | implementado |
@@ -134,6 +147,7 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Alinhar a marcadores | `Shift+F8` | `options.snap_markers` | implementado |
 | Alinhar a todos os eventos | `Ctrl+Shift+F8` | `options.snap_all_events` | implementado |
 | Quantizar para quadros | `Alt+F8` | `options.quantize` | implementado |
+| Travar envelopes aos eventos | `Ctrl+Alt+Shift+K` | `options.lock_envelopes` | implementado |
 | Ripple automático | `Ctrl+L` | `options.auto_ripple` | implementado |
 | Ripple nas faixas afetadas | `F` | `edit.ripple.affected` | implementado |
 | Ripple nas faixas, marcadores e regiões | `Ctrl+F` | `edit.ripple.markers` | implementado |
@@ -151,7 +165,14 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Solo só nesta faixa | `Shift+X` | `track.solo_exclusive` | implementado |
 | Envelope de volume da faixa | `V` | `track.volume_envelope` | implementado |
 | Envelope de pan da faixa | `P` | `track.pan_envelope` | implementado |
+| Envelope de mudo da faixa | `Ctrl+Alt+Shift+M` | `track.mute_envelope` | implementado |
 | Mostrar/ocultar envelopes | `Ctrl+Shift+E` | `track.toggle_envelopes` | implementado |
+| Duplicar faixa | `Ctrl+Shift+D` | `track.duplicate` | implementado |
+| Travar faixa | `Ctrl+Alt+Shift+L` | `track.lock` | implementado |
+| Tornar a faixa filha de composição | `Ctrl+Alt+Shift+Right` | `track.make_child` | implementado |
+| Tornar a faixa mãe de composição | `Ctrl+Alt+Shift+Left` | `track.make_parent` | implementado |
+| Tornar a faixa e suas filhas filhas de composição | `Ctrl+Alt+Shift+Down` | `track.make_child_group` | implementado |
+| Tornar a faixa e suas filhas mães de composição | `Ctrl+Alt+Shift+Up` | `track.make_parent_group` | implementado |
 
 ### Exibir
 
@@ -162,10 +183,16 @@ Itens marcados como *planejado* já têm atalho reservado, mas a função ainda 
 | Salvar layout (depois, um número de 1 a 9) | `Ctrl+Alt+D` | `view.layout_save` | implementado |
 | Mídia do projeto | `Alt+5` | `view.project_media` | implementado |
 | Trimmer | `Alt+2` | `view.trimmer` | implementado |
+| Monitor de aparo | `Alt+1` | `view.trim_monitor` | implementado |
 | Barramento master | `Alt+3` | `view.master_bus` | implementado |
 | Prévia de vídeo | `Alt+4` | `view.preview` | implementado |
 | Medidores de loudness | `Ctrl+Alt+7` | `view.loudness_meters` | implementado |
 | Scopes de vídeo | `Ctrl+Alt+2` | `view.video_scopes` | implementado |
+| Quadros de borda do evento | `Ctrl+Shift+O` | `view.event_edge_frames` | implementado |
+| Rolar as faixas para cima | `Ctrl+Up` | `view.scroll_tracks_up` | implementado |
+| Rolar as faixas para baixo | `Ctrl+Down` | `view.scroll_tracks_down` | implementado |
+| Rolar as faixas uma página para cima | `PageUp` | `view.scroll_tracks_page_up` | implementado |
+| Rolar as faixas uma página para baixo | `PageDown` | `view.scroll_tracks_page_down` | implementado |
 | Efeitos de áudio | `Ctrl+Alt+9` | `view.audio_effects` | implementado |
 | Efeitos de vídeo | `Ctrl+Alt+8` | `view.video_effects` | implementado |
 | Transições | `Ctrl+Alt+6` | `view.transitions` | implementado |

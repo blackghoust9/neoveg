@@ -2169,8 +2169,16 @@ mod tests {
             mixer.add_frame(i, 0.005 + i as f64 * step);
         }
         mixer.finish(64);
-        assert!((mixer.out().0[0] - 0.2).abs() < 1e-3, "{}", mixer.out().0[0]);
-        assert!((mixer.out().1[0] - 0.2).abs() < 1e-3, "{}", mixer.out().1[0]);
+        assert!(
+            (mixer.out().0[0] - 0.2).abs() < 1e-3,
+            "{}",
+            mixer.out().0[0]
+        );
+        assert!(
+            (mixer.out().1[0] - 0.2).abs() < 1e-3,
+            "{}",
+            mixer.out().1[0]
+        );
 
         // t = 0.025 s (muted by Hold envelope): 0.0 on both L and R
         mixer.begin(64);
@@ -2188,7 +2196,11 @@ mod tests {
             mixer.add_frame(i, 0.025 + i as f64 * step);
         }
         mixer.finish(64);
-        assert!((mixer.out().0[0] - 0.8).abs() < 1e-3, "{}", mixer.out().0[0]);
+        assert!(
+            (mixer.out().0[0] - 0.8).abs() < 1e-3,
+            "{}",
+            mixer.out().0[0]
+        );
 
         // Release Touch override -> returns to muted curve at t = 0.025 s
         assert!(live.set_track_automation(0, None, None, None));
