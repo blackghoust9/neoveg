@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "Impossible de créer le dossier {} : {}",
   "A renderização falhou: {}": "Le rendu a échoué : {}",
   "Eventos substituídos por {}": "Événements remplacés par {}",
-  "Renderizado para nova faixa: {}": "Rendu sur une nouvelle piste : {}"
+  "Renderizado para nova faixa: {}": "Rendu sur une nouvelle piste : {}",
+  "Sincronizar por áudio": "Synchroniser par l'audio",
+  "{} eventos sincronizados por áudio": "{} événements synchronisés par l'audio",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} événements synchronisés par l'audio ({} sans correspondance)"
 }

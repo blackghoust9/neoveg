@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "No se pudo crear la carpeta {}: {}",
   "A renderização falhou: {}": "El renderizado falló: {}",
   "Eventos substituídos por {}": "Eventos reemplazados por {}",
-  "Renderizado para nova faixa: {}": "Renderizado en una pista nueva: {}"
+  "Renderizado para nova faixa: {}": "Renderizado en una pista nueva: {}",
+  "Sincronizar por áudio": "Sincronizar por audio",
+  "{} eventos sincronizados por áudio": "{} eventos sincronizados por audio",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} eventos sincronizados por audio ({} sin coincidencia)"
 }

@@ -633,6 +633,7 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [ ] Captura de tela e câmeras (dispositivos, DVD, HDV) e Hub de mídia
 - [ ] Pastas de mídia (*bins*) e *smart bins* com busca automática dos arquivos gravados ou capturados
 - [ ] Efeitos de terceiros em eventos (cadeia de efeitos com plug-ins externos) e eventos de ajuste
+- [~] Sincronizar por áudio (ideia do *Mesclar clipes* do Premiere Pro CC 2015, p.363, e do multicâmera do VEGAS): `Editar > Sincronizar por áudio` mantém o último evento selecionado e move os outros para onde o som deles coincide com o dele (correlação dos envelopes de volume a 200 Hz nos primeiros 60 s do que cada evento toca, deslocamento de até ±30 s, precisão de poucos milissegundos, interpolação parabólica; `neoveg_audio::sync`). Recusa o que não se parece (correlação abaixo de 0,3) e diz quantos ficaram sem correspondência; um passo de desfazer. O motor foi verificado num harness avulso (3 testes ok); o teste de `app.rs` ainda não rodou neste PC. Falta alternar a visão e criar o evento multicâmera
 - [ ] Edição multicâmera: alternar a visão, sincronizar por áudio e criar evento multicâmera
 - [ ] Projetos aninhados com visão da linha do tempo pai e `Esc` para voltar (hoje o sub-projeto abre em outra aba)
 - [ ] Máscaras de Bézier com animação por ponto, *Smart Mask*, rastreamento de movimento e Z-Depth

@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "Could not create the folder {}: {}",
   "A renderização falhou: {}": "The render failed: {}",
   "Eventos substituídos por {}": "Events replaced by {}",
-  "Renderizado para nova faixa: {}": "Rendered to a new track: {}"
+  "Renderizado para nova faixa: {}": "Rendered to a new track: {}",
+  "Sincronizar por áudio": "Sync by audio",
+  "{} eventos sincronizados por áudio": "{} events synchronized by audio",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} events synchronized by audio ({} without a match)"
 }

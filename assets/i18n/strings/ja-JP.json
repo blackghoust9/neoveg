@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "フォルダー {} を作成できませんでした: {}",
   "A renderização falhou: {}": "レンダリングに失敗しました: {}",
   "Eventos substituídos por {}": "イベントを {} に置き換えました",
-  "Renderizado para nova faixa: {}": "新しいトラックにレンダリングしました: {}"
+  "Renderizado para nova faixa: {}": "新しいトラックにレンダリングしました: {}",
+  "Sincronizar por áudio": "オーディオで同期",
+  "{} eventos sincronizados por áudio": "{} 個のイベントをオーディオで同期しました",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} 個のイベントをオーディオで同期しました（{} 個は一致なし）"
 }

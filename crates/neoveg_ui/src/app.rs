@@ -3428,6 +3428,7 @@ impl AppState {
             }
             Command::EditTrimToSelection => has_range,
             Command::EditGroup => self.selection.len() >= 2,
+            Command::EditSyncByAudio => self.selection.len() >= 2,
             Command::EditSwitchMute
             | Command::EditSwitchLock
             | Command::EditSwitchInvertPhase
@@ -6472,6 +6473,66 @@ impl AppState {
         }
     }
 
+    /// The sound an event plays, from where it starts playing, for the audio sync: interleaved
+    /// stereo, its rate and where the event starts on the timeline.
+    fn sync_window(&self, (track_id, event_id): EventRef) -> Option<(Vec<f32>, u32, f64)> {
+        let event = self
+            .timeline
+            .track(track_id)?
+            .events
+            .iter()
+            .find(|e| e.id == event_id)?;
+        let media = self.media.get(&event.media_id?)?;
+        let rate = media.sample_rate;
+        let first = (event.trim_in.max(0.0) * f64::from(rate)) as usize;
+        let count = (neoveg_audio::sync::WINDOW_SECONDS * f64::from(rate)) as usize + 1;
+        Some((media.stereo.to_vec(first, count), rate, event.start))
+    }
+
+    /// *Sincronizar por áudio*: the last event selected stays where it is and every other selected
+    /// event is moved to where its sound lines up with it; one undo step.
+    fn sync_selection_by_audio(&mut self) {
+        let refs = self.selection.refs();
+        let Some(reference) = self.selection.primary() else {
+            self.status = "Selecione dois ou mais eventos de áudio".into();
+            return;
+        };
+        let Some((ref_samples, ref_rate, ref_start)) = self.sync_window(reference) else {
+            self.status = "O evento de referência não tem áudio carregado".into();
+            return;
+        };
+        let (mut moves, mut failed) = (Vec::new(), 0usize);
+        for other in refs.into_iter().filter(|r| *r != reference) {
+            let found = self.sync_window(other).and_then(|(samples, rate, start)| {
+                neoveg_audio::sync::find_offset(&ref_samples, ref_rate, &samples, rate)
+                    .map(|sync| (start, sync))
+            });
+            match found {
+                Some((old_start, sync)) => moves.push(EditCommand::MoveEvent {
+                    track_id: other.0,
+                    event_id: other.1,
+                    old_start,
+                    new_start: (ref_start + sync.offset).max(0.0),
+                }),
+                None => failed += 1,
+            }
+        }
+        let moved = moves.len();
+        if moved > 0 {
+            self.history
+                .execute(&mut self.timeline, EditCommand::Batch(moves));
+            self.last_frame_key = None;
+        }
+        self.status = match (moved, failed) {
+            (0, _) => "Não foi possível sincronizar: os sons não se parecem".into(),
+            (n, 0) => tr_args("{} eventos sincronizados por áudio", &[&n]),
+            (n, f) => tr_args(
+                "{} eventos sincronizados por áudio ({} sem correspondência)",
+                &[&n, &f],
+            ),
+        };
+    }
+
     /// Keeps the effect at `index` of the chain `target` as a preset called `name`.
     fn save_effect_preset(&mut self, target: VideoFxTarget, index: usize, name: &str) {
         let preset = vfxe::chain(&self.timeline, target)
@@ -7316,6 +7377,7 @@ impl AppState {
             Command::SelectionSetIn => self.set_selection_edge(true),
             Command::SelectionSetOut => self.set_selection_edge(false),
             Command::EditGroup => self.group_selection(),
+            Command::EditSyncByAudio => self.sync_selection_by_audio(),
             Command::EditUngroup => self.ungroup_selection(),
             Command::EditRemoveFromGroup => self.remove_selection_from_groups(),
             Command::EditSelectGroup => self.select_group_members(),
@@ -8589,6 +8651,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.separator();
             for command in [
                 Command::EditGroup,
+                Command::EditSyncByAudio,
                 Command::EditUngroup,
                 Command::EditRemoveFromGroup,
                 Command::EditSelectGroup,
@@ -16717,6 +16780,20 @@ mod tests {
         s.selection.set([(track, event)]);
         assert!(s.command_enabled(Command::RenderToNewTrack));
         assert!(s.command_enabled(Command::RenderAndReplace));
+    }
+
+    #[test]
+    fn syncing_by_audio_needs_two_selected_events_with_sound_and_says_so_otherwise() {
+        let (mut s, track, event) = state_with_clip();
+        s.selection.set([(track, event)]);
+        assert!(!s.command_enabled(Command::EditSyncByAudio));
+        s.selection.set([(track, event), (track, event + 1)]);
+        assert!(s.command_enabled(Command::EditSyncByAudio));
+        // The second event does not exist: nothing is moved and the status says why
+        let before = s.timeline.clone();
+        run(&mut s, Command::EditSyncByAudio);
+        assert_eq!(s.timeline, before);
+        assert!(s.status.contains("Não foi possível") || s.status.contains("referência"));
     }
 
     #[test]

@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "Der Ordner {} konnte nicht erstellt werden: {}",
   "A renderização falhou: {}": "Das Rendern ist fehlgeschlagen: {}",
   "Eventos substituídos por {}": "Ereignisse durch {} ersetzt",
-  "Renderizado para nova faixa: {}": "In neue Spur gerendert: {}"
+  "Renderizado para nova faixa: {}": "In neue Spur gerendert: {}",
+  "Sincronizar por áudio": "Per Audio synchronisieren",
+  "{} eventos sincronizados por áudio": "{} Ereignisse per Audio synchronisiert",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "{} Ereignisse per Audio synchronisiert ({} ohne Übereinstimmung)"
 }

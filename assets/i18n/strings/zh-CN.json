@@ -1493,5 +1493,8 @@
   "Não foi possível criar a pasta {}: {}": "无法创建文件夹 {}：{}",
   "A renderização falhou: {}": "渲染失败：{}",
   "Eventos substituídos por {}": "已用 {} 替换事件",
-  "Renderizado para nova faixa: {}": "已渲染到新轨道：{}"
+  "Renderizado para nova faixa: {}": "已渲染到新轨道：{}",
+  "Sincronizar por áudio": "按音频同步",
+  "{} eventos sincronizados por áudio": "已按音频同步 {} 个事件",
+  "{} eventos sincronizados por áudio ({} sem correspondência)": "已按音频同步 {} 个事件（{} 个无匹配）"
 }
