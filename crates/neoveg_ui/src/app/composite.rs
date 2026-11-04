@@ -773,11 +773,11 @@ mod tests {
             ids.push(track.id);
             tl.tracks.push(track);
         }
-        tl.track_mut(ids[0]).unwrap().composite_mode = CompositeMode::Multiply;
         // Nothing nested yet: three flat tracks, bottom first
         let flat = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
         assert_eq!(flat.nodes.len(), 3);
         assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        tl.track_mut(ids[0]).unwrap().composite_mode = CompositeMode::Multiply;
         tl.track_mut(ids[1]).unwrap().compose_level = 1;
         assert!(
             has_effects(&tl, 1.0, ProjectResample::Disable),

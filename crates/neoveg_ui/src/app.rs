@@ -17010,7 +17010,7 @@ mod tests {
         );
         assert!(!s.status.contains("Ripple aplicado"));
         assert!(
-            (s.timeline.tracks[0].events[1].start - 4.0).abs() < 1e-9,
+            (s.timeline.track(track).unwrap().events[1].start - 4.0).abs() < 1e-9,
             "the gap stays"
         );
     }
@@ -18046,9 +18046,10 @@ mod tests {
         let mut s = AppState::new();
         s.add_track(TrackKind::Video);
         assert!(s.command_enabled(Command::EditSmoothCut));
+        let before = s.timeline.clone();
         run(&mut s, Command::EditSmoothCut);
         assert!(s.status.contains("corte"));
-        assert!(!s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline, before, "nothing changed");
     }
 
     #[test]
