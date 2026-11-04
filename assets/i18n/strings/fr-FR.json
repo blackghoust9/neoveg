@@ -1504,5 +1504,15 @@
   "Corte suave": "Coupe douce",
   "Corte suave aplicado": "Coupe douce appliquée",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Placez le curseur sur une coupe entre deux événements vidéo, ou sélectionnez les deux",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Cette coupe ne peut pas être adoucie : le premier événement n'a plus de média après sa fin, ou la coupe est déjà douce"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Cette coupe ne peut pas être adoucie : le premier événement n'a plus de média après sa fin, ou la coupe est déjà douce",
+  "Monitor de aparo": "Moniteur de découpe",
+  "Saída (último quadro)": "Sortie (dernière image)",
+  "Entrada (primeiro quadro)": "Entrée (première image)",
+  "Usar o corte no cursor": "Utiliser la coupe sous le curseur",
+  "Vão entre os eventos (quadros):": "Écart entre les événements (images) :",
+  "Sobreposição (quadros):": "Chevauchement (images) :",
+  "Move o corte esta quantidade de quadros": "Déplace la coupe de ce nombre d'images",
+  "Rolar o corte": "Rouler la coupe",
+  "Aparar a saída": "Ajuster la sortie",
+  "Aparar a entrada": "Ajuster l'entrée"
 }

@@ -48,6 +48,7 @@ pub mod track_ops;
 pub mod track_tree;
 pub mod transition_progress;
 pub mod transitions;
+pub mod trim_monitor;
 pub mod trimmer;
 pub mod velocity;
 pub mod video_effects;

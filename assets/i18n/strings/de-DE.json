@@ -1504,5 +1504,15 @@
   "Corte suave": "Sanfter Schnitt",
   "Corte suave aplicado": "Sanfter Schnitt angewendet",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Den Cursor auf einen Schnitt zwischen zwei Videoereignissen setzen oder beide auswählen",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Dieser Schnitt lässt sich nicht glätten: Das erste Ereignis hat nach seinem Ende kein Material mehr, oder der Schnitt ist bereits sanft"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Dieser Schnitt lässt sich nicht glätten: Das erste Ereignis hat nach seinem Ende kein Material mehr, oder der Schnitt ist bereits sanft",
+  "Monitor de aparo": "Trimm-Monitor",
+  "Saída (último quadro)": "Ausgang (letztes Bild)",
+  "Entrada (primeiro quadro)": "Eingang (erstes Bild)",
+  "Usar o corte no cursor": "Schnitt am Cursor verwenden",
+  "Vão entre os eventos (quadros):": "Lücke zwischen den Ereignissen (Bilder):",
+  "Sobreposição (quadros):": "Überlappung (Bilder):",
+  "Move o corte esta quantidade de quadros": "Verschiebt den Schnitt um so viele Bilder",
+  "Rolar o corte": "Schnitt rollen",
+  "Aparar a saída": "Ausgang trimmen",
+  "Aparar a entrada": "Eingang trimmen"
 }

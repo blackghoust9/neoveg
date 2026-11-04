@@ -40,6 +40,7 @@ mod templates_window;
 mod theme;
 mod timeline_scroll;
 mod transitions_panel;
+mod trim_monitor_window;
 mod velocity_editor;
 mod video_fx_panel;
 mod waveform_paint;

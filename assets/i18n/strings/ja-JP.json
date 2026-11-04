@@ -1504,5 +1504,15 @@
   "Corte suave": "スムーズカット",
   "Corte suave aplicado": "スムーズカットを適用しました",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "2 つのビデオイベントの間のカットにカーソルを置くか、両方を選択してください",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "このカットは滑らかにできません: 最初のイベントの終了後に残りのメディアがないか、すでに滑らかです"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "このカットは滑らかにできません: 最初のイベントの終了後に残りのメディアがないか、すでに滑らかです",
+  "Monitor de aparo": "トリムモニター",
+  "Saída (último quadro)": "アウト（最後のフレーム）",
+  "Entrada (primeiro quadro)": "イン（最初のフレーム）",
+  "Usar o corte no cursor": "カーソル位置のカットを使う",
+  "Vão entre os eventos (quadros):": "イベント間の隙間（フレーム）:",
+  "Sobreposição (quadros):": "重なり（フレーム）:",
+  "Move o corte esta quantidade de quadros": "カットをこのフレーム数だけ動かします",
+  "Rolar o corte": "カットをロール",
+  "Aparar a saída": "アウトをトリム",
+  "Aparar a entrada": "インをトリム"
 }

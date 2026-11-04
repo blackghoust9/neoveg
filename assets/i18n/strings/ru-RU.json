@@ -1504,5 +1504,15 @@
   "Corte suave": "Плавная склейка",
   "Corte suave aplicado": "Плавная склейка применена",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Поставьте курсор на стык двух видеособытий или выделите оба",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Этот стык нельзя сгладить: у первого события нет материала после конца или стык уже плавный"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "Этот стык нельзя сгладить: у первого события нет материала после конца или стык уже плавный",
+  "Monitor de aparo": "Монитор подрезки",
+  "Saída (último quadro)": "Выход (последний кадр)",
+  "Entrada (primeiro quadro)": "Вход (первый кадр)",
+  "Usar o corte no cursor": "Взять стык у курсора",
+  "Vão entre os eventos (quadros):": "Промежуток между событиями (кадры):",
+  "Sobreposição (quadros):": "Перекрытие (кадры):",
+  "Move o corte esta quantidade de quadros": "Сдвигает стык на столько кадров",
+  "Rolar o corte": "Сдвиг стыка",
+  "Aparar a saída": "Подрезать выход",
+  "Aparar a entrada": "Подрезать вход"
 }

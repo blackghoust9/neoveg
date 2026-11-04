@@ -1504,5 +1504,15 @@
   "Corte suave": "Corte suave",
   "Corte suave aplicado": "Corte suave aplicado",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Coloca el cursor en un corte entre dos eventos de vídeo, o selecciona los dos",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "No se puede suavizar este corte: el primer evento no tiene material después de su final, o el corte ya es suave"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "No se puede suavizar este corte: el primer evento no tiene material después de su final, o el corte ya es suave",
+  "Monitor de aparo": "Monitor de recorte",
+  "Saída (último quadro)": "Salida (último fotograma)",
+  "Entrada (primeiro quadro)": "Entrada (primer fotograma)",
+  "Usar o corte no cursor": "Usar el corte del cursor",
+  "Vão entre os eventos (quadros):": "Hueco entre los eventos (fotogramas):",
+  "Sobreposição (quadros):": "Solapamiento (fotogramas):",
+  "Move o corte esta quantidade de quadros": "Mueve el corte esta cantidad de fotogramas",
+  "Rolar o corte": "Rodar el corte",
+  "Aparar a saída": "Recortar la salida",
+  "Aparar a entrada": "Recortar la entrada"
 }

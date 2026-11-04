@@ -1504,5 +1504,15 @@
   "Corte suave": "平滑剪切",
   "Corte suave aplicado": "已应用平滑剪切",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "请将光标放在两个视频事件之间的剪切点上，或同时选择两者",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "无法平滑此剪切：第一个事件结尾之后没有剩余素材，或剪切已是平滑的"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "无法平滑此剪切：第一个事件结尾之后没有剩余素材，或剪切已是平滑的",
+  "Monitor de aparo": "修剪监视器",
+  "Saída (último quadro)": "出点（最后一帧）",
+  "Entrada (primeiro quadro)": "入点（第一帧）",
+  "Usar o corte no cursor": "使用光标处的剪切点",
+  "Vão entre os eventos (quadros):": "事件之间的间隙（帧）：",
+  "Sobreposição (quadros):": "重叠（帧）：",
+  "Move o corte esta quantidade de quadros": "将剪切点移动此帧数",
+  "Rolar o corte": "滚动剪切点",
+  "Aparar a saída": "修剪出点",
+  "Aparar a entrada": "修剪入点"
 }

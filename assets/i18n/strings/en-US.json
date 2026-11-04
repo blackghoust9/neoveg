@@ -1504,5 +1504,15 @@
   "Corte suave": "Smooth cut",
   "Corte suave aplicado": "Smooth cut applied",
   "Ponha o cursor num corte entre dois eventos de vídeo, ou selecione os dois": "Put the cursor on a cut between two video events, or select both",
-  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "This cut cannot be smoothed: the first event has no media left after its end, or the cut is smooth already"
+  "Não foi possível suavizar este corte: o primeiro evento não tem mídia sobrando depois do fim, ou o corte já é suave": "This cut cannot be smoothed: the first event has no media left after its end, or the cut is smooth already",
+  "Monitor de aparo": "Trim monitor",
+  "Saída (último quadro)": "Out (last frame)",
+  "Entrada (primeiro quadro)": "In (first frame)",
+  "Usar o corte no cursor": "Use the cut at the cursor",
+  "Vão entre os eventos (quadros):": "Gap between the events (frames):",
+  "Sobreposição (quadros):": "Overlap (frames):",
+  "Move o corte esta quantidade de quadros": "Moves the cut this many frames",
+  "Rolar o corte": "Roll the cut",
+  "Aparar a saída": "Trim the out point",
+  "Aparar a entrada": "Trim the in point"
 }

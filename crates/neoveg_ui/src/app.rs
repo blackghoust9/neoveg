@@ -16,6 +16,7 @@ pub(crate) mod headless;
 mod render_job;
 mod render_to_track;
 mod tabs;
+mod trim_monitor;
 
 use crate::theme as ui_theme;
 use eframe::egui::{
@@ -691,6 +692,9 @@ struct AppState {
     context_command: Option<neoveg_engine::command_markers::CommandId>,
     /// The render of the selected events that is running or being loaded (*Renderizar para nova faixa*).
     pending_render: Option<render_to_track::PendingRender>,
+    /// The trim monitor: the window and the thread that draws its pictures.
+    trim_monitor: crate::trim_monitor_window::TrimMonitorState,
+    trim_worker: Option<trim_monitor::TrimWorker>,
     /// The time typed in *Definir o tempo no cursor* (the ruler reads it at the cursor).
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
@@ -1772,6 +1776,8 @@ impl AppState {
             context_mark: None,
             context_command: None,
             pending_render: None,
+            trim_monitor: Default::default(),
+            trim_worker: None,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
             context_header: false,
@@ -7293,6 +7299,7 @@ impl AppState {
                 self.media_tab = 0;
                 self.window_request = Some(WindowAction::Toggle(Tab::Media));
             }
+            Command::ViewTrimMonitor => self.open_trim_monitor(),
             Command::ViewTrimmer => {
                 self.media_tab = 1;
                 self.window_request = Some(WindowAction::Toggle(Tab::Media));
@@ -8342,6 +8349,7 @@ impl NeovegApp {
         self.run_media_properties_dialog(ctx);
         self.state.run_command_dialog(ctx);
         self.state.poll_render_to_track(ctx);
+        self.state.run_trim_monitor(ctx);
         self.state.run_ruler_start_dialog(ctx);
         self.run_details_window(ctx);
         if let Some(request) = self.state.slideshow.show(ctx, self.state.playhead) {
@@ -8973,6 +8981,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewPreview,
                 Command::ViewProjectMedia,
                 Command::ViewTrimmer,
+                Command::ViewTrimMonitor,
                 Command::ViewAudioEffects,
                 Command::ViewVideoEffects,
                 Command::ViewTransitions,
@@ -16874,6 +16883,44 @@ mod tests {
         run(&mut s, Command::EditSmoothCut);
         assert!(s.status.contains("corte"));
         assert!(!s.history.undo(&mut s.timeline));
+    }
+
+    #[test]
+    fn the_trim_monitor_opens_on_a_cut_and_moves_it_with_the_buttons() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        let track = s.timeline.tracks[0].id;
+        for (id, start, trim_in) in [(1u64, 0.0, 0.0), (2, 4.0, 10.0)] {
+            s.timeline.tracks[0].events.push(TrackEvent {
+                id,
+                start,
+                duration: 4.0,
+                trim_in,
+                media_id: Some(7),
+                ..Default::default()
+            });
+        }
+        // Not on a cut: the window opens empty
+        s.playhead = 1.0;
+        run(&mut s, Command::ViewTrimMonitor);
+        assert!(s.trim_monitor.open && s.trim_monitor.pair.is_none());
+        // On the cut: it holds the two events, and a nudge rolls the cut one frame
+        s.playhead = 4.0;
+        s.open_trim_monitor();
+        assert_eq!(s.trim_monitor.pair, Some((track, 1, 2)));
+        let fps = s.project.settings.fps;
+        s.nudge_cut(track, 1, 2, 1);
+        let (end, start) = neoveg_engine::trim_monitor::edges(&s.timeline, track, 1, 2).unwrap();
+        assert!((end - (4.0 + 1.0 / fps)).abs() < 1e-9 && (start - end).abs() < 1e-9);
+        assert!(
+            (s.playhead - end).abs() < 1e-9,
+            "the cursor follows the cut"
+        );
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(
+            neoveg_engine::trim_monitor::edges(&s.timeline, track, 1, 2),
+            Some((4.0, 4.0))
+        );
     }
 
     #[test]

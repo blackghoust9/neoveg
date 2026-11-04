@@ -236,6 +236,7 @@ commands! {
     ViewLayoutSave => ("view.layout_save", "Salvar layout (depois, um número de 1 a 9)", View, true),
     ViewProjectMedia => ("view.project_media", "Mídia do projeto", View, true),
     ViewTrimmer => ("view.trimmer", "Trimmer", View, true),
+    ViewTrimMonitor => ("view.trim_monitor", "Monitor de aparo", View, true),
     ViewMasterBus => ("view.master_bus", "Barramento master", View, true),
     ViewPreview => ("view.preview", "Prévia de vídeo", View, true),
     ViewLoudnessMeters => ("view.loudness_meters", "Medidores de loudness", View, true),
