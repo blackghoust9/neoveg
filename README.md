@@ -196,6 +196,7 @@ cargo test --workspace --features neoveg_ui/ffmpeg  # inclui os testes de decodi
 python build_portable.py                            # QA + exe + pastas e arquivos portáteis em dist/ (só Python padrão)
 python build_portable.py build --ffmpeg --targets all  # com vídeo; alvos de outros sistemas exigem o target do Rust instalado
 python build_portable.py qa                         # só fmt + clippy + testes + build; grava coverage/qa/qa_report.json
+python build_portable.py build --jobs 1             # máquina com pouca memória: `cargo -j 1` e um teste por vez (o rustc chegou a cair com STATUS_STACK_BUFFER_OVERRUN sob carga)
 python scripts/test_build_portable.py             # testes do empacotamento (monta um pacote com um executável falso, sem compilar)
 ```
 

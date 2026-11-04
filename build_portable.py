@@ -9,6 +9,7 @@ Neoveg is a pure Rust workspace, so this script only orchestrates `cargo` and pa
     python build_portable.py build --keep-target   # keep target/ afterwards (it is deleted by default)
     python build_portable.py qa              # fmt + clippy + tests + release build, writes the QA report
     python build_portable.py check           # verify the toolchain (and FFmpeg variables with --ffmpeg)
+    python build_portable.py build --jobs 1  # low-memory machines: one compiler job and one test thread
 
 After a successful build it deletes the Cargo `target/` folder of the repository (it reaches 10 GB or more),
 unless `--keep-target` is given; the next build compiles everything again.
@@ -480,23 +481,33 @@ def release_env(triple: str, macos_min: Optional[str] = None) -> Dict[str, str]:
     return {"RUSTFLAGS": (flags + " -C target-feature=+crt-static").strip()}
 
 
+def job_flags(args: argparse.Namespace) -> List[str]:
+    """`-j N` for cargo when `--jobs` is given (a machine short of memory can crash `rustc` under load)."""
+    jobs = getattr(args, "jobs", None)
+    return ["-j", str(jobs)] if jobs else []
+
+
 def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
+    jobs = job_flags(args)
+    # With `--jobs` the tests also run one at a time: the UI tests open windows and are heavy
+    test_threads = ["--", "--test-threads=1"] if jobs else []
     maintain = "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764"
     testing = "ABNT NBR ISO/IEC/IEEE 29119 (Testes) / ISO/IEC 25010 (Confiabilidade)"
     portable = "ABNT NBR ISO/IEC 25010 (Portabilidade) - build nativo pela toolchain unica"
-    test_cmd = ["cargo", "test", "--workspace"]
+    test_cmd = ["cargo", "test", "--workspace", *jobs]
     steps: List[Dict[str, object]] = [
         {"name": "rustfmt", "pillar": "Maintainability", "standard": maintain,
          "cmd": ["cargo", "fmt", "--all", "--", "--check"]},
         {"name": "Clippy (-D warnings)", "pillar": "Maintainability", "standard": maintain,
-         "cmd": ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]},
-        {"name": "Testes do workspace", "pillar": "Reliability", "standard": testing, "cmd": test_cmd},
+         "cmd": ["cargo", "clippy", "--workspace", "--all-targets", *jobs, "--", "-D", "warnings"]},
+        {"name": "Testes do workspace", "pillar": "Reliability", "standard": testing,
+         "cmd": test_cmd + test_threads},
     ]
     if getattr(args, "ffmpeg", False):
         steps.append({"name": "Testes com FFmpeg", "pillar": "Reliability", "standard": testing,
-                      "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"]})
+                      "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"] + test_threads})
     # Same command and RUSTFLAGS as the package build, so packaging reuses this compilation
-    release_cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
+    release_cmd = ["cargo", "build", "--release", "-p", "neoveg_ui", *jobs]
     if getattr(args, "ffmpeg", False):
         release_cmd += ["--features", "ffmpeg"]
     steps.append({"name": "Build release (neoveg_ui)", "pillar": "Portability", "standard": portable,
@@ -560,7 +571,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------------- build
 
 
-def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None) -> Path:
+def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None, jobs: Optional[List[str]] = None) -> Path:
     """Builds the release binary for `rid` and returns its path."""
     info = TARGETS[rid]
     triple = info["triple"]
@@ -570,7 +581,7 @@ def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None) -> Path
         if rid.startswith("osx") and platform.system() != "Darwin":
             hint += "; it also needs the Apple SDK and a macOS linker (build on a Mac or with osxcross)"
         raise RuntimeError(f"Rust target {triple} is not installed: {hint}")
-    cmd = ["cargo", "build", "--release", "-p", "neoveg_ui"]
+    cmd = ["cargo", "build", "--release", "-p", "neoveg_ui", *(jobs or [])]
     env = release_env(triple, macos_min)
     if ffmpeg:
         cmd += ["--features", "ffmpeg"]
@@ -788,7 +799,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     failures: List[str] = []
     for rid in rids:
         try:
-            binary = cargo_build(rid, args.ffmpeg, macos_min[rid])
+            binary = cargo_build(rid, args.ffmpeg, macos_min[rid], job_flags(args))
             if args.ffmpeg:
                 log("WARN", f"{rid}: the standalone executable needs the FFmpeg shared libraries "
                             "on PATH; the portable package already bundles them")
@@ -839,6 +850,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--ffmpeg", action="store_true", help="build with the ffmpeg feature (video decoding)")
+        p.add_argument("--jobs", type=int, default=None, metavar="N",
+                       help="cargo -j N, and one test thread: for machines short of memory (rustc can crash under load)")
 
     build = sub.add_parser("build", help="QA gates, release build, portable folders, archives and the exe")
     common(build)
