@@ -1672,5 +1672,17 @@
   "Marcador Pan/Crop": "Repère Pan/Crop",
   "Marcador Composite": "Repère Composite",
   "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "Les effets au-dessus s'appliquent avant le Pan/Crop de l'événement ; ceux en dessous, après.",
-  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Les effets au-dessus s'appliquent à la couche de la piste ; ceux en dessous, au résultat de la composition."
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Les effets au-dessus s'appliquent à la couche de la piste ; ceux en dessous, au résultat de la composition.",
+  "Máscara": "Masque",
+  "Sem máscara": "Sans masque",
+  "Retângulo": "Rectangle",
+  "Elipse": "Ellipse",
+  "Curva de Bézier": "Courbe de Bézier",
+  "Tirar o ponto": "Retirer le point",
+  "＋ Ponto": "＋ Point",
+  "Acrescenta um ponto entre o último e o primeiro": "Ajoute un point entre le dernier et le premier",
+  "Y": "Y",
+  "Giro": "Rotation",
+  "Suavidade da borda (% da altura)": "Douceur du bord (% de la hauteur)",
+  "Máscara negativa (o efeito age fora da forma)": "Masque négatif (l'effet agit hors de la forme)"
 }

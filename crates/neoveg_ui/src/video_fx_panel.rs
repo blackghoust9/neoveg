@@ -8,6 +8,7 @@
 use eframe::egui::{self, Slider};
 use neoveg_common::effect_preset::{self, EffectPreset};
 use neoveg_common::envelope::{EnvelopePoint, EnvelopeShape};
+use neoveg_common::fx_mask::{FxMask, MaskShape, MAX_POINTS, MIN_POINTS};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_text;
 use neoveg_engine::{TrackEffect, VideoFxTarget};
@@ -39,6 +40,11 @@ pub enum VfxAction {
     SetParams {
         index: usize,
         values: Vec<(String, f32)>,
+    },
+    /// Puts a mask on the effect at `index`, or takes it off.
+    SetMask {
+        index: usize,
+        mask: Option<FxMask>,
     },
     /// Keeps the values of the effect at `index` under `name` (a preset of that effect).
     SavePreset {
@@ -147,6 +153,9 @@ pub struct VfxPanelState {
     curves: CurveState,
     /// The name typed for a new preset.
     preset_name: String,
+    /// A mask being dragged (the effect it belongs to and the mask as it is now): the project
+    /// changes when the drag ends, so one gesture is one undo step.
+    mask_draft: Option<(usize, FxMask)>,
 }
 
 impl Default for VfxPanelState {
@@ -161,6 +170,7 @@ impl Default for VfxPanelState {
             draft: None,
             curves: CurveState::default(),
             preset_name: String::new(),
+            mask_draft: None,
         }
     }
 }
@@ -281,6 +291,7 @@ pub fn effects_for_at(
         out.push(VideoEffect {
             kind: e.kind.clone(),
             params,
+            mask: e.mask.clone(),
         });
     }
     out
@@ -574,6 +585,7 @@ fn effect_ui(
         ui.weak(tr("Sem parâmetros."));
     }
     preset_row(ui, panel, index, spec, presets, actions);
+    mask_ui(ui, panel, index, effect, actions);
     ui.add_enabled_ui(!effect.bypass, |ui| {
         if spec.id == vfx::COLOR_CURVES {
             curves_row(ui, panel, index, effect, actions);
@@ -593,6 +605,162 @@ fn effect_ui(
                 span_duration,
                 actions,
             );
+        }
+    });
+}
+
+/// A percentage box for a fraction of the frame; reports the response so the caller can tell when
+/// the drag ends.
+fn percent_box(ui: &mut egui::Ui, value: &mut f32, label: &str) -> egui::Response {
+    let mut percent = *value * 100.0;
+    let response = ui.add(
+        egui::DragValue::new(&mut percent)
+            .range(0.0..=100.0)
+            .speed(0.25)
+            .suffix(" %")
+            .prefix(format!("{label} ")),
+    );
+    if response.changed() {
+        *value = (percent / 100.0).clamp(0.0, 1.0);
+    }
+    response
+}
+
+/// The mask of an effect: its shape, its place and size, the soft edge and the negative mode; the
+/// points of a Bézier curve. A mask makes the effect act only inside the shape.
+fn mask_ui(
+    ui: &mut egui::Ui,
+    panel: &mut VfxPanelState,
+    index: usize,
+    effect: &TrackEffect,
+    actions: &mut Vec<VfxAction>,
+) {
+    ui.collapsing(tr("Máscara"), |ui| {
+        let draft = panel
+            .mask_draft
+            .as_ref()
+            .filter(|(i, _)| *i == index)
+            .map(|(_, m)| m.clone());
+        let mut mask = draft.clone().or_else(|| effect.mask.clone());
+        let mut commit_now = false;
+        ui.horizontal(|ui| {
+            let shown = mask
+                .as_ref()
+                .map_or(tr("Sem máscara"), |m| tr(m.shape.label()));
+            egui::ComboBox::from_id_salt(("vfx_mask_shape", index))
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(mask.is_none(), tr("Sem máscara"))
+                        .clicked()
+                    {
+                        mask = None;
+                        commit_now = true;
+                    }
+                    for shape in MaskShape::ALL {
+                        let on = mask.as_ref().is_some_and(|m| m.shape == shape);
+                        if ui.selectable_label(on, tr(shape.label())).clicked() {
+                            // Changing the shape keeps the place, the edge and the mode
+                            let mut next = FxMask::new(shape);
+                            if let Some(old) = &mask {
+                                (next.center, next.size, next.rotation_deg) =
+                                    (old.center, old.size, old.rotation_deg);
+                                (next.feather, next.invert) = (old.feather, old.invert);
+                            }
+                            mask = Some(next);
+                            commit_now = true;
+                        }
+                    }
+                });
+        });
+        let mut changed = false;
+        let mut ended = false;
+        if let Some(m) = &mut mask {
+            let mut track = |response: egui::Response| {
+                changed |= response.changed();
+                ended |= response.drag_stopped() || response.lost_focus();
+            };
+            if m.shape == MaskShape::Bezier {
+                let mut remove = None;
+                let many = m.points.len() > MIN_POINTS;
+                for (i, point) in m.points.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}", i + 1));
+                        track(percent_box(ui, &mut point[0], "X"));
+                        track(percent_box(ui, &mut point[1], "Y"));
+                        if ui
+                            .add_enabled(many, egui::Button::new("✖").small())
+                            .on_hover_text(tr("Tirar o ponto"))
+                            .clicked()
+                        {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    m.points.remove(i);
+                    commit_now = true;
+                }
+                if ui
+                    .add_enabled(
+                        m.points.len() < MAX_POINTS,
+                        egui::Button::new(tr("＋ Ponto")).small(),
+                    )
+                    .on_hover_text(tr("Acrescenta um ponto entre o último e o primeiro"))
+                    .clicked()
+                {
+                    let (a, b) = (m.points[m.points.len() - 1], m.points[0]);
+                    m.points.push([(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]);
+                    commit_now = true;
+                }
+            } else {
+                ui.horizontal(|ui| {
+                    track(percent_box(ui, &mut m.center[0], tr("Centro X")));
+                    track(percent_box(ui, &mut m.center[1], tr("Y")));
+                });
+                ui.horizontal(|ui| {
+                    track(percent_box(ui, &mut m.size[0], tr("Largura")));
+                    track(percent_box(ui, &mut m.size[1], tr("Altura")));
+                });
+                track(
+                    ui.add(
+                        egui::DragValue::new(&mut m.rotation_deg)
+                            .range(0.0..=360.0)
+                            .suffix("°")
+                            .prefix(format!("{} ", tr("Giro"))),
+                    ),
+                );
+            }
+            let mut feather = m.feather * 100.0;
+            let response = ui.add(
+                egui::Slider::new(&mut feather, 0.0..=25.0)
+                    .text(tr("Suavidade da borda (% da altura)"))
+                    .fixed_decimals(1),
+            );
+            if response.changed() {
+                m.feather = feather / 100.0;
+            }
+            track(response);
+            if ui
+                .checkbox(
+                    &mut m.invert,
+                    tr("Máscara negativa (o efeito age fora da forma)"),
+                )
+                .changed()
+            {
+                commit_now = true;
+            }
+        }
+        if changed {
+            if let Some(m) = &mask {
+                panel.mask_draft = Some((index, m.clone()));
+            }
+        }
+        if commit_now || (ended && panel.mask_draft.as_ref().is_some_and(|(i, _)| *i == index)) {
+            panel.mask_draft = None;
+            if mask != effect.mask {
+                actions.push(VfxAction::SetMask { index, mask });
+            }
         }
     });
 }

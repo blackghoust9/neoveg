@@ -438,6 +438,9 @@ pub struct TrackEffect {
     /// Project FX). Older projects have none.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub keyframes: BTreeMap<String, Vec<EnvelopePoint>>,
+    /// A mask: the effect acts only inside the shape (or only outside it). Video effects only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask: Option<neoveg_common::fx_mask::FxMask>,
 }
 
 impl TrackEffect {
@@ -447,6 +450,7 @@ impl TrackEffect {
             bypass: false,
             params: BTreeMap::new(),
             keyframes: BTreeMap::new(),
+            mask: None,
         }
     }
 

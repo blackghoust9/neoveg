@@ -1672,5 +1672,17 @@
   "Marcador Pan/Crop": "平移/裁剪标记",
   "Marcador Composite": "合成标记",
   "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "标记上方的效果在事件的平移/裁剪之前运行，下方的在其之后运行。",
-  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "标记上方的效果作用于轨道图层，下方的作用于合成结果。"
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "标记上方的效果作用于轨道图层，下方的作用于合成结果。",
+  "Máscara": "蒙版",
+  "Sem máscara": "无蒙版",
+  "Retângulo": "矩形",
+  "Elipse": "椭圆",
+  "Curva de Bézier": "贝塞尔曲线",
+  "Tirar o ponto": "删除该点",
+  "＋ Ponto": "＋ 点",
+  "Acrescenta um ponto entre o último e o primeiro": "在最后一个点与第一个点之间添加一个点",
+  "Y": "Y",
+  "Giro": "旋转",
+  "Suavidade da borda (% da altura)": "边缘柔化（高度的 %）",
+  "Máscara negativa (o efeito age fora da forma)": "负蒙版（效果作用于形状之外）"
 }

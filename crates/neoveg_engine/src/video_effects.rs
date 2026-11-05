@@ -79,6 +79,27 @@ pub fn add_effect(timeline: &Timeline, target: VideoFxTarget, kind: &str) -> Opt
     })
 }
 
+/// Puts a mask on the effect at `index`, or takes it off (`None`). The mask is made safe first.
+/// Markers have no mask.
+pub fn set_mask(
+    timeline: &Timeline,
+    target: VideoFxTarget,
+    index: usize,
+    mask: Option<neoveg_common::fx_mask::FxMask>,
+) -> Option<EditCommand> {
+    let mask = mask.map(|m| m.sanitized());
+    edit(timeline, target, |list| match list.get_mut(index) {
+        Some(effect) if !neoveg_common::fx_markers::is_marker(&effect.kind) => {
+            if effect.mask == mask {
+                return false;
+            }
+            effect.mask = mask;
+            true
+        }
+        _ => false,
+    })
+}
+
 /// Removes the effect at `index`.
 pub fn remove_effect(
     timeline: &Timeline,
@@ -715,5 +736,47 @@ mod tests {
             add_effect(&tl, target, PAN_CROP).is_some(),
             "free again once removed"
         );
+    }
+
+    #[test]
+    fn a_mask_is_put_on_an_effect_made_safe_changed_and_taken_off_in_undo_steps() {
+        use neoveg_common::fx_mask::{FxMask, MaskShape};
+        let mut tl = Timeline::new();
+        let track = tl.new_track(TrackKind::Video);
+        let id = track.id;
+        tl.tracks.push(track);
+        let target = VideoFxTarget::Track(id);
+        let mut history = crate::command::History::new();
+        for kind in ["invert", neoveg_common::fx_markers::COMPOSITE] {
+            let command = add_effect(&tl, target, kind).unwrap();
+            assert!(history.execute(&mut tl, command));
+        }
+        let mut mask = FxMask::new(MaskShape::Ellipse);
+        mask.feather = 9.0;
+        let command = set_mask(&tl, target, 0, Some(mask.clone())).unwrap();
+        assert!(history.execute(&mut tl, command));
+        let stored = chain(&tl, target).unwrap()[0].mask.clone().unwrap();
+        assert_eq!(
+            stored.feather,
+            neoveg_common::fx_mask::MAX_FEATHER,
+            "made safe"
+        );
+        assert!(
+            set_mask(&tl, target, 0, Some(stored.clone())).is_none(),
+            "the same again is no edit"
+        );
+        assert!(
+            set_mask(&tl, target, 1, Some(mask)).is_none(),
+            "a marker has no mask"
+        );
+        assert!(set_mask(&tl, target, 7, None).is_none(), "no such effect");
+        let command = set_mask(&tl, target, 0, None).unwrap();
+        assert!(history.execute(&mut tl, command));
+        assert!(chain(&tl, target).unwrap()[0].mask.is_none());
+        assert!(history.undo(&mut tl));
+        assert!(chain(&tl, target).unwrap()[0].mask.is_some());
+        // An old project (an effect with no mask) loads and a chain without masks stays as it was
+        let plain = serde_json::to_string(&TrackEffect::new("invert")).unwrap();
+        assert!(!plain.contains("mask"));
     }
 }

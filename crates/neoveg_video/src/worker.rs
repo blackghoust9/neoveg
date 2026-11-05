@@ -472,7 +472,8 @@ impl WorkerState {
         if resolved.is_empty() || frame.width == 0 || frame.height == 0 {
             return frame;
         }
-        if frame.width * frame.height >= 64 * 64 {
+        // A chain with a mask is blended on the processor (the graphics card runs the others)
+        if frame.width * frame.height >= 64 * 64 && !vfx::has_mask(chain) {
             if let Some(gpu) = self.vfx_gpu() {
                 match gpu.process(&frame, &resolved) {
                     Ok(done) => return Arc::new(done),

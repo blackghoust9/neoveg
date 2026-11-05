@@ -1672,5 +1672,17 @@
   "Marcador Pan/Crop": "パン/クロップのマーカー",
   "Marcador Composite": "コンポジットのマーカー",
   "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "上のエフェクトはイベントのパン/クロップの前に、下のエフェクトは後に実行されます。",
-  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "上のエフェクトはトラックのレイヤーに、下のエフェクトは合成結果に実行されます。"
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "上のエフェクトはトラックのレイヤーに、下のエフェクトは合成結果に実行されます。",
+  "Máscara": "マスク",
+  "Sem máscara": "マスクなし",
+  "Retângulo": "長方形",
+  "Elipse": "楕円",
+  "Curva de Bézier": "ベジェ曲線",
+  "Tirar o ponto": "点を削除",
+  "＋ Ponto": "＋ 点",
+  "Acrescenta um ponto entre o último e o primeiro": "最後の点と最初の点の間に点を追加します",
+  "Y": "Y",
+  "Giro": "回転",
+  "Suavidade da borda (% da altura)": "エッジのぼかし（高さの %）",
+  "Máscara negativa (o efeito age fora da forma)": "ネガティブマスク（エフェクトは形の外側に効く）"
 }

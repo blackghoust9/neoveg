@@ -6,6 +6,7 @@ pub mod chroma;
 pub mod composite;
 pub mod convert;
 pub mod frame;
+pub mod fx_mask;
 pub mod generators;
 pub mod gpu;
 pub mod grading;

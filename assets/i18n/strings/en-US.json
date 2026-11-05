@@ -1672,5 +1672,17 @@
   "Marcador Pan/Crop": "Pan/Crop marker",
   "Marcador Composite": "Composite marker",
   "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "The effects above run before the Pan/Crop of the event; the ones below, after it.",
-  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "The effects above run on the layer of the track; the ones below, on the result of the compositing."
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "The effects above run on the layer of the track; the ones below, on the result of the compositing.",
+  "Máscara": "Mask",
+  "Sem máscara": "No mask",
+  "Retângulo": "Rectangle",
+  "Elipse": "Ellipse",
+  "Curva de Bézier": "Bézier curve",
+  "Tirar o ponto": "Remove the point",
+  "＋ Ponto": "＋ Point",
+  "Acrescenta um ponto entre o último e o primeiro": "Adds a point between the last one and the first",
+  "Y": "Y",
+  "Giro": "Rotation",
+  "Suavidade da borda (% da altura)": "Edge softness (% of the height)",
+  "Máscara negativa (o efeito age fora da forma)": "Negative mask (the effect acts outside the shape)"
 }

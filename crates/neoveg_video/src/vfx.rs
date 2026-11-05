@@ -1879,6 +1879,8 @@ impl EffectSpec {
 pub struct VideoEffect {
     pub kind: String,
     pub params: BTreeMap<String, f32>,
+    /// Where the effect acts (`None`: everywhere).
+    pub mask: Option<neoveg_common::fx_mask::FxMask>,
 }
 
 impl VideoEffect {
@@ -1886,7 +1888,14 @@ impl VideoEffect {
         Self {
             kind: kind.to_owned(),
             params: BTreeMap::new(),
+            mask: None,
         }
+    }
+
+    /// The same effect acting only where `mask` lets it.
+    pub fn masked(mut self, mask: neoveg_common::fx_mask::FxMask) -> Self {
+        self.mask = Some(mask);
+        self
     }
 
     pub fn with(mut self, param: &str, value: f32) -> Self {
@@ -2192,6 +2201,10 @@ impl VideoEffect {
         for (k, v) in &self.params {
             k.hash(h);
             v.to_bits().hash(h);
+        }
+        self.mask.is_some().hash(h);
+        if let Some(mask) = &self.mask {
+            mask.hash_into(h);
         }
     }
 }
@@ -2519,6 +2532,35 @@ pub fn resolve_chain(chain: &[VideoEffect]) -> Vec<Resolved> {
         .filter_map(VideoEffect::resolve)
         .filter(|r| !r.is_neutral())
         .collect()
+}
+
+/// One step of a chain: a resolved effect and the mask it acts through.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Step {
+    pub effect: Resolved,
+    pub mask: Option<neoveg_common::fx_mask::FxMask>,
+}
+
+/// The chain as steps, with unknown and neutral effects left out (like [`resolve_chain`], but each
+/// step keeps its mask).
+pub fn resolve_steps(chain: &[VideoEffect]) -> Vec<Step> {
+    chain
+        .iter()
+        .take(MAX_CHAIN)
+        .filter_map(|e| {
+            let effect = e.resolve()?;
+            (!effect.is_neutral()).then(|| Step {
+                effect,
+                mask: e.mask.as_ref().map(|m| m.sanitized()),
+            })
+        })
+        .collect()
+}
+
+/// Whether an effect of the chain that does something acts through a mask. Such a chain runs on the
+/// processor: the masks are blended there.
+pub fn has_mask(chain: &[VideoEffect]) -> bool {
+    resolve_steps(chain).iter().any(|s| s.mask.is_some())
 }
 
 /// Feeds a whole chain into a hasher.
@@ -3885,13 +3927,30 @@ pub fn apply_resolved(work: &mut Work, effect: &Resolved) {
 
 /// Runs the chain on the CPU. An empty (or all neutral) chain leaves the frame untouched.
 pub fn apply_chain_cpu(frame: &mut FrameBuffer, chain: &[VideoEffect]) {
-    let resolved = resolve_chain(chain);
-    if resolved.is_empty() || frame.width == 0 || frame.height == 0 {
+    let steps = resolve_steps(chain);
+    if steps.is_empty() || frame.width == 0 || frame.height == 0 {
         return;
     }
     let mut work = Work::from_frame(frame);
-    for effect in &resolved {
-        apply_resolved(&mut work, effect);
+    for step in &steps {
+        match &step.mask {
+            None => apply_resolved(&mut work, &step.effect),
+            Some(mask) => {
+                // The effect runs on the whole picture and only the part the mask lets through is kept
+                let before = work.px.clone();
+                apply_resolved(&mut work, &step.effect);
+                if before.len() == work.px.len() {
+                    let coverage = crate::fx_mask::coverage(mask, frame.width, frame.height);
+                    for ((after, old), cover) in
+                        work.px.iter_mut().zip(&before).zip(coverage.iter())
+                    {
+                        for c in 0..4 {
+                            after[c] = old[c] + (after[c] - old[c]) * cover;
+                        }
+                    }
+                }
+            }
+        }
     }
     work.write_to(frame);
 }
@@ -4870,5 +4929,41 @@ mod curves_tests {
         // Zoom reads nearer to the centre
         let (zx, _) = rolling_shutter_source(0.5, 4.0, 8.0, 8.0, 0.0, 0.0, 2.0);
         assert!((zx - 2.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_masked_effect_changes_the_picture_only_through_the_mask() {
+        use neoveg_common::fx_mask::{FxMask, MaskShape};
+        let grey = FrameBuffer::solid(60, 60, [100, 100, 100, 255]);
+        let mut mask = FxMask::new(MaskShape::Rectangle);
+        mask.size = [0.5, 0.5];
+        // Inverted colours inside the middle square, the picture itself outside
+        let mut inside = grey.clone();
+        apply_chain_cpu(
+            &mut inside,
+            &[VideoEffect::new(INVERT).masked(mask.clone())],
+        );
+        assert_eq!(inside.pixel(30, 30)[0], 155, "inverted inside");
+        assert_eq!(inside.pixel(2, 2), grey.pixel(2, 2), "untouched outside");
+        // The negative mode swaps the sides
+        mask.invert = true;
+        let mut outside = grey.clone();
+        apply_chain_cpu(&mut outside, &[VideoEffect::new(INVERT).masked(mask)]);
+        assert_eq!(outside.pixel(30, 30), grey.pixel(30, 30));
+        assert_eq!(outside.pixel(2, 2)[0], 155);
+        // A neutral effect with a mask is still no step, and the chain knows which ones are masked
+        let masked = VideoEffect::new(INVERT).masked(FxMask::default());
+        assert!(has_mask(std::slice::from_ref(&masked)));
+        assert!(!has_mask(&[VideoEffect::new(INVERT)]));
+        assert!(!has_mask(&[VideoEffect::new(INVERT)
+            .with("amount", 0.0)
+            .masked(FxMask::default())]));
+        // The mask is part of the cache key of the frame
+        let key = |e: &VideoEffect| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            e.hash_into(&mut h);
+            h.finish()
+        };
+        assert_ne!(key(&masked), key(&VideoEffect::new(INVERT)));
     }
 }

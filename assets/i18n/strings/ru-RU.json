@@ -1672,5 +1672,17 @@
   "Marcador Pan/Crop": "Маркер Pan/Crop",
   "Marcador Composite": "Маркер Composite",
   "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "Эффекты выше выполняются до Pan/Crop события, ниже — после него.",
-  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Эффекты выше применяются к слою дорожки, ниже — к результату композиции."
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Эффекты выше применяются к слою дорожки, ниже — к результату композиции.",
+  "Máscara": "Маска",
+  "Sem máscara": "Без маски",
+  "Retângulo": "Прямоугольник",
+  "Elipse": "Эллипс",
+  "Curva de Bézier": "Кривая Безье",
+  "Tirar o ponto": "Удалить точку",
+  "＋ Ponto": "＋ Точка",
+  "Acrescenta um ponto entre o último e o primeiro": "Добавляет точку между последней и первой",
+  "Y": "Y",
+  "Giro": "Поворот",
+  "Suavidade da borda (% da altura)": "Мягкость края (% высоты)",
+  "Máscara negativa (o efeito age fora da forma)": "Негативная маска (эффект действует вне фигуры)"
 }

@@ -7211,6 +7211,9 @@ impl AppState {
                 VfxAction::SetParams { index, values } => {
                     vfxe::set_params(&self.timeline, target, index, &values)
                 }
+                VfxAction::SetMask { index, mask } => {
+                    vfxe::set_mask(&self.timeline, target, index, mask)
+                }
                 VfxAction::SavePreset { index, name } => {
                     self.save_effect_preset(target, index, &name);
                     None
@@ -19290,6 +19293,34 @@ mod tests {
             }],
         );
         assert!(s.prefs.audio_effect_presets.is_empty());
+    }
+
+    #[test]
+    fn a_video_effect_mask_is_put_on_in_one_undo_step_and_reaches_the_worker_chain() {
+        use neoveg_common::fx_mask::{FxMask, MaskShape};
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        let id = s.timeline.tracks[0].id;
+        let target = VideoFxTarget::Track(id);
+        s.apply_vfx_actions(target, vec![VfxAction::Add("invert")]);
+        s.apply_vfx_actions(
+            target,
+            vec![VfxAction::SetMask {
+                index: 0,
+                mask: Some(FxMask::new(MaskShape::Ellipse)),
+            }],
+        );
+        let stored = vfxe::chain(&s.timeline, target).unwrap();
+        assert_eq!(
+            stored[0].mask.as_ref().map(|m| m.shape),
+            Some(MaskShape::Ellipse)
+        );
+        // The worker gets the effect with its mask
+        let worker = video_fx_panel::to_worker_chain(stored);
+        assert!(worker[0].mask.is_some());
+        assert!(neoveg_video::vfx::has_mask(&worker));
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(vfxe::chain(&s.timeline, target).unwrap()[0].mask.is_none());
     }
 
     #[test]
