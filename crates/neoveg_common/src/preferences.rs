@@ -27,6 +27,8 @@ pub struct Preferences {
     pub command_templates: Vec<crate::command_template::CommandTemplate>,
     /// Presets of the video effects (values of every parameter under a name, for each effect).
     pub video_effect_presets: Vec<crate::effect_preset::EffectPreset>,
+    /// Presets of the audio effects (values of every parameter under a name, for each effect).
+    pub audio_effect_presets: Vec<crate::effect_preset::EffectPreset>,
     /// Styles of titles saved by the user (the built-in ones are in `title_style::builtin`).
     pub title_styles: Vec<crate::title_style::TitleStyle>,
     /// The buttons of the main toolbar (see `toolbar`); `None` is the standard set.
@@ -93,6 +95,7 @@ impl Default for Preferences {
             show_welcome_on_startup: true,
             command_templates: Vec::new(),
             video_effect_presets: Vec::new(),
+            audio_effect_presets: Vec::new(),
             title_styles: Vec::new(),
             main_toolbar: None,
             show_event_edge_frames: true,

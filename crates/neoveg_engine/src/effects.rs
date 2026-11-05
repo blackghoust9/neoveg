@@ -117,6 +117,25 @@ pub fn set_param(
     })
 }
 
+/// Sets several parameters of one effect as one edit (a preset being applied). Values that are not
+/// numbers are left out.
+pub fn set_params(
+    timeline: &Timeline,
+    target: FxTarget,
+    index: usize,
+    values: &[(String, f32)],
+) -> Option<EditCommand> {
+    edit(timeline, target, |list| match list.get_mut(index) {
+        Some(effect) => {
+            for (param, value) in values.iter().filter(|(_, v)| v.is_finite()) {
+                effect.params.insert(param.clone(), *value);
+            }
+            true
+        }
+        None => false,
+    })
+}
+
 /// Puts one parameter back to its default (drops the stored value).
 pub fn reset_param(
     timeline: &Timeline,
@@ -424,6 +443,34 @@ mod tests {
         assert_eq!(
             (duck.sensitivity, duck.reduce_db, duck.fade_s),
             (6.0, 15.0, 0.8)
+        );
+    }
+
+    #[test]
+    fn several_parameters_are_one_undo_step() {
+        use crate::command::History;
+        let mut tl = Timeline::new();
+        let track = tl.new_track(TrackKind::Audio);
+        let id = track.id;
+        tl.tracks.push(track);
+        let add = add_effect(&tl, FxTarget::Track(id), "compressor").unwrap();
+        let mut history = History::new();
+        assert!(history.execute(&mut tl, add));
+        let values = vec![
+            ("ratio".to_owned(), 6.0),
+            ("threshold".to_owned(), -18.0),
+            ("bad".to_owned(), f32::NAN),
+        ];
+        let command = set_params(&tl, FxTarget::Track(id), 0, &values).unwrap();
+        assert!(history.execute(&mut tl, command));
+        let params = &tl.track(id).unwrap().effects[0].params;
+        assert_eq!(params.len(), 2, "the NaN is left out");
+        assert_eq!(params["ratio"], 6.0);
+        assert!(history.undo(&mut tl));
+        assert!(tl.track(id).unwrap().effects[0].params.is_empty());
+        assert!(
+            set_params(&tl, FxTarget::Track(id), 5, &values).is_none(),
+            "no such effect"
         );
     }
 }

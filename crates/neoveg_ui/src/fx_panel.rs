@@ -19,6 +19,7 @@ use neoveg_audio::fxmixer::{
     RouteSpec, SendSpec, TrackMixSpec,
 };
 use neoveg_audio::vst3_host::{self, Vst3PluginInfo};
+use neoveg_common::effect_preset::{self, EffectPreset};
 use neoveg_common::fade::FadeCurve;
 use neoveg_engine::effects::DuckParam;
 use neoveg_engine::{
@@ -92,6 +93,23 @@ pub enum FxAction {
         param: String,
         value: f32,
     },
+    /// Several parameters of one effect as one edit (a preset applied).
+    SetParams {
+        index: usize,
+        values: Vec<(String, f32)>,
+    },
+    /// Keeps the values of the effect at `index` under `name` (a preset of that effect).
+    SavePreset {
+        index: usize,
+        name: String,
+    },
+    DeletePreset {
+        kind: String,
+        name: String,
+    },
+    /// Writes the presets to a file the user picks / reads some from one.
+    ExportPresets,
+    ImportPresets,
 }
 
 /// A slider value that is being dragged: the project changes only when the drag ends.
@@ -111,6 +129,8 @@ pub struct FxPanelState {
     /// The fader and pan of a bus being dragged, so the sound follows before the project changes.
     pub bus_mix_draft: Option<(neoveg_engine::BusId, f32, f32)>,
     draft: Option<Draft>,
+    /// The name typed for a new preset.
+    preset_name: String,
     clap_scan_rx: Option<mpsc::Receiver<usize>>,
     clap_file_rx: Option<mpsc::Receiver<Result<Vec<ClapPluginInfo>, String>>>,
     clap_status: Option<String>,
@@ -690,6 +710,7 @@ pub fn fx_ui(
     title: &str,
     chain: &[TrackEffect],
     duck: Option<&DuckView>,
+    presets: &[EffectPreset],
 ) -> Vec<FxAction> {
     let mut actions = Vec::new();
     ui.horizontal(|ui| {
@@ -799,6 +820,24 @@ pub fn fx_ui(
     if let Some(status) = &panel.vst3_status {
         ui.weak(status);
     }
+    ui.horizontal(|ui| {
+        if ui
+            .small_button(tr("Importar predefinições…"))
+            .on_hover_text(tr("Lê de um arquivo as predefinições dos efeitos de áudio"))
+            .clicked()
+        {
+            actions.push(FxAction::ImportPresets);
+        }
+        if ui
+            .add_enabled(
+                !presets.is_empty(),
+                egui::Button::new(tr("Exportar predefinições…")).small(),
+            )
+            .clicked()
+        {
+            actions.push(FxAction::ExportPresets);
+        }
+    });
     if chain.is_empty() {
         ui.weak(tr("Sem efeitos. Os efeitos rodam na ordem da lista."));
     }
@@ -806,7 +845,7 @@ pub fn fx_ui(
     egui::ScrollArea::vertical().show(ui, |ui| {
         for (index, effect) in chain.iter().enumerate() {
             ui.separator();
-            effect_ui(ui, panel, index, chain.len(), effect, &mut actions);
+            effect_ui(ui, panel, index, chain.len(), effect, presets, &mut actions);
         }
         if let Some(view) = duck {
             ducking_ui(ui, panel, view, &mut actions);
@@ -907,12 +946,111 @@ pub fn insert_name(effect: &TrackEffect) -> String {
     effect.kind.clone()
 }
 
+/// The value of every parameter of `info` when `preset` is applied: the ones it holds clamped to
+/// their ranges, the defaults for the rest.
+pub fn preset_values(info: &EffectInfo, preset: &EffectPreset) -> Vec<(String, f32)> {
+    info.params
+        .iter()
+        .map(|p| {
+            let value = match preset.params.get(p.id) {
+                Some(v) if v.is_finite() => v.clamp(p.min, p.max),
+                _ => p.default,
+            };
+            (p.id.to_owned(), value)
+        })
+        .collect()
+}
+
+/// A preset of `effect` under `name`: every parameter as it is set (the default when not stored).
+/// `None` for an effect that is not built in (the parameters of a plug-in are its own).
+pub fn preset_of(effect: &TrackEffect, name: &str) -> Option<EffectPreset> {
+    let info = effects::effect_info(&effect.kind)?;
+    Some(EffectPreset {
+        kind: effect.kind.clone(),
+        name: name.to_owned(),
+        params: info
+            .params
+            .iter()
+            .map(|p| {
+                let stored = effect.params.get(p.id).copied().filter(|v| v.is_finite());
+                (
+                    p.id.to_owned(),
+                    stored.unwrap_or(p.default).clamp(p.min, p.max),
+                )
+            })
+            .collect(),
+    })
+}
+
+/// The presets of one built-in effect: a list to apply one, and a name box to keep the values as
+/// they are.
+fn preset_row(
+    ui: &mut egui::Ui,
+    panel: &mut FxPanelState,
+    index: usize,
+    info: &EffectInfo,
+    presets: &[EffectPreset],
+    actions: &mut Vec<FxAction>,
+) {
+    ui.horizontal(|ui| {
+        egui::ComboBox::from_id_salt(("fx_preset", index))
+            .selected_text(tr("Predefinição…"))
+            .width(130.0)
+            .show_ui(ui, |ui| {
+                let mut any = false;
+                for preset in effect_preset::for_kind(presets, info.id) {
+                    any = true;
+                    if ui.selectable_label(false, &preset.name).clicked() {
+                        panel.preset_name = preset.name.clone();
+                        actions.push(FxAction::SetParams {
+                            index,
+                            values: preset_values(info, preset),
+                        });
+                    }
+                }
+                if !any {
+                    ui.weak(tr("Nenhuma predefinição salva"));
+                }
+            });
+        ui.add(
+            egui::TextEdit::singleline(&mut panel.preset_name)
+                .hint_text(tr("Nome"))
+                .desired_width(90.0),
+        );
+        let name = effect_preset::clean_name(&panel.preset_name);
+        if ui
+            .add_enabled(name.is_some(), egui::Button::new(tr("Salvar")).small())
+            .on_hover_text(tr("Guarda os valores deste efeito sob esse nome"))
+            .clicked()
+        {
+            if let Some(name) = name.clone() {
+                actions.push(FxAction::SavePreset { index, name });
+            }
+        }
+        let exists = name
+            .as_deref()
+            .is_some_and(|n| effect_preset::for_kind(presets, info.id).any(|p| p.name == n));
+        if ui
+            .add_enabled(exists, egui::Button::new(tr("Excluir")).small())
+            .clicked()
+        {
+            if let Some(name) = name {
+                actions.push(FxAction::DeletePreset {
+                    kind: info.id.to_owned(),
+                    name,
+                });
+            }
+        }
+    });
+}
+
 fn effect_ui(
     ui: &mut egui::Ui,
     panel: &mut FxPanelState,
     index: usize,
     count: usize,
     effect: &TrackEffect,
+    presets: &[EffectPreset],
     actions: &mut Vec<FxAction>,
 ) {
     let is_clap = is_hosted_kind(&effect.kind);
@@ -1005,6 +1143,7 @@ fn effect_ui(
     if effect.bypass {
         ui.weak(tr("Em bypass"));
     }
+    preset_row(ui, panel, index, info, presets, actions);
     ui.add_enabled_ui(!effect.bypass, |ui| {
         for (prefix, specs) in group_params(info.params) {
             match prefix {
@@ -1253,6 +1392,35 @@ fn clap_param_row(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_audio_preset_keeps_every_value_and_applies_clamped_with_defaults_for_the_rest() {
+        let info = effects::effect_info("compressor").expect("the compressor exists");
+        let mut effect = TrackEffect::new("compressor");
+        let ratio = info.params.iter().find(|p| p.id == "ratio").expect("ratio");
+        effect.params.insert("ratio".into(), ratio.max);
+        let preset = preset_of(&effect, "Forte").unwrap();
+        assert_eq!(
+            preset.params.len(),
+            info.params.len(),
+            "every parameter is kept"
+        );
+        assert_eq!(preset.params["ratio"], ratio.max);
+        assert!(preset_of(&TrackEffect::new("nao-existe"), "x").is_none());
+        // Applying: a value out of range is clamped, a missing one takes the default
+        let mut odd = preset.clone();
+        odd.params.insert("ratio".into(), ratio.max * 100.0);
+        odd.params.remove("threshold");
+        let values = preset_values(info, &odd);
+        let get = |id: &str| values.iter().find(|(p, _)| p == id).expect(id).1;
+        assert_eq!(get("ratio"), ratio.max);
+        let threshold = info
+            .params
+            .iter()
+            .find(|p| p.id == "threshold")
+            .expect("threshold");
+        assert_eq!(get("threshold"), threshold.default);
+    }
+
     use super::*;
     use neoveg_engine::TrackKind;
 

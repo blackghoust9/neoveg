@@ -1667,5 +1667,6 @@
   "Procurando plug-ins VST3 nas pastas do sistema…": "システムフォルダーで VST3 プラグインを検索中…",
   "Lendo {}…": "{} を読み込み中…",
   "{} plug-ins na lista.": "リストに {} 個のプラグインがあります。",
-  "A leitura falhou: {}": "読み込みに失敗しました: {}"
+  "A leitura falhou: {}": "読み込みに失敗しました: {}",
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "オーディオエフェクトのプリセットをファイルから読み込みます"
 }

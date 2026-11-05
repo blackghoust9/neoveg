@@ -1667,5 +1667,6 @@
   "Procurando plug-ins VST3 nas pastas do sistema…": "Looking for VST3 plug-ins in the system folders…",
   "Lendo {}…": "Reading {}…",
   "{} plug-ins na lista.": "{} plug-ins in the list.",
-  "A leitura falhou: {}": "Reading failed: {}"
+  "A leitura falhou: {}": "Reading failed: {}",
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "Reads the presets of the audio effects from a file"
 }

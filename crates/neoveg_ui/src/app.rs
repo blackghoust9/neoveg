@@ -7113,6 +7113,28 @@ impl AppState {
         };
     }
 
+    /// The presets kept for the audio effects or for the video effects.
+    fn presets_of(&mut self, audio: bool) -> &mut Vec<neoveg_common::effect_preset::EffectPreset> {
+        if audio {
+            &mut self.prefs.audio_effect_presets
+        } else {
+            &mut self.prefs.video_effect_presets
+        }
+    }
+
+    /// Keeps the audio effect at `index` of the chain `target` as a preset called `name`.
+    fn save_audio_preset(&mut self, target: FxTarget, index: usize, name: &str) {
+        let preset = fx::chain(&self.timeline, target)
+            .and_then(|chain| chain.get(index))
+            .and_then(|effect| fx_panel::preset_of(effect, name));
+        if let Some(preset) = preset {
+            if neoveg_common::effect_preset::save(&mut self.prefs.audio_effect_presets, &preset) {
+                self.persist_preferences();
+                self.status = tr_args("Predefinição {} salva", &[&preset.name]);
+            }
+        }
+    }
+
     /// Keeps the effect at `index` of the chain `target` as a preset called `name`.
     fn save_effect_preset(&mut self, target: VideoFxTarget, index: usize, name: &str) {
         let preset = vfxe::chain(&self.timeline, target)
@@ -7127,15 +7149,19 @@ impl AppState {
     }
 
     /// Writes every preset of the video effects to a file.
-    fn export_effect_presets(&mut self) {
+    fn export_effect_presets(&mut self, audio: bool) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Predefinições de efeitos (JSON)", &["json"])
-            .set_file_name("neoveg_predefinicoes_video.json")
+            .set_file_name(if audio {
+                "neoveg_predefinicoes_audio.json"
+            } else {
+                "neoveg_predefinicoes_video.json"
+            })
             .save_file()
         else {
             return;
         };
-        let text = neoveg_common::effect_preset::to_json(&self.prefs.video_effect_presets, None);
+        let text = neoveg_common::effect_preset::to_json(self.presets_of(audio), None);
         self.status = match std::fs::write(&path, text) {
             Ok(()) => tr_args("Predefinições exportadas: {}", &[&path.display()]),
             Err(e) => tr_args("Não foi possível exportar as predefinições: {}", &[&e]),
@@ -7143,7 +7169,7 @@ impl AppState {
     }
 
     /// Reads presets from a file and adds them to the ones kept (the same effect and name replaces).
-    fn import_effect_presets(&mut self) {
+    fn import_effect_presets(&mut self, audio: bool) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Predefinições de efeitos (JSON)", &["json"])
             .pick_file()
@@ -7155,10 +7181,7 @@ impl AppState {
             .and_then(|text| neoveg_common::effect_preset::from_json(&text));
         self.status = match read {
             Ok(incoming) => {
-                let kept = neoveg_common::effect_preset::merge(
-                    &mut self.prefs.video_effect_presets,
-                    &incoming,
-                );
+                let kept = neoveg_common::effect_preset::merge(self.presets_of(audio), &incoming);
                 self.persist_preferences();
                 tr_args("{} predefinições importadas", &[&kept])
             }
@@ -7203,11 +7226,11 @@ impl AppState {
                     None
                 }
                 VfxAction::ExportPresets => {
-                    self.export_effect_presets();
+                    self.export_effect_presets(false);
                     None
                 }
                 VfxAction::ImportPresets => {
-                    self.import_effect_presets();
+                    self.import_effect_presets(false);
                     None
                 }
                 VfxAction::FadeColor { bottom, color } => match target {
@@ -7339,6 +7362,31 @@ impl AppState {
                     },
                     FxTarget::Master | FxTarget::Bus(_) => None,
                 },
+                FxAction::SetParams { index, values } => {
+                    fx::set_params(&self.timeline, target, index, &values)
+                }
+                FxAction::SavePreset { index, name } => {
+                    self.save_audio_preset(target, index, &name);
+                    None
+                }
+                FxAction::DeletePreset { kind, name } => {
+                    if neoveg_common::effect_preset::remove(
+                        &mut self.prefs.audio_effect_presets,
+                        &kind,
+                        &name,
+                    ) {
+                        self.persist_preferences();
+                    }
+                    None
+                }
+                FxAction::ExportPresets => {
+                    self.export_effect_presets(true);
+                    None
+                }
+                FxAction::ImportPresets => {
+                    self.import_effect_presets(true);
+                    None
+                }
                 FxAction::Add(kind) => fx::add_effect(&self.timeline, target, kind),
                 FxAction::AddClap(kind) => fx::add_effect(&self.timeline, target, &kind),
                 FxAction::BrowseVst3File => {
@@ -13668,7 +13716,8 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         FxTarget::Track(id) => fx_panel::duck_view(&state.timeline, id),
         FxTarget::Master | FxTarget::Bus(_) => None,
     };
-    let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref());
+    let presets = state.prefs.audio_effect_presets.clone();
+    let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref(), &presets);
     if let (Some(active), Some((fx_idx, param, val))) =
         (&state.active_player, state.fx.active_effect_draft(&chain))
     {
@@ -19187,6 +19236,60 @@ mod tests {
         assert!(s.timeline.tracks[0].effects[0].bypass);
         assert!(s.history.undo(&mut s.timeline));
         assert!(!s.timeline.tracks[0].effects[0].bypass);
+    }
+
+    #[test]
+    fn an_audio_preset_is_saved_applied_in_one_undo_step_and_deleted() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Audio);
+        let id = s.timeline.tracks[0].id;
+        let target = FxTarget::Track(id);
+        s.apply_fx_actions(
+            target,
+            vec![
+                FxAction::Add("compressor"),
+                FxAction::SetParam {
+                    index: 0,
+                    param: "ratio".into(),
+                    value: 8.0,
+                },
+            ],
+        );
+        s.apply_fx_actions(
+            target,
+            vec![FxAction::SavePreset {
+                index: 0,
+                name: "Forte".into(),
+            }],
+        );
+        let saved = &s.prefs.audio_effect_presets;
+        assert_eq!(saved.len(), 1);
+        assert_eq!(
+            (saved[0].kind.as_str(), saved[0].name.as_str()),
+            ("compressor", "Forte")
+        );
+        assert_eq!(saved[0].params["ratio"], 8.0);
+        // A second effect takes the preset in one step
+        s.apply_fx_actions(target, vec![FxAction::Add("compressor")]);
+        let values = fx_panel::preset_values(
+            neoveg_audio::dsp::effects::effect_info("compressor").unwrap(),
+            &s.prefs.audio_effect_presets[0],
+        );
+        s.apply_fx_actions(target, vec![FxAction::SetParams { index: 1, values }]);
+        assert_eq!(
+            fx::chain(&s.timeline, target).unwrap()[1].params["ratio"],
+            8.0
+        );
+        assert!(s.history.undo(&mut s.timeline));
+        assert!(fx::chain(&s.timeline, target).unwrap()[1].params.is_empty());
+        s.apply_fx_actions(
+            target,
+            vec![FxAction::DeletePreset {
+                kind: "compressor".into(),
+                name: "Forte".into(),
+            }],
+        );
+        assert!(s.prefs.audio_effect_presets.is_empty());
     }
 
     #[test]
