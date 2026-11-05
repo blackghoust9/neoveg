@@ -204,6 +204,7 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditCloseGaps, &["Ctrl+Alt+G"]),
     (Command::TrackDuplicate, &["Ctrl+Alt+Shift+D"]),
     (Command::TrackLock, &["Ctrl+Alt+Shift+L"]),
+    (Command::TrackArm, &["Ctrl+Alt+R"]),
     (Command::InsertEmptyEvent, &["Ctrl+Alt+Shift+E"]),
     (Command::TrackMakeChild, &["Ctrl+Alt+Shift+C"]),
     (Command::TrackMakeParent, &["Ctrl+Alt+Shift+P"]),

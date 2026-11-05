@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Export timeline to AAF (compatible with Avid, DaVinci Resolve, Premiere Pro, and Pro Tools).",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Embed media in AAF file (PCM audio / images)",
   "Setores de 512 bytes (compatibilidade legada)": "512-byte sectors (legacy compatibility)",
-  "A linha do tempo está vazia.": "The timeline is empty."
+  "A linha do tempo está vazia.": "The timeline is empty.",
+  "Armar faixa para gravação": "Arm track for recording",
+  "Faixa desarmada": "Track disarmed",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "Track armed for recording (Ctrl+R records onto it)",
+  "Só faixas de áudio podem ser armadas": "Only audio tracks can be armed",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "Recording from {} onto track {} (Ctrl+R to stop)",
+  " — sem monitor: {}": " — no monitor: {}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "Arm for record (Ctrl+Alt+R): Ctrl+R records onto this track",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "Record from the input device (onto the armed track, if any)",
+  "Gravação de áudio": "Audio recording",
+  "Entrada padrão do sistema": "System default input",
+  "Dispositivo de entrada": "Input device",
+  "Procurar os dispositivos de entrada de novo": "Look for the input devices again",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Hear the input on the output while recording (use headphones to avoid feedback)",
+  "Volume do monitor": "Monitor volume"
 }

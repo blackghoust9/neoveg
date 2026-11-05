@@ -33,7 +33,7 @@ use neoveg_audio::mixer::MixClip;
 use neoveg_audio::pcm::PcmStore;
 use neoveg_audio::playback::{wrap_loop, AudioPlayer};
 use neoveg_audio::readout::LoudnessReadout;
-use neoveg_audio::record::Recorder;
+use neoveg_audio::record::{MonitorStatus, RecordOptions, Recorder};
 use neoveg_audio::waveform::WaveformSource;
 use neoveg_common::chroma::ChromaKey;
 use neoveg_common::commands::{Category, Command};
@@ -692,6 +692,8 @@ struct AppState {
     /// The audio recording in progress and the timeline time it started at.
     recorder: Option<Recorder>,
     record_start: f64,
+    /// Names of the audio inputs for the preferences window (read when it opens, and on request).
+    input_devices: Option<Vec<String>>,
     metronome_volume: f32,
     show_metronome: bool,
     video_info: HashMap<u64, VideoInfo>,
@@ -1951,6 +1953,7 @@ impl AppState {
             metronome_on: false,
             recorder: None,
             record_start: 0.0,
+            input_devices: None,
             metronome_volume: 0.5,
             show_metronome: false,
             video_info: HashMap::new(),
@@ -2187,6 +2190,23 @@ impl AppState {
                     tr("Faixa travada").into()
                 };
             }
+        }
+    }
+
+    /// *Armar faixa para gravação*: arms the audio track `id` for recording, or disarms it.
+    fn toggle_track_arm(&mut self, id: TrackId) {
+        let armed = self.timeline.track(id).is_some_and(|t| t.armed);
+        match neoveg_engine::track_arm::set(&self.timeline, id, !armed) {
+            Some(command) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.status = if armed {
+                        tr("Faixa desarmada").into()
+                    } else {
+                        tr("Faixa armada para gravação (Ctrl+R grava nela)").into()
+                    };
+                }
+            }
+            None => self.status = tr("Só faixas de áudio podem ser armadas").into(),
         }
     }
 
@@ -4002,6 +4022,10 @@ impl AppState {
                 !self.selection.refs().is_empty()
             }
             Command::TrackLock => self.selected_track.is_some(),
+            Command::TrackArm => self
+                .selected_track
+                .and_then(|id| self.timeline.track(id))
+                .is_some_and(|t| t.kind == TrackKind::Audio),
             Command::EditNextTake | Command::EditPreviousTake | Command::EditDeleteTake => {
                 self.selection_has_takes()
             }
@@ -8139,6 +8163,10 @@ impl AppState {
                         recording.overruns
                     );
                     self.playhead = self.record_start;
+                    // The take goes on the armed track, if there is one
+                    if let Some(armed) = neoveg_engine::track_arm::target_track(&self.timeline) {
+                        self.selected_track = Some(armed);
+                    }
                     self.status = tr_args(
                         "Gravação de {} s salva em {}{}",
                         &[
@@ -8166,12 +8194,30 @@ impl AppState {
             return;
         };
         let path = dir.join(format!("Gravacao_{}.wav", autosave::unix_now()));
-        match Recorder::start(&path) {
+        let options = RecordOptions {
+            device: self.prefs.input_device.clone(),
+            monitor: self.prefs.monitor_input,
+            monitor_volume: self.prefs.monitor_volume,
+        };
+        match Recorder::start(&path, &options) {
             Ok(recorder) => {
-                self.status = tr_args(
-                    "Gravando de {} (Ctrl+R para parar)",
-                    &[&recorder.info().device],
-                );
+                let track = neoveg_engine::track_arm::target_track(&self.timeline)
+                    .and_then(|id| self.timeline.track(id))
+                    .map(|t| t.name.clone());
+                self.status = match track {
+                    Some(name) => tr_args(
+                        "Gravando de {} na faixa {} (Ctrl+R para parar)",
+                        &[&recorder.info().device, &name],
+                    ),
+                    None => tr_args(
+                        "Gravando de {} (Ctrl+R para parar)",
+                        &[&recorder.info().device],
+                    ),
+                };
+                if let MonitorStatus::Unavailable(reason) = recorder.monitor() {
+                    self.status
+                        .push_str(&tr_args(" — sem monitor: {}", &[reason]));
+                }
                 self.record_start = self.playhead;
                 self.recorder = Some(recorder);
             }
@@ -8423,6 +8469,11 @@ impl AppState {
             Command::EditCloseGaps => self.close_gaps_on_selected_track(),
             Command::TrackDuplicate => self.duplicate_selected_track(),
             Command::TrackLock => self.toggle_selected_track_lock(),
+            Command::TrackArm => {
+                if let Some(id) = self.selected_track {
+                    self.toggle_track_arm(id);
+                }
+            }
             Command::InsertEmptyEvent => self.insert_empty_event(),
             Command::RenderToNewTrack => self.begin_render_to_track(false, ctx),
             Command::RenderAndReplace => self.begin_render_to_track(true, ctx),
@@ -10138,6 +10189,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             command_item(state, ui, Command::InsertTime);
             command_item(state, ui, Command::TrackDuplicate);
             command_item(state, ui, Command::TrackLock);
+            command_item(state, ui, Command::TrackArm);
             for command in [
                 Command::TrackMakeChild,
                 Command::TrackMakeParent,
@@ -12438,6 +12490,58 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         &mut prefs.show_welcome_on_startup,
                         tr("Mostrar a tela de boas-vindas ao iniciar o programa"),
                     );
+                    ui.separator();
+                    ui.strong(tr("Gravação de áudio"));
+                    let devices = state
+                        .input_devices
+                        .get_or_insert_with(neoveg_audio::record::list_inputs)
+                        .clone();
+                    ui.horizontal(|ui| {
+                        let current = prefs
+                            .input_device
+                            .clone()
+                            .unwrap_or_else(|| tr("Entrada padrão do sistema").to_owned());
+                        egui::ComboBox::from_label(tr("Dispositivo de entrada"))
+                            .selected_text(current)
+                            .width(220.0)
+                            .show_ui(ui, |ui| {
+                                if ui
+                                    .selectable_label(
+                                        prefs.input_device.is_none(),
+                                        tr("Entrada padrão do sistema"),
+                                    )
+                                    .clicked()
+                                {
+                                    prefs.input_device = None;
+                                }
+                                for name in &devices {
+                                    let chosen = prefs.input_device.as_deref() == Some(name);
+                                    if ui.selectable_label(chosen, name).clicked() {
+                                        prefs.input_device = Some(name.clone());
+                                    }
+                                }
+                            });
+                        if ui
+                            .small_button(tr("Atualizar"))
+                            .on_hover_text(tr("Procurar os dispositivos de entrada de novo"))
+                            .clicked()
+                        {
+                            state.input_devices = None;
+                        }
+                    });
+                    ui.checkbox(
+                        &mut prefs.monitor_input,
+                        tr("Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)"),
+                    );
+                    ui.add_enabled_ui(prefs.monitor_input, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Volume do monitor"));
+                            ui.add(
+                                PrecisionSlider::new(&mut prefs.monitor_volume, 0.0..=2.0, 1.0)
+                                    .width(150.0),
+                            );
+                        });
+                    });
                     ui.checkbox(
                         &mut prefs.hardware_decoding,
                         tr("Decodificar HEVC, AV1 e VP9 com a placa de vídeo"),
@@ -14119,6 +14223,8 @@ enum HeaderControl {
     Solo,
     Phase,
     TrackFx,
+    /// Arm for record (audio tracks).
+    Arm,
 }
 
 impl HeaderControl {
@@ -14127,7 +14233,7 @@ impl HeaderControl {
             Self::Mute => Some(Icon::Mute),
             Self::Solo => Some(Icon::Solo),
             Self::Phase => Some(Icon::Phase),
-            Self::TrackFx => None,
+            Self::TrackFx | Self::Arm => None,
         }
     }
 
@@ -14137,6 +14243,7 @@ impl HeaderControl {
             Self::Solo => "Solo (X; Ctrl+clique = só esta faixa)",
             Self::Phase => "Inverter a fase",
             Self::TrackFx => "Efeitos de vídeo da faixa",
+            Self::Arm => "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa",
         }
     }
 }
@@ -14151,6 +14258,7 @@ fn header_buttons(row: Rect, kind: TrackKind, adjustment: bool) -> Vec<(HeaderCo
             (HeaderControl::Mute, button(6.0)),
             (HeaderControl::Solo, button(29.0)),
             (HeaderControl::Phase, button(52.0)),
+            (HeaderControl::Arm, button(75.0)),
         ],
         TrackKind::Video if adjustment => vec![
             (HeaderControl::Mute, button(6.0)),
@@ -14637,6 +14745,7 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
         command_item(state, ui, Command::TrackMute);
         if track.kind == TrackKind::Audio {
             command_item(state, ui, Command::TrackSolo);
+            command_item(state, ui, Command::TrackArm);
             ui.menu_button(tr("Inserir/remover envelope"), |ui| {
                 for command in [
                     Command::TrackVolumeEnvelope,
@@ -15009,7 +15118,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.stop();
         }
         let tip = state.with_hint(
-            tr("Gravar do dispositivo de entrada"),
+            tr("Gravar do dispositivo de entrada (na faixa armada, se houver)"),
             Command::TransportRecord,
         );
         if icons::icon_button(ui, Icon::Record, &tip, state.recorder.is_some()).clicked() {
@@ -15409,6 +15518,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         if ctrl == HeaderControl::TrackFx {
                             state.vfx.scope = VfxScope::Track;
                             state.window_request = Some(WindowAction::Show(Tab::VideoFx));
+                        } else if ctrl == HeaderControl::Arm {
+                            state.toggle_track_arm(track.id);
                         } else {
                             let exclusive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
                             let action = match ctrl {
@@ -15417,7 +15528,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                                 HeaderControl::Solo if exclusive => MixAction::SoloExclusive,
                                 HeaderControl::Solo => MixAction::Solo(!track.solo),
                                 HeaderControl::Phase => MixAction::Phase(!track.invert_phase),
-                                HeaderControl::TrackFx => unreachable!(),
+                                HeaderControl::TrackFx | HeaderControl::Arm => unreachable!(),
                             };
                             state.apply_mix_actions(track.id, vec![action]);
                         }
@@ -16773,6 +16884,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 HeaderControl::Solo => track.solo,
                 HeaderControl::Phase => track.invert_phase,
                 HeaderControl::TrackFx => track.video_effects.iter().any(|e| !e.bypass),
+                HeaderControl::Arm => track.armed,
             };
             let hovered = hover_pos.is_some_and(|p| btn_rect.contains(p));
             let fill = match (ctrl, active, hovered) {
@@ -16780,6 +16892,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 (HeaderControl::Solo, true, _) => Color32::from_rgb(0xD3, 0x54, 0x00),
                 (HeaderControl::Phase, true, _) => ui.visuals().selection.bg_fill,
                 (HeaderControl::TrackFx, true, _) => Color32::from_rgb(0x29, 0x80, 0xB9),
+                (HeaderControl::Arm, true, _) => Color32::from_rgb(0xC0, 0x39, 0x2B),
                 (_, false, true) => ui.visuals().widgets.hovered.bg_fill,
                 _ => Color32::from_black_alpha(45),
             };
@@ -16791,6 +16904,18 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             };
             if let Some(icon) = ctrl.icon() {
                 header_painter.extend(icons::shapes(icon, btn_rect.shrink(3.5), fg));
+            } else if ctrl == HeaderControl::Arm {
+                // The record dot: solid white on the red of an armed track, a red ring otherwise
+                let center = btn_rect.center();
+                if active {
+                    header_painter.circle_filled(center, 5.0, Color32::WHITE);
+                } else {
+                    header_painter.circle_stroke(
+                        center,
+                        5.0,
+                        Stroke::new(1.5_f32, Color32::from_rgb(0xE0, 0x4B, 0x3C)),
+                    );
+                }
             } else if ctrl == HeaderControl::TrackFx
                 && btn_rect.top() >= ruler_bottom
                 && btn_rect.bottom() <= rect.bottom()
@@ -16814,7 +16939,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             };
             let pan_short = mixer_panel::format_pan(track.pan).replace(' ', "");
             header_painter.text(
-                row.min + vec2(77.0, 44.0),
+                row.min + vec2(6.0, 59.0),
                 Align2::LEFT_CENTER,
                 format!("{db_short} {pan_short}"),
                 FontId::monospace(9.5),
@@ -20352,6 +20477,75 @@ mod tests {
         s.selected_track = None;
         run(&mut s, Command::TrackLock);
         assert!(s.status.contains("Selecione"));
+    }
+
+    #[test]
+    fn arming_a_track_is_one_undo_step_and_the_recording_goes_on_the_armed_track() {
+        let (mut s, track, _) = state_with_clip();
+        s.add_track(TrackKind::Audio);
+        let other = s.selected_track.unwrap();
+        assert_ne!(track, other);
+        // Nothing armed: the take goes where the selection says
+        assert_eq!(neoveg_engine::track_arm::target_track(&s.timeline), None);
+        s.selected_track = Some(track);
+        assert!(s.command_enabled(Command::TrackArm));
+        run(&mut s, Command::TrackArm);
+        assert!(s.timeline.track(track).unwrap().armed);
+        assert!(s.status.contains("armada"), "{}", s.status);
+        assert_eq!(
+            neoveg_engine::track_arm::target_track(&s.timeline),
+            Some(track)
+        );
+        run(&mut s, Command::TrackArm);
+        assert!(!s.timeline.track(track).unwrap().armed);
+        run(&mut s, Command::EditUndo);
+        assert!(s.timeline.track(track).unwrap().armed, "undo arms it again");
+        // A video track cannot be armed and the command is not offered for it
+        s.add_track(TrackKind::Video);
+        let video = s.selected_track.unwrap();
+        assert!(!s.command_enabled(Command::TrackArm));
+        s.toggle_track_arm(video);
+        assert!(!s.timeline.track(video).unwrap().armed);
+        assert!(s.status.contains("áudio"), "{}", s.status);
+        s.selected_track = None;
+        assert!(!s.command_enabled(Command::TrackArm));
+    }
+
+    #[test]
+    fn the_arm_button_sits_beside_phase_on_audio_headers_only() {
+        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
+        assert_eq!(
+            hit_header_control(row, TrackKind::Audio, false, pos2(80.0, 142.0)),
+            Some(HeaderControl::Arm)
+        );
+        assert_eq!(
+            hit_header_control(row, TrackKind::Video, false, pos2(80.0, 142.0)),
+            None
+        );
+        assert!(
+            row.contains(pos2(95.0, 142.0)),
+            "the button fits in the header"
+        );
+    }
+
+    #[test]
+    fn the_input_choice_and_the_monitor_are_kept_in_the_preferences() {
+        let p = Preferences::default();
+        assert!(p.input_device.is_none() && !p.monitor_input);
+        assert_eq!(p.monitor_volume, 1.0);
+        let json = serde_json::to_string(&Preferences {
+            input_device: Some("Mic USB".into()),
+            monitor_input: true,
+            monitor_volume: 0.5,
+            ..Preferences::default()
+        })
+        .unwrap();
+        let back: Preferences = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.input_device.as_deref(), Some("Mic USB"));
+        assert!(back.monitor_input && back.monitor_volume == 0.5);
+        // Preferences saved before this feature still load
+        let old: Preferences = serde_json::from_str("{\"language\":\"pt-BR\"}").unwrap();
+        assert!(old.input_device.is_none() && !old.monitor_input);
     }
 
     #[test]

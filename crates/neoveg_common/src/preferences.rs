@@ -84,6 +84,12 @@ pub struct Preferences {
     pub vst3_isolated: bool,
     /// The `.vst3` modules the user turned off in the plug-in manager (their paths).
     pub vst3_blocked: Vec<String>,
+    /// The audio input recordings are made from, by name (`None`: the default input).
+    pub input_device: Option<String>,
+    /// Play the input on the default output while recording.
+    pub monitor_input: bool,
+    /// Gain of the monitor, `0.0..=2.0`.
+    pub monitor_volume: f32,
 }
 
 impl Default for Preferences {
@@ -122,6 +128,9 @@ impl Default for Preferences {
             display_name: String::new(),
             vst3_isolated: true,
             vst3_blocked: Vec::new(),
+            input_device: None,
+            monitor_input: false,
+            monitor_volume: 1.0,
         }
     }
 }

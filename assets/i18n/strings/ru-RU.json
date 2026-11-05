@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Экспорт временной шкалы в AAF (совместимо с Avid, DaVinci Resolve, Premiere Pro и Pro Tools).",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Встроить медиа в файл AAF (PCM аудио / изображения)",
   "Setores de 512 bytes (compatibilidade legada)": "Секторы 512 байт (для устаревших систем)",
-  "A linha do tempo está vazia.": "Временная шкала пуста."
+  "A linha do tempo está vazia.": "Временная шкала пуста.",
+  "Armar faixa para gravação": "Подготовить дорожку к записи",
+  "Faixa desarmada": "Дорожка снята с готовности к записи",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "Дорожка готова к записи (Ctrl+R пишет на неё)",
+  "Só faixas de áudio podem ser armadas": "К записи можно подготовить только звуковые дорожки",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "Запись с {} на дорожку {} (Ctrl+R — остановить)",
+  " — sem monitor: {}": " — без мониторинга: {}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "Подготовить к записи (Ctrl+Alt+R): Ctrl+R пишет на эту дорожку",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "Записать с устройства ввода (на готовую дорожку, если есть)",
+  "Gravação de áudio": "Запись звука",
+  "Entrada padrão do sistema": "Устройство ввода по умолчанию",
+  "Dispositivo de entrada": "Устройство ввода",
+  "Procurar os dispositivos de entrada de novo": "Найти устройства ввода заново",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Слышать вход на выходе во время записи (наушники против фона)",
+  "Volume do monitor": "Громкость мониторинга"
 }

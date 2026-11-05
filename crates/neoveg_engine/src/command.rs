@@ -228,6 +228,11 @@ pub enum EditCommand {
         track_id: TrackId,
         locked: bool,
     },
+    /// Arms or disarms an audio track for recording (see `track_arm`).
+    SetTrackArmed {
+        track_id: TrackId,
+        armed: bool,
+    },
     /// The nesting level of video tracks as compositing children: `(track, before, after)`.
     SetComposeLevels {
         changes: Vec<(TrackId, u8, u8)>,
@@ -548,6 +553,13 @@ impl EditCommand {
                 }
                 None => false,
             },
+            Self::SetTrackArmed { track_id, armed } => match tl.track_mut(*track_id) {
+                Some(t) => {
+                    t.armed = *armed;
+                    true
+                }
+                None => false,
+            },
             Self::SetComposeLevels { changes } => {
                 for (id, _, after) in changes {
                     if let Some(t) = tl.track_mut(*id) {
@@ -826,6 +838,11 @@ impl EditCommand {
             Self::SetTrackLocked { track_id, locked } => {
                 if let Some(t) = tl.track_mut(*track_id) {
                     t.locked = !*locked;
+                }
+            }
+            Self::SetTrackArmed { track_id, armed } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    t.armed = !*armed;
                 }
             }
             Self::SetComposeLevels { changes } => {

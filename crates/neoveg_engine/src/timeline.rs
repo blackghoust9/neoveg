@@ -705,6 +705,10 @@ pub struct Track {
     /// Automation mode of the track (`Off`, `Read`, `Touch`, `Latch`; older projects: `Read`).
     #[serde(default, skip_serializing_if = "AutomationMode::is_default")]
     pub automation_mode: AutomationMode,
+    /// An audio track armed for recording: the take goes on it (see `track_arm`; older projects:
+    /// not armed).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub armed: bool,
 }
 
 fn is_zero_level(level: &u8) -> bool {
@@ -878,6 +882,7 @@ impl Timeline {
             compose_level: 0,
             locked: false,
             automation_mode: AutomationMode::default(),
+            armed: false,
         }
     }
 

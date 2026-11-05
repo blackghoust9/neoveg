@@ -1,4 +1,6 @@
-//! Audio recording from the default input device into a 32-bit float WAV file.
+//! Audio recording from an input device (the default one, or the one the user chose) into a 32-bit
+//! float WAV file, with optional monitoring: what is being recorded is also played on the default
+//! output, through a lock-free ring, so the performer hears it.
 //!
 //! The input callback never allocates, locks or does I/O: it converts the samples into one of a
 //! fixed pool of preallocated chunks and hands it to a writer thread through a bounded channel;
@@ -8,7 +10,7 @@
 use std::fs::File;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -46,11 +48,72 @@ impl Recording {
     }
 }
 
-/// The default input device, when there is one.
-pub fn probe_input() -> Result<InputInfo, String> {
-    let device = cpal::default_host()
-        .default_input_device()
-        .ok_or("nenhum dispositivo de entrada de áudio")?;
+/// How a recording is made.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordOptions {
+    /// The input device by name; `None` (or a name that is gone) is the default device.
+    pub device: Option<String>,
+    /// Play what is recorded on the default output while recording.
+    pub monitor: bool,
+    /// Gain of the monitor, `0.0..=2.0`.
+    pub monitor_volume: f32,
+}
+
+impl Default for RecordOptions {
+    fn default() -> Self {
+        Self {
+            device: None,
+            monitor: false,
+            monitor_volume: 1.0,
+        }
+    }
+}
+
+/// What happened to the monitor of a recording.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MonitorStatus {
+    Off,
+    On,
+    /// Asked for, but not possible (the reason).
+    Unavailable(String),
+}
+
+/// Names of the input devices of the default host, the default one first.
+pub fn list_inputs() -> Vec<String> {
+    let host = cpal::default_host();
+    let default = host.default_input_device().and_then(|d| d.name().ok());
+    let mut names: Vec<String> = host
+        .input_devices()
+        .map(|devices| devices.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default();
+    names.sort();
+    names.dedup();
+    if let Some(default) = default {
+        names.retain(|n| *n != default);
+        names.insert(0, default);
+    }
+    names
+}
+
+/// The device called `name`, or the default input when `name` is `None` or no longer there.
+fn input_device(name: Option<&str>) -> Result<cpal::Device, String> {
+    let host = cpal::default_host();
+    if let Some(name) = name {
+        if let Some(found) = host
+            .input_devices()
+            .ok()
+            .and_then(|mut d| d.find(|d| d.name().is_ok_and(|n| n == name)))
+        {
+            return Ok(found);
+        }
+    }
+    host.default_input_device()
+        .ok_or_else(|| "nenhum dispositivo de entrada de áudio".to_string())
+}
+
+/// The input the recording would use (the device called `name`, else the default one).
+pub fn probe_input(name: Option<&str>) -> Result<InputInfo, String> {
+    let device = input_device(name)?;
     let config = device
         .default_input_config()
         .map_err(|e| format!("entrada de áudio indisponível: {e}"))?;
@@ -147,6 +210,173 @@ where
     peak
 }
 
+// ---- the monitor --------------------------------------------------------------------------------
+
+/// Samples the ring holds (power of two): about 0.7 s of stereo at 48 kHz.
+const RING_SAMPLES: usize = 1 << 16;
+/// Most channels the monitor carries.
+const MONITOR_MAX_CHANNELS: usize = 8;
+
+/// A single-producer single-consumer ring of `f32` samples: the input callback writes, the output
+/// callback reads, neither waits for the other.
+pub struct MonitorRing {
+    data: Vec<AtomicU32>,
+    head: AtomicUsize,
+    tail: AtomicUsize,
+}
+
+impl MonitorRing {
+    pub fn new() -> Self {
+        Self {
+            data: (0..RING_SAMPLES).map(|_| AtomicU32::new(0)).collect(),
+            head: AtomicUsize::new(0),
+            tail: AtomicUsize::new(0),
+        }
+    }
+
+    /// Samples waiting to be read.
+    pub fn available(&self) -> usize {
+        self.head
+            .load(Ordering::Acquire)
+            .wrapping_sub(self.tail.load(Ordering::Acquire))
+    }
+
+    /// Writes as many of `samples` as fit and returns how many were taken.
+    pub fn push(&self, samples: &[f32]) -> usize {
+        let head = self.head.load(Ordering::Relaxed);
+        let free = RING_SAMPLES - head.wrapping_sub(self.tail.load(Ordering::Acquire));
+        let n = samples.len().min(free);
+        for (i, s) in samples[..n].iter().enumerate() {
+            self.data[head.wrapping_add(i) % RING_SAMPLES].store(s.to_bits(), Ordering::Relaxed);
+        }
+        self.head.store(head.wrapping_add(n), Ordering::Release);
+        n
+    }
+
+    /// Reads up to `out.len()` samples and returns how many were read.
+    pub fn pop(&self, out: &mut [f32]) -> usize {
+        let tail = self.tail.load(Ordering::Relaxed);
+        let n = out
+            .len()
+            .min(self.head.load(Ordering::Acquire).wrapping_sub(tail));
+        for (i, o) in out[..n].iter_mut().enumerate() {
+            *o = f32::from_bits(
+                self.data[tail.wrapping_add(i) % RING_SAMPLES].load(Ordering::Relaxed),
+            );
+        }
+        self.tail.store(tail.wrapping_add(n), Ordering::Release);
+        n
+    }
+
+    /// Throws away all but the newest `keep` samples (the monitor must stay close to the live sound).
+    pub fn skip_to_latest(&self, keep: usize) {
+        let available = self.available();
+        if available > keep {
+            let tail = self.tail.load(Ordering::Relaxed);
+            self.tail
+                .store(tail.wrapping_add(available - keep), Ordering::Release);
+        }
+    }
+}
+
+impl Default for MonitorRing {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Puts one input frame on an output frame of another channel count: mono is heard on every
+/// channel, two channels into one are averaged, otherwise channels go to the same numbers.
+pub fn map_frame(input: &[f32], out: &mut [f32], gain: f32) {
+    match (input.len(), out.len()) {
+        (0, _) => out.fill(0.0),
+        (1, _) => out.fill(input[0] * gain),
+        (_, 1) => out[0] = (input[0] + input[1]) * 0.5 * gain,
+        _ => {
+            for (c, o) in out.iter_mut().enumerate() {
+                *o = input.get(c).copied().unwrap_or(0.0) * gain;
+            }
+        }
+    }
+}
+
+fn build_monitor_stream<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    ring: Arc<MonitorRing>,
+    in_channels: usize,
+    gain: f32,
+) -> Result<cpal::Stream, String>
+where
+    T: SizedSample + FromSample<f32>,
+{
+    let out_channels = usize::from(config.channels).max(1);
+    // Far enough behind the live sound to be steady, no more than ~85 ms of it
+    let keep = in_channels * 4096;
+    device
+        .build_output_stream(
+            config,
+            move |out: &mut [T], _| {
+                ring.skip_to_latest(keep);
+                let mut frame = [0.0f32; MONITOR_MAX_CHANNELS];
+                let mut mapped = [0.0f32; MONITOR_MAX_CHANNELS];
+                for chunk in out.chunks_mut(out_channels) {
+                    let got = ring.pop(&mut frame[..in_channels]);
+                    let n = chunk.len().min(MONITOR_MAX_CHANNELS);
+                    if got == in_channels {
+                        map_frame(&frame[..in_channels], &mut mapped[..n], gain);
+                    } else {
+                        mapped[..n].fill(0.0);
+                    }
+                    for (o, v) in chunk.iter_mut().zip(&mapped[..n]) {
+                        *o = T::from_sample(*v);
+                    }
+                }
+            },
+            |e| tracing::error!("[ERROR] audio monitor stream: {e}"),
+            None,
+        )
+        .map_err(|e| format!("não foi possível abrir a saída do monitor: {e}"))
+}
+
+/// Opens the monitor on the default output for an input of `in_channels` at `rate`.
+fn open_monitor(
+    ring: Arc<MonitorRing>,
+    rate: u32,
+    in_channels: u16,
+    gain: f32,
+) -> Result<cpal::Stream, String> {
+    if usize::from(in_channels) > MONITOR_MAX_CHANNELS {
+        return Err("entrada com canais demais para monitorar".into());
+    }
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or("nenhum dispositivo de saída de áudio")?;
+    let supported = device
+        .default_output_config()
+        .map_err(|e| format!("saída de áudio indisponível: {e}"))?;
+    if supported.sample_rate().0 != rate {
+        return Err(format!(
+            "a entrada ({rate} Hz) e a saída ({} Hz) têm taxas diferentes",
+            supported.sample_rate().0
+        ));
+    }
+    let format = supported.sample_format();
+    let config: cpal::StreamConfig = supported.into();
+    let channels = usize::from(in_channels);
+    let stream = match format {
+        SampleFormat::F32 => build_monitor_stream::<f32>(&device, &config, ring, channels, gain),
+        SampleFormat::I16 => build_monitor_stream::<i16>(&device, &config, ring, channels, gain),
+        SampleFormat::U16 => build_monitor_stream::<u16>(&device, &config, ring, channels, gain),
+        SampleFormat::I32 => build_monitor_stream::<i32>(&device, &config, ring, channels, gain),
+        other => Err(format!("formato de saída não suportado: {other:?}")),
+    }?;
+    stream
+        .play()
+        .map_err(|e| format!("não foi possível iniciar o monitor: {e}"))?;
+    Ok(stream)
+}
+
 struct Shared {
     /// Bit pattern of the highest absolute sample since the last read (floats `>= 0` order like ints).
     peak_bits: AtomicU32,
@@ -162,6 +392,9 @@ pub struct Recorder {
     writer: Option<JoinHandle<Result<WavWriter<BufWriter<File>>, String>>>,
     path: PathBuf,
     info: InputInfo,
+    /// The monitor's output stream, while there is one.
+    monitor_stream: Option<cpal::Stream>,
+    monitor: MonitorStatus,
 }
 
 fn build_stream<T>(
@@ -171,6 +404,7 @@ fn build_stream<T>(
     free: Receiver<Vec<f32>>,
     data: SyncSender<Vec<f32>>,
     channels: u16,
+    monitor: Option<Arc<MonitorRing>>,
 ) -> Result<cpal::Stream, String>
 where
     T: SizedSample + Copy,
@@ -187,6 +421,9 @@ where
                         continue;
                     };
                     let peak = convert_chunk(part, &mut chunk);
+                    if let Some(ring) = &monitor {
+                        ring.push(&chunk);
+                    }
                     shared
                         .peak_bits
                         .fetch_max(peak.to_bits(), Ordering::Relaxed);
@@ -206,11 +443,9 @@ where
 }
 
 impl Recorder {
-    /// Starts recording the default input into `path` (a `.wav`).
-    pub fn start(path: &Path) -> Result<Self, String> {
-        let device = cpal::default_host()
-            .default_input_device()
-            .ok_or("nenhum dispositivo de entrada de áudio")?;
+    /// Starts recording the input chosen in `options` into `path` (a `.wav`).
+    pub fn start(path: &Path, options: &RecordOptions) -> Result<Self, String> {
+        let device = input_device(options.device.as_deref())?;
         let supported = device
             .default_input_config()
             .map_err(|e| format!("entrada de áudio indisponível: {e}"))?;
@@ -242,19 +477,63 @@ impl Recorder {
         }
 
         let channels = info.channels;
+        // The monitor is a bonus: when it cannot be had the recording goes on without it
+        let mut monitor = MonitorStatus::Off;
+        let mut monitor_stream = None;
+        let mut ring = None;
+        if options.monitor {
+            let shared_ring = Arc::new(MonitorRing::new());
+            match open_monitor(
+                shared_ring.clone(),
+                info.sample_rate,
+                info.channels,
+                options.monitor_volume.clamp(0.0, 2.0),
+            ) {
+                Ok(stream) => {
+                    monitor_stream = Some(stream);
+                    monitor = MonitorStatus::On;
+                    ring = Some(shared_ring);
+                }
+                Err(reason) => monitor = MonitorStatus::Unavailable(reason),
+            }
+        }
         let stream = match format {
-            SampleFormat::F32 => {
-                build_stream::<f32>(&device, &config, shared.clone(), free_rx, data_tx, channels)
-            }
-            SampleFormat::I16 => {
-                build_stream::<i16>(&device, &config, shared.clone(), free_rx, data_tx, channels)
-            }
-            SampleFormat::U16 => {
-                build_stream::<u16>(&device, &config, shared.clone(), free_rx, data_tx, channels)
-            }
-            SampleFormat::I32 => {
-                build_stream::<i32>(&device, &config, shared.clone(), free_rx, data_tx, channels)
-            }
+            SampleFormat::F32 => build_stream::<f32>(
+                &device,
+                &config,
+                shared.clone(),
+                free_rx,
+                data_tx,
+                channels,
+                ring,
+            ),
+            SampleFormat::I16 => build_stream::<i16>(
+                &device,
+                &config,
+                shared.clone(),
+                free_rx,
+                data_tx,
+                channels,
+                ring,
+            ),
+            SampleFormat::U16 => build_stream::<u16>(
+                &device,
+                &config,
+                shared.clone(),
+                free_rx,
+                data_tx,
+                channels,
+                ring,
+            ),
+            SampleFormat::I32 => build_stream::<i32>(
+                &device,
+                &config,
+                shared.clone(),
+                free_rx,
+                data_tx,
+                channels,
+                ring,
+            ),
             other => Err(format!("formato de entrada não suportado: {other:?}")),
         }?;
         stream
@@ -282,7 +561,14 @@ impl Recorder {
             writer: Some(writer_thread),
             path: path.to_owned(),
             info,
+            monitor_stream,
+            monitor,
         })
+    }
+
+    /// Whether the recording is being monitored.
+    pub fn monitor(&self) -> &MonitorStatus {
+        &self.monitor
     }
 
     pub fn info(&self) -> &InputInfo {
@@ -308,6 +594,7 @@ impl Recorder {
         self.shared.stop.store(true, Ordering::Relaxed);
         // Dropping the stream drops the callback and with it the only sender
         drop(self.stream.take());
+        drop(self.monitor_stream.take());
         let writer = self
             .writer
             .take()
@@ -331,6 +618,7 @@ impl Recorder {
 impl Drop for Recorder {
     fn drop(&mut self) {
         drop(self.stream.take());
+        drop(self.monitor_stream.take());
         if let Some(writer) = self.writer.take() {
             if let Ok(Ok(w)) = writer.join() {
                 let _ = w.finish();
@@ -412,5 +700,90 @@ mod tests {
             overruns: 0,
         };
         assert!((r.seconds() - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_ring_keeps_order_wraps_around_and_never_takes_more_than_it_holds() {
+        let ring = MonitorRing::new();
+        assert_eq!(ring.available(), 0);
+        assert_eq!(ring.push(&[1.0, 2.0, 3.0]), 3);
+        let mut out = [0.0; 2];
+        assert_eq!(ring.pop(&mut out), 2);
+        assert_eq!(out, [1.0, 2.0]);
+        let mut rest = [0.0; 4];
+        assert_eq!(ring.pop(&mut rest), 1, "only what was written");
+        assert_eq!(rest[0], 3.0);
+        // Many more samples than the ring holds, a little at a time: the order survives the wrap
+        let mut next = 0.0f32;
+        let mut expected = 0.0f32;
+        for _ in 0..(RING_SAMPLES / 100 * 3) {
+            let block: Vec<f32> = (0..100)
+                .map(|_| {
+                    next += 1.0;
+                    next
+                })
+                .collect();
+            assert_eq!(ring.push(&block), 100);
+            let mut back = [0.0; 100];
+            assert_eq!(ring.pop(&mut back), 100);
+            for v in back {
+                expected += 1.0;
+                assert_eq!(v, expected);
+            }
+        }
+        // A full ring refuses the rest
+        let big = vec![0.5; RING_SAMPLES + 10];
+        assert_eq!(ring.push(&big), RING_SAMPLES);
+        assert_eq!(ring.push(&[1.0]), 0);
+    }
+
+    #[test]
+    fn the_monitor_skips_old_sound_to_stay_close_to_the_live_one() {
+        let ring = MonitorRing::new();
+        let block: Vec<f32> = (0..1000).map(|i| i as f32).collect();
+        ring.push(&block);
+        ring.skip_to_latest(100);
+        assert_eq!(ring.available(), 100);
+        let mut out = [0.0; 1];
+        ring.pop(&mut out);
+        assert_eq!(out[0], 900.0, "the newest 100 are kept");
+        ring.skip_to_latest(500);
+        assert_eq!(
+            ring.available(),
+            99,
+            "nothing is thrown away when it is close enough"
+        );
+    }
+
+    #[test]
+    fn a_frame_is_mapped_to_the_channels_of_the_output() {
+        let mut out = [9.0; 2];
+        map_frame(&[0.5], &mut out, 1.0);
+        assert_eq!(out, [0.5, 0.5], "mono is heard on both sides");
+        map_frame(&[0.2, 0.4], &mut out, 0.5);
+        assert_eq!(out, [0.1, 0.2]);
+        let mut mono = [9.0; 1];
+        map_frame(&[0.2, 0.6], &mut mono, 1.0);
+        assert!(
+            (mono[0] - 0.4).abs() < 1e-6,
+            "two channels into one are averaged"
+        );
+        let mut six = [9.0; 6];
+        map_frame(&[1.0, -1.0], &mut six, 1.0);
+        assert_eq!(six, [1.0, -1.0, 0.0, 0.0, 0.0, 0.0]);
+        map_frame(&[], &mut out, 1.0);
+        assert_eq!(out, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn the_default_options_record_the_default_input_without_monitor() {
+        let options = RecordOptions::default();
+        assert!(options.device.is_none() && !options.monitor);
+        assert_eq!(options.monitor_volume, 1.0);
+        // A list of devices is always a list (empty on a machine with none), default first
+        let names = list_inputs();
+        let mut sorted = names.clone();
+        sorted.dedup();
+        assert_eq!(names.len(), sorted.len(), "no name twice");
     }
 }

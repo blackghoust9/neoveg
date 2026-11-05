@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Exporter la timeline vers AAF (compatible avec Avid, DaVinci Resolve, Premiere Pro et Pro Tools).",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Intégrer les médias dans le fichier AAF (audio PCM / images)",
   "Setores de 512 bytes (compatibilidade legada)": "Secteurs de 512 octets (compatibilité héritée)",
-  "A linha do tempo está vazia.": "La timeline est vide."
+  "A linha do tempo está vazia.": "La timeline est vide.",
+  "Armar faixa para gravação": "Armer la piste pour l'enregistrement",
+  "Faixa desarmada": "Piste désarmée",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "Piste armée pour l'enregistrement (Ctrl+R enregistre dessus)",
+  "Só faixas de áudio podem ser armadas": "Seules les pistes audio peuvent être armées",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "Enregistrement depuis {} sur la piste {} (Ctrl+R pour arrêter)",
+  " — sem monitor: {}": " — pas de monitoring : {}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "Armer pour l'enregistrement (Ctrl+Alt+R) : Ctrl+R enregistre sur cette piste",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "Enregistrer depuis le périphérique d'entrée (sur la piste armée, s'il y en a une)",
+  "Gravação de áudio": "Enregistrement audio",
+  "Entrada padrão do sistema": "Entrée par défaut du système",
+  "Dispositivo de entrada": "Périphérique d'entrée",
+  "Procurar os dispositivos de entrada de novo": "Chercher de nouveau les périphériques d'entrée",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Écouter l'entrée sur la sortie pendant l'enregistrement (casque conseillé contre le larsen)",
+  "Volume do monitor": "Volume du monitoring"
 }

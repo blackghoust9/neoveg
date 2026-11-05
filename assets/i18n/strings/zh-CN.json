@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "将时间线导出为AAF（兼容Avid、DaVinci Resolve、Premiere Pro和Pro Tools）。",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "在AAF文件中嵌入媒体（PCM音频 / 图像）",
   "Setores de 512 bytes (compatibilidade legada)": "512字节扇区（旧版兼容性）",
-  "A linha do tempo está vazia.": "时间线为空。"
+  "A linha do tempo está vazia.": "时间线为空。",
+  "Armar faixa para gravação": "将轨道设为录音待命",
+  "Faixa desarmada": "轨道已取消录音待命",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "轨道已设为录音待命(Ctrl+R 将录制到此轨道)",
+  "Só faixas de áudio podem ser armadas": "只有音频轨道可以设为录音待命",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "正从 {} 录制到轨道 {}(Ctrl+R 停止)",
+  " — sem monitor: {}": " — 无监听:{}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "录音待命(Ctrl+Alt+R):Ctrl+R 录制到此轨道",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "从输入设备录音(有待命轨道时录到该轨道)",
+  "Gravação de áudio": "音频录制",
+  "Entrada padrão do sistema": "系统默认输入",
+  "Dispositivo de entrada": "输入设备",
+  "Procurar os dispositivos de entrada de novo": "重新查找输入设备",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "录音时在输出端监听输入(请戴耳机以免啸叫)",
+  "Volume do monitor": "监听音量"
 }

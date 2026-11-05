@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Timeline nach AAF exportieren (kompatibel mit Avid, DaVinci Resolve, Premiere Pro und Pro Tools).",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Medien in AAF-Datei einbetten (PCM-Audio / Bilder)",
   "Setores de 512 bytes (compatibilidade legada)": "512-Byte-Sektoren (Legacy-Kompatibilität)",
-  "A linha do tempo está vazia.": "Die Timeline ist leer."
+  "A linha do tempo está vazia.": "Die Timeline ist leer.",
+  "Armar faixa para gravação": "Spur für Aufnahme scharfschalten",
+  "Faixa desarmada": "Spur nicht mehr scharf",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "Spur für Aufnahme scharf (Strg+R nimmt darauf auf)",
+  "Só faixas de áudio podem ser armadas": "Nur Audiospuren können scharfgeschaltet werden",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "Aufnahme von {} auf Spur {} (Strg+R zum Beenden)",
+  " — sem monitor: {}": " — kein Monitor: {}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "Für Aufnahme scharfschalten (Strg+Alt+R): Strg+R nimmt auf dieser Spur auf",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "Vom Eingabegerät aufnehmen (auf die scharfe Spur, falls vorhanden)",
+  "Gravação de áudio": "Audioaufnahme",
+  "Entrada padrão do sistema": "Standardeingang des Systems",
+  "Dispositivo de entrada": "Eingabegerät",
+  "Procurar os dispositivos de entrada de novo": "Eingabegeräte erneut suchen",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Eingang während der Aufnahme am Ausgang mithören (Kopfhörer gegen Rückkopplung)",
+  "Volume do monitor": "Monitorlautstärke"
 }

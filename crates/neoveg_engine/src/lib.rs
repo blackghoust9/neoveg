@@ -43,6 +43,7 @@ pub mod snapping;
 pub mod switches;
 pub mod takes;
 pub mod timeline;
+pub mod track_arm;
 pub mod track_lock;
 pub mod track_motion;
 pub mod track_ops;

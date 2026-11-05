@@ -1692,5 +1692,19 @@
   "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "タイムラインをAAFにエクスポート (Avid、DaVinci Resolve、Premiere Pro、Pro Tools互換)。",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "AAFファイルにメディアを埋め込む (PCMオーディオ / 画像)",
   "Setores de 512 bytes (compatibilidade legada)": "512バイトセクター (レガシー互換性)",
-  "A linha do tempo está vazia.": "タイムラインが空です。"
+  "A linha do tempo está vazia.": "タイムラインが空です。",
+  "Armar faixa para gravação": "録音のためにトラックをアームする",
+  "Faixa desarmada": "トラックのアームを解除しました",
+  "Faixa armada para gravação (Ctrl+R grava nela)": "録音用にトラックをアームしました(Ctrl+Rでこのトラックに録音)",
+  "Só faixas de áudio podem ser armadas": "アームできるのはオーディオトラックだけです",
+  "Gravando de {} na faixa {} (Ctrl+R para parar)": "{} から トラック {} に録音中(Ctrl+Rで停止)",
+  " — sem monitor: {}": " — モニターなし: {}",
+  "Armar para gravação (Ctrl+Alt+R): Ctrl+R grava nesta faixa": "録音用にアーム(Ctrl+Alt+R):Ctrl+Rでこのトラックに録音",
+  "Gravar do dispositivo de entrada (na faixa armada, se houver)": "入力デバイスから録音(アーム中のトラックがあればそこへ)",
+  "Gravação de áudio": "オーディオ録音",
+  "Entrada padrão do sistema": "システムの既定の入力",
+  "Dispositivo de entrada": "入力デバイス",
+  "Procurar os dispositivos de entrada de novo": "入力デバイスを再検索",
+  "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "録音中に入力を出力で聞く(ハウリング防止にヘッドホン推奨)",
+  "Volume do monitor": "モニター音量"
 }
