@@ -41,6 +41,7 @@ pub mod selection;
 pub mod slideshow;
 pub mod smooth_cut;
 pub mod snapping;
+pub mod subclip;
 pub mod switches;
 pub mod takes;
 pub mod timeline;

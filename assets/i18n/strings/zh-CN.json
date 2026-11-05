@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "声道 {}/{}",
   "Fluxo {}, {}": "流 {},{}",
   "Fonte do som: {}": "声音来源:{}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "没有未锁定的音频事件更改了声音来源"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "没有未锁定的音频事件更改了声音来源",
+  "Criar subclipe do evento": "创建事件的子剪辑",
+  "Criar subclipe revertido do evento": "创建事件的倒放子剪辑",
+  "Reverter evento": "倒放事件",
+  "Já há um subclipe sendo feito": "已有子剪辑正在创建",
+  "Selecione um evento com mídia para cortar": "请选择带媒体的事件来剪切",
+  "O evento está bloqueado": "事件已锁定",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "视频一次最多倒放 {} 秒(此部分为 {} 秒):请先拆分事件",
+  "Não há pasta para guardar o subclipe": "没有保存子剪辑的文件夹",
+  "Criando o subclipe revertido {}…": "正在创建倒放子剪辑 {}…",
+  "Criando o subclipe {}…": "正在创建子剪辑 {}…",
+  "Subclipe na mídia do projeto: {}": "项目媒体中的子剪辑:{}",
+  "Evento revertido: agora toca {}": "事件已倒放:现在播放 {}",
+  "Evento trocado pelo subclipe {}": "事件已替换为子剪辑 {}"
 }

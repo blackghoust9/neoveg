@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "チャンネル {}/{}",
   "Fluxo {}, {}": "ストリーム {}、{}",
   "Fonte do som: {}": "音声ソース:{}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "音声ソースが変わったロック解除済みのオーディオイベントはありません"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "音声ソースが変わったロック解除済みのオーディオイベントはありません",
+  "Criar subclipe do evento": "イベントのサブクリップを作成",
+  "Criar subclipe revertido do evento": "イベントの逆再生サブクリップを作成",
+  "Reverter evento": "イベントを逆再生にする",
+  "Já há um subclipe sendo feito": "サブクリップはすでに作成中です",
+  "Selecione um evento com mídia para cortar": "切り出すメディアのあるイベントを選択してください",
+  "O evento está bloqueado": "イベントはロックされています",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "映像は一度に {} 秒までしか逆再生できません(この部分は {} 秒):イベントを分割してください",
+  "Não há pasta para guardar o subclipe": "サブクリップを保存するフォルダーがありません",
+  "Criando o subclipe revertido {}…": "逆再生サブクリップ {} を作成中…",
+  "Criando o subclipe {}…": "サブクリップ {} を作成中…",
+  "Subclipe na mídia do projeto: {}": "プロジェクトメディアのサブクリップ:{}",
+  "Evento revertido: agora toca {}": "イベントを逆再生にしました:{} を再生します",
+  "Evento trocado pelo subclipe {}": "イベントをサブクリップ {} に置き換えました"
 }

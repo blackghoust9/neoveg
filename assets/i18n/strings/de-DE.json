@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "Kanäle {}/{}",
   "Fluxo {}, {}": "Stream {}, {}",
   "Fonte do som: {}": "Tonquelle: {}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Kein entsperrtes Audio-Event hat seine Tonquelle geändert"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Kein entsperrtes Audio-Event hat seine Tonquelle geändert",
+  "Criar subclipe do evento": "Subclip des Events erstellen",
+  "Criar subclipe revertido do evento": "Umgekehrten Subclip des Events erstellen",
+  "Reverter evento": "Event umkehren",
+  "Já há um subclipe sendo feito": "Es wird bereits ein Subclip erstellt",
+  "Selecione um evento com mídia para cortar": "Wählen Sie ein Event mit Medien zum Ausschneiden",
+  "O evento está bloqueado": "Das Event ist gesperrt",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "Video wird nur bis {} s auf einmal umgekehrt (der Abschnitt hat {} s): Event teilen",
+  "Não há pasta para guardar o subclipe": "Es gibt keinen Ordner für den Subclip",
+  "Criando o subclipe revertido {}…": "Umgekehrter Subclip {} wird erstellt…",
+  "Criando o subclipe {}…": "Subclip {} wird erstellt…",
+  "Subclipe na mídia do projeto: {}": "Subclip in den Projektmedien: {}",
+  "Evento revertido: agora toca {}": "Event umgekehrt: spielt jetzt {}",
+  "Evento trocado pelo subclipe {}": "Event durch den Subclip {} ersetzt"
 }

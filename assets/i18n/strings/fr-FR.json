@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "Canaux {}/{}",
   "Fluxo {}, {}": "Flux {}, {}",
   "Fonte do som: {}": "Source sonore : {}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Aucun événement audio déverrouillé n'a changé de source sonore"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Aucun événement audio déverrouillé n'a changé de source sonore",
+  "Criar subclipe do evento": "Créer un sous-clip de l'événement",
+  "Criar subclipe revertido do evento": "Créer un sous-clip inversé de l'événement",
+  "Reverter evento": "Inverser l'événement",
+  "Já há um subclipe sendo feito": "Un sous-clip est déjà en cours de création",
+  "Selecione um evento com mídia para cortar": "Sélectionnez un événement avec un média à découper",
+  "O evento está bloqueado": "L'événement est verrouillé",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "La vidéo ne s'inverse que jusqu'à {} s à la fois (la partie fait {} s) : divisez l'événement",
+  "Não há pasta para guardar o subclipe": "Il n'y a pas de dossier pour garder le sous-clip",
+  "Criando o subclipe revertido {}…": "Création du sous-clip inversé {}…",
+  "Criando o subclipe {}…": "Création du sous-clip {}…",
+  "Subclipe na mídia do projeto: {}": "Sous-clip dans les médias du projet : {}",
+  "Evento revertido: agora toca {}": "Événement inversé : il joue maintenant {}",
+  "Evento trocado pelo subclipe {}": "Événement remplacé par le sous-clip {}"
 }

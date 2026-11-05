@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "Каналы {}/{}",
   "Fluxo {}, {}": "Поток {}, {}",
   "Fonte do som: {}": "Источник звука: {}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Ни одно разблокированное звуковое событие не сменило источник звука"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Ни одно разблокированное звуковое событие не сменило источник звука",
+  "Criar subclipe do evento": "Создать субклип события",
+  "Criar subclipe revertido do evento": "Создать обратный субклип события",
+  "Reverter evento": "Развернуть событие",
+  "Já há um subclipe sendo feito": "Субклип уже создаётся",
+  "Selecione um evento com mídia para cortar": "Выберите событие с медиа для вырезания",
+  "O evento está bloqueado": "Событие заблокировано",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "Видео разворачивается не более чем на {} с за раз (фрагмент — {} с): разделите событие",
+  "Não há pasta para guardar o subclipe": "Нет папки для хранения субклипа",
+  "Criando o subclipe revertido {}…": "Создаётся обратный субклип {}…",
+  "Criando o subclipe {}…": "Создаётся субклип {}…",
+  "Subclipe na mídia do projeto: {}": "Субклип в медиа проекта: {}",
+  "Evento revertido: agora toca {}": "Событие развёрнуто: теперь играет {}",
+  "Evento trocado pelo subclipe {}": "Событие заменено субклипом {}"
 }

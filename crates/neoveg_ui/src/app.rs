@@ -17,6 +17,7 @@ mod mixing_console;
 mod render_job;
 mod render_to_track;
 mod scene_detect;
+mod subclip;
 mod tabs;
 mod trim_monitor;
 
@@ -770,6 +771,8 @@ struct AppState {
     context_command: Option<neoveg_engine::command_markers::CommandId>,
     /// The render of the selected events that is running or being loaded (*Renderizar para nova faixa*).
     pending_render: Option<render_to_track::PendingRender>,
+    /// The subclips being written or read back (see `app/subclip.rs`).
+    pending_subclips: Vec<subclip::PendingSubclip>,
     /// The trim monitor: the window and the thread that draws its pictures.
     trim_monitor: crate::trim_monitor_window::TrimMonitorState,
     trim_worker: Option<trim_monitor::TrimWorker>,
@@ -2017,6 +2020,7 @@ impl AppState {
             context_mark: None,
             context_command: None,
             pending_render: None,
+            pending_subclips: Vec::new(),
             trim_monitor: Default::default(),
             trim_worker: None,
             toolbar_editor_open: false,
@@ -4115,6 +4119,10 @@ impl AppState {
             | Command::EditSwitchMaintainAspect
             | Command::EditSwitchReduceFlicker
             | Command::EditNormalizeRecalculate => has_events,
+            Command::EditCreateSubclip | Command::EditCreateReverseSubclip => {
+                self.can_subclip(false)
+            }
+            Command::EditReverseEvent => self.can_subclip(true),
             Command::EditDualMono => {
                 let refs = self.selection.refs();
                 refs.iter()
@@ -4368,6 +4376,7 @@ impl AppState {
                 } => {
                     tracing::error!("[ERROR] import failed: {} ({error})", path.display());
                     self.rendered_failed(&path);
+                    self.subclip_failed(&path);
                     self.status = tr_args("Falha ao importar: {}", &[&error]);
                     // A file of the project that exists but cannot be read: ask what to do with it
                     if let Some(id) = existing_id {
@@ -4393,7 +4402,10 @@ impl AppState {
                     media,
                     existing_id: None,
                 } => {
-                    if self.takes_rendered(&media.path) {
+                    if self.takes_subclip(&media.path) {
+                        let (path, duration) = (media.path.clone(), media.duration);
+                        self.place_subclip(path, duration, None, Some(media));
+                    } else if self.takes_rendered(&media.path) {
                         let (path, duration) = (media.path.clone(), media.duration);
                         self.place_rendered(path, duration, None, Some(media));
                     } else {
@@ -4426,7 +4438,10 @@ impl AppState {
                     audio,
                     existing_id: None,
                 } => {
-                    if self.takes_rendered(&path) {
+                    if self.takes_subclip(&path) {
+                        let duration = info.duration;
+                        self.place_subclip(path, duration, Some(info), audio);
+                    } else if self.takes_rendered(&path) {
                         let duration = info.duration;
                         self.place_rendered(path, duration, Some(info), audio);
                     } else {
@@ -8865,6 +8880,9 @@ impl AppState {
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
             Command::EditSwitchLoop => self.toggle_event_switch(Switch::Loop),
             Command::EditSwitchNormalize => self.toggle_event_switch(Switch::Normalize),
+            Command::EditCreateSubclip => self.begin_subclip(false, false, ctx),
+            Command::EditCreateReverseSubclip => self.begin_subclip(true, false, ctx),
+            Command::EditReverseEvent => self.begin_subclip(true, true, ctx),
             Command::EditDualMono => {
                 let refs = self.selection.refs();
                 self.split_dual_mono(&refs);
@@ -10391,6 +10409,9 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             command_item(state, ui, Command::RenderToNewTrack);
             command_item(state, ui, Command::RenderAndReplace);
+            command_item(state, ui, Command::EditCreateSubclip);
+            command_item(state, ui, Command::EditCreateReverseSubclip);
+            command_item(state, ui, Command::EditReverseEvent);
             ui.separator();
             // Video tools
             let video_event = state
@@ -20776,6 +20797,66 @@ mod tests {
         );
         s.selection.clear();
         assert!(!s.command_enabled(Command::EditDualMono));
+    }
+
+    #[test]
+    fn the_commands_need_an_event_with_media_and_only_one_job_runs_at_a_time() {
+        let (mut s, track, id) = state_with_clip();
+        assert!(!s.can_subclip(false), "nothing selected");
+        s.selection.set([(track, id)]);
+        assert!(s.can_subclip(false) && s.can_subclip(true));
+        assert!(s.command_enabled(Command::EditCreateSubclip));
+        assert!(s.command_enabled(Command::EditReverseEvent));
+        s.pending_subclips.push(subclip::PendingSubclip {
+            path: PathBuf::from("x.wav"),
+            replace: Vec::new(),
+            reverse: false,
+        });
+        assert!(!s.can_subclip(false), "one at a time");
+        assert!(s.takes_subclip(std::path::Path::new("x.wav")));
+        s.subclip_failed(std::path::Path::new("x.wav"));
+        assert!(s.can_subclip(false) && s.pending_subclips.is_empty());
+        // A locked event cannot be reversed in place, but a subclip of it can be made
+        s.timeline.track_mut(track).unwrap().events[0].locked = true;
+        assert!(s.can_subclip(false));
+        assert!(!s.can_subclip(true));
+    }
+
+    #[test]
+    fn a_ready_subclip_joins_the_pool_and_reversing_moves_the_event_in_one_undo_step() {
+        let (mut s, track, id) = state_with_clip();
+        s.selection.set([(track, id)]);
+        let path = PathBuf::from("subclipes/x_2.00s-6.00s_reverso.wav");
+        let pool = s.project.media_pool.len();
+        s.pending_subclips.push(subclip::PendingSubclip {
+            path: path.clone(),
+            replace: vec![(track, id)],
+            reverse: true,
+        });
+        s.place_subclip(path.clone(), 4.0, None, None);
+        assert_eq!(s.project.media_pool.len(), pool + 1);
+        let new = s.project.media_pool.last().unwrap().id;
+        let event = &s.timeline.track(track).unwrap().events[0];
+        assert_eq!((event.media_id, event.trim_in), (Some(new), 0.0));
+        assert_eq!(
+            (event.start, event.duration),
+            (2.0, 4.0),
+            "place and length stay"
+        );
+        assert!(s.pending_subclips.is_empty());
+        run(&mut s, Command::EditUndo);
+        let event = &s.timeline.track(track).unwrap().events[0];
+        assert_eq!(event.media_id, Some(1), "the old media is back");
+        // A pool-only subclip changes no event
+        let path = PathBuf::from("subclipes/x_2.00s-6.00s.wav");
+        s.pending_subclips.push(subclip::PendingSubclip {
+            path: path.clone(),
+            replace: Vec::new(),
+            reverse: false,
+        });
+        s.place_subclip(path, 4.0, None, None);
+        assert_eq!(s.project.media_pool.len(), pool + 2);
+        assert_eq!(s.timeline.track(track).unwrap().events[0].media_id, Some(1));
     }
 
     #[test]

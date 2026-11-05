@@ -1717,5 +1717,18 @@
   "Canais {}/{}": "Channels {}/{}",
   "Fluxo {}, {}": "Stream {}, {}",
   "Fonte do som: {}": "Sound source: {}",
-  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "No unlocked audio event changed its sound source"
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "No unlocked audio event changed its sound source",
+  "Criar subclipe do evento": "Create subclip of the event",
+  "Criar subclipe revertido do evento": "Create reversed subclip of the event",
+  "Reverter evento": "Reverse event",
+  "Já há um subclipe sendo feito": "A subclip is already being made",
+  "Selecione um evento com mídia para cortar": "Select an event with media to cut",
+  "O evento está bloqueado": "The event is locked",
+  "Vídeo só reverte até {} s por vez (o trecho tem {} s): divida o evento": "Video reverses only up to {} s at a time (the part is {} s): split the event",
+  "Não há pasta para guardar o subclipe": "There is no folder to keep the subclip",
+  "Criando o subclipe revertido {}…": "Creating the reversed subclip {}…",
+  "Criando o subclipe {}…": "Creating the subclip {}…",
+  "Subclipe na mídia do projeto: {}": "Subclip in the project media: {}",
+  "Evento revertido: agora toca {}": "Event reversed: it now plays {}",
+  "Evento trocado pelo subclipe {}": "Event replaced by the subclip {}"
 }
