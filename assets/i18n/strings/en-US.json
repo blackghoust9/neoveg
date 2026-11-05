@@ -1707,5 +1707,9 @@
   "Procurar os dispositivos de entrada de novo": "Look for the input devices again",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Hear the input on the output while recording (use headphones to avoid feedback)",
   "Volume do monitor": "Monitor volume",
-  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Type a value: absolute (12.5 · 00:00:12:05) or relative (+10, -5); with no unit it is in the ruler's unit, and s, ms or f name the unit"
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Type a value: absolute (12.5 · 00:00:12:05) or relative (+10, -5); with no unit it is in the ruler's unit, and s, ms or f name the unit",
+  "Dividir estéreo em mono duplo": "Split stereo into dual mono",
+  "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Stereo split into two mono events (left and right)",
+  "Nenhum evento estéreo desbloqueado na seleção para dividir": "No unlocked stereo event in the selection to split",
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Import stereo audio as dual mono (left on the track, right on a new track below)"
 }

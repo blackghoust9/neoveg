@@ -1707,5 +1707,9 @@
   "Procurar os dispositivos de entrada de novo": "重新查找输入设备",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "录音时在输出端监听输入(请戴耳机以免啸叫)",
   "Volume do monitor": "监听音量",
-  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "输入数值:绝对值(12.5 · 00:00:12:05)或相对值(+10、-5);不带单位时使用标尺的单位,s、ms、f 指定单位"
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "输入数值:绝对值(12.5 · 00:00:12:05)或相对值(+10、-5);不带单位时使用标尺的单位,s、ms、f 指定单位",
+  "Dividir estéreo em mono duplo": "将立体声拆分为双单声道",
+  "Estéreo dividido em dois eventos mono (esquerdo e direito)": "立体声已拆分为两个单声道事件(左和右)",
+  "Nenhum evento estéreo desbloqueado na seleção para dividir": "所选内容中没有可拆分的未锁定立体声事件",
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "将立体声音频导入为双单声道(左声道在原轨道,右声道在下方新轨道)"
 }

@@ -13,6 +13,7 @@ pub mod command_markers;
 pub mod compositing;
 pub mod crossfade;
 pub mod details;
+pub mod dual_mono;
 pub mod edit;
 pub mod edl;
 pub mod effects;

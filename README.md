@@ -560,7 +560,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] `TrimmerState` (mídia, entrada, saída, cursor) com histórico das marcações (`neoveg_engine::trimmer`); entrada/saída por botões do painel (os atalhos `I` / `O` ainda marcam a seleção de tempo da linha do tempo)
 - [x] Edição em três pontos (adicionar a partir de / até o cursor, por botões; atalhos `A` / `Shift+A` pendentes) e em quatro pontos (ajustar para preencher)
 - [ ] Subclipes (com opção de reverso), abrir mídia-mãe, copiar/salvar quadro atual
-- [ ] Importar estéreo como mono duplo (o modo sobrescrever linha do tempo já existe)
+- [x] Importar estéreo como mono duplo (o modo sobrescrever linha do tempo já existe): *Editar > Canais de áudio > Dividir estéreo em mono duplo* deixa o canal esquerdo no evento e põe o direito, na mesma posição e com a mesma mídia, em uma faixa nova logo abaixo (nome com "(D)"), num só passo de desfazer; *Preferências > Geral > Importar áudio estéreo como mono duplo* faz isso sozinho em cada importação de áudio estéreo. Nenhum arquivo é escrito: os dois eventos usam o seletor de canais (esquerdo e direito). Eventos bloqueados, sem mídia, de vídeo ou que já não são estéreo normal ficam de fora
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
 - [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução

@@ -1707,5 +1707,9 @@
   "Procurar os dispositivos de entrada de novo": "Buscar de nuevo los dispositivos de entrada",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Oír la entrada en la salida mientras se graba (use auriculares para evitar acoples)",
   "Volume do monitor": "Volumen del monitor",
-  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Escriba un valor: absoluto (12,5 · 00:00:12:05) o relativo (+10, -5); sin unidad vale la de la regla, y s, ms o f indican la unidad"
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Escriba un valor: absoluto (12,5 · 00:00:12:05) o relativo (+10, -5); sin unidad vale la de la regla, y s, ms o f indican la unidad",
+  "Dividir estéreo em mono duplo": "Dividir estéreo en mono doble",
+  "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Estéreo dividido en dos eventos mono (izquierdo y derecho)",
+  "Nenhum evento estéreo desbloqueado na seleção para dividir": "No hay ningún evento estéreo desbloqueado en la selección para dividir",
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Importar audio estéreo como mono doble (izquierdo en la pista, derecho en una pista nueva debajo)"
 }

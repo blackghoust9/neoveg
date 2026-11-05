@@ -144,6 +144,7 @@ commands! {
     EditRemoveFromGroup => ("edit.remove_from_group", "Remover evento(s) do grupo", Edit, true),
     EditSelectGroup => ("edit.select_group", "Selecionar todos os eventos do grupo", Edit, true),
     EditIgnoreGrouping => ("edit.ignore_grouping", "Ignorar agrupamento", Edit, true),
+    EditDualMono => ("edit.dual_mono", "Dividir estéreo em mono duplo", Edit, true),
     EditSwitchMute => ("edit.switch.mute", "Interruptor: silenciar evento", Edit, true),
     EditSwitchLock => ("edit.switch.lock", "Interruptor: bloquear evento", Edit, true),
     EditSwitchInvertPhase => ("edit.switch.invert_phase", "Interruptor: inverter fase", Edit, true),

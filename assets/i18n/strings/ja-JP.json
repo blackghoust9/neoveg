@@ -1707,5 +1707,9 @@
   "Procurar os dispositivos de entrada de novo": "入力デバイスを再検索",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "録音中に入力を出力で聞く(ハウリング防止にヘッドホン推奨)",
   "Volume do monitor": "モニター音量",
-  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "値を入力:絶対値(12.5 · 00:00:12:05)または相対値(+10、-5)。単位なしはルーラーの単位、s・ms・f で単位を指定"
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "値を入力:絶対値(12.5 · 00:00:12:05)または相対値(+10、-5)。単位なしはルーラーの単位、s・ms・f で単位を指定",
+  "Dividir estéreo em mono duplo": "ステレオをデュアルモノに分割",
+  "Estéreo dividido em dois eventos mono (esquerdo e direito)": "ステレオを2つのモノイベント(左と右)に分割しました",
+  "Nenhum evento estéreo desbloqueado na seleção para dividir": "選択範囲に分割できるロック解除済みのステレオイベントがありません",
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "ステレオ音声をデュアルモノでインポート(左はトラック上、右は下の新しいトラック)"
 }

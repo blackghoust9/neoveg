@@ -4097,6 +4097,11 @@ impl AppState {
             | Command::EditSwitchMaintainAspect
             | Command::EditSwitchReduceFlicker
             | Command::EditNormalizeRecalculate => has_events,
+            Command::EditDualMono => {
+                let refs = self.selection.refs();
+                refs.iter()
+                    .any(|&r| neoveg_engine::dual_mono::can_split(&self.timeline, r))
+            }
             Command::EditUngroup | Command::EditRemoveFromGroup | Command::EditSelectGroup => self
                 .selection
                 .refs()
@@ -5897,6 +5902,28 @@ impl AppState {
         }
     }
 
+    /// *Dividir estéreo em mono duplo*: the left channel stays on the event, the right one goes to a
+    /// new track below. `true` when something was split.
+    fn split_dual_mono(&mut self, refs: &[EventRef]) -> bool {
+        match neoveg_engine::dual_mono::split(&mut self.timeline, refs) {
+            Some(command) => {
+                let done = self.history.execute(&mut self.timeline, command);
+                if done {
+                    self.status =
+                        tr("Estéreo dividido em dois eventos mono (esquerdo e direito)").into();
+                    self.last_frame_key = None;
+                    self.restart_audio_if_playing();
+                }
+                done
+            }
+            None => {
+                self.status =
+                    tr("Nenhum evento estéreo desbloqueado na seleção para dividir").into();
+                false
+            }
+        }
+    }
+
     /// Edit > Channels: converts the channels of the selected audio events, non-destructively.
     fn set_event_channels(&mut self, mode: neoveg_common::channels::ChannelMode) {
         let refs = self.selection.refs();
@@ -6711,11 +6738,16 @@ impl AppState {
             ..Default::default()
         };
         self.status = tr_args("Importado: {}", &[&media.name]);
+        let event_id = event.id;
+        let stereo = media.channels == 2;
         self.media.insert(media_id, media);
         self.history.execute(
             &mut self.timeline,
             EditCommand::AddEvent { track_id, event },
         );
+        if self.prefs.import_dual_mono && stereo {
+            self.split_dual_mono(&[(track_id, event_id)]);
+        }
     }
 
     // ---- transport -----------------------------------------------------------------------------
@@ -8742,6 +8774,10 @@ impl AppState {
             Command::EditSwitchInvertPhase => self.toggle_event_switch(Switch::InvertPhase),
             Command::EditSwitchLoop => self.toggle_event_switch(Switch::Loop),
             Command::EditSwitchNormalize => self.toggle_event_switch(Switch::Normalize),
+            Command::EditDualMono => {
+                let refs = self.selection.refs();
+                self.split_dual_mono(&refs);
+            }
             Command::EditSwitchMaintainAspect => {
                 self.toggle_event_switch(Switch::MaintainAspectRatio);
             }
@@ -10899,6 +10935,8 @@ fn channel_items(state: &mut AppState, ui: &mut egui::Ui) {
             ui.close_menu();
         }
     }
+    ui.separator();
+    command_item(state, ui, Command::EditDualMono);
 }
 
 /// Editar > Take (and the same entries in the event context menu): add the media of the Trimmer as
@@ -12497,6 +12535,10 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                     ui.checkbox(
                         &mut prefs.auto_fade_on_import,
                         tr("Fade-in/out automático ao importar mídia"),
+                    );
+                    ui.checkbox(
+                        &mut prefs.import_dual_mono,
+                        tr("Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)"),
                     );
                     ui.checkbox(
                         &mut prefs.quantize_audio_edits,
@@ -20575,6 +20617,29 @@ mod tests {
         // Preferences saved before this feature still load
         let old: Preferences = serde_json::from_str("{\"language\":\"pt-BR\"}").unwrap();
         assert!(old.input_device.is_none() && !old.monitor_input);
+    }
+
+    #[test]
+    fn dual_mono_splits_the_selected_stereo_event_in_one_undo_step() {
+        let (mut s, track, id) = state_with_clip();
+        s.selection.set([(track, id)]);
+        assert!(s.command_enabled(Command::EditDualMono));
+        let tracks = s.timeline.tracks.len();
+        run(&mut s, Command::EditDualMono);
+        assert_eq!(s.timeline.tracks.len(), tracks + 1);
+        let left = s.timeline.track(track).unwrap().events[0].channels;
+        assert_eq!(left, neoveg_common::channels::ChannelMode::Left);
+        assert!(s.status.contains("mono"), "{}", s.status);
+        // The event is mono now: nothing more to split
+        assert!(!s.command_enabled(Command::EditDualMono));
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.tracks.len(), tracks);
+        assert_eq!(
+            s.timeline.track(track).unwrap().events[0].channels,
+            neoveg_common::channels::ChannelMode::Both
+        );
+        s.selection.clear();
+        assert!(!s.command_enabled(Command::EditDualMono));
     }
 
     #[test]

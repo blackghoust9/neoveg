@@ -84,6 +84,9 @@ pub struct Preferences {
     pub vst3_isolated: bool,
     /// The `.vst3` modules the user turned off in the plug-in manager (their paths).
     pub vst3_blocked: Vec<String>,
+    /// Import stereo files as dual mono: the left channel on the track, the right one on a new track
+    /// below it.
+    pub import_dual_mono: bool,
     /// The audio input recordings are made from, by name (`None`: the default input).
     pub input_device: Option<String>,
     /// Play the input on the default output while recording.
@@ -128,6 +131,7 @@ impl Default for Preferences {
             display_name: String::new(),
             vst3_isolated: true,
             vst3_blocked: Vec::new(),
+            import_dual_mono: false,
             input_device: None,
             monitor_input: false,
             monitor_volume: 1.0,

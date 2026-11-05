@@ -1707,5 +1707,9 @@
   "Procurar os dispositivos de entrada de novo": "Найти устройства ввода заново",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Слышать вход на выходе во время записи (наушники против фона)",
   "Volume do monitor": "Громкость мониторинга",
-  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Введите значение: абсолютное (12,5 · 00:00:12:05) или относительное (+10, -5); без единицы — единица линейки, а s, ms или f задают единицу"
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Введите значение: абсолютное (12,5 · 00:00:12:05) или относительное (+10, -5); без единицы — единица линейки, а s, ms или f задают единицу",
+  "Dividir estéreo em mono duplo": "Разделить стерео на два моно",
+  "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Стерео разделено на два моно-события (левое и правое)",
+  "Nenhum evento estéreo desbloqueado na seleção para dividir": "В выделении нет разблокированных стереособытий для разделения",
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Импортировать стереозвук как два моно (левый на дорожке, правый на новой дорожке ниже)"
 }
