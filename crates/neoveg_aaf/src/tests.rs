@@ -84,10 +84,18 @@ mod tests {
 
         let (bytes, report) = write_aaf(&doc, false).expect("write_aaf failed");
         assert!(!bytes.is_empty());
-        assert!(!report.has_warnings(), "report had warnings: {:?}", report.entries);
+        assert!(
+            !report.has_warnings(),
+            "report had warnings: {:?}",
+            report.entries
+        );
 
         let (read_doc, read_report) = read_aaf(&bytes).expect("read_aaf failed");
-        assert!(!read_report.has_warnings(), "read report warnings: {:?}", read_report.entries);
+        assert!(
+            !read_report.has_warnings(),
+            "read report warnings: {:?}",
+            read_report.entries
+        );
         assert_eq!(read_doc.compositions.len(), 1);
         let read_comp = &read_doc.compositions[0];
         assert_eq!(read_comp.tracks.len(), 1);
@@ -105,7 +113,10 @@ mod tests {
             // Check opacity
             assert!(c.opacity.is_some(), "opacity was not read");
             match c.opacity.as_ref().unwrap() {
-                Gain::Constant(val) => assert!((val - 0.75).abs() < 1e-2, "expected opacity 0.75, got {val}"),
+                Gain::Constant(val) => assert!(
+                    (val - 0.75).abs() < 1e-2,
+                    "expected opacity 0.75, got {val}"
+                ),
                 _ => panic!("expected constant opacity"),
             }
 
@@ -281,17 +292,41 @@ mod tests {
 
         let (bytes, report) = write_aaf(&doc, false).expect("write_aaf with embedded media failed");
         assert!(!bytes.is_empty());
-        assert!(!report.has_warnings(), "write warnings: {:?}", report.entries);
+        assert!(
+            !report.has_warnings(),
+            "write warnings: {:?}",
+            report.entries
+        );
 
-        let (read_doc, read_report) = read_aaf(&bytes).expect("read_aaf with embedded media failed");
-        assert!(!read_report.has_warnings(), "read warnings: {:?}", read_report.entries);
+        let (read_doc, read_report) =
+            read_aaf(&bytes).expect("read_aaf with embedded media failed");
+        assert!(
+            !read_report.has_warnings(),
+            "read warnings: {:?}",
+            read_report.entries
+        );
 
         // Verify embedded essence was retrieved in sources
-        let embedded_audio = read_doc.sources.iter().find(|s| s.kind == CKind::Sound && s.embedded.is_some());
-        assert!(embedded_audio.is_some(), "Embedded audio essence should be parsed");
+        let embedded_audio = read_doc
+            .sources
+            .iter()
+            .find(|s| s.kind == CKind::Sound && s.embedded.is_some());
+        assert!(
+            embedded_audio.is_some(),
+            "Embedded audio essence should be parsed"
+        );
 
-        let embedded_picture = read_doc.sources.iter().find(|s| s.kind == CKind::Picture && s.embedded.is_some());
-        assert!(embedded_picture.is_some(), "Embedded picture essence should be parsed");
-        assert_eq!(embedded_picture.unwrap().embedded.as_ref().unwrap(), &pic_bytes);
+        let embedded_picture = read_doc
+            .sources
+            .iter()
+            .find(|s| s.kind == CKind::Picture && s.embedded.is_some());
+        assert!(
+            embedded_picture.is_some(),
+            "Embedded picture essence should be parsed"
+        );
+        assert_eq!(
+            embedded_picture.unwrap().embedded.as_ref().unwrap(),
+            &pic_bytes
+        );
     }
 }

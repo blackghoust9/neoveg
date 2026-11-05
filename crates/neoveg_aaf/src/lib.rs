@@ -22,10 +22,10 @@ pub mod model;
 mod read;
 mod store;
 mod support;
-pub mod time;
-mod write;
 #[cfg(test)]
 mod tests;
+pub mod time;
+mod write;
 
 pub use support::{
     Error, Level, Report, ReportEntry, Result, encode_wav, file_stem, file_url_to_path, parse_wav,

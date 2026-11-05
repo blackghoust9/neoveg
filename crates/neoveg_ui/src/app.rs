@@ -1085,7 +1085,11 @@ impl AppState {
             .as_ref()
             .and_then(|p| p.parent())
             .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf());
+            .unwrap_or_else(|| {
+                path.parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .to_path_buf()
+            });
         if !aaf_doc.embedded_files.is_empty() {
             let target_dir = project_dir.join("aaf_midia");
             if let Ok(materialized) = aaf::materialize_embedded_media(&aaf_doc, &target_dir) {

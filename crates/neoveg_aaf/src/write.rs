@@ -601,8 +601,12 @@ pub(crate) fn write(
             .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
         definition(cls::PARAMETER_DEFINITION, def::PARAM_AMPLITUDE, "Amplitude")
             .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
-        definition(cls::PARAMETER_DEFINITION, def::PARAM_SPEED_RATIO, "SpeedRatio")
-            .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("ratio")),
+        definition(
+            cls::PARAMETER_DEFINITION,
+            def::PARAM_SPEED_RATIO,
+            "SpeedRatio",
+        )
+        .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("ratio")),
     ];
     let idefs = if uses_varying || !used_ops.is_empty() {
         vec![
@@ -813,7 +817,8 @@ impl CompositionWriter<'_, '_, '_> {
                             ));
                         }
                         for eff in &c.effects {
-                            user_comments.push(tagged("Neoveg Effect", &format!("{}:{}", eff.id, eff.name)));
+                            user_comments
+                                .push(tagged("Neoveg Effect", &format!("{}:{}", eff.id, eff.name)));
                             for (pname, pval) in &eff.params {
                                 user_comments.push(tagged(
                                     "Neoveg Effect Param",
@@ -822,7 +827,10 @@ impl CompositionWriter<'_, '_, '_> {
                             }
                         }
                         if !user_comments.is_empty() {
-                            sc.set(pid::COMPONENT_USER_COMMENTS, Value::StrongVec(user_comments));
+                            sc.set(
+                                pid::COMPONENT_USER_COMMENTS,
+                                Value::StrongVec(user_comments),
+                            );
                         }
 
                         let mut seg = sc;
@@ -847,8 +855,7 @@ impl CompositionWriter<'_, '_, '_> {
                                     let pts = points
                                         .iter()
                                         .map(|(off, a)| {
-                                            let o =
-                                                w.u(cursor + *off, rate) - w.u(cursor, rate);
+                                            let o = w.u(cursor + *off, rate) - w.u(cursor, rate);
                                             Obj::new(cls::CONTROL_POINT)
                                                 .data_prop(pid::CP_TIME, rational(o, n.max(1)))
                                                 .data_prop(
@@ -898,10 +905,7 @@ impl CompositionWriter<'_, '_, '_> {
                             }
                             let param = match g {
                                 Gain::Constant(a) => Obj::new(cls::CONSTANT_VALUE)
-                                    .data_prop(
-                                        pid::PARAMETER_DEFINITION,
-                                        def::PARAM_LEVEL.to_vec(),
-                                    )
+                                    .data_prop(pid::PARAMETER_DEFINITION, def::PARAM_LEVEL.to_vec())
                                     .data_prop(
                                         pid::CONSTANT_VALUE,
                                         indirect(def::TYPE_RATIONAL, &gain_rational(*a)),
@@ -911,8 +915,7 @@ impl CompositionWriter<'_, '_, '_> {
                                     let pts = points
                                         .iter()
                                         .map(|(off, a)| {
-                                            let o =
-                                                w.u(cursor + *off, rate) - w.u(cursor, rate);
+                                            let o = w.u(cursor + *off, rate) - w.u(cursor, rate);
                                             Obj::new(cls::CONTROL_POINT)
                                                 .data_prop(pid::CP_TIME, rational(o, n.max(1)))
                                                 .data_prop(
@@ -977,10 +980,7 @@ impl CompositionWriter<'_, '_, '_> {
                                 seg = Obj::new(cls::OPERATION_GROUP)
                                     .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, dd))
                                     .data_prop(pid::LENGTH, n.to_le_bytes().to_vec())
-                                    .with(
-                                        pid::OPERATION,
-                                        weak(path::OPERATION_DEFS, op),
-                                    )
+                                    .with(pid::OPERATION, weak(path::OPERATION_DEFS, op))
                                     .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![seg]))
                                     .with(pid::PARAMETERS, Value::StrongVec(vec![param]));
                             }

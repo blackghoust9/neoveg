@@ -266,14 +266,7 @@ fn build_composition(
                     let mut nested = None;
                     if let Some(sub_tl) = &info.subproject {
                         if let Ok(nested_comp) = build_composition(
-                            &info.name,
-                            sub_tl,
-                            media,
-                            project,
-                            options,
-                            doc,
-                            source_of,
-                            warn,
+                            &info.name, sub_tl, media, project, options, doc, source_of, warn,
                         ) {
                             let n_idx = doc.nested.len();
                             doc.nested.push(nested_comp);
@@ -504,9 +497,7 @@ fn parse_comp_clips(
                     let speed = clip.speed;
                     let opacity = clip.opacity.as_ref().map(|g| match g {
                         Gain::Constant(v) => *v,
-                        Gain::Varying { points, .. } => {
-                            points.first().map(|p| p.1).unwrap_or(1.0)
-                        }
+                        Gain::Varying { points, .. } => points.first().map(|p| p.1).unwrap_or(1.0),
                     });
                     let gain_db = clip.gain.as_ref().map(|g| match g {
                         Gain::Constant(v) => {
@@ -673,7 +664,11 @@ pub fn import_aaf_into_timeline(
             let mut tr = timeline.new_track(kind);
             tr.name = format!(
                 "{}{}",
-                if kind == TrackKind::Video { "Vídeo " } else { "Áudio " },
+                if kind == TrackKind::Video {
+                    "Vídeo "
+                } else {
+                    "Áudio "
+                },
                 clip.track + 1
             );
             timeline.tracks.push(tr);

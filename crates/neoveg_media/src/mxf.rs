@@ -121,7 +121,9 @@ fn read_ber_length<R: Read>(reader: &mut R) -> Result<Option<u64>, String> {
     }
     let count = usize::from(b0 & 0x7f);
     if count > 8 {
-        return Err(format!("comprimento BER de {count} bytes excede 64 bits no MXF"));
+        return Err(format!(
+            "comprimento BER de {count} bytes excede 64 bits no MXF"
+        ));
     }
     let mut buf = [0u8; 8];
     reader
@@ -287,10 +289,9 @@ fn inspect_metadata_set(
     }
 
     let class_byte = key[14];
-    let is_picture_desc = (key[12] == 0x01
-        && key[13] == 0x01
-        && matches!(class_byte, 0x24..=0x29 | 0x51 | 0x5c))
-        || (stored_w.is_some() && stored_h.is_some());
+    let is_picture_desc =
+        (key[12] == 0x01 && key[13] == 0x01 && matches!(class_byte, 0x24..=0x29 | 0x51 | 0x5c))
+            || (stored_w.is_some() && stored_h.is_some());
 
     if is_picture_desc {
         let w = display_w.or(stored_w).unwrap_or(0);
@@ -309,11 +310,10 @@ fn inspect_metadata_set(
         }
     }
 
-    let is_sound_desc = (key[12] == 0x01
-        && key[13] == 0x01
-        && matches!(class_byte, 0x42 | 0x47 | 0x48))
-        || audio_rate.is_some()
-        || quant_bits.is_some();
+    let is_sound_desc =
+        (key[12] == 0x01 && key[13] == 0x01 && matches!(class_byte, 0x42 | 0x47 | 0x48))
+            || audio_rate.is_some()
+            || quant_bits.is_some();
 
     if is_sound_desc {
         let sr = audio_rate
@@ -352,7 +352,8 @@ fn inspect_metadata_set(
 
 /// Probes structural metadata of an MXF file without decoding compressed video frames.
 pub fn probe_file(path: &Path) -> Result<MxfInfo, String> {
-    let mut file = File::open(path).map_err(|e| format!("falha ao abrir MXF {}: {e}", path.display()))?;
+    let mut file =
+        File::open(path).map_err(|e| format!("falha ao abrir MXF {}: {e}", path.display()))?;
     probe_reader(&mut file)
 }
 
@@ -440,7 +441,8 @@ pub fn probe_reader<R: Read + Seek>(reader: &mut R) -> Result<MxfInfo, String> {
 /// automatically pair their first two mono tracks into stereo (`L, R`); multi-channel single-track
 /// MXFs preserve their native channel layout.
 pub fn decode_audio_file(path: &Path) -> Result<MxfAudio, String> {
-    let mut file = File::open(path).map_err(|e| format!("falha ao abrir MXF {}: {e}", path.display()))?;
+    let mut file =
+        File::open(path).map_err(|e| format!("falha ao abrir MXF {}: {e}", path.display()))?;
     decode_audio_reader(&mut file)
 }
 
@@ -555,13 +557,12 @@ pub fn decode_audio_reader<R: Read + Seek>(reader: &mut R) -> Result<MxfAudio, S
         if samples.is_empty() {
             return Err("faixa de áudio MXF não contém amostras válidas".into());
         }
-        let channels = if primary_desc.encoding == SoundEncoding::Smpte331m
-            && primary_desc.channels == 1
-        {
-            1
-        } else {
-            primary_desc.channels.max(1)
-        };
+        let channels =
+            if primary_desc.encoding == SoundEncoding::Smpte331m && primary_desc.channels == 1 {
+                1
+            } else {
+                primary_desc.channels.max(1)
+            };
         Ok(MxfAudio {
             sample_rate,
             channels,

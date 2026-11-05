@@ -9,9 +9,8 @@ use std::path::Path;
 use image::ImageFormat;
 
 /// Open / camera still RAW extensions handled natively (and as numbered sequences for CinemaDNG).
-pub const RAW_IMAGE_EXTENSIONS: [&str; 8] = [
-    "dng", "cr2", "nef", "arw", "raf", "orf", "rw2", "pef",
-];
+pub const RAW_IMAGE_EXTENSIONS: [&str; 8] =
+    ["dng", "cr2", "nef", "arw", "raf", "orf", "rw2", "pef"];
 
 /// Closed cinema RAW extensions whose decoders require proprietary vendor SDKs incompatible with
 /// Neoveg's `MIT OR Apache-2.0` licensing policy.
@@ -136,7 +135,11 @@ impl IfdEntry {
     fn effective_dimensions(&self) -> (u32, u32) {
         if let Some([cw, ch]) = self.crop_size {
             let [ox, oy] = self.crop_origin.unwrap_or([0, 0]);
-            if cw > 0 && ch > 0 && ox.saturating_add(cw) <= self.width && oy.saturating_add(ch) <= self.height {
+            if cw > 0
+                && ch > 0
+                && ox.saturating_add(cw) <= self.width
+                && oy.saturating_add(ch) <= self.height
+            {
                 return (cw, ch);
             }
         }
@@ -206,7 +209,9 @@ fn read_f64_values(b: &[u8], endian: Endian, ty: u16, count: usize, val_off: usi
     };
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
-        let at = data_pos.saturating_mul(1).saturating_add(i.saturating_mul(elem));
+        let at = data_pos
+            .saturating_mul(1)
+            .saturating_add(i.saturating_mul(elem));
         let v = match ty {
             1 => b.get(at).copied().map(f64::from),
             3 => endian.u16(b, at).map(f64::from),
@@ -235,7 +240,13 @@ fn read_f64_values(b: &[u8], endian: Endian, ty: u16, count: usize, val_off: usi
     out
 }
 
-fn read_raw_bytes(b: &[u8], endian: Endian, ty: u16, count: usize, val_off: usize) -> Option<&[u8]> {
+fn read_raw_bytes(
+    b: &[u8],
+    endian: Endian,
+    ty: u16,
+    count: usize,
+    val_off: usize,
+) -> Option<&[u8]> {
     let elem = tiff_type_size(ty).max(1);
     let total = elem.checked_mul(count)?;
     let pos = if total <= 4 {
@@ -352,10 +363,14 @@ fn parse_ifd(b: &[u8], endian: Endian, offset: usize) -> Option<(IfdEntry, u32)>
                 entry.sub_ifds = read_u32_values(b, endian, ty, count, val_off);
             }
             0x0201 => {
-                entry.jpeg_offset = read_u32_values(b, endian, ty, count, val_off).first().copied();
+                entry.jpeg_offset = read_u32_values(b, endian, ty, count, val_off)
+                    .first()
+                    .copied();
             }
             0x0202 => {
-                entry.jpeg_length = read_u32_values(b, endian, ty, count, val_off).first().copied();
+                entry.jpeg_length = read_u32_values(b, endian, ty, count, val_off)
+                    .first()
+                    .copied();
             }
             0x828d => {
                 let vals = read_u32_values(b, endian, ty, count, val_off);
@@ -383,7 +398,9 @@ fn parse_ifd(b: &[u8], endian: Endian, offset: usize) -> Option<(IfdEntry, u32)>
                 entry.black_level = read_f64_values(b, endian, ty, count, val_off);
             }
             0xc61d => {
-                entry.white_level = read_f64_values(b, endian, ty, count, val_off).first().copied();
+                entry.white_level = read_f64_values(b, endian, ty, count, val_off)
+                    .first()
+                    .copied();
             }
             0xc61f => {
                 let vals = read_f64_values(b, endian, ty, count, val_off);
@@ -533,7 +550,10 @@ fn jpeg_dimensions(jpeg: &[u8]) -> Option<(u32, u32)> {
         return None;
     }
     let reader = image::ImageReader::with_format(std::io::Cursor::new(jpeg), ImageFormat::Jpeg);
-    reader.into_dimensions().ok().filter(|&(w, h)| w > 0 && h > 0)
+    reader
+        .into_dimensions()
+        .ok()
+        .filter(|&(w, h)| w > 0 && h > 0)
 }
 
 fn collect_embedded_jpegs<'a>(b: &'a [u8], parsed: &ParsedRaw) -> Vec<&'a [u8]> {
@@ -742,11 +762,7 @@ fn read_ifd_samples(
         let tiles_across = w.div_ceil(tw);
         let tile_samples = tw.saturating_mul(th).saturating_mul(spp);
         for (idx, &off) in ifd.tile_offsets.iter().enumerate() {
-            let byte_cnt = ifd
-                .tile_byte_counts
-                .get(idx)
-                .copied()
-                .unwrap_or(0) as usize;
+            let byte_cnt = ifd.tile_byte_counts.get(idx).copied().unwrap_or(0) as usize;
             let off = off as usize;
             let Some(slice) = file_bytes.get(off..off.saturating_add(byte_cnt)) else {
                 return Err("bloco (tile) DNG fora dos limites do arquivo".into());
@@ -837,7 +853,11 @@ fn decode_uncompressed_ifd(
 ) -> Result<image::RgbaImage, String> {
     let w = ifd.width as usize;
     let h = ifd.height as usize;
-    if w == 0 || h == 0 || ifd.width > MAX_DIMENSION || ifd.height > MAX_DIMENSION || w * h > MAX_PIXELS
+    if w == 0
+        || h == 0
+        || ifd.width > MAX_DIMENSION
+        || ifd.height > MAX_DIMENSION
+        || w * h > MAX_PIXELS
     {
         return Err(format!("dimensões DNG não suportadas ({w}x{h})"));
     }
@@ -1030,7 +1050,8 @@ mod tests {
             }
             let ifd_off = self.buf.len();
             self.buf[4..8].copy_from_slice(&(ifd_off as u32).to_le_bytes());
-            self.buf.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+            self.buf
+                .extend_from_slice(&(entries.len() as u16).to_le_bytes());
             let table_start = self.buf.len();
             self.buf.resize(table_start + entries.len() * 12 + 4, 0);
             for (idx, (tag, ty, count, data)) in entries.iter().enumerate() {
@@ -1086,7 +1107,12 @@ mod tests {
             u16_entry(0x0115, 1),
             u32_entry(0x0116, h),
             u32_entry(0x0117, pixels.len() as u32),
-            (0x828d, 3, 2, [2u16.to_le_bytes(), 2u16.to_le_bytes()].concat()),
+            (
+                0x828d,
+                3,
+                2,
+                [2u16.to_le_bytes(), 2u16.to_le_bytes()].concat(),
+            ),
             (0x828e, 1, 4, vec![0, 1, 1, 2]),
             u32_entry(0xc61d, 4095), // WhiteLevel = 4095
         ]);
@@ -1133,7 +1159,10 @@ mod tests {
         assert_eq!(probe_bytes(&tb.buf).unwrap(), (6, 4));
         let raster = decode_bytes(&tb.buf).unwrap();
         assert_eq!((raster.width, raster.height), (6, 4));
-        assert!(raster.rgba.chunks_exact(4).all(|px| px == [255, 255, 255, 255]));
+        assert!(raster
+            .rgba
+            .chunks_exact(4)
+            .all(|px| px == [255, 255, 255, 255]));
     }
 
     #[test]
