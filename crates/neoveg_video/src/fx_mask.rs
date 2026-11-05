@@ -175,10 +175,10 @@ mod tests {
         let c = coverage(&mask, 100, 100);
         assert_eq!(at(&c, 100, 50, 50), 1.0);
         assert_eq!(at(&c, 100, 5, 5), 0.0);
-        // The curve is rounded: it bulges out of the 36-by-36 box a little at the middle of the
-        // sides and keeps the corners cut, so the area is near the square of 60 px but not equal
+        // The curve passes through the four corners of a 60 px square and bulges out between them, so
+        // it covers more than the square (3600) and less than the circle through the corners (5655)
         let area: f32 = c.iter().sum();
-        assert!(area > 2800.0 && area < 4200.0, "{area}");
+        assert!(area > 3600.0 && area < 5655.0, "{area}");
         let again = coverage(&mask, 100, 100);
         assert!(Arc::ptr_eq(&c, &again), "the last mask is kept");
         mask.points[0][0] = 0.3;
