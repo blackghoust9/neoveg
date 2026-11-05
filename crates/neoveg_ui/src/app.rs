@@ -12411,6 +12411,30 @@ fn sync_theme(ctx: &egui::Context, state: &mut AppState) {
     state.theme_applied = Some(key);
 }
 
+/// A box for a time of the project: it shows the time as the ruler does and reads what is typed in
+/// it (see `neoveg_common::time_input`).
+fn time_box(
+    ui: &mut egui::Ui,
+    value: &mut f64,
+    min: f64,
+    format: neoveg_common::ruler_format::RulerFormat,
+    ctx: neoveg_common::ruler_format::RulerContext,
+) -> egui::Response {
+    let current = *value;
+    ui.add(
+        egui::DragValue::new(value)
+            .range(min..=100_000.0)
+            .speed(0.04)
+            .custom_formatter(move |n, _| neoveg_common::ruler_format::format_time(n, format, &ctx))
+            .custom_parser(move |text| {
+                neoveg_common::time_input::parse(text, current, format, &ctx)
+            }),
+    )
+    .on_hover_text(tr(
+        "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade",
+    ))
+}
+
 fn save_prefs(prefs: &Preferences) {
     if let Some(path) = Preferences::default_path() {
         if let Err(e) = prefs.save(&path) {
@@ -12841,33 +12865,38 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             let fps_min_len = 1.0 / state.project.settings.fps.max(1.0);
             // Where it starts and how long it lasts: both go through the same rules as the mouse
             let source_len = state.source_len(track_id, event_id);
+            // The boxes show the time as the ruler does and take a typed value: absolute, or
+            // relative to what is in the box (`+10`, `-5`) in the unit of the ruler
+            let ruler_format = state.project.settings.ruler_format;
+            let ruler_ctx = neoveg_common::ruler_format::RulerContext {
+                fps: state.project.settings.fps,
+                drop_frame: state.drop_frame(),
+                sample_rate: state.project.settings.sample_rate,
+                bpm: f64::from(state.project.settings.bpm),
+                beats_per_bar: state.project.settings.beats_per_bar,
+                start: state.project.settings.ruler_start,
+            };
+            // A length is not a point of the ruler: no offset
+            let length_ctx = neoveg_common::ruler_format::RulerContext {
+                start: 0.0,
+                ..ruler_ctx
+            };
             ui.horizontal(|ui| {
                 ui.label(tr("Início"));
                 let mut start = g.start;
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut start)
-                            .range(0.0..=100_000.0)
-                            .speed(0.04)
-                            .fixed_decimals(3)
-                            .suffix(" s"),
-                    )
-                    .changed()
-                {
+                if time_box(ui, &mut start, 0.0, ruler_format, ruler_ctx).changed() {
                     new = edit::move_to(new, start);
                 }
+                ui.label(tr("Fim"));
+                let mut end = g.start + g.duration;
+                if time_box(ui, &mut end, fps_min_len, ruler_format, ruler_ctx).changed() {
+                    new = edit::trim_right(new, end, fps_min_len, source_len);
+                }
+            });
+            ui.horizontal(|ui| {
                 ui.label(tr("Duração"));
                 let mut length = g.duration;
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut length)
-                            .range(fps_min_len..=100_000.0)
-                            .speed(0.04)
-                            .fixed_decimals(3)
-                            .suffix(" s"),
-                    )
-                    .changed()
-                {
+                if time_box(ui, &mut length, fps_min_len, ruler_format, length_ctx).changed() {
                     new = edit::trim_right(new, new.start + length, fps_min_len, source_len);
                 }
             });

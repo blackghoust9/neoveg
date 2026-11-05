@@ -28,6 +28,7 @@ pub mod project;
 pub mod ruler_format;
 pub mod sys_info;
 pub mod theme;
+pub mod time_input;
 pub mod timecode;
 pub mod title_style;
 pub mod toolbar;

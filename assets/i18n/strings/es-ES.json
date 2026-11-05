@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "Dispositivo de entrada",
   "Procurar os dispositivos de entrada de novo": "Buscar de nuevo los dispositivos de entrada",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Oír la entrada en la salida mientras se graba (use auriculares para evitar acoples)",
-  "Volume do monitor": "Volumen del monitor"
+  "Volume do monitor": "Volumen del monitor",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Escriba un valor: absoluto (12,5 · 00:00:12:05) o relativo (+10, -5); sin unidad vale la de la regla, y s, ms o f indican la unidad"
 }

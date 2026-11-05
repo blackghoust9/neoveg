@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "Eingabegerät",
   "Procurar os dispositivos de entrada de novo": "Eingabegeräte erneut suchen",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Eingang während der Aufnahme am Ausgang mithören (Kopfhörer gegen Rückkopplung)",
-  "Volume do monitor": "Monitorlautstärke"
+  "Volume do monitor": "Monitorlautstärke",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Wert eingeben: absolut (12,5 · 00:00:12:05) oder relativ (+10, -5); ohne Einheit gilt die Einheit des Lineals, s, ms oder f nennen die Einheit"
 }

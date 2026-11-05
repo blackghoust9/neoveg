@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "Périphérique d'entrée",
   "Procurar os dispositivos de entrada de novo": "Chercher de nouveau les périphériques d'entrée",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Écouter l'entrée sur la sortie pendant l'enregistrement (casque conseillé contre le larsen)",
-  "Volume do monitor": "Volume du monitoring"
+  "Volume do monitor": "Volume du monitoring",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Saisissez une valeur : absolue (12,5 · 00:00:12:05) ou relative (+10, -5) ; sans unité, c'est celle de la règle, et s, ms ou f nomment l'unité"
 }

@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "入力デバイス",
   "Procurar os dispositivos de entrada de novo": "入力デバイスを再検索",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "録音中に入力を出力で聞く(ハウリング防止にヘッドホン推奨)",
-  "Volume do monitor": "モニター音量"
+  "Volume do monitor": "モニター音量",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "値を入力:絶対値(12.5 · 00:00:12:05)または相対値(+10、-5)。単位なしはルーラーの単位、s・ms・f で単位を指定"
 }

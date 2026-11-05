@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "Устройство ввода",
   "Procurar os dispositivos de entrada de novo": "Найти устройства ввода заново",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Слышать вход на выходе во время записи (наушники против фона)",
-  "Volume do monitor": "Громкость мониторинга"
+  "Volume do monitor": "Громкость мониторинга",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Введите значение: абсолютное (12,5 · 00:00:12:05) или относительное (+10, -5); без единицы — единица линейки, а s, ms или f задают единицу"
 }

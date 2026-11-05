@@ -1706,5 +1706,6 @@
   "Dispositivo de entrada": "Input device",
   "Procurar os dispositivos de entrada de novo": "Look for the input devices again",
   "Ouvir a entrada na saída enquanto grava (use fones para evitar microfonia)": "Hear the input on the output while recording (use headphones to avoid feedback)",
-  "Volume do monitor": "Monitor volume"
+  "Volume do monitor": "Monitor volume",
+  "Digite um valor: absoluto (12,5 · 00:00:12:05) ou relativo (+10, -5); sem unidade vale a unidade da régua, e s, ms ou f dizem a unidade": "Type a value: absolute (12.5 · 00:00:12:05) or relative (+10, -5); with no unit it is in the ruler's unit, and s, ms or f name the unit"
 }
