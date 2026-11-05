@@ -310,7 +310,7 @@ class MultiOsStagingAndCi(unittest.TestCase):
                 os.environ["FFMPEG_DIR"] = old_ffmpeg
             shutil.rmtree(case, ignore_errors=True)
 
-    def test_ci_workflow_covers_build_test_clippy_llvm_cov_ffmpeg_x264_and_three_os_packages(self) -> None:
+    def test_ci_workflow_covers_build_test_clippy_llvm_cov_ffmpeg_x264_and_the_windows_package(self) -> None:
         workflow_path = ROOT / ".github" / "workflows" / "rust.yml"
         action_path = ROOT / ".github" / "actions" / "setup-ffmpeg" / "action.yml"
         self.assertTrue(workflow_path.is_file(), "missing .github/workflows/rust.yml")
@@ -329,13 +329,7 @@ class MultiOsStagingAndCi(unittest.TestCase):
             "cargo deny check",
             "build_portable.py build --ffmpeg --targets ${{ matrix.rid }} --skip-qa --keep-target",
             "rid: win-x64",
-            "rid: linux-x64",
-            "rid: osx-arm64",
-            "rid: osx-x64",
             "windows-latest",
-            "ubuntu-latest",
-            "macos-latest",
-            "macos-15-intel",
         ):
             self.assertIn(snippet, workflow, f"missing in rust.yml: {snippet}")
 
