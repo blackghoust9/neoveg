@@ -219,6 +219,13 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
     (Command::EditSmartSplit, &["Alt+S"]),
+    // The reference map gives no key to making a subclip or reversing an event: these are Neoveg's
+    // own, on chords that neither the reference map (v18 list, v21 manual) nor this one uses
+    (Command::EditCreateSubclip, &["Ctrl+Alt+C"]),
+    (Command::EditCreateReverseSubclip, &["Alt+Shift+S"]),
+    (Command::EditReverseEvent, &["Ctrl+Shift+R"]),
+    // Same for splitting stereo into a doubled mono pair
+    (Command::EditDualMono, &["Alt+Shift+L"]),
     (Command::EditMediaProperties, &["Ctrl+Alt+Enter"]),
     (Command::EditPitchUp, &["="]),
     (Command::EditPitchDown, &["-"]),
@@ -690,6 +697,122 @@ mod tests {
 
     fn sc(text: &str) -> Shortcut {
         text.parse().unwrap()
+    }
+
+    /// The keys the reference editor gives to the commands Neoveg copies from it, with the command each
+    /// one runs here (`docs/vegas_semantics_guide.md`, section 0 and the tables after it). A binding
+    /// that changes by accident, or a new command that takes one of these keys, makes this fail:
+    /// the rule is that a feature that comes from another engine never moves a reference shortcut.
+    #[test]
+    fn the_reference_default_bindings_are_kept() {
+        let rows: &[(&str, &str)] = &[
+            ("Ctrl+N", "file.new"),
+            ("Ctrl+Shift+N", "file.new_quick"),
+            ("Ctrl+O", "file.open"),
+            ("Ctrl+S", "file.save"),
+            ("Ctrl+Shift+S", "file.save_as"),
+            ("Ctrl+Alt+S", "file.save_incremental"),
+            ("Alt+Enter", "file.properties"),
+            ("S", "edit.split"),
+            ("Alt+S", "edit.smart_split"),
+            ("Ctrl+T", "edit.trim"),
+            ("Alt+[", "edit.trim_start"),
+            ("Alt+]", "edit.trim_end"),
+            ("Ctrl+[", "cursor.previous_selected_event"),
+            ("Ctrl+]", "cursor.next_selected_event"),
+            ("D", "edit.tool.next"),
+            ("Shift+D", "edit.tool.previous"),
+            ("Ctrl+D", "edit.tool.normal"),
+            ("G", "edit.group"),
+            ("U", "edit.remove_from_group"),
+            ("Ctrl+U", "edit.ungroup"),
+            ("Shift+G", "edit.select_group"),
+            ("Ctrl+Shift+U", "edit.ignore_grouping"),
+            ("F", "edit.ripple.affected"),
+            ("Ctrl+F", "edit.ripple.markers"),
+            ("Ctrl+Shift+F", "edit.ripple.all"),
+            ("Ctrl+L", "options.auto_ripple"),
+            ("Ctrl+Shift+X", "options.auto_crossfade"),
+            ("F8", "options.snapping"),
+            ("Ctrl+F8", "options.snap_grid"),
+            ("Shift+F8", "options.snap_markers"),
+            ("Ctrl+Shift+F8", "options.snap_all_events"),
+            ("Alt+F8", "options.quantize"),
+            ("I", "selection.set_in"),
+            ("O", "selection.set_out"),
+            ("M", "insert.marker"),
+            ("R", "insert.region"),
+            ("C", "insert.command"),
+            ("Q", "transport.loop"),
+            ("Shift+Q", "selection.loop_region"),
+            ("Z", "track.mute"),
+            ("X", "track.solo"),
+            ("Shift+Z", "track.mute_exclusive"),
+            ("Shift+X", "track.solo_exclusive"),
+            ("V", "track.volume_envelope"),
+            ("P", "track.pan_envelope"),
+            ("Shift+V", "track.remove_volume_envelope"),
+            ("Shift+P", "track.remove_pan_envelope"),
+            ("Ctrl+Shift+E", "track.toggle_envelopes"),
+            ("Ctrl+Home", "cursor.project_start"),
+            ("Ctrl+End", "cursor.project_end"),
+            ("W", "cursor.project_start"),
+            ("Home", "cursor.selection_start"),
+            ("End", "cursor.selection_end"),
+            ("Backspace", "selection.restore_previous"),
+            ("Ctrl+Left", "cursor.previous_marker"),
+            ("Ctrl+Right", "cursor.next_marker"),
+            ("Ctrl+Alt+Left", "cursor.previous_edit"),
+            ("Ctrl+Alt+Right", "cursor.next_edit"),
+            ("Ctrl+A", "edit.select_all"),
+            ("Ctrl+Shift+A", "edit.select_none"),
+            ("Ctrl+Shift+V", "edit.paste_insert"),
+            ("Ctrl+B", "edit.paste_repeat"),
+            ("Ctrl+Q", "insert.audio_track"),
+            ("Ctrl+Shift+Q", "insert.video_track"),
+            ("Ctrl+R", "transport.record"),
+            ("Ctrl+M", "tools.render_to_new_track"),
+            ("Alt+C", "file.create_subproject"),
+            ("Alt+0", "view.focus_timeline"),
+            ("Alt+2", "view.trimmer"),
+            ("Alt+3", "view.master_bus"),
+            ("Alt+4", "view.preview"),
+            ("Alt+5", "view.project_media"),
+            ("Alt+7", "view.transitions"),
+            ("Alt+8", "view.video_effects"),
+            ("Ctrl+Alt+2", "view.video_scopes"),
+            ("Ctrl+Alt+5", "view.mixing_console"),
+            ("Ctrl+Alt+7", "view.loudness_meters"),
+            ("Ctrl+Shift+O", "view.event_edge_frames"),
+            ("Ctrl+Shift+W", "view.waveforms"),
+            ("Tab", "view.toggle_focus"),
+            ("F11", "view.minimize_dock"),
+            ("Ctrl+F11", "view.maximize_timeline"),
+            ("Shift+F11", "view.toggle_track_list"),
+            ("L", "transport.shuttle_forward"),
+            ("J", "transport.shuttle_reverse"),
+            ("K", "transport.shuttle_pause"),
+            ("Space", "transport.play_toggle"),
+            ("Delete", "edit.delete"),
+            ("T", "edit.take.next"),
+            ("Shift+T", "edit.take.previous"),
+            ("Ctrl+G", "cursor.go_to"),
+            ("Alt+Up", "view.zoom_one_frame"),
+            ("Alt+Left", "cursor.left_by_frame"),
+            ("Alt+Right", "cursor.right_by_frame"),
+            ("Ctrl+Z", "edit.undo"),
+            ("Ctrl+Y", "edit.redo"),
+        ];
+        let map = KeyMap::defaults();
+        for (key, id) in rows {
+            let command = map.command_for(&sc(key));
+            assert_eq!(command.map(Command::id), Some(*id), "{key}");
+        }
+        // The accepted divergence: the arrows move a frame (the reference moves a pixel)
+        assert_eq!(
+            map.command_for(&sc("Left")).map(Command::id),
+            Some("cursor.left_by_frame")
+        );
     }
 
     #[test]

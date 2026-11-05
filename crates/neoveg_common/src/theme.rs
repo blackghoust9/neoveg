@@ -123,13 +123,14 @@ const fn c(r: u8, g: u8, b: u8) -> Rgb {
 pub const CUSTOM_THEME_ID: &str = "custom";
 
 /// Built-in theme ids, in menu order.
-pub const BUILTIN_IDS: [&str; 7] = [
+pub const BUILTIN_IDS: [&str; 8] = [
     "classic-foundry",
     "classic-silver",
     "classic-gray",
     "charcoal-lilac",
     "modern-carbon-dark",
     "contemporary-electric-dark",
+    "compact-dark",
     "high-contrast",
 ];
 
@@ -208,6 +209,34 @@ impl Theme {
                 header_selected: c(48, 54, 66),
                 audio_clip: c(38, 82, 120),
                 video_clip: c(88, 66, 130),
+            },
+        }
+    }
+
+    /// A dense, flat dark theme: a `#181818` ground and a `#00A2ED` accent, with the grey of the
+    /// surfaces stepping up from the ground in small even steps.
+    pub fn compact_dark() -> Self {
+        Self {
+            format_version: THEME_FORMAT_VERSION,
+            name: "Compact Dark".into(),
+            dark: true,
+            colors: ThemeColors {
+                panel: c(0x18, 0x18, 0x18),
+                recessed: c(0x10, 0x10, 0x10),
+                widget: c(0x26, 0x26, 0x26),
+                widget_hover: c(0x33, 0x33, 0x33),
+                widget_active: c(0x40, 0x40, 0x40),
+                text: c(0xE0, 0xE0, 0xE0),
+                accent: c(0x00, 0xA2, 0xED),
+                timeline_bg: c(0x14, 0x14, 0x14),
+                lane: c(0x1D, 0x1D, 0x1D),
+                lane_alt: c(0x19, 0x19, 0x19),
+                grid_minor: c(0x2A, 0x2A, 0x2A),
+                grid_major: c(0x45, 0x45, 0x45),
+                header: c(0x20, 0x20, 0x20),
+                header_selected: c(0x1F, 0x35, 0x44),
+                audio_clip: c(0x0B, 0x6F, 0x9E),
+                video_clip: c(0x5A, 0x46, 0x90),
             },
         }
     }
@@ -329,6 +358,7 @@ impl Theme {
             "charcoal-lilac" => Some(Self::charcoal_lilac()),
             "modern-carbon-dark" => Some(Self::modern_carbon_dark()),
             "contemporary-electric-dark" => Some(Self::contemporary_electric_dark()),
+            "compact-dark" => Some(Self::compact_dark()),
             "high-contrast" => Some(Self::high_contrast()),
             _ => None,
         }
@@ -373,6 +403,7 @@ pub fn builtin_name(id: &str) -> &'static str {
         "charcoal-lilac" => "Charcoal Lilac",
         "modern-carbon-dark" => "Modern Carbon Dark",
         "contemporary-electric-dark" => "Contemporary Electric Dark",
+        "compact-dark" => "Compact Dark",
         "high-contrast" => "High Contrast",
         _ => "Personalizado",
     }
@@ -401,6 +432,25 @@ mod tests {
             assert_eq!(Theme::from_json(&theme.to_json()), Ok(theme));
         }
         assert!(Theme::builtin("nope").is_none());
+    }
+
+    #[test]
+    fn the_compact_dark_theme_has_the_ground_and_the_accent_it_was_asked_for() {
+        let theme = Theme::builtin("compact-dark").unwrap();
+        assert!(theme.dark);
+        assert_eq!(theme.colors.panel, Rgb([0x18, 0x18, 0x18]));
+        assert_eq!(theme.colors.accent, Rgb([0x00, 0xA2, 0xED]));
+        assert_eq!(theme.colors.panel.to_hex(), "#181818");
+        assert_eq!(theme.colors.accent.to_hex(), "#00A2ED");
+        // The surfaces step up from the ground: recessed < ground < widget < hover < active
+        let level = |c: Rgb| u32::from(c.0[0]);
+        let c = &theme.colors;
+        assert!(level(c.recessed) < level(c.panel));
+        assert!(level(c.panel) < level(c.widget));
+        assert!(level(c.widget) < level(c.widget_hover));
+        assert!(level(c.widget_hover) < level(c.widget_active));
+        // The accent reads on the ground (the 3:1 minimum for interface parts)
+        assert!(contrast(c.accent, c.panel) >= 3.0);
     }
 
     #[test]

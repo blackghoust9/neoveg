@@ -213,6 +213,8 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
 | `Ctrl+Alt+U` / `Ctrl+Alt+L` / `Ctrl+Alt+I` | Event switches Mute / Lock / Invert Phase on the selected events (Editar → Interruptores, event context menu; Lock also has a toolbar button). Neoveg's own bindings: the reference manuals list the switches but give them no shortcut | implemented |
 | `Ctrl+Alt+B` | Insert an audio bus (Neoveg's own binding: the manual names the Insert menu command without a shortcut) | implemented |
 | `Ctrl+Alt+J` | Insert an adjustment event on the selected video track at the cursor (Neoveg's own binding: the manual names the Insert menu command without a shortcut) | implemented |
+| `Ctrl+Alt+C` / `Alt+Shift+S` / `Ctrl+Shift+R` | Create a subclip of the selected event / a reversed subclip / reverse the event (Neoveg's own bindings: the reference map gives these commands no key; the chords are used by neither the reference map nor Neoveg's) | implemented |
+| `Alt+Shift+L` | Split stereo into a doubled mono pair (Neoveg's own binding, on a chord neither the reference map nor Neoveg's use) | implemented |
 | `Ctrl+Alt+H` | Heal split events (`edit.heal`, `ops::heal_events`, manual v21 p.309): rejoin selected unlocked events of the same media on the same track when contiguous or separated by an empty gap matching the missing media elapsed time (Neoveg's own binding: the manual names the Edit menu command without a shortcut) | implemented |
 | `Ctrl+Alt+V` / `Ctrl+Alt+Shift+V` | Paste event attributes / selectively (a dialog with one check box per attribute): the first copied event lends its switches, audio pitch handling, video playback rate, video effects, Pan/Crop, velocity envelope and transitions to the selected events, in one undo step (`neoveg_engine::attributes`); position, length, fades, name and media never move, a locked target is skipped. Neoveg's own bindings: the manual lists the commands without a shortcut | implemented |
 | `Ctrl+Alt+O` / `Ctrl+Alt+N` / `Ctrl+Alt+Shift+N` | Event switches Loop / Normalize, and Recalculate normalization (Neoveg's own bindings) | implemented |
@@ -322,6 +324,37 @@ Neoveg's UI/UX layout, editing mechanics, shortcut keys and signal-routing pipel
 To ensure 100% operational, structural, and visual fidelity with industry standards:
 - **Reference Documentation:** Researchers and AI agents are fully permitted and encouraged to reference VEGAS Pro, Sony/MAGIX workflows, menus, shortcuts, and engine behaviors to design exact counterparts in Neoveg.
 - **Knowledge Base Persistence:** All scanned features, dialog structures, and mechanics must be documented in `docs/research/nle_features_research.txt` and `results.md` using clear and precise technical descriptions.
+
+### 9.2. Reference editor semantics (VEGAS Pro) and the integration rule
+
+The behaviour Neoveg copies from the reference editor is written down, area by area, in
+**`docs/vegas_semantics_guide.md`** (own words, from the manuals kept in `manuais/markdown/`): event
+editing (automatic crossfade on overlap, fade handles in the top corners, level handle at the top
+centre, split under the cursor with `S`, trim with `Ctrl+T` and `Alt+[` / `Alt+]`, event switches),
+navigation (SMPTE ruler, snapping and quantizing to frames, `I` / `O`, `M`, `R`, `J` / `K` / `L`),
+mixing and envelopes (track and event envelopes, up to 26 buses plus the master, track and event
+effect chains of up to 32 effects), motion and effects (Event Pan/Crop, Track Motion) and the interface
+(compact dark layout, bottom-tab docking). Each row says whether Neoveg is **igual**, **diferente**,
+**falta** or **a conferir**. Keep the guide up to date in the same commit as any change to a shortcut,
+a menu or a gesture.
+
+**Integration rule (strict).** Any feature that arrives from another engine (FilmCraft, Whisper,
+OpenTimelineIO, VST3, OpenFX, CLAP or whatever comes next) is *enveloped* in the interface and in the
+logic of the reference editor: it enters through the menus, panels, shortcuts and windows the reference
+already uses for that kind of thing, and it **never changes** a shortcut, a layout or a menu that
+Neoveg copies from it.
+
+- A key the reference manual assigns is never taken for another command. A command the manual leaves
+  without a key only gets a key the manual does not use (the project's own bindings and the reason for
+  each are in section 4.5).
+- Something the reference does not have (the isolated plug-in host, the plug-in manager, Whisper) is a
+  menu item or a window inside the menu that matches it, without a shortcut that clashes.
+- `neoveg_common::keymap::tests::the_reference_default_bindings_are_kept` pins the reference keys to
+  their commands; a change that breaks it is a change to the rule, and has to be decided first and
+  recorded in the guide.
+- Naming stays as section 28 says: the reference product is named only in `AGENTS.md`, `README.md`,
+  `docs/` and the research notes; crates, interface strings and the vault notes say "reference editor"
+  or nothing at all.
 
 ---
 
