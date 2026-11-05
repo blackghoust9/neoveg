@@ -119,8 +119,53 @@ pub enum Drop<L> {
     Reorder(usize),
     /// The tab joins another window group.
     Merge(L),
+    /// The tab goes to a new group beside (or above, or below) this one: the group is split.
+    Split(L, Side),
     /// The tab becomes a window of its own.
     Undock,
+}
+
+/// The side of a group a tab is dropped on to split it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+/// A window group has to be at least this big (both ways) to show the five drop targets.
+const OVERLAY_MIN: f32 = 140.0;
+
+/// The drop targets shown over a group while a tab is dragged, as egui_dock showed them: one in the
+/// middle (the tab joins the group) and one at each side of it (the group is split on that side).
+/// `None` for the middle. Empty when the group is too small to hold them.
+pub fn overlay_targets(rect: Rect) -> Vec<(Option<Side>, Rect)> {
+    let small = rect.width().min(rect.height());
+    if small < OVERLAY_MIN {
+        return Vec::new();
+    }
+    let size = (small * 0.14).clamp(22.0, 40.0);
+    let gap = size * 1.35;
+    let c = rect.center();
+    let at = |dx: f32, dy: f32| Rect::from_center_size(c + vec2(dx, dy), vec2(size, size));
+    vec![
+        (None, at(0.0, 0.0)),
+        (Some(Side::Left), at(-gap, 0.0)),
+        (Some(Side::Right), at(gap, 0.0)),
+        (Some(Side::Top), at(0.0, -gap)),
+        (Some(Side::Bottom), at(0.0, gap)),
+    ]
+}
+
+/// The half of a group that a split on `side` would give to the tab (what is highlighted).
+pub fn split_preview(rect: Rect, side: Side) -> Rect {
+    match side {
+        Side::Left => Rect::from_min_max(rect.min, pos2(rect.center().x, rect.max.y)),
+        Side::Right => Rect::from_min_max(pos2(rect.center().x, rect.min.y), rect.max),
+        Side::Top => Rect::from_min_max(rect.min, pos2(rect.max.x, rect.center().y)),
+        Side::Bottom => Rect::from_min_max(pos2(rect.min.x, rect.center().y), rect.max),
+    }
 }
 
 /// Decides what dropping a tab at `pointer` does. `area` is the part of the window the dock covers,
@@ -136,9 +181,23 @@ pub fn drop_target<L: Copy + PartialEq>(
     if !area.contains(pointer) {
         return Drop::Undock;
     }
-    let Some((leaf, _)) = leaves.iter().find(|(_, rect)| rect.contains(pointer)) else {
+    let Some((leaf, leaf_rect)) = leaves.iter().find(|(_, rect)| rect.contains(pointer)) else {
         return Drop::Cancel;
     };
+    // The five targets over the group: a side splits it, the middle joins it. A group with only
+    // this tab cannot be split by it (there would be nothing left to split off).
+    if *leaf != source || own_tabs.len() > 1 {
+        if let Some((side, _)) = overlay_targets(*leaf_rect)
+            .into_iter()
+            .find(|(_, target)| target.contains(pointer))
+        {
+            return match side {
+                Some(side) => Drop::Split(*leaf, side),
+                None if *leaf != source => Drop::Merge(*leaf),
+                None => Drop::Cancel,
+            };
+        }
+    }
     if *leaf != source {
         return Drop::Merge(*leaf);
     }
@@ -479,5 +538,92 @@ mod tests {
             drop_target(pos2(500.0, 100.0), area, &leaves, 1, &[]),
             Drop::Cancel
         );
+    }
+
+    #[test]
+    fn a_big_group_shows_five_targets_inside_it_and_a_small_one_none() {
+        let group = r(100.0, 50.0, 700.0, 450.0);
+        let targets = overlay_targets(group);
+        assert_eq!(targets.len(), 5);
+        assert_eq!(targets[0].0, None, "the middle joins");
+        let sides: Vec<_> = targets.iter().filter_map(|(s, _)| *s).collect();
+        assert_eq!(sides, [Side::Left, Side::Right, Side::Top, Side::Bottom]);
+        for (_, rect) in &targets {
+            assert!(group.contains_rect(*rect), "{rect:?} is inside the group");
+        }
+        // They do not touch each other
+        for (i, (_, a)) in targets.iter().enumerate() {
+            for (_, b) in &targets[i + 1..] {
+                assert!(!a.intersects(*b));
+            }
+        }
+        // The middle is the middle, the sides are on their sides of it
+        let c = targets[0].1.center();
+        assert_eq!(c, group.center());
+        assert!(targets[1].1.center().x < c.x && targets[2].1.center().x > c.x);
+        assert!(targets[3].1.center().y < c.y && targets[4].1.center().y > c.y);
+        assert!(overlay_targets(r(0.0, 0.0, 130.0, 400.0)).is_empty());
+        assert!(overlay_targets(r(0.0, 0.0, 400.0, 100.0)).is_empty());
+    }
+
+    #[test]
+    fn the_preview_of_a_split_is_the_half_on_that_side() {
+        let g = r(0.0, 0.0, 400.0, 200.0);
+        assert_eq!(split_preview(g, Side::Left), r(0.0, 0.0, 200.0, 200.0));
+        assert_eq!(split_preview(g, Side::Right), r(200.0, 0.0, 400.0, 200.0));
+        assert_eq!(split_preview(g, Side::Top), r(0.0, 0.0, 400.0, 100.0));
+        assert_eq!(split_preview(g, Side::Bottom), r(0.0, 100.0, 400.0, 200.0));
+    }
+
+    #[test]
+    fn dropping_on_a_side_target_splits_that_group_and_on_the_middle_one_joins_it() {
+        let area = r(0.0, 0.0, 1000.0, 600.0);
+        let leaves = [
+            (1, r(0.0, 0.0, 500.0, 600.0)),
+            (2, r(500.0, 0.0, 1000.0, 600.0)),
+        ];
+        let targets = overlay_targets(leaves[1].1);
+        let hit = |side: Option<Side>| {
+            let rect = targets.iter().find(|(s, _)| *s == side).unwrap().1;
+            drop_target(rect.center(), area, &leaves, 1, &[])
+        };
+        assert_eq!(hit(None), Drop::Merge(2));
+        assert_eq!(hit(Some(Side::Left)), Drop::Split(2, Side::Left));
+        assert_eq!(hit(Some(Side::Right)), Drop::Split(2, Side::Right));
+        assert_eq!(hit(Some(Side::Top)), Drop::Split(2, Side::Top));
+        assert_eq!(hit(Some(Side::Bottom)), Drop::Split(2, Side::Bottom));
+        // Elsewhere in the group it still joins it
+        assert_eq!(
+            drop_target(pos2(520.0, 20.0), area, &leaves, 1, &[]),
+            Drop::Merge(2)
+        );
+    }
+
+    #[test]
+    fn a_group_can_be_split_by_its_own_tab_only_when_it_has_another_one() {
+        let area = r(0.0, 0.0, 1000.0, 600.0);
+        let leaves = [
+            (1, r(0.0, 0.0, 500.0, 600.0)),
+            (2, r(500.0, 0.0, 1000.0, 600.0)),
+        ];
+        let right = overlay_targets(leaves[0].1)
+            .into_iter()
+            .find(|(s, _)| *s == Some(Side::Right))
+            .unwrap()
+            .1
+            .center();
+        let two = [
+            (0, r(0.0, 578.0, 80.0, 600.0)),
+            (1, r(80.0, 578.0, 160.0, 600.0)),
+        ];
+        assert_eq!(
+            drop_target(right, area, &leaves, 1, &two),
+            Drop::Split(1, Side::Right)
+        );
+        let alone = [(0, r(0.0, 578.0, 80.0, 600.0))];
+        assert_eq!(drop_target(right, area, &leaves, 1, &alone), Drop::Cancel);
+        // The middle of its own group does nothing
+        let middle = leaves[0].1.center();
+        assert_eq!(drop_target(middle, area, &leaves, 1, &two), Drop::Cancel);
     }
 }

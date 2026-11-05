@@ -4,11 +4,13 @@
 //! own strip is hidden (height 0) because it can only sit on top.
 
 use eframe::egui::{self, vec2, Align2, Color32, FontId, Id, LayerId, Order, Rect, Stroke};
-use egui_dock::{DockState, Node, NodeIndex, SurfaceIndex, TabDestination, TabIndex, TabInsert};
+use egui_dock::{
+    DockState, Node, NodeIndex, Split, SurfaceIndex, TabDestination, TabIndex, TabInsert,
+};
 use neoveg_common::i18n::tr;
 
 use super::Tab;
-use crate::footer_tabs::{self, Drop, Gesture, GroupAction, GroupMenu};
+use crate::footer_tabs::{self, Drop, Gesture, GroupAction, GroupMenu, Side};
 
 /// The places *Mover grupo para* offers, each found by the window that stands for it: a group goes
 /// to the window group that window is in now. (The names are the ones of the reference layout; the
@@ -153,6 +155,7 @@ impl DockFooter {
                                 TabInsert::Append,
                             ),
                         ),
+                        Drop::Split(group, side) => split_tab(dock, source(index), group, side),
                         Drop::Undock => {
                             let at = Rect::from_min_size(pos - vec2(40.0, 10.0), leaf.rect.size());
                             dock.detach_tab(source(index), at);
@@ -192,6 +195,20 @@ impl DockFooter {
                     );
                 }
             }
+            Drop::Split(id, side) => {
+                if let Some(leaf) = self.leaves.iter().find(|l| l.id() == id) {
+                    painter.rect_filled(
+                        footer_tabs::split_preview(leaf.rect, side).shrink(2.0),
+                        egui::Rounding::ZERO,
+                        accent.gamma_multiply(0.35),
+                    );
+                    painter.rect_stroke(
+                        leaf.rect.shrink(1.0),
+                        egui::Rounding::ZERO,
+                        Stroke::new(2.0_f32, accent),
+                    );
+                }
+            }
             Drop::Undock => {
                 painter.rect_stroke(
                     self.area.shrink(1.0),
@@ -200,6 +217,28 @@ impl DockFooter {
                 );
             }
             Drop::Reorder(_) | Drop::Cancel => {}
+        }
+        // The five targets over the group under the pointer (the middle joins, a side splits)
+        if let Some(under) = self.leaves.iter().find(|l| l.rect.contains(pos)) {
+            if under.id() != from.id() || from.tabs.len() > 1 {
+                for (side, rect) in footer_tabs::overlay_targets(under.rect) {
+                    let hot = rect.contains(pos);
+                    let fill = if hot {
+                        accent
+                    } else {
+                        Color32::from_black_alpha(150)
+                    };
+                    painter.rect_filled(rect, 4.0, fill);
+                    painter.rect_stroke(rect, 4.0, Stroke::new(1.0_f32, Color32::WHITE));
+                    // A bar on the half of the square the tab would take (the whole square: join)
+                    let inner = rect.shrink(rect.width() * 0.22);
+                    let mark = match side {
+                        None => inner,
+                        Some(side) => footer_tabs::split_preview(inner, side),
+                    };
+                    painter.rect_filled(mark, 1.0, Color32::WHITE);
+                }
+            }
         }
         if let Some(tab) = from.tabs.get(index) {
             let font = FontId::proportional(footer_tabs::FONT_SIZE);
@@ -216,6 +255,34 @@ impl DockFooter {
         }
         ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
         ctx.request_repaint();
+    }
+}
+
+/// Takes the tab at `source` out of its group and puts it in a new group on `side` of the group
+/// `(surface, node)`.
+pub(super) fn split_tab(
+    dock: &mut DockState<Tab>,
+    source: (SurfaceIndex, NodeIndex, TabIndex),
+    (surface, node): (usize, usize),
+    side: Side,
+) {
+    dock.move_tab(
+        source,
+        TabDestination::Node(
+            SurfaceIndex(surface),
+            NodeIndex(node),
+            TabInsert::Split(split_of(side)),
+        ),
+    );
+}
+
+/// The split of `egui_dock` that puts the new group on `side` of the old one.
+fn split_of(side: Side) -> Split {
+    match side {
+        Side::Left => Split::Left,
+        Side::Right => Split::Right,
+        Side::Top => Split::Above,
+        Side::Bottom => Split::Below,
     }
 }
 
@@ -344,6 +411,52 @@ mod tests {
         for leaf in &footer.leaves {
             assert!(leaf.active < leaf.tabs.len());
         }
+    }
+
+    #[test]
+    fn dropping_a_tab_on_a_side_makes_a_new_group_on_that_side_and_loses_no_tab() {
+        for side in [Side::Left, Side::Right, Side::Top, Side::Bottom] {
+            let mut dock = dock();
+            let before = leaves_of(&dock);
+            let total: usize = before.iter().map(|l| l.tabs.len()).sum();
+            // A tab that shares its group, dropped on the side of another group
+            let from = before
+                .iter()
+                .find(|l| l.tabs.len() > 1)
+                .expect("the default layout has a group with several panels");
+            let moved = from.tabs[0];
+            let onto = before.iter().find(|l| l.id() != from.id()).unwrap();
+            split_tab(
+                &mut dock,
+                (from.surface, from.node, TabIndex(0)),
+                onto.id(),
+                side,
+            );
+            let after = leaves_of(&dock);
+            assert_eq!(after.len(), before.len() + 1, "{side:?}: one group more");
+            assert_eq!(
+                after.iter().map(|l| l.tabs.len()).sum::<usize>(),
+                total,
+                "{side:?}: no tab is lost"
+            );
+            let new = after
+                .iter()
+                .find(|l| l.tabs == vec![moved])
+                .unwrap_or_else(|| panic!("{side:?}: the tab has a group of its own"));
+            let old = after
+                .iter()
+                .find(|l| l.tabs.contains(&onto.tabs[0]))
+                .unwrap();
+            assert_ne!(new.id(), old.id());
+        }
+    }
+
+    #[test]
+    fn the_sides_map_to_the_splits_of_the_dock() {
+        assert!(matches!(split_of(Side::Left), Split::Left));
+        assert!(matches!(split_of(Side::Right), Split::Right));
+        assert!(matches!(split_of(Side::Top), Split::Above));
+        assert!(matches!(split_of(Side::Bottom), Split::Below));
     }
 
     #[test]
