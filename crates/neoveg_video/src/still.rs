@@ -484,7 +484,7 @@ mod tests {
             }
             buf.extend_from_slice(&0u32.to_le_bytes());
             buf.resize(128, 0);
-            buf.extend_from_slice(&vec![(idx * 70) as u8; 16]);
+            buf.extend_from_slice(&[(idx * 70) as u8; 16]);
             std::fs::write(dir.join(format!("frame_{idx:04}.dng")), &buf).unwrap();
         }
 

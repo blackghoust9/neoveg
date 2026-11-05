@@ -1,9 +1,6 @@
-#[cfg(test)]
-mod tests {
-    use crate::model::{
-        CClip, CEffect, CFade, CFadeCurve, CItem, CKind, CTrack, Composition, Document, Gain,
-        Source,
-    };
+use crate::model::{
+    CClip, CEffect, CFade, CFadeCurve, CItem, CKind, CTrack, Composition, Document, Gain, Source,
+};
     use crate::time::{FrameRate, Tick};
     use crate::{read_aaf, write_aaf};
 
@@ -329,4 +326,3 @@ mod tests {
             &pic_bytes
         );
     }
-}

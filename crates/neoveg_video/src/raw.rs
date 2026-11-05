@@ -3,6 +3,8 @@
 //! `.pef`) and explicit diagnostics for closed vendor-SDK cinema RAW formats (`.r3d`, `.braw`,
 //! `.crm`, `.ari`).
 
+#![allow(clippy::chunks_exact_to_as_chunks)]
+
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -1045,7 +1047,7 @@ mod tests {
         }
 
         fn write_ifd(&mut self, entries: &[(u16, u16, u32, Vec<u8>)]) -> usize {
-            while self.buf.len() % 2 != 0 {
+            while !self.buf.len().is_multiple_of(2) {
                 self.buf.push(0);
             }
             let ifd_off = self.buf.len();
@@ -1062,7 +1064,7 @@ mod tests {
                 if data.len() <= 4 {
                     self.buf[slot + 8..slot + 8 + data.len()].copy_from_slice(data);
                 } else {
-                    while self.buf.len() % 2 != 0 {
+                    while !self.buf.len().is_multiple_of(2) {
                         self.buf.push(0);
                     }
                     let ext_off = self.buf.len() as u32;
