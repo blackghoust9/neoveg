@@ -2900,6 +2900,7 @@ dependencies = [
  "cpal",
  "libloading",
  "neoveg_common",
+ "neoveg_media",
  "nnnoiseless",
  "serde",
  "serde_json",

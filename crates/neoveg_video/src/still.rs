@@ -9,11 +9,12 @@ use serde::{Deserialize, Serialize};
 use crate::frame::FrameBuffer;
 use crate::info::{fit_size, VideoInfo};
 
-/// Still-image file extensions: the first thirteen are read in pure Rust, the HEIF family (phone
-/// photos and AVIF) needs the `ffmpeg` feature.
-pub const IMAGE_EXTENSIONS: [&str; 17] = [
+/// Still-image file extensions: standard bitmaps, PSD composites and open/camera RAWs (`.dng` /
+/// CinemaDNG sequences plus embedded-JPEG photo RAWs) are read in pure Rust; the HEIF family
+/// (phone photos and AVIF) needs the `ffmpeg` feature.
+pub const IMAGE_EXTENSIONS: [&str; 25] = [
     "png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff", "tga", "ico", "ppm", "pgm", "psd",
-    "heic", "heif", "hif", "avif",
+    "dng", "cr2", "nef", "arw", "raf", "orf", "rw2", "pef", "heic", "heif", "hif", "avif",
 ];
 
 /// Pictures stored as HEIF items (HEVC or AV1 inside an ISO base media file). FFmpeg reads them,
@@ -66,6 +67,10 @@ pub fn probe_image(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInf
         let (width, height) = crate::psd::probe_file(path)?;
         return Ok(still_info(width, height, fps, still_seconds));
     }
+    if crate::raw::is_raw_image_path(path) {
+        let (width, height) = crate::raw::probe_file(path)?;
+        return Ok(still_info(width, height, fps, still_seconds));
+    }
     let reader = ImageReader::open(path)
         .map_err(|e| format!("falha ao abrir imagem {}: {e}", path.display()))?
         .with_guessed_format()
@@ -111,6 +116,22 @@ pub fn decode_image(path: &Path, max_width: u32) -> Result<FrameBuffer, String> 
         } else {
             let img = image::RgbaImage::from_raw(r.width, r.height, r.rgba)
                 .ok_or_else(|| format!("buffer PSD inválido em {}", path.display()))?;
+            image::imageops::resize(&img, dst_w, dst_h, FilterType::Triangle).into_raw()
+        };
+        return Ok(FrameBuffer {
+            width: dst_w,
+            height: dst_h,
+            rgba,
+        });
+    }
+    if crate::raw::is_raw_image_path(path) {
+        let r = crate::raw::decode_file(path)?;
+        let (dst_w, dst_h) = fit_size(r.width, r.height, max_width);
+        let rgba = if (dst_w, dst_h) == (r.width, r.height) {
+            r.rgba
+        } else {
+            let img = image::RgbaImage::from_raw(r.width, r.height, r.rgba)
+                .ok_or_else(|| format!("buffer RAW inválido em {}", path.display()))?;
             image::imageops::resize(&img, dst_w, dst_h, FilterType::Triangle).into_raw()
         };
         return Ok(FrameBuffer {
@@ -433,6 +454,50 @@ mod tests {
         let past_end = decode_sequence_at(&manifest, 10.0, 0).unwrap();
         assert_eq!(past_end.pixel(10, 10), colors[3]);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cinema_dng_sequence_detects_and_decodes_frames() {
+        let dir = std::env::temp_dir().join(format!("neoveg_cinemadng_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        for idx in 1..=3u32 {
+            let mut buf = vec![0x49, 0x49, 0x2a, 0x00, 8, 0, 0, 0];
+            let entries: [(u16, u16, u32, [u8; 4]); 8] = [
+                (0x0100, 4, 1, 4u32.to_le_bytes()),
+                (0x0101, 4, 1, 4u32.to_le_bytes()),
+                (0x0102, 3, 1, [8, 0, 0, 0]),
+                (0x0103, 3, 1, [1, 0, 0, 0]),
+                (0x0106, 3, 1, [1, 0, 0, 0]), // uncompressed monochrome 8-bit
+                (0x0111, 4, 1, 128u32.to_le_bytes()),
+                (0x0116, 4, 1, 4u32.to_le_bytes()),
+                (0x0117, 4, 1, 16u32.to_le_bytes()),
+            ];
+            buf.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+            for (tag, ty, cnt, val) in entries {
+                buf.extend_from_slice(&tag.to_le_bytes());
+                buf.extend_from_slice(&ty.to_le_bytes());
+                buf.extend_from_slice(&cnt.to_le_bytes());
+                buf.extend_from_slice(&val);
+            }
+            buf.extend_from_slice(&0u32.to_le_bytes());
+            buf.resize(128, 0);
+            buf.extend_from_slice(&vec![(idx * 70) as u8; 16]);
+            std::fs::write(dir.join(format!("frame_{idx:04}.dng")), &buf).unwrap();
+        }
+
+        let seq = detect_image_sequence(&dir.join("frame_0001.dng"), 24.0)
+            .unwrap()
+            .expect("CinemaDNG sequence detected");
+        assert_eq!(seq.frame_count, 3);
+        let manifest = dir.join("clip.neovegseq");
+        seq.save_manifest(&manifest).unwrap();
+        let f0 = decode_sequence_at(&manifest, 0.0, 0).unwrap();
+        let f2 = decode_sequence_at(&manifest, 2.0 / 24.0 + 0.001, 0).unwrap();
+        assert_eq!(f0.pixel(0, 0), [70, 70, 70, 255]);
+        assert_eq!(f2.pixel(0, 0), [210, 210, 210, 255]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

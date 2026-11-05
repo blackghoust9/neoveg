@@ -138,6 +138,41 @@ pub fn parse_wav(b: &[u8]) -> Option<(Vec<u8>, u16, u32, u16)> {
     None
 }
 
+/// Wraps raw little-endian integer PCM bytes in a standard RIFF/WAVE container (or returns `pcm`
+/// unchanged when it already has a RIFF/WAVE header).
+pub fn encode_wav(pcm: &[u8], channels: u16, sample_rate: u32, bits: u16) -> Vec<u8> {
+    if pcm.len() >= 12 && &pcm[..4] == b"RIFF" && &pcm[8..12] == b"WAVE" {
+        return pcm.to_vec();
+    }
+    let ch = channels.max(1);
+    let sr = sample_rate.max(1);
+    let bps = match bits {
+        1..=8 => 8u16,
+        9..=16 => 16u16,
+        17..=24 => 24u16,
+        _ => 32u16,
+    };
+    let block_align = ch.saturating_mul(bps / 8);
+    let byte_rate = sr.saturating_mul(u32::from(block_align));
+    let data_len = u32::try_from(pcm.len()).unwrap_or(u32::MAX - 36);
+    let riff_len = 36u32.saturating_add(data_len);
+    let mut out = Vec::with_capacity(44 + pcm.len());
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&riff_len.to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    out.extend_from_slice(&ch.to_le_bytes());
+    out.extend_from_slice(&sr.to_le_bytes());
+    out.extend_from_slice(&byte_rate.to_le_bytes());
+    out.extend_from_slice(&block_align.to_le_bytes());
+    out.extend_from_slice(&bps.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    out.extend_from_slice(&pcm[..data_len as usize]);
+    out
+}
+
 /// Error from reading or writing an AAF file. Features that cannot be represented never error;
 /// they go in the [`Report`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

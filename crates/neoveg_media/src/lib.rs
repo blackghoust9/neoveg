@@ -18,8 +18,11 @@
 //!   and NAL unit splitting.
 //! - `isobmff`: a clean-room ISO BMFF (MP4) and QuickTime (MOV) demuxer and muxer, and a box reader
 //!   for other ISO BMFF formats.
+//! - `mxf`: a clean-room SMPTE ST 377-1 / ST 382 KLV probe and uncompressed PCM/BWF/AIFF/AES3
+//!   audio decoder.
 //!
 //! Codecs stay in their own crates (`neoveg_h264`, `neoveg_aac`).
 
 pub mod bitstream;
 pub mod isobmff;
+pub mod mxf;

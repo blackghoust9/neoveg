@@ -221,6 +221,9 @@ pub fn probe(path: &Path) -> Result<VideoInfo, String> {
 /// Probes media using the caller's project `fps` and `still_seconds` default duration for static
 /// images.
 pub fn probe_with_defaults(path: &Path, fps: f64, still_seconds: f64) -> Result<VideoInfo, String> {
+    if let Some(err) = crate::raw::proprietary_raw_error(path) {
+        return Err(err);
+    }
     if is_image_path(path) {
         return probe_image(path, fps, still_seconds);
     }

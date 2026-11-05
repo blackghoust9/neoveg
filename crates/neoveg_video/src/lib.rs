@@ -16,6 +16,7 @@ pub mod media_look;
 pub mod optical_flow;
 pub mod pan_crop;
 pub mod psd;
+pub mod raw;
 pub mod render;
 pub mod render_native;
 pub mod scene;

@@ -51,7 +51,9 @@ const AUDIO_EXTENSIONS: [&str; 30] = [
 ];
 
 /// Extensions of pictures that are converted to PNG.
-const IMAGE_EXTENSIONS: [&str; 4] = ["heic", "heif", "hif", "avif"];
+const IMAGE_EXTENSIONS: [&str; 12] = [
+    "heic", "heif", "hif", "avif", "dng", "cr2", "nef", "arw", "raf", "orf", "rw2", "pef",
+];
 
 /// What `path` should be converted to: sound files to WAV, HEIF pictures to PNG, everything else to
 /// MP4.

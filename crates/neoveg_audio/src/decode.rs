@@ -147,6 +147,15 @@ pub fn decode_to_store(path: &Path) -> Result<DecodedStore, String> {
 
 /// Length and channel count of the first audio track without decoding it, when the container says.
 pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
+    if neoveg_media::mxf::is_mxf_path(path) {
+        let info = neoveg_media::mxf::probe_file(path).ok()?;
+        if info.has_audio && info.audio_channels > 0 {
+            if let Some(dur) = info.duration_seconds {
+                return Some((dur, info.audio_channels));
+            }
+        }
+        return None;
+    }
     let file = File::open(path).ok()?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
     let mut hint = Hint::new();
@@ -176,6 +185,14 @@ pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
 
 /// Decodes the first audio track of `path` into `sink`; returns the sample rate and channel count.
 fn decode_into(path: &Path, sink: &mut dyn Sink) -> Result<(u32, u16), String> {
+    if neoveg_media::mxf::is_mxf_path(path) {
+        let mxf = neoveg_media::mxf::decode_audio_file(path)?;
+        let ch = usize::from(mxf.channels.max(1));
+        let frames = mxf.samples.len() / ch;
+        sink.start(Some(frames));
+        sink.block(&mxf.samples, ch)?;
+        return Ok((mxf.sample_rate, mxf.channels));
+    }
     let file = File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -395,5 +412,65 @@ mod tests {
     #[test]
     fn missing_file_is_an_error() {
         assert!(decode_file(Path::new("does-not-exist.wav")).is_err());
+    }
+
+    #[test]
+    fn mxf_pcm_decodes_in_pure_rust_without_ffmpeg() {
+        let dir = std::env::temp_dir().join(format!("neoveg_mxf_decode_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("clip.mxf");
+        let mut mxf = Vec::new();
+        // Header Partition Pack
+        mxf.extend_from_slice(&[
+            0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x02,
+            0x04, 0x00, 0x58,
+        ]);
+        mxf.extend_from_slice(&[0u8; 88]);
+        // WaveAudioDescriptor: 48 kHz, 2 ch, 16-bit, duration 3 frames
+        let mut desc = Vec::new();
+        desc.extend_from_slice(&0x3d03u16.to_be_bytes());
+        desc.extend_from_slice(&8u16.to_be_bytes());
+        desc.extend_from_slice(&48_000i32.to_be_bytes());
+        desc.extend_from_slice(&1i32.to_be_bytes());
+        desc.extend_from_slice(&0x3d07u16.to_be_bytes());
+        desc.extend_from_slice(&4u16.to_be_bytes());
+        desc.extend_from_slice(&2u32.to_be_bytes());
+        desc.extend_from_slice(&0x3d01u16.to_be_bytes());
+        desc.extend_from_slice(&4u16.to_be_bytes());
+        desc.extend_from_slice(&16u32.to_be_bytes());
+        desc.extend_from_slice(&0x3002u16.to_be_bytes());
+        desc.extend_from_slice(&8u16.to_be_bytes());
+        desc.extend_from_slice(&3i64.to_be_bytes());
+        mxf.extend_from_slice(&[
+            0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01,
+            0x48, 0x00,
+        ]);
+        mxf.push(desc.len() as u8);
+        mxf.extend_from_slice(&desc);
+        // Sound essence packet: 3 stereo 16-bit LE frames
+        let mut pcm = Vec::new();
+        for _ in 0..3 {
+            pcm.extend_from_slice(&16_384i16.to_le_bytes());
+            pcm.extend_from_slice(&(-8_192i16).to_le_bytes());
+        }
+        mxf.extend_from_slice(&[
+            0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x16, 0x01,
+            0x02, 0x01,
+        ]);
+        mxf.push(pcm.len() as u8);
+        mxf.extend_from_slice(&pcm);
+
+        std::fs::write(&path, &mxf).unwrap();
+        let (dur, ch) = probe_audio(&path).unwrap();
+        assert_eq!(ch, 2);
+        assert!((dur - 3.0 / 48_000.0).abs() < 1e-9);
+        let decoded = decode_to_store(&path).unwrap();
+        assert_eq!(decoded.sample_rate, 48_000);
+        assert_eq!(decoded.channels, 2);
+        let stereo = decoded.store.to_vec(0, 10);
+        assert_eq!(stereo.len(), 6);
+        assert!((stereo[0] - 0.5).abs() < 1e-4);
+        assert!((stereo[1] + 0.25).abs() < 1e-4);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
