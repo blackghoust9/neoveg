@@ -221,6 +221,14 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditSmartSplit, &["Alt+S"]),
     // F2 renames the selected event in the reference map
     (Command::EditRenameEvent, &["F2"]),
+    // The reference map moves events with the numeric keypad, which the number row cannot be told
+    // from here, and turns cuts into transitions with Ctrl and the keypad operators
+    (Command::EditMoveEventsLeft, &["Ctrl+Shift+Left"]),
+    (Command::EditMoveEventsRight, &["Ctrl+Shift+Right"]),
+    (Command::EditMoveEventsUp, &["Ctrl+Alt+Shift+Up"]),
+    (Command::EditMoveEventsDown, &["Ctrl+Alt+Shift+Down"]),
+    (Command::EditCutToTransition, &["Ctrl+Alt+X"]),
+    (Command::EditTransitionToCut, &["Ctrl+Alt+Shift+X"]),
     // The reference map gives no key to making a subclip or reversing an event: these are Neoveg's
     // own, on chords that neither the reference map (v18 list, v21 manual) nor this one uses
     (Command::EditCreateSubclip, &["Ctrl+Alt+C"]),
@@ -300,6 +308,9 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     // One frame per arrow key is kept from the first Neoveg releases; the reference map uses
     // Alt+Left/Right for it, so both are bound.
     (Command::CursorLeftByFrame, &["Left", "Alt+Left"]),
+    // Page Up / Page Down move the cursor by the lines of the ruler grid
+    (Command::CursorPreviousGridMark, &["PageUp"]),
+    (Command::CursorNextGridMark, &["PageDown"]),
     (Command::CursorRightByFrame, &["Right", "Alt+Right"]),
     (Command::CursorProjectStart, &["Ctrl+Home", "W"]),
     (Command::CursorProjectEnd, &["Ctrl+End"]),
@@ -372,7 +383,20 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::TrackRemovePanEnvelope, &["Shift+P"]),
     (Command::ViewWaveforms, &["Ctrl+Shift+W"]),
     (Command::TrackToggleEnvelopes, &["Ctrl+Shift+E"]),
+    // E and Shift+E walk through the effect envelopes of the selected track
+    (Command::TrackNextEffectEnvelope, &["E"]),
+    (Command::TrackPrevEffectEnvelope, &["Shift+E"]),
     (Command::ViewFocusTimeline, &["Alt+0"]),
+    // The reference map cycles through the windows with F6 and Ctrl+Tab
+    (Command::ViewNextWindow, &["F6", "Ctrl+Tab"]),
+    (Command::ViewPreviousWindow, &["Shift+F6", "Ctrl+Shift+Tab"]),
+    // Height of the tracks and of the waveform in the reference map
+    (Command::ViewTracksMinimize, &["`"]),
+    (Command::ViewTracksDefaultHeight, &["Ctrl+`"]),
+    (Command::ViewTracksTaller, &["Ctrl+Shift+Up"]),
+    (Command::ViewTracksShorter, &["Ctrl+Shift+Down"]),
+    (Command::ViewWaveformTaller, &["Shift+Up"]),
+    (Command::ViewWaveformShorter, &["Shift+Down"]),
     // The windows the reference map gives a key: Project Notes, Media Generators, Plug-In Manager and
     // Edit Details
     (Command::ViewProjectNotes, &["Alt+6"]),
@@ -731,6 +755,20 @@ mod tests {
             ("Alt+Enter", "file.properties"),
             ("S", "edit.split"),
             ("Alt+S", "edit.smart_split"),
+            ("E", "track.next_effect_envelope"),
+            ("Shift+E", "track.prev_effect_envelope"),
+            ("PageUp", "cursor.previous_grid_mark"),
+            ("PageDown", "cursor.next_grid_mark"),
+            ("`", "view.tracks_minimize"),
+            ("Ctrl+`", "view.tracks_default_height"),
+            ("Ctrl+Shift+Up", "view.tracks_taller"),
+            ("Ctrl+Shift+Down", "view.tracks_shorter"),
+            ("Shift+Up", "view.waveform_taller"),
+            ("Shift+Down", "view.waveform_shorter"),
+            ("F6", "view.next_window"),
+            ("Ctrl+Tab", "view.next_window"),
+            ("Shift+F6", "view.previous_window"),
+            ("Ctrl+Shift+Tab", "view.previous_window"),
             ("Ctrl+T", "edit.trim"),
             ("Alt+[", "edit.trim_start"),
             ("Alt+]", "edit.trim_end"),

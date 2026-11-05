@@ -65,21 +65,23 @@ CMakeLists.txt  text eol=lf
 # GitHub Linguist: the language bar should show the Rust code, not the tooling
 # ============================================================================
 
-# Auxiliary languages and scripts do not count in the statistics
-*.py   linguist-vendored
+# The Python, PowerShell and shell scripts of the repository (build, benchmarks, icons, tests) are
+# used for real, so they count in the statistics; only code that is not ours is left out
+*.py   linguist-detectable=true
+*.ps1  linguist-detectable=true
+*.sh   linguist-detectable=true
+
+# Languages that only appear in copied third-party code or unused templates do not count
 *.cs   linguist-vendored
 *.js   linguist-vendored
 *.ts   linguist-vendored
-*.ps1  linguist-vendored
-*.sh   linguist-vendored
 *.h    linguist-vendored
 *.rc   linguist-vendored
 *.qss  linguist-vendored
 *.html linguist-documentation
 *.css  linguist-documentation
 
-# Folders of scripts, research, documentation and third-party material
-scripts/**             linguist-vendored
+# Folders of research, documentation and third-party material
 docs/**                linguist-documentation
 docs_obsidian/**       linguist-documentation
 assets/**              linguist-vendored

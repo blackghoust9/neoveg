@@ -4,7 +4,7 @@ use neoveg_common::i18n::tr_args;
 use neoveg_common::i18n::tr_text;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
@@ -144,7 +144,32 @@ const MARK_STRIP_HEIGHT: f32 = 10.0;
 const MARK_HIT_PX: f32 = 6.0;
 /// Width of the inline name box on the ruler.
 const NAME_BOX_WIDTH: f32 = 150.0;
-const TRACK_HEIGHT: f32 = 64.0;
+/// Height of a track row at the start, and the limits `Ctrl+Shift+Up` / `Ctrl+Shift+Down` keep to.
+const DEFAULT_TRACK_HEIGHT: f32 = 64.0;
+const MIN_TRACK_HEIGHT: f32 = 28.0;
+/// Length of the crossfade a cut is turned into with its key.
+const CUT_TRANSITION_SECONDS: f64 = 1.0;
+/// What one `Ctrl+Shift+Up` / `Ctrl+Shift+Down` adds to or takes from the height, in pixels.
+const TRACK_HEIGHT_STEP: f32 = 16.0;
+/// The factor of one `Shift+Up` / `Shift+Down` on the waveform.
+const WAVEFORM_ZOOM_STEP: f32 = 1.25;
+const MAX_TRACK_HEIGHT: f32 = 256.0;
+/// Height of every track row, kept as `f32` bits so the drawing and hit-test code reads one value.
+static TRACK_HEIGHT_BITS: AtomicU32 = AtomicU32::new(0x4280_0000); // 64.0
+
+fn track_height() -> f32 {
+    f32::from_bits(TRACK_HEIGHT_BITS.load(Ordering::Relaxed))
+}
+
+fn set_track_height(height: f32) {
+    let height = if height.is_finite() {
+        height
+    } else {
+        DEFAULT_TRACK_HEIGHT
+    };
+    let height = height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
+    TRACK_HEIGHT_BITS.store(height.to_bits(), Ordering::Relaxed);
+}
 const EVENT_HEADER_HEIGHT: f32 = 14.0;
 const MIN_PIXELS_PER_SECOND: f64 = 15.0;
 const MAX_PIXELS_PER_SECOND: f64 = 480_000.0;
@@ -171,6 +196,39 @@ const QUALITIES: [(&str, f32); 5] = [
     ("Best", 1.0),
     ("Auto", 0.0),
 ];
+
+/// The window after (or before) `current` in `tabs`, wrapping around; the first (or last) when
+/// `current` is not among them.
+fn next_in_cycle(tabs: &[Tab], current: Option<Tab>, forward: bool) -> Option<Tab> {
+    if tabs.is_empty() {
+        return None;
+    }
+    let at = current.and_then(|c| tabs.iter().position(|t| *t == c));
+    let next = match (at, forward) {
+        (None, true) => 0,
+        (None, false) => tabs.len() - 1,
+        (Some(i), true) => (i + 1) % tabs.len(),
+        (Some(i), false) => (i + tabs.len() - 1) % tabs.len(),
+    };
+    tabs.get(next).copied()
+}
+
+/// The grid line after (or before) `time`; a time that sits on a line moves to the next one.
+fn grid_mark_from(time: f64, step: f64, forward: bool) -> f64 {
+    if step <= 0.0 {
+        return time;
+    }
+    // A small tolerance, so a cursor placed on a line by rounding still counts as on it
+    let units = time / step;
+    let on_line = (units - units.round()).abs() < 1e-6;
+    let mark = match (forward, on_line) {
+        (true, true) => units.round() + 1.0,
+        (true, false) => units.ceil(),
+        (false, true) => units.round() - 1.0,
+        (false, false) => units.floor(),
+    };
+    (mark * step).max(0.0)
+}
 
 /// How the preview picture is sampled when it is stretched to the pane. A reduced quality (Draft,
 /// Preview) shows its lower resolution as visible pixels instead of smearing it into a blur; the full
@@ -232,6 +290,10 @@ enum WindowAction {
     Toggle(Tab),
     /// Bring the window to the front (open it when it was closed), never close it.
     Show(Tab),
+    /// `F6` / `Shift+F6`: bring the next (or previous) window of the layout to the front.
+    Cycle {
+        forward: bool,
+    },
     DefaultLayout,
     /// Load the saved layout in this file.
     LoadLayout(PathBuf),
@@ -706,6 +768,8 @@ struct AppState {
     show_inspector: bool,
     /// F2: the name box of the Inspector takes the focus the next time it is drawn.
     focus_event_name: bool,
+    /// Height of the track rows before `` ` `` minimized them; `None` while they are not minimized.
+    restore_track_height: Option<f32>,
     /// The metronome clicks during playback.
     metronome_on: bool,
     /// The audio recording in progress and the timeline time it started at.
@@ -1974,6 +2038,7 @@ impl AppState {
             keymap_sets: None,
             show_inspector: false,
             focus_event_name: false,
+            restore_track_height: None,
             metronome_on: false,
             recorder: None,
             record_start: 0.0,
@@ -4071,6 +4136,12 @@ impl AppState {
                 ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
             }
             Command::EditRenameEvent => self.selection.primary().is_some(),
+            Command::EditMoveEventsLeft
+            | Command::EditMoveEventsRight
+            | Command::EditMoveEventsUp
+            | Command::EditMoveEventsDown
+            | Command::EditCutToTransition
+            | Command::EditTransitionToCut => self.selection.primary().is_some(),
             Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
             Command::EditPitchUp
             | Command::EditPitchDown
@@ -4173,7 +4244,10 @@ impl AppState {
                 .and_then(|id| self.timeline.track(id))
                 .is_some_and(|t| t.kind == TrackKind::Audio),
             // On a video track `V` shows the level envelope and `Ctrl+Shift+E` the video ones
-            Command::TrackVolumeEnvelope | Command::TrackToggleEnvelopes => self
+            Command::TrackVolumeEnvelope
+            | Command::TrackToggleEnvelopes
+            | Command::TrackNextEffectEnvelope
+            | Command::TrackPrevEffectEnvelope => self
                 .selected_track
                 .and_then(|id| self.timeline.track(id))
                 .is_some(),
@@ -5622,18 +5696,19 @@ impl AppState {
         else {
             return;
         };
-        self.scroll_y = timeline_scroll::reveal_row(self.scroll_y, row, TRACK_HEIGHT, body_height);
+        self.scroll_y =
+            timeline_scroll::reveal_row(self.scroll_y, row, track_height(), body_height);
     }
 
     /// *Rolar as faixas*: moves the rows one row or one page, up (`direction` -1) or down (1).
     fn scroll_tracks(&mut self, direction: f32, page: bool) {
         let body = self.lanes_body_height;
         let step = if page {
-            timeline_scroll::page_delta(TRACK_HEIGHT, body)
+            timeline_scroll::page_delta(track_height(), body)
         } else {
-            TRACK_HEIGHT
+            track_height()
         };
-        let max = timeline_scroll::max_scroll_y(self.timeline.tracks.len(), TRACK_HEIGHT, body);
+        let max = timeline_scroll::max_scroll_y(self.timeline.tracks.len(), track_height(), body);
         self.scroll_y = timeline_scroll::scrolled(self.scroll_y, direction * step, max);
     }
 
@@ -8155,6 +8230,17 @@ impl AppState {
                 0.0,
             ),
             Command::TrackToggleEnvelopes => envelope::toggle_all_envelopes(&self.timeline, target),
+            Command::TrackNextEffectEnvelope | Command::TrackPrevEffectEnvelope => {
+                let cmd = envelope::cycle_effect_envelope(
+                    &self.timeline,
+                    target,
+                    command == Command::TrackNextEffectEnvelope,
+                );
+                if cmd.is_none() {
+                    self.status = "A faixa não tem envelopes de efeito".into();
+                }
+                cmd
+            }
             _ => None,
         };
         if let Some(cmd) = cmd {
@@ -8675,6 +8761,41 @@ impl AppState {
             Command::ViewZoomInLarge => self.zoom_large(true),
             Command::ViewZoomOutLarge => self.zoom_large(false),
             Command::ViewZoomOneFrame => self.zoom_one_frame(),
+            Command::ViewTracksMinimize => match self.restore_track_height.take() {
+                Some(height) => set_track_height(height),
+                None => {
+                    self.restore_track_height = Some(track_height());
+                    set_track_height(MIN_TRACK_HEIGHT);
+                }
+            },
+            Command::ViewTracksDefaultHeight => {
+                self.restore_track_height = None;
+                set_track_height(DEFAULT_TRACK_HEIGHT);
+            }
+            Command::ViewTracksTaller => {
+                self.restore_track_height = None;
+                set_track_height(track_height() + TRACK_HEIGHT_STEP);
+            }
+            Command::ViewTracksShorter => {
+                self.restore_track_height = None;
+                set_track_height(track_height() - TRACK_HEIGHT_STEP);
+            }
+            Command::ViewWaveformTaller => {
+                crate::waveform_paint::set_vertical_zoom(
+                    crate::waveform_paint::vertical_zoom() * WAVEFORM_ZOOM_STEP,
+                );
+            }
+            Command::ViewWaveformShorter => {
+                crate::waveform_paint::set_vertical_zoom(
+                    crate::waveform_paint::vertical_zoom() / WAVEFORM_ZOOM_STEP,
+                );
+            }
+            Command::ViewNextWindow => {
+                self.window_request = Some(WindowAction::Cycle { forward: true })
+            }
+            Command::ViewPreviousWindow => {
+                self.window_request = Some(WindowAction::Cycle { forward: false });
+            }
             Command::ViewFocusTimeline => {
                 self.focus_track_list = false;
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
@@ -8733,6 +8854,13 @@ impl AppState {
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::EditSmartSplit => self.smart_split(),
+            Command::EditMoveEventsLeft => self.move_selected_by_frame(-1.0),
+            Command::EditMoveEventsRight => self.move_selected_by_frame(1.0),
+            Command::EditMoveEventsUp => self.move_selected_to_track(true),
+            Command::EditMoveEventsDown => self.move_selected_to_track(false),
+            Command::EditCutToTransition | Command::EditTransitionToCut => {
+                self.convert_cut_and_transition(command == Command::EditCutToTransition);
+            }
             Command::EditRenameEvent => {
                 self.show_inspector = true;
                 self.focus_event_name = true;
@@ -8774,6 +8902,8 @@ impl AppState {
             Command::EditTrimEdgeRollRight => {
                 self.nudge_trim_edge(1.0, Some(neoveg_engine::keytrim::TrimMode::Roll))
             }
+            Command::CursorPreviousGridMark => self.step_grid_marks(false, now),
+            Command::CursorNextGridMark => self.step_grid_marks(true, now),
             Command::CursorLeftByFrame => self.step_frames(-1.0, now),
             Command::CursorRightByFrame => self.step_frames(1.0, now),
             Command::EditExpandedEdit => self.toggle_expanded_edit(None),
@@ -8969,7 +9099,9 @@ impl AppState {
             Command::TrackVolumeEnvelope
             | Command::TrackPanEnvelope
             | Command::TrackMuteEnvelope
-            | Command::TrackToggleEnvelopes => self.run_track_envelope_command(command),
+            | Command::TrackToggleEnvelopes
+            | Command::TrackNextEffectEnvelope
+            | Command::TrackPrevEffectEnvelope => self.run_track_envelope_command(command),
             c if c.marker_number().is_some() => {
                 self.jump_to_marker_number(c.marker_number().unwrap_or(1), now);
             }
@@ -8978,6 +9110,72 @@ impl AppState {
     }
 
     /// Moves the cursor by whole frames; keyboard navigation restarts the caret blink.
+    /// Moves the selected events by `frames` frames, together, as one undo step.
+    fn move_selected_by_frame(&mut self, frames: f64) {
+        let fps = self.project.settings.fps.max(1.0);
+        let refs = self.selection.refs();
+        if let Some(outcome) = groups::move_events(&self.timeline, &refs, frames / fps) {
+            self.execute_timeline(outcome.command);
+            self.restart_audio_if_playing();
+            self.last_frame_key = None;
+        }
+    }
+
+    /// Moves the selected events to the track above or below, when it is of the same kind.
+    fn move_selected_to_track(&mut self, up: bool) {
+        let refs = self.selection.refs();
+        match neoveg_engine::keyedit::move_to_adjacent_track(&self.timeline, &refs, up) {
+            Some(cmd) => {
+                self.execute_timeline(cmd);
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                // The selection follows the track the events moved to
+                self.selected_track = self
+                    .selected_track
+                    .and_then(|id| self.timeline.tracks.iter().position(|t| t.id == id))
+                    .and_then(|i| if up { i.checked_sub(1) } else { Some(i + 1) })
+                    .and_then(|i| self.timeline.tracks.get(i))
+                    .map(|t| t.id)
+                    .or(self.selected_track);
+            }
+            None => self.status = "Não há faixa do mesmo tipo desse lado".into(),
+        }
+    }
+
+    /// Turns the cut before the selected event into a crossfade, or the crossfade into a cut.
+    fn convert_cut_and_transition(&mut self, to_transition: bool) {
+        let Some(event) = self.selection.primary() else {
+            return;
+        };
+        let cmd = if to_transition {
+            neoveg_engine::keyedit::cut_to_transition(&self.timeline, event, CUT_TRANSITION_SECONDS)
+        } else {
+            neoveg_engine::keyedit::transition_to_cut(&self.timeline, event)
+        };
+        match cmd {
+            Some(cmd) => {
+                self.execute_timeline(cmd);
+                self.restart_audio_if_playing();
+                self.last_frame_key = None;
+                self.last_composite_key = None;
+            }
+            None => {
+                self.status = if to_transition {
+                    "Não há corte com mídia sobrando antes do evento".into()
+                } else {
+                    "O evento não começa numa transição".into()
+                }
+            }
+        }
+    }
+
+    /// `Page Up` / `Page Down`: the cursor goes to the previous / next line of the ruler grid.
+    fn step_grid_marks(&mut self, forward: bool, now: f64) {
+        let step = self.grid_step_seconds();
+        let target = grid_mark_from(self.playhead, step, forward);
+        self.go_to_time(target, now);
+    }
+
     fn step_frames(&mut self, frames: f64, now: f64) {
         let fps = self.project.settings.fps;
         let frame = (self.playhead * fps).round() + frames;
@@ -9542,6 +9740,14 @@ impl NeovegApp {
                         Some(found) => self.dock.set_active_tab(found),
                         None => self.dock.push_to_focused_leaf(tab),
                     }
+                }
+            }
+            WindowAction::Cycle { forward } => {
+                let tabs: Vec<Tab> = self.dock.iter_all_tabs().map(|(_, tab)| *tab).collect();
+                let current = self.dock.find_active_focused().map(|(_, tab)| *tab);
+                if let Some(next) = next_in_cycle(&tabs, current, forward) {
+                    self.apply_window_action(WindowAction::Show(next));
+                    self.state.status = tr_args("{} em primeiro plano", &[&next.title()]);
                 }
             }
             WindowAction::ToggleTimelineMaximized => {
@@ -10249,6 +10455,12 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditSplit,
                 Command::EditSmartSplit,
                 Command::EditRenameEvent,
+                Command::EditMoveEventsLeft,
+                Command::EditMoveEventsRight,
+                Command::EditMoveEventsUp,
+                Command::EditMoveEventsDown,
+                Command::EditCutToTransition,
+                Command::EditTransitionToCut,
                 Command::EditHeal,
                 Command::EditMediaProperties,
                 Command::EditCloseGaps,
@@ -10376,6 +10588,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 }
             });
             command_item(state, ui, Command::TrackToggleEnvelopes);
+            command_item(state, ui, Command::TrackNextEffectEnvelope);
+            command_item(state, ui, Command::TrackPrevEffectEnvelope);
             let video_track = state
                 .selected_track
                 .and_then(|id| state.timeline.track(id))
@@ -10507,6 +10721,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::ViewEventEdgeFrames,
                 Command::ViewWaveforms,
                 Command::ViewFocusTimeline,
+                Command::ViewNextWindow,
+                Command::ViewPreviousWindow,
             ] {
                 command_item(state, ui, command);
             }
@@ -10559,6 +10775,18 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     Command::ViewZoomInLarge,
                     Command::ViewZoomOutLarge,
                     Command::ViewZoomOneFrame,
+                ] {
+                    command_item(state, ui, command);
+                }
+            });
+            ui.menu_button(tr("Altura"), |ui| {
+                for command in [
+                    Command::ViewTracksMinimize,
+                    Command::ViewTracksDefaultHeight,
+                    Command::ViewTracksTaller,
+                    Command::ViewTracksShorter,
+                    Command::ViewWaveformTaller,
+                    Command::ViewWaveformShorter,
                 ] {
                     command_item(state, ui, command);
                 }
@@ -14550,12 +14778,12 @@ fn header_button_at(
     lane_top: f32,
     p: Pos2,
 ) -> Option<(TrackId, EventId, event_header::HeaderButton, Rect)> {
-    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    let row = ((p.y - lane_top) / track_height()).floor();
     if row < 0.0 || p.x < lanes.left() || p.x > lanes.right() {
         return None;
     }
     let track = state.timeline.tracks.get(row as usize)?;
-    let row_y = lane_top + row * TRACK_HEIGHT;
+    let row_y = lane_top + row * track_height();
     let to_px = |t: f64| {
         (lanes.left() + ((t - state.scroll_seconds) * state.pixels_per_second) as f32).clamp(
             lanes.left() - OFFSCREEN_CLAMP_PX,
@@ -14567,8 +14795,10 @@ fn header_button_at(
         if p.x < x0 || p.x > x1 {
             return None;
         }
-        let ev_rect =
-            Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
+        let ev_rect = Rect::from_min_max(
+            pos2(x0, row_y + 2.0),
+            pos2(x1, row_y + track_height() - 2.0),
+        );
         let buttons =
             event_header::buttons_for(track.kind, state.is_generated_event(ev), ev.adjustment);
         let placed = event_header::layout(ev_rect, &buttons, EVENT_HEADER_HEIGHT);
@@ -14611,7 +14841,7 @@ fn hit_event_level_bar(
     if state.edit_tool != EditTool::Normal {
         return None;
     }
-    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    let row = ((p.y - lane_top) / track_height()).floor();
     if row < 0.0 {
         return None;
     }
@@ -14619,8 +14849,8 @@ fn hit_event_level_bar(
     if track.locked {
         return None;
     }
-    let row_top = lane_top + row * TRACK_HEIGHT;
-    let row_bottom = row_top + TRACK_HEIGHT - 2.0;
+    let row_top = lane_top + row * track_height();
+    let row_bottom = row_top + track_height() - 2.0;
     let to_px = |t: f64| lanes_left + ((t - state.scroll_seconds) * state.pixels_per_second) as f32;
     track.events.iter().rev().find_map(|ev| {
         if ev.locked {
@@ -14693,7 +14923,7 @@ fn hit_event(
     lane_top: f32,
     p: Pos2,
 ) -> Option<(TrackId, EventId, DragMode, EventGeometry)> {
-    let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+    let row = ((p.y - lane_top) / track_height()).floor();
     if row < 0.0 {
         return None;
     }
@@ -14705,7 +14935,7 @@ fn hit_event(
             return None;
         }
         // Fade handles live in the event's header strip and win over the trim zones there
-        let row_top = lane_top + row * TRACK_HEIGHT;
+        let row_top = lane_top + row * track_height();
         if p.y - row_top <= 2.0 + EVENT_HEADER_HEIGHT && x1 - x0 >= FADE_HANDLE_MIN_EVENT_PX {
             let (hin, hout) =
                 fade_handle_x(ev.fade_in, ev.fade_out, state.pixels_per_second, x0, x1);
@@ -14718,7 +14948,7 @@ fn hit_event(
             }
         }
         // Snap-offset triangle lives along the bottom strip of the event and wins over trim/move there
-        let row_bottom = row_top + TRACK_HEIGHT - 2.0;
+        let row_bottom = row_top + track_height() - 2.0;
         if p.y >= row_bottom - SNAP_OFFSET_HIT_HEIGHT
             && p.y <= row_bottom
             && x1 - x0 >= SNAP_OFFSET_MIN_EVENT_PX
@@ -14985,6 +15215,8 @@ fn track_header_context_menu(state: &mut AppState, ui: &mut egui::Ui) {
                     Command::TrackPanEnvelope,
                     Command::TrackMuteEnvelope,
                     Command::TrackToggleEnvelopes,
+                    Command::TrackNextEffectEnvelope,
+                    Command::TrackPrevEffectEnvelope,
                 ] {
                     command_item(state, ui, command);
                 }
@@ -15550,7 +15782,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     state.lanes_body_height = body_height;
     state.reveal_selected_track(body_height);
     let max_scroll_y =
-        timeline_scroll::max_scroll_y(state.timeline.tracks.len(), TRACK_HEIGHT, body_height);
+        timeline_scroll::max_scroll_y(state.timeline.tracks.len(), track_height(), body_height);
     state.scroll_y = state.scroll_y.clamp(0.0, max_scroll_y);
     let lane_top = ruler_bottom - state.scroll_y;
     let in_mark_strip = |p: Pos2| {
@@ -15645,7 +15877,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     &state.timeline.tracks,
                     lanes.left(),
                     lane_top,
-                    TRACK_HEIGHT,
+                    track_height(),
                     state.scroll_seconds,
                     state.pixels_per_second,
                     p,
@@ -15705,7 +15937,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if header_click.is_none() && (response.clicked() || response.dragged()) {
         if let Some(p) = response.interact_pointer_pos() {
             let in_ruler = p.y < rect.top() + RULER_HEIGHT;
-            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let row = ((p.y - lane_top) / track_height()).floor();
             let track_id = (row >= 0.0 && !in_ruler)
                 .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
                 .flatten();
@@ -15740,10 +15972,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 state.selected_track = track_id;
                 let row_idx = row as usize;
                 if let Some(track) = state.timeline.tracks.get(row_idx).cloned() {
-                    let y = lane_top + row_idx as f32 * TRACK_HEIGHT;
+                    let y = lane_top + row_idx as f32 * track_height();
                     let row_rect = Rect::from_min_max(
                         pos2(rect.left(), y),
-                        pos2(lanes.left(), y + TRACK_HEIGHT),
+                        pos2(lanes.left(), y + track_height()),
                     );
                     if let Some(ctrl) =
                         hit_header_control(row_rect, track.kind, track.adjustment, p)
@@ -15785,7 +16017,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 &state.timeline.tracks,
                 lanes.left(),
                 lane_top,
-                TRACK_HEIGHT,
+                track_height(),
                 state.scroll_seconds,
                 state.pixels_per_second,
                 p,
@@ -15837,7 +16069,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 state.begin_drag(hit, t);
             } else if shift {
                 // Shift + drag over empty lane: rectangular selection
-                let row = (p.y - lane_top) / TRACK_HEIGHT;
+                let row = (p.y - lane_top) / track_height();
                 state.marquee = Some(Marquee {
                     anchor_time: t.max(0.0),
                     anchor_row: row,
@@ -15855,7 +16087,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             state.drag = None;
         } else if let Some(p) = response.interact_pointer_pos() {
             let t = x_to_time(state, lanes.left(), p.x);
-            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let row = ((p.y - lane_top) / track_height()).floor();
             let row_track = (row >= 0.0)
                 .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
                 .flatten();
@@ -15902,7 +16134,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let t = x_to_time(state, lanes.left(), p.x).max(0.0);
             if let Some(m) = &mut state.marquee {
                 m.current_time = t;
-                m.current_row = (p.y - lane_top) / TRACK_HEIGHT;
+                m.current_row = (p.y - lane_top) / track_height();
             }
             ui.ctx().request_repaint();
         }
@@ -15926,10 +16158,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     .iter()
                     .position(|tr| tr.id == d.track_id)
                 {
-                    let y0 = lane_top + row as f32 * TRACK_HEIGHT;
-                    let raw_v =
-                        envelope_canvas::y_to_value(y0, TRACK_HEIGHT, p.y, d.bounds.0, d.bounds.1);
-                    let usable_h = (TRACK_HEIGHT - 12.0).max(1.0);
+                    let y0 = lane_top + row as f32 * track_height();
+                    let raw_v = envelope_canvas::y_to_value(
+                        y0,
+                        track_height(),
+                        p.y,
+                        d.bounds.0,
+                        d.bounds.1,
+                    );
+                    let usable_h = (track_height() - 12.0).max(1.0);
                     let fine_v = (d.origin_value
                         + ((d.press_y - p.y) / usable_h) * (d.bounds.1 - d.bounds.0) * 0.1)
                         .clamp(d.bounds.0, d.bounds.1);
@@ -15971,9 +16208,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     .iter()
                     .position(|tr| tr.id == b.track_id)
                 {
-                    let y0 = lane_top + row as f32 * TRACK_HEIGHT;
-                    let raw_v =
-                        envelope_canvas::y_to_value(y0, TRACK_HEIGHT, p.y, b.bounds.0, b.bounds.1);
+                    let y0 = lane_top + row as f32 * track_height();
+                    let raw_v = envelope_canvas::y_to_value(
+                        y0,
+                        track_height(),
+                        p.y,
+                        b.bounds.0,
+                        b.bounds.1,
+                    );
                     if b.samples
                         .last()
                         .is_none_or(|&(lt, lv)| (t - lt).abs() > 1e-4 || (raw_v - lv).abs() > 1e-4)
@@ -15997,10 +16239,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     .iter()
                     .position(|tr| tr.id == d.primary.0)
                 {
-                    let row_top = lane_top + row as f32 * TRACK_HEIGHT;
+                    let row_top = lane_top + row as f32 * track_height();
                     let ev_rect = Rect::from_min_max(
                         pos2(lanes.left(), row_top + 2.0),
-                        pos2(lanes.right(), row_top + TRACK_HEIGHT - 2.0),
+                        pos2(lanes.right(), row_top + track_height() - 2.0),
                     );
                     let (lo, hi) = event_level_bounds(d.kind);
                     if fine {
@@ -16033,7 +16275,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         let in_header = pointer.filter(|p| p.x < lanes.left() && p.y >= ruler_bottom);
         state.context_header = in_header.is_some();
         if let Some(p) = in_header {
-            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let row = ((p.y - lane_top) / track_height()).floor();
             if row >= 0.0 {
                 if let Some(track) = state.timeline.tracks.get(row as usize) {
                     state.selected_track = Some(track.id);
@@ -16046,7 +16288,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 &state.timeline.tracks,
                 lanes.left(),
                 lane_top,
-                TRACK_HEIGHT,
+                track_height(),
                 state.scroll_seconds,
                 state.pixels_per_second,
                 p,
@@ -16069,7 +16311,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 state.click_select((track_id, event_id));
             }
         } else if let Some(p) = pressed {
-            let row = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+            let row = ((p.y - lane_top) / track_height()).floor();
             if row >= 0.0 {
                 if let Some(track) = state.timeline.tracks.get(row as usize) {
                     state.selected_track = Some(track.id);
@@ -16190,7 +16432,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             &state.timeline.tracks,
             lanes.left(),
             lane_top,
-            TRACK_HEIGHT,
+            track_height(),
             state.scroll_seconds,
             state.pixels_per_second,
             p,
@@ -16267,9 +16509,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     painter.rect_filled(rect, Rounding::ZERO, pal.timeline_bg);
 
     for (i, _) in state.timeline.tracks.iter().enumerate() {
-        let y = lane_top + i as f32 * TRACK_HEIGHT;
+        let y = lane_top + i as f32 * track_height();
         lane_painter.rect_filled(
-            Rect::from_min_max(pos2(lanes.left(), y), pos2(lanes.right(), y + TRACK_HEIGHT)),
+            Rect::from_min_max(
+                pos2(lanes.left(), y),
+                pos2(lanes.right(), y + track_height()),
+            ),
             Rounding::ZERO,
             if i % 2 == 0 { pal.lane } else { pal.lane_alt },
         );
@@ -16470,7 +16715,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // Events (culled and clamped so far zoom levels keep float precision)
     for (i, track) in state.timeline.tracks.iter().enumerate() {
-        let y = lane_top + i as f32 * TRACK_HEIGHT;
+        let y = lane_top + i as f32 * track_height();
         let base = match track.kind {
             TrackKind::Audio => pal.audio_clip,
             TrackKind::Video => pal.video_clip,
@@ -16518,7 +16763,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                         .iter()
                         .position(|t| t.id == d.target_track)
                 })
-                .map_or(y, |row| lane_top + row as f32 * TRACK_HEIGHT);
+                .map_or(y, |row| lane_top + row as f32 * track_height());
             let x0 = (lanes.left()
                 + ((g.start - state.scroll_seconds) * state.pixels_per_second) as f32)
                 .clamp(
@@ -16534,8 +16779,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             if x1 < lanes.left() || x0 > lanes.right() {
                 continue;
             }
-            let ev_rect =
-                Rect::from_min_max(pos2(x0, row_y + 2.0), pos2(x1, row_y + TRACK_HEIGHT - 2.0));
+            let ev_rect = Rect::from_min_max(
+                pos2(x0, row_y + 2.0),
+                pos2(x1, row_y + track_height() - 2.0),
+            );
             let selected = state.selection.contains((track.id, ev.id));
             lane_painter.rect_filled(ev_rect, Rounding::ZERO, base);
             if ev.adjustment {
@@ -16931,7 +17178,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
                 let area = Rect::from_min_max(
                     pos2(cx0.max(lanes.left() - 1.0), y + 2.0),
-                    pos2(cx1.min(lanes.right() + 1.0), y + TRACK_HEIGHT - 2.0),
+                    pos2(cx1.min(lanes.right() + 1.0), y + track_height() - 2.0),
                 );
                 lane_painter.rect_filled(area, Rounding::ZERO, Color32::from_white_alpha(28));
                 let stroke = Stroke::new(1.5_f32, Color32::from_white_alpha(200));
@@ -16943,7 +17190,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             &lane_painter,
             lanes,
             y,
-            TRACK_HEIGHT,
+            track_height(),
             state.scroll_seconds,
             state.pixels_per_second,
             track,
@@ -16976,8 +17223,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     if let Some(m) = &state.marquee {
         let (x0, x1) = (to_x(m.anchor_time), to_x(m.current_time));
         let (y0, y1) = (
-            lane_top + m.anchor_row * TRACK_HEIGHT,
-            lane_top + m.current_row * TRACK_HEIGHT,
+            lane_top + m.anchor_row * track_height(),
+            lane_top + m.current_row * track_height(),
         );
         let area = Rect::from_two_pos(pos2(x0, y0), pos2(x1, y1)).intersect(lanes);
         lane_painter.rect_filled(
@@ -17048,8 +17295,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     let blink_on = ((now / BLINK_SECONDS) as i64) % 2 == 0;
     let tree_levels = neoveg_engine::track_tree::effective_levels(&state.timeline.tracks);
     for (i, track) in state.timeline.tracks.iter().enumerate() {
-        let y = lane_top + i as f32 * TRACK_HEIGHT;
-        let row = Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
+        let y = lane_top + i as f32 * track_height();
+        let row = Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + track_height()));
         let selected = state.selected_track == Some(track.id);
         if selected {
             header_painter.rect_filled(row, Rounding::ZERO, pal.header_selected);
@@ -17184,12 +17431,14 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         .hover_pos()
         .filter(|p| p.x < lanes.left() && p.y >= ruler_bottom)
     {
-        let row_idx = ((p.y - lane_top) / TRACK_HEIGHT).floor();
+        let row_idx = ((p.y - lane_top) / track_height()).floor();
         if row_idx >= 0.0 {
             if let Some(track) = state.timeline.tracks.get(row_idx as usize) {
-                let y = lane_top + row_idx * TRACK_HEIGHT;
-                let row =
-                    Rect::from_min_max(pos2(rect.left(), y), pos2(lanes.left(), y + TRACK_HEIGHT));
+                let y = lane_top + row_idx * track_height();
+                let row = Rect::from_min_max(
+                    pos2(rect.left(), y),
+                    pos2(lanes.left(), y + track_height()),
+                );
                 if let Some(ctrl) = hit_header_control(row, track.kind, track.adjustment, p) {
                     response.clone().on_hover_text(tr(ctrl.tooltip()));
                 }
@@ -17213,7 +17462,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             pos2(rect.right() + timeline_scroll::BAR, rect.bottom()),
         );
         let body = f64::from((rect.bottom() - ruler_bottom).max(1.0));
-        let content = (state.timeline.tracks.len() as f64 * f64::from(TRACK_HEIGHT)).max(body);
+        let content = (state.timeline.tracks.len() as f64 * f64::from(track_height())).max(body);
         if let Some(offset) = scrollbar(
             ui,
             "timeline_vscroll",
@@ -17242,8 +17491,8 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Some((row, view))
         });
         if let Some((row, view)) = view {
-            let top = lane_top + row as f32 * TRACK_HEIGHT;
-            let bottom = top + TRACK_HEIGHT;
+            let top = lane_top + row as f32 * track_height();
+            let bottom = top + track_height();
             let cut = to_x(view.time);
             for (side, is_a) in [(view.a, true), (view.b, false)] {
                 let Some(free) = side.and_then(|s| s.free).filter(|f| *f > 0.0) else {
@@ -18897,15 +19146,15 @@ mod tests {
         assert_eq!(mode_at(208.0, 10.0), Some((track, ev, DragMode::FadeIn)));
         assert_eq!(mode_at(592.0, 10.0), Some((track, ev, DragMode::FadeOut)));
         assert_eq!(mode_at(100.0, 10.0), None);
-        assert_eq!(mode_at(400.0, TRACK_HEIGHT + 10.0), None);
+        assert_eq!(mode_at(400.0, track_height() + 10.0), None);
         assert_eq!(mode_at(400.0, -5.0), None);
         // bottom-left strip: snap-offset triangle sits at x0 (200 px) while snap_offset == 0
         assert_eq!(
-            mode_at(203.0, TRACK_HEIGHT - 5.0),
+            mode_at(203.0, track_height() - 5.0),
             Some((track, ev, DragMode::SnapOffset))
         );
         assert_eq!(
-            mode_at(350.0, TRACK_HEIGHT - 5.0),
+            mode_at(350.0, track_height() - 5.0),
             Some((track, ev, DragMode::Move))
         );
     }
@@ -18928,7 +19177,7 @@ mod tests {
         assert_eq!(s.history.revision(), revision + 1);
         assert!((geometry(&s, track, ev).snap_offset - 1.5).abs() < 1e-9);
         assert_eq!(
-            hit_event(&s, 0.0, 0.0, pos2(350.0, TRACK_HEIGHT - 5.0)).map(|h| h.2),
+            hit_event(&s, 0.0, 0.0, pos2(350.0, track_height() - 5.0)).map(|h| h.2),
             Some(DragMode::SnapOffset)
         );
 
@@ -19119,6 +19368,61 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn page_keys_walk_the_grid_lines_and_f6_walks_the_windows() {
+        // From between two lines, to the next / previous; from on a line, one line over
+        assert!((grid_mark_from(1.3, 0.5, true) - 1.5).abs() < 1e-9);
+        assert!((grid_mark_from(1.3, 0.5, false) - 1.0).abs() < 1e-9);
+        assert!((grid_mark_from(1.5, 0.5, true) - 2.0).abs() < 1e-9);
+        assert!((grid_mark_from(1.5, 0.5, false) - 1.0).abs() < 1e-9);
+        assert_eq!(grid_mark_from(0.2, 0.5, false), 0.0);
+        assert_eq!(grid_mark_from(0.0, 0.5, false), 0.0);
+
+        let tabs = [Tab::Preview, Tab::Timeline, Tab::Media];
+        assert_eq!(
+            next_in_cycle(&tabs, Some(Tab::Media), true),
+            Some(Tab::Preview)
+        );
+        assert_eq!(
+            next_in_cycle(&tabs, Some(Tab::Preview), false),
+            Some(Tab::Media)
+        );
+        assert_eq!(
+            next_in_cycle(&tabs, Some(Tab::Timeline), true),
+            Some(Tab::Media)
+        );
+        assert_eq!(next_in_cycle(&tabs, None, true), Some(Tab::Preview));
+        assert_eq!(next_in_cycle(&[], None, true), None);
+    }
+
+    #[test]
+    fn the_height_keys_change_the_rows_within_their_limits_and_restore_them() {
+        let (mut s, _track, _id) = state_with_clip();
+        set_track_height(DEFAULT_TRACK_HEIGHT);
+        run(&mut s, Command::ViewTracksTaller);
+        assert_eq!(track_height(), DEFAULT_TRACK_HEIGHT + TRACK_HEIGHT_STEP);
+        for _ in 0..40 {
+            run(&mut s, Command::ViewTracksTaller);
+        }
+        assert_eq!(track_height(), MAX_TRACK_HEIGHT);
+        run(&mut s, Command::ViewTracksDefaultHeight);
+        assert_eq!(track_height(), DEFAULT_TRACK_HEIGHT);
+        // ` minimizes, and the same key brings back the height there was
+        run(&mut s, Command::ViewTracksTaller);
+        let before = track_height();
+        run(&mut s, Command::ViewTracksMinimize);
+        assert_eq!(track_height(), MIN_TRACK_HEIGHT);
+        run(&mut s, Command::ViewTracksMinimize);
+        assert_eq!(track_height(), before);
+        set_track_height(DEFAULT_TRACK_HEIGHT);
+
+        let zoom = crate::waveform_paint::vertical_zoom();
+        run(&mut s, Command::ViewWaveformTaller);
+        assert!(crate::waveform_paint::vertical_zoom() > zoom);
+        run(&mut s, Command::ViewWaveformShorter);
+        assert!((crate::waveform_paint::vertical_zoom() - zoom).abs() < 1e-6);
     }
 
     #[test]
@@ -20746,7 +21050,7 @@ mod tests {
 
     #[test]
     fn the_arm_button_sits_beside_phase_on_audio_headers_only() {
-        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
+        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, track_height()));
         assert_eq!(
             hit_header_control(row, TrackKind::Audio, false, pos2(80.0, 142.0)),
             Some(HeaderControl::Arm)
@@ -22219,10 +22523,10 @@ mod tests {
         let row_rect = |ev_start: f64, row: f32| {
             let x0 = lanes.left() + (ev_start * 100.0) as f32;
             Rect::from_min_max(
-                pos2(x0, lane_top + row * TRACK_HEIGHT + 2.0),
+                pos2(x0, lane_top + row * track_height() + 2.0),
                 pos2(
                     x0 + 500.0,
-                    lane_top + row * TRACK_HEIGHT + TRACK_HEIGHT - 2.0,
+                    lane_top + row * track_height() + track_height() - 2.0,
                 ),
             )
         };
@@ -22383,7 +22687,7 @@ mod tests {
 
     #[test]
     fn header_controls_hit_test_audio_and_video_rows() {
-        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, TRACK_HEIGHT));
+        let row = Rect::from_min_size(pos2(0.0, 100.0), vec2(HEADER_WIDTH, track_height()));
         assert_eq!(
             hit_header_control(row, TrackKind::Audio, false, pos2(12.0, 142.0)),
             Some(HeaderControl::Mute)

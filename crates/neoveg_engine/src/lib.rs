@@ -24,6 +24,7 @@ pub mod event_volume;
 pub mod fcp7;
 pub mod fcpxml;
 pub mod groups;
+pub mod keyedit;
 pub mod keytrim;
 pub mod markers;
 pub mod media_props;

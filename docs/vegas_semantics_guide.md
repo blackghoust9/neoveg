@@ -47,8 +47,8 @@ Na prática:
 | **Ripple.** `F`, `Ctrl+F`, `Ctrl+Shift+F` escolhem o alcance; `Ctrl+L` liga o ripple automático. | **igual**. |
 | **Colar.** `Ctrl+V` cola; `Ctrl+Shift+V` cola inserindo; `Ctrl+B` repete a colagem. | **igual**. |
 | **Renomear o evento selecionado:** `F2`. | **igual no efeito**: `F2` abre o Inspetor com o cursor na caixa *Nome*; o nome também se edita ali. |
-| **Mover eventos com o teclado numérico** (`1`/`3` um quadro, `4`/`6` um pixel, `8`/`2` uma faixa acima ou abaixo). | **falta** fora do modo de aparo por teclado. |
-| **Transformar corte em transição** e o contrário (`/`, `*`, `-` do teclado numérico, com `Ctrl`). | **falta**. |
+| **Mover eventos com o teclado numérico** (`1`/`3` um quadro, `4`/`6` um pixel, `8`/`2` uma faixa acima ou abaixo). | **igual no efeito, tecla diferente**: o egui não distingue o teclado numérico da fileira de números (que vai aos marcadores), então os comandos têm teclas próprias: `Ctrl+Shift+←/→` movem um quadro e `Ctrl+Alt+Shift+↑/↓` mudam de faixa do mesmo tipo (`neoveg_engine::keyedit`). Mover por pixel: **falta**. |
+| **Transformar corte em transição** e o contrário (`/`, `*`, `-` do teclado numérico, com `Ctrl`). | **igual no efeito, tecla diferente**: `Ctrl+Alt+X` abre a cabeça do evento sobre o anterior (até 1 s, limitado pela mídia que sobra) e `Ctrl+Alt+Shift+X` volta ao corte. |
 | **Abrir o sub-projeto** (`Alt+N`) e o projeto pai (`Alt+P`). | **falta** (o Neoveg cria o sub-projeto com `Alt+C`, que também é do manual). |
 
 ## 2. Navegação, régua e seleção
@@ -62,19 +62,19 @@ Na prática:
 | **Reprodução e varredura (scrub)**: `L` avança (de novo, acelera: 1x, 2x, 4x…), `J` volta, `K` pausa; `Espaço` toca ou pausa; `Q` e `Ctrl+Shift+L` repetem em laço; `Shift+Q` seleciona a região de laço; `Shift+Espaço` e `Shift+F12` tocam do início; `Ctrl+F12`, `F12` e `Ctrl+Espaço` tocam ou pausam. | **igual**; **diferente** só em que `F12` e `Ctrl+Espaço` (*tocar de qualquer janela*) aqui alternam tocar e pausar, e em que `Enter` (também play/pause no manual) fica sem ligação, porque o Enter aperta o botão que estiver com o foco no egui. |
 | **Mover o cursor**: `Home` e `End` ao início e ao fim da seleção ou da vista; `Ctrl+Home`/`Ctrl+End` e `W` ao início e ao fim do projeto; `\` centraliza a vista; `Ctrl+Alt+←/→` vão às bordas de evento e de fade; `Backspace` restaura as últimas cinco seleções de tempo. | **igual**. |
 | **Setas.** No manual, `←` e `→` movem **um pixel** (um quadro com a quantização ligada) e `Alt+←/→` um quadro. | **diferente, aceito**: o Neoveg move um quadro com `←` e `→`, e `Alt+←/→` também (AGENTS.md §4.5). |
-| **Mover em marcas da grade**: `Page Up` e `Page Down`. | **falta** (as teclas servem à rolagem de faixas com `Ctrl+Alt`). |
+| **Mover em marcas da grade**: `Page Up` e `Page Down`. | **igual** (`Page Up`/`Page Down` andam pelas linhas da grade da régua; a rolagem de faixas fica com `Ctrl+Alt`). |
 | **Rolagem fina**: `F3` e `F9` (jog) e `Alt+↓` (cursor de edição para o de reprodução). | **falta**. |
 | **Zoom**: `↑` e `↓` em passos pequenos, `Ctrl+↑/↓` em passos grandes, `Alt+↑` até um quadro por miniatura. | **igual**. |
-| **Altura das faixas e da forma de onda**: `` ` `` minimiza ou restaura, ``Ctrl+` `` volta à altura padrão, `Ctrl+Shift+↑/↓` mudam todas, `Shift+↑/↓` a forma de onda. | **falta**. |
+| **Altura das faixas e da forma de onda**: `` ` `` minimiza ou restaura, ``Ctrl+` `` volta à altura padrão, `Ctrl+Shift+↑/↓` mudam todas, `Shift+↑/↓` a forma de onda. | **igual no efeito**: `` ` `` minimiza ou restaura, ``Ctrl+` `` volta ao padrão, `Ctrl+Shift+↑/↓` mudam a altura e `Shift+↑/↓` o zoom vertical da forma de onda. **Diferente**: a altura é a mesma para todas as faixas (no editor de referência é por faixa). |
 | **Esconder janelas**: `F11`, `Ctrl+F11`, `Shift+F11` (área de janelas, linha do tempo, lista de faixas); `Tab` alterna o foco entre a lista de faixas e a linha do tempo. | **igual**. |
-| **Ciclo entre janelas**: `F6` e `Ctrl+Tab`, `Shift+F6` e `Ctrl+Shift+Tab`. | **falta**. |
+| **Ciclo entre janelas**: `F6` e `Ctrl+Tab`, `Shift+F6` e `Ctrl+Shift+Tab`. | **igual**: `F6` e `Ctrl+Tab` trazem a próxima janela do layout, `Shift+F6` e `Ctrl+Shift+Tab` a anterior. |
 | **Seleção**: `Ctrl+A`, `Ctrl+Shift+A`; `Shift`+clique seleciona um intervalo, `Ctrl`+clique soma. | **igual**. |
 
 ## 3. Mixagem e envelopes
 
 | Regra | Neoveg |
 | :--- | :--- |
-| **Envelopes de faixa**: `V` insere ou mostra o de volume (nível, em vídeo), `P` o de pan, `Shift+V` e `Shift+P` os removem; `Ctrl+Shift+E` mostra ou esconde os envelopes; `E` e `Shift+E` percorrem os envelopes de efeito. | **igual**, menos `E` e `Shift+E` (**falta**). |
+| **Envelopes de faixa**: `V` insere ou mostra o de volume (nível, em vídeo), `P` o de pan, `Shift+V` e `Shift+P` os removem; `Ctrl+Shift+E` mostra ou esconde os envelopes; `E` e `Shift+E` percorrem os envelopes de efeito. | **igual**: `E` e `Shift+E` percorrem os envelopes de efeito da faixa, mostrando um de cada vez. |
 | **Envelope de evento**: volume, pan e, no vídeo, velocidade (*Velocity*); `Ctrl+Alt+Shift+K` trava os envelopes aos eventos (tecla própria). | **igual**. |
 | **Mudo e solo**: `Z` e `X`; com `Shift`, exclusivo (as outras faixas saem do grupo). | **igual**. `Ctrl+Alt+Z/X` (grupo de faixas): **falta** (não há grupos de faixas). |
 | **Barramentos**: até **26** barramentos de áudio mais o Master (v21), cada um com cadeia de efeitos, envios e roteamento; o *Mixing Console* (`Ctrl+Alt+5`) mostra faixas, barramentos e efeitos atribuíveis. | **igual** no console, nos envios, nos inserts e no limite (`MAX_BUSES = 26`); os barramentos **não** aparecem como faixas da linha do tempo (`B` e `Ctrl+Shift+B` do manual: **falta**). |

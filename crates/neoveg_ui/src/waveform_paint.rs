@@ -7,9 +7,27 @@
 
 use eframe::egui::{pos2, Color32, Mesh, Painter, Rect, Shape, Stroke};
 use neoveg_audio::waveform::{WaveformSource, COLUMN_STRIDE};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Pixels between samples from which dots and stems are drawn.
 const SAMPLE_DOT_MIN_SPACING_PX: f64 = 6.0;
+
+/// Vertical zoom of every waveform (`Shift+Up` / `Shift+Down`), kept as `f32` bits.
+static VERTICAL_ZOOM_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000); // 1.0
+
+pub const MIN_VERTICAL_ZOOM: f32 = 0.5;
+pub const MAX_VERTICAL_ZOOM: f32 = 16.0;
+
+/// How much taller than the lane the waveform is drawn (`1.0`: full scale just fits).
+pub fn vertical_zoom() -> f32 {
+    f32::from_bits(VERTICAL_ZOOM_BITS.load(Ordering::Relaxed))
+}
+
+pub fn set_vertical_zoom(zoom: f32) {
+    let zoom = if zoom.is_finite() { zoom } else { 1.0 };
+    let zoom = zoom.clamp(MIN_VERTICAL_ZOOM, MAX_VERTICAL_ZOOM);
+    VERTICAL_ZOOM_BITS.store(zoom.to_bits(), Ordering::Relaxed);
+}
 
 pub fn paint_waveform(
     painter: &Painter,
@@ -81,7 +99,7 @@ fn paint_columns(
 
     let outer = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 150);
     let inner = color;
-    let half = lane_h * 0.5;
+    let half = lane_h * 0.5 * vertical_zoom();
     let mut outer_mesh = Mesh::default();
     let mut inner_mesh = Mesh::default();
 
@@ -142,7 +160,7 @@ fn paint_samples(
         return;
     }
 
-    let half = lane_h * 0.5;
+    let half = lane_h * 0.5 * vertical_zoom();
     let stem = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 150);
     let draw_dots = pixels_per_frame >= SAMPLE_DOT_MIN_SPACING_PX;
 

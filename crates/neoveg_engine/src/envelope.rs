@@ -346,6 +346,38 @@ pub fn toggle_all_envelopes(timeline: &Timeline, target: FxTarget) -> Option<Edi
     })
 }
 
+/// `E` / `Shift+E`: walks through the effect-parameter envelopes of `target`, showing the next
+/// (or previous) one and hiding the rest of them; wraps around at the ends. With none visible it
+/// starts at the first (or the last). Envelopes that are not effect parameters are left alone.
+pub fn cycle_effect_envelope(
+    timeline: &Timeline,
+    target: FxTarget,
+    forward: bool,
+) -> Option<EditCommand> {
+    edit(timeline, target, |list| {
+        let effects: Vec<usize> = list
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| matches!(e.target, AutomationTarget::EffectParam { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        if effects.is_empty() {
+            return false;
+        }
+        let current = effects.iter().position(|&i| list[i].visible);
+        let next = match (current, forward) {
+            (None, true) => 0,
+            (None, false) => effects.len() - 1,
+            (Some(c), true) => (c + 1) % effects.len(),
+            (Some(c), false) => (c + effects.len() - 1) % effects.len(),
+        };
+        for (n, &i) in effects.iter().enumerate() {
+            list[i].visible = n == next;
+        }
+        true
+    })
+}
+
 pub fn set_envelope_enabled(
     timeline: &Timeline,
     target: FxTarget,
@@ -1099,6 +1131,56 @@ mod tests {
 
         env.enabled = false;
         assert_eq!(env.value_at(1.0, -3.0), -3.0);
+    }
+
+    #[test]
+    fn e_walks_through_the_effect_envelopes_and_wraps_around() {
+        use crate::command::History;
+
+        let mut tl = Timeline::new();
+        let mut h = History::new();
+        let track = tl.new_track(TrackKind::Audio);
+        let tid = track.id;
+        assert!(h.execute(&mut tl, EditCommand::AddTrack { track }));
+        let target = FxTarget::Track(tid);
+        // No effect envelope yet: nothing to walk through
+        assert!(cycle_effect_envelope(&tl, target, true).is_none());
+
+        let param = |i: usize| AutomationTarget::EffectParam {
+            effect_index: i,
+            param_id: "gain".into(),
+        };
+        let mut list = vec![TrackEnvelope::new(AutomationTarget::Volume, 0.0)];
+        for i in 0..3 {
+            let mut env = TrackEnvelope::new(param(i), 0.0);
+            env.visible = false;
+            list.push(env);
+        }
+        tl.track_mut(tid).unwrap().envelopes = list;
+
+        let shown = |tl: &Timeline| -> Vec<usize> {
+            tl.track(tid)
+                .unwrap()
+                .envelopes
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    e.visible && matches!(e.target, AutomationTarget::EffectParam { .. })
+                })
+                .map(|(i, _)| i)
+                .collect()
+        };
+        // Forward from nothing visible: the first; then on, wrapping at the end
+        for expected in [1, 2, 3, 1] {
+            let cmd = cycle_effect_envelope(&tl, target, true).unwrap();
+            assert!(h.execute(&mut tl, cmd));
+            assert_eq!(shown(&tl), vec![expected]);
+        }
+        // Backward wraps at the start, and the volume envelope is never touched
+        let cmd = cycle_effect_envelope(&tl, target, false).unwrap();
+        assert!(h.execute(&mut tl, cmd));
+        assert_eq!(shown(&tl), vec![3]);
+        assert!(tl.track(tid).unwrap().envelopes[0].visible);
     }
 
     #[test]
