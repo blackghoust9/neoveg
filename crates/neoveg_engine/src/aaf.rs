@@ -250,7 +250,9 @@ fn build_composition(
                     }
                 }
 
-                let index = *source_of.entry((info.id, ckind)).or_insert_with(|| {
+                let index = if let Some(&idx) = source_of.get(&(info.id, ckind)) {
+                    idx
+                } else {
                     let sound = ckind == CKind::Sound;
                     let mut embedded = None;
                     if options.embed_media {
@@ -278,6 +280,7 @@ fn build_composition(
                         }
                     }
 
+                    let idx = doc.sources.len();
                     doc.sources.push(Source {
                         key: format!("media:{}", info.id),
                         name: info.name.clone(),
@@ -303,8 +306,9 @@ fn build_composition(
                         markers: Vec::new(),
                         nested,
                     });
-                    doc.sources.len() - 1
-                });
+                    source_of.insert((info.id, ckind), idx);
+                    idx
+                };
 
                 let speed = if (event.playback_rate - 1.0).abs() > 1e-4 {
                     Some(event.playback_rate)
@@ -720,7 +724,7 @@ pub fn import_aaf_into_timeline(
 /// Reads the first composition of an AAF file into the clips it places. Times are seconds.
 pub fn parse(bytes: &[u8]) -> Result<XmlDocument, String> {
     let aaf_doc = parse_aaf_document(bytes)?;
-    let mut out = XmlDocument {
+    let out = XmlDocument {
         name: aaf_doc.name,
         fps: aaf_doc.fps,
         clips: aaf_doc
