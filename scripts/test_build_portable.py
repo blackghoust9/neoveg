@@ -399,5 +399,70 @@ class WindowsLinkerMitigation(unittest.TestCase):
 
 
 
+class MemoryProfile(unittest.TestCase):
+    """8 GB or less builds with less memory; above that the profile of Cargo.toml is used."""
+
+    GIB = 1024**3
+
+    def setUp(self) -> None:
+        self.saved = (build_portable.total_memory_bytes, dict(os.environ))
+        for key in ("NEOVEG_LOW_MEMORY", "CARGO_PROFILE_RELEASE_LTO", "CARGO_PROFILE_RELEASE_CODEGEN_UNITS"):
+            os.environ.pop(key, None)
+
+    def tearDown(self) -> None:
+        build_portable.total_memory_bytes = self.saved[0]  # type: ignore[assignment]
+        os.environ.clear()
+        os.environ.update(self.saved[1])
+
+    def machine(self, gib: float) -> None:
+        build_portable.total_memory_bytes = lambda: int(gib * self.GIB)  # type: ignore[assignment]
+
+    def jobs(self, value=None):
+        import argparse
+
+        return build_portable.job_flags(argparse.Namespace(jobs=value))
+
+    def test_a_machine_of_8_gb_or_less_gets_thin_lto_and_one_job(self) -> None:
+        for gib in (4, 7.89, 8):
+            self.machine(gib)
+            env = build_portable.release_env("x86_64-pc-windows-msvc")
+            self.assertEqual(env["CARGO_PROFILE_RELEASE_LTO"], "thin", gib)
+            self.assertEqual(env["CARGO_PROFILE_RELEASE_CODEGEN_UNITS"], "16", gib)
+            self.assertIn("crt-static", env["RUSTFLAGS"])
+            self.assertEqual(self.jobs(), ["-j", "1"], gib)
+
+    def test_a_bigger_machine_keeps_the_profile_of_cargo_toml_and_every_core(self) -> None:
+        for gib in (16, 32):
+            self.machine(gib)
+            env = build_portable.release_env("x86_64-unknown-linux-gnu")
+            self.assertNotIn("CARGO_PROFILE_RELEASE_LTO", env)
+            self.assertNotIn("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", env)
+            self.assertEqual(self.jobs(), [])
+        self.assertEqual(self.jobs(4), ["-j", "4"], "--jobs always wins")
+
+    def test_an_unreadable_memory_size_is_not_taken_as_low_and_the_override_wins(self) -> None:
+        build_portable.total_memory_bytes = lambda: None  # type: ignore[assignment]
+        self.assertFalse(build_portable.low_memory())
+        os.environ["NEOVEG_LOW_MEMORY"] = "1"
+        self.assertTrue(build_portable.low_memory())
+        self.machine(64)
+        self.assertTrue(build_portable.low_memory(), "forced")
+        os.environ["NEOVEG_LOW_MEMORY"] = "0"
+        self.machine(2)
+        self.assertFalse(build_portable.low_memory(), "forced")
+
+    def test_a_value_set_by_the_user_is_not_overridden_and_macos_keeps_its_target(self) -> None:
+        self.machine(8)
+        os.environ["CARGO_PROFILE_RELEASE_LTO"] = "off"
+        env = build_portable.release_env("aarch64-apple-darwin", "11.0")
+        self.assertEqual(env["CARGO_PROFILE_RELEASE_LTO"], "off")
+        self.assertEqual(env["MACOSX_DEPLOYMENT_TARGET"], "11.0")
+
+    def test_this_machine_reports_its_memory(self) -> None:
+        build_portable.total_memory_bytes = self.saved[0]  # type: ignore[assignment]
+        total = build_portable.total_memory_bytes()
+        self.assertTrue(total is None or total > self.GIB)
+
+
 if __name__ == "__main__":
     unittest.main()

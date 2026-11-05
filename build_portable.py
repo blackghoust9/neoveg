@@ -9,7 +9,10 @@ Neoveg is a pure Rust workspace, so this script only orchestrates `cargo` and pa
     python build_portable.py build --keep-target   # keep target/ afterwards (it is deleted by default)
     python build_portable.py qa              # fmt + clippy + tests + release build, writes the QA report
     python build_portable.py check           # verify the toolchain (and FFmpeg variables with --ffmpeg)
-    python build_portable.py build --jobs 1  # low-memory machines: one compiler job and one test thread
+    python build_portable.py build --jobs 1  # one compiler job and one test thread
+
+On a machine with 8 GB of RAM or less the release build uses thin LTO and one compiler job by itself;
+above 8 GB it uses the profile of Cargo.toml and every core (`NEOVEG_LOW_MEMORY=1` or `0` forces either).
 
 After a successful build it deletes the Cargo `target/` folder of the repository (it reaches 10 GB or more),
 unless `--keep-target` is given; the next build compiles everything again.
@@ -470,20 +473,73 @@ def clean_target() -> bool:
     return True
 
 
+# A machine with 8 GB of RAM or less (a little slack: a "8 GB" PC reports a bit under or over) builds
+# with less memory; above that the profile of Cargo.toml (fat LTO, one codegen unit) is used as it is.
+LOW_MEMORY_BYTES = int(8.5 * 1024**3)
+
+
+def total_memory_bytes() -> Optional[int]:
+    """Physical memory of this machine in bytes, or None when it cannot be read."""
+    try:
+        system = platform.system()
+        if system == "Windows":
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong),
+                            ("total", ctypes.c_ulonglong), ("avail", ctypes.c_ulonglong),
+                            ("total_page", ctypes.c_ulonglong), ("avail_page", ctypes.c_ulonglong),
+                            ("total_virtual", ctypes.c_ulonglong), ("avail_virtual", ctypes.c_ulonglong),
+                            ("avail_ext", ctypes.c_ulonglong)]
+
+            status = MemoryStatus()
+            status.length = ctypes.sizeof(MemoryStatus)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):  # type: ignore[attr-defined]
+                return int(status.total)
+            return None
+        if system == "Darwin":
+            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, check=True)
+            return int(out.stdout.strip())
+        with open("/proc/meminfo", encoding="utf-8") as meminfo:
+            for line in meminfo:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, subprocess.CalledProcessError, ImportError, AttributeError):
+        pass
+    return None
+
+
+def low_memory() -> bool:
+    """True on a machine of 8 GB or less. `NEOVEG_LOW_MEMORY=1` or `0` forces the answer."""
+    forced = os.environ.get("NEOVEG_LOW_MEMORY", "").strip()
+    if forced in ("0", "1"):
+        return forced == "1"
+    total = total_memory_bytes()
+    return total is not None and total <= LOW_MEMORY_BYTES
+
+
 def release_env(triple: str, macos_min: Optional[str] = None) -> Dict[str, str]:
     """Environment of the release build; QA and packaging share it so the second build is cached."""
+    env: Dict[str, str] = {}
+    if low_memory():
+        # Fat LTO with one codegen unit needs more than 7 GB for `neoveg_ui` (rustc ran out of memory);
+        # thin LTO with 16 units builds the same program in far less. A value set by the user wins.
+        env["CARGO_PROFILE_RELEASE_LTO"] = os.environ.get("CARGO_PROFILE_RELEASE_LTO", "thin")
+        env["CARGO_PROFILE_RELEASE_CODEGEN_UNITS"] = os.environ.get("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "16")
     if "apple-darwin" in triple:
-        return {"MACOSX_DEPLOYMENT_TARGET": macos_min} if macos_min else {}
-    if "windows-msvc" not in triple:
-        return {}
-    # Static C runtime: the portable exe does not need the Visual C++ redistributable
-    flags = os.environ.get("RUSTFLAGS", "")
-    return {"RUSTFLAGS": (flags + " -C target-feature=+crt-static").strip()}
+        if macos_min:
+            env["MACOSX_DEPLOYMENT_TARGET"] = macos_min
+    elif "windows-msvc" in triple:
+        # Static C runtime: the portable exe does not need the Visual C++ redistributable
+        flags = os.environ.get("RUSTFLAGS", "")
+        env["RUSTFLAGS"] = (flags + " -C target-feature=+crt-static").strip()
+    return env
 
 
 def job_flags(args: argparse.Namespace) -> List[str]:
-    """`-j N` for cargo when `--jobs` is given (a machine short of memory can crash `rustc` under load)."""
-    jobs = getattr(args, "jobs", None)
+    """`-j N` for cargo: the `--jobs` given, else one job on a machine of 8 GB or less (a machine short
+    of memory can crash `rustc` under load); above that cargo uses every core."""
+    jobs = getattr(args, "jobs", None) or (1 if low_memory() else None)
     return ["-j", str(jobs)] if jobs else []
 
 
