@@ -618,12 +618,12 @@ impl Vst3Instance {
                 ));
             }
 
-            if processor.canProcessSampleSize(SymbolicSampleSizes_::kSample32) != kResultOk {
+            if processor.canProcessSampleSize(SymbolicSampleSizes_::kSample32 as _) != kResultOk {
                 return Err("o plug-in nao processa 32 bits".into());
             }
             let mut setup = ProcessSetup {
-                processMode: ProcessModes_::kRealtime,
-                symbolicSampleSize: SymbolicSampleSizes_::kSample32,
+                processMode: ProcessModes_::kRealtime as _,
+                symbolicSampleSize: SymbolicSampleSizes_::kSample32 as _,
                 maxSamplesPerBlock: MAX_BLOCK as i32,
                 sampleRate: sample_rate,
             };
@@ -1146,8 +1146,8 @@ impl AudioEffect for Vst3Effect {
             let in_changes = self.input_changes.as_com_ref::<IParameterChanges>();
             let out_changes = self.output_changes.as_com_ref::<IParameterChanges>();
             let mut data = ProcessData {
-                processMode: ProcessModes_::kRealtime,
-                symbolicSampleSize: SymbolicSampleSizes_::kSample32,
+                processMode: ProcessModes_::kRealtime as _,
+                symbolicSampleSize: SymbolicSampleSizes_::kSample32 as _,
                 numSamples: n as i32,
                 numInputs: 1,
                 numOutputs: 1,
