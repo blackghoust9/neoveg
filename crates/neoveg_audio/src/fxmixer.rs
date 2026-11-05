@@ -593,6 +593,16 @@ struct UserBus {
     r: Vec<f32>,
 }
 
+/// The effects of one clip and the block of sound that goes through them.
+struct ClipFx {
+    chain: Vec<Box<dyn AudioEffect>>,
+    /// The clip is read this far ahead (seconds) so that the delay of its effects brings it back
+    /// to its place.
+    lead: f64,
+    l: Vec<f32>,
+    r: Vec<f32>,
+}
+
 pub struct BlockMixer {
     /// Where the sound of every bus of the tracks goes (entry 0, the dry bus, goes to the master).
     routes: Vec<InternalRoute>,
@@ -602,6 +612,8 @@ pub struct BlockMixer {
     clips: Vec<MixClip>,
     /// Bus of every clip (0 is the dry bus).
     clip_bus: Vec<usize>,
+    /// The effects of every clip that has its own, parallel to `clips`.
+    clip_fx: Vec<Option<ClipFx>>,
     /// Effect chain of every bus; entry 0 (the dry bus) is always empty.
     chains: Vec<Vec<Box<dyn AudioEffect>>>,
     /// Auto-ducking curve of every bus (entry 0 never has one) and the buses that have one.
@@ -909,6 +921,22 @@ impl BlockMixer {
             .iter()
             .map(|c| bus_of_track.get(c.track).copied().unwrap_or(0))
             .collect();
+        let clip_fx: Vec<Option<ClipFx>> = clips
+            .iter()
+            .map(|c| {
+                let chain = build_chain(&c.fx, sample_rate);
+                if chain.is_empty() {
+                    return None;
+                }
+                let delay: usize = chain.iter().map(|e| e.latency()).sum();
+                Some(ClipFx {
+                    chain,
+                    lead: delay as f64 / f64::from(sample_rate.max(1.0)),
+                    l: vec![0.0; MAX_BLOCK],
+                    r: vec![0.0; MAX_BLOCK],
+                })
+            })
+            .collect();
         let latency =
             |chain: &[Box<dyn AudioEffect>]| chain.iter().map(|e| e.latency()).sum::<usize>();
         let mut live_user_buses = Vec::new();
@@ -995,6 +1023,7 @@ impl BlockMixer {
                 end,
                 clips,
                 clip_bus,
+                clip_fx,
                 ducked: (0..ducks.len()).filter(|&b| ducks[b].is_some()).collect(),
                 realtime_ducks,
                 sidechain_buses,
@@ -1072,6 +1101,10 @@ impl BlockMixer {
             ubus.l[..n].fill(0.0);
             ubus.r[..n].fill(0.0);
         }
+        for fx in self.clip_fx.iter_mut().flatten() {
+            fx.l[..n].fill(0.0);
+            fx.r[..n].fill(0.0);
+        }
         let Some(live) = &self.live else {
             return;
         };
@@ -1148,11 +1181,27 @@ impl BlockMixer {
                 self.gains[bus] = curve.gain(t);
             }
         }
-        for (clip, &bus) in self.clips.iter().zip(&self.clip_bus) {
-            let (l, r) = clip.sample_at(t);
+        for ((clip, &bus), fx) in self
+            .clips
+            .iter()
+            .zip(&self.clip_bus)
+            .zip(self.clip_fx.iter_mut())
+        {
             let gain = self.gains[bus];
-            self.bus_l[bus][i] += l * gain;
-            self.bus_r[bus][i] += r * gain;
+            match fx {
+                // A clip with effects of its own is collected in its block and joins its track
+                // after them (see `finish`)
+                Some(fx) => {
+                    let (l, r) = clip.sample_at(t + fx.lead);
+                    fx.l[i] += l * gain;
+                    fx.r[i] += r * gain;
+                }
+                None => {
+                    let (l, r) = clip.sample_at(t);
+                    self.bus_l[bus][i] += l * gain;
+                    self.bus_r[bus][i] += r * gain;
+                }
+            }
         }
     }
 
@@ -1175,6 +1224,20 @@ impl BlockMixer {
                 if let Some(fx) = fx {
                     fx.set_param(&slot.param_id, val);
                 }
+            }
+        }
+        // The clips with effects of their own: through them, then into the bus of their track
+        for (fx, &bus) in self.clip_fx.iter_mut().zip(&self.clip_bus) {
+            let Some(ClipFx { chain, l, r, .. }) = fx else {
+                continue;
+            };
+            let (l, r) = (&mut l[..n], &mut r[..n]);
+            for effect in chain.iter_mut() {
+                effect.process(&mut [&mut *l, &mut *r]);
+            }
+            for k in 0..n {
+                self.bus_l[bus][k] += l[k];
+                self.bus_r[bus][k] += r[k];
             }
         }
         for (bus, chain) in self.chains.iter_mut().enumerate() {
@@ -1314,6 +1377,7 @@ mod tests {
     /// `seconds` of a constant stereo value starting at 0 on `track`.
     fn constant(track: usize, value: f32, seconds: f64) -> MixClip {
         MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(vec![value; (RATE as f64 * seconds) as usize * 2]),
             source_rate: RATE,
             start: 0.0,
@@ -1560,6 +1624,7 @@ mod tests {
     /// A clip that starts at `start` seconds with a constant value.
     fn step_at(track: usize, value: f32, start: f64) -> MixClip {
         MixClip {
+            fx: Vec::new(),
             start,
             ..constant(track, value, 1.0 - start)
         }
@@ -1635,6 +1700,7 @@ mod tests {
     /// `value` from `start` for `seconds` on `track`.
     fn burst(track: usize, value: f32, start: f64, seconds: f64) -> MixClip {
         MixClip {
+            fx: Vec::new(),
             start,
             ..constant(track, value, seconds)
         }
@@ -1891,6 +1957,7 @@ mod tests {
 
         let clips = vec![
             MixClip {
+                fx: Vec::new(),
                 samples: PcmStore::shared(pulse_pos),
                 source_rate: RATE,
                 start: 0.0,
@@ -1900,6 +1967,7 @@ mod tests {
                 ..Default::default()
             },
             MixClip {
+                fx: Vec::new(),
                 samples: PcmStore::shared(pulse_neg),
                 source_rate: RATE,
                 start: 0.0,
@@ -2227,5 +2295,41 @@ mod tests {
         }
         mixer.finish(64);
         assert_eq!(mixer.out().0[0], 0.0);
+    }
+
+    #[test]
+    fn the_effects_of_a_clip_change_only_that_clip_and_keep_its_place() {
+        // Two clips on the same track: one through a 100 % wet 10 ms delay of its own, one dry
+        let wet = vec![spec(
+            "delay",
+            &[("time", 10.0), ("feedback", 0.0), ("mix", 100.0)],
+        )];
+        let mut with_fx = constant(0, 0.5, 1.0);
+        with_fx.fx = wet;
+        let dry = constant(0, 0.25, 1.0);
+        let mut mixer = BlockMixer::new(vec![dry, with_fx], &FxPlan::default(), RATE as f32);
+        let (l, _) = render(&mut mixer, RATE as usize / 2, 480);
+        // The delayed clip has not arrived at the very start: only the dry one is heard
+        assert!((l[10] - 0.25).abs() < 0.01, "start: {}", l[10]);
+        // Later both are: 0.25 dry + 0.5 delayed
+        let settled = l[RATE as usize / 4];
+        assert!((settled - 0.75).abs() < 0.02, "settled: {settled}");
+        // The same clip without effects is the plain sum from the first frame
+        let mut plain = BlockMixer::new(
+            vec![constant(0, 0.25, 1.0), constant(0, 0.5, 1.0)],
+            &FxPlan::default(),
+            RATE as f32,
+        );
+        let (p, _) = render(&mut plain, 480, 480);
+        assert!((p[10] - 0.75).abs() < 0.01, "{}", p[10]);
+    }
+
+    #[test]
+    fn a_clip_with_an_unknown_effect_plays_as_if_it_had_none() {
+        let mut clip = constant(0, 0.5, 0.5);
+        clip.fx = vec![spec("nao-existe", &[])];
+        let mut mixer = BlockMixer::new(vec![clip], &FxPlan::default(), RATE as f32);
+        let (l, r) = render(&mut mixer, 2400, 480);
+        assert!(l.iter().chain(&r).all(|v| (v - 0.5).abs() < 1e-6));
     }
 }

@@ -30,6 +30,9 @@ pub struct MixClip {
     pub cross_out_curve: FadeCurve,
     /// Index of the track the clip belongs to (its effect chain is found by this index).
     pub track: usize,
+    /// The effects of this event alone (the chain of its media first, then its own): the sound of
+    /// the clip goes through them before it joins the sound of its track. Empty for none.
+    pub fx: Vec<crate::fxmixer::EffectSpec>,
     /// Seconds of the source, counted from `trim_in`, that repeat when the clip runs past them
     /// (the Loop switch); `0` plays the source once.
     pub loop_len: f64,
@@ -200,6 +203,7 @@ mod tests {
     fn clip(value: f32, start: f64, duration: f64) -> MixClip {
         // 1 second at 100 Hz of constant stereo value
         MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(vec![value; 200]),
             source_rate: 100,
             start,
@@ -279,6 +283,7 @@ mod tests {
         // Source: a ramp of 100 stereo frames at 100 Hz (1 s); the clip lasts 2.5 s
         let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
         let mut c = MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(ramp),
             source_rate: 100,
             duration: 2.5,
@@ -300,6 +305,7 @@ mod tests {
     fn the_loop_restarts_at_the_trimmed_in_point() {
         let ramp: Vec<f32> = (0..100).flat_map(|i| [i as f32 / 100.0; 2]).collect();
         let c = MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(ramp),
             source_rate: 100,
             duration: 3.0,
@@ -346,6 +352,7 @@ mod tests {
         // 1 s at 100 Hz: left 0.8, right 0.2
         let samples: Vec<f32> = (0..100).flat_map(|_| [0.8_f32, 0.2]).collect();
         let mut clip = MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(samples),
             source_rate: 100,
             duration: 1.0,
@@ -428,11 +435,13 @@ mod tests {
         // A (0..1) fades out over 0.4..1.0 while B (0.4..1.4) fades in
         for curve in [FadeCurve::Linear, FadeCurve::Smooth, FadeCurve::Sharp] {
             let a = MixClip {
+                fx: Vec::new(),
                 cross_out: 0.6,
                 cross_out_curve: curve,
                 ..clip(1.0, 0.0, 1.0)
             };
             let b = MixClip {
+                fx: Vec::new(),
                 cross_in: 0.6,
                 cross_in_curve: curve,
                 ..clip(1.0, 0.4, 1.0)
@@ -449,6 +458,7 @@ mod tests {
     #[test]
     fn crossfade_is_inactive_outside_the_overlap() {
         let a = MixClip {
+            fx: Vec::new(),
             cross_out: 0.6,
             ..clip(1.0, 0.0, 1.0)
         };
@@ -461,6 +471,7 @@ mod tests {
         let mut samples = vec![0.0f32; 200];
         samples[100..].fill(0.8); // second half of the source is loud
         let c = MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(samples),
             trim_in: 0.5,
             ..clip(0.0, 2.0, 0.5)

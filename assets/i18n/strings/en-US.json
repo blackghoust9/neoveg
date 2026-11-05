@@ -1684,5 +1684,7 @@
   "Y": "Y",
   "Giro": "Rotation",
   "Suavidade da borda (% da altura)": "Edge softness (% of the height)",
-  "Máscara negativa (o efeito age fora da forma)": "Negative mask (the effect acts outside the shape)"
+  "Máscara negativa (o efeito age fora da forma)": "Negative mask (the effect acts outside the shape)",
+  "Efeitos só deste evento, antes dos da faixa": "Effects of this event only, before the ones of the track",
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Effects of every event that plays this media, before the ones of the event"
 }

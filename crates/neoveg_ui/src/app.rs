@@ -6701,6 +6701,7 @@ impl AppState {
                     cross_out: longest(&|c| c.earlier == e.id),
                     cross_out_curve: out_curve,
                     track: track_index,
+                    fx: fx_panel::clip_chain(timeline, e),
                     channels: e.channels,
                     volume: mix_gain_curve(e.volume_envelope.as_ref()),
                     // Only an event at normal speed loops (its source is read directly)
@@ -6733,8 +6734,52 @@ impl AppState {
                 neoveg_engine::buses::label(&self.timeline, id),
             ));
         }
+        // The selected clip of an audio track: its own chain, or the one of its media
+        if self.fx.scope != fx_panel::AudioFxScope::Track {
+            if let Some((track_id, event)) = self.audio_fx_event() {
+                return Some(match (self.fx.scope, event.media_id) {
+                    (fx_panel::AudioFxScope::Media, Some(id)) => {
+                        (FxTarget::Media(id), self.media_label(id))
+                    }
+                    _ => (
+                        FxTarget::Event {
+                            track_id,
+                            event_id: event.id,
+                        },
+                        event.name.clone(),
+                    ),
+                });
+            }
+        }
         let track = self.timeline.track(self.selected_track?)?;
         (track.kind == TrackKind::Audio).then(|| (FxTarget::Track(track.id), track.name.clone()))
+    }
+
+    /// The primary selected event when it is on an audio track.
+    fn audio_fx_event(&self) -> Option<(TrackId, TrackEvent)> {
+        let (track_id, event_id) = self.selection.primary()?;
+        let track = self
+            .timeline
+            .track(track_id)
+            .filter(|t| t.kind == TrackKind::Audio)?;
+        let event = track.events.iter().find(|e| e.id == event_id)?;
+        Some((track_id, event.clone()))
+    }
+
+    /// The file name of a media pool entry, for panel titles.
+    fn media_label(&self, id: u64) -> String {
+        let name = self
+            .project
+            .media_pool
+            .iter()
+            .find(|m| m.id == id)
+            .map(|m| {
+                std::path::Path::new(&m.path)
+                    .file_name()
+                    .map_or_else(|| m.path.clone(), |n| n.to_string_lossy().into_owned())
+            })
+            .unwrap_or_else(|| "mídia".into());
+        tr_args("{} (todos os eventos desta mídia)", &[&name])
     }
 
     /// The video chain the effects panel edits, with what can be chosen: the primary selected
@@ -7363,7 +7408,10 @@ impl AppState {
                             fx::set_duck_param(&self.timeline, id, param, value)
                         }
                     },
-                    FxTarget::Master | FxTarget::Bus(_) => None,
+                    FxTarget::Master
+                    | FxTarget::Bus(_)
+                    | FxTarget::Event { .. }
+                    | FxTarget::Media(_) => None,
                 },
                 FxAction::SetParams { index, values } => {
                     fx::set_params(&self.timeline, target, index, &values)
@@ -13565,10 +13613,14 @@ fn velocity_section(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, 
 fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
     // In a narrow panel the buttons go to a second row instead of being cut off
     ui.horizontal_wrapped(|ui| {
-        let on_track = !state.fx.master && state.fx.bus.is_none();
+        let on_track = !state.fx.master
+            && state.fx.bus.is_none()
+            && (state.fx.scope == fx_panel::AudioFxScope::Track
+                || state.audio_fx_event().is_none());
         if ui.selectable_label(on_track, tr("Faixa")).clicked() {
             state.fx.master = false;
             state.fx.bus = None;
+            state.fx.scope = fx_panel::AudioFxScope::Track;
         }
         let current = state
             .fx
@@ -13601,6 +13653,39 @@ fn fx_target_picker(state: &mut AppState, ui: &mut egui::Ui) {
         if ui.selectable_label(state.fx.master, tr("Master")).clicked() {
             state.fx.master = true;
             state.fx.bus = None;
+        }
+        // The selected clip of an audio track has chains of its own
+        if let Some((_, event)) = state.audio_fx_event() {
+            let scope = state.fx.scope;
+            for (value, label, hint) in [
+                (
+                    fx_panel::AudioFxScope::Event,
+                    "Evento",
+                    "Efeitos só deste evento, antes dos da faixa",
+                ),
+                (
+                    fx_panel::AudioFxScope::Media,
+                    "Mídia",
+                    "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento",
+                ),
+            ] {
+                let usable = value != fx_panel::AudioFxScope::Media || event.media_id.is_some();
+                if ui
+                    .add_enabled(
+                        usable,
+                        egui::SelectableLabel::new(
+                            scope == value && !state.fx.master && state.fx.bus.is_none(),
+                            tr(label),
+                        ),
+                    )
+                    .on_hover_text(tr(hint))
+                    .clicked()
+                {
+                    state.fx.scope = value;
+                    state.fx.master = false;
+                    state.fx.bus = None;
+                }
+            }
         }
         if ui
             .button(tr("+ Barramento"))
@@ -13717,7 +13802,7 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
         .unwrap_or_default();
     let duck = match target {
         FxTarget::Track(id) => fx_panel::duck_view(&state.timeline, id),
-        FxTarget::Master | FxTarget::Bus(_) => None,
+        FxTarget::Master | FxTarget::Bus(_) | FxTarget::Event { .. } | FxTarget::Media(_) => None,
     };
     let presets = state.prefs.audio_effect_presets.clone();
     let actions = fx_panel::fx_ui(ui, &mut state.fx, &title, &chain, duck.as_ref(), &presets);
@@ -13726,7 +13811,9 @@ fn audio_fx_ui(state: &mut AppState, ui: &mut egui::Ui) {
     {
         let track_idx = match target {
             FxTarget::Track(id) => state.timeline.tracks.iter().position(|t| t.id == id),
-            FxTarget::Master | FxTarget::Bus(_) => None,
+            FxTarget::Master | FxTarget::Bus(_) | FxTarget::Event { .. } | FxTarget::Media(_) => {
+                None
+            }
         };
         // A bus effect is not in the live table of the player: it is heard after the next restart
         if matches!(target, FxTarget::Master) || track_idx.is_some() {

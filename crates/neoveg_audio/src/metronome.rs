@@ -84,6 +84,7 @@ pub fn click_clips(metronome: &Metronome, from: f64, to: f64, sample_rate: u32) 
             break;
         }
         clips.push(MixClip {
+            fx: Vec::new(),
             samples: Arc::clone(if metronome.is_downbeat(beat) {
                 &accent
             } else {

@@ -1684,5 +1684,7 @@
   "Y": "Y",
   "Giro": "Giro",
   "Suavidade da borda (% da altura)": "Suavidad del borde (% de la altura)",
-  "Máscara negativa (o efeito age fora da forma)": "Máscara negativa (el efecto actúa fuera de la forma)"
+  "Máscara negativa (o efeito age fora da forma)": "Máscara negativa (el efecto actúa fuera de la forma)",
+  "Efeitos só deste evento, antes dos da faixa": "Efectos solo de este evento, antes de los de la pista",
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Efectos de todos los eventos que reproducen este medio, antes de los del evento"
 }

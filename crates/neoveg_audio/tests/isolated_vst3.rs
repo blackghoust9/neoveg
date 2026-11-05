@@ -203,6 +203,7 @@ fn the_block_mixer_compensates_the_latency_of_an_isolated_plugin() {
     forget_crash(&kind);
 
     let clip = |track: usize| MixClip {
+        fx: Vec::new(),
         samples: PcmStore::shared(vec![0.5; 4_800 * 2]),
         source_rate: 48_000,
         start: 0.0,

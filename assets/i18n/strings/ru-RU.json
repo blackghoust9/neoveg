@@ -1684,5 +1684,7 @@
   "Y": "Y",
   "Giro": "Поворот",
   "Suavidade da borda (% da altura)": "Мягкость края (% высоты)",
-  "Máscara negativa (o efeito age fora da forma)": "Негативная маска (эффект действует вне фигуры)"
+  "Máscara negativa (o efeito age fora da forma)": "Негативная маска (эффект действует вне фигуры)",
+  "Efeitos só deste evento, antes dos da faixa": "Эффекты только этого события, перед эффектами дорожки",
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Эффекты всех событий с этим медиа, перед эффектами события"
 }

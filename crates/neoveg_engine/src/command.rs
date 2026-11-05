@@ -23,6 +23,13 @@ pub enum FxTarget {
     /// An audio bus (its effect chain).
     Bus(BusId),
     Master,
+    /// One event of an audio track: its effects run before the ones of the track.
+    Event {
+        track_id: TrackId,
+        event_id: EventId,
+    },
+    /// Every event that plays this media pool entry (a chain run before the event's own).
+    Media(u64),
 }
 
 /// Where a video effect chain lives.
@@ -650,6 +657,7 @@ impl EditCommand {
                     // Every take goes on in the right half (offsets are relative to the in point)
                     takes: left.takes.clone(),
                     active_take: left.active_take,
+                    audio_effects: left.audio_effects.clone(),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -899,8 +907,8 @@ fn set_ducking(tl: &mut Timeline, track_id: TrackId, ducking: &Option<TrackDucki
 
 fn set_envelopes(tl: &mut Timeline, target: FxTarget, envelopes: &[TrackEnvelope]) -> bool {
     match target {
-        // A bus has no automation envelopes
-        FxTarget::Bus(_) => false,
+        // A bus, an event and a media have no automation envelopes
+        FxTarget::Bus(_) | FxTarget::Event { .. } | FxTarget::Media(_) => false,
         FxTarget::Master => {
             tl.master_envelopes = envelopes.to_vec();
             true
@@ -1072,6 +1080,26 @@ fn set_effects(tl: &mut Timeline, target: FxTarget, chain: &[TrackEffect]) -> bo
             }
             None => false,
         },
+        FxTarget::Event { track_id, event_id } => {
+            match tl
+                .track_mut(track_id)
+                .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id))
+            {
+                Some(e) => {
+                    e.audio_effects = chain.to_vec();
+                    true
+                }
+                None => false,
+            }
+        }
+        FxTarget::Media(id) => {
+            if chain.is_empty() {
+                tl.media_audio_effects.remove(&id);
+            } else {
+                tl.media_audio_effects.insert(id, chain.to_vec());
+            }
+            true
+        }
     }
 }
 

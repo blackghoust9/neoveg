@@ -356,6 +356,7 @@ mod tests {
             samples.push(v);
         }
         MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(samples),
             source_rate: rate,
             start: 0.0,

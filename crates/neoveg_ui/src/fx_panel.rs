@@ -120,8 +120,22 @@ struct Draft {
     value: f32,
 }
 
+/// Which audio chain the panel edits when a clip is selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AudioFxScope {
+    /// The audio track (or the bus or the master, as picked).
+    #[default]
+    Track,
+    /// The selected event alone.
+    Event,
+    /// The media of the selected event: every event that plays it.
+    Media,
+}
+
 #[derive(Debug, Default)]
 pub struct FxPanelState {
+    /// The chain the user chose among the ones of the selected clip.
+    pub scope: AudioFxScope,
     /// Edit the master bus instead of the selected track.
     pub master: bool,
     /// Edit the chain of this audio bus instead of the selected track's.
@@ -466,6 +480,17 @@ pub fn group_params(
         }
     }
     groups
+}
+
+/// The effects one event runs through before its track: the ones of its media, then its own.
+pub fn clip_chain(timeline: &Timeline, event: &neoveg_engine::TrackEvent) -> Vec<EffectSpec> {
+    let mut chain = event
+        .media_id
+        .and_then(|id| timeline.media_audio_effects.get(&id))
+        .map(|c| spec_chain(c))
+        .unwrap_or_default();
+    chain.extend(spec_chain(&event.audio_effects));
+    chain
 }
 
 fn spec_chain(chain: &[TrackEffect]) -> Vec<EffectSpec> {
@@ -1767,5 +1792,31 @@ mod tests {
         assert_eq!(send_gain(-60.0), 0.0);
         assert!((send_gain(0.0) - 1.0).abs() < 1e-6);
         assert!(fx_plan(&Timeline::new()).is_empty());
+    }
+
+    #[test]
+    fn a_clip_runs_its_media_chain_before_its_own_and_skips_bypassed_effects() {
+        let effect = |kind: &str, bypass: bool| TrackEffect {
+            bypass,
+            ..TrackEffect::new(kind)
+        };
+        let mut tl = Timeline::new();
+        tl.media_audio_effects
+            .insert(3, vec![effect("limiter", false), effect("reverb", true)]);
+        let event = neoveg_engine::TrackEvent {
+            media_id: Some(3),
+            audio_effects: vec![effect("delay", false)],
+            ..Default::default()
+        };
+        let kinds: Vec<_> = clip_chain(&tl, &event)
+            .into_iter()
+            .map(|e| e.kind)
+            .collect();
+        assert_eq!(kinds, ["limiter", "delay"]);
+        let other = neoveg_engine::TrackEvent {
+            media_id: Some(4),
+            ..Default::default()
+        };
+        assert!(clip_chain(&tl, &other).is_empty());
     }
 }

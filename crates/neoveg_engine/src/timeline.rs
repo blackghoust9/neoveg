@@ -266,6 +266,10 @@ pub struct TrackEvent {
     /// take, so playback and display need no lookup.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub takes: Vec<Take>,
+    /// Audio effects of this event alone, run after the ones of its media and before the ones of its
+    /// track (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_effects: Vec<TrackEffect>,
     /// Index into `takes` of the take that plays.
     #[serde(default, skip_serializing_if = "is_zero_index")]
     pub active_take: usize,
@@ -310,6 +314,7 @@ impl Default for TrackEvent {
             opacity: 1.0,
             gain_db: 0.0,
             takes: Vec::new(),
+            audio_effects: Vec::new(),
             active_take: 0,
         }
     }
@@ -797,6 +802,10 @@ pub struct Timeline {
     /// the media, before the event's own chain (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub media_video_effects: BTreeMap<u64, Vec<TrackEffect>>,
+    /// Audio effect chain of a media pool entry, by media id: run on every event that plays the
+    /// media, before the event's own chain (older projects have none).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media_audio_effects: BTreeMap<u64, Vec<TrackEffect>>,
     /// What the user says about a media file (timecode, frame rate, pixel aspect, alpha...), by
     /// media id; a media with nothing changed has no entry (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

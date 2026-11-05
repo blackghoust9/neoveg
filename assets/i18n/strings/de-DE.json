@@ -1684,5 +1684,7 @@
   "Y": "Y",
   "Giro": "Drehung",
   "Suavidade da borda (% da altura)": "Kantenweichheit (% der Höhe)",
-  "Máscara negativa (o efeito age fora da forma)": "Negative Maske (der Effekt wirkt außerhalb der Form)"
+  "Máscara negativa (o efeito age fora da forma)": "Negative Maske (der Effekt wirkt außerhalb der Form)",
+  "Efeitos só deste evento, antes dos da faixa": "Effekte nur für dieses Event, vor denen der Spur",
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Effekte für alle Events, die diese Medien abspielen, vor denen des Events"
 }

@@ -993,6 +993,7 @@ mod tests {
     #[test]
     fn mix_to_mono_16k_renders_timeline_clips_at_16khz() {
         let clip = MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(vec![0.5_f32; 48_000 * 2]),
             source_rate: 48_000,
             start: 0.25,

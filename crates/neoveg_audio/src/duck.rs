@@ -206,6 +206,7 @@ mod tests {
     /// A clip of constant stereo `value` from `start` for `seconds` (source rate 1 kHz).
     fn constant(value: f32, start: f64, seconds: f64) -> MixClip {
         MixClip {
+            fx: Vec::new(),
             samples: PcmStore::shared(vec![value; (seconds * 1000.0) as usize * 2]),
             source_rate: 1000,
             start,

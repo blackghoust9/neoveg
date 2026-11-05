@@ -183,6 +183,8 @@ impl AppState {
                         self.fx.master = true;
                         self.fx.bus = None;
                     }
+                    // The console only lists tracks, buses and the master
+                    FxTarget::Event { .. } | FxTarget::Media(_) => {}
                 }
                 self.window_request = Some(WindowAction::Show(Tab::AudioFx));
             }

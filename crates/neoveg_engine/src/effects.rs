@@ -20,6 +20,18 @@ pub fn chain(timeline: &Timeline, target: FxTarget) -> Option<&[TrackEffect]> {
             .iter()
             .find(|b| b.id == id)
             .map(|b| b.effects.as_slice()),
+        FxTarget::Event { track_id, event_id } => timeline
+            .track(track_id)?
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+            .map(|e| e.audio_effects.as_slice()),
+        FxTarget::Media(id) => Some(
+            timeline
+                .media_audio_effects
+                .get(&id)
+                .map_or(&[][..], Vec::as_slice),
+        ),
     }
 }
 
@@ -472,5 +484,49 @@ mod tests {
             set_params(&tl, FxTarget::Track(id), 5, &values).is_none(),
             "no such effect"
         );
+    }
+
+    #[test]
+    fn an_event_and_a_media_have_chains_of_their_own_in_undo_steps() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Audio);
+        let id = track.id;
+        track.events.push(crate::timeline::TrackEvent {
+            id: 9,
+            media_id: Some(4),
+            duration: 2.0,
+            ..Default::default()
+        });
+        tl.tracks.push(track);
+        let mut h = crate::command::History::new();
+        let event = FxTarget::Event {
+            track_id: id,
+            event_id: 9,
+        };
+        let media = FxTarget::Media(4);
+        exec!(tl, h, add_effect(&tl, event, "delay"));
+        exec!(tl, h, add_effect(&tl, media, "limiter"));
+        assert_eq!(kinds(&tl, event), ["delay"]);
+        assert_eq!(kinds(&tl, media), ["limiter"]);
+        assert!(
+            tl.track(id).unwrap().effects.is_empty(),
+            "the track chain is untouched"
+        );
+        assert!(add_effect(
+            &tl,
+            FxTarget::Event {
+                track_id: id,
+                event_id: 1
+            },
+            "delay"
+        )
+        .is_none());
+        // Undo takes them out again, and an emptied media chain leaves no entry in the project
+        assert!(h.undo(&mut tl) && h.undo(&mut tl));
+        assert!(tl.media_audio_effects.is_empty());
+        assert!(kinds(&tl, event).is_empty());
+        // Projects without these chains do not change on disk
+        let json = serde_json::to_string(&tl).unwrap();
+        assert!(!json.contains("audio_effects"));
     }
 }

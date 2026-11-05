@@ -1684,5 +1684,7 @@
   "Y": "Y",
   "Giro": "回転",
   "Suavidade da borda (% da altura)": "エッジのぼかし（高さの %）",
-  "Máscara negativa (o efeito age fora da forma)": "ネガティブマスク（エフェクトは形の外側に効く）"
+  "Máscara negativa (o efeito age fora da forma)": "ネガティブマスク（エフェクトは形の外側に効く）",
+  "Efeitos só deste evento, antes dos da faixa": "このイベントだけのエフェクト(トラックのエフェクトの前)",
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "このメディアを再生するすべてのイベントのエフェクト(イベントのエフェクトの前)"
 }

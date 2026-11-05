@@ -259,8 +259,8 @@ pub fn envelopes(timeline: &Timeline, target: FxTarget) -> Option<&[TrackEnvelop
     match target {
         FxTarget::Master => Some(&timeline.master_envelopes),
         FxTarget::Track(id) => timeline.track(id).map(|t| t.envelopes.as_slice()),
-        // A bus has no automation envelopes
-        FxTarget::Bus(_) => None,
+        // A bus, an event and a media have no automation envelopes
+        FxTarget::Bus(_) | FxTarget::Event { .. } | FxTarget::Media(_) => None,
     }
 }
 
@@ -323,7 +323,7 @@ pub fn toggle_envelope(
 pub fn toggle_all_envelopes(timeline: &Timeline, target: FxTarget) -> Option<EditCommand> {
     let default_vol = match target {
         FxTarget::Track(id) => timeline.track(id)?.volume_db,
-        FxTarget::Master | FxTarget::Bus(_) => 0.0,
+        FxTarget::Master | FxTarget::Bus(_) | FxTarget::Event { .. } | FxTarget::Media(_) => 0.0,
     };
     let video_track = matches!(target, FxTarget::Track(id) if timeline.track(id).is_some_and(|t| t.kind == TrackKind::Video));
     edit(timeline, target, |list| {
