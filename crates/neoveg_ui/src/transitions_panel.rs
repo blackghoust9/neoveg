@@ -5,11 +5,14 @@
 //! of the fade. Like the effects panels it returns actions and `AppState` runs each one as one undo
 //! step; a slider commits when the drag ends.
 
+use std::collections::{BTreeMap, HashMap};
+
 use eframe::egui::{self, Slider};
 use neoveg_common::i18n::tr;
 use neoveg_common::i18n::tr_args;
 use neoveg_common::i18n::tr_text;
 use neoveg_engine::TrackEffect;
+use neoveg_video::transition_library::{self, Category, Preset};
 use neoveg_video::transitions::{self, TransitionRequest};
 use neoveg_video::vfx::ParamSpec;
 
@@ -18,6 +21,11 @@ use neoveg_video::vfx::ParamSpec;
 pub enum TransitionAction {
     /// Use this transition (the registry id).
     Choose(&'static str),
+    /// Use this transition with the values of a preset (one undo step).
+    Preset {
+        kind: &'static str,
+        params: BTreeMap<String, f32>,
+    },
     /// Back to the plain dissolve.
     Clear,
     SetParam {
@@ -34,11 +42,100 @@ struct Draft {
 }
 
 /// State of the tab.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct TransitionsPanelState {
     /// Edit the transition that hides the event instead of the one that reveals it.
     pub outgoing: bool,
     draft: Option<Draft>,
+    /// The category shown (`None`: all of them).
+    category: Option<Category>,
+    /// The thumbnails already drawn, by transition and values.
+    thumbnails: HashMap<String, egui::TextureHandle>,
+}
+
+impl std::fmt::Debug for TransitionsPanelState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransitionsPanelState")
+            .field("outgoing", &self.outgoing)
+            .field("category", &self.category)
+            .field("thumbnails", &self.thumbnails.len())
+            .finish()
+    }
+}
+
+/// Size of a thumbnail in pixels.
+const THUMB_W: u32 = 96;
+const THUMB_H: u32 = 54;
+/// Where in the transition a thumbnail is taken.
+const THUMB_PROGRESS: f32 = 0.5;
+/// How many thumbnails are drawn in one frame, so opening the tab does not stall the window.
+const THUMBS_PER_FRAME: usize = 6;
+
+impl TransitionsPanelState {
+    /// The thumbnail of `kind` with `params`, drawn the first time it is asked for. `None` while
+    /// the frame's allowance of new thumbnails is used up (it asks for a repaint).
+    fn thumbnail(
+        &mut self,
+        ctx: &egui::Context,
+        kind: &str,
+        params: &BTreeMap<String, f32>,
+        budget: &mut usize,
+    ) -> Option<egui::TextureHandle> {
+        let key = format!("{kind}|{params:?}");
+        if let Some(texture) = self.thumbnails.get(&key) {
+            return Some(texture.clone());
+        }
+        if *budget == 0 {
+            ctx.request_repaint();
+            return None;
+        }
+        *budget -= 1;
+        let picture = transition_library::preview(kind, params, THUMB_W, THUMB_H, THUMB_PROGRESS)?;
+        let image = egui::ColorImage::from_rgba_unmultiplied(
+            [picture.width as usize, picture.height as usize],
+            &picture.rgba,
+        );
+        let texture = ctx.load_texture(
+            format!("transition_{key}"),
+            image,
+            egui::TextureOptions::LINEAR,
+        );
+        self.thumbnails.insert(key, texture.clone());
+        Some(texture)
+    }
+
+    /// One card: the thumbnail over the name. `true` when it is clicked.
+    fn card(
+        &mut self,
+        ui: &mut egui::Ui,
+        kind: &str,
+        params: &BTreeMap<String, f32>,
+        label: &str,
+        selected: bool,
+        budget: &mut usize,
+    ) -> bool {
+        let texture = self.thumbnail(ui.ctx(), kind, params, budget);
+        let size = egui::vec2(THUMB_W as f32, THUMB_H as f32);
+        let mut clicked = false;
+        ui.allocate_ui(
+            egui::vec2(THUMB_W as f32 + 8.0, THUMB_H as f32 + 26.0),
+            |ui| {
+                ui.vertical_centered(|ui| {
+                    let response = match texture {
+                        Some(texture) => ui.add(
+                            egui::ImageButton::new(egui::Image::new((texture.id(), size)))
+                                .selected(selected),
+                        ),
+                        None => ui.add_sized(size, egui::Button::new("...").selected(selected)),
+                    };
+                    clicked = response.clicked();
+                    response.on_hover_text(label);
+                    ui.add(egui::Label::new(egui::RichText::new(label).small()).truncate());
+                });
+            },
+        );
+        clicked
+    }
 }
 
 /// What the tab shows about the event.
@@ -126,19 +223,87 @@ impl TransitionsPanelState {
         let current_kind = view
             .current
             .map_or(transitions::DISSOLVE, |t| t.kind.as_str());
+        let current_preset = view
+            .current
+            .and_then(|t| transition_library::matching_preset(&t.kind, &t.params).map(|p| p.id));
         egui::ScrollArea::vertical().show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                for spec in transitions::transitions() {
-                    let selected = spec.id == current_kind;
-                    if ui.selectable_label(selected, tr_text(spec.label)).clicked() && !selected {
-                        if spec.id == transitions::DISSOLVE {
+                if ui
+                    .selectable_label(self.category.is_none(), tr("Todas"))
+                    .clicked()
+                {
+                    self.category = None;
+                }
+                for category in Category::ALL {
+                    let selected = self.category == Some(category);
+                    if ui
+                        .selectable_label(selected, tr_text(category.label()))
+                        .clicked()
+                    {
+                        self.category = Some(category);
+                    }
+                }
+            });
+            let wanted = self.category;
+            let shown = |kind: &str| wanted.is_none_or(|c| transition_library::category(kind) == c);
+            let kinds: Vec<&'static str> = transitions::transitions()
+                .iter()
+                .map(|t| t.id)
+                .filter(|id| shown(id))
+                .collect();
+            let presets: Vec<&'static Preset> = transition_library::PRESETS
+                .iter()
+                .filter(|p| shown(p.kind))
+                .collect();
+            let mut budget = THUMBS_PER_FRAME;
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for &kind in &kinds {
+                    let Some(spec) = transitions::spec(kind) else {
+                        continue;
+                    };
+                    let selected = kind == current_kind;
+                    let clicked = self.card(
+                        ui,
+                        kind,
+                        &BTreeMap::new(),
+                        &tr_text(spec.label),
+                        selected,
+                        &mut budget,
+                    );
+                    if clicked && !selected {
+                        if kind == transitions::DISSOLVE {
                             actions.push(TransitionAction::Clear);
                         } else {
-                            actions.push(TransitionAction::Choose(spec.id));
+                            actions.push(TransitionAction::Choose(kind));
                         }
                     }
                 }
             });
+            if !presets.is_empty() {
+                ui.add_space(4.0);
+                ui.strong(tr("Predefinições"));
+                ui.horizontal_wrapped(|ui| {
+                    for preset in presets {
+                        let selected = current_preset == Some(preset.id);
+                        let values = preset.values();
+                        let clicked = self.card(
+                            ui,
+                            preset.kind,
+                            &values,
+                            &tr_text(preset.label),
+                            selected,
+                            &mut budget,
+                        );
+                        if clicked && !selected {
+                            actions.push(TransitionAction::Preset {
+                                kind: preset.kind,
+                                params: values,
+                            });
+                        }
+                    }
+                });
+            }
             let (Some(effect), Some(spec)) = (
                 view.current,
                 view.current.and_then(|t| transitions::spec(&t.kind)),

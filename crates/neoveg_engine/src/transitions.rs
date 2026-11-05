@@ -73,6 +73,21 @@ pub fn choose(
     )
 }
 
+/// Chooses the transition `kind` with these values at once (one undo step), also over the one
+/// that is already there; `None` when it is exactly that already.
+pub fn choose_with(
+    timeline: &Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+    outgoing: bool,
+    kind: &str,
+    params: std::collections::BTreeMap<String, f32>,
+) -> Option<EditCommand> {
+    let mut effect = TrackEffect::new(kind);
+    effect.params = params;
+    set(timeline, track_id, event_id, outgoing, Some(effect))
+}
+
 /// Back to the plain dissolve.
 pub fn clear(
     timeline: &Timeline,

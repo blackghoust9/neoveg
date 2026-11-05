@@ -23,6 +23,7 @@ pub mod scene;
 pub mod scopes;
 pub mod still;
 pub mod subclip;
+pub mod transition_library;
 pub mod transitions;
 pub mod vfx;
 pub mod vfx_gpu;

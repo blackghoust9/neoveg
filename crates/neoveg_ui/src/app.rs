@@ -7253,9 +7253,22 @@ impl AppState {
     ) {
         let mut changed = false;
         for action in actions {
-            let command = match action {
-                TransitionAction::Choose(kind) => {
-                    let choose = trans::choose(&self.timeline, track_id, event_id, outgoing, kind);
+            let command = match action.clone() {
+                TransitionAction::Choose(_) | TransitionAction::Preset { .. } => {
+                    let choose = match &action {
+                        TransitionAction::Preset { kind, params } => trans::choose_with(
+                            &self.timeline,
+                            track_id,
+                            event_id,
+                            outgoing,
+                            kind,
+                            params.clone(),
+                        ),
+                        TransitionAction::Choose(kind) => {
+                            trans::choose(&self.timeline, track_id, event_id, outgoing, kind)
+                        }
+                        _ => None,
+                    };
                     let geometry = self.event_geometry(track_id, event_id);
                     let overlap = self.transition_overlap(track_id, event_id);
                     match (choose, geometry) {
@@ -19368,6 +19381,54 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn a_preset_is_one_undo_step_with_its_values_and_a_fade_to_show_it() {
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        let track = s.selected_track.unwrap();
+        s.project.media_pool.push(MediaRef {
+            subproject: false,
+            format: None,
+            id: 1,
+            path: "x.mp4".into(),
+            duration_seconds: 10.0,
+        });
+        let id = add_event(&mut s, track, 2.0, 4.0);
+        let preset = neoveg_video::transition_library::preset("cube_left").unwrap();
+        s.apply_transition_actions(
+            track,
+            id,
+            false,
+            vec![TransitionAction::Preset {
+                kind: preset.kind,
+                params: preset.values(),
+            }],
+        );
+        let event = |s: &AppState| {
+            s.timeline
+                .track(track)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == id)
+                .unwrap()
+                .clone()
+        };
+        let chosen = event(&s);
+        let t = chosen
+            .transition_in
+            .clone()
+            .expect("the preset is the transition");
+        assert_eq!(t.kind, preset.kind);
+        assert_eq!(t.params.get("angle"), Some(&180.0));
+        assert!(chosen.fade_in > 0.0, "a transition needs a fade to show");
+        // The transition and the fade are one step
+        assert!(s.history.undo(&mut s.timeline));
+        let undone = event(&s);
+        assert!(undone.transition_in.is_none());
+        assert_eq!(undone.fade_in, 0.0);
     }
 
     #[test]

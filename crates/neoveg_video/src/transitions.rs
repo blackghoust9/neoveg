@@ -33,6 +33,8 @@ pub const PAGE_ROLL: &str = "page_roll";
 pub const PAGE_PEEL: &str = "page_peel";
 pub const GRADIENT_WIPE: &str = "gradient_wipe";
 pub const WARP_FLOW: &str = "warp_flow";
+pub const CUBE: &str = "cube";
+pub const FLIP: &str = "flip";
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -40,6 +42,16 @@ const SOFTNESS: ParamSpec = ParamSpec {
     min: 0.0,
     max: 1.0,
     default: 0.1,
+    percent: true,
+};
+
+/// How strong the perspective of the 3D transitions is.
+const PERSPECTIVE: ParamSpec = ParamSpec {
+    id: "perspective",
+    label: "Perspectiva",
+    min: 0.0,
+    max: 1.0,
+    default: 0.5,
     percent: true,
 };
 
@@ -376,6 +388,22 @@ pub fn transitions() -> &'static [EffectSpec] {
                 label: "Fluxo de deformação",
                 params: &[],
             },
+            EffectSpec {
+                id: CUBE,
+                label: "Cubo 3D",
+                params: leak(vec![
+                    angle("angle", "Direção de entrada", 360.0),
+                    PERSPECTIVE,
+                ]),
+            },
+            EffectSpec {
+                id: FLIP,
+                label: "Virar 3D",
+                params: leak(vec![
+                    angle("angle", "Direção de entrada", 360.0),
+                    PERSPECTIVE,
+                ]),
+            },
         ]
     })
 }
@@ -490,6 +518,17 @@ pub enum Resolved {
     },
     /// Motion-compensated optical-flow morph between the outgoing clip and the incoming clip.
     WarpFlow,
+    /// The clip before and the one that enters are two faces of a cube that turns (see
+    /// [`apply_3d`]); `angle` names the edge the new one comes from.
+    Cube {
+        angle: f32,
+        perspective: f32,
+    },
+    /// A card that turns over: the clip before on one side, the new one on the other.
+    Flip {
+        angle: f32,
+        perspective: f32,
+    },
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -562,6 +601,14 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
             invert: v("invert") >= 0.5,
         },
         WARP_FLOW => Resolved::WarpFlow,
+        CUBE => Resolved::Cube {
+            angle: v("angle"),
+            perspective: v("perspective"),
+        },
+        FLIP => Resolved::Flip {
+            angle: v("angle"),
+            perspective: v("perspective"),
+        },
         _ => return None,
     })
 }
@@ -616,7 +663,15 @@ pub fn split_extent(center: f32, size: f32) -> f32 {
 /// `true` for the transitions that draw the clip before the one they reveal (the outgoing layer).
 /// With no clip before, they run on the incoming layer alone, as if the outgoing one were empty.
 pub fn needs_outgoing(kind: &str) -> bool {
-    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL | WARP_FLOW)
+    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL | WARP_FLOW | CUBE | FLIP)
+}
+
+/// `true` for the transitions only the CPU draws: the GPU refuses them and the worker falls back.
+pub fn cpu_only(t: &Resolved) -> bool {
+    matches!(
+        t,
+        Resolved::WarpFlow | Resolved::Cube { .. } | Resolved::Flip { .. }
+    )
 }
 
 /// Where a point is along the way of a transition that enters from `edge` (see [`squeeze_edge`]):
@@ -819,8 +874,132 @@ pub fn apply2(
                 finish(page, inc)
             })
         }
+        Resolved::Cube { angle, perspective } => apply_3d(
+            outgoing,
+            incoming,
+            true,
+            squeeze_edge(angle),
+            perspective,
+            progress,
+        ),
+        Resolved::Flip { angle, perspective } => apply_3d(
+            outgoing,
+            incoming,
+            false,
+            squeeze_edge(angle),
+            perspective,
+            progress,
+        ),
         _ => apply(incoming, t, progress),
     }
+}
+
+/// The 3D transitions. `cube`: the clip before is the front face of a cube and the new one the face
+/// on the side it enters from, and the cube turns a quarter. Otherwise a card turns half a turn,
+/// the clip before on its front and the new one on its back. The scene is seen from a camera at a
+/// distance from the middle (a strong perspective is a near camera); outside the faces the layer is
+/// transparent, so what is below shows.
+///
+/// The picture is found by going from each output pixel back to the face: a face is a line
+/// `(X, Z) = (c·s + d, a·s + b)` in the plane of the turn, and the line of sight of the pixel,
+/// `sx·(camera − Z) = k·X`, is solved for the position `s` along the face.
+fn apply_3d(
+    outgoing: Option<&FrameBuffer>,
+    incoming: &FrameBuffer,
+    cube: bool,
+    edge: u32,
+    perspective: f32,
+    progress: f32,
+) -> FrameBuffer {
+    let (width, height) = (incoming.width, incoming.height);
+    let (w, h) = (width as f32, height as f32);
+    let camera = 8.0 - 6.0 * perspective.clamp(0.0, 1.0);
+    // A face at the front fills the frame
+    let k = camera - 1.0;
+    let turn = if cube {
+        progress * std::f32::consts::FRAC_PI_2
+    } else {
+        progress * std::f32::consts::PI
+    };
+    let (sin, cos) = turn.sin_cos();
+    // Each face as `(a, b, c, d, is_the_clip_before)`
+    let faces: Vec<(f32, f32, f32, f32, bool)> = if cube {
+        vec![
+            // (s, 1): X = s cos - sin, Z = s sin + cos
+            (sin, cos, cos, -sin, true),
+            // (1, u): X = cos - u sin, Z = sin + u cos
+            (cos, sin, -sin, cos, false),
+        ]
+    } else {
+        // (s, 0) turned by the angle: X = s cos, Z = s sin
+        vec![(sin, 0.0, cos, 0.0, turn < std::f32::consts::FRAC_PI_2)]
+    };
+    // The coordinates along the turn and across it, `-1..=1`, from a pixel and back
+    let to_scene = |px: f32, py: f32| {
+        let (xn, yn) = (px / w * 2.0 - 1.0, py / h * 2.0 - 1.0);
+        match edge {
+            0 => (-xn, yn),
+            1 => (-yn, xn),
+            2 => (xn, yn),
+            _ => (yn, xn),
+        }
+    };
+    let to_pixel = |an: f32, cn: f32| {
+        let (xn, yn) = match edge {
+            0 => (-an, cn),
+            1 => (cn, -an),
+            2 => (an, cn),
+            _ => (cn, an),
+        };
+        ((xn + 1.0) * 0.5 * w, (yn + 1.0) * 0.5 * h)
+    };
+    render(width, height, |x, y| {
+        let (sx, sy) = to_scene(x as f32 + 0.5, y as f32 + 0.5);
+        let mut best: Option<(f32, [f32; 4])> = None;
+        for (index, &(a, b, c, d, is_outgoing)) in faces.iter().enumerate() {
+            let denom = k * c + sx * a;
+            if denom.abs() < 1e-6 {
+                continue;
+            }
+            let s = (sx * (camera - b) - k * d) / denom;
+            if !(-1.0..=1.0).contains(&s) {
+                continue;
+            }
+            let z = a * s + b;
+            let depth = camera - z;
+            if depth <= 0.0 {
+                continue;
+            }
+            let t = sy * depth / k;
+            if !(-1.0..=1.0).contains(&t) {
+                continue;
+            }
+            // Where the point is on the picture of the face, along the turn: the face that turns
+            // away is seen from behind, so its picture runs the other way
+            let along_tex = if is_outgoing { s } else { -s };
+            let (tx, ty) = to_pixel(along_tex, t);
+            let pixel = if is_outgoing {
+                outgoing.map_or([0.0; 4], |o| sample(o, tx, ty))
+            } else {
+                sample(incoming, tx, ty)
+            };
+            // The faces that lean away from the camera are darker
+            let lean = if cube {
+                if index == 0 {
+                    cos
+                } else {
+                    sin
+                }
+            } else {
+                cos.abs()
+            };
+            let pixel = shade(pixel, 0.55 + 0.45 * lean.clamp(0.0, 1.0));
+            if best.is_none_or(|(front, _)| z > front) {
+                best = Some((z, pixel));
+            }
+        }
+        best.map_or([0.0; 4], |(_, p)| p)
+    })
 }
 
 /// Opacity of a point whose place in the reveal order is `s` (`0.0` is revealed first, `1.0`
@@ -891,7 +1070,9 @@ fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
         | Resolved::Split { push: true, .. }
         | Resolved::Push { .. }
         | Resolved::PageRoll { .. }
-        | Resolved::PagePeel { .. } => 1.0,
+        | Resolved::PagePeel { .. }
+        | Resolved::Cube { .. }
+        | Resolved::Flip { .. } => 1.0,
         Resolved::GradientWipe {
             pattern,
             softness,
@@ -926,7 +1107,11 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
     }
     if matches!(
         t,
-        Resolved::Push { .. } | Resolved::PageRoll { .. } | Resolved::PagePeel { .. }
+        Resolved::Push { .. }
+            | Resolved::PageRoll { .. }
+            | Resolved::PagePeel { .. }
+            | Resolved::Cube { .. }
+            | Resolved::Flip { .. }
     ) {
         // No clip before: the outgoing layer is empty
         return apply2(None, layer, t, progress);
@@ -1298,7 +1483,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 17);
+        assert_eq!(transitions().len(), 19);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {
@@ -1543,5 +1728,51 @@ mod tests {
         // Without an outgoing clip, WarpFlow falls back cleanly to a dissolve fade
         let solo = apply2(None, &inc, &warp, 0.5);
         assert!((i32::from(solo.pixel(28, 24)[3]) - 128).abs() <= 1);
+    }
+
+    #[test]
+    fn the_cube_and_the_card_turn_from_the_clip_before_to_the_new_one() {
+        let (w, h) = (64u32, 48u32);
+        let red = FrameBuffer::solid(w, h, [255, 0, 0, 255]);
+        let blue = FrameBuffer::solid(w, h, [0, 0, 255, 255]);
+        let default = BTreeMap::new();
+        for kind in [CUBE, FLIP] {
+            assert!(needs_outgoing(kind));
+            let t = resolve(kind, &default).unwrap();
+            assert!(cpu_only(&t));
+            // Just started: the clip before fills the middle (a little darker with the turn)
+            let early = apply2(Some(&red), &blue, &t, 0.02);
+            let mid = early.pixel(w / 2, h / 2);
+            assert!(mid[0] > 200 && mid[2] < 40, "{kind}: {mid:?}");
+            // Almost done: the new clip does
+            let late = apply2(Some(&red), &blue, &t, 0.98);
+            let mid = late.pixel(w / 2, h / 2);
+            assert!(mid[2] > 200 && mid[0] < 40, "{kind}: {mid:?}");
+            // The finished transition is the new clip untouched
+            assert_eq!(apply2(Some(&red), &blue, &t, 1.0), blue);
+        }
+        // Half way the cube is two faces, and the corners of the frame are empty. The default
+        // comes in from the left, as a slide does
+        let cube = resolve(CUBE, &default).unwrap();
+        let half = apply2(Some(&red), &blue, &cube, 0.5);
+        assert_eq!(half.pixel(0, 0)[3], 0, "the corner is outside the cube");
+        let (left, right) = (half.pixel(w / 4, h / 2), half.pixel(3 * w / 4, h / 2));
+        assert!(left[2] > left[0], "the new clip is on the left: {left:?}");
+        assert!(
+            right[0] > right[2],
+            "the clip before is on the right: {right:?}"
+        );
+        // Entering from the right turns the other way round
+        let from_right = resolve(CUBE, &BTreeMap::from([("angle".to_string(), 180.0)])).unwrap();
+        let half = apply2(Some(&red), &blue, &from_right, 0.5);
+        let (left, right) = (half.pixel(w / 4, h / 2), half.pixel(3 * w / 4, h / 2));
+        assert!(
+            left[0] > left[2] && right[2] > right[0],
+            "{left:?} {right:?}"
+        );
+        // With no clip before, only the new face shows
+        let alone = apply2(None, &blue, &cube, 0.5);
+        assert_eq!(alone.pixel(3 * w / 4, h / 2)[3], 0);
+        assert_eq!(alone.pixel(w / 4, h / 2)[3], 255);
     }
 }

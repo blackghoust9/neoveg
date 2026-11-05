@@ -1398,6 +1398,9 @@ impl VfxGpu {
         if progress >= 1.0 {
             return Ok(frame.clone());
         }
+        if tr::cpu_only(t) && !matches!(t, tr::Resolved::WarpFlow) {
+            return Err("esta transicao roda na CPU".into());
+        }
         self.process_ops(frame, &[Op::Transition(*t, progress)], None)
     }
 
@@ -1418,8 +1421,8 @@ impl VfxGpu {
         if progress >= 1.0 {
             return Ok(incoming.clone());
         }
-        if matches!(t, tr::Resolved::WarpFlow) && outgoing.is_some() {
-            return Err("fluxo de deformacao entre dois quadros roda na CPU".into());
+        if tr::cpu_only(t) && (outgoing.is_some() || !matches!(t, tr::Resolved::WarpFlow)) {
+            return Err("esta transicao roda na CPU".into());
         }
         self.process_ops(incoming, &[Op::Transition(*t, progress)], outgoing)
     }
@@ -1695,7 +1698,10 @@ impl VfxGpu {
                             (p.c, p.d, p.e) = (color[0], color[1], color[2]);
                             Pass::TransFlash
                         }
-                        tr::Resolved::Dissolve | tr::Resolved::WarpFlow => Pass::TransMask,
+                        tr::Resolved::Dissolve
+                        | tr::Resolved::WarpFlow
+                        | tr::Resolved::Cube { .. }
+                        | tr::Resolved::Flip { .. } => Pass::TransMask,
                         tr::Resolved::LinearWipe { angle, softness } => {
                             (p.half, p.c, p.d) = (1, angle, softness);
                             Pass::TransMask
