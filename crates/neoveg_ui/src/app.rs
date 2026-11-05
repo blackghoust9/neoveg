@@ -804,6 +804,8 @@ struct AppState {
     organize_layouts: bool,
     /// The list of the templates the user saved (the welcome screen opens it).
     templates_window: crate::templates_window::TemplatesWindow,
+    /// Ferramentas > Gerenciador de plug-ins.
+    plugin_manager: crate::plugin_manager::PluginManager,
     /// `Alt+D` (load) or `Ctrl+Alt+D` (save) was pressed: the next number picks the layout, until this time.
     layout_chord: Option<(bool, f64)>,
     /// Auto ripple: deleting events closes the gap they leave (`Ctrl+L`).
@@ -1639,6 +1641,7 @@ impl AppState {
             all_events: self.prefs.snap_to_all_events,
         };
         self.quantize_frames = self.prefs.quantize_to_frames;
+        self.apply_plugin_prefs();
         self.persist_prefs = true;
         // New projects start with the settings the user chose to keep
         let defaults = self.prefs.new_project_settings.clone().unwrap_or_default();
@@ -1882,6 +1885,7 @@ impl AppState {
             layout_dialog: None,
             organize_layouts: false,
             templates_window: crate::templates_window::TemplatesWindow::default(),
+            plugin_manager: crate::plugin_manager::PluginManager::default(),
             layout_chord: None,
             auto_ripple: false,
             trim_edge: None,
@@ -5460,7 +5464,15 @@ impl AppState {
     }
 
     /// Writes the preferences when they are the user's real ones.
+    /// Hands the plug-in preferences (isolation, modules turned off) to the audio host.
+    fn apply_plugin_prefs(&self) {
+        neoveg_audio::vst3_isolated::set_isolation(self.prefs.vst3_isolated);
+        let blocked: Vec<PathBuf> = self.prefs.vst3_blocked.iter().map(PathBuf::from).collect();
+        neoveg_audio::vst3_host::set_blocked_modules(&blocked);
+    }
+
     fn persist_preferences(&self) {
+        self.apply_plugin_prefs();
         if self.persist_prefs {
             save_prefs(&self.prefs);
         }
@@ -8852,6 +8864,26 @@ impl NeovegApp {
             }
         }
 
+        let manager_actions = self.state.plugin_manager.show(
+            ctx,
+            self.state.prefs.vst3_isolated,
+            &self.state.prefs.vst3_blocked,
+        );
+        for action in manager_actions {
+            match action {
+                crate::plugin_manager::ManagerAction::SetIsolation(on) => {
+                    self.state.prefs.vst3_isolated = on;
+                }
+                crate::plugin_manager::ManagerAction::SetBlocked(path, off) => {
+                    self.state.prefs.vst3_blocked.retain(|p| *p != path);
+                    if off {
+                        self.state.prefs.vst3_blocked.push(path);
+                    }
+                }
+            }
+            self.state.persist_preferences();
+        }
+
         if !self.state.welcome.open {
             return;
         }
@@ -9918,6 +9950,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         scrolling_menu(ui, tr("Ferramentas"), |ui| {
             if ui.button(tr("Inspetor")).clicked() {
                 state.show_inspector = true;
+                ui.close_menu();
+            }
+            if ui.button(tr("Gerenciador de plug-ins…")).clicked() {
+                state.plugin_manager.open = true;
                 ui.close_menu();
             }
             command_item(state, ui, Command::RenderToNewTrack);

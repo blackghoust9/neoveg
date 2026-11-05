@@ -1,0 +1,13 @@
+[package]
+name = "neoveg_vst3_sample"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT OR Apache-2.0"
+description = "The gain example plug-in of the vst3 crate as a loadable library (a .vst3 file), for the tests of the isolated VST3 host"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+vst3 = "0.3"

@@ -19,5 +19,7 @@ pub mod record;
 pub mod stretch;
 pub mod sync;
 pub mod vst3_host;
+pub mod vst3_isolated;
+pub mod vst3_wire;
 pub mod waveform;
 pub mod whisper;

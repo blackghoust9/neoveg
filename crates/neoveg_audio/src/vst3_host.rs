@@ -811,8 +811,54 @@ pub fn probe_module(module: &Arc<Vst3Module>, path: &Path) -> Vec<Vst3PluginInfo
     found
 }
 
-/// Loads `path` (a `.vst3` file or bundle) and records its effects.
+/// The key under which a module that failed to scan is noted in [`crate::vst3_isolated::crashes`]
+/// (it is not a plug-in kind: there is no class id).
+pub fn module_key(path: &Path) -> String {
+    format!("{VST3_KIND_PREFIX}{}", path.to_string_lossy())
+}
+
+fn blocked() -> &'static RwLock<std::collections::HashSet<PathBuf>> {
+    static BLOCKED: OnceLock<RwLock<std::collections::HashSet<PathBuf>>> = OnceLock::new();
+    BLOCKED.get_or_init(Default::default)
+}
+
+/// Sets the modules the user turned off in the plug-in manager: they are not scanned, are not
+/// offered and do not load.
+pub fn set_blocked_modules(paths: &[PathBuf]) {
+    if let Ok(mut set) = blocked().write() {
+        *set = paths.iter().cloned().collect();
+    }
+}
+
+/// `true` when the user turned the module at `path` off.
+pub fn is_blocked(path: &Path) -> bool {
+    blocked().read().is_ok_and(|set| set.contains(path))
+}
+
+/// Loads `path` (a `.vst3` file or bundle) and records its effects. With the isolation on this
+/// happens in a child process (see [`crate::vst3_isolated`]); a module that crashes or hangs is an
+/// error here, noted under [`module_key`], and the editor is untouched.
 pub fn scan_vst3_file(path: &Path) -> Result<Vec<Vst3PluginInfo>, String> {
+    if crate::vst3_isolated::isolation_enabled() {
+        if let Some(host) = crate::vst3_isolated::host_exe() {
+            let key = module_key(path);
+            return match crate::vst3_isolated::scan_isolated(
+                path,
+                &host,
+                crate::vst3_isolated::SCAN_LIMIT,
+            ) {
+                Ok(found) => {
+                    crate::vst3_isolated::forget_crash(&key);
+                    merge_into_registry(&found);
+                    Ok(found)
+                }
+                Err(reason) => {
+                    crate::vst3_isolated::record_crash(&key, &reason);
+                    Err(reason)
+                }
+            };
+        }
+    }
     let module = Vst3Module::load(path)?;
     let found = probe_module(&module, path);
     merge_into_registry(&found);
@@ -873,6 +919,9 @@ pub fn scan_system_plugins() -> Vec<Vst3PluginInfo> {
         collect_modules(&dir, 0, &mut modules);
     }
     for module in modules {
+        if is_blocked(&module) {
+            continue;
+        }
         if let Err(err) = scan_vst3_file(&module) {
             tracing::warn!("[WARN] falha ao inspecionar `{}`: {err}", module.display());
         }
@@ -930,8 +979,30 @@ impl Vst3Effect {
     }
 }
 
-/// Instantiates and activates the hosted plug-in of `kind` as an [`AudioEffect`].
+/// The hosted plug-in of `kind` as an [`AudioEffect`]: in a child process when the isolation is on
+/// (see [`crate::vst3_isolated`]) and the child program is there, in this process otherwise. A
+/// plug-in that fails to open in the child is not tried again here: it is the one that would
+/// take the program down.
 pub fn create_vst3_effect(kind: &str, sample_rate: f32) -> Option<Box<dyn AudioEffect>> {
+    if parse_vst3_kind(kind).is_some_and(|(path, _)| is_blocked(Path::new(path))) {
+        tracing::warn!("[WARN] o plug-in VST3 `{kind}` está desligado no gerenciador de plug-ins");
+        return None;
+    }
+    if crate::vst3_isolated::isolation_enabled() {
+        match crate::vst3_isolated::host_exe() {
+            Some(host) => {
+                return crate::vst3_isolated::create_isolated_effect(kind, sample_rate, &host)
+            }
+            None => tracing::warn!(
+                "[WARN] neoveg_vst3_host não está ao lado do programa: o plug-in VST3 roda no processo do editor"
+            ),
+        }
+    }
+    create_vst3_effect_in_process(kind, sample_rate)
+}
+
+/// Instantiates and activates the plug-in of `kind` in this process (what the child program runs).
+pub fn create_vst3_effect_in_process(kind: &str, sample_rate: f32) -> Option<Box<dyn AudioEffect>> {
     let (path, class_text) = parse_vst3_kind(kind)?;
     let cid = class_id_from_text(class_text)?;
     let module = match Vst3Module::load(Path::new(path)) {

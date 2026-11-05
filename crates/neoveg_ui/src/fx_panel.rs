@@ -734,7 +734,11 @@ pub fn fx_ui(
                             }
                         }
                     }
-                    let vst3_plugins = vst3_host::cached_plugins();
+                    // What the user turned off in the plug-in manager is not offered
+                    let vst3_plugins: Vec<_> = vst3_host::cached_plugins()
+                        .into_iter()
+                        .filter(|p| !vst3_host::is_blocked(&p.path))
+                        .collect();
                     if !vst3_plugins.is_empty() {
                         ui.separator();
                         ui.weak(tr("Plug-ins VST3"));

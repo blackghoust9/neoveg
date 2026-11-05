@@ -30,6 +30,7 @@ mod media_properties_window;
 mod mixer_panel;
 mod notes_window;
 mod pan_crop_window;
+mod plugin_manager;
 mod precision_slider;
 mod project_dialog;
 mod render_dialog;

@@ -13,6 +13,7 @@ members = [
     "crates/neoveg_aaf",
     "crates/neoveg_ofx",
     "crates/neoveg_ofx_sample",
+    "crates/neoveg_vst3_sample",
     "crates/neoveg_ui",
 ]
 

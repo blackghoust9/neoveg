@@ -37,6 +37,7 @@ Neoveg Workspace
 │   ├── neoveg_engine/         # timeline, undoable commands, edit rules, crossfades, .neoveg files, autosave, relink
 │   ├── neoveg_ofx/            # OpenFX host prototype: a child process (`neoveg_ofx_host`) loads a plug-in library and reports what it describes; the program never loads one itself
 │   ├── neoveg_ofx_sample/     # a tiny OpenFX plug-in (cdylib) that only the tests of `neoveg_ofx` load
+│   ├── neoveg_vst3_sample/    # the gain example of the `vst3` crate as a loadable `.vst3` library, for the tests of the isolated VST3 host (`neoveg_audio/tests/isolated_vst3.rs`)
 │   └── neoveg_ui/             # egui/eframe application (binary `neoveg`)
 ├── docs/                      # research knowledge base (docs/research/nle_features_research.txt) and the legacy QA dashboard
 ├── Assets/i18n/               # runtime localization resources (pt-BR default)

@@ -77,6 +77,11 @@ pub struct Preferences {
     pub lock_envelopes_to_events: bool,
     /// The name the welcome screen greets; empty = the name of the operating system account.
     pub display_name: String,
+    /// Run VST3 plug-ins in a process of their own, so that one that crashes does not take the
+    /// editor with it (see `neoveg_audio::vst3_isolated`).
+    pub vst3_isolated: bool,
+    /// The `.vst3` modules the user turned off in the plug-in manager (their paths).
+    pub vst3_blocked: Vec<String>,
 }
 
 impl Default for Preferences {
@@ -112,6 +117,8 @@ impl Default for Preferences {
             hardware_decoding: true,
             lock_envelopes_to_events: false,
             display_name: String::new(),
+            vst3_isolated: true,
+            vst3_blocked: Vec::new(),
         }
     }
 }

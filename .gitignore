@@ -34,6 +34,8 @@ desktop.ini
 
 # C# / .NET / Avalonia
 bin/
+# ... but the source of the programs a crate builds (crates/<crate>/src/bin) is code
+!crates/*/src/bin/
 obj/
 [Dd]ebug/
 [Rr]elease/

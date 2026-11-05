@@ -239,7 +239,12 @@ impl IAudioProcessorTrait for GainProcessor {
     }
 
     unsafe fn getLatencySamples(&self) -> u32 {
-        0
+        // A test can ask the plug-in for a latency (it does not delay anything: the host only has to
+        // know about it)
+        std::env::var("NEOVEG_VST3_SAMPLE_LATENCY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
     }
 
     unsafe fn setupProcessing(&self, _setup: *mut ProcessSetup) -> tresult {
@@ -251,6 +256,10 @@ impl IAudioProcessorTrait for GainProcessor {
     }
 
     unsafe fn process(&self, data: *mut ProcessData) -> tresult {
+        // A test can make the plug-in crash on its first block, as a broken one would
+        if std::env::var("NEOVEG_VST3_SAMPLE").as_deref() == Ok("crash_on_process") {
+            std::process::abort();
+        }
         let process_data = &*data;
 
         if let Some(param_changes) = ComRef::from_raw(process_data.inputParameterChanges) {

@@ -8,6 +8,7 @@ description = "Neoveg audio: symphonia decoding, cpal output, real peak meters a
 
 [dependencies]
 neoveg_common.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 symphonia = { version = "0.5", features = ["all"] }
@@ -20,6 +21,10 @@ libloading = "0.8"
 candle-core = { version = "0.11", default-features = false }
 candle-nn = { version = "0.11", default-features = false }
 candle-transformers = { version = "0.11", default-features = false }
+
+[[bin]]
+name = "neoveg_vst3_host"
+path = "src/bin/neoveg_vst3_host.rs"
 
 [dev-dependencies]
 clack-plugin = "0.2"

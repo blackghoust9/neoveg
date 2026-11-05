@@ -2901,6 +2901,7 @@ dependencies = [
  "libloading",
  "neoveg_common",
  "nnnoiseless",
+ "serde",
  "serde_json",
  "symphonia",
  "tracing",
@@ -3020,6 +3021,13 @@ dependencies = [
  "serde_json",
  "tracing",
  "wgpu",
+]
+
+[[package]]
+name = "neoveg_vst3_sample"
+version = "2.1.0"
+dependencies = [
+ "vst3",
 ]
 
 [[package]]
