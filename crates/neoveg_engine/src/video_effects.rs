@@ -70,6 +70,10 @@ pub fn add_effect(timeline: &Timeline, target: VideoFxTarget, kind: &str) -> Opt
         if list.len() >= MAX_VIDEO_EFFECTS {
             return false;
         }
+        // A marker (Pan/Crop, Composite) is in a chain once: it says where one thing happens
+        if neoveg_common::fx_markers::is_marker(kind) && list.iter().any(|e| e.kind == kind) {
+            return false;
+        }
         list.push(TrackEffect::new(kind));
         true
     })
@@ -666,5 +670,50 @@ mod tests {
         assert!((right.video_effects[0].param_at("h_range", 0.01, 0.0) - 0.05).abs() < 1e-5);
         assert!((right.video_effects[0].param_at("h_range", 0.01, 2.0) - 0.09).abs() < 1e-5);
         assert!(h.undo(&mut tl));
+    }
+
+    #[test]
+    fn a_marker_goes_in_a_chain_once_and_moves_like_an_effect() {
+        use neoveg_common::fx_markers::{COMPOSITE, PAN_CROP};
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let id = track.id;
+        track.events.push(TrackEvent {
+            id: 5,
+            media_id: Some(1),
+            duration: 2.0,
+            ..Default::default()
+        });
+        tl.tracks.push(track);
+        let target = VideoFxTarget::Event {
+            track_id: id,
+            event_id: 5,
+        };
+        let mut history = crate::command::History::new();
+        for kind in ["gaussian_blur", PAN_CROP, "sharpen"] {
+            let command = add_effect(&tl, target, kind).unwrap();
+            assert!(history.execute(&mut tl, command));
+        }
+        assert!(
+            add_effect(&tl, target, PAN_CROP).is_none(),
+            "once in a chain"
+        );
+        // The other marker is another entry; both move and go like effects
+        let command = add_effect(&tl, target, COMPOSITE).unwrap();
+        assert!(history.execute(&mut tl, command));
+        let command = move_effect(&tl, target, 1, 0).unwrap();
+        assert!(history.execute(&mut tl, command));
+        let kinds: Vec<String> = chain(&tl, target)
+            .unwrap()
+            .iter()
+            .map(|e| e.kind.clone())
+            .collect();
+        assert_eq!(kinds, [PAN_CROP, "gaussian_blur", "sharpen", COMPOSITE]);
+        let command = remove_effect(&tl, target, 0).unwrap();
+        assert!(history.execute(&mut tl, command));
+        assert!(
+            add_effect(&tl, target, PAN_CROP).is_some(),
+            "free again once removed"
+        );
     }
 }

@@ -1668,5 +1668,9 @@
   "Lendo {}…": "Lecture de {}…",
   "{} plug-ins na lista.": "{} plug-ins dans la liste.",
   "A leitura falhou: {}": "La lecture a échoué : {}",
-  "Lê de um arquivo as predefinições dos efeitos de áudio": "Lit dans un fichier les préréglages des effets audio"
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "Lit dans un fichier les préréglages des effets audio",
+  "Marcador Pan/Crop": "Repère Pan/Crop",
+  "Marcador Composite": "Repère Composite",
+  "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "Les effets au-dessus s'appliquent avant le Pan/Crop de l'événement ; ceux en dessous, après.",
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Les effets au-dessus s'appliquent à la couche de la piste ; ceux en dessous, au résultat de la composition."
 }

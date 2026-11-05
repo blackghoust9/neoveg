@@ -258,6 +258,11 @@ pub fn effects_for_at(
         if e.bypass {
             continue;
         }
+        // A marker is not an effect but it stays in the chain: the worker reads where it is
+        if neoveg_common::fx_markers::is_marker(&e.kind) {
+            out.push(VideoEffect::new(&e.kind));
+            continue;
+        }
         let Some(spec) = vfx::spec(&e.kind) else {
             continue;
         };
@@ -392,6 +397,25 @@ pub fn vfx_ui(
                         actions.push(VfxAction::Add(spec.id));
                     }
                 }
+                // The marker of the scope: Pan/Crop in the chain of an event, Composite in the one of
+                // a track; once in a chain
+                let marker = match panel.scope {
+                    VfxScope::Event => Some(neoveg_common::fx_markers::PAN_CROP),
+                    VfxScope::Track => Some(neoveg_common::fx_markers::COMPOSITE),
+                    VfxScope::Media | VfxScope::Project => None,
+                };
+                if let Some(kind) = marker {
+                    ui.separator();
+                    let there = chain.iter().any(|e| e.kind == kind);
+                    let label = tr(neoveg_common::fx_markers::label(kind));
+                    if ui
+                        .add_enabled(!there, egui::SelectableLabel::new(false, label))
+                        .on_hover_text(tr(neoveg_common::fx_markers::hint(kind)))
+                        .clicked()
+                    {
+                        actions.push(VfxAction::Add(kind));
+                    }
+                }
             });
     });
     ui.horizontal(|ui| {
@@ -482,19 +506,28 @@ fn effect_ui(
     actions: &mut Vec<VfxAction>,
 ) {
     let spec = vfx::spec(&effect.kind);
+    let marker = neoveg_common::fx_markers::is_marker(&effect.kind);
     ui.horizontal(|ui| {
-        if icons::icon_button_sized(
-            ui,
-            Icon::Bypass,
-            tr("Ligar ou desligar o efeito (bypass)"),
-            !effect.bypass,
-            22.0,
-        )
-        .clicked()
+        if !marker
+            && icons::icon_button_sized(
+                ui,
+                Icon::Bypass,
+                tr("Ligar ou desligar o efeito (bypass)"),
+                !effect.bypass,
+                22.0,
+            )
+            .clicked()
         {
             actions.push(VfxAction::Bypass(index, !effect.bypass));
         }
-        ui.strong(tr_text(spec.map_or(effect.kind.as_str(), |s| s.label)));
+        if marker {
+            ui.strong(format!(
+                "▸ {}",
+                tr(neoveg_common::fx_markers::label(&effect.kind))
+            ));
+        } else {
+            ui.strong(tr_text(spec.map_or(effect.kind.as_str(), |s| s.label)));
+        }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if icons::icon_button_sized(ui, Icon::Remove, tr("Remover o efeito"), false, 22.0)
                 .clicked()
@@ -523,6 +556,10 @@ fn effect_ui(
             });
         });
     });
+    if marker {
+        ui.weak(tr(neoveg_common::fx_markers::hint(&effect.kind)));
+        return;
+    }
     let Some(spec) = spec else {
         ui.colored_label(
             egui::Color32::from_rgb(231, 76, 60),

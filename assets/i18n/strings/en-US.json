@@ -1668,5 +1668,9 @@
   "Lendo {}…": "Reading {}…",
   "{} plug-ins na lista.": "{} plug-ins in the list.",
   "A leitura falhou: {}": "Reading failed: {}",
-  "Lê de um arquivo as predefinições dos efeitos de áudio": "Reads the presets of the audio effects from a file"
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "Reads the presets of the audio effects from a file",
+  "Marcador Pan/Crop": "Pan/Crop marker",
+  "Marcador Composite": "Composite marker",
+  "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "The effects above run before the Pan/Crop of the event; the ones below, after it.",
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "The effects above run on the layer of the track; the ones below, on the result of the compositing."
 }

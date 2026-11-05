@@ -10,6 +10,7 @@ pub mod composite;
 pub mod effect_preset;
 pub mod envelope;
 pub mod fade;
+pub mod fx_markers;
 pub mod grade;
 pub mod i18n;
 pub mod keymap;

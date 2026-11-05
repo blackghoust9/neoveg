@@ -515,6 +515,20 @@ pub(super) fn composite_request(
         } else {
             track_effects
         };
+        // The Composite marker of the chain: what is after it runs on the composited result (an
+        // adjustment right after the layer), what is before it on the layer itself
+        let (layer_effects, after_composite) = {
+            let (before, after) = neoveg_common::fx_markers::split(&layer_effects, |e| {
+                e.kind == neoveg_common::fx_markers::COMPOSITE
+            });
+            match after {
+                Some(after) => (before.to_vec(), after.to_vec()),
+                None => (layer_effects.clone(), Vec::new()),
+            }
+        };
+        let adjust_after =
+            (!after_composite.is_empty() && track_state.level > 0.0 && !clips.is_empty())
+                .then_some(after_composite);
         if !clips.is_empty() {
             nodes.push(TrackCompositeNode::Track {
                 clips,
@@ -524,6 +538,12 @@ pub(super) fn composite_request(
                 fade_color: neoveg_engine::envelope::fade_mix(track, track_state.fade).0,
                 fade_amount: neoveg_engine::envelope::fade_mix(track, track_state.fade).1,
                 motion: track_motion_frame(track, time, settings),
+            });
+        }
+        if let Some(effects) = adjust_after {
+            nodes.push(TrackCompositeNode::Adjust {
+                effects,
+                opacity: 1.0,
             });
         }
         per_track[index] = nodes;
@@ -565,7 +585,12 @@ pub(super) fn has_effects(
     time: f64,
     project_resample: neoveg_common::presets::ResampleMode,
 ) -> bool {
-    let on = |chain: &[neoveg_engine::TrackEffect]| chain.iter().any(|e| !e.bypass);
+    // A marker is no effect: a chain of only a marker changes nothing
+    let on = |chain: &[neoveg_engine::TrackEffect]| {
+        chain
+            .iter()
+            .any(|e| !e.bypass && !neoveg_common::fx_markers::is_marker(&e.kind))
+    };
     // A compositing parent with children is put together by the composite path
     if neoveg_engine::track_tree::effective_levels(&timeline.tracks)
         .iter()
@@ -1780,5 +1805,41 @@ mod tests {
         );
         assert!(clips[1].transitions[0].entering);
         assert!((clips[1].transitions[0].progress - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn effects_after_the_composite_marker_become_an_adjustment_after_the_layer() {
+        use neoveg_common::fx_markers::COMPOSITE;
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Video);
+        let e = event(&mut tl, 1, 0.0, 4.0);
+        track.events.push(e);
+        track.video_effects = vec![
+            neoveg_engine::TrackEffect::new(vfx::VIGNETTE),
+            neoveg_engine::TrackEffect::new(COMPOSITE),
+            neoveg_engine::TrackEffect::new(vfx::INVERT),
+        ];
+        tl.tracks.push(track);
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(
+            request.nodes.len(),
+            2,
+            "the layer and the adjustment after it"
+        );
+        let TrackCompositeNode::Track { effects, .. } = &request.nodes[0] else {
+            panic!("the layer first");
+        };
+        assert_eq!(effects.len(), 1, "the vignette stays on the layer");
+        assert_eq!(effects[0].kind, vfx::VIGNETTE);
+        let TrackCompositeNode::Adjust { effects, opacity } = &request.nodes[1] else {
+            panic!("the post-composite effects are an adjustment");
+        };
+        assert_eq!((effects.len(), *opacity), (1, 1.0));
+        assert_eq!(effects[0].kind, vfx::INVERT);
+        // A chain of only a marker is no effect at all
+        tl.tracks[0].video_effects = vec![neoveg_engine::TrackEffect::new(COMPOSITE)];
+        assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));
+        let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
+        assert_eq!(request.nodes.len(), 1);
     }
 }

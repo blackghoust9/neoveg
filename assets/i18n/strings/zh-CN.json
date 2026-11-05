@@ -1668,5 +1668,9 @@
   "Lendo {}…": "正在读取 {}…",
   "{} plug-ins na lista.": "列表中有 {} 个插件。",
   "A leitura falhou: {}": "读取失败：{}",
-  "Lê de um arquivo as predefinições dos efeitos de áudio": "从文件读取音频效果的预设"
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "从文件读取音频效果的预设",
+  "Marcador Pan/Crop": "平移/裁剪标记",
+  "Marcador Composite": "合成标记",
+  "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "标记上方的效果在事件的平移/裁剪之前运行，下方的在其之后运行。",
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "标记上方的效果作用于轨道图层，下方的作用于合成结果。"
 }

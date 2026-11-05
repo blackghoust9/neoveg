@@ -1668,5 +1668,9 @@
   "Lendo {}…": "Чтение {}…",
   "{} plug-ins na lista.": "Плагинов в списке: {}.",
   "A leitura falhou: {}": "Ошибка чтения: {}",
-  "Lê de um arquivo as predefinições dos efeitos de áudio": "Читает из файла пресеты аудиоэффектов"
+  "Lê de um arquivo as predefinições dos efeitos de áudio": "Читает из файла пресеты аудиоэффектов",
+  "Marcador Pan/Crop": "Маркер Pan/Crop",
+  "Marcador Composite": "Маркер Composite",
+  "Os efeitos acima rodam antes do Pan/Crop do evento; os abaixo, depois.": "Эффекты выше выполняются до Pan/Crop события, ниже — после него.",
+  "Os efeitos acima rodam na camada da faixa; os abaixo, no resultado da composição.": "Эффекты выше применяются к слою дорожки, ниже — к результату композиции."
 }
