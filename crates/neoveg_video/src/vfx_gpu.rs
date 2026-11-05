@@ -2465,6 +2465,11 @@ mod tests {
         }
         for spec in tr::transitions() {
             let t = tr::resolve(spec.id, &std::collections::BTreeMap::new()).expect("resolves");
+            if tr::cpu_only(&t) && !matches!(t, tr::Resolved::WarpFlow) {
+                // The 3D transitions are the CPU's alone: the GPU refuses them and the worker falls back
+                assert!(gpu.process_transition(&original, &t, 0.5).is_err());
+                continue;
+            }
             for progress in [0.0, 0.2, 0.55, 0.9] {
                 let cpu = tr::apply(&original, &t, progress);
                 let on_gpu = gpu

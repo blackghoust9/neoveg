@@ -416,7 +416,11 @@ mod tests {
         for t in transitions::transitions() {
             let half = preview(t.id, &none, w, h, 0.5).unwrap();
             assert_eq!(half.rgba.len(), (w * h * 4) as usize);
-            assert!(half.rgba.chunks_exact(4).all(|p| p[3] == 255), "{}", t.id);
+            assert!(
+                half.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255),
+                "{}",
+                t.id
+            );
         }
         assert!(preview("from_the_future", &none, w, h, 0.5).is_none());
     }
