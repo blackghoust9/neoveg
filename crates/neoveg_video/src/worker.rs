@@ -2311,6 +2311,54 @@ mod tests {
     fn video_container_without_ffmpeg_reports_clear_portuguese_message() {
         assert!(probe(Path::new("x.mp4")).unwrap_err().contains("ffmpeg"));
     }
+
+    #[test]
+    fn effects_before_the_pan_crop_marker_run_before_the_zoom_and_after_it_they_run_after() {
+        use neoveg_common::fx_markers::PAN_CROP;
+        let dir = std::env::temp_dir().join(format!("neoveg_worker_marker_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("split.png");
+        let mut img = ImageBuffer::from_pixel(128, 96, Rgba([0u8, 0, 0, 255]));
+        for y in 0..96 {
+            for x in 64..128 {
+                img.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+        img.save(&path).unwrap();
+        let blur = || VideoEffect::new(vfx::GAUSSIAN_BLUR).with("h_range", 0.05);
+        let marker = || VideoEffect::new(PAN_CROP);
+        let render = |chain: Vec<VideoEffect>| {
+            let mut request = effect_request(&path, chain, Vec::new());
+            if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
+                // A zoom into the right half of the picture: the edge between black and white
+                // leaves the frame, and what stays is white
+                clips[0].pan_crop = Some(PanCropRequest {
+                    frame: neoveg_common::pan_crop::PanCropFrame {
+                        x_center: 0.75,
+                        y_center: 0.5,
+                        width: 0.5,
+                        height: 1.0,
+                        rotation_deg: 0.0,
+                    },
+                    stretch_to_fill: true,
+                });
+            }
+            OfflineFrameRenderer::new().render_frame(&request).unwrap()
+        };
+        let none = render(Vec::new());
+        let after = render(vec![marker(), blur()]);
+        let before = render(vec![blur(), marker()]);
+        let unmarked = render(vec![blur()]);
+        // Without the marker the effects run after the Pan/Crop, as they did; with the blur after
+        // the marker the picture is the same
+        assert_eq!(after, unmarked);
+        // Blurring first, then zooming into the half that was blurred: the black edge's glow reaches
+        // into the white half, which the zoom then shows
+        assert_ne!(before, after);
+        assert_ne!(before, none);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 #[cfg(all(test, feature = "ffmpeg"))]
@@ -2365,53 +2413,5 @@ mod ffmpeg_tests {
             .result
             .is_err());
         let _ = std::fs::remove_file(path);
-    }
-
-    #[test]
-    fn effects_before_the_pan_crop_marker_run_before_the_zoom_and_after_it_they_run_after() {
-        use neoveg_common::fx_markers::PAN_CROP;
-        let dir = std::env::temp_dir().join(format!("neoveg_worker_marker_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("split.png");
-        let mut img = ImageBuffer::from_pixel(128, 96, Rgba([0u8, 0, 0, 255]));
-        for y in 0..96 {
-            for x in 64..128 {
-                img.put_pixel(x, y, Rgba([255, 255, 255, 255]));
-            }
-        }
-        img.save(&path).unwrap();
-        let blur = || VideoEffect::new(vfx::GAUSSIAN_BLUR).with("h_range", 0.05);
-        let marker = || VideoEffect::new(PAN_CROP);
-        let render = |chain: Vec<VideoEffect>| {
-            let mut request = effect_request(&path, chain, Vec::new());
-            if let TrackCompositeNode::Track { clips, .. } = &mut request.nodes[0] {
-                // A zoom into the right half of the picture: the edge between black and white
-                // leaves the frame, and what stays is white
-                clips[0].pan_crop = Some(PanCropRequest {
-                    frame: neoveg_common::pan_crop::PanCropFrame {
-                        x_center: 0.75,
-                        y_center: 0.5,
-                        width: 0.5,
-                        height: 1.0,
-                        rotation_deg: 0.0,
-                    },
-                    stretch_to_fill: true,
-                });
-            }
-            OfflineFrameRenderer::new().render_frame(&request).unwrap()
-        };
-        let none = render(Vec::new());
-        let after = render(vec![marker(), blur()]);
-        let before = render(vec![blur(), marker()]);
-        let unmarked = render(vec![blur()]);
-        // Without the marker the effects run after the Pan/Crop, as they did; with the blur after
-        // the marker the picture is the same
-        assert_eq!(after, unmarked);
-        // Blurring first, then zooming into the half that was blurred: the black edge's glow reaches
-        // into the white half, which the zoom then shows
-        assert_ne!(before, after);
-        assert_ne!(before, none);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

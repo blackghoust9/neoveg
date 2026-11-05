@@ -582,7 +582,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 10 — Fluxos de trabalho (entrada 16)**
 - [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
 - [ ] Proxies inteligentes (troca automática conforme a qualidade da prévia; render usa o original)
-- [~] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto (**feito**, vídeo e áudio de faixa), com marcadores Pan/Crop e Composite na cadeia (falta)
+- [x] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto, com os marcadores **Pan/Crop** (cadeia do evento: o que fica acima do marcador roda na imagem antes do Pan/Crop, o que fica abaixo, depois; sem o marcador tudo roda depois, como antes) e **Composite** (cadeia da faixa: acima, na camada da faixa; abaixo, no resultado da composição, que vira um ajuste logo depois da camada), como os botões Pan/Crop e Composite da cadeia de plug-ins do VEGAS. No menu *Adicionar efeito…* do painel *Efeitos de Vídeo* aparece o marcador do escopo (uma vez por cadeia); ele sobe e desce como um efeito (`neoveg_common::fx_markers`, `worker::finish_clip`, `composite_request`). Os 4 testes novos passam
 - [ ] Color Match, LUTs/OpenColorIO, scopes (vectorscope, forma de onda, histograma, parada RGB)
 - [ ] Projetos aninhados e eventos de ajuste; painel de rastreamento de movimento; ferramentas de IA (transcrição, edição por texto, máscara, upscale)
 
