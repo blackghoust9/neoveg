@@ -1730,5 +1730,6 @@
   "Criando o subclipe {}…": "正在创建子剪辑 {}…",
   "Subclipe na mídia do projeto: {}": "项目媒体中的子剪辑:{}",
   "Evento revertido: agora toca {}": "事件已倒放:现在播放 {}",
-  "Evento trocado pelo subclipe {}": "事件已替换为子剪辑 {}"
+  "Evento trocado pelo subclipe {}": "事件已替换为子剪辑 {}",
+  "Renomear evento": "重命名事件"
 }

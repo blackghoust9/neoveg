@@ -1730,5 +1730,6 @@
   "Criando o subclipe {}…": "サブクリップ {} を作成中…",
   "Subclipe na mídia do projeto: {}": "プロジェクトメディアのサブクリップ:{}",
   "Evento revertido: agora toca {}": "イベントを逆再生にしました:{} を再生します",
-  "Evento trocado pelo subclipe {}": "イベントをサブクリップ {} に置き換えました"
+  "Evento trocado pelo subclipe {}": "イベントをサブクリップ {} に置き換えました",
+  "Renomear evento": "イベント名を変更"
 }

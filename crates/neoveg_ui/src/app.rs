@@ -704,6 +704,8 @@ struct AppState {
     keymap_set_name: String,
     keymap_sets: Option<Vec<String>>,
     show_inspector: bool,
+    /// F2: the name box of the Inspector takes the focus the next time it is drawn.
+    focus_event_name: bool,
     /// The metronome clicks during playback.
     metronome_on: bool,
     /// The audio recording in progress and the timeline time it started at.
@@ -1971,6 +1973,7 @@ impl AppState {
             keymap_set_name: String::new(),
             keymap_sets: None,
             show_inspector: false,
+            focus_event_name: false,
             metronome_on: false,
             recorder: None,
             record_start: 0.0,
@@ -4067,6 +4070,7 @@ impl AppState {
             Command::EditSmartSplit => {
                 ops::can_smart_split(&self.timeline, self.time_selection, &self.selection.refs())
             }
+            Command::EditRenameEvent => self.selection.primary().is_some(),
             Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
             Command::EditPitchUp
             | Command::EditPitchDown
@@ -8675,6 +8679,10 @@ impl AppState {
                 self.focus_track_list = false;
                 self.window_request = Some(WindowAction::Toggle(Tab::Timeline));
             }
+            Command::ViewProjectNotes => self.notes.open = true,
+            Command::ViewMediaGenerators => self.generator_dialog.open = true,
+            Command::ViewPluginManager => self.plugin_manager.open = true,
+            Command::ViewEditDetails => self.show_details = true,
             Command::ViewLayoutLoad | Command::ViewLayoutSave => {
                 let save = command == Command::ViewLayoutSave;
                 self.layout_chord = Some((save, now + 3.0));
@@ -8725,6 +8733,10 @@ impl AppState {
             Command::TransportRecord => self.toggle_recording(ctx),
             Command::EditSplit => self.split_at_playhead(),
             Command::EditSmartSplit => self.smart_split(),
+            Command::EditRenameEvent => {
+                self.show_inspector = true;
+                self.focus_event_name = true;
+            }
             Command::EditHeal => self.heal_selected_events(),
             Command::EditPitchUp => self.nudge_selected_pitch(1.0),
             Command::EditPitchDown => self.nudge_selected_pitch(-1.0),
@@ -10236,6 +10248,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             for command in [
                 Command::EditSplit,
                 Command::EditSmartSplit,
+                Command::EditRenameEvent,
                 Command::EditHeal,
                 Command::EditMediaProperties,
                 Command::EditCloseGaps,
@@ -10321,10 +10334,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.compositors.open = true;
                 ui.close_menu();
             }
-            if ui.button(tr("Inserir mídia gerada…")).clicked() {
-                state.generator_dialog.open = true;
-                ui.close_menu();
-            }
+            command_item(state, ui, Command::ViewMediaGenerators);
             if ui.button(tr("Inserir apresentação de slides…")).clicked() {
                 state.slideshow.open = true;
                 ui.close_menu();
@@ -10403,10 +10413,7 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.show_inspector = true;
                 ui.close_menu();
             }
-            if ui.button(tr("Gerenciador de plug-ins…")).clicked() {
-                state.plugin_manager.open = true;
-                ui.close_menu();
-            }
+            command_item(state, ui, Command::ViewPluginManager);
             command_item(state, ui, Command::RenderToNewTrack);
             command_item(state, ui, Command::RenderAndReplace);
             command_item(state, ui, Command::EditCreateSubclip);
@@ -10482,14 +10489,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         });
         scrolling_menu(ui, tr("Exibir"), |ui| {
             ui.checkbox(&mut state.show_bars, tr("Barras de cor SMPTE"));
-            if ui.button(tr("Notas do projeto…")).clicked() {
-                state.notes.open = true;
-                ui.close_menu();
-            }
-            if ui.button(tr("Detalhes de edição…")).clicked() {
-                state.show_details = true;
-                ui.close_menu();
-            }
+            command_item(state, ui, Command::ViewProjectNotes);
+            command_item(state, ui, Command::ViewEditDetails);
             ui.separator();
             for command in [
                 Command::ViewPreview,
@@ -13030,6 +13031,10 @@ fn inspector_window(ctx: &egui::Context, state: &mut AppState) {
             ui.horizontal(|ui| {
                 ui.label(tr("Nome"));
                 let response = ui.text_edit_singleline(&mut new_name);
+                // F2 sends the cursor here
+                if std::mem::take(&mut state.focus_event_name) {
+                    response.request_focus();
+                }
                 if response.lost_focus() && new_name.trim() != name {
                     rename = Some(new_name.clone());
                 }

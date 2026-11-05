@@ -1730,5 +1730,6 @@
   "Criando o subclipe {}…": "Создаётся субклип {}…",
   "Subclipe na mídia do projeto: {}": "Субклип в медиа проекта: {}",
   "Evento revertido: agora toca {}": "Событие развёрнуто: теперь играет {}",
-  "Evento trocado pelo subclipe {}": "Событие заменено субклипом {}"
+  "Evento trocado pelo subclipe {}": "Событие заменено субклипом {}",
+  "Renomear evento": "Переименовать событие"
 }

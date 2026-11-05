@@ -46,7 +46,7 @@ Na prática:
 | **Agrupar.** `G` agrupa, `U` tira do grupo, `Ctrl+U` dissolve, `Shift+G` seleciona o grupo, `Ctrl+Shift+U` ignora o agrupamento. | **igual**. |
 | **Ripple.** `F`, `Ctrl+F`, `Ctrl+Shift+F` escolhem o alcance; `Ctrl+L` liga o ripple automático. | **igual**. |
 | **Colar.** `Ctrl+V` cola; `Ctrl+Shift+V` cola inserindo; `Ctrl+B` repete a colagem. | **igual**. |
-| **Renomear o evento selecionado:** `F2`. | **falta** (o nome se edita no cabeçalho do evento). |
+| **Renomear o evento selecionado:** `F2`. | **igual no efeito**: `F2` abre o Inspetor com o cursor na caixa *Nome*; o nome também se edita ali. |
 | **Mover eventos com o teclado numérico** (`1`/`3` um quadro, `4`/`6` um pixel, `8`/`2` uma faixa acima ou abaixo). | **falta** fora do modo de aparo por teclado. |
 | **Transformar corte em transição** e o contrário (`/`, `*`, `-` do teclado numérico, com `Ctrl`). | **falta**. |
 | **Abrir o sub-projeto** (`Alt+N`) e o projeto pai (`Alt+P`). | **falta** (o Neoveg cria o sub-projeto com `Alt+C`, que também é do manual). |
@@ -59,7 +59,7 @@ Na prática:
 | **Alinhamento (snap)**: `F8` liga e desliga; `Ctrl+F8` à grade, `Shift+F8` a marcadores, `Ctrl+Shift+F8` a todos os eventos; `Alt+F8` quantiza as edições aos quadros (*Quantize to Frames*). `Shift` ao arrastar inverte o alinhamento. | **igual**. |
 | **Pontos de entrada e saída**: `I` e `O` marcam o início e o fim da seleção de tempo no cursor. | **igual**. |
 | **Marcadores e regiões**: `M` insere marcador, `R` região, `C` marcador de comando; as teclas `0` a `9` vão ao marcador ou região de mesmo número; `Ctrl+←` e `Ctrl+→` vão ao marcador ou borda de região anterior ou seguinte. | **igual**. |
-| **Reprodução e varredura (scrub)**: `L` avança (de novo, acelera: 1x, 2x, 4x…), `J` volta, `K` pausa; `Espaço` toca ou pausa; `Q` repete em laço; `Shift+Q` seleciona a região de laço. | **igual**. |
+| **Reprodução e varredura (scrub)**: `L` avança (de novo, acelera: 1x, 2x, 4x…), `J` volta, `K` pausa; `Espaço` toca ou pausa; `Q` e `Ctrl+Shift+L` repetem em laço; `Shift+Q` seleciona a região de laço; `Shift+Espaço` e `Shift+F12` tocam do início; `Ctrl+F12`, `F12` e `Ctrl+Espaço` tocam ou pausam. | **igual**; **diferente** só em que `F12` e `Ctrl+Espaço` (*tocar de qualquer janela*) aqui alternam tocar e pausar, e em que `Enter` (também play/pause no manual) fica sem ligação, porque o Enter aperta o botão que estiver com o foco no egui. |
 | **Mover o cursor**: `Home` e `End` ao início e ao fim da seleção ou da vista; `Ctrl+Home`/`Ctrl+End` e `W` ao início e ao fim do projeto; `\` centraliza a vista; `Ctrl+Alt+←/→` vão às bordas de evento e de fade; `Backspace` restaura as últimas cinco seleções de tempo. | **igual**. |
 | **Setas.** No manual, `←` e `→` movem **um pixel** (um quadro com a quantização ligada) e `Alt+←/→` um quadro. | **diferente, aceito**: o Neoveg move um quadro com `←` e `→`, e `Alt+←/→` também (AGENTS.md §4.5). |
 | **Mover em marcas da grade**: `Page Up` e `Page Down`. | **falta** (as teclas servem à rolagem de faixas com `Ctrl+Alt`). |
@@ -98,7 +98,8 @@ Na prática:
 | **Docking com abas no rodapé** do grupo de janelas, abas planas e compactas, menu de contexto do grupo (fechar, desencaixar, mover para, maximizar), layouts numerados `Alt+D` e depois `0` a `9`. | **igual** (`footer_tabs`, `dock_footer`, `layouts`). |
 | **Menus**: Arquivo, Editar, Exibir, Inserir, Ferramentas, Opções, Ajuda, com as janelas do manual (`Alt+0` a `Alt+9`, `Ctrl+Alt+1` a `Ctrl+Alt+8`). | **diferente**: o Neoveg usa *Arquivo, Editar, Faixas, Ferramentas, Exibir e Ajuda*, e liga só parte das janelas (ver abaixo). |
 | **Janelas e as teclas do manual.** `Alt+0` foco na linha do tempo, `Alt+2` Trimmer, `Alt+3` Master Bus, `Alt+4` Video Preview, `Alt+5` Project Media, `Alt+7` Transitions, `Alt+8` Video FX, `Ctrl+Alt+2` Video Scopes, `Ctrl+Alt+5` Mixing Console, `Ctrl+Alt+7` Loudness. | **igual**. |
-| Sem tecla no Neoveg: `Alt+1` Explorer, `Alt+6` Project Notes, `Alt+9` Media Generators, `Ctrl+Alt+1` Plug-In Manager, `Ctrl+Alt+3` Surround Panner, `Ctrl+Alt+4` Edit Details, `Ctrl+Alt+6` Device Explorer, `Ctrl+Alt+8` Dashboard. | **falta** a tecla (as janelas de notas, detalhes, geradores e gerenciador de plug-ins existem; só estão no menu). |
+| `Alt+6` Project Notes, `Alt+9` Media Generators, `Ctrl+Alt+1` Plug-In Manager e `Ctrl+Alt+4` Edit Details. | **igual** (a mesma tecla abre a janela). |
+| Sem equivalente no Neoveg: `Alt+1` Explorer, `Ctrl+Alt+3` Surround Panner, `Ctrl+Alt+6` Device Explorer, `Ctrl+Alt+8` Dashboard. | **falta** (não há essas janelas). |
 
 ## 6. Como conferir
 

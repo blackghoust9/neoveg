@@ -219,6 +219,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditDelete, &["Delete"]),
     (Command::EditSplit, &["S"]),
     (Command::EditSmartSplit, &["Alt+S"]),
+    // F2 renames the selected event in the reference map
+    (Command::EditRenameEvent, &["F2"]),
     // The reference map gives no key to making a subclip or reversing an event: these are Neoveg's
     // own, on chords that neither the reference map (v18 list, v21 manual) nor this one uses
     (Command::EditCreateSubclip, &["Ctrl+Alt+C"]),
@@ -332,13 +334,21 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::SelectionRestorePrevious, &["Backspace"]),
     // Enter also plays/pauses in the reference map; it is left unbound here because Enter
     // activates a focused button in egui.
-    (Command::TransportPlayToggle, &["Space"]),
+    // The reference map also plays and pauses with Ctrl+F12, and starts playback from any window
+    // with F12 and Ctrl+Space (here a toggle, which is what the key is for on a window without focus)
+    (
+        Command::TransportPlayToggle,
+        &["Space", "Ctrl+F12", "F12", "Ctrl+Space"],
+    ),
     (Command::TransportShuttleReverse, &["J"]),
     (Command::TransportShuttlePause, &["K"]),
     (Command::TransportShuttleForward, &["L"]),
     (Command::TransportStop, &["Escape"]),
-    (Command::TransportPlayFromStart, &["Shift+Space"]),
-    (Command::TransportLoop, &["Q"]),
+    (
+        Command::TransportPlayFromStart,
+        &["Shift+Space", "Shift+F12"],
+    ),
+    (Command::TransportLoop, &["Q", "Ctrl+Shift+L"]),
     (Command::TransportRecord, &["Ctrl+R"]),
     (Command::OptionsSnapping, &["F8"]),
     (Command::OptionsAutoCrossfade, &["Ctrl+Shift+X"]),
@@ -363,6 +373,12 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::ViewWaveforms, &["Ctrl+Shift+W"]),
     (Command::TrackToggleEnvelopes, &["Ctrl+Shift+E"]),
     (Command::ViewFocusTimeline, &["Alt+0"]),
+    // The windows the reference map gives a key: Project Notes, Media Generators, Plug-In Manager and
+    // Edit Details
+    (Command::ViewProjectNotes, &["Alt+6"]),
+    (Command::ViewMediaGenerators, &["Alt+9"]),
+    (Command::ViewPluginManager, &["Ctrl+Alt+1"]),
+    (Command::ViewEditDetails, &["Ctrl+Alt+4"]),
     (Command::ViewMixingConsole, &["Ctrl+Alt+5"]),
     (Command::ViewMinimizeDock, &["F11", "Alt+`"]),
     (Command::ViewMaximizeTimeline, &["Ctrl+F11", "Ctrl+Alt+`"]),
@@ -802,6 +818,16 @@ mod tests {
             ("Alt+Right", "cursor.right_by_frame"),
             ("Ctrl+Z", "edit.undo"),
             ("Ctrl+Y", "edit.redo"),
+            ("F2", "edit.rename_event"),
+            ("Alt+6", "view.project_notes"),
+            ("Alt+9", "view.media_generators"),
+            ("Ctrl+Alt+1", "view.plugin_manager"),
+            ("Ctrl+Alt+4", "view.edit_details"),
+            ("Ctrl+F12", "transport.play_toggle"),
+            ("F12", "transport.play_toggle"),
+            ("Ctrl+Space", "transport.play_toggle"),
+            ("Shift+F12", "transport.play_from_start"),
+            ("Ctrl+Shift+L", "transport.loop"),
         ];
         let map = KeyMap::defaults();
         for (key, id) in rows {

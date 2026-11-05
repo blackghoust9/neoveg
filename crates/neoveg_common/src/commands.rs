@@ -108,6 +108,7 @@ commands! {
     EditResizeAdjustmentToProject => ("edit.resize_adjustment_to_project", "Redimensionar eventos de ajuste ao projeto", Edit, true),
     EditSplit => ("edit.split", "Dividir no cursor", Edit, true),
     EditSmartSplit => ("edit.smart_split", "Divisão inteligente", Edit, true),
+    EditRenameEvent => ("edit.rename_event", "Renomear evento", Edit, true),
     EditHeal => ("edit.heal", "Curar eventos divididos", Edit, true),
     EditMediaProperties => ("edit.media_properties", "Propriedades da mídia…", Edit, true),
     EditPitchUp => ("edit.pitch_up", "Tom do evento: subir um semitom", Edit, true),
@@ -258,6 +259,10 @@ commands! {
 
     // ---- Exibir
     ViewFocusTimeline => ("view.focus_timeline", "Foco na linha do tempo", View, true),
+    ViewProjectNotes => ("view.project_notes", "Notas do projeto…", View, true),
+    ViewMediaGenerators => ("view.media_generators", "Inserir mídia gerada…", View, true),
+    ViewPluginManager => ("view.plugin_manager", "Gerenciador de plug-ins…", View, true),
+    ViewEditDetails => ("view.edit_details", "Detalhes de edição…", View, true),
     ViewMixingConsole => ("view.mixing_console", "Console de mixagem", View, true),
     ViewMinimizeDock => ("view.minimize_dock", "Minimizar ou restaurar a área de janelas", View, true),
     ViewMaximizeTimeline => ("view.maximize_timeline", "Maximizar ou restaurar a linha do tempo", View, true),

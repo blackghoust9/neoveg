@@ -1730,5 +1730,6 @@
   "Criando o subclipe {}…": "Subclip {} wird erstellt…",
   "Subclipe na mídia do projeto: {}": "Subclip in den Projektmedien: {}",
   "Evento revertido: agora toca {}": "Event umgekehrt: spielt jetzt {}",
-  "Evento trocado pelo subclipe {}": "Event durch den Subclip {} ersetzt"
+  "Evento trocado pelo subclipe {}": "Event durch den Subclip {} ersetzt",
+  "Renomear evento": "Ereignis umbenennen"
 }
