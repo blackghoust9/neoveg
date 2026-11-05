@@ -259,6 +259,13 @@ struct LayoutDialog {
     slot: Option<u8>,
 }
 
+/// Options for the *Exportar AAF* dialog.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct AafExportDialog {
+    embed_media: bool,
+    small_sectors: bool,
+}
+
 /// Decoded audio kept in memory for waveform drawing and playback.
 struct LoadedMedia {
     path: PathBuf,
@@ -577,6 +584,8 @@ struct AppState {
     ignore_media_errors: bool,
     /// The *convert this media?* question after a failed import.
     convert_offer: Option<ConvertOffer>,
+    /// Options of the open *Exportar AAF* dialog.
+    aaf_export_dialog: Option<AafExportDialog>,
     /// Text of the open "go to time" box.
     goto_dialog: Option<String>,
     /// Exibir > Notas do projeto.
@@ -935,7 +944,48 @@ impl AppState {
 
     /// File > Export AAF: the whole timeline for Avid, Premiere Pro, DaVinci Resolve or Pro Tools.
     fn export_aaf(&mut self) {
-        let media = self.xml_media_pool();
+        if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
+            self.status = tr("A linha do tempo está vazia.");
+            return;
+        }
+        self.aaf_export_dialog = Some(AafExportDialog::default());
+    }
+
+    fn run_export_aaf(&mut self, dialog: &AafExportDialog) {
+        let pool = self.xml_media_pool();
+        let mut aaf_media = Vec::new();
+        for m in pool {
+            let mut am = aaf::AafMedia {
+                id: m.id,
+                name: m.name.clone(),
+                path: m.path.clone(),
+                duration: m.duration,
+                embedded_audio_wav: None,
+                embedded_picture: None,
+                subproject: None,
+            };
+            if dialog.embed_media {
+                let p = std::path::Path::new(&m.path);
+                let ext = p
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                if matches!(
+                    ext.as_str(),
+                    "jpg" | "jpeg" | "png" | "tif" | "tiff" | "bmp" | "dng"
+                ) {
+                    if let Ok(bytes) = std::fs::read(p) {
+                        am.embedded_picture = Some(bytes);
+                    }
+                } else if matches!(ext.as_str(), "wav" | "wave") {
+                    if let Ok(bytes) = std::fs::read(p) {
+                        am.embedded_audio_wav = Some(bytes);
+                    }
+                }
+            }
+            aaf_media.push(am);
+        }
         let settings = &self.project.settings;
         let project = aaf::AafProject {
             name: &self.project.name,
@@ -944,13 +994,18 @@ impl AppState {
             height: settings.height,
             sample_rate: settings.sample_rate,
         };
-        let (bytes, warnings) = match aaf::export(&self.timeline, &media, &project, false) {
-            Ok(done) => done,
-            Err(e) => {
-                self.status = tr_args("Não foi possível exportar o AAF: {}", &[&e]);
-                return;
-            }
+        let options = aaf::AafExportOptions {
+            small_sectors: dialog.small_sectors,
+            embed_media: dialog.embed_media,
         };
+        let (bytes, warnings) =
+            match aaf::export_with_options(&self.timeline, &aaf_media, &project, &options) {
+                Ok(done) => done,
+                Err(e) => {
+                    self.status = tr_args("Não foi possível exportar o AAF: {}", &[&e]);
+                    return;
+                }
+            };
         let Some(path) = rfd::FileDialog::new()
             .add_filter("AAF (Advanced Authoring Format)", &["aaf"])
             .set_file_name(format!("{}.aaf", self.project.name))
@@ -1012,7 +1067,7 @@ impl AppState {
                 return;
             }
         };
-        let doc = match aaf::parse(&bytes) {
+        let aaf_doc = match aaf::parse_aaf_document(&bytes) {
             Ok(doc) => doc,
             Err(e) => {
                 tracing::warn!("[WARN] {}: {e}", path.display());
@@ -1020,9 +1075,46 @@ impl AppState {
                 return;
             }
         };
-        for warning in &doc.warnings {
+        for warning in &aaf_doc.warnings {
             tracing::warn!("[WARN] {}: {warning}", path.display());
         }
+
+        // Materialize embedded files if present
+        let project_dir = self
+            .project_path
+            .as_ref()
+            .and_then(|p| p.parent())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf());
+        if !aaf_doc.embedded_files.is_empty() {
+            let target_dir = project_dir.join("aaf_midia");
+            if let Ok(materialized) = aaf::materialize_embedded_media(&aaf_doc, &target_dir) {
+                for (_idx, file_path) in materialized {
+                    let _ = self.import_media_files(&[file_path]);
+                }
+            }
+        }
+
+        let doc = XmlDocument {
+            name: aaf_doc.name.clone(),
+            fps: aaf_doc.fps,
+            clips: aaf_doc
+                .clips
+                .iter()
+                .map(|c| XmlClip {
+                    kind: c.kind,
+                    track: c.track,
+                    name: c.name.clone(),
+                    start: c.start,
+                    end: c.end,
+                    source_in: c.source_in,
+                    file_name: c.file_name.clone(),
+                    path: c.path.clone(),
+                })
+                .collect(),
+            warnings: aaf_doc.warnings.clone(),
+        };
+
         let pool = self.project.media_pool.clone();
         let imported =
             fcp7::import_into_timeline(&mut self.timeline, &doc, |c| match_xml_media(c, &pool));
@@ -1030,10 +1122,64 @@ impl AppState {
         self.status = match imported {
             Some((command, report)) => {
                 self.history.execute(&mut self.timeline, command);
+                self.enrich_timeline_from_aaf(&aaf_doc);
                 tr_args(
                     "AAF importado: {} clipe(s); {} sem mídia no projeto",
                     &[&report.added, &report.skipped.len()],
                 )
+            }
+            None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
+        };
+        self.report_import("AAF", added, skipped, &doc.warnings);
+    }
+
+    fn enrich_timeline_from_aaf(&mut self, aaf_doc: &aaf::AafDocument) {
+        for clip in &aaf_doc.clips {
+            let tracks_of_kind: Vec<_> = self
+                .timeline
+                .tracks
+                .iter_mut()
+                .filter(|t| t.kind == clip.kind)
+                .collect();
+            if let Some(track) = tracks_of_kind.into_iter().nth(clip.track) {
+                if let Some(ev) = track.events.iter_mut().find(|e| {
+                    (e.start - clip.start).abs() < 0.05
+                        && (e.name == clip.name
+                            || clip.file_name.as_deref() == Some(&e.name)
+                            || clip.path.as_deref() == Some(&e.name))
+                }) {
+                    if let Some(spd) = clip.speed {
+                        ev.playback_rate = spd;
+                    }
+                    if let Some(opac) = clip.opacity {
+                        ev.opacity = opac as f32;
+                    }
+                    if let Some(gain) = clip.gain_db {
+                        ev.gain_db = gain as f32;
+                    }
+                    if let Some(fin) = clip.fade_in_sec {
+                        ev.fade_in = fin;
+                    }
+                    if let Some(crv) = clip.fade_in_curve {
+                        ev.fade_in_curve = crv;
+                    }
+                    if let Some(fout) = clip.fade_out_sec {
+                        ev.fade_out = fout;
+                    }
+                    if let Some(crv) = clip.fade_out_curve {
+                        ev.fade_out_curve = crv;
+                    }
+                    if !clip.effects.is_empty() {
+                        if clip.kind == TrackKind::Video {
+                            ev.video_effects = clip.effects.clone();
+                        } else {
+                            ev.audio_effects = clip.effects.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
             }
             None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
         };
@@ -1744,6 +1890,7 @@ impl AppState {
             media_errors: std::collections::VecDeque::new(),
             ignore_media_errors: false,
             convert_offer: None,
+            aaf_export_dialog: None,
             goto_dialog: None,
             insert_time_dialog: None,
             notes: Default::default(),
@@ -9452,6 +9599,7 @@ impl NeovegApp {
         paste_attributes_window(ctx, &mut self.state);
         layout_dialogs(ctx, &mut self.state);
         convert_offer_window(ctx, &mut self.state);
+        aaf_export_window(ctx, &mut self.state);
         missing_media_window(ctx, &mut self.state);
         media_error_window(ctx, &mut self.state);
         found_media_window(ctx, &mut self.state);
@@ -11644,21 +11792,36 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
     let Some(offer) = state.convert_offer.take() else {
         return;
     };
+    let is_proprietary = neoveg_video::raw::is_proprietary_raw_path(&offer.path);
     let target = neoveg_video::convert::target_for(&offer.path);
     let mut keep_open = true;
     let mut convert = false;
     let mut cancel = false;
-    crate::dialogs::dialog(ctx, tr("Mídia não compatível"))
-        .collapsible(false)
-        .resizable(false)
-        .open(&mut keep_open)
-        .show(ctx, |ui| {
-            ui.label(tr_args(
-                "O Neoveg não conseguiu abrir {}.",
-                &[&offer.path.display()],
-            ));
-            ui.weak(&offer.error);
-            ui.separator();
+    crate::dialogs::dialog(
+        ctx,
+        if is_proprietary {
+            tr("Formato RAW proprietário")
+        } else {
+            tr("Mídia não compatível")
+        },
+    )
+    .collapsible(false)
+    .resizable(false)
+    .open(&mut keep_open)
+    .show(ctx, |ui| {
+        ui.label(tr_args(
+            "O Neoveg não conseguiu abrir {}.",
+            &[&offer.path.display()],
+        ));
+        ui.weak(&offer.error);
+        ui.separator();
+        if is_proprietary {
+            ui.horizontal(|ui| {
+                if ui.button(tr("Fechar")).clicked() {
+                    cancel = true;
+                }
+            });
+        } else {
             ui.label(tr_args(
                 "Converter uma cópia para {} e importá-la? O arquivo original não é alterado.",
                 &[&target.label()],
@@ -11671,11 +11834,53 @@ fn convert_offer_window(ctx: &egui::Context, state: &mut AppState) {
                     cancel = true;
                 }
             });
-        });
+        }
+    });
     if convert {
         state.start_conversion(offer.path, ctx);
     } else if keep_open && !cancel {
         state.convert_offer = Some(offer);
+    }
+}
+
+/// Options dialog for AAF export (embedded media, small sectors).
+fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
+    let Some(mut dialog) = state.aaf_export_dialog.take() else {
+        return;
+    };
+    let mut keep_open = true;
+    let mut do_export = false;
+    crate::dialogs::dialog(ctx, tr("Exportar AAF"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut keep_open)
+        .show(ctx, |ui| {
+            ui.label(tr(
+                "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).",
+            ));
+            ui.add_space(4.0);
+            ui.checkbox(
+                &mut dialog.embed_media,
+                tr("Embutir mídia no arquivo AAF (áudio PCM / imagens)"),
+            );
+            ui.checkbox(
+                &mut dialog.small_sectors,
+                tr("Setores de 512 bytes (compatibilidade com sistemas legados)"),
+            );
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(tr("Exportar…")).clicked() {
+                    do_export = true;
+                }
+                if ui.button(tr("Cancelar")).clicked() {
+                    keep_open = false;
+                }
+            });
+        });
+    if do_export {
+        state.run_export_aaf(&dialog);
+    } else if keep_open {
+        state.aaf_export_dialog = Some(dialog);
     }
 }
 
