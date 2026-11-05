@@ -1385,6 +1385,23 @@ mod tests {
         assert!((settled - 0.75).abs() < 0.02, "settled: {settled}");
     }
 
+    #[test]
+    fn a_chain_of_thirty_two_effects_is_built_and_run() {
+        // 32 delays that are 100 % dry in the chain of one track and 32 more in the master: the sound
+        // comes out as the plain clip, so a long chain neither drops effects nor spoils the sum
+        let dry = || spec("delay", &[("time", 10.0), ("feedback", 0.0), ("mix", 0.0)]);
+        let plan = FxPlan {
+            tracks: vec![(0..32).map(|_| dry()).collect()],
+            master: (0..32).map(|_| dry()).collect(),
+            ..Default::default()
+        };
+        let mut mixer = BlockMixer::new(vec![constant(0, 0.25, 1.0)], &plan, RATE as f32);
+        let (l, r) = render(&mut mixer, RATE as usize / 2, 480);
+        let settled = RATE as usize / 4;
+        assert!((l[settled] - 0.25).abs() < 0.01, "left: {}", l[settled]);
+        assert!((r[settled] - 0.25).abs() < 0.01, "right: {}", r[settled]);
+    }
+
     fn mix_plan(mix: Vec<TrackMixSpec>, pan_law: PanLaw) -> FxPlan {
         FxPlan {
             tracks: vec![vec![]; mix.len()],

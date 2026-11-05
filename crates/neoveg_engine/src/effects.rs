@@ -8,7 +8,7 @@ use crate::command::{EditCommand, FxTarget};
 use crate::timeline::{Timeline, TrackDucking, TrackEffect, TrackId, TrackKind};
 
 /// Longest effect chain of a track or of the master bus.
-pub const MAX_EFFECTS: usize = 8;
+pub const MAX_EFFECTS: usize = 32;
 
 /// The chain at `target`, or `None` when the track does not exist.
 pub fn chain(timeline: &Timeline, target: FxTarget) -> Option<&[TrackEffect]> {

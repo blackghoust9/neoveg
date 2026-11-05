@@ -483,7 +483,9 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 **Itens extras vindos dos manuais (VP10–VP21), por versão de origem**
 - [x] Modo de edição expandido (feito, `Ctrl+Alt+E`) e *rolling edit* pelo teclado (`Ctrl+Alt+Shift+PageUp/PageDown` no aparo por teclado), com visão A/B do ponto de edição (VP12)
 - [ ] Proxies inteligentes: troca automática entre original e proxy conforme a qualidade da prévia; o render usa o original (VP12)
-- [ ] Cadeias de efeitos de até 32 efeitos aplicáveis ao evento, faixa, mídia ou projeto; mascaramento de FX e formas (retângulo, elipse, Bézier) (VP12)
+- [x] Cadeias de efeitos de até 32 efeitos: as de **vídeo** (evento, faixa, mídia, projeto e evento de ajuste) já tinham o limite de 32 (`MAX_VIDEO_EFFECTS`); as de **áudio** (faixa, barramento e master) subiram de 8 para 32 (`neoveg_engine::effects::MAX_EFFECTS`; o mixer monta qualquer tamanho de cadeia, e o painel só bloqueia o botão de adicionar no limite). Ficam em aberto, como itens à parte logo abaixo: efeitos de áudio por evento e por mídia, marcadores Pan/Crop e Composite na cadeia, e o mascaramento de FX (retângulo, elipse, Bézier)
+- [ ] Efeitos de áudio por evento e por mídia (*Event FX* e *Media FX* de áudio): uma cadeia que vale só para um evento, ou para todos os que tocam uma mídia, antes da cadeia da faixa; o mixer atual agrupa os eventos por faixa e por barramento, então a cadeia de evento pede um barramento interno por evento
+- [ ] Mascaramento de FX e formas (retângulo, elipse, Bézier) nos efeitos de vídeo (VP12)
 - [ ] Correspondência de cor entre clipes (*Color Match*) e fluxo S-Log/ACES com OpenColorIO por mídia e projeto (VP12)
 - [ ] Edições em L-cut e J-cut, fades simultâneos de áudio e vídeo e sincronismo de eventos (*sync links*) (VP12/VP13)
 - [ ] Edição multicâmera (sincronizar, criar evento multicâmera, alternar câmeras) e *takes* como versões alternativas do evento (VP13)
@@ -580,7 +582,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 10 — Fluxos de trabalho (entrada 16)**
 - [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
 - [ ] Proxies inteligentes (troca automática conforme a qualidade da prévia; render usa o original)
-- [ ] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto, com marcadores Pan/Crop e Composite
+- [~] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto (**feito**, vídeo e áudio de faixa), com marcadores Pan/Crop e Composite na cadeia (falta)
 - [ ] Color Match, LUTs/OpenColorIO, scopes (vectorscope, forma de onda, histograma, parada RGB)
 - [ ] Projetos aninhados e eventos de ajuste; painel de rastreamento de movimento; ferramentas de IA (transcrição, edição por texto, máscara, upscale)
 
