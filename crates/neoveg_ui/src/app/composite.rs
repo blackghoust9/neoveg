@@ -1815,9 +1815,9 @@ mod tests {
         let e = event(&mut tl, 1, 0.0, 4.0);
         track.events.push(e);
         track.video_effects = vec![
-            neoveg_engine::TrackEffect::new(vfx::VIGNETTE),
+            neoveg_engine::TrackEffect::new(neoveg_video::vfx::VIGNETTE),
             neoveg_engine::TrackEffect::new(COMPOSITE),
-            neoveg_engine::TrackEffect::new(vfx::INVERT),
+            neoveg_engine::TrackEffect::new(neoveg_video::vfx::INVERT),
         ];
         tl.tracks.push(track);
         let request = composite_request(&tl, 1.0, &settings(), &resolve).unwrap();
@@ -1830,12 +1830,12 @@ mod tests {
             panic!("the layer first");
         };
         assert_eq!(effects.len(), 1, "the vignette stays on the layer");
-        assert_eq!(effects[0].kind, vfx::VIGNETTE);
+        assert_eq!(effects[0].kind, neoveg_video::vfx::VIGNETTE);
         let TrackCompositeNode::Adjust { effects, opacity } = &request.nodes[1] else {
             panic!("the post-composite effects are an adjustment");
         };
         assert_eq!((effects.len(), *opacity), (1, 1.0));
-        assert_eq!(effects[0].kind, vfx::INVERT);
+        assert_eq!(effects[0].kind, neoveg_video::vfx::INVERT);
         // A chain of only a marker is no effect at all
         tl.tracks[0].video_effects = vec![neoveg_engine::TrackEffect::new(COMPOSITE)];
         assert!(!has_effects(&tl, 1.0, ProjectResample::Disable));

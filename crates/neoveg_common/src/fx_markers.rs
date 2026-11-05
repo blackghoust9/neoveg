@@ -42,7 +42,7 @@ pub fn hint(kind: &str) -> &'static str {
 
 /// Splits `chain` at the first entry for which `is_marker` is true: what comes before it, and what
 /// comes after it (`None` when there is no marker, so the whole chain is one part).
-pub fn split<'a, T>(chain: &'a [T], is_marker: impl Fn(&T) -> bool) -> (&'a [T], Option<&'a [T]>) {
+pub fn split<T>(chain: &[T], is_marker: impl Fn(&T) -> bool) -> (&[T], Option<&[T]>) {
     match chain.iter().position(is_marker) {
         Some(at) => (&chain[..at], Some(&chain[at + 1..])),
         None => (chain, None),
