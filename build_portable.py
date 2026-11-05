@@ -60,7 +60,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent
-DIST = ROOT / "dist"
+
+
+def default_dist() -> Path:
+    """Default output directory: `NEOVEG_DIST` when set in the environment, else `dist/` in the repository."""
+    override = os.environ.get("NEOVEG_DIST", "").strip()
+    return Path(override).resolve() if override else ROOT / "dist"
+
+
+DIST = default_dist()
 # Cargo may write to another directory (the Docker images set CARGO_TARGET_DIR)
 TARGET_DIR = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target"))
 LOG_FILE = ROOT / "logs" / "neoveg.log"
@@ -82,6 +90,26 @@ TARGETS: Dict[str, Dict[str, str]] = {
     # Intel build for the oldest macOS the toolchain supports; left out of `--targets all`
     "osx-legacy": {"triple": "x86_64-apple-darwin", "archive": "tar.gz", "exe": "neoveg", "legacy": "1"},
 }
+
+# Packages compiled into a portable release (`neoveg` plus the out-of-process VST3 and OpenFX hosts)
+RELEASE_PACKAGES = ("neoveg_ui", "neoveg_audio", "neoveg_ofx")
+COMPANION_BINS = ("neoveg_vst3_host", "neoveg_ofx_host")
+
+# Crate-by-crate order used by `qa_steps` when `low_memory()` is active (AGENTS.md section 3)
+LOW_MEMORY_TEST_CRATES = (
+    "neoveg_common",
+    "neoveg_text",
+    "neoveg_media",
+    "neoveg_h264",
+    "neoveg_aac",
+    "neoveg_cfb",
+    "neoveg_aaf",
+    "neoveg_ofx",
+    "neoveg_audio",
+    "neoveg_video",
+    "neoveg_engine",
+    "neoveg_ui",
+)
 
 # Files copied into every package (source -> name inside the package)
 PAYLOAD_FILES = {
@@ -173,18 +201,26 @@ def clear_windows_link_locks() -> int:
     time.sleep(1.5)
     removed = 0
     if TARGET_DIR.is_dir():
-        for profile in ("debug", "release"):
-            base = TARGET_DIR / profile
-            for folder in (base, base / "deps"):
-                if not folder.is_dir():
-                    continue
-                for ext in ("*.pdb", "*.ilk"):
-                    for candidate in folder.glob(ext):
-                        try:
-                            candidate.unlink()
-                            removed += 1
-                        except OSError:
-                            pass
+        roots = [TARGET_DIR] + [
+            sub
+            for sub in TARGET_DIR.iterdir()
+            if sub.is_dir()
+            and sub.name not in ("debug", "release", "tmp")
+            and any((sub / prof).is_dir() for prof in ("debug", "release"))
+        ]
+        for root in roots:
+            for profile in ("debug", "release"):
+                base = root / profile
+                for folder in (base, base / "deps"):
+                    if not folder.is_dir():
+                        continue
+                    for ext in ("*.pdb", "*.ilk"):
+                        for candidate in folder.glob(ext):
+                            try:
+                                candidate.unlink()
+                                removed += 1
+                            except OSError:
+                                pass
     return removed
 
 
@@ -543,6 +579,16 @@ def job_flags(args: argparse.Namespace) -> List[str]:
     return ["-j", str(jobs)] if jobs else []
 
 
+def release_package_args(ffmpeg: bool) -> List[str]:
+    """`-p` and `--features` flags shared by `qa_steps` and `cargo_build` so Cargo reuses one compilation."""
+    args: List[str] = []
+    for pkg in RELEASE_PACKAGES:
+        args.extend(["-p", pkg])
+    if ffmpeg:
+        args.extend(["--features", "neoveg_ui/ffmpeg"])
+    return args
+
+
 def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
     jobs = job_flags(args)
     # With `--jobs` the tests also run one at a time: the UI tests open windows and are heavy
@@ -550,24 +596,45 @@ def qa_steps(args: argparse.Namespace) -> List[Dict[str, object]]:
     maintain = "ABNT NBR ISO/IEC 25010 (Manutenibilidade) / ISO/IEC 14764"
     testing = "ABNT NBR ISO/IEC/IEEE 29119 (Testes) / ISO/IEC 25010 (Confiabilidade)"
     portable = "ABNT NBR ISO/IEC 25010 (Portabilidade) - build nativo pela toolchain unica"
-    test_cmd = ["cargo", "test", "--workspace", *jobs]
     steps: List[Dict[str, object]] = [
         {"name": "rustfmt", "pillar": "Maintainability", "standard": maintain,
          "cmd": ["cargo", "fmt", "--all", "--", "--check"]},
         {"name": "Clippy (-D warnings)", "pillar": "Maintainability", "standard": maintain,
          "cmd": ["cargo", "clippy", "--workspace", "--all-targets", *jobs, "--", "-D", "warnings"]},
-        {"name": "Testes do workspace", "pillar": "Reliability", "standard": testing,
-         "cmd": test_cmd + test_threads},
     ]
-    if getattr(args, "ffmpeg", False):
-        steps.append({"name": "Testes com FFmpeg", "pillar": "Reliability", "standard": testing,
-                      "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"] + test_threads})
-    # Same command and RUSTFLAGS as the package build, so packaging reuses this compilation
-    release_cmd = ["cargo", "build", "--release", "-p", "neoveg_ui", *jobs]
-    if getattr(args, "ffmpeg", False):
-        release_cmd += ["--features", "ffmpeg"]
-    steps.append({"name": "Build release (neoveg_ui)", "pillar": "Portability", "standard": portable,
-                  "cmd": release_cmd, "env": release_env(host_triple() or "")})
+    with_ffmpeg = bool(getattr(args, "ffmpeg", False))
+    if low_memory():
+        # Small-RAM machines link and run one crate at a time (AGENTS.md section 3)
+        for crate in LOW_MEMORY_TEST_CRATES:
+            steps.append({
+                "name": f"Testes ({crate})",
+                "pillar": "Reliability",
+                "standard": testing,
+                "cmd": ["cargo", "test", "-p", crate, *jobs] + test_threads,
+            })
+        if with_ffmpeg:
+            for crate in ("neoveg_video", "neoveg_ui"):
+                steps.append({
+                    "name": f"Testes com FFmpeg ({crate})",
+                    "pillar": "Reliability",
+                    "standard": testing,
+                    "cmd": ["cargo", "test", "-p", crate, "--features", "ffmpeg", *jobs] + test_threads,
+                })
+    else:
+        test_cmd = ["cargo", "test", "--workspace", *jobs]
+        steps.append({"name": "Testes do workspace", "pillar": "Reliability", "standard": testing,
+                      "cmd": test_cmd + test_threads})
+        if with_ffmpeg:
+            steps.append({"name": "Testes com FFmpeg", "pillar": "Reliability", "standard": testing,
+                          "cmd": test_cmd + ["--features", "neoveg_ui/ffmpeg"] + test_threads})
+    try:
+        host_macos_min = resolve_macos_min(host_rid(), getattr(args, "macos_min", ""))
+    except RuntimeError:
+        host_macos_min = None
+    # Same command and RUSTFLAGS/MACOSX_DEPLOYMENT_TARGET as the package build, so packaging reuses this compilation
+    release_cmd = ["cargo", "build", "--release", *release_package_args(with_ffmpeg), *jobs]
+    steps.append({"name": "Build release (neoveg_ui + hosts)", "pillar": "Portability", "standard": portable,
+                  "cmd": release_cmd, "env": release_env(host_triple() or "", host_macos_min)})
     return steps
 
 
@@ -627,8 +694,13 @@ def cmd_qa(args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------------- build
 
 
+def companion_names(rid: str) -> List[str]:
+    suffix = ".exe" if rid == "win-x64" else ""
+    return [f"{name}{suffix}" for name in COMPANION_BINS]
+
+
 def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None, jobs: Optional[List[str]] = None) -> Path:
-    """Builds the release binary for `rid` and returns its path."""
+    """Builds the release binary (and companion plug-in host binaries) for `rid` and returns the main binary path."""
     info = TARGETS[rid]
     triple = info["triple"]
     is_host = triple == host_triple()
@@ -637,10 +709,8 @@ def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None, jobs: O
         if rid.startswith("osx") and platform.system() != "Darwin":
             hint += "; it also needs the Apple SDK and a macOS linker (build on a Mac or with osxcross)"
         raise RuntimeError(f"Rust target {triple} is not installed: {hint}")
-    cmd = ["cargo", "build", "--release", "-p", "neoveg_ui", *(jobs or [])]
+    cmd = ["cargo", "build", "--release", *release_package_args(ffmpeg), *(jobs or [])]
     env = release_env(triple, macos_min)
-    if ffmpeg:
-        cmd += ["--features", "ffmpeg"]
     if not is_host:
         cmd += ["--target", triple]
     log("INFO", f"building {rid} ({triple}){' with FFmpeg' if ffmpeg else ''}"
@@ -650,6 +720,10 @@ def cargo_build(rid: str, ffmpeg: bool, macos_min: Optional[str] = None, jobs: O
     binary = base / info["exe"]
     if not binary.is_file():
         raise RuntimeError(f"expected binary not found: {binary}")
+    for companion in companion_names(rid):
+        helper = base / companion
+        if not helper.is_file():
+            raise RuntimeError(f"expected companion binary not found: {helper}")
     return binary
 
 
@@ -681,6 +755,12 @@ def copy_payload(root: Path) -> None:
         target.mkdir(parents=True, exist_ok=True)
         for item in i18n.glob("*.json"):
             shutil.copy2(item, target / item.name)
+        strings = i18n / "strings"
+        if strings.is_dir():
+            strings_target = target / "strings"
+            strings_target.mkdir(parents=True, exist_ok=True)
+            for item in strings.glob("*.json"):
+                shutil.copy2(item, strings_target / item.name)
 
 
 def copy_ffmpeg_runtime(rid: str, destination: Path) -> None:
@@ -759,10 +839,13 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool, macos_min:
         force_rmtree(stage)
     stage.mkdir(parents=True)
     exe = TARGETS[rid]["exe"]
+    companions = [binary.parent / name for name in companion_names(rid) if (binary.parent / name).is_file()]
     if rid.startswith("osx"):
         macos = stage / "Neoveg.app" / "Contents" / "MacOS"
         macos.mkdir(parents=True)
         shutil.copy2(binary, macos / exe)
+        for helper in companions:
+            shutil.copy2(helper, macos / helper.name)
         (stage / "Neoveg.app" / "Contents" / "Info.plist").write_text(
             MAC_PLIST.format(
                 version=version,
@@ -777,6 +860,8 @@ def stage_package(rid: str, binary: Path, version: str, ffmpeg: bool, macos_min:
             copy_ffmpeg_license(stage)
         return stage
     shutil.copy2(binary, stage / exe)
+    for helper in companions:
+        shutil.copy2(helper, stage / helper.name)
     copy_payload(stage)
     if rid == "linux-x64":
         launcher = stage / "neoveg.sh"
@@ -796,7 +881,7 @@ def make_archive(stage: Path, rid: str, version: str) -> Path:
     archive = DIST / name
     if archive.exists():
         archive.unlink()
-    executables = {TARGETS[rid]["exe"], "neoveg.sh"}
+    executables = {TARGETS[rid]["exe"], "neoveg.sh", *companion_names(rid)}
     if kind == "zip":
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
             for path in sorted(stage.rglob("*")):
@@ -827,8 +912,7 @@ def prune_legacy_dist() -> None:
 
 def cmd_build(args: argparse.Namespace) -> int:
     global DIST
-    if args.dist:
-        DIST = Path(args.dist).resolve()  # type: ignore  # DIST is a module constant that --dist overrides on purpose, once, before any build
+    DIST = Path(args.dist).resolve() if args.dist else default_dist()  # type: ignore  # --dist or NEOVEG_DIST overrides default dist/
     version = workspace_version()
     rids = resolve_targets(args.targets)
     # Refused before any build starts: a wrong minimum would only show on the user's Mac
@@ -923,6 +1007,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     build.add_argument("--sync", action="store_true", help="mirror the workspace to the cloud folder afterwards (Windows)")
     qa = sub.add_parser("qa", help="run the quality gates and write the QA report")
     common(qa)
+    qa.add_argument("--macos-min", default="", metavar="X.Y",
+                    help="oldest macOS the host release check must target")
     check = sub.add_parser("check", help="verify the toolchain")
     common(check)
 

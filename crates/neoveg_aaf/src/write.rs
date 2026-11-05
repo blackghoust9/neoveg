@@ -565,23 +565,28 @@ pub(crate) fn write(
     }
     let mut opdefs = Vec::new();
     for op in &used_ops {
-        let (name, dd, inputs) = match *op {
-            x if x == def::VIDEO_DISSOLVE => ("Video Dissolve", ddef::PICTURE, 2),
-            x if x == def::VIDEO_FADE_TO_BLACK => ("Video Fade To Black", ddef::PICTURE, 1),
-            x if x == def::SMPTE_VIDEO_WIPE => ("SMPTE Video Wipe", ddef::PICTURE, 2),
-            x if x == def::MONO_AUDIO_DISSOLVE => ("Mono Audio Dissolve", ddef::SOUND, 2),
-            _ => ("Mono Audio Gain", ddef::SOUND, 1i32),
+        let (name, dd, inputs, is_warp): (&str, [u8; 16], i32, bool) = match *op {
+            x if x == def::VIDEO_DISSOLVE => ("Video Dissolve", ddef::PICTURE, 2, false),
+            x if x == def::VIDEO_FADE_TO_BLACK => ("Video Fade To Black", ddef::PICTURE, 1, false),
+            x if x == def::SMPTE_VIDEO_WIPE => ("SMPTE Video Wipe", ddef::PICTURE, 2, false),
+            x if x == def::MONO_AUDIO_DISSOLVE => ("Mono Audio Dissolve", ddef::SOUND, 2, false),
+            x if x == def::VIDEO_SPEED_CONTROL => ("Video Speed Control", ddef::PICTURE, 1, true),
+            x if x == def::AUDIO_SPEED_CONTROL => ("Audio Speed Control", ddef::SOUND, 1, true),
+            x if x == def::VIDEO_OPACITY => ("Video Opacity", ddef::PICTURE, 1, false),
+            _ => ("Mono Audio Gain", ddef::SOUND, 1, false),
         };
         let params: Vec<Vec<u8>> = if *op == def::MONO_AUDIO_GAIN {
             vec![def::PARAM_AMPLITUDE.to_vec()]
-        } else if *op == def::VIDEO_DISSOLVE {
+        } else if *op == def::VIDEO_DISSOLVE || *op == def::VIDEO_OPACITY {
             vec![def::PARAM_LEVEL.to_vec()]
+        } else if *op == def::VIDEO_SPEED_CONTROL || *op == def::AUDIO_SPEED_CONTROL {
+            vec![def::PARAM_SPEED_RATIO.to_vec()]
         } else {
             Vec::new()
         };
         let mut o = definition(cls::OPERATION_DEFINITION, *op, name)
             .with(pid::OPDEF_DATA_DEFINITION, weak(path::DATA_DEFS, dd))
-            .data_prop(pid::OPDEF_IS_TIME_WARP, vec![0])
+            .data_prop(pid::OPDEF_IS_TIME_WARP, vec![if is_warp { 1 } else { 0 }])
             .data_prop(pid::OPDEF_NUMBER_INPUTS, inputs.to_le_bytes().to_vec());
         if !params.is_empty() {
             o.set(
@@ -596,6 +601,8 @@ pub(crate) fn write(
             .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
         definition(cls::PARAMETER_DEFINITION, def::PARAM_AMPLITUDE, "Amplitude")
             .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
+        definition(cls::PARAMETER_DEFINITION, def::PARAM_SPEED_RATIO, "SpeedRatio")
+            .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("ratio")),
     ];
     let idefs = if uses_varying || !used_ops.is_empty() {
         vec![
@@ -656,18 +663,18 @@ pub(crate) fn write(
         );
     }
     let ident = Obj::new(cls::IDENTIFICATION)
-        .data_prop(pid::COMPANY_NAME, utf16z("FilmCraft"))
-        .data_prop(pid::PRODUCT_NAME, utf16z("FilmCraft"))
+        .data_prop(pid::COMPANY_NAME, utf16z("Neoveg"))
+        .data_prop(pid::PRODUCT_NAME, utf16z("Neoveg"))
         .data_prop(
             pid::PRODUCT_VERSION_STRING,
             utf16z(env!("CARGO_PKG_VERSION")),
         )
         .data_prop(
             pid::PRODUCT_ID,
-            super::ids::guid(0x46494C4D, 0x4352, 0x4146, *b"T-AAF-EP").to_vec(),
+            super::ids::guid(0x4E454F56, 0x4547, 0x2D41, *b"AF-EDITP").to_vec(),
         )
         .data_prop(pid::DATE, timestamp())
-        .data_prop(pid::PLATFORM, utf16z("FilmCraft"))
+        .data_prop(pid::PLATFORM, utf16z("Neoveg"))
         .data_prop(pid::GENERATION_AUID, mob_id(ids.seed, 0)[16..].to_vec());
     let header = Obj::new(cls::HEADER)
         .data_prop(pid::BYTE_ORDER, 0x4949i16.to_le_bytes().to_vec())
@@ -784,77 +791,201 @@ impl CompositionWriter<'_, '_, '_> {
                         let start =
                             w.u(c.start, refs.rates.get(&c.source).copied().unwrap_or(rate));
                         let mut sc = source_clip(t.kind, n, mid, mslot, start);
+                        let mut user_comments = Vec::new();
                         if !c.name.is_empty() && c.name != s.name {
-                            sc.set(
-                                pid::COMPONENT_USER_COMMENTS,
-                                Value::StrongVec(vec![tagged("Clip Name", &c.name)]),
-                            );
+                            user_comments.push(tagged("Clip Name", &c.name));
                         }
-                        let seg = match (&c.gain, t.kind) {
-                            (Some(g), CKind::Sound) => {
-                                if !used_ops.contains(&def::MONO_AUDIO_GAIN) {
-                                    used_ops.push(def::MONO_AUDIO_GAIN);
-                                }
-                                let param = match g {
-                                    Gain::Constant(a) => Obj::new(cls::CONSTANT_VALUE)
+                        if let Some(spd) = c.speed {
+                            if (spd - 1.0).abs() > 1e-4 {
+                                user_comments.push(tagged("Neoveg Speed", &format!("{spd:.6}")));
+                            }
+                        }
+                        if let Some(fade) = &c.fade_in {
+                            user_comments.push(tagged(
+                                "Neoveg Fade In",
+                                &format!("{}:{}", fade.len.0, fade.curve.as_str()),
+                            ));
+                        }
+                        if let Some(fade) = &c.fade_out {
+                            user_comments.push(tagged(
+                                "Neoveg Fade Out",
+                                &format!("{}:{}", fade.len.0, fade.curve.as_str()),
+                            ));
+                        }
+                        for eff in &c.effects {
+                            user_comments.push(tagged("Neoveg Effect", &format!("{}:{}", eff.id, eff.name)));
+                            for (pname, pval) in &eff.params {
+                                user_comments.push(tagged(
+                                    "Neoveg Effect Param",
+                                    &format!("{}:{pname}:{pval:.6}", eff.id),
+                                ));
+                            }
+                        }
+                        if !user_comments.is_empty() {
+                            sc.set(pid::COMPONENT_USER_COMMENTS, Value::StrongVec(user_comments));
+                        }
+
+                        let mut seg = sc;
+
+                        // Audio Gain
+                        if let (Some(g), CKind::Sound) = (&c.gain, t.kind) {
+                            if !used_ops.contains(&def::MONO_AUDIO_GAIN) {
+                                used_ops.push(def::MONO_AUDIO_GAIN);
+                            }
+                            let param = match g {
+                                Gain::Constant(a) => Obj::new(cls::CONSTANT_VALUE)
+                                    .data_prop(
+                                        pid::PARAMETER_DEFINITION,
+                                        def::PARAM_AMPLITUDE.to_vec(),
+                                    )
+                                    .data_prop(
+                                        pid::CONSTANT_VALUE,
+                                        indirect(def::TYPE_RATIONAL, &gain_rational(*a)),
+                                    ),
+                                Gain::Varying { linear, points } => {
+                                    *uses_varying = true;
+                                    let pts = points
+                                        .iter()
+                                        .map(|(off, a)| {
+                                            let o =
+                                                w.u(cursor + *off, rate) - w.u(cursor, rate);
+                                            Obj::new(cls::CONTROL_POINT)
+                                                .data_prop(pid::CP_TIME, rational(o, n.max(1)))
+                                                .data_prop(
+                                                    pid::CP_VALUE,
+                                                    indirect(
+                                                        def::TYPE_RATIONAL,
+                                                        &gain_rational(*a),
+                                                    ),
+                                                )
+                                                .data_prop(pid::CP_EDIT_HINT, vec![0])
+                                        })
+                                        .collect();
+                                    Obj::new(cls::VARYING_VALUE)
                                         .data_prop(
                                             pid::PARAMETER_DEFINITION,
                                             def::PARAM_AMPLITUDE.to_vec(),
                                         )
+                                        .with(
+                                            pid::INTERPOLATION,
+                                            weak(
+                                                path::INTERPOLATION_DEFS,
+                                                if *linear {
+                                                    def::INTERP_LINEAR
+                                                } else {
+                                                    def::INTERP_CONSTANT
+                                                },
+                                            ),
+                                        )
+                                        .with(pid::POINT_LIST, Value::StrongVec(pts))
+                                }
+                            };
+                            seg = Obj::new(cls::OPERATION_GROUP)
+                                .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, dd))
+                                .data_prop(pid::LENGTH, n.to_le_bytes().to_vec())
+                                .with(
+                                    pid::OPERATION,
+                                    weak(path::OPERATION_DEFS, def::MONO_AUDIO_GAIN),
+                                )
+                                .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![seg]))
+                                .with(pid::PARAMETERS, Value::StrongVec(vec![param]));
+                        }
+
+                        // Video Opacity
+                        if let (Some(g), CKind::Picture) = (&c.opacity, t.kind) {
+                            if !used_ops.contains(&def::VIDEO_OPACITY) {
+                                used_ops.push(def::VIDEO_OPACITY);
+                            }
+                            let param = match g {
+                                Gain::Constant(a) => Obj::new(cls::CONSTANT_VALUE)
+                                    .data_prop(
+                                        pid::PARAMETER_DEFINITION,
+                                        def::PARAM_LEVEL.to_vec(),
+                                    )
+                                    .data_prop(
+                                        pid::CONSTANT_VALUE,
+                                        indirect(def::TYPE_RATIONAL, &gain_rational(*a)),
+                                    ),
+                                Gain::Varying { linear, points } => {
+                                    *uses_varying = true;
+                                    let pts = points
+                                        .iter()
+                                        .map(|(off, a)| {
+                                            let o =
+                                                w.u(cursor + *off, rate) - w.u(cursor, rate);
+                                            Obj::new(cls::CONTROL_POINT)
+                                                .data_prop(pid::CP_TIME, rational(o, n.max(1)))
+                                                .data_prop(
+                                                    pid::CP_VALUE,
+                                                    indirect(
+                                                        def::TYPE_RATIONAL,
+                                                        &gain_rational(*a),
+                                                    ),
+                                                )
+                                                .data_prop(pid::CP_EDIT_HINT, vec![0])
+                                        })
+                                        .collect();
+                                    Obj::new(cls::VARYING_VALUE)
                                         .data_prop(
-                                            pid::CONSTANT_VALUE,
-                                            indirect(def::TYPE_RATIONAL, &gain_rational(*a)),
-                                        ),
-                                    Gain::Varying { linear, points } => {
-                                        *uses_varying = true;
-                                        let pts = points
-                                            .iter()
-                                            .map(|(off, a)| {
-                                                let o =
-                                                    w.u(cursor + *off, rate) - w.u(cursor, rate);
-                                                Obj::new(cls::CONTROL_POINT)
-                                                    .data_prop(pid::CP_TIME, rational(o, n.max(1)))
-                                                    .data_prop(
-                                                        pid::CP_VALUE,
-                                                        indirect(
-                                                            def::TYPE_RATIONAL,
-                                                            &gain_rational(*a),
-                                                        ),
-                                                    )
-                                                    .data_prop(pid::CP_EDIT_HINT, vec![0])
-                                            })
-                                            .collect();
-                                        Obj::new(cls::VARYING_VALUE)
-                                            .data_prop(
-                                                pid::PARAMETER_DEFINITION,
-                                                def::PARAM_AMPLITUDE.to_vec(),
-                                            )
-                                            .with(
-                                                pid::INTERPOLATION,
-                                                weak(
-                                                    path::INTERPOLATION_DEFS,
-                                                    if *linear {
-                                                        def::INTERP_LINEAR
-                                                    } else {
-                                                        def::INTERP_CONSTANT
-                                                    },
-                                                ),
-                                            )
-                                            .with(pid::POINT_LIST, Value::StrongVec(pts))
-                                    }
+                                            pid::PARAMETER_DEFINITION,
+                                            def::PARAM_LEVEL.to_vec(),
+                                        )
+                                        .with(
+                                            pid::INTERPOLATION,
+                                            weak(
+                                                path::INTERPOLATION_DEFS,
+                                                if *linear {
+                                                    def::INTERP_LINEAR
+                                                } else {
+                                                    def::INTERP_CONSTANT
+                                                },
+                                            ),
+                                        )
+                                        .with(pid::POINT_LIST, Value::StrongVec(pts))
+                                }
+                            };
+                            seg = Obj::new(cls::OPERATION_GROUP)
+                                .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, dd))
+                                .data_prop(pid::LENGTH, n.to_le_bytes().to_vec())
+                                .with(
+                                    pid::OPERATION,
+                                    weak(path::OPERATION_DEFS, def::VIDEO_OPACITY),
+                                )
+                                .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![seg]))
+                                .with(pid::PARAMETERS, Value::StrongVec(vec![param]));
+                        }
+
+                        // Speed / TimeWarp
+                        if let Some(spd) = c.speed {
+                            if (spd - 1.0).abs() > 1e-4 {
+                                let op = match t.kind {
+                                    CKind::Picture => def::VIDEO_SPEED_CONTROL,
+                                    CKind::Sound => def::AUDIO_SPEED_CONTROL,
                                 };
-                                Obj::new(cls::OPERATION_GROUP)
+                                if !used_ops.contains(&op) {
+                                    used_ops.push(op);
+                                }
+                                let param = Obj::new(cls::CONSTANT_VALUE)
+                                    .data_prop(
+                                        pid::PARAMETER_DEFINITION,
+                                        def::PARAM_SPEED_RATIO.to_vec(),
+                                    )
+                                    .data_prop(
+                                        pid::CONSTANT_VALUE,
+                                        indirect(def::TYPE_RATIONAL, &gain_rational(spd)),
+                                    );
+                                seg = Obj::new(cls::OPERATION_GROUP)
                                     .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, dd))
                                     .data_prop(pid::LENGTH, n.to_le_bytes().to_vec())
                                     .with(
                                         pid::OPERATION,
-                                        weak(path::OPERATION_DEFS, def::MONO_AUDIO_GAIN),
+                                        weak(path::OPERATION_DEFS, op),
                                     )
-                                    .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![sc]))
-                                    .with(pid::PARAMETERS, Value::StrongVec(vec![param]))
+                                    .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![seg]))
+                                    .with(pid::PARAMETERS, Value::StrongVec(vec![param]));
                             }
-                            _ => sc,
-                        };
+                        }
+
                         comps.push(seg);
                         cursor += c.len;
                     }
@@ -873,7 +1004,7 @@ impl CompositionWriter<'_, '_, '_> {
                             .with(pid::OPERATION, weak(path::OPERATION_DEFS, op))
                             .with(
                                 pid::COMPONENT_USER_COMMENTS,
-                                Value::StrongVec(vec![tagged("FilmCraft Effect", &x.effect)]),
+                                Value::StrongVec(vec![tagged("Neoveg Effect", &x.effect)]),
                             );
                         if op == def::VIDEO_DISSOLVE {
                             *uses_varying = true;
@@ -946,10 +1077,10 @@ impl CompositionWriter<'_, '_, '_> {
             pid::MOB_USER_COMMENTS,
             Value::StrongVec(vec![
                 tagged(
-                    "FilmCraft Frame Size",
+                    "Neoveg Frame Size",
                     &format!("{}x{}", comp.width, comp.height),
                 ),
-                tagged("FilmCraft Audio Sample Rate", &comp.sample_rate.to_string()),
+                tagged("Neoveg Audio Sample Rate", &comp.sample_rate.to_string()),
             ]),
         )
     }

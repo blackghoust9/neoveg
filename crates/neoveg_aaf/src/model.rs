@@ -81,7 +81,57 @@ pub struct CClip {
     /// Source (file) time of the segment's first frame.
     pub start: Tick,
     pub gain: Option<Gain>,
+    pub opacity: Option<Gain>,
+    pub speed: Option<f64>,
+    pub fade_in: Option<CFade>,
+    pub fade_out: Option<CFade>,
+    pub effects: Vec<CEffect>,
     pub name: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CFadeCurve {
+    Linear,
+    Fast,
+    Slow,
+    Smooth,
+    Sharp,
+}
+
+impl CFadeCurve {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Linear => "linear",
+            Self::Fast => "fast",
+            Self::Slow => "slow",
+            Self::Smooth => "smooth",
+            Self::Sharp => "sharp",
+        }
+    }
+
+    pub fn from_str_opt(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "linear" => Some(Self::Linear),
+            "fast" => Some(Self::Fast),
+            "slow" => Some(Self::Slow),
+            "smooth" => Some(Self::Smooth),
+            "sharp" => Some(Self::Sharp),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CFade {
+    pub len: Tick,
+    pub curve: CFadeCurve,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CEffect {
+    pub id: String,
+    pub name: String,
+    pub params: Vec<(String, f64)>,
 }
 
 /// Clip gain (linear amplitude).
@@ -100,7 +150,7 @@ pub struct CTransition {
     pub len: Tick,
     /// Where the cut lies, from the transition start.
     pub cut: Tick,
-    /// FilmCraft effect id.
+    /// Effect id (e.g. "cross_dissolve", "dip_to_black", "wipe").
     pub effect: String,
 }
 

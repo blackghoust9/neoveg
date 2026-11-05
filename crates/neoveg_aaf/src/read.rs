@@ -7,8 +7,8 @@ use crate::time::{FrameRate, Tick};
 
 use crate::ids::{cls, ddef, def, pid};
 use crate::model::{
-    CClip, CItem, CKind, CMarker, CTrack, CTransition, Composition, Document, Gain, Source,
-    units_to_ticks,
+    CClip, CEffect, CFade, CFadeCurve, CItem, CKind, CMarker, CTrack, CTransition, Composition,
+    Document, Gain, Source, units_to_ticks,
 };
 use crate::store::{self, Auid, Obj, Value, rational_of, utf16_of};
 use crate::{Error, Report, Result};
@@ -218,14 +218,18 @@ impl R<'_> {
             .unwrap_or((25, 1));
         let rate = FrameRate::new(pic_rate.0, pic_rate.1);
         let tags = tagged_values(c, pid::MOB_USER_COMMENTS);
-        let tag = |n: &str| tags.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone());
-        let (mut width, mut height) = tag("FilmCraft Frame Size")
+        let tag = |n: &str, alt: &str| {
+            tags.iter()
+                .find(|(k, _)| k == n || k == alt)
+                .map(|(_, v)| v.clone())
+        };
+        let (mut width, mut height) = tag("Neoveg Frame Size", "FilmCraft Frame Size")
             .and_then(|s| {
                 s.split_once('x')
                     .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
             })
             .unwrap_or((0, 0));
-        let mut sample_rate = tag("FilmCraft Audio Sample Rate")
+        let mut sample_rate = tag("Neoveg Audio Sample Rate", "FilmCraft Audio Sample Rate")
             .and_then(|s| s.parse().ok())
             .unwrap_or(0u32);
         let mut comp = Composition {
@@ -385,7 +389,7 @@ impl R<'_> {
                     .and_then(|o| {
                         tagged_values(o, pid::COMPONENT_USER_COMMENTS)
                             .into_iter()
-                            .find(|(k, _)| k == "FilmCraft Effect")
+                            .find(|(k, _)| k == "Neoveg Effect" || k == "FilmCraft Effect")
                             .map(|(_, v)| v)
                     })
                     .unwrap_or_else(|| {
@@ -418,18 +422,46 @@ impl R<'_> {
                 let gain = if op == Some(def::MONO_AUDIO_GAIN) {
                     self.gain(c, len, rate)
                 } else {
-                    self.report.warn("effects other than audio gain are not imported (their first input is used)");
                     None
                 };
+                let opacity = if op == Some(def::VIDEO_OPACITY) {
+                    self.opacity(c, len, rate)
+                } else {
+                    None
+                };
+                let speed = if op == Some(def::VIDEO_SPEED_CONTROL)
+                    || op == Some(def::AUDIO_SPEED_CONTROL)
+                {
+                    self.speed(c)
+                } else {
+                    None
+                };
+                if op.is_some()
+                    && !matches!(
+                        op,
+                        Some(o)
+                            if o == def::MONO_AUDIO_GAIN
+                                || o == def::VIDEO_OPACITY
+                                || o == def::VIDEO_SPEED_CONTROL
+                                || o == def::AUDIO_SPEED_CONTROL
+                    )
+                {
+                    self.report.warn("effects other than gain, opacity, or speed are not fully mapped (their first input is used)");
+                }
                 let mut items = self.segment(input, rate, kind, depth);
                 // the operation's length rules
                 fit(&mut items, len);
-                if let Some(g) = gain {
-                    match items.as_mut_slice() {
-                        [CItem::Clip(cl)] => cl.gain = Some(g),
-                        _ => self
-                            .report
-                            .warn("audio gain around several clips was not imported"),
+                for item in items.iter_mut() {
+                    if let CItem::Clip(cl) = item {
+                        if let Some(g) = &gain {
+                            cl.gain = Some(g.clone());
+                        }
+                        if let Some(o) = &opacity {
+                            cl.opacity = Some(o.clone());
+                        }
+                        if let Some(s) = speed {
+                            cl.speed = Some(s);
+                        }
                     }
                 }
                 items
@@ -458,11 +490,11 @@ impl R<'_> {
         }
     }
 
-    fn gain(&mut self, og: &Obj, len: Tick, _rate: (i64, i64)) -> Option<Gain> {
+    fn level_param(&mut self, og: &Obj, len: Tick, param_def: Auid) -> Option<Gain> {
         let p = og
             .objs(pid::PARAMETERS)
             .iter()
-            .find(|p| p.auid(pid::PARAMETER_DEFINITION) == Some(def::PARAM_AMPLITUDE))
+            .find(|p| p.auid(pid::PARAMETER_DEFINITION) == Some(param_def))
             .or_else(|| og.objs(pid::PARAMETERS).first())?;
         if p.class == cls::CONSTANT_VALUE {
             return p
@@ -496,6 +528,32 @@ impl R<'_> {
         None
     }
 
+    fn gain(&mut self, og: &Obj, len: Tick, _rate: (i64, i64)) -> Option<Gain> {
+        self.level_param(og, len, def::PARAM_AMPLITUDE)
+    }
+
+    fn opacity(&mut self, og: &Obj, len: Tick, _rate: (i64, i64)) -> Option<Gain> {
+        self.level_param(og, len, def::PARAM_LEVEL)
+    }
+
+    fn speed(&mut self, og: &Obj) -> Option<f64> {
+        let p = og
+            .objs(pid::PARAMETERS)
+            .iter()
+            .find(|p| p.auid(pid::PARAMETER_DEFINITION) == Some(def::PARAM_SPEED_RATIO))
+            .or_else(|| og.objs(pid::PARAMETERS).first())?;
+        if p.class == cls::CONSTANT_VALUE {
+            return p.data(pid::CONSTANT_VALUE).and_then(indirect_f64);
+        }
+        if p.class == cls::VARYING_VALUE {
+            return p
+                .objs(pid::POINT_LIST)
+                .first()
+                .and_then(|cp| cp.data(pid::CP_VALUE).and_then(indirect_f64));
+        }
+        None
+    }
+
     fn clip(
         &mut self,
         c: &Obj,
@@ -505,11 +563,60 @@ impl R<'_> {
     ) -> CItem {
         let len = units_to_ticks(len_of(c), rate.0, rate.1);
         let start = units_to_ticks(c.i64(pid::START_TIME).unwrap_or(0), rate.0, rate.1);
-        let name = tagged_values(c, pid::COMPONENT_USER_COMMENTS)
-            .into_iter()
+        let comments = tagged_values(c, pid::COMPONENT_USER_COMMENTS);
+        let name = comments
+            .iter()
             .find(|(k, _)| k == "Clip Name")
-            .map(|(_, v)| v)
+            .map(|(_, v)| v.clone())
             .unwrap_or_default();
+        let speed = comments
+            .iter()
+            .find(|(k, _)| k == "Neoveg Speed" || k == "FilmCraft Speed")
+            .and_then(|(_, v)| v.trim().parse::<f64>().ok());
+        let fade_in = comments
+            .iter()
+            .find(|(k, _)| k == "Neoveg Fade In" || k == "FilmCraft Fade In")
+            .and_then(|(_, v)| {
+                let (len_str, curve_str) = v.split_once(':')?;
+                let len = Tick(len_str.trim().parse().ok()?);
+                let curve = CFadeCurve::from_str_opt(curve_str).unwrap_or(CFadeCurve::Linear);
+                Some(CFade { len, curve })
+            });
+        let fade_out = comments
+            .iter()
+            .find(|(k, _)| k == "Neoveg Fade Out" || k == "FilmCraft Fade Out")
+            .and_then(|(_, v)| {
+                let (len_str, curve_str) = v.split_once(':')?;
+                let len = Tick(len_str.trim().parse().ok()?);
+                let curve = CFadeCurve::from_str_opt(curve_str).unwrap_or(CFadeCurve::Linear);
+                Some(CFade { len, curve })
+            });
+        let mut effects = Vec::new();
+        for (k, v) in &comments {
+            if k == "Neoveg Effect" || k == "FilmCraft Effect" {
+                if let Some((eid, ename)) = v.split_once(':') {
+                    effects.push(CEffect {
+                        id: eid.trim().to_string(),
+                        name: ename.trim().to_string(),
+                        params: Vec::new(),
+                    });
+                }
+            }
+        }
+        for (k, v) in &comments {
+            if k == "Neoveg Effect Param" || k == "FilmCraft Effect Param" {
+                let parts: Vec<&str> = v.splitn(3, ':').collect();
+                if parts.len() == 3 {
+                    let eid = parts[0].trim();
+                    let pname = parts[1].trim().to_string();
+                    if let Ok(pval) = parts[2].trim().parse::<f64>() {
+                        if let Some(eff) = effects.iter_mut().find(|e| e.id == eid) {
+                            eff.params.push((pname, pval));
+                        }
+                    }
+                }
+            }
+        }
         let (Some(id), Some(slot)) = (c.mob_id(pid::SOURCE_ID), c.u32(pid::SOURCE_MOB_SLOT_ID))
         else {
             return CItem::Filler(len);
@@ -541,6 +648,11 @@ impl R<'_> {
                 source,
                 start: t,
                 gain: None,
+                opacity: None,
+                speed,
+                fade_in,
+                fade_out,
+                effects,
                 name,
             }),
             None => CItem::Filler(len),
@@ -647,6 +759,11 @@ impl R<'_> {
             source,
             start,
             gain: None,
+            opacity: None,
+            speed: None,
+            fade_in: None,
+            fade_out: None,
+            effects: Vec::new(),
             name,
         })
     }
@@ -830,6 +947,8 @@ impl R<'_> {
                     s.bits = bits;
                 }
             }
+        } else if let Some(data) = self.essence.get(&id) {
+            s.embedded = Some(data.to_vec());
         }
         if s.kind == CKind::Picture && s.width == 0 {
             s.width = 1920;

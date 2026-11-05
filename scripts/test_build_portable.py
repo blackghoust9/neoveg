@@ -55,6 +55,12 @@ class StagedPackage(unittest.TestCase):
         self.assertEqual(cubes, sorted(p.name for p in (ROOT / "assets" / "luts").glob("*.cube")))
         self.assertGreaterEqual(len(cubes), 1)
 
+    def test_the_i18n_string_catalogs_travel_with_the_package(self) -> None:
+        staged = sorted(p.name for p in (self.stage / "Assets" / "i18n" / "strings").glob("*.json"))
+        repo = sorted(p.name for p in (ROOT / "assets" / "i18n" / "strings").glob("*.json"))
+        self.assertEqual(staged, repo)
+        self.assertGreaterEqual(len(staged), 7)
+
     def test_the_other_third_party_licences_are_there(self) -> None:
         for relative in (
             "third_party/filmcraft/LICENSE-MIT",
@@ -462,6 +468,136 @@ class MemoryProfile(unittest.TestCase):
         build_portable.total_memory_bytes = self.saved[0]  # type: ignore[assignment]
         total = build_portable.total_memory_bytes()
         self.assertTrue(total is None or total > self.GIB)
+
+
+class CompanionHostsAndQaFixes(unittest.TestCase):
+    """Regression coverage for companion hosts, per-crate low-memory QA, macOS min env, triple PDB cleanup and NEOVEG_DIST."""
+
+    def test_companion_vst3_and_ofx_hosts_are_built_staged_and_marked_executable(self) -> None:
+        import tarfile
+
+        self.assertEqual(
+            build_portable.release_package_args(True),
+            ["-p", "neoveg_ui", "-p", "neoveg_audio", "-p", "neoveg_ofx", "--features", "neoveg_ui/ffmpeg"],
+        )
+        case = SCRATCH / "companions_case"
+        if case.exists():
+            shutil.rmtree(case)
+        (case / "win").mkdir(parents=True)
+        for name in ("neoveg.exe", "neoveg_vst3_host.exe", "neoveg_ofx_host.exe"):
+            (case / "win" / name).write_bytes(b"MZ fake")
+        (case / "unix").mkdir(parents=True)
+        for name in ("neoveg", "neoveg_vst3_host", "neoveg_ofx_host"):
+            (case / "unix" / name).write_bytes(b"\x7fELF fake")
+
+        old_dist = build_portable.DIST
+        build_portable.DIST = case / "dist"
+        try:
+            win_stage = build_portable.stage_package("win-x64", case / "win" / "neoveg.exe", "9.9.9", ffmpeg=False)
+            self.assertTrue((win_stage / "neoveg_vst3_host.exe").is_file())
+            self.assertTrue((win_stage / "neoveg_ofx_host.exe").is_file())
+
+            linux_stage = build_portable.stage_package("linux-x64", case / "unix" / "neoveg", "9.9.9", ffmpeg=False)
+            self.assertTrue((linux_stage / "neoveg_vst3_host").is_file())
+            self.assertTrue((linux_stage / "neoveg_ofx_host").is_file())
+            linux_tar = build_portable.make_archive(linux_stage, "linux-x64", "9.9.9")
+            with tarfile.open(linux_tar, "r:gz") as bundle:
+                for member_name in ("neoveg", "neoveg_vst3_host", "neoveg_ofx_host", "neoveg.sh"):
+                    member = bundle.getmember(f"Neoveg-Portable-linux-x64/{member_name}")
+                    self.assertEqual(member.mode, 0o755, member_name)
+
+            mac_stage = build_portable.stage_package("osx-arm64", case / "unix" / "neoveg", "9.9.9", ffmpeg=False)
+            macos_dir = mac_stage / "Neoveg.app" / "Contents" / "MacOS"
+            self.assertTrue((macos_dir / "neoveg_vst3_host").is_file())
+            self.assertTrue((macos_dir / "neoveg_ofx_host").is_file())
+        finally:
+            build_portable.DIST = old_dist
+            shutil.rmtree(case, ignore_errors=True)
+
+    def test_qa_steps_runs_crate_by_crate_on_low_memory_and_workspace_on_large_machines(self) -> None:
+        import argparse
+
+        old_low = os.environ.get("NEOVEG_LOW_MEMORY")
+        try:
+            os.environ["NEOVEG_LOW_MEMORY"] = "1"
+            low_steps = build_portable.qa_steps(argparse.Namespace(jobs=None, ffmpeg=True, macos_min=""))
+            names = [str(s["name"]) for s in low_steps]
+            self.assertIn("Testes (neoveg_common)", names)
+            self.assertIn("Testes (neoveg_engine)", names)
+            self.assertIn("Testes com FFmpeg (neoveg_video)", names)
+            self.assertNotIn("Testes do workspace", names)
+
+            os.environ["NEOVEG_LOW_MEMORY"] = "0"
+            high_steps = build_portable.qa_steps(argparse.Namespace(jobs=None, ffmpeg=True, macos_min=""))
+            high_names = [str(s["name"]) for s in high_steps]
+            self.assertIn("Testes do workspace", high_names)
+            self.assertIn("Testes com FFmpeg", high_names)
+        finally:
+            if old_low is None:
+                os.environ.pop("NEOVEG_LOW_MEMORY", None)
+            else:
+                os.environ["NEOVEG_LOW_MEMORY"] = old_low
+
+    def test_qa_steps_forwards_macos_min_into_release_env(self) -> None:
+        import argparse
+
+        saved = (build_portable.host_rid, build_portable.host_triple, build_portable.macos_floor)
+        try:
+            build_portable.host_rid = lambda: "osx-arm64"  # type: ignore[assignment]
+            build_portable.host_triple = lambda: "aarch64-apple-darwin"  # type: ignore[assignment]
+            build_portable.macos_floor = lambda _triple: "11.0"  # type: ignore[assignment]
+            steps = build_portable.qa_steps(argparse.Namespace(jobs=1, ffmpeg=False, macos_min="12.0"))
+            release_step = steps[-1]
+            self.assertEqual(release_step["env"]["MACOSX_DEPLOYMENT_TARGET"], "12.0")  # type: ignore[index]
+        finally:
+            build_portable.host_rid, build_portable.host_triple, build_portable.macos_floor = saved  # type: ignore[assignment]
+
+    def test_clear_windows_link_locks_cleans_explicit_target_triple_subdirs(self) -> None:
+        case = SCRATCH / "pdb_triple_case"
+        if case.exists():
+            shutil.rmtree(case)
+        root_dep = case / "debug" / "deps"
+        triple_dep = case / "x86_64-pc-windows-msvc" / "release" / "deps"
+        keep_tmp = case / "tmp" / "debug"
+        for folder in (root_dep, triple_dep, keep_tmp):
+            folder.mkdir(parents=True)
+        (root_dep / "a.pdb").write_bytes(b"pdb")
+        (triple_dep / "b.pdb").write_bytes(b"pdb")
+        (triple_dep / "b.ilk").write_bytes(b"ilk")
+        (keep_tmp / "keep.pdb").write_bytes(b"keep")
+
+        old_target = build_portable.TARGET_DIR
+        old_sys = build_portable.platform.system
+        old_sleep = build_portable.time.sleep
+        build_portable.TARGET_DIR = case
+        build_portable.platform.system = lambda: "Linux"  # type: ignore[assignment]
+        build_portable.time.sleep = lambda _s: None  # type: ignore[assignment]
+        try:
+            removed = build_portable.clear_windows_link_locks()
+            self.assertEqual(removed, 3)
+            self.assertFalse((root_dep / "a.pdb").exists())
+            self.assertFalse((triple_dep / "b.pdb").exists())
+            self.assertFalse((triple_dep / "b.ilk").exists())
+            self.assertTrue((keep_tmp / "keep.pdb").is_file())
+        finally:
+            build_portable.TARGET_DIR = old_target
+            build_portable.platform.system = old_sys  # type: ignore[assignment]
+            build_portable.time.sleep = old_sleep  # type: ignore[assignment]
+            shutil.rmtree(case, ignore_errors=True)
+
+    def test_default_dist_honors_neoveg_dist(self) -> None:
+        old = os.environ.get("NEOVEG_DIST")
+        custom = SCRATCH / "custom_env_dist"
+        try:
+            os.environ["NEOVEG_DIST"] = str(custom)
+            self.assertEqual(build_portable.default_dist(), custom.resolve())
+            os.environ.pop("NEOVEG_DIST", None)
+            self.assertEqual(build_portable.default_dist(), ROOT / "dist")
+        finally:
+            if old is None:
+                os.environ.pop("NEOVEG_DIST", None)
+            else:
+                os.environ["NEOVEG_DIST"] = old
 
 
 if __name__ == "__main__":

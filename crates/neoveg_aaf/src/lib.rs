@@ -20,9 +20,12 @@ mod store;
 mod support;
 pub mod time;
 mod write;
+#[cfg(test)]
+mod tests;
 
 pub use support::{
-    Error, Level, Report, ReportEntry, Result, file_stem, file_url_to_path, path_to_file_url,
+    Error, Level, Report, ReportEntry, Result, encode_wav, file_stem, file_url_to_path, parse_wav,
+    path_to_file_url,
 };
 
 use model::Document;
