@@ -219,6 +219,42 @@ pub fn set_channels(
     (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
 }
 
+/// Sets which stream and channels of their media the audio events among `events` play. Video and
+/// locked events and events with no media are skipped. One undo step; `None` when nothing changes.
+pub fn set_sound_source(
+    timeline: &Timeline,
+    events: &[EventRef],
+    source: neoveg_common::channels::SoundSource,
+) -> Option<EditCommand> {
+    let mut changes = Vec::new();
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Audio)
+    {
+        let mut after = track.events.clone();
+        let mut changed = false;
+        for event in &mut after {
+            if events.contains(&(track.id, event.id))
+                && !event.locked
+                && event.media_id.is_some()
+                && event.sound_source != source
+            {
+                event.sound_source = source;
+                changed = true;
+            }
+        }
+        if changed {
+            changes.push(TrackChange {
+                track_id: track.id,
+                before: track.events.clone(),
+                after,
+            });
+        }
+    }
+    (!changes.is_empty()).then_some(EditCommand::ReplaceEvents { changes })
+}
+
 /// Turns Normalize on with the given gain for each listed audio event, or recalculates the gain of
 /// events that already have it. One undo step; `None` when nothing changes.
 pub fn set_normalize(timeline: &Timeline, gains: &[(EventRef, f32)]) -> Option<EditCommand> {
@@ -912,5 +948,46 @@ mod tests {
         assert!(h.undo(&mut tl) && h.undo(&mut tl));
         assert_eq!(opacity_of(&tl, &[v0]), Some(1.0));
         assert_eq!(gain_db_of(&tl, &[a0, a1]), Some(0.0));
+    }
+
+    #[test]
+    fn the_sound_source_of_an_audio_event_changes_in_one_undo_step_and_skips_the_rest() {
+        use neoveg_common::channels::SoundSource;
+        let mut tl = Timeline::new();
+        let mut a = tl.new_track(TrackKind::Audio);
+        let mk = |id: u64, media: Option<u64>, locked: bool| crate::timeline::TrackEvent {
+            id,
+            media_id: media,
+            duration: 1.0,
+            locked,
+            ..Default::default()
+        };
+        a.events = vec![
+            mk(1, Some(5), false),
+            mk(2, Some(5), true),
+            mk(3, None, false),
+        ];
+        let id = a.id;
+        tl.tracks.push(a);
+        let pick = SoundSource {
+            stream: 0,
+            left: 2,
+            right: 3,
+        };
+        let command = set_sound_source(&tl, &[(id, 1), (id, 2), (id, 3)], pick).unwrap();
+        let mut h = crate::command::History::new();
+        assert!(h.execute(&mut tl, command));
+        let events = &tl.track(id).unwrap().events;
+        assert_eq!(events[0].sound_source, pick);
+        assert!(events[1].sound_source.is_default(), "locked");
+        assert!(events[2].sound_source.is_default(), "no media");
+        assert!(
+            set_sound_source(&tl, &[(id, 1)], pick).is_none(),
+            "already so"
+        );
+        assert!(h.undo(&mut tl));
+        assert!(tl.track(id).unwrap().events[0].sound_source.is_default());
+        // A default source is not written to the project
+        assert!(!serde_json::to_string(&tl).unwrap().contains("sound_source"));
     }
 }

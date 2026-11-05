@@ -640,6 +640,7 @@ impl EditCommand {
                     normalize: left.normalize,
                     normalize_gain: left.normalize_gain,
                     channels: left.channels,
+                    sound_source: left.sound_source,
                     video_effects: crate::video_effects::shift_chain_keyframes(
                         &left.video_effects,
                         left_duration,

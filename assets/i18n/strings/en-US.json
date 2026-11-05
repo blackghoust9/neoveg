@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "Split stereo into dual mono",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Stereo split into two mono events (left and right)",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "No unlocked stereo event in the selection to split",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Import stereo audio as dual mono (left on the track, right on a new track below)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Import stereo audio as dual mono (left on the track, right on a new track below)",
+  "Fonte do som": "Sound source",
+  "Canal {}": "Channel {}",
+  "Canais {}/{}": "Channels {}/{}",
+  "Fluxo {}, {}": "Stream {}, {}",
+  "Fonte do som: {}": "Sound source: {}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "No unlocked audio event changed its sound source"
 }

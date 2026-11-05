@@ -534,7 +534,18 @@ struct RepeatDialog {
     seconds: f64,
 }
 
-type StretchCacheKey = (u64, u64, u64, u64, bool, (u64, bool, u64));
+/// The sound of a media with another stream or channels, by media and source.
+type SoundCache = HashMap<(u64, neoveg_common::channels::SoundSource), Option<Arc<PcmStore>>>;
+
+type StretchCacheKey = (
+    u64,
+    u64,
+    u64,
+    u64,
+    bool,
+    (u64, bool, u64),
+    neoveg_common::channels::SoundSource,
+);
 
 struct AppState {
     project: ProjectInfo,
@@ -549,6 +560,11 @@ struct AppState {
     media: HashMap<u64, LoadedMedia>,
     /// Cached WSOLA / varispeed slices keyed by `(media_id, trim_bits, dur_bits, rate_bits, preserve_pitch)`.
     stretch_cache: std::cell::RefCell<HashMap<StretchCacheKey, Arc<PcmStore>>>,
+    /// The sound of a media read with another stream or other channels than the default (`None`:
+    /// it could not be read, the default sound plays instead).
+    sound_cache: std::cell::RefCell<SoundCache>,
+    /// The channel count of every audio stream of a media, read when the menu asks.
+    audio_streams: std::cell::RefCell<HashMap<u64, Vec<u16>>>,
 
     playhead: f64,
     playing: bool,
@@ -1868,6 +1884,8 @@ impl AppState {
             keymap,
             media: HashMap::new(),
             stretch_cache: std::cell::RefCell::new(HashMap::new()),
+            sound_cache: std::cell::RefCell::new(HashMap::new()),
+            audio_streams: std::cell::RefCell::new(HashMap::new()),
             playhead: 0.0,
             playing: false,
             blink_origin: 0.0,
@@ -6815,6 +6833,76 @@ impl AppState {
         }
     }
 
+    /// The stereo sound an event plays: the media's own, or the stream and channels the event picked
+    /// (decoded once and kept; the media's own when the file cannot be read that way).
+    fn event_pcm(
+        &self,
+        media_id: u64,
+        media: &LoadedMedia,
+        source: neoveg_common::channels::SoundSource,
+    ) -> Arc<PcmStore> {
+        if source.is_default() {
+            return Arc::clone(&media.stereo);
+        }
+        let source = source.sanitized(media.channels);
+        if source.is_default() {
+            return Arc::clone(&media.stereo);
+        }
+        let mut cache = self.sound_cache.borrow_mut();
+        let held = cache
+            .entry((media_id, source))
+            .or_insert_with(|| {
+                match neoveg_audio::decode::decode_to_store_source(&media.path, source) {
+                    Ok(decoded) => Some(Arc::new(decoded.store)),
+                    Err(e) => {
+                        tracing::warn!(
+                            "[WARN] sound source {source:?} of {}: {e}",
+                            media.path.display()
+                        );
+                        None
+                    }
+                }
+            })
+            .clone();
+        held.unwrap_or_else(|| Arc::clone(&media.stereo))
+    }
+
+    /// The channel count of each audio stream of the media (read once).
+    fn media_streams(&self, media_id: u64) -> Vec<u16> {
+        let Some(media) = self.media.get(&media_id) else {
+            return Vec::new();
+        };
+        self.audio_streams
+            .borrow_mut()
+            .entry(media_id)
+            .or_insert_with(|| {
+                let found = neoveg_audio::decode::probe_audio_streams(&media.path);
+                if found.is_empty() {
+                    vec![media.channels]
+                } else {
+                    found
+                }
+            })
+            .clone()
+    }
+
+    /// *Fonte do som*: the stream and channels the selected audio events play.
+    fn set_sound_source(&mut self, source: neoveg_common::channels::SoundSource) {
+        let refs = self.selection.refs();
+        match switches::set_sound_source(&self.timeline, &refs, source) {
+            Some(command) => {
+                if self.history.execute(&mut self.timeline, command) {
+                    self.status = tr_args("Fonte do som: {}", &[&source.label()]);
+                    self.restart_audio_if_playing();
+                }
+            }
+            None => {
+                self.status =
+                    tr("Nenhum evento de áudio desbloqueado mudou de fonte do som").into();
+            }
+        }
+    }
+
     fn build_clips_for(&self, timeline: &Timeline) -> Vec<MixClip> {
         let mut clips = Vec::new();
         for (track_index, track) in timeline
@@ -6853,11 +6941,13 @@ impl AppState {
                     .map(|later| later.fade_in_curve)
                     .next()
                     .unwrap_or_default();
+                // The stream and channels the event plays (the default ones come with the media)
+                let pcm = self.event_pcm(media_id, media, e.sound_source);
                 // The source is read directly only while nothing changes its speed or its pitch
                 let (samples, trim_in) = if neoveg_audio::stretch::is_unity_rate(e.playback_rate)
                     && !e.pitch.changes_sound()
                 {
-                    (Arc::clone(&media.stereo), e.trim_in)
+                    (Arc::clone(&pcm), e.trim_in)
                 } else {
                     let rate = neoveg_audio::stretch::clamp_rate(e.playback_rate);
                     let key = (
@@ -6867,6 +6957,7 @@ impl AppState {
                         rate.to_bits(),
                         e.preserve_pitch,
                         e.pitch.key(),
+                        e.sound_source,
                     );
                     let mut cache = self.stretch_cache.borrow_mut();
                     // Bounded by size, not by count: one stretched clip can be tens of megabytes
@@ -6879,7 +6970,7 @@ impl AppState {
                         .entry(key)
                         .or_insert_with(|| {
                             neoveg_audio::stretch::stretch_clip_slice(
-                                &media.stereo,
+                                &pcm,
                                 media.sample_rate,
                                 e.trim_in,
                                 e.duration,
@@ -10937,6 +11028,51 @@ fn channel_items(state: &mut AppState, ui: &mut egui::Ui) {
     }
     ui.separator();
     command_item(state, ui, Command::EditDualMono);
+    sound_source_items(state, ui);
+}
+
+/// Editar > Canais de áudio > Fonte do som: which audio stream, and which channels of it, the primary
+/// selected audio event plays (a file can hold several streams and more than two channels).
+fn sound_source_items(state: &mut AppState, ui: &mut egui::Ui) {
+    let Some((track_id, event_id)) = state.selection.refs().first().copied() else {
+        return;
+    };
+    let event = state
+        .timeline
+        .track(track_id)
+        .filter(|t| t.kind == TrackKind::Audio)
+        .and_then(|t| t.events.iter().find(|e| e.id == event_id))
+        .filter(|e| e.media_id.is_some())
+        .cloned();
+    let Some(event) = event else {
+        return;
+    };
+    let Some(media_id) = event.media_id else {
+        return;
+    };
+    let streams = state.media_streams(media_id);
+    let options: Vec<neoveg_common::channels::SoundSource> = streams
+        .iter()
+        .enumerate()
+        .flat_map(|(stream, channels)| {
+            neoveg_common::channels::SoundSource::options(stream as u8, *channels)
+        })
+        .collect();
+    // Nothing to choose from a plain stereo file with one stream
+    if options.len() <= 1 {
+        return;
+    }
+    ui.menu_button(tr("Fonte do som"), |ui| {
+        for option in options {
+            if ui
+                .selectable_label(event.sound_source == option, option.label())
+                .clicked()
+            {
+                state.set_sound_source(option);
+                ui.close_menu();
+            }
+        }
+    });
 }
 
 /// Editar > Take (and the same entries in the event context menu): add the media of the Trimmer as

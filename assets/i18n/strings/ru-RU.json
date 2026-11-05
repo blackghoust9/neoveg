@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "Разделить стерео на два моно",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Стерео разделено на два моно-события (левое и правое)",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "В выделении нет разблокированных стереособытий для разделения",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Импортировать стереозвук как два моно (левый на дорожке, правый на новой дорожке ниже)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Импортировать стереозвук как два моно (левый на дорожке, правый на новой дорожке ниже)",
+  "Fonte do som": "Источник звука",
+  "Canal {}": "Канал {}",
+  "Canais {}/{}": "Каналы {}/{}",
+  "Fluxo {}, {}": "Поток {}, {}",
+  "Fonte do som: {}": "Источник звука: {}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Ни одно разблокированное звуковое событие не сменило источник звука"
 }

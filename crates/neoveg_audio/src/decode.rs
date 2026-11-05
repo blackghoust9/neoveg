@@ -48,8 +48,10 @@ impl DecodedAudio {
 fn pick_audio_track(
     format: &dyn symphonia::core::formats::FormatReader,
     path: &Path,
+    nth: usize,
 ) -> Result<(u32, Box<dyn symphonia::core::codecs::Decoder>), String> {
     let mut last_error = None;
+    let mut skipped = 0;
     for track in format.tracks() {
         let params = &track.codec_params;
         let is_audio = params.codec != symphonia::core::codecs::CODEC_TYPE_NULL
@@ -58,9 +60,18 @@ fn pick_audio_track(
             continue;
         }
         match symphonia::default::get_codecs().make(params, &DecoderOptions::default()) {
+            // The `nth` audio stream (the first one for 0)
+            Ok(_) if skipped < nth => skipped += 1,
             Ok(decoder) => return Ok((track.id, decoder)),
             Err(e) => last_error = Some(e.to_string()),
         }
+    }
+    if skipped > 0 {
+        return Err(format!(
+            "{} has no audio stream {}",
+            path.display(),
+            nth + 1
+        ));
     }
     match last_error {
         Some(e) => Err(format!("no decoder for {}: {e}", path.display())),
@@ -108,7 +119,7 @@ impl Sink for PcmWriter {
 /// Decodes the first decodable audio track of `path` (the sound of a video file included).
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
     let mut sink = VecSink(Vec::new());
-    let (sample_rate, channels) = decode_into(path, &mut sink)?;
+    let (sample_rate, channels) = decode_into(path, 0, &mut sink)?;
     Ok(DecodedAudio {
         sample_rate,
         channels,
@@ -134,7 +145,7 @@ impl DecodedStore {
 /// Decodes `path` block by block into a [`PcmStore`] (see [`DecodedStore`]).
 pub fn decode_to_store(path: &Path) -> Result<DecodedStore, String> {
     let mut writer = PcmWriter::new();
-    let (sample_rate, channels) = decode_into(path, &mut writer)?;
+    let (sample_rate, channels) = decode_into(path, 0, &mut writer)?;
     let store = writer
         .finish()
         .map_err(|e| format!("cannot keep the decoded sound: {e}"))?;
@@ -143,6 +154,92 @@ pub fn decode_to_store(path: &Path) -> Result<DecodedStore, String> {
         channels,
         store,
     })
+}
+
+/// Hands the stereo pair of channels `left` and `right` of every block to the next sink (a
+/// channel past the last one of the stream is the last one).
+struct PickSink<'a> {
+    inner: &'a mut PcmWriter,
+    left: usize,
+    right: usize,
+    pair: Vec<f32>,
+}
+
+impl Sink for PickSink<'_> {
+    fn start(&mut self, frames: Option<usize>) {
+        self.inner.start(frames);
+    }
+
+    fn block(&mut self, samples: &[f32], channels: usize) -> Result<(), String> {
+        let channels = channels.max(1);
+        self.pair.clear();
+        for frame in samples.chunks_exact(channels) {
+            self.pair.push(frame[self.left.min(channels - 1)]);
+            self.pair.push(frame[self.right.min(channels - 1)]);
+        }
+        self.inner.block(&self.pair, 2)
+    }
+}
+
+/// Decodes the stream `source.stream` of `path` keeping the channels `source.left` and `source.right`
+/// as the stereo pair of the store (one channel twice when they are the same).
+pub fn decode_to_store_source(
+    path: &Path,
+    source: neoveg_common::channels::SoundSource,
+) -> Result<DecodedStore, String> {
+    let mut writer = PcmWriter::new();
+    let (sample_rate, channels) = {
+        let mut sink = PickSink {
+            inner: &mut writer,
+            left: usize::from(source.left),
+            right: usize::from(source.right),
+            pair: Vec::new(),
+        };
+        decode_into(path, usize::from(source.stream), &mut sink)?
+    };
+    let store = writer
+        .finish()
+        .map_err(|e| format!("cannot keep the decoded sound: {e}"))?;
+    Ok(DecodedStore {
+        sample_rate,
+        channels,
+        store,
+    })
+}
+
+/// The channel count of every audio stream of `path` that can be decoded (empty when it cannot be
+/// read): a file with several languages or several mixes has more than one.
+pub fn probe_audio_streams(path: &Path) -> Vec<u16> {
+    let Ok(file) = File::open(path) else {
+        return Vec::new();
+    };
+    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+    let Ok(probed) = symphonia::default::get_probe().format(
+        &hint,
+        stream,
+        &FormatOptions::default(),
+        &MetadataOptions::default(),
+    ) else {
+        return Vec::new();
+    };
+    probed
+        .format
+        .tracks()
+        .iter()
+        .filter(|t| {
+            let p = &t.codec_params;
+            p.codec != symphonia::core::codecs::CODEC_TYPE_NULL
+                && (p.sample_rate.is_some() || p.channels.is_some())
+                && symphonia::default::get_codecs()
+                    .make(p, &DecoderOptions::default())
+                    .is_ok()
+        })
+        .map(|t| t.codec_params.channels.map_or(2, |c| c.count() as u16))
+        .collect()
 }
 
 /// Length and channel count of the first audio track without decoding it, when the container says.
@@ -171,7 +268,7 @@ pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
         )
         .ok()?;
     let format = probed.format;
-    let (track_id, _) = pick_audio_track(&*format, path).ok()?;
+    let (track_id, _) = pick_audio_track(&*format, path, 0).ok()?;
     let params = &format
         .tracks()
         .iter()
@@ -184,7 +281,11 @@ pub fn probe_audio(path: &Path) -> Option<(f64, u16)> {
 }
 
 /// Decodes the first audio track of `path` into `sink`; returns the sample rate and channel count.
-fn decode_into(path: &Path, sink: &mut dyn Sink) -> Result<(u32, u16), String> {
+fn decode_into(
+    path: &Path,
+    audio_stream: usize,
+    sink: &mut dyn Sink,
+) -> Result<(u32, u16), String> {
     if neoveg_media::mxf::is_mxf_path(path) {
         let mxf = neoveg_media::mxf::decode_audio_file(path)?;
         let ch = usize::from(mxf.channels.max(1));
@@ -211,7 +312,7 @@ fn decode_into(path: &Path, sink: &mut dyn Sink) -> Result<(u32, u16), String> {
         .map_err(|e| format!("unsupported media {}: {e}", path.display()))?;
     let mut format = probed.format;
 
-    let (track_id, mut decoder) = pick_audio_track(&*format, path)?;
+    let (track_id, mut decoder) = pick_audio_track(&*format, path, audio_stream)?;
 
     let mut sample_rate = 0u32;
     let mut channels = 0u16;
@@ -472,5 +573,70 @@ mod tests {
         assert!((stereo[0] - 0.5).abs() < 1e-4);
         assert!((stereo[1] + 0.25).abs() < 1e-4);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A WAV of four channels where channel `c` holds the constant `(c + 1) / 10`.
+    fn four_channel_wav(name: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("neoveg_pick_{}_{name}.wav", std::process::id()));
+        let mut writer = crate::record::WavWriter::new(
+            std::io::BufWriter::new(std::fs::File::create(&path).unwrap()),
+            4,
+            48_000,
+        )
+        .unwrap();
+        let frames: Vec<f32> = (0..4800).flat_map(|_| [0.1, 0.2, 0.3, 0.4]).collect();
+        writer.write_samples(&frames).unwrap();
+        writer.finish().unwrap();
+        path
+    }
+
+    fn first_frame(store: &DecodedStore) -> (f32, f32) {
+        store.store.frame(0)
+    }
+
+    #[test]
+    fn a_pair_or_a_single_channel_of_a_multichannel_file_is_what_the_store_keeps() {
+        use neoveg_common::channels::SoundSource;
+        let path = four_channel_wav("pairs");
+        let pick = |left, right| SoundSource {
+            stream: 0,
+            left,
+            right,
+        };
+        let near =
+            |a: (f32, f32), b: (f32, f32)| (a.0 - b.0).abs() < 1e-6 && (a.1 - b.1).abs() < 1e-6;
+        let first = decode_to_store_source(&path, pick(0, 1)).unwrap();
+        assert_eq!(first.channels, 4);
+        assert!(near(first_frame(&first), (0.1, 0.2)));
+        let second = decode_to_store_source(&path, pick(2, 3)).unwrap();
+        assert!(near(first_frame(&second), (0.3, 0.4)), "channels 3 and 4");
+        let single = decode_to_store_source(&path, pick(3, 3)).unwrap();
+        assert!(
+            near(first_frame(&single), (0.4, 0.4)),
+            "one channel on both sides"
+        );
+        let past = decode_to_store_source(&path, pick(9, 9)).unwrap();
+        assert!(
+            near(first_frame(&past), (0.4, 0.4)),
+            "past the last channel is the last one"
+        );
+        assert_eq!(first.store.frames(), 4800);
+        // The default pick is what `decode_to_store` gives
+        let plain = decode_to_store(&path).unwrap();
+        assert!(near(first_frame(&plain), (0.1, 0.2)));
+        // The file has one stream, so the second does not exist
+        assert!(decode_to_store_source(
+            &path,
+            SoundSource {
+                stream: 1,
+                left: 0,
+                right: 1
+            }
+        )
+        .is_err());
+        assert_eq!(probe_audio_streams(&path), vec![4]);
+        assert!(probe_audio_streams(&path.with_extension("missing")).is_empty());
+        let _ = std::fs::remove_file(path);
     }
 }

@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "Stereo in Dual-Mono teilen",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Stereo in zwei Mono-Events geteilt (links und rechts)",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "Kein entsperrtes Stereo-Event in der Auswahl zum Teilen",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Stereo-Audio als Dual-Mono importieren (links auf der Spur, rechts auf einer neuen Spur darunter)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Stereo-Audio als Dual-Mono importieren (links auf der Spur, rechts auf einer neuen Spur darunter)",
+  "Fonte do som": "Tonquelle",
+  "Canal {}": "Kanal {}",
+  "Canais {}/{}": "Kanäle {}/{}",
+  "Fluxo {}, {}": "Stream {}, {}",
+  "Fonte do som: {}": "Tonquelle: {}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Kein entsperrtes Audio-Event hat seine Tonquelle geändert"
 }

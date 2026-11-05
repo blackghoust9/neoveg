@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "ステレオをデュアルモノに分割",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "ステレオを2つのモノイベント(左と右)に分割しました",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "選択範囲に分割できるロック解除済みのステレオイベントがありません",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "ステレオ音声をデュアルモノでインポート(左はトラック上、右は下の新しいトラック)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "ステレオ音声をデュアルモノでインポート(左はトラック上、右は下の新しいトラック)",
+  "Fonte do som": "音声ソース",
+  "Canal {}": "チャンネル {}",
+  "Canais {}/{}": "チャンネル {}/{}",
+  "Fluxo {}, {}": "ストリーム {}、{}",
+  "Fonte do som: {}": "音声ソース:{}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "音声ソースが変わったロック解除済みのオーディオイベントはありません"
 }

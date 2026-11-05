@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "将立体声拆分为双单声道",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "立体声已拆分为两个单声道事件(左和右)",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "所选内容中没有可拆分的未锁定立体声事件",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "将立体声音频导入为双单声道(左声道在原轨道,右声道在下方新轨道)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "将立体声音频导入为双单声道(左声道在原轨道,右声道在下方新轨道)",
+  "Fonte do som": "声音来源",
+  "Canal {}": "声道 {}",
+  "Canais {}/{}": "声道 {}/{}",
+  "Fluxo {}, {}": "流 {},{}",
+  "Fonte do som: {}": "声音来源:{}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "没有未锁定的音频事件更改了声音来源"
 }

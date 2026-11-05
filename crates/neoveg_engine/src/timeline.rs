@@ -204,6 +204,13 @@ pub struct TrackEvent {
     /// Edit > Channels (audio only): how the two channels of the media reach the mix.
     #[serde(default, skip_serializing_if = "ChannelMode::is_default")]
     pub channels: ChannelMode,
+    /// Audio only: the stream and the channels of the media this event plays (older projects: the
+    /// first stream, channels 1 and 2).
+    #[serde(
+        default,
+        skip_serializing_if = "neoveg_common::channels::SoundSource::is_default"
+    )]
+    pub sound_source: neoveg_common::channels::SoundSource,
     /// Video effect chain of the event, applied in order to the decoded picture before the event's
     /// opacity and the track's effects (older projects have none). The engine only stores the
     /// registry id and the parameters; `neoveg_video::vfx` knows what each effect does.
@@ -299,6 +306,7 @@ impl Default for TrackEvent {
             normalize: false,
             normalize_gain: 1.0,
             channels: ChannelMode::Both,
+            sound_source: neoveg_common::channels::SoundSource::default(),
             video_effects: Vec::new(),
             pan_crop: PanCrop::default(),
             transition_in: None,

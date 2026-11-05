@@ -1711,5 +1711,11 @@
   "Dividir estéreo em mono duplo": "Diviser la stéréo en double mono",
   "Estéreo dividido em dois eventos mono (esquerdo e direito)": "Stéréo divisée en deux événements mono (gauche et droit)",
   "Nenhum evento estéreo desbloqueado na seleção para dividir": "Aucun événement stéréo déverrouillé à diviser dans la sélection",
-  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Importer l'audio stéréo en double mono (gauche sur la piste, droit sur une nouvelle piste dessous)"
+  "Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)": "Importer l'audio stéréo en double mono (gauche sur la piste, droit sur une nouvelle piste dessous)",
+  "Fonte do som": "Source sonore",
+  "Canal {}": "Canal {}",
+  "Canais {}/{}": "Canaux {}/{}",
+  "Fluxo {}, {}": "Flux {}, {}",
+  "Fonte do som: {}": "Source sonore : {}",
+  "Nenhum evento de áudio desbloqueado mudou de fonte do som": "Aucun événement audio déverrouillé n'a changé de source sonore"
 }
