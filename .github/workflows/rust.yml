@@ -31,12 +31,6 @@ jobs:
           - os: windows-latest
             experimental: false
             python: python
-          - os: ubuntu-latest
-            experimental: true
-            python: python3
-          - os: macos-latest
-            experimental: true
-            python: python3
     steps:
       - uses: actions/checkout@v4
 
@@ -139,18 +133,6 @@ jobs:
             os: windows-latest
             experimental: false
             python: python
-          - rid: linux-x64
-            os: ubuntu-latest
-            experimental: true
-            python: python3
-          - rid: osx-arm64
-            os: macos-latest
-            experimental: true
-            python: python3
-          - rid: osx-x64
-            os: macos-15-intel
-            experimental: true
-            python: python3
     steps:
       - uses: actions/checkout@v4
 
@@ -164,7 +146,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # The quality job already ran the gates for this commit; package all three OS families with `--ffmpeg`
+      # The quality job already ran the gates for this commit; package the Windows build with `--ffmpeg`
       - name: Build and package (${{ matrix.rid }})
         run: ${{ matrix.python }} build_portable.py build --ffmpeg --targets ${{ matrix.rid }} --skip-qa --keep-target
 
