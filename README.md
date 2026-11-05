@@ -208,6 +208,7 @@ python build_portable.py                            # QA + exe + pastas e arquiv
 python build_portable.py build --ffmpeg --targets all  # com vídeo; alvos de outros sistemas exigem o target do Rust instalado
 python build_portable.py qa                         # só fmt + clippy + testes + build; grava coverage/qa/qa_report.json
 python build_portable.py build --jobs 1             # máquina com pouca memória: `cargo -j 1` e um teste por vez (o rustc chegou a cair com STATUS_STACK_BUFFER_OVERRUN sob carga)
+# Com 8 GB de RAM ou menos o script já escolhe sozinho LTO leve (thin, 16 unidades) e um job; acima de 8 GB usa o perfil do Cargo.toml e todos os núcleos (NEOVEG_LOW_MEMORY=1 ou 0 força um dos dois)
 python scripts/test_build_portable.py             # testes do empacotamento (monta um pacote com um executável falso, sem compilar)
 ```
 
@@ -270,7 +271,7 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 ### Decisões
 Aqui é onde o filho chora e a mãe não vê, não há como simplesmente empurrar tudo do VEGAS pra cá, quem deve decidir isso não é só eu, e sim os outros usuários desse programa.
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python) (Em decisão: os scripts e extensões feitos para o VEGAS são código .NET 2 e 3.5 (C#, VB.NET, JScript) e não rodam no Neoveg; falta escolher entre só Rhai com um guia de migração, um conversor Python que traduz esses scripts para Rhai, ou um host .NET 2 e 3.5 opcional e isolado, e como espelhar o modelo de objetos sem copiar nomes de outro produto).
-- [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem obrigatórios, e Linux e macOS x64/arm64 rodam na CI em modo experimental até a fase do porte, com o ambiente Docker já pronto mas pausado. Pacote do Windows conferido em 31/10/2026: `python build_portable.py build --ffmpeg` gera o `.zip` e o `.exe`, que abre com um PATH mínimo, com as DLLs do FFmpeg, as tabelas de cor e as licenças dentro; CI configurada em `.github/workflows/rust.yml` nos três sistemas) (para Linux é até que "fácil", para macOS vai precisar de uma máquina real)
+- [ ] Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem obrigatórios, e Linux e macOS x64/arm64 rodam na CI em modo experimental até a fase do porte, com o ambiente Docker já pronto mas pausado. Pacote do Windows conferido em 31/10/2026: `python build_portable.py build --ffmpeg` gera o `.zip` e o `.exe`, que abre com um PATH mínimo, com as DLLs do FFmpeg, as tabelas de cor e as licenças dentro; CI em `.github/workflows/rust.yml` só no Windows desde 05/11/2026: Linux e macOS saíram da CI até a fase do porte) (para Linux é até que "fácil", para macOS vai precisar de uma máquina real)
 
 
 ### Feito
