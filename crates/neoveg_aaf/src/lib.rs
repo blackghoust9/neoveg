@@ -11,7 +11,11 @@
 //! group, markers as comment markers, and for every media item a master mob with a file source mob
 //! (a locator with the path) and a tape source mob that carries the start timecode.
 
-#![allow(clippy::needless_range_loop, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::type_complexity,
+    clippy::collapsible_if
+)]
 
 mod ids;
 pub mod model;

@@ -55,7 +55,7 @@ use neoveg_engine::edit;
 use neoveg_engine::edl::{self, EdlEvent, MediaMatch};
 use neoveg_engine::effects as fx;
 use neoveg_engine::envelope::{self, AutomationTarget, EnvelopePoint, EnvelopeShape};
-use neoveg_engine::fcp7::{self, XmlClip, XmlMedia};
+use neoveg_engine::fcp7::{self, XmlClip, XmlDocument, XmlMedia};
 use neoveg_engine::fcpxml;
 use neoveg_engine::groups;
 use neoveg_engine::markers::{self, MarkId, MarkPart};
@@ -945,7 +945,7 @@ impl AppState {
     /// File > Export AAF: the whole timeline for Avid, Premiere Pro, DaVinci Resolve or Pro Tools.
     fn export_aaf(&mut self) {
         if self.timeline.tracks.iter().all(|t| t.events.is_empty()) {
-            self.status = tr("A linha do tempo está vazia.");
+            self.status = tr("A linha do tempo está vazia.").to_string();
             return;
         }
         self.aaf_export_dialog = Some(AafExportDialog::default());
@@ -1090,7 +1090,7 @@ impl AppState {
             let target_dir = project_dir.join("aaf_midia");
             if let Ok(materialized) = aaf::materialize_embedded_media(&aaf_doc, &target_dir) {
                 for (_idx, file_path) in materialized {
-                    let _ = self.import_media_files(&[file_path]);
+                    self.spawn_media_file(file_path, None);
                 }
             }
         }
@@ -1179,11 +1179,6 @@ impl AppState {
                 }
             }
         }
-    }
-            }
-            None => "Nenhum clipe do AAF tem mídia no projeto: importe as mídias antes".into(),
-        };
-        self.report_import("AAF", added, skipped, &doc.warnings);
     }
 
     /// File > Export FCP7 XML: the whole timeline for Premiere Pro, DaVinci Resolve or Final Cut 7.
@@ -4258,6 +4253,14 @@ impl AppState {
         std::thread::spawn(move || {
             let _ = tx.send(load_message(path, existing_id, false));
             ctx.request_repaint();
+        });
+    }
+
+    /// Loads media on a worker thread without an immediate `egui::Context` repaint handle.
+    fn spawn_media_file(&self, path: PathBuf, existing_id: Option<u64>) {
+        let tx = self.loader_tx.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(load_message(path, existing_id, false));
         });
     }
 
@@ -11850,6 +11853,7 @@ fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
     };
     let mut keep_open = true;
     let mut do_export = false;
+    let mut cancel = false;
     crate::dialogs::dialog(ctx, tr("Exportar AAF"))
         .collapsible(false)
         .resizable(false)
@@ -11865,7 +11869,7 @@ fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
             );
             ui.checkbox(
                 &mut dialog.small_sectors,
-                tr("Setores de 512 bytes (compatibilidade com sistemas legados)"),
+                tr("Setores de 512 bytes (compatibilidade legada)"),
             );
             ui.add_space(8.0);
             ui.horizontal(|ui| {
@@ -11873,13 +11877,13 @@ fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
                     do_export = true;
                 }
                 if ui.button(tr("Cancelar")).clicked() {
-                    keep_open = false;
+                    cancel = true;
                 }
             });
         });
     if do_export {
         state.run_export_aaf(&dialog);
-    } else if keep_open {
+    } else if keep_open && !cancel {
         state.aaf_export_dialog = Some(dialog);
     }
 }

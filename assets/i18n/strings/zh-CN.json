@@ -1686,5 +1686,11 @@
   "Suavidade da borda (% da altura)": "边缘柔化（高度的 %）",
   "Máscara negativa (o efeito age fora da forma)": "负蒙版（效果作用于形状之外）",
   "Efeitos só deste evento, antes dos da faixa": "仅此事件的效果,在轨道效果之前",
-  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "播放此媒体的所有事件的效果,在事件效果之前"
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "播放此媒体的所有事件的效果,在事件效果之前",
+  "Formato RAW proprietário": "专有RAW格式",
+  "Exportar AAF": "导出AAF",
+  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "将时间线导出为AAF（兼容Avid、DaVinci Resolve、Premiere Pro和Pro Tools）。",
+  "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "在AAF文件中嵌入媒体（PCM音频 / 图像）",
+  "Setores de 512 bytes (compatibilidade legada)": "512字节扇区（旧版兼容性）",
+  "A linha do tempo está vazia.": "时间线为空。"
 }

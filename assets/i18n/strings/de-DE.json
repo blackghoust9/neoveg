@@ -1686,5 +1686,11 @@
   "Suavidade da borda (% da altura)": "Kantenweichheit (% der Höhe)",
   "Máscara negativa (o efeito age fora da forma)": "Negative Maske (der Effekt wirkt außerhalb der Form)",
   "Efeitos só deste evento, antes dos da faixa": "Effekte nur für dieses Event, vor denen der Spur",
-  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Effekte für alle Events, die diese Medien abspielen, vor denen des Events"
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Effekte für alle Events, die diese Medien abspielen, vor denen des Events",
+  "Formato RAW proprietário": "Proprietäres RAW-Format",
+  "Exportar AAF": "AAF exportieren",
+  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Timeline nach AAF exportieren (kompatibel mit Avid, DaVinci Resolve, Premiere Pro und Pro Tools).",
+  "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Medien in AAF-Datei einbetten (PCM-Audio / Bilder)",
+  "Setores de 512 bytes (compatibilidade legada)": "512-Byte-Sektoren (Legacy-Kompatibilität)",
+  "A linha do tempo está vazia.": "Die Timeline ist leer."
 }

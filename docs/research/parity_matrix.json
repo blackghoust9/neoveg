@@ -68,8 +68,8 @@
     {
       "id": "arq.aaf",
       "area": "Arquivo",
-      "estado": "previsto",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 3
     },
     {

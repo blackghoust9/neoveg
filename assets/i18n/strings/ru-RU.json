@@ -1686,5 +1686,11 @@
   "Suavidade da borda (% da altura)": "Мягкость края (% высоты)",
   "Máscara negativa (o efeito age fora da forma)": "Негативная маска (эффект действует вне фигуры)",
   "Efeitos só deste evento, antes dos da faixa": "Эффекты только этого события, перед эффектами дорожки",
-  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Эффекты всех событий с этим медиа, перед эффектами события"
+  "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Эффекты всех событий с этим медиа, перед эффектами события",
+  "Formato RAW proprietário": "Проприетарный формат RAW",
+  "Exportar AAF": "Экспорт AAF",
+  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Экспорт временной шкалы в AAF (совместимо с Avid, DaVinci Resolve, Premiere Pro и Pro Tools).",
+  "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Встроить медиа в файл AAF (PCM аудио / изображения)",
+  "Setores de 512 bytes (compatibilidade legada)": "Секторы 512 байт (для устаревших систем)",
+  "A linha do tempo está vazia.": "Временная шкала пуста."
 }

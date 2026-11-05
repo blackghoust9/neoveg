@@ -235,7 +235,7 @@ fn read_f64_values(b: &[u8], endian: Endian, ty: u16, count: usize, val_off: usi
     out
 }
 
-fn read_raw_bytes<'a>(b: &'a [u8], endian: Endian, ty: u16, count: usize, val_off: usize) -> Option<&'a [u8]> {
+fn read_raw_bytes(b: &[u8], endian: Endian, ty: u16, count: usize, val_off: usize) -> Option<&[u8]> {
     let elem = tiff_type_size(ty).max(1);
     let total = elem.checked_mul(count)?;
     let pos = if total <= 4 {
@@ -506,7 +506,7 @@ fn is_baseline_or_progressive_jpeg(jpeg: &[u8]) -> bool {
         if matches!(marker, 0xd0..=0xd8 | 0x01) {
             continue;
         }
-        if matches!(marker, 0xc0 | 0xc1 | 0xc2) {
+        if matches!(marker, 0xc0..=0xc2) {
             // Precision byte right after 2-byte length
             return jpeg.get(i + 2).copied() == Some(8);
         }

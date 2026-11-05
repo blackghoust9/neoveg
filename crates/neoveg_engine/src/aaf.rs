@@ -164,6 +164,7 @@ fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_composition(
     name: &str,
     timeline: &Timeline,

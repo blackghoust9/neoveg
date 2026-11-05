@@ -14,7 +14,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Arquivo | 37 | 25 | 19 | 2 | 4 | 12 | 80 % |
+| Arquivo | 37 | 25 | 22 | 2 | 1 | 12 | 92 % |
 | Editar | 100 | 100 | 25 | 65 | 10 | 0 | 58 % |
 | Inserir | 32 | 30 | 18 | 11 | 1 | 2 | 78 % |
 | Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
@@ -24,7 +24,7 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Menus de contexto e auxiliares | 501 | 438 | 71 | 202 | 165 | 63 | 39 % |
 | **Total** | **872** | **762** | | | | | **44 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 41 feitas, 36 parciais, 34 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 42 feitas, 36 parciais, 33 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -33,7 +33,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Prioridade | Função | Área | Comandos | Estado |
 | :--- | :--- | :--- | ---: | :--- |
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
-| P2 | Importar e exportar AAF | Arquivo | 3 | previsto |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
 | P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
@@ -76,11 +75,11 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Salvar, salvar como, versão incremental, propriedades do projeto | 4 | feito | `file.save`, `file.save_as`, `file.save_incremental`, `file.properties` | - |
 | Assistente de filme e renderizar como | 2 | feito | Arquivo > Renderizar como (MP4, MOV ProRes, WebM, WAV) | - |
 | Renderizar áudio em tempo real incluindo entradas externas | 1 | sem plano | depende de gravação multicanal em tempo real | - |
-| Importar e adicionar mídia | 2 | feito | Importar mídia (áudio, vídeo, imagem, `.psd` composto, sequência) | - |
+| Importar e adicionar mídia | 2 | feito | Importar mídia (áudio, vídeo, imagem, MXF, DNG/RAW, `.psd` composto, sequência) | - |
 | Importar mídia de outro projeto | 1 | previsto | sub-projetos existem; importar só a mídia não | P3 |
 | Importar e exportar lista de edição (EDL) | 2 | feito | `neoveg_engine::edl` (CMX 3600) | - |
 | Importar e exportar XML de edição e FCPXML | 4 | feito | `neoveg_engine::fcp7` e `fcpxml` | - |
-| Importar e exportar AAF | 3 | previsto | roteiro: primeiro formato profissional a avaliar | P2 |
+| Importar e exportar AAF | 3 | feito | `neoveg_aaf` e `neoveg_engine::aaf` (velocidade, fades, volume, efeitos, mídia embutida e composições aninhadas) | - |
 | Importar e exportar projeto de outro editor (formato fechado) | 2 | sem plano | formato proprietário; a ponte são XML, FCPXML, EDL, OTIO e AAF | - |
 | Exportar o projeto no formato fechado do editor de referência | 1 | sem plano | o Neoveg usa `.neoveg` (ZIP aberto) | - |
 | Importar legendas e closed caption | 1 | parcial | SRT, WebVTT, SCC (CEA-608) e MCC (CEA-608/708) feitos (`neoveg_engine::captions`); faltam SMI, RT e os canais CC2–CC4 | P3 |

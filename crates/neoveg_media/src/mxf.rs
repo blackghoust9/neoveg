@@ -7,6 +7,8 @@
 //! probes MXF structural metadata (resolution, frame rate, duration, audio tracks) and decodes
 //! uncompressed Wave/BWF, AIFF and AES3 sound essence directly in pure Rust.
 
+#![allow(clippy::chunks_exact_to_as_chunks, clippy::collapsible_if)]
+
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -338,9 +340,10 @@ fn inspect_metadata_set(
         if info.audio_bits == 0 {
             info.audio_bits = bits;
         }
-        if let (Some(edit_rate), Some(dur)) = (sample_rate_rational.or(audio_rate), container_duration)
-        {
-            if audio_duration_units.is_none() {
+        if audio_duration_units.is_none() {
+            if let (Some(edit_rate), Some(dur)) =
+                (sample_rate_rational.or(audio_rate), container_duration)
+            {
                 *audio_duration_units = Some((edit_rate, dur));
             }
         }
@@ -617,12 +620,10 @@ fn decode_sound_packet(
                         bytes[pos + ch * 4 + 2],
                         bytes[pos + ch * 4 + 3],
                     ]);
-                    if valid_mask == 0 || (valid_mask & (1 << ch)) != 0 {
-                        if emitted < active_ch {
-                            let s24 = (((sub >> 4) as i32) << 8) >> 8;
-                            out.push((s24 as f32 / 8_388_608.0).clamp(-1.0, 1.0));
-                            emitted += 1;
-                        }
+                    if (valid_mask == 0 || (valid_mask & (1 << ch)) != 0) && emitted < active_ch {
+                        let s24 = (((sub >> 4) as i32) << 8) >> 8;
+                        out.push((s24 as f32 / 8_388_608.0).clamp(-1.0, 1.0));
+                        emitted += 1;
                     }
                 }
                 while emitted < active_ch {
