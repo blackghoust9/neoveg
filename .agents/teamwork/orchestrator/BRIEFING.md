@@ -98,7 +98,7 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-878
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-927
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

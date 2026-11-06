@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-06T13:46:30Z
+# BRIEFING — 2026-11-06T14:14:30Z
 
 ## Mission
 Orchestrate execution and independent audit for neoveg recording workflow completion, feature extensions, and scope expansion on branch preview/version-2.1.0.
@@ -25,8 +25,8 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 ## Project Status
 - **Phase**: in progress
 - **Route**: General (teamwork_orchestrator)
-- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782
-- **Milestones**: M1 (DONE - commit 5a222723), M2 (DONE - commit 1689178), M3 (IN_PROGRESS - surveying manuals, codebase & CPU performance), M4-M7 + Follow-up Scope (queued)
+- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (waiting for dependents)
+- **Milestones**: M1 (DONE - commit 5a222723), M2 (DONE - commit 1689178), M3 (IN_PROGRESS - worker_m3_1 coding grade/timeline/video), M4-M7 + Follow-up Scope (queued)
 
 ## Victory Audit Status
 - **Triggered**: no

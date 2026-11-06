@@ -11,7 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::envelope::{eval_points_opt, AutomationMode, EnvelopePoint};
 use neoveg_common::fade::FadeCurve;
-use neoveg_common::grade::Grade;
+use neoveg_common::grade::{EventColorGrade, Grade};
 use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
@@ -280,6 +280,9 @@ pub struct TrackEvent {
     /// Index into `takes` of the take that plays.
     #[serde(default, skip_serializing_if = "is_zero_index")]
     pub active_take: usize,
+    /// Dedicated color grade of the event (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_grade: Option<EventColorGrade>,
 }
 
 impl Default for TrackEvent {
@@ -324,6 +327,7 @@ impl Default for TrackEvent {
             takes: Vec::new(),
             audio_effects: Vec::new(),
             active_take: 0,
+            color_grade: None,
         }
     }
 }

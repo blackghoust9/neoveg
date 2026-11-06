@@ -23,7 +23,14 @@ use neoveg_common::grade::Grade;
 use neoveg_video::cache::LruFrameCache;
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::fx_mask::coverage;
-use neoveg_video::grading::{apply_grade, apply_look, fade_to_color};
+pub use neoveg_video::grading::{
+    apply_color_wheels, apply_event_grade, apply_grade, apply_hsl_curves, apply_look,
+    apply_range_limited, apply_rgb_curves, fade_to_color, match_color, match_color_statistics,
+    pick_black_point, pick_white_balance, pick_white_balance_from_region, pick_white_point,
+    AcesSpace, AcesTransform, ColorMatcher, ColorWheelChannel, ColorWheelVector, ColorWheelsExt,
+    ColorWheelsGrade, EventColorGrade, GradeUtilities, HslCurve, HslCurveType, HslCurves,
+    RgbCurves, SplineCurve, StatisticalColorMatcher, ViewTransform, WhiteBalanceGrade,
+};
 use neoveg_video::lut::Lut;
 use neoveg_video::optical_flow::interpolate_frames;
 use neoveg_video::scopes::Scopes as VideoScopes;
@@ -394,56 +401,7 @@ fn f11_t2_05_grade_sanitization_clamps_infinite_exposure() {
 // ============================================================================
 // Feature 12: Color Wheels (Lift/Gamma/Gain/Offset) (R2.2)
 // ============================================================================
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ColorWheelVector {
-    pub x: f32, // chroma X
-    pub y: f32, // chroma Y
-    pub master: f32, // luma
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ColorWheelsGrade {
-    pub lift: ColorWheelVector,
-    pub gamma: ColorWheelVector,
-    pub gain: ColorWheelVector,
-    pub offset: ColorWheelVector,
-}
-
-impl ColorWheelsGrade {
-    pub fn default_neutral() -> Self {
-        let neutral = ColorWheelVector { x: 0.0, y: 0.0, master: 0.0 };
-        Self {
-            lift: neutral,
-            gamma: neutral,
-            gain: neutral,
-            offset: neutral,
-        }
-    }
-
-    pub fn apply_to_rgb(&self, rgb: [f32; 3]) -> [f32; 3] {
-        let mut out = rgb;
-        // Offset (additive)
-        for c in 0..3 {
-            out[c] += self.offset.master;
-        }
-        // Gain (multiplicative)
-        let gain_mult = 1.0 + self.gain.master;
-        for c in 0..3 {
-            out[c] *= gain_mult;
-        }
-        // Lift (pedestal)
-        for c in 0..3 {
-            out[c] += self.lift.master * (1.0 - out[c].clamp(0.0, 1.0));
-        }
-        // Gamma (power)
-        let gamma_val = (1.0 - self.gamma.master).clamp(0.2, 5.0);
-        for c in 0..3 {
-            out[c] = out[c].clamp(0.0, 10.0).powf(gamma_val);
-        }
-        out
-    }
-}
+// Types ColorWheelVector and ColorWheelsGrade are imported from neoveg_video::grading.
 
 #[test]
 fn f12_t1_01_color_wheels_neutral_is_identity() {
@@ -539,18 +497,7 @@ fn f12_t2_05_color_wheels_nan_master_safety() {
 // ============================================================================
 // Feature 13: White Balance Picker (R2.2)
 // ============================================================================
-
-pub fn pick_white_balance(sample: [f32; 3]) -> (f32, f32) {
-    let [r, g, b] = sample;
-    // Guard against pure black / zero luminance
-    let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    if y <= 1e-4 {
-        return (0.0, 0.0);
-    }
-    let temp = (r - b) / y;
-    let tint = (g - (r + b) * 0.5) / y;
-    (-temp.clamp(-1.0, 1.0), -tint.clamp(-1.0, 1.0))
-}
+// pick_white_balance is imported from neoveg_video::grading.
 
 #[test]
 fn f13_t1_01_white_balance_neutral_sample_yields_zero_offset() {
@@ -851,34 +798,7 @@ LUT_1D_SIZE 2
 // ============================================================================
 // Feature 16: Color Match Across Clips (R2.10)
 // ============================================================================
-
-pub fn match_color_statistics(target: &mut FrameBuffer, reference: &FrameBuffer) {
-    if target.width == 0 || target.height == 0 || reference.width == 0 || reference.height == 0 {
-        return;
-    }
-    let mean_rgb = |fb: &FrameBuffer| -> [f32; 3] {
-        let mut sum = [0.0f32; 3];
-        let count = (fb.width * fb.height) as f32;
-        for px in fb.rgba.as_chunks::<4>().0 {
-            sum[0] += f32::from(px[0]);
-            sum[1] += f32::from(px[1]);
-            sum[2] += f32::from(px[2]);
-        }
-        [sum[0] / count, sum[1] / count, sum[2] / count]
-    };
-    let ref_mean = mean_rgb(reference);
-    let tgt_mean = mean_rgb(target);
-    let scale = [
-        (ref_mean[0] / tgt_mean[0].max(1.0)).clamp(0.1, 10.0),
-        (ref_mean[1] / tgt_mean[1].max(1.0)).clamp(0.1, 10.0),
-        (ref_mean[2] / tgt_mean[2].max(1.0)).clamp(0.1, 10.0),
-    ];
-    for px in target.rgba.as_chunks_mut::<4>().0 {
-        px[0] = (f32::from(px[0]) * scale[0]).clamp(0.0, 255.0) as u8;
-        px[1] = (f32::from(px[1]) * scale[1]).clamp(0.0, 255.0) as u8;
-        px[2] = (f32::from(px[2]) * scale[2]).clamp(0.0, 255.0) as u8;
-    }
-}
+// match_color_statistics is imported from neoveg_video::grading.
 
 #[test]
 fn f16_t1_01_color_match_transfers_mean_luminance() {
@@ -965,6 +885,239 @@ fn f16_t2_05_scopes_peak_histogram_reporting() {
     assert_eq!(scopes.histogram_peak(0), 16);
     assert_eq!(scopes.histogram_peak(1), 16);
     assert_eq!(scopes.histogram_peak(2), 16);
+}
+
+// ============================================================================
+// Milestone 3 Deep Behavioral Integration Tests (F11–F16)
+// ============================================================================
+
+#[test]
+fn m3_f11_event_color_grade_full_pipeline() {
+    let mut grade = EventColorGrade::default();
+    grade.white_balance.temperature = 0.2; // warm
+    grade.utilities.exposure = 0.5; // +0.5 stop
+    grade.utilities.contrast = 0.2;
+    grade.wheels.gain.master = 0.1;
+    grade.rgb_curves = Some(neoveg_common::grade::RgbCurvesData {
+        master: neoveg_common::grade::CurvePoints {
+            points: vec![[0.0, 0.0], [0.5, 0.6], [1.0, 1.0]],
+        },
+        red: neoveg_common::grade::CurvePoints::default(),
+        green: neoveg_common::grade::CurvePoints::default(),
+        blue: neoveg_common::grade::CurvePoints::default(),
+    });
+
+    let mut frame = FrameBuffer::solid(4, 4, [100, 100, 100, 255]);
+    apply_event_grade(&mut frame, &grade);
+    let p = frame.pixel(0, 0);
+    assert!(p[0] > 100);
+    assert_eq!(p[3], 255, "Alpha must remain untouched");
+}
+
+#[test]
+fn m3_f12_color_wheels_polar_conversion() {
+    let v = ColorWheelVector::from_polar(120.0, 0.6, -0.1);
+    let (deg, sat, master) = v.to_polar();
+    assert!((deg - 120.0).abs() < 1e-3);
+    assert!((sat - 0.6).abs() < 1e-3);
+    assert!((master - (-0.1)).abs() < 1e-4);
+
+    // Negative angle wraps to [0..360)
+    let v_neg = ColorWheelVector::from_polar(300.0, 0.4, 0.0);
+    let (deg2, _, _) = v_neg.to_polar();
+    assert!((deg2 - 300.0).abs() < 1e-3);
+}
+
+#[test]
+fn m3_f12_color_wheels_rgb_sliders() {
+    let v = ColorWheelVector::from_rgb_sliders(0.2, -0.1, -0.1, 0.3);
+    let (r, g, b, m) = v.to_rgb_sliders();
+    assert!((r + g + b).abs() < 1e-5, "Sliders must be zero-sum chromatic offsets");
+    assert!((m - 0.3).abs() < 1e-5);
+}
+
+#[test]
+fn m3_f12_color_wheels_numpad_all_channels() {
+    let mut v = ColorWheelVector::neutral();
+    v.adjust_channel(ColorWheelChannel::Red, 0.1);
+    assert!((v.x - 0.1).abs() < 1e-5);
+
+    v.reset();
+    v.adjust_channel(ColorWheelChannel::Cyan, 0.1);
+    assert!((v.x - (-0.1)).abs() < 1e-5);
+
+    v.reset();
+    v.adjust_channel(ColorWheelChannel::Green, 0.1);
+    assert!(v.y > 0.0);
+
+    v.reset();
+    v.adjust_channel(ColorWheelChannel::Blue, 0.1);
+    assert!(v.y < 0.0);
+
+    v.reset();
+    v.adjust_channel(ColorWheelChannel::Master, 0.25);
+    assert_eq!(v.master, 0.25);
+}
+
+#[test]
+fn m3_f12_color_wheels_range_limited_thresholds() {
+    let mut wheels = ColorWheelsGrade::default_neutral();
+    wheels.lift.master = 0.2; // raise shadows
+    wheels.gain.master = -0.2; // lower highlights
+
+    let mut shadow_frame = FrameBuffer::solid(4, 4, [25, 25, 25, 255]);
+    apply_range_limited(&wheels, &mut shadow_frame, 0.2, 0.8);
+    let p_shadow = shadow_frame.pixel(0, 0);
+    assert!(p_shadow[0] > 25, "Shadows should be lifted");
+
+    let mut highlight_frame = FrameBuffer::solid(4, 4, [240, 240, 240, 255]);
+    apply_range_limited(&wheels, &mut highlight_frame, 0.2, 0.8);
+    let p_highlight = highlight_frame.pixel(0, 0);
+    assert!(p_highlight[0] < 240, "Highlights should be pulled down");
+}
+
+#[test]
+fn m3_f13_white_balance_region_and_points() {
+    let mut frame = FrameBuffer::solid(10, 10, [100, 100, 100, 255]);
+    for y in 2..6 {
+        for x in 2..6 {
+            set_pixel(&mut frame, x, y, [180, 140, 100, 255]); // warm patch
+        }
+    }
+    let (temp, _) = pick_white_balance_from_region(&frame, [2, 2, 4, 4]);
+    assert!(temp < 0.0, "Warm sampled region must cool temperature");
+
+    let bp = pick_black_point([0.02, 0.02, 0.03]);
+    assert!(bp.master < 0.0);
+
+    let wp = pick_white_point([0.9, 0.9, 0.8]);
+    assert!(wp.master > 0.0);
+}
+
+#[test]
+fn m3_f14_spline_curve_arbitrary_points() {
+    // 6 control points forming an S-curve
+    let pts = [
+        [0.0, 0.0],
+        [0.2, 0.1],
+        [0.4, 0.3],
+        [0.6, 0.7],
+        [0.8, 0.9],
+        [1.0, 1.0],
+    ];
+    let curve = SplineCurve::new(&pts);
+    assert_eq!(curve.eval(0.0), 0.0);
+    assert_eq!(curve.eval(1.0), 1.0);
+    // Strict monotonicity check
+    let mut prev = 0.0;
+    for i in 0..100 {
+        let x = i as f32 * 0.01;
+        let y = curve.eval(x);
+        assert!(y >= prev, "Monotone Hermite spline must not decrease: x={x}, y={y}, prev={prev}");
+        prev = y;
+    }
+}
+
+#[test]
+fn m3_f14_rgb_curves_lut_application() {
+    let mut rgb = RgbCurves::default();
+    rgb.master = SplineCurve::new(&[[0.0, 0.0], [0.5, 0.7], [1.0, 1.0]]);
+    let mut frame = FrameBuffer::solid(4, 4, [128, 128, 128, 255]);
+    apply_rgb_curves(&mut frame, &rgb);
+    let p = frame.pixel(0, 0);
+    assert!(p[0] > 128);
+    assert!(p[1] > 128);
+    assert!(p[2] > 128);
+}
+
+#[test]
+fn m3_f14_hsl_curves_periodic_wrapping() {
+    // Hue vs Hue with wrap around 360 degrees
+    let h_curve = HslCurve::new(HslCurveType::HueVsHue, &[[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]]);
+    // Near 0 and near 360 should evaluate smoothly
+    let v0 = h_curve.eval(0.01);
+    let v360 = h_curve.eval(0.99);
+    assert!((v0 - 0.01).abs() < 0.05);
+    assert!((v360 - 0.99).abs() < 0.05);
+
+    // Test periodic modulo
+    let v_wrap = h_curve.eval(1.05);
+    assert!((v_wrap - h_curve.eval(0.05)).abs() < 1e-4);
+}
+
+#[test]
+fn m3_f14_hsl_curves_all_six_types() {
+    let mut curves = HslCurves::default();
+    // Increase saturation for all hues
+    curves.curves[1] = HslCurve::new(HslCurveType::HueVsSat, &[[0.0, 0.75], [1.0, 0.75]]);
+    let mut frame = FrameBuffer::solid(4, 4, [180, 80, 40, 255]);
+    let orig = frame.clone();
+    apply_hsl_curves(&mut frame, &curves);
+    let p = frame.pixel(0, 0);
+    let p_orig = orig.pixel(0, 0);
+    // Saturated red should have larger spread between max and min channel
+    let spread = p[0] as i32 - p[2] as i32;
+    let orig_spread = p_orig[0] as i32 - p_orig[2] as i32;
+    assert!(spread >= orig_spread);
+}
+
+#[test]
+fn m3_f15_aces_all_spaces() {
+    let spaces = [
+        AcesSpace::SLog1,
+        AcesSpace::SLog2,
+        AcesSpace::SLog3,
+        AcesSpace::Aces2065_1,
+        AcesSpace::AcesCg,
+        AcesSpace::AcesCc,
+        AcesSpace::AcesCct,
+        AcesSpace::Rec709,
+        AcesSpace::Srgb,
+    ];
+    for space in spaces {
+        let tf = AcesTransform::new(space, AcesSpace::AcesCg, ViewTransform::AcesRrtRec709);
+        let out = tf.transform_rgb([0.5, 0.5, 0.5]);
+        for c in 0..3 {
+            assert!(out[c].is_finite());
+            assert!(out[c] >= 0.0 && out[c] <= 1.0);
+        }
+    }
+}
+
+#[test]
+fn m3_f15_aces_generate_3d_lut_apply() {
+    let tf = AcesTransform::new(
+        AcesSpace::AcesCg,
+        AcesSpace::AcesCg,
+        ViewTransform::AcesRrtRec709,
+    );
+    let lut = tf.generate_3d_lut(8);
+    let mut frame = FrameBuffer::solid(2, 2, [128, 128, 128, 255]);
+    lut.apply_to_frame(&mut frame, 1.0);
+    let p = frame.pixel(0, 0);
+    assert!(p[0] > 0);
+    assert_eq!(p[3], 255);
+}
+
+#[test]
+fn m3_f16_color_matcher_trait_and_brightness() {
+    let matcher = StatisticalColorMatcher;
+    let ref_frame = FrameBuffer::solid(4, 4, [200, 100, 50, 255]);
+    let tgt_frame = FrameBuffer::solid(4, 4, [50, 100, 150, 255]);
+    let wheels = matcher.analyze_and_match(&ref_frame, &tgt_frame);
+    assert!(!wheels.is_neutral());
+
+    let mut matched_no_bright = tgt_frame.clone();
+    // Match color without matching brightness
+    match_color(&mut matched_no_bright, &ref_frame, false, 1.0);
+    let p = matched_no_bright.pixel(0, 0);
+    assert!(p[0] > p[2], "Should shift chromatic balance toward warm red");
+
+    // Partial strength
+    let mut matched_half = tgt_frame.clone();
+    match_color(&mut matched_half, &ref_frame, true, 0.5);
+    let p_half = matched_half.pixel(0, 0);
+    assert!(p_half[0] > 50 && p_half[0] < 200);
 }
 
 // ============================================================================

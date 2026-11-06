@@ -13,6 +13,7 @@ pub mod grading;
 pub mod info;
 pub mod lut;
 pub mod media_look;
+pub mod ocio;
 pub mod optical_flow;
 pub mod pan_crop;
 pub mod psd;

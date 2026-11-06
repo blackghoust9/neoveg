@@ -134,6 +134,17 @@ impl Lut {
         }
     }
 
+    /// Creates a 3D LUT from raw table data (`size³` entries, red varying fastest).
+    pub fn from_3d_data(title: impl Into<String>, size: usize, data: Vec<[f32; 3]>) -> Self {
+        let size = size.clamp(2, MAX_3D_SIZE);
+        Self {
+            title: title.into(),
+            domain_min: [0.0; 3],
+            domain_max: [1.0; 3],
+            table: Table::Three { size, data },
+        }
+    }
+
     fn normalize(&self, rgb: [f32; 3]) -> [f32; 3] {
         let mut out = [0.0; 3];
         for i in 0..3 {
