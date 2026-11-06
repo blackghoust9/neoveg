@@ -3,7 +3,7 @@
 ## Milestone Status Overview
 - Milestone 1 (M1): Recording Stabilization & Trademark Sanitization [DONE]
 - Milestone 2 (M2): Video Transitions, 3D Transforms, GPU Effects & OFX Host [DONE]
-- Milestone 3 (M3): Color Grading, Color Wheels, OCIO/ACES & Color Match [PLANNED]
+- Milestone 3 (M3): Color Grading, Color Wheels, OCIO/ACES & Color Match [IN_PROGRESS]
 - Milestone 4 (M4): Motion Tracking, Event Masks, Smart Mask & AI Features [PLANNED]
 - Milestone 5 (M5): Project Properties, Media Pool, Explorer, Render Caching & Alerts [PLANNED]
 - Milestone 6 (M6): Advanced Timeline Editing, Multicam & Takes [PLANNED]
@@ -56,3 +56,17 @@ Gate Result: **PASS**
   - `cargo test -p neoveg_video --lib -j 1 -- --test-threads=1`: 180 passed, 0 failed
   - `cargo test -p neoveg_video --test e2e_video -j 1 -- --test-threads=1`: 144 passed, 0 failed
   - `python scripts/parity_matrix.py --check`: 872 commands mapped, exit 0
+
+---
+
+## Gate — Iteration 3 (Milestone M3)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m3_1 | teamwork_worker | DONE (build passed) | handoff.md |
+| reviewer_m3_1 | teamwork_reviewer | PENDING | - |
+| reviewer_m3_2 | teamwork_reviewer | PENDING | - |
+| challenger_m3_1 | teamwork_challenger | PENDING | - |
+| challenger_m3_2 | teamwork_challenger | PENDING | - |
+| auditor_m3_1 | teamwork_auditor | PENDING | - |
+
+Gate Result: **IN_EVALUATION**

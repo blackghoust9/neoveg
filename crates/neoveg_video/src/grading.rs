@@ -317,7 +317,7 @@ impl SplineCurve {
 }
 
 /// Standard 4-channel RGB Curves (Master, Red, Green, Blue).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct RgbCurves {
     pub master: SplineCurve,
     pub red: SplineCurve,
@@ -325,19 +325,9 @@ pub struct RgbCurves {
     pub blue: SplineCurve,
 }
 
-impl Default for RgbCurves {
-    fn default() -> Self {
-        Self {
-            master: SplineCurve::linear(),
-            red: SplineCurve::linear(),
-            green: SplineCurve::linear(),
-            blue: SplineCurve::linear(),
-        }
-    }
-}
-
 impl RgbCurves {
     /// Generates pre-evaluated 256-step L1-cached lookup tables for Red, Green, Blue.
+    #[allow(clippy::needless_range_loop)]
     pub fn generate_luts_256(&self) -> [[u8; 256]; 3] {
         let mut luts = [[0u8; 256]; 3];
         for i in 0..256 {

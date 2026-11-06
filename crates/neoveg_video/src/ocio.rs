@@ -74,7 +74,7 @@ pub const M_AP1_TO_AP0: [[f32; 3]; 3] = [
 pub const M_AP1_TO_REC709: [[f32; 3]; 3] = [
     [1.7048587, -0.6217145, -0.0832994],
     [-0.1300773, 1.1407358, -0.0105315],
-    [-0.0239641, -0.1289689, 1.1529330],
+    [-0.0239641, -0.1289689, 1.152933],
 ];
 
 /// Rec.709 linear to ACES AP1 linear.
@@ -139,22 +139,22 @@ pub fn slog2_to_linear(y: f32) -> f32 {
 
 /// Forward Camera S-Log3: linear scene value `x` to S-Log3 `y`.
 pub fn linear_to_slog3(x: f32) -> f32 {
-    if x >= 0.01125000 {
+    if x >= 0.01125 {
         let arg = ((x + 0.01) / 0.19).max(1e-6);
         (420.0 + arg.log10() * 261.5) / 1023.0
     } else {
-        let slope = (171.2102946929 - 95.0) / 0.01125000;
+        let slope = (171.2103 - 95.0) / 0.01125;
         (x * slope + 95.0) / 1023.0
     }
 }
 
 /// Inverse Camera S-Log3: S-Log3 `y` to linear scene value `x`.
 pub fn slog3_to_linear(y: f32) -> f32 {
-    let y_cut = 171.2102946929 / 1023.0;
+    let y_cut = 171.2103 / 1023.0;
     if y >= y_cut {
         10.0f32.powf((y * 1023.0 - 420.0) / 261.5) * 0.19 - 0.01
     } else {
-        (y * 1023.0 - 95.0) * (0.01125000 / (171.2102946929 - 95.0))
+        (y * 1023.0 - 95.0) * (0.01125 / (171.2103 - 95.0))
     }
 }
 
@@ -182,8 +182,8 @@ pub fn acescc_to_linear(y: f32) -> f32 {
 /// Forward ACEScct (SMPTE S-2016-001, with toe): scene-linear `x` to ACEScct `y`.
 pub fn linear_to_acescct(x: f32) -> f32 {
     const X_BRK: f32 = 0.0078125; // 2^-7
-    const A: f32 = 10.5402377416545;
-    const B: f32 = 0.0729055341958355;
+    const A: f32 = 10.540237;
+    const B: f32 = 0.07290553;
     if x <= X_BRK {
         A * x + B
     } else {
@@ -194,8 +194,8 @@ pub fn linear_to_acescct(x: f32) -> f32 {
 /// Inverse ACEScct (SMPTE S-2016-001, with toe): ACEScct `y` to scene-linear `x`.
 pub fn acescct_to_linear(y: f32) -> f32 {
     const Y_BRK: f32 = (-7.0 + 9.72) / 17.52; // 0.15525798
-    const A: f32 = 10.5402377416545;
-    const B: f32 = 0.0729055341958355;
+    const A: f32 = 10.540237;
+    const B: f32 = 0.07290553;
     if y <= Y_BRK {
         (y - B) / A
     } else {

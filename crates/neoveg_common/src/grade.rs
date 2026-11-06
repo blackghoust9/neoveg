@@ -561,7 +561,7 @@ impl EventColorGrade {
             && self.hsl_curves.is_none()
             && self.input_lut.is_none()
             && self.look_lut.is_none()
-            && self.ocio.as_ref().map_or(true, |o| !o.enabled)
+            && self.ocio.as_ref().is_none_or(|o| !o.enabled)
     }
 
     /// Evaluates basic inline math of the grade (white balance, utilities, color wheels).
