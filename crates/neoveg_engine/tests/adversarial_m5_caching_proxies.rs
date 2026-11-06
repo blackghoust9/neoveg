@@ -31,9 +31,7 @@
 //!    - Message template formatting with placeholders ({0}, %s, %d),
 //!    - Clean-room zero vendor trademark policy across the alert catalog.
 
-use neoveg_common::alerts::{
-    AlertAction, AlertCode, AlertQueue, AlertRegistry,
-};
+use neoveg_common::alerts::{AlertAction, AlertCode, AlertQueue, AlertRegistry};
 use neoveg_common::presets::RenderQuality;
 use neoveg_common::project::ProjectSettings;
 use neoveg_engine::cache_ruler::{CacheSpan, FrameCacheStatus, PreviewCacheRuler};
@@ -68,7 +66,13 @@ fn test_adv_wizard_empty_and_zero_duration_validation() {
         "Empty project without events must yield AlertCode 3404"
     );
     assert!(
-        matches!(wiz1.current_step(), WizardStep::Failed { error_code: AlertCode::EmptyProjectRender, .. }),
+        matches!(
+            wiz1.current_step(),
+            WizardStep::Failed {
+                error_code: AlertCode::EmptyProjectRender,
+                ..
+            }
+        ),
         "Wizard state must transition to Failed on empty project"
     );
 
@@ -102,10 +106,15 @@ fn test_adv_wizard_empty_and_zero_duration_validation() {
     // Valid minimal duration (0.01 sec) with events succeeds to ConfigureSettings
     let mut wiz_ok = MakeMovieWizard::new(&settings, true, 0.01);
     assert!(
-        wiz_ok.choose_destination(ExportDestination::WebSharing).is_ok(),
+        wiz_ok
+            .choose_destination(ExportDestination::WebSharing)
+            .is_ok(),
         "Positive duration with events must proceed"
     );
-    assert!(matches!(wiz_ok.current_step(), WizardStep::ConfigureSettings(_)));
+    assert!(matches!(
+        wiz_ok.current_step(),
+        WizardStep::ConfigureSettings(_)
+    ));
 }
 
 #[test]
@@ -116,11 +125,7 @@ fn test_adv_wizard_huge_frame_counts_space_estimation() {
     // 1. 10,000,000 frames @ 30 fps = ~333,333 seconds (~92.6 hours)
     // 2. 100,000,000 frames @ 60 fps = ~1,666,666 seconds (~463 hours)
     // 3. 1,000,000,000 seconds (~31.7 years)
-    let durations = [
-        333_333.33,
-        1_666_666.67,
-        1_000_000_000.0,
-    ];
+    let durations = [333_333.33, 1_666_666.67, 1_000_000_000.0];
 
     for &dur in &durations {
         for &dest in &ExportDestination::ALL {
@@ -140,14 +145,17 @@ fn test_adv_wizard_huge_frame_counts_space_estimation() {
                 // HardDrive (25 Mbps) should be > WebSharing (12 Mbps)
                 let dur_sec = 1000.0;
                 let mut w_hd = MakeMovieWizard::new(&settings, true, dur_sec);
-                w_hd.choose_destination(ExportDestination::HardDrive).unwrap();
+                w_hd.choose_destination(ExportDestination::HardDrive)
+                    .unwrap();
                 let est_hd = match w_hd.current_step() {
                     WizardStep::ConfigureSettings(c) => c.estimated_size_mb,
                     _ => 0,
                 };
 
                 let mut w_web = MakeMovieWizard::new(&settings, true, dur_sec);
-                w_web.choose_destination(ExportDestination::WebSharing).unwrap();
+                w_web
+                    .choose_destination(ExportDestination::WebSharing)
+                    .unwrap();
                 let est_web = match w_web.current_step() {
                     WizardStep::ConfigureSettings(c) => c.estimated_size_mb,
                     _ => 0,
@@ -173,7 +181,9 @@ fn test_adv_wizard_step_transitions_and_progress_clamping() {
     assert_eq!(*wizard.current_step(), WizardStep::SelectDestination);
 
     // Transition to Step 2
-    wizard.choose_destination(ExportDestination::HardDrive).unwrap();
+    wizard
+        .choose_destination(ExportDestination::HardDrive)
+        .unwrap();
     let settings_step2 = match wizard.current_step() {
         WizardStep::ConfigureSettings(s) => s.clone(),
         _ => panic!("Expected ConfigureSettings"),
@@ -186,12 +196,21 @@ fn test_adv_wizard_step_transitions_and_progress_clamping() {
 
     // Adversarial progress values: negative, NaN, > 1.0
     wizard.update_render_progress(-0.5, 120.0);
-    if let WizardStep::Rendering { progress_fraction, .. } = wizard.current_step() {
-        assert_eq!(*progress_fraction, 0.0, "Negative fraction must clamp to 0.0");
+    if let WizardStep::Rendering {
+        progress_fraction, ..
+    } = wizard.current_step()
+    {
+        assert_eq!(
+            *progress_fraction, 0.0,
+            "Negative fraction must clamp to 0.0"
+        );
     }
 
     wizard.update_render_progress(1.85, 10.0);
-    if let WizardStep::Rendering { progress_fraction, .. } = wizard.current_step() {
+    if let WizardStep::Rendering {
+        progress_fraction, ..
+    } = wizard.current_step()
+    {
         assert_eq!(*progress_fraction, 1.0, "Fraction > 1.0 must clamp to 1.0");
     }
 
@@ -231,7 +250,8 @@ fn test_adv_wizard_destination_presets_and_disk_validation() {
     );
 
     // Output path already exists validation (Alert 1911)
-    let temp_file = std::env::temp_dir().join(format!("neoveg_adv_wizard_out_{}.mp4", std::process::id()));
+    let temp_file =
+        std::env::temp_dir().join(format!("neoveg_adv_wizard_out_{}.mp4", std::process::id()));
     let _ = File::create(&temp_file);
 
     let mut cfg = MakeMovieSettings {
@@ -334,7 +354,10 @@ fn test_adv_ram_preview_auto_truncation_under_tight_budget() {
         assert_eq!(frame_data.len(), 200_000);
         assert_eq!(frame_data[0], 0xEE);
     }
-    assert!(ram.get_frame(105).is_none(), "Frame 105 was beyond truncated boundary");
+    assert!(
+        ram.get_frame(105).is_none(),
+        "Frame 105 was beyond truncated boundary"
+    );
 }
 
 #[test]
@@ -356,7 +379,10 @@ fn test_adv_ram_preview_eviction_and_arc_retention() {
         .unwrap();
 
     // Frame 5 has been evicted from cache
-    assert!(ram.get_frame(5).is_none(), "Frame 5 must be evicted from active cache");
+    assert!(
+        ram.get_frame(5).is_none(),
+        "Frame 5 must be evicted from active cache"
+    );
 
     // BUT the external Arc held by client must remain completely intact and valid!
     assert_eq!(
@@ -407,27 +433,40 @@ fn test_adv_disk_prerender_chunking_boundary_limits() {
     let mut prerender = SelectiveDiskPrerender::new(dir.clone());
 
     // Condition 1: 0 frames (start == end) => 0 chunks
-    let c0 = prerender.prerender_range(100, 100, 100, 100, 1, |_| vec![]).unwrap();
+    let c0 = prerender
+        .prerender_range(100, 100, 100, 100, 1, |_| vec![])
+        .unwrap();
     assert_eq!(c0.len(), 0);
 
     // Condition 2: 1 frame => 1 chunk of 1 frame
-    let c1 = prerender.prerender_range(0, 1, 100, 100, 1, |_| vec![0u8; 16]).unwrap();
+    let c1 = prerender
+        .prerender_range(0, 1, 100, 100, 1, |_| vec![0u8; 16])
+        .unwrap();
     assert_eq!(c1.len(), 1);
     assert_eq!(c1[0].end_frame - c1[0].start_frame, 1);
 
     // Condition 3: Exactly 300 frames => 1 chunk of 300 frames
-    let c300 = prerender.prerender_range(10, 310, 100, 100, 1, |_| vec![0u8; 16]).unwrap();
+    let c300 = prerender
+        .prerender_range(10, 310, 100, 100, 1, |_| vec![0u8; 16])
+        .unwrap();
     assert_eq!(c300.len(), 1);
-    assert_eq!(c300[0].end_frame - c300[0].start_frame, PRERENDER_MAX_CHUNK_FRAMES);
+    assert_eq!(
+        c300[0].end_frame - c300[0].start_frame,
+        PRERENDER_MAX_CHUNK_FRAMES
+    );
 
     // Condition 4: 301 frames => 2 chunks: 300 frames and 1 frame
-    let c301 = prerender.prerender_range(0, 301, 100, 100, 1, |_| vec![0u8; 16]).unwrap();
+    let c301 = prerender
+        .prerender_range(0, 301, 100, 100, 1, |_| vec![0u8; 16])
+        .unwrap();
     assert_eq!(c301.len(), 2);
     assert_eq!(c301[0].end_frame - c301[0].start_frame, 300);
     assert_eq!(c301[1].end_frame - c301[1].start_frame, 1);
 
     // Condition 5: 901 frames => 4 chunks: 300, 300, 300, 1
-    let c901 = prerender.prerender_range(0, 901, 100, 100, 1, |_| vec![0u8; 16]).unwrap();
+    let c901 = prerender
+        .prerender_range(0, 901, 100, 100, 1, |_| vec![0u8; 16])
+        .unwrap();
     assert_eq!(c901.len(), 4);
     assert_eq!(c901[0].end_frame - c901[0].start_frame, 300);
     assert_eq!(c901[1].end_frame - c901[1].start_frame, 300);
@@ -436,7 +475,9 @@ fn test_adv_disk_prerender_chunking_boundary_limits() {
 
     // Condition 6: Non-zero start frame offset: 550..1200 (650 frames)
     // 550..850 (300), 850..1150 (300), 1150..1200 (50)
-    let c_arb = prerender.prerender_range(550, 1200, 100, 100, 1, |_| vec![0u8; 16]).unwrap();
+    let c_arb = prerender
+        .prerender_range(550, 1200, 100, 100, 1, |_| vec![0u8; 16])
+        .unwrap();
     assert_eq!(c_arb.len(), 3);
     assert_eq!(c_arb[0].start_frame, 550);
     assert_eq!(c_arb[0].end_frame, 850);
@@ -450,7 +491,8 @@ fn test_adv_disk_prerender_chunking_boundary_limits() {
 
 #[test]
 fn test_adv_disk_prerender_nvprv_binary_header_inspection() {
-    let dir = std::env::temp_dir().join(format!("neoveg_adv_header_inspect_{}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("neoveg_adv_header_inspect_{}", std::process::id()));
     let mut prerender = SelectiveDiskPrerender::new(dir.clone());
 
     let gen_hash = 0xDEAD_BEEF_CAFE_BABE_u64;
@@ -474,7 +516,10 @@ fn test_adv_disk_prerender_nvprv_binary_header_inspection() {
     assert_eq!(u32::from_le_bytes(header[12..16].try_into().unwrap()), 1080);
 
     // 3. FPS Num [16..20] & FPS Den [20..24]
-    assert_eq!(u32::from_le_bytes(header[16..20].try_into().unwrap()), 30000);
+    assert_eq!(
+        u32::from_le_bytes(header[16..20].try_into().unwrap()),
+        30000
+    );
     assert_eq!(u32::from_le_bytes(header[20..24].try_into().unwrap()), 1001);
 
     // 4. Pixel Format [24..28] (1 = RGBA8)
@@ -485,14 +530,17 @@ fn test_adv_disk_prerender_nvprv_binary_header_inspection() {
 
     // 6. Start Frame [32..40] & Generation Hash [40..48]
     assert_eq!(u64::from_le_bytes(header[32..40].try_into().unwrap()), 100);
-    assert_eq!(u64::from_le_bytes(header[40..48].try_into().unwrap()), gen_hash);
+    assert_eq!(
+        u64::from_le_bytes(header[40..48].try_into().unwrap()),
+        gen_hash
+    );
 
     // 7. Index table offset: 64 to 64 + 5*8 = 104
     let mut index_table = [0u8; 40];
     file.read_exact(&mut index_table).expect("read index table");
     let mut offsets = Vec::new();
     for i in 0..5 {
-        let off = u64::from_le_bytes(index_table[i*8..(i+1)*8].try_into().unwrap());
+        let off = u64::from_le_bytes(index_table[i * 8..(i + 1) * 8].try_into().unwrap());
         offsets.push(off);
     }
     // Payloads start at byte 104
@@ -565,9 +613,13 @@ fn test_adv_disk_prerender_cleanup_modes_adversarial() {
     let hash_v2 = 0xBBB;
 
     // Create 2 chunks with hash_v1 (frames 0..300, 300..600)
-    prerender.prerender_range(0, 600, 100, 100, hash_v1, |_| vec![1; 10]).unwrap();
+    prerender
+        .prerender_range(0, 600, 100, 100, hash_v1, |_| vec![1; 10])
+        .unwrap();
     // Create 1 chunk with hash_v2 (frames 600..900)
-    prerender.prerender_range(600, 900, 100, 100, hash_v2, |_| vec![2; 10]).unwrap();
+    prerender
+        .prerender_range(600, 900, 100, 100, hash_v2, |_| vec![2; 10])
+        .unwrap();
 
     assert_eq!(prerender.active_chunks().len(), 3);
 
@@ -579,8 +631,12 @@ fn test_adv_disk_prerender_cleanup_modes_adversarial() {
     assert_eq!(prerender.active_chunks()[0].generation_hash, hash_v2);
 
     // Re-create chunks for selection cleanup test
-    prerender.prerender_range(0, 300, 100, 100, hash_v2, |_| vec![3; 10]).unwrap();
-    prerender.prerender_range(300, 600, 100, 100, hash_v2, |_| vec![4; 10]).unwrap();
+    prerender
+        .prerender_range(0, 300, 100, 100, hash_v2, |_| vec![3; 10])
+        .unwrap();
+    prerender
+        .prerender_range(300, 600, 100, 100, hash_v2, |_| vec![4; 10])
+        .unwrap();
     assert_eq!(prerender.active_chunks().len(), 3); // [600..900, 0..300, 300..600]
 
     // Mode 2: DeleteInSelection with non-overlapping selection: 1000..1200
@@ -589,7 +645,10 @@ fn test_adv_disk_prerender_cleanup_modes_adversarial() {
         hash_v2,
         Some((1000, 1200)),
     );
-    assert_eq!(del_no_overlap, 0, "Non-overlapping selection deletes 0 chunks");
+    assert_eq!(
+        del_no_overlap, 0,
+        "Non-overlapping selection deletes 0 chunks"
+    );
     assert_eq!(prerender.active_chunks().len(), 3);
 
     // Boundary selection: 290..310 (overlaps chunk 0..300 and chunk 300..600!)
@@ -598,7 +657,10 @@ fn test_adv_disk_prerender_cleanup_modes_adversarial() {
         hash_v2,
         Some((290, 310)),
     );
-    assert_eq!(del_boundary, 2, "Selection intersecting 2 chunks must remove both");
+    assert_eq!(
+        del_boundary, 2,
+        "Selection intersecting 2 chunks must remove both"
+    );
     assert_eq!(prerender.active_chunks().len(), 1); // Only 600..900 remains
 
     // Mode 3: DeleteAll
@@ -617,21 +679,32 @@ fn test_adv_disk_prerender_cleanup_modes_adversarial() {
 fn test_adv_cache_ruler_range_coalescing_and_fragmentation() {
     let mut ruler = PreviewCacheRuler::new(1000, 30.0);
     assert_eq!(ruler.all_spans().len(), 1);
-    assert_eq!(ruler.all_spans()[0], CacheSpan { start_frame: 0, end_frame: 1000, status: FrameCacheStatus::RedUnrendered });
+    assert_eq!(
+        ruler.all_spans()[0],
+        CacheSpan {
+            start_frame: 0,
+            end_frame: 1000,
+            status: FrameCacheStatus::RedUnrendered
+        }
+    );
 
     // Mark 100..200 Green
     ruler.mark_span(100, 200, FrameCacheStatus::GreenCached);
     // Mark 200..300 Green -> MUST coalesce with 100..200 to form 100..300 Green!
     ruler.mark_span(200, 300, FrameCacheStatus::GreenCached);
     assert!(
-        ruler.all_spans().iter().any(|s| s.start_frame == 100 && s.end_frame == 300 && s.status == FrameCacheStatus::GreenCached),
+        ruler.all_spans().iter().any(|s| s.start_frame == 100
+            && s.end_frame == 300
+            && s.status == FrameCacheStatus::GreenCached),
         "Adjacent spans with identical status must coalesce"
     );
 
     // Mark 50..100 Green -> MUST coalesce with 100..300 to form 50..300 Green!
     ruler.mark_span(50, 100, FrameCacheStatus::GreenCached);
     assert!(
-        ruler.all_spans().iter().any(|s| s.start_frame == 50 && s.end_frame == 300 && s.status == FrameCacheStatus::GreenCached),
+        ruler.all_spans().iter().any(|s| s.start_frame == 50
+            && s.end_frame == 300
+            && s.status == FrameCacheStatus::GreenCached),
         "Preceding adjacent span must coalesce"
     );
 
@@ -645,11 +718,19 @@ fn test_adv_cache_ruler_range_coalescing_and_fragmentation() {
     // Invalidation: invalidate 100..250 (RedUnrendered)
     // Overlaps end of first Green (100..150), entire Yellow (150..200), and start of second Green (200..250)
     ruler.invalidate_region(100, 250);
-    assert_eq!(ruler.status_at(75), FrameCacheStatus::GreenCached, "0..100 Green remains");
+    assert_eq!(
+        ruler.status_at(75),
+        FrameCacheStatus::GreenCached,
+        "0..100 Green remains"
+    );
     assert_eq!(ruler.status_at(125), FrameCacheStatus::RedUnrendered);
     assert_eq!(ruler.status_at(175), FrameCacheStatus::RedUnrendered);
     assert_eq!(ruler.status_at(225), FrameCacheStatus::RedUnrendered);
-    assert_eq!(ruler.status_at(275), FrameCacheStatus::GreenCached, "250..300 Green remains");
+    assert_eq!(
+        ruler.status_at(275),
+        FrameCacheStatus::GreenCached,
+        "250..300 Green remains"
+    );
 }
 
 #[test]
@@ -701,7 +782,10 @@ fn test_adv_cache_ruler_o1_monotonic_seeking_vs_random_scrubbing() {
 
     // Out of bounds queries
     assert_eq!(ruler.status_at(total), FrameCacheStatus::RedUnrendered);
-    assert_eq!(ruler.status_at(total + 5000), FrameCacheStatus::RedUnrendered);
+    assert_eq!(
+        ruler.status_at(total + 5000),
+        FrameCacheStatus::RedUnrendered
+    );
 }
 
 #[test]
@@ -711,15 +795,27 @@ fn test_adv_cache_ruler_invalidation_boundary_conditions() {
 
     // Invalidate empty region: start >= end
     ruler.invalidate_region(100, 100);
-    assert_eq!(ruler.status_at(100), FrameCacheStatus::GreenCached, "Empty invalidation must be a no-op");
+    assert_eq!(
+        ruler.status_at(100),
+        FrameCacheStatus::GreenCached,
+        "Empty invalidation must be a no-op"
+    );
 
     // Invalidate inverted region: start > end
     ruler.invalidate_region(200, 100);
-    assert_eq!(ruler.status_at(150), FrameCacheStatus::GreenCached, "Inverted invalidation must be a no-op");
+    assert_eq!(
+        ruler.status_at(150),
+        FrameCacheStatus::GreenCached,
+        "Inverted invalidation must be a no-op"
+    );
 
     // Invalidate region beyond total_frames
     ruler.invalidate_region(600, 800);
-    assert_eq!(ruler.percent_cached(), 100.0, "Out-of-bounds invalidation must not affect valid spans");
+    assert_eq!(
+        ruler.percent_cached(),
+        100.0,
+        "Out-of-bounds invalidation must not affect valid spans"
+    );
 
     // Partial out-of-bounds: 400..800 (should clamp to 400..500)
     ruler.invalidate_region(400, 800);
@@ -874,21 +970,24 @@ fn test_adv_alerts_headless_mock_interception() {
     let queue = AlertQueue::default();
 
     // Register a dynamic mock handler that intercepts alerts and returns tailored actions
-    queue.set_mock_handler(Some(Arc::new(|event| {
-        match event.code {
-            AlertCode::MediaFileNotFound => AlertAction::IgnoreAll,
-            AlertCode::InsufficientDiskSpace => AlertAction::Retry,
-            AlertCode::GpuAccelerationError => AlertAction::Ok,
-            AlertCode::TimelineMediaDeleteConfirm => AlertAction::Yes,
-            _ => AlertAction::Cancel,
-        }
+    queue.set_mock_handler(Some(Arc::new(|event| match event.code {
+        AlertCode::MediaFileNotFound => AlertAction::IgnoreAll,
+        AlertCode::InsufficientDiskSpace => AlertAction::Retry,
+        AlertCode::GpuAccelerationError => AlertAction::Ok,
+        AlertCode::TimelineMediaDeleteConfirm => AlertAction::Yes,
+        _ => AlertAction::Cancel,
     })));
 
     // Dispatches must return Mock Action immediately
     let r1 = queue.dispatch(AlertCode::MediaFileNotFound, &["clip.mov"], "en-US", None);
     assert_eq!(r1, Some(AlertAction::IgnoreAll));
 
-    let r2 = queue.dispatch(AlertCode::InsufficientDiskSpace, &["500", "100"], "en-US", None);
+    let r2 = queue.dispatch(
+        AlertCode::InsufficientDiskSpace,
+        &["500", "100"],
+        "en-US",
+        None,
+    );
     assert_eq!(r2, Some(AlertAction::Retry));
 
     let r3 = queue.dispatch(AlertCode::GpuAccelerationError, &[], "en-US", None);
@@ -936,22 +1035,16 @@ fn test_adv_alerts_high_volume_queue_overflow_resistance() {
 #[test]
 fn test_adv_alerts_formatting_and_placeholders() {
     // English substitution with {0} and {1}
-    let msg_en = AlertRegistry::format_message(
-        AlertCode::InsufficientDiskSpace,
-        &["1024", "256"],
-        "en-US",
-    );
+    let msg_en =
+        AlertRegistry::format_message(AlertCode::InsufficientDiskSpace, &["1024", "256"], "en-US");
     assert_eq!(
         msg_en,
         "Estimated file size (1024 MB) exceeds available free disk space (256 MB)."
     );
 
     // Portuguese substitution with {0} and {1}
-    let msg_pt = AlertRegistry::format_message(
-        AlertCode::InsufficientDiskSpace,
-        &["1024", "256"],
-        "pt-BR",
-    );
+    let msg_pt =
+        AlertRegistry::format_message(AlertCode::InsufficientDiskSpace, &["1024", "256"], "pt-BR");
     assert_eq!(
         msg_pt,
         "O tamanho estimado do arquivo (1024 MB) excede o espaço livre em disco (256 MB)."
@@ -970,7 +1063,10 @@ fn test_adv_alerts_formatting_and_placeholders() {
         &["shot.mov", "extra1", "extra2"],
         "en-US",
     );
-    assert_eq!(msg_over, "The file 'shot.mov' was not found in the specified path.");
+    assert_eq!(
+        msg_over,
+        "The file 'shot.mov' was not found in the specified path."
+    );
 }
 
 #[test]

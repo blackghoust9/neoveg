@@ -92,7 +92,10 @@ fn f03_t1_03_video_track_cannot_be_armed() {
     let v1_id = v1.id;
     tl.tracks.push(v1);
 
-    assert!(arm_track(&tl, v1_id, true).is_none(), "Video tracks cannot be armed for recording");
+    assert!(
+        arm_track(&tl, v1_id, true).is_none(),
+        "Video tracks cannot be armed for recording"
+    );
 }
 
 #[test]
@@ -108,7 +111,11 @@ fn f03_t1_04_target_track_selects_first_unlocked_armed_track() {
     let a2_id = a2.id;
     tl.tracks.extend([a1, a2]);
 
-    assert_eq!(target_track(&tl), Some(a2_id), "Target track must skip locked armed tracks");
+    assert_eq!(
+        target_track(&tl),
+        Some(a2_id),
+        "Target track must skip locked armed tracks"
+    );
     assert_eq!(armed_tracks(&tl), vec![a1_id, a2_id]);
 }
 
@@ -686,18 +693,28 @@ fn f28_t1_01_media_pool_registration_and_lookup() {
         path: "C:/footage/cam_a.mp4".into(),
         duration_seconds: 120.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(2), fps: Some(29.97) }),
+        format: Some(MediaFormat {
+            channels: Some(2),
+            fps: Some(29.97),
+        }),
     });
     info.media_pool.push(MediaRef {
         id: 102,
         path: "C:/audio/mix.wav".into(),
         duration_seconds: 300.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(6), fps: None }),
+        format: Some(MediaFormat {
+            channels: Some(6),
+            fps: None,
+        }),
     });
 
     assert_eq!(info.media_pool.len(), 2);
-    let found = info.media_pool.iter().find(|m| m.id == 101).expect("Clip 101 must exist");
+    let found = info
+        .media_pool
+        .iter()
+        .find(|m| m.id == 101)
+        .expect("Clip 101 must exist");
     assert_eq!(found.path, "C:/footage/cam_a.mp4");
     assert_eq!(found.duration_seconds, 120.0);
 }
@@ -710,32 +727,45 @@ fn f28_t1_02_smart_bin_query_by_format_and_extension() {
         path: "clip1.mov".into(),
         duration_seconds: 10.0,
         subproject: false,
-        format: Some(MediaFormat { channels: None, fps: Some(24.0) }),
+        format: Some(MediaFormat {
+            channels: None,
+            fps: Some(24.0),
+        }),
     });
     info.media_pool.push(MediaRef {
         id: 2,
         path: "clip2.mp4".into(),
         duration_seconds: 20.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(2), fps: Some(60.0) }),
+        format: Some(MediaFormat {
+            channels: Some(2),
+            fps: Some(60.0),
+        }),
     });
     info.media_pool.push(MediaRef {
         id: 3,
         path: "soundtrack.wav".into(),
         duration_seconds: 180.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(2), fps: None }),
+        format: Some(MediaFormat {
+            channels: Some(2),
+            fps: None,
+        }),
     });
 
     // Smart bin: high frame rate video (fps >= 59.0)
-    let high_fps: Vec<_> = info.media_pool.iter()
+    let high_fps: Vec<_> = info
+        .media_pool
+        .iter()
         .filter(|m| m.format.and_then(|f| f.fps).is_some_and(|fps| fps >= 59.0))
         .collect();
     assert_eq!(high_fps.len(), 1);
     assert_eq!(high_fps[0].id, 2);
 
     // Smart bin: Audio files (.wav)
-    let audio_bin: Vec<_> = info.media_pool.iter()
+    let audio_bin: Vec<_> = info
+        .media_pool
+        .iter()
         .filter(|m| m.path.ends_with(".wav"))
         .collect();
     assert_eq!(audio_bin.len(), 1);
@@ -752,7 +782,10 @@ fn f28_t1_03_subproject_source_classification() {
         format: None,
     };
     assert!(sub.source().is_subproject());
-    assert_eq!(sub.source().path(), std::path::Path::new("nested_scene.neoveg"));
+    assert_eq!(
+        sub.source().path(),
+        std::path::Path::new("nested_scene.neoveg")
+    );
 }
 
 #[test]
@@ -794,7 +827,11 @@ fn f28_t1_05_media_props_reversion_to_default_cleans_entry() {
 #[test]
 fn f28_t2_01_empty_media_pool_smart_bin_returns_empty() {
     let info = ProjectInfo::create_empty();
-    let matches: Vec<_> = info.media_pool.iter().filter(|m| m.path.ends_with(".mp4")).collect();
+    let matches: Vec<_> = info
+        .media_pool
+        .iter()
+        .filter(|m| m.path.ends_with(".mp4"))
+        .collect();
     assert!(matches.is_empty());
 }
 
@@ -847,10 +884,15 @@ fn f28_t2_05_smart_bin_filtering_with_none_format_fields() {
         format: None,
     });
 
-    let video_bin: Vec<_> = info.media_pool.iter()
+    let video_bin: Vec<_> = info
+        .media_pool
+        .iter()
         .filter(|m| m.format.and_then(|f| f.fps).is_some())
         .collect();
-    assert!(video_bin.is_empty(), "Items with format=None must not match");
+    assert!(
+        video_bin.is_empty(),
+        "Items with format=None must not match"
+    );
 }
 
 // ============================================================================
@@ -873,7 +915,8 @@ fn f29_t1_02_project_manager_dirty_state_tracking() {
     let pid = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let mut p = pm.take(pid).unwrap();
     let t = p.timeline.new_track(TrackKind::Video);
-    p.history.execute(&mut p.timeline, EditCommand::AddTrack { track: t });
+    p.history
+        .execute(&mut p.timeline, EditCommand::AddTrack { track: t });
     assert!(p.is_dirty());
     pm.put(p);
     assert!(pm.get(pid).unwrap().is_dirty());
@@ -896,7 +939,8 @@ fn f29_t1_04_project_title_indicates_dirty_state() {
     assert_eq!(p.title(), "MyProject");
 
     let t = p.timeline.new_track(TrackKind::Video);
-    p.history.execute(&mut p.timeline, EditCommand::AddTrack { track: t });
+    p.history
+        .execute(&mut p.timeline, EditCommand::AddTrack { track: t });
     assert_eq!(p.title(), "MyProject *");
 }
 
@@ -1049,7 +1093,10 @@ fn f30_t2_03_describe_single_point_span_filtered_out() {
     let v_id = v.id;
     tl.tracks.push(v);
 
-    assert!(describe(&tl, &[(v_id, 1)]).is_none(), "Span under 1ms is ignored");
+    assert!(
+        describe(&tl, &[(v_id, 1)]).is_none(),
+        "Span under 1ms is ignored"
+    );
 }
 
 #[test]
@@ -1159,7 +1206,10 @@ fn f34_t1_04_relink_requires_same_extension_for_fuzzy() {
     };
 
     let found = find_fuzzy(&media, &[dir.clone()]);
-    assert_eq!(found, None, "Fuzzy match must reject mismatched file extension");
+    assert_eq!(
+        found, None,
+        "Fuzzy match must reject mismatched file extension"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1289,7 +1339,11 @@ fn f35_t1_01_l_cut_independent_audio_video_split() {
 
     assert_eq!(edge_time(&tl, edge_v), Some(5.0));
     assert_eq!(edge_time(&tl, edge_a), Some(8.0));
-    assert_eq!(edge_time(&tl, edge_a).unwrap() - edge_time(&tl, edge_v).unwrap(), 3.0, "Audio extends 3s past video");
+    assert_eq!(
+        edge_time(&tl, edge_a).unwrap() - edge_time(&tl, edge_v).unwrap(),
+        3.0,
+        "Audio extends 3s past video"
+    );
 }
 
 #[test]
@@ -1320,7 +1374,11 @@ fn f35_t1_02_j_cut_audio_leads_video_in() {
 
     assert_eq!(edge_time(&tl, edge_a), Some(2.0));
     assert_eq!(edge_time(&tl, edge_v), Some(4.0));
-    assert_eq!(edge_time(&tl, edge_v).unwrap() - edge_time(&tl, edge_a).unwrap(), 2.0, "Audio leads video by 2s");
+    assert_eq!(
+        edge_time(&tl, edge_v).unwrap() - edge_time(&tl, edge_a).unwrap(),
+        2.0,
+        "Audio leads video by 2s"
+    );
 }
 
 #[test]
@@ -1637,7 +1695,10 @@ fn f37_t2_01_group_single_event_is_none() {
     let v_id = v.id;
     tl.tracks.push(v);
 
-    assert!(group_events(&mut tl, &[(v_id, 1)]).is_none(), "Need >= 2 events to group");
+    assert!(
+        group_events(&mut tl, &[(v_id, 1)]).is_none(),
+        "Need >= 2 events to group"
+    );
 }
 
 #[test]
@@ -1698,7 +1759,10 @@ fn f37_t2_05_move_events_locked_events_prevent_move() {
     let v_id = v.id;
     tl.tracks.push(v);
 
-    assert!(move_events(&tl, &[(v_id, 1)], 2.0).is_none(), "Locked events cannot be moved");
+    assert!(
+        move_events(&tl, &[(v_id, 1)], 2.0).is_none(),
+        "Locked events cannot be moved"
+    );
 }
 
 // ============================================================================
@@ -1750,7 +1814,10 @@ fn f39_t1_02_multicam_live_switch_angle() {
     let e = &tl.track(v_id).unwrap().events[0];
     assert_eq!(active_index(e), 0);
     assert_eq!(e.media_id, Some(101), "Media switches immediately to Cam A");
-    assert_eq!(e.start, 0.0, "Timeline position preserved during angle switch");
+    assert_eq!(
+        e.start, 0.0,
+        "Timeline position preserved during angle switch"
+    );
     assert_eq!(e.duration, 10.0, "Duration preserved during angle switch");
 }
 
@@ -1998,7 +2065,10 @@ fn f40_t2_02_delete_active_take_on_single_take_event_is_noop() {
     let v_id = v.id;
     tl.tracks.push(v);
 
-    assert!(delete_active(&tl, &[(v_id, 1)]).is_none(), "Never delete the only take");
+    assert!(
+        delete_active(&tl, &[(v_id, 1)]).is_none(),
+        "Never delete the only take"
+    );
 }
 
 #[test]

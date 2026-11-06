@@ -276,21 +276,20 @@ fn test_f38_multicamera_audio_and_timecode_sync() {
     let n_samples = (duration * sample_rate as f64) as usize;
 
     let mut master_audio = vec![0.0f32; n_samples];
-    for i in 0..n_samples {
+    for (i, item) in master_audio.iter_mut().enumerate() {
         let t = i as f32 / sample_rate as f32;
         // Periodic burst envelope
         let env = ((2.0 * std::f32::consts::PI * 2.0 * t).sin().powi(4) > 0.5) as i32 as f32;
         let tone = (2.0 * std::f32::consts::PI * 440.0 * t).sin();
-        master_audio[i] = env * tone;
+        *item = env * tone;
     }
 
     // Cam 2 delayed by 0.180 seconds
     let delay_sec = 0.180;
     let delay_samples = (delay_sec * sample_rate as f64) as usize;
     let mut cam2_audio = vec![0.0f32; n_samples];
-    for i in delay_samples..n_samples {
-        cam2_audio[i] = master_audio[i - delay_samples];
-    }
+    cam2_audio[delay_samples..n_samples]
+        .copy_from_slice(&master_audio[..(n_samples - delay_samples)]);
 
     let tracks: &[(u64, &[f32])] = &[(1, &master_audio), (2, &cam2_audio)];
     let res = synchronizer
@@ -470,7 +469,9 @@ fn test_f41_and_f42_parity_and_translation_catalogs() {
     );
 
     // Feature 42: Validate all 7 catalogs have 100% key parity
-    let catalogs = ["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"];
+    let catalogs = [
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ];
     let mut catalog_maps = Vec::new();
 
     for cat in catalogs {
@@ -496,10 +497,7 @@ fn test_f41_and_f42_parity_and_translation_catalogs() {
             base_keys.len()
         );
         for key in &base_keys {
-            assert!(
-                map.contains_key(key),
-                "Catalog {name} missing key: '{key}'"
-            );
+            assert!(map.contains_key(key), "Catalog {name} missing key: '{key}'");
         }
     }
 }

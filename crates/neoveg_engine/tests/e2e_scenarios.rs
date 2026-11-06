@@ -7,7 +7,7 @@
 //! Requires 100% headless CPU execution, zero dedicated physical GPU/AI hardware.
 
 use neoveg_common::pan_crop::{PanCrop, PanCropFrame, PanCropKey};
-use neoveg_common::presets::{FieldOrder as PresetFieldOrder};
+use neoveg_common::presets::FieldOrder as PresetFieldOrder;
 use neoveg_common::project::{MediaFormat, MediaRef, ProjectInfo, ProjectSettings};
 use neoveg_engine::command::History;
 use neoveg_engine::crossfade::find_crossfades;
@@ -18,10 +18,15 @@ use neoveg_engine::keytrim::{edge_time, Edge, EdgeSide};
 use neoveg_engine::project_manager::ProjectManager;
 use neoveg_engine::relink::{find_exact, find_fuzzy};
 use neoveg_engine::render_track::{describe, only_events, placement};
-use neoveg_engine::takes::{active_index, add as add_take, count as take_count, set_active as set_active_take, step as step_take};
+use neoveg_engine::takes::{
+    active_index, add as add_take, count as take_count, set_active as set_active_take,
+    step as step_take,
+};
 use neoveg_engine::timeline::{EventId, Timeline, TrackEvent, TrackKind};
 use neoveg_engine::track_arm::{armed_tracks, set as arm_track, target_track};
-use neoveg_engine::transition_progress::{is_active as is_progress_active, new_envelope, progress_at};
+use neoveg_engine::transition_progress::{
+    is_active as is_progress_active, new_envelope, progress_at,
+};
 use neoveg_engine::Caption;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,12 +109,18 @@ fn t3_03_pan_crop_smoothstep_keyframing_at_event_boundary() {
     let mut pc = PanCrop::default();
     pc.keys.push(PanCropKey {
         time: 0.0,
-        frame: PanCropFrame { x_center: 0.2, ..PanCropFrame::FULL },
+        frame: PanCropFrame {
+            x_center: 0.2,
+            ..PanCropFrame::FULL
+        },
         smoothness: 1.0,
     });
     pc.keys.push(PanCropKey {
         time: 4.0,
-        frame: PanCropFrame { x_center: 0.8, ..PanCropFrame::FULL },
+        frame: PanCropFrame {
+            x_center: 0.8,
+            ..PanCropFrame::FULL
+        },
         smoothness: 1.0,
     });
     let mid = pc.frame_at(2.0);
@@ -170,13 +181,16 @@ fn t3_07_relink_with_format_validation() {
         path: "C:/media/take_01.mp4".into(),
         duration_seconds: 10.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(2), fps: Some(30.0) }),
+        format: Some(MediaFormat {
+            channels: Some(2),
+            fps: Some(30.0),
+        }),
     };
     let dir = std::env::temp_dir().join(format!("neoveg_t3_07_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&dir);
     let _ = std::fs::write(dir.join("take_01.mp4"), b"sample");
 
-    let found = find_exact(&media, &[dir.clone()]);
+    let found = find_exact(&media, std::slice::from_ref(&dir));
     assert!(found.is_some());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -229,10 +243,12 @@ fn t3_10_multicam_take_switching_preserves_grouping() {
 
 #[test]
 fn t3_11_project_settings_custom_resolution_and_framerate() {
-    let mut s = ProjectSettings::default();
-    s.width = 3840;
-    s.height = 2160;
-    s.fps = 59.94;
+    let s = ProjectSettings {
+        width: 3840,
+        height: 2160,
+        fps: 59.94,
+        ..Default::default()
+    };
     assert_eq!(s.width * s.height, 8_294_400);
 }
 
@@ -280,7 +296,11 @@ fn t3_14_move_grouped_events_preserves_relative_l_cut_offset() {
 
     let v_end = tl.track(vid).unwrap().events[0].end();
     let a_end = tl.track(aid).unwrap().events[0].end();
-    assert_eq!(a_end - v_end, 2.0, "Relative L-cut offset must survive move");
+    assert_eq!(
+        a_end - v_end,
+        2.0,
+        "Relative L-cut offset must survive move"
+    );
 }
 
 #[test]
@@ -402,7 +422,11 @@ fn t3_21_only_events_retains_event_pan_crop() {
     tl.tracks.push(v);
 
     let filtered = only_events(&tl, &[(vid, 1)]);
-    assert!(!filtered.track(vid).unwrap().events[0].pan_crop.stretch_to_fill);
+    assert!(
+        !filtered.track(vid).unwrap().events[0]
+            .pan_crop
+            .stretch_to_fill
+    );
 }
 
 #[test]
@@ -427,12 +451,18 @@ fn t3_24_pan_crop_rotation_normalized_under_keyframe_lerp() {
     let mut pc = PanCrop::default();
     pc.keys.push(PanCropKey {
         time: 0.0,
-        frame: PanCropFrame { rotation_deg: 0.0, ..PanCropFrame::FULL },
+        frame: PanCropFrame {
+            rotation_deg: 0.0,
+            ..PanCropFrame::FULL
+        },
         smoothness: 0.0,
     });
     pc.keys.push(PanCropKey {
         time: 2.0,
-        frame: PanCropFrame { rotation_deg: 180.0, ..PanCropFrame::FULL },
+        frame: PanCropFrame {
+            rotation_deg: 180.0,
+            ..PanCropFrame::FULL
+        },
         smoothness: 0.0,
     });
     let mid = pc.frame_at(1.0);
@@ -558,7 +588,11 @@ fn t3_33_edge_time_end_calculation_precision() {
     let vid = v.id;
     tl.tracks.push(v);
 
-    let edge = Edge { track: vid, event: 1, side: EdgeSide::End };
+    let edge = Edge {
+        track: vid,
+        event: 1,
+        side: EdgeSide::End,
+    };
     let t = edge_time(&tl, edge).unwrap();
     assert!((t - (1.234567 + 3.456789)).abs() < 1e-6);
 }
@@ -783,8 +817,16 @@ fn t4_scenario_02_multicam_concert_live_switching() {
     assert_eq!(tl.track(v_id).unwrap().events[0].media_id, Some(102));
 
     // Verify L-cut boundary: Audio continues 2s after Video cut
-    let edge_v = Edge { track: v_id, event: 1, side: EdgeSide::End };
-    let edge_a = Edge { track: a_id, event: 2, side: EdgeSide::End };
+    let edge_v = Edge {
+        track: v_id,
+        event: 1,
+        side: EdgeSide::End,
+    };
+    let edge_a = Edge {
+        track: a_id,
+        event: 2,
+        side: EdgeSide::End,
+    };
     assert_eq!(edge_time(&tl, edge_v), Some(10.0));
     assert_eq!(edge_time(&tl, edge_a), Some(12.0));
 }
@@ -854,7 +896,7 @@ fn t4_scenario_04_ai_subtitling_and_social_reframe() {
         frame: PanCropFrame {
             x_center: 0.35, // speaker on left
             y_center: 0.5,
-            width: 0.5625,  // 9/16 vertical ratio
+            width: 0.5625, // 9/16 vertical ratio
             height: 1.0,
             rotation_deg: 0.0,
         },
@@ -927,7 +969,10 @@ fn t4_scenario_05_complex_vfx_and_transition_enveloping() {
     p.timeline.tracks.push(v);
 
     let vid = p.timeline.tracks[0].id;
-    let registered_env = p.timeline.track(vid).unwrap().events[0].transition_progress.as_ref().unwrap();
+    let registered_env = p.timeline.track(vid).unwrap().events[0]
+        .transition_progress
+        .as_ref()
+        .unwrap();
     assert!(is_progress_active(Some(registered_env)));
     assert!((progress_at(registered_env, 1.0) - 0.5).abs() < 1e-4);
 
@@ -958,7 +1003,10 @@ fn t4_scenario_06_smart_proxy_offline_online_and_alerts() {
         path: "D:/offline_storage/SCENE_01_RAW.MOV".into(),
         duration_seconds: 45.0,
         subproject: false,
-        format: Some(MediaFormat { channels: Some(2), fps: Some(24.0) }),
+        format: Some(MediaFormat {
+            channels: Some(2),
+            fps: Some(24.0),
+        }),
     };
 
     // Step 1: Missing file raises warning alert

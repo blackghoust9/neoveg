@@ -55,7 +55,8 @@ fn stress_bundle_path_empty_string() {
 
 #[test]
 fn stress_bundle_path_empty_directory() {
-    let temp_dir = std::env::temp_dir().join(format!("neoveg_ofx_stress_empty_{}", std::process::id()));
+    let temp_dir =
+        std::env::temp_dir().join(format!("neoveg_ofx_stress_empty_{}", std::process::id()));
     let _ = fs::create_dir_all(&temp_dir);
 
     let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
@@ -69,11 +70,18 @@ fn stress_bundle_path_empty_directory() {
 fn stress_bundle_path_corrupt_binary_file() {
     let temp_file = std::env::temp_dir().join(format!("neoveg_corrupt_{}.ofx", std::process::id()));
     // Write random corrupt bytes
-    fs::write(&temp_file, b"\x7F\x45\x4C\x46\x00\xFF\xFF\xDEADBEEF\x00\x11\x22\x33").unwrap();
+    fs::write(
+        &temp_file,
+        b"\x7F\x45\x4C\x46\x00\xFF\xFF\xDEADBEEF\x00\x11\x22\x33",
+    )
+    .unwrap();
 
     let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
     let res = host.load_bundle(&temp_file);
-    assert!(res.is_err(), "Corrupt binary file must be rejected gracefully");
+    assert!(
+        res.is_err(),
+        "Corrupt binary file must be rejected gracefully"
+    );
 
     let _ = fs::remove_file(&temp_file);
 }
@@ -85,7 +93,10 @@ fn stress_bundle_path_zero_byte_file() {
 
     let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
     let res = host.load_bundle(&temp_file);
-    assert!(res.is_err(), "0-byte file must be rejected gracefully without panic");
+    assert!(
+        res.is_err(),
+        "0-byte file must be rejected gracefully without panic"
+    );
 
     let _ = fs::remove_file(&temp_file);
 }
@@ -93,7 +104,11 @@ fn stress_bundle_path_zero_byte_file() {
 #[test]
 fn stress_bundle_path_text_file() {
     let temp_file = std::env::temp_dir().join(format!("neoveg_text_{}.ofx", std::process::id()));
-    fs::write(&temp_file, b"This is plain text and definitely not a valid binary bundle.").unwrap();
+    fs::write(
+        &temp_file,
+        b"This is plain text and definitely not a valid binary bundle.",
+    )
+    .unwrap();
 
     let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
     let res = host.load_bundle(&temp_file);
@@ -174,20 +189,26 @@ fn stress_zero_dimensions_framebuffer() {
 
     // 0x0
     let fb_0x0 = FrameBuffer::new(0, 0);
-    let res_0x0 = host.execute_effect("com.neoveg.invert", &fb_0x0, &params).expect("0x0 must not panic");
+    let res_0x0 = host
+        .execute_effect("com.neoveg.invert", &fb_0x0, &params)
+        .expect("0x0 must not panic");
     assert_eq!(res_0x0.width, 0);
     assert_eq!(res_0x0.height, 0);
     assert!(res_0x0.rgba.is_empty());
 
     // 0x100
     let fb_0x100 = FrameBuffer::new(0, 100);
-    let res_0x100 = host.execute_effect("com.neoveg.invert", &fb_0x100, &params).expect("0x100 must not panic");
+    let res_0x100 = host
+        .execute_effect("com.neoveg.invert", &fb_0x100, &params)
+        .expect("0x100 must not panic");
     assert_eq!(res_0x100.width, 0);
     assert_eq!(res_0x100.height, 100);
 
     // 100x0
     let fb_100x0 = FrameBuffer::new(100, 0);
-    let res_100x0 = host.execute_effect("com.neoveg.invert", &fb_100x0, &params).expect("100x0 must not panic");
+    let res_100x0 = host
+        .execute_effect("com.neoveg.invert", &fb_100x0, &params)
+        .expect("100x0 must not panic");
     assert_eq!(res_100x0.width, 100);
     assert_eq!(res_100x0.height, 0);
 }
@@ -225,9 +246,18 @@ fn stress_misaligned_rgba_slice() {
 #[test]
 fn stress_extreme_aspect_ratios() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
-    host.register_plugin(create_sample_mock_plugin("brightness"), PathBuf::from("mock.ofx"));
-    host.register_plugin(create_sample_mock_plugin("grayscale"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
+    host.register_plugin(
+        create_sample_mock_plugin("brightness"),
+        PathBuf::from("mock.ofx"),
+    );
+    host.register_plugin(
+        create_sample_mock_plugin("grayscale"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let mut params = BTreeMap::new();
     params.insert("amount".to_string(), 1.0);
@@ -240,19 +270,26 @@ fn stress_extreme_aspect_ratios() {
 
     // 1x10000 extremely tall
     let fb_tall = FrameBuffer::solid(1, 10000, [50, 50, 50, 255]);
-    let out_tall = host.execute_effect("brightness", &fb_tall, &params).unwrap();
+    let out_tall = host
+        .execute_effect("brightness", &fb_tall, &params)
+        .unwrap();
     assert_eq!(out_tall.pixel(0, 9999), [100, 100, 100, 255]);
 
     // 10000x1 extremely wide
     let fb_wide = FrameBuffer::solid(10000, 1, [50, 50, 50, 255]);
-    let out_wide = host.execute_effect("brightness", &fb_wide, &params).unwrap();
+    let out_wide = host
+        .execute_effect("brightness", &fb_wide, &params)
+        .unwrap();
     assert_eq!(out_wide.pixel(9999, 0), [100, 100, 100, 255]);
 
     // 21:9 ultra-wide (e.g. 210 x 90)
     let fb_21_9 = FrameBuffer::solid(210, 90, [30, 60, 90, 255]);
     let out_21_9 = host.execute_effect("grayscale", &fb_21_9, &params).unwrap();
     let expected_gray = (0.299f32 * 30.0 + 0.587 * 60.0 + 0.114 * 90.0).clamp(0.0, 255.0) as u8;
-    assert_eq!(out_21_9.pixel(100, 50), [expected_gray, expected_gray, expected_gray, 255]);
+    assert_eq!(
+        out_21_9.pixel(100, 50),
+        [expected_gray, expected_gray, expected_gray, 255]
+    );
 
     // 9:16 vertical video (e.g. 90 x 160)
     let fb_9_16 = FrameBuffer::solid(90, 160, [10, 20, 30, 255]);
@@ -285,13 +322,18 @@ fn stress_framebuffer_out_of_bounds_pixels() {
 #[test]
 fn stress_invert_nan_parameter() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [100, 150, 200, 255]);
     let mut params = BTreeMap::new();
     params.insert("amount".to_string(), f32::NAN);
 
-    let out = host.execute_effect("invert", &src, &params).expect("NaN param must not crash");
+    let out = host
+        .execute_effect("invert", &src, &params)
+        .expect("NaN param must not crash");
     // When NaN is passed, float arithmetic with NaN saturates to 0 in Rust as u8
     for chunk in out.rgba.as_chunks::<4>().0 {
         assert_eq!(chunk[3], 255, "Alpha channel preserved");
@@ -301,7 +343,10 @@ fn stress_invert_nan_parameter() {
 #[test]
 fn stress_invert_infinity_parameters() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [100, 150, 200, 255]);
     let mut params = BTreeMap::new();
@@ -320,7 +365,10 @@ fn stress_invert_infinity_parameters() {
 #[test]
 fn stress_invert_extreme_negative_and_positive_amounts() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [100, 150, 200, 255]);
     let mut params = BTreeMap::new();
@@ -339,13 +387,18 @@ fn stress_invert_extreme_negative_and_positive_amounts() {
 #[test]
 fn stress_gain_and_brightness_nan_parameter() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("brightness"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("brightness"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [100, 150, 200, 255]);
     let mut params = BTreeMap::new();
     params.insert("brightness".to_string(), f32::NAN);
 
-    let out = host.execute_effect("brightness", &src, &params).expect("NaN must not panic");
+    let out = host
+        .execute_effect("brightness", &src, &params)
+        .expect("NaN must not panic");
     // NaN clamps to 0 in saturating cast to u8
     for chunk in out.rgba.as_chunks::<4>().0 {
         assert_eq!(chunk[0], 0);
@@ -364,13 +417,17 @@ fn stress_gain_and_brightness_infinity_parameter() {
     let mut params = BTreeMap::new();
     params.insert("gain".to_string(), f32::INFINITY);
 
-    let out = host.execute_effect("gain", &src, &params).expect("INFINITY must not panic");
+    let out = host
+        .execute_effect("gain", &src, &params)
+        .expect("INFINITY must not panic");
     // Non-zero values * INFINITY -> INFINITY, clamps to 255
     assert_eq!(out.pixel(0, 0), [255, 255, 255, 255]);
 
     // Zero values: 0.0 * INFINITY is NaN, saturating cast to u8 gives 0
     let src_zero = FrameBuffer::solid(2, 2, [0, 0, 0, 255]);
-    let out_zero = host.execute_effect("gain", &src_zero, &params).expect("0.0 * INFINITY must not panic");
+    let out_zero = host
+        .execute_effect("gain", &src_zero, &params)
+        .expect("0.0 * INFINITY must not panic");
     assert_eq!(out_zero.pixel(0, 0), [0, 0, 0, 255]);
 }
 
@@ -409,7 +466,10 @@ fn stress_gain_and_brightness_huge_positive_factor() {
 #[test]
 fn stress_grayscale_channel_boundary_conditions() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("grayscale"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("grayscale"),
+        PathBuf::from("mock.ofx"),
+    );
     let params = BTreeMap::new();
 
     // Pure black
@@ -431,9 +491,15 @@ fn stress_grayscale_channel_boundary_conditions() {
 #[test]
 fn stress_empty_params_map_uses_clean_defaults() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
     host.register_plugin(create_sample_mock_plugin("gain"), PathBuf::from("mock.ofx"));
-    host.register_plugin(create_sample_mock_plugin("grayscale"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("grayscale"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [100, 150, 200, 255]);
     let empty_params = BTreeMap::new();
@@ -447,9 +513,14 @@ fn stress_empty_params_map_uses_clean_defaults() {
     assert_eq!(out_gain.pixel(0, 0), [100, 150, 200, 255]);
 
     // Grayscale
-    let out_gray = host.execute_effect("grayscale", &src, &empty_params).unwrap();
+    let out_gray = host
+        .execute_effect("grayscale", &src, &empty_params)
+        .unwrap();
     let expected_gray = (0.299 * 100.0 + 0.587 * 150.0 + 0.114 * 200.0) as u8;
-    assert_eq!(out_gray.pixel(0, 0), [expected_gray, expected_gray, expected_gray, 255]);
+    assert_eq!(
+        out_gray.pixel(0, 0),
+        [expected_gray, expected_gray, expected_gray, 255]
+    );
 }
 
 // ============================================================================
@@ -462,7 +533,10 @@ fn stress_concurrent_threaded_effect_execution() {
     use std::thread;
 
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("com.neoveg.invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("com.neoveg.invert"),
+        PathBuf::from("mock.ofx"),
+    );
     let host = Arc::new(host);
 
     let mut handles = Vec::new();
@@ -472,7 +546,9 @@ fn stress_concurrent_threaded_effect_execution() {
             let src = FrameBuffer::solid(16, 16, [thread_idx * 10, 50, 100, 255]);
             let mut params = BTreeMap::new();
             params.insert("amount".to_string(), 1.0);
-            let out = host_clone.execute_effect("com.neoveg.invert", &src, &params).unwrap();
+            let out = host_clone
+                .execute_effect("com.neoveg.invert", &src, &params)
+                .unwrap();
             assert_eq!(out.pixel(0, 0)[0], 255 - thread_idx * 10);
         });
         handles.push(handle);
@@ -486,9 +562,18 @@ fn stress_concurrent_threaded_effect_execution() {
 #[test]
 fn stress_case_insensitivity_plugin_matching() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("InVeRt_Effect"), PathBuf::from("mock.ofx"));
-    host.register_plugin(create_sample_mock_plugin("BRIGHTNESS_BOOST"), PathBuf::from("mock.ofx"));
-    host.register_plugin(create_sample_mock_plugin("GRAYSCALE_FILTER"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("InVeRt_Effect"),
+        PathBuf::from("mock.ofx"),
+    );
+    host.register_plugin(
+        create_sample_mock_plugin("BRIGHTNESS_BOOST"),
+        PathBuf::from("mock.ofx"),
+    );
+    host.register_plugin(
+        create_sample_mock_plugin("GRAYSCALE_FILTER"),
+        PathBuf::from("mock.ofx"),
+    );
 
     let src = FrameBuffer::solid(2, 2, [50, 100, 150, 255]);
     let mut params = BTreeMap::new();
@@ -498,10 +583,14 @@ fn stress_case_insensitivity_plugin_matching() {
     let out_inv = host.execute_effect("InVeRt_Effect", &src, &params).unwrap();
     assert_eq!(out_inv.pixel(0, 0), [205, 155, 105, 255]);
 
-    let out_bright = host.execute_effect("BRIGHTNESS_BOOST", &src, &params).unwrap();
+    let out_bright = host
+        .execute_effect("BRIGHTNESS_BOOST", &src, &params)
+        .unwrap();
     assert_eq!(out_bright.pixel(0, 0), [100, 200, 255, 255]);
 
-    let out_gray = host.execute_effect("GRAYSCALE_FILTER", &src, &params).unwrap();
+    let out_gray = host
+        .execute_effect("GRAYSCALE_FILTER", &src, &params)
+        .unwrap();
     let expected = (0.299 * 50.0 + 0.587 * 100.0 + 0.114 * 150.0) as u8;
     assert_eq!(out_gray.pixel(0, 0), [expected, expected, expected, 255]);
 }
@@ -522,7 +611,10 @@ fn stress_subnormal_float_parameters() {
 #[test]
 fn stress_4k_resolution_buffer_processing() {
     let mut host = DefaultOfxHost::new();
-    host.register_plugin(create_sample_mock_plugin("invert"), PathBuf::from("mock.ofx"));
+    host.register_plugin(
+        create_sample_mock_plugin("invert"),
+        PathBuf::from("mock.ofx"),
+    );
 
     // 3840 x 2160 UHD 4K
     let src = FrameBuffer::solid(3840, 2160, [100, 150, 200, 255]);
@@ -535,4 +627,3 @@ fn stress_4k_resolution_buffer_processing() {
     assert_eq!(out.pixel(0, 0), [155, 105, 55, 255]);
     assert_eq!(out.pixel(3839, 2159), [155, 105, 55, 255]);
 }
-

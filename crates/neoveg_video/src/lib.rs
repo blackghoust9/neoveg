@@ -30,9 +30,9 @@ pub mod scene;
 pub mod scopes;
 pub mod smart_mask;
 pub mod stabilize;
-pub mod stereo3d;
 #[cfg(feature = "ffmpeg")]
 pub mod stabilize_job;
+pub mod stereo3d;
 pub mod still;
 pub mod subclip;
 pub mod title_template;
@@ -40,9 +40,9 @@ pub mod tracking;
 pub mod transition_library;
 pub mod transitions;
 pub mod upscale;
-pub mod view_mode;
 pub mod vfx;
 pub mod vfx_gpu;
+pub mod view_mode;
 pub mod worker;
 
 #[cfg(feature = "ffmpeg")]

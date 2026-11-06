@@ -1,12 +1,12 @@
 //! Adversarial Stress Test Suite for 3D Transitions, ThreeDTransform, Envelopes & Thumbnails
 //! Verified under execution constraints: sequential `-j 1` and `--test-threads=1`.
 
-use std::collections::BTreeMap;
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::transitions::{
     get_preset, ThreeDTransform, TransitionCategory, TransitionEnvelopePoint,
     TransitionEnvelopeShape, TransitionProgressEnvelope, TransitionRenderer,
 };
+use std::collections::BTreeMap;
 
 // ============================================================================
 // 1. Extreme Angle Parameters & Ray Intersection
@@ -15,25 +15,8 @@ use neoveg_video::transitions::{
 #[test]
 fn adv_threed_transform_extreme_and_perpendicular_angles() {
     let angles: &[f32] = &[
-        0.0,
-        90.0,
-        -90.0,
-        180.0,
-        -180.0,
-        270.0,
-        -270.0,
-        360.0,
-        -360.0,
-        450.0,
-        -450.0,
-        720.0,
-        -720.0,
-        100000.0,
-        -100000.0,
-        0.000001,
-        -0.000001,
-        89.99999,
-        90.00001,
+        0.0, 90.0, -90.0, 180.0, -180.0, 270.0, -270.0, 360.0, -360.0, 450.0, -450.0, 720.0,
+        -720.0, 100000.0, -100000.0, 0.000001, -0.000001, 89.99999, 90.00001,
     ];
 
     let src = FrameBuffer::solid(16, 16, [120, 80, 200, 255]);
@@ -47,9 +30,12 @@ fn adv_threed_transform_extreme_and_perpendicular_angles() {
                     .with_specular(0.5);
 
                 let mat = transform.rotation_matrix();
-                for row in 0..3 {
-                    for col in 0..3 {
-                        assert!(mat[row][col].is_finite(), "Rotation matrix element must be finite for rx={rx}, ry={ry}, rz={rz}");
+                for r in &mat {
+                    for val in r {
+                        assert!(
+                            val.is_finite(),
+                            "Rotation matrix element must be finite for rx={rx}, ry={ry}, rz={rz}"
+                        );
                     }
                 }
 
@@ -89,8 +75,32 @@ fn adv_threed_transform_nan_and_inf_rotations() {
 #[test]
 fn adv_threed_transform_extreme_depth_and_specular() {
     let src = FrameBuffer::solid(12, 12, [255, 200, 100, 255]);
-    let depths = [-10000.0, -100.0, -1.0, 0.0, 1.0, 5.0, 10.0, 100.0, 10000.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN];
-    let specs = [-10.0, -0.5, 0.0, 0.5, 1.0, 2.0, 100.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN];
+    let depths = [
+        -10000.0,
+        -100.0,
+        -1.0,
+        0.0,
+        1.0,
+        5.0,
+        10.0,
+        100.0,
+        10000.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NAN,
+    ];
+    let specs = [
+        -10.0,
+        -0.5,
+        0.0,
+        0.5,
+        1.0,
+        2.0,
+        100.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NAN,
+    ];
 
     for &depth in &depths {
         for &spec in &specs {
@@ -147,7 +157,15 @@ fn adv_transitions_all_3d_presets_adversarial_progress() {
         f32::NEG_INFINITY,
     ];
 
-    let presets_3d = ["fly_in", "3d_fly_in", "shuffle", "3d_shuffle", "cube", "page_roll", "page_peel"];
+    let presets_3d = [
+        "fly_in",
+        "3d_fly_in",
+        "shuffle",
+        "3d_shuffle",
+        "cube",
+        "page_roll",
+        "page_peel",
+    ];
 
     for &preset_id in &presets_3d {
         let preset = get_preset(preset_id).expect("3D preset must exist");
@@ -170,17 +188,42 @@ fn adv_transitions_cube_adversarial_params() {
     let dst = FrameBuffer::solid(16, 16, [200, 150, 100, 255]);
     let cube_preset = get_preset("cube").unwrap();
 
-    let angles = [-720.0, -360.0, -90.0, 0.0, 90.0, 180.0, 270.0, 360.0, 720.0, 99999.0, f32::NAN];
-    let perspectives = [-10.0, -1.0, 0.0, 0.01, 0.5, 0.99, 1.0, 2.0, 100.0, f32::NAN, f32::INFINITY];
+    let angles = [
+        -720.0,
+        -360.0,
+        -90.0,
+        0.0,
+        90.0,
+        180.0,
+        270.0,
+        360.0,
+        720.0,
+        99999.0,
+        f32::NAN,
+    ];
+    let perspectives = [
+        -10.0,
+        -1.0,
+        0.0,
+        0.01,
+        0.5,
+        0.99,
+        1.0,
+        2.0,
+        100.0,
+        f32::NAN,
+        f32::INFINITY,
+    ];
 
     for &a in &angles {
         for &persp in &perspectives {
-            let params = BTreeMap::from([
-                ("angle".to_string(), a),
-                ("perspective".to_string(), persp),
-            ]);
+            let params =
+                BTreeMap::from([("angle".to_string(), a), ("perspective".to_string(), persp)]);
             let res = cube_preset.render(&src, &dst, 0.5, &params);
-            assert!(res.is_ok(), "Cube render failed for angle={a}, persp={persp}");
+            assert!(
+                res.is_ok(),
+                "Cube render failed for angle={a}, persp={persp}"
+            );
             let f = res.unwrap();
             assert_eq!(f.width, 16);
             assert_eq!(f.height, 16);
@@ -196,15 +239,36 @@ fn adv_transitions_page_roll_and_peel_adversarial_params() {
     let roll_preset = get_preset("page_roll").unwrap();
     let peel_preset = get_preset("page_peel").unwrap();
 
-    let angles = [-720.0, -360.0, -90.0, 0.0, 45.0, 90.0, 180.0, 270.0, 360.0, 720.0, f32::NAN];
-    let radii = [-5.0, -0.1, 0.0, 0.0001, 0.08, 0.5, 1.0, 10.0, 100.0, f32::NAN, f32::INFINITY];
+    let angles = [
+        -720.0,
+        -360.0,
+        -90.0,
+        0.0,
+        45.0,
+        90.0,
+        180.0,
+        270.0,
+        360.0,
+        720.0,
+        f32::NAN,
+    ];
+    let radii = [
+        -5.0,
+        -0.1,
+        0.0,
+        0.0001,
+        0.08,
+        0.5,
+        1.0,
+        10.0,
+        100.0,
+        f32::NAN,
+        f32::INFINITY,
+    ];
 
     for &a in &angles {
         for &r in &radii {
-            let roll_params = BTreeMap::from([
-                ("angle".to_string(), a),
-                ("radius".to_string(), r),
-            ]);
+            let roll_params = BTreeMap::from([("angle".to_string(), a), ("radius".to_string(), r)]);
             let res = roll_preset.render(&src, &dst, 0.5, &roll_params);
             assert!(res.is_ok(), "PageRoll failed for angle={a}, radius={r}");
             let f = res.unwrap();
@@ -229,7 +293,17 @@ fn adv_transitions_fly_in_and_shuffle_extreme_parameters() {
     let fly_in = get_preset("fly_in").unwrap();
     let shuffle = get_preset("shuffle").unwrap();
 
-    let far_zs = [-100.0, -1.0, 0.0, 4.0, 10.0, 100.0, 10000.0, f32::NAN, f32::INFINITY];
+    let far_zs = [
+        -100.0,
+        -1.0,
+        0.0,
+        4.0,
+        10.0,
+        100.0,
+        10000.0,
+        f32::NAN,
+        f32::INFINITY,
+    ];
     let rotations = [-720.0, -90.0, 0.0, 90.0, 360.0, 1000.0, f32::NAN];
     let speculars = [-10.0, 0.0, 0.5, 1.0, 50.0, f32::NAN];
 
@@ -244,7 +318,10 @@ fn adv_transitions_fly_in_and_shuffle_extreme_parameters() {
                     ("specular_light".to_string(), spec),
                 ]);
                 let res = fly_in.render(&src, &dst, 0.5, &params);
-                assert!(res.is_ok(), "FlyIn failed for far_z={fz}, rx={rx}, spec={spec}");
+                assert!(
+                    res.is_ok(),
+                    "FlyIn failed for far_z={fz}, rx={rx}, spec={spec}"
+                );
             }
         }
     }
@@ -260,7 +337,10 @@ fn adv_transitions_fly_in_and_shuffle_extreme_parameters() {
                 ("specular_light".to_string(), 0.5),
             ]);
             let res = shuffle.render(&src, &dst, 0.5, &params);
-            assert!(res.is_ok(), "Shuffle failed for extra_spins={es}, stagger={stag}");
+            assert!(
+                res.is_ok(),
+                "Shuffle failed for extra_spins={es}, stagger={stag}"
+            );
         }
     }
 }
@@ -277,7 +357,16 @@ fn adv_envelope_empty_points() {
     };
     assert!(!env.is_active());
     // Must return 1.0 and not panic for any time
-    for t in &[-10.0, 0.0, 0.5, 1.0, 10.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+    for t in &[
+        -10.0,
+        0.0,
+        0.5,
+        1.0,
+        10.0,
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ] {
         let p = env.progress_at(*t);
         assert_eq!(p, 1.0);
         assert!((0.0..=1.0).contains(&p));
@@ -305,7 +394,17 @@ fn adv_envelope_single_point() {
         assert!(env.is_active());
 
         // Single point should return the clamped point progress regardless of time
-        for t in &[-10.0, 0.0, 0.49, 0.5, 0.51, 1.0, 10.0, f64::INFINITY, f64::NEG_INFINITY] {
+        for t in &[
+            -10.0,
+            0.0,
+            0.49,
+            0.5,
+            0.51,
+            1.0,
+            10.0,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
             let p = env.progress_at(*t);
             assert_eq!(p, 0.75);
             assert!((0.0..=1.0).contains(&p));
@@ -333,10 +432,26 @@ fn adv_envelope_duplicate_timestamps() {
     // Manually constructed envelope with identical timestamps
     let manual_dup = TransitionProgressEnvelope {
         points: vec![
-            TransitionEnvelopePoint { time: 0.0, progress: 0.0, shape: TransitionEnvelopeShape::Linear },
-            TransitionEnvelopePoint { time: 0.5, progress: 0.3, shape: TransitionEnvelopeShape::Linear },
-            TransitionEnvelopePoint { time: 0.5, progress: 0.8, shape: TransitionEnvelopeShape::Linear },
-            TransitionEnvelopePoint { time: 1.0, progress: 1.0, shape: TransitionEnvelopeShape::Linear },
+            TransitionEnvelopePoint {
+                time: 0.0,
+                progress: 0.0,
+                shape: TransitionEnvelopeShape::Linear,
+            },
+            TransitionEnvelopePoint {
+                time: 0.5,
+                progress: 0.3,
+                shape: TransitionEnvelopeShape::Linear,
+            },
+            TransitionEnvelopePoint {
+                time: 0.5,
+                progress: 0.8,
+                shape: TransitionEnvelopeShape::Linear,
+            },
+            TransitionEnvelopePoint {
+                time: 1.0,
+                progress: 1.0,
+                shape: TransitionEnvelopeShape::Linear,
+            },
         ],
         enabled: true,
     };
@@ -380,7 +495,9 @@ fn adv_envelope_unconditional_clamping_all_shapes() {
 
     for shape in shapes {
         // Test direct shape evaluation on out-of-range u
-        for u in &[-10.0, -1.0, -0.01, 0.0, 0.25, 0.5, 0.75, 1.0, 1.01, 2.0, 100.0] {
+        for u in &[
+            -10.0, -1.0, -0.01, 0.0, 0.25, 0.5, 0.75, 1.0, 1.01, 2.0, 100.0,
+        ] {
             let val = shape.eval(*u);
             assert!(
                 (0.0..=1.0).contains(&val),
@@ -394,8 +511,16 @@ fn adv_envelope_unconditional_clamping_all_shapes() {
         // Test envelope progress_at with out-of-range point progress
         let env = TransitionProgressEnvelope {
             points: vec![
-                TransitionEnvelopePoint { time: 0.0, progress: -5.0, shape },
-                TransitionEnvelopePoint { time: 1.0, progress: 10.0, shape },
+                TransitionEnvelopePoint {
+                    time: 0.0,
+                    progress: -5.0,
+                    shape,
+                },
+                TransitionEnvelopePoint {
+                    time: 1.0,
+                    progress: 10.0,
+                    shape,
+                },
             ],
             enabled: true,
         };
@@ -418,8 +543,16 @@ fn adv_envelope_unconditional_clamping_all_shapes() {
 fn adv_envelope_out_of_order_timestamps() {
     let env_reversed = TransitionProgressEnvelope {
         points: vec![
-            TransitionEnvelopePoint { time: 5.0, progress: 0.8, shape: TransitionEnvelopeShape::Linear },
-            TransitionEnvelopePoint { time: 1.0, progress: 0.2, shape: TransitionEnvelopeShape::Linear },
+            TransitionEnvelopePoint {
+                time: 5.0,
+                progress: 0.8,
+                shape: TransitionEnvelopeShape::Linear,
+            },
+            TransitionEnvelopePoint {
+                time: 1.0,
+                progress: 0.2,
+                shape: TransitionEnvelopeShape::Linear,
+            },
         ],
         enabled: true,
     };

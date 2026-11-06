@@ -266,7 +266,14 @@ mod tests {
         };
         let doc = from_regions(&tl2);
         assert_eq!(doc.cues.len(), 1);
-        assert_eq!((doc.cues[0].text.as_str(), doc.cues[0].start, doc.cues[0].end), ("Cena 1", 1.0, 2.0));
+        assert_eq!(
+            (
+                doc.cues[0].text.as_str(),
+                doc.cues[0].start,
+                doc.cues[0].end
+            ),
+            ("Cena 1", 1.0, 2.0)
+        );
     }
 
     #[test]

@@ -11,7 +11,9 @@ pub fn controls(ui: &mut egui::Ui, view: &mut ViewMode) {
     let mut deinterlace = view.deinterlace.is_some();
     if ui
         .checkbox(&mut deinterlace, tr("Desentrelaçar"))
-        .on_hover_text(tr("Mostra a prévia sem entrelaçamento, com o modo das propriedades do projeto"))
+        .on_hover_text(tr(
+            "Mostra a prévia sem entrelaçamento, com o modo das propriedades do projeto",
+        ))
         .changed()
     {
         // The mode itself comes from the project when the frame is shown

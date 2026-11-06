@@ -70,11 +70,15 @@ impl SearchCriterion {
                 let phrase_lower = self.phrase.to_lowercase();
                 return match self.condition {
                     SearchCondition::Contains | SearchCondition::Equals => {
-                        item.tags.iter().any(|t| t.to_lowercase() == phrase_lower || t.to_lowercase().contains(&phrase_lower))
+                        item.tags.iter().any(|t| {
+                            t.to_lowercase() == phrase_lower
+                                || t.to_lowercase().contains(&phrase_lower)
+                        })
                     }
-                    SearchCondition::DoesNotContain | SearchCondition::NotEquals => {
-                        !item.tags.iter().any(|t| t.to_lowercase().contains(&phrase_lower))
-                    }
+                    SearchCondition::DoesNotContain | SearchCondition::NotEquals => !item
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&phrase_lower)),
                     SearchCondition::IsEmpty => item.tags.is_empty(),
                     SearchCondition::IsNotEmpty => !item.tags.is_empty(),
                     _ => false,
@@ -162,8 +166,16 @@ impl MediaBinTree {
         );
 
         let default_quick_tags = [
-            String::new(), String::new(), String::new(), String::new(), String::new(),
-            String::new(), String::new(), String::new(), String::new(), String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
         ];
 
         Self {
@@ -195,7 +207,11 @@ impl MediaBinTree {
     ///
     /// Validates non-empty name (Alert ID 12887).
     /// Auto-renames duplicate names in same parent (Alert ID 18174).
-    pub fn create_bin(&mut self, parent_id: Option<BinId>, requested_name: &str) -> Result<BinId, AlertCode> {
+    pub fn create_bin(
+        &mut self,
+        parent_id: Option<BinId>,
+        requested_name: &str,
+    ) -> Result<BinId, AlertCode> {
         let trimmed = requested_name.trim();
         if trimmed.is_empty() {
             return Err(AlertCode::BinNameEmpty);
@@ -249,7 +265,11 @@ impl MediaBinTree {
             return Err(AlertCode::BinNameEmpty);
         }
 
-        let parent_id = self.bins.get(&id).and_then(|b| b.parent_id).unwrap_or(self.root_id);
+        let parent_id = self
+            .bins
+            .get(&id)
+            .and_then(|b| b.parent_id)
+            .unwrap_or(self.root_id);
         let unique_name = self.resolve_unique_name(parent_id, trimmed);
 
         if let Some(bin) = self.bins.get_mut(&id) {
@@ -372,8 +392,14 @@ mod tests {
     #[test]
     fn root_bin_cannot_be_deleted_or_renamed() {
         let mut tree = MediaBinTree::new();
-        assert_eq!(tree.delete_bin(MediaBinTree::ROOT_BIN_ID), Err(AlertCode::RootBinCannotRemove));
-        assert_eq!(tree.rename_bin(MediaBinTree::ROOT_BIN_ID, "New Name"), Err(AlertCode::RootBinCannotRename));
+        assert_eq!(
+            tree.delete_bin(MediaBinTree::ROOT_BIN_ID),
+            Err(AlertCode::RootBinCannotRemove)
+        );
+        assert_eq!(
+            tree.rename_bin(MediaBinTree::ROOT_BIN_ID, "New Name"),
+            Err(AlertCode::RootBinCannotRename)
+        );
     }
 
     #[test]

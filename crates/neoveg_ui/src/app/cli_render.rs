@@ -1,8 +1,8 @@
 //! `neoveg --render <projeto> <saida>`: opens a project and renders it without a window.
 
 use super::*;
-use std::path::Path;
 use crate::render_dialog::RenderLaunchRequest;
+use std::path::Path;
 
 /// Renders `project` into `output` (the format comes from the extension) and returns when the
 /// file is written. The progress goes to the standard output.

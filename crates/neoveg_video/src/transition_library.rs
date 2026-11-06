@@ -25,9 +25,8 @@ pub fn category(id: &str) -> TransitionCategory {
         }
         IRIS | GROW | ZOOM | SPIRAL | SPLIT => TransitionCategory::Shapes,
         SLIDE | PUSH | SQUEEZE => TransitionCategory::Motion,
-        PAGE_ROLL | PAGE_PEEL | CUBE | FLIP | FLY_IN | THREE_D_FLY_IN | SHUFFLE | THREE_D_SHUFFLE => {
-            TransitionCategory::ThreeD
-        }
+        PAGE_ROLL | PAGE_PEEL | CUBE | FLIP | FLY_IN | THREE_D_FLY_IN | SHUFFLE
+        | THREE_D_SHUFFLE => TransitionCategory::ThreeD,
         _ => TransitionCategory::Effects,
     }
 }
@@ -237,12 +236,7 @@ pub const PRESETS: &[Preset] = &[
         [("start_angle", 0.0), ("softness", 0.05)]
     ),
     preset!("iris", "Iris", IRIS, [("softness", 0.1)]),
-    preset!(
-        "push",
-        "Push",
-        PUSH,
-        [("angle", 0.0), ("push_off", 1.0)]
-    ),
+    preset!("push", "Push", PUSH, [("angle", 0.0), ("push_off", 1.0)]),
     preset!("slide", "Slide", SLIDE, [("angle", 0.0)]),
     preset!("zoom", "Zoom", GROW, []),
     preset!(
@@ -264,12 +258,7 @@ pub const PRESETS: &[Preset] = &[
         PAGE_ROLL,
         [("angle", 0.0), ("radius", 0.08)]
     ),
-    preset!(
-        "cube",
-        "Cube",
-        CUBE,
-        [("angle", 0.0), ("perspective", 0.5)]
-    ),
+    preset!("cube", "Cube", CUBE, [("angle", 0.0), ("perspective", 0.5)]),
     preset!(
         "shuffle",
         "Shuffle",

@@ -102,7 +102,13 @@ pub fn apply_event_mask(frame: &mut FrameBuffer, mask: &EventMask, time_s: f64) 
         mask.invert,
     );
 
-    for (px, &cov) in frame.rgba.as_chunks_mut::<4>().0.iter_mut().zip(coverage.iter()) {
+    for (px, &cov) in frame
+        .rgba
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(coverage.iter())
+    {
         let factor = (cov * opacity).clamp(0.0, 1.0);
         px[3] = (f32::from(px[3]) * factor).round().clamp(0.0, 255.0) as u8;
     }

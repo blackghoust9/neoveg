@@ -3,6 +3,7 @@
 mod app;
 mod buses_panel;
 mod captions_panel;
+mod cli;
 mod command_marker_window;
 mod command_palette_window;
 mod compositors_window;
@@ -28,16 +29,13 @@ mod layouts;
 mod log_viewer;
 mod loudness_panel;
 mod media_properties_window;
-mod storyboard_window;
-mod stereo_menu;
 mod mixer_panel;
 mod notes_window;
 mod pan_crop_window;
 mod plugin_manager;
 mod precision_slider;
-mod cli;
-mod project_dialog;
 mod prefs_extra;
+mod project_dialog;
 mod ref_gallery_window;
 mod render_burn_in;
 mod render_dialog;
@@ -45,24 +43,26 @@ mod scene_window;
 mod scopes_panel;
 mod shortcuts;
 mod slideshow_window;
+mod speech_search_window;
 mod splash;
+mod stereo_menu;
+mod storyboard_window;
 mod templates_window;
 mod theme;
 mod timeline_scroll;
 #[cfg(test)]
-mod toolbar_tips_audit;
-#[cfg(test)]
 mod tips_audit;
-mod toolbar_editor_window;
-mod transitions_panel;
-mod speech_search_window;
 mod title_template_ui;
+mod toolbar_editor_window;
+#[cfg(test)]
+mod toolbar_tips_audit;
 mod track_groups_window;
+mod transitions_panel;
 mod trim_monitor_window;
 mod velocity_editor;
 mod video_fx_panel;
-mod waveform_paint;
 mod view_mode_ui;
+mod waveform_paint;
 mod welcome;
 
 use eframe::egui;
@@ -120,8 +120,11 @@ fn main() -> eframe::Result<()> {
         Ok(cli::Cli::Run { open: Some(path) }) => cli::set_startup_open(path),
         Ok(cli::Cli::Run { open: None } | cli::Cli::Screenshots { .. }) => {}
         Err(message) => {
-            eprintln!("erro: {message}
-{}", cli::HELP);
+            eprintln!(
+                "erro: {message}
+{}",
+                cli::HELP
+            );
             std::process::exit(2);
         }
     }

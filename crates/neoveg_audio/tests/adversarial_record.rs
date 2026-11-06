@@ -6,6 +6,7 @@
 //! 3. Rapid `start()` and immediate `stop()` cycles (race conditions, rapid teardown, Drop safety).
 //! 4. Dynamic track arming changes mid-recording (target resolution and fallbacks).
 //! 5. Channel count mismatches (mono, stereo, 5.1, 7.1, 8-channel limits, odd chunk sizes).
+//!
 //! Plus extreme floating point inputs (NaN, +/-Inf, subnormals).
 
 use std::fs;
@@ -15,9 +16,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use neoveg_audio::record::{
-    convert_chunk, map_frame, MonitorRing, RecordOptions, Recorder,
-};
+use neoveg_audio::record::{convert_chunk, map_frame, MonitorRing, RecordOptions, Recorder};
 use neoveg_audio::waveform::WaveformSource;
 
 fn temp_wav_path(prefix: &str) -> PathBuf {
@@ -87,8 +86,7 @@ fn adv_01_recorder_push_zero_samples_and_stop() {
         track_id: Some(101),
     };
 
-    let mut recorder =
-        Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
+    let mut recorder = Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
     let initial_frames = recorder.frames();
 
     // Pushing empty samples
@@ -175,8 +173,7 @@ fn adv_02_recorder_massive_chunk_burst_and_overrun_tracking() {
         track_id: Some(5),
     };
 
-    let mut recorder =
-        Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
+    let mut recorder = Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
 
     // Feed 500,000 samples (250,000 stereo frames = ~5.2 seconds of audio) in one burst
     let massive_tone: Vec<f32> = (0..500_000)
@@ -218,8 +215,7 @@ fn adv_03_immediate_stop_after_creation() {
         track_id: None,
     };
 
-    let recorder =
-        Recorder::create_mock_loopback_with(&path, &options).expect("create recorder");
+    let recorder = Recorder::create_mock_loopback_with(&path, &options).expect("create recorder");
     // Immediate stop without sleep or additional samples
     let rec = recorder.stop().expect("stop immediately");
 
@@ -300,8 +296,10 @@ fn adv_04_dynamic_track_arming_changes_mid_recording() {
     let path = temp_wav_path("adv_track_arm");
 
     // Scenario A: Recording initiated on armed Track 10
-    let mut options = RecordOptions::default();
-    options.track_id = Some(10);
+    let options = RecordOptions {
+        track_id: Some(10),
+        ..Default::default()
+    };
     let mut recorder =
         Recorder::create_mock_loopback_with(&path, &options).expect("recorder create");
     assert_eq!(recorder.track_id(), Some(10));
@@ -409,8 +407,7 @@ fn adv_05_map_frame_exhaustive_channel_routing() {
 fn adv_05_odd_and_unaligned_chunk_pushes() {
     let path = temp_wav_path("adv_unaligned_chunks");
     let options = RecordOptions::default();
-    let mut recorder =
-        Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
+    let mut recorder = Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
 
     // Stereo recorder expects 2 samples per frame. Push odd length buffers:
     recorder.push_mock_samples(&[0.1f32]); // 1 sample (0 full frames)
@@ -436,8 +433,7 @@ fn adv_05_odd_and_unaligned_chunk_pushes() {
 fn adv_06_extreme_floating_point_values() {
     let path = temp_wav_path("adv_nan_inf");
     let options = RecordOptions::default();
-    let mut recorder =
-        Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
+    let mut recorder = Recorder::create_mock_loopback_with(&path, &options).expect("recorder init");
 
     // Test with extreme values
     let extreme_samples = [

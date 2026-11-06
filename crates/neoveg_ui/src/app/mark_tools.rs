@@ -38,7 +38,10 @@ impl AppState {
     pub(super) fn pick_marks_in_selection(&mut self) {
         if let Some(range) = self.time_selection {
             self.marks_picked = mark_selection::select_in_range(&self.timeline, range, true);
-            self.status = tr_args("{} marcador(es)/região(ões) selecionado(s)", &[&self.marks_picked.len()]);
+            self.status = tr_args(
+                "{} marcador(es)/região(ões) selecionado(s)",
+                &[&self.marks_picked.len()],
+            );
         }
     }
 
@@ -52,7 +55,12 @@ impl AppState {
     }
 
     /// While one picked mark is dragged, the others of the pick follow it.
-    pub(super) fn group_preview(&self, drag: &MarkDrag, id: MarkId, stored: (f64, f64)) -> (f64, f64) {
+    pub(super) fn group_preview(
+        &self,
+        drag: &MarkDrag,
+        id: MarkId,
+        stored: (f64, f64),
+    ) -> (f64, f64) {
         if self.marks_picked.len() < 2
             || !self.marks_picked.contains(&drag.id)
             || !self.marks_picked.contains(&id)
@@ -119,7 +127,11 @@ impl AppState {
         if self.playhead < event.start || self.playhead > event.start + event.duration {
             return None;
         }
-        let rate = if event.playback_rate > 0.0 { event.playback_rate } else { 1.0 };
+        let rate = if event.playback_rate > 0.0 {
+            event.playback_rate
+        } else {
+            1.0
+        };
         Some((media, event.trim_in + (self.playhead - event.start) * rate))
     }
 
@@ -130,7 +142,10 @@ impl AppState {
             self.status = tr("O cursor precisa estar sobre o evento").into();
             return;
         };
-        let name = tr_args("Marcador {}", &[&(self.timeline.media_markers.markers_of(media).len() + 1)]);
+        let name = tr_args(
+            "Marcador {}",
+            &[&(self.timeline.media_markers.markers_of(media).len() + 1)],
+        );
         if self.timeline.media_markers.add(media, time, &name) {
             self.forced_dirty = true;
             self.status = tr("Marcador de mídia inserido").into();
@@ -185,7 +200,10 @@ pub(super) fn picked_marks_menu(state: &mut AppState, ui: &mut egui::Ui) {
     }
     let picked = state.marks_picked.len();
     if picked > 0 {
-        if ui.button(tr_args("Remover {} selecionado(s)", &[&picked])).clicked() {
+        if ui
+            .button(tr_args("Remover {} selecionado(s)", &[&picked]))
+            .clicked()
+        {
             state.remove_picked_marks();
             ui.close_menu();
         }
@@ -197,13 +215,24 @@ pub(super) fn picked_marks_menu(state: &mut AppState, ui: &mut egui::Ui) {
 }
 
 /// Items for the context menu of an event about the markers of its media.
-pub(super) fn media_marker_menu(state: &mut AppState, ui: &mut egui::Ui, track_id: TrackId, event_id: EventId) {
+pub(super) fn media_marker_menu(
+    state: &mut AppState,
+    ui: &mut egui::Ui,
+    track_id: TrackId,
+    event_id: EventId,
+) {
     ui.separator();
-    if ui.button(tr("Inserir marcador de mídia no cursor")).clicked() {
+    if ui
+        .button(tr("Inserir marcador de mídia no cursor"))
+        .clicked()
+    {
         state.add_media_marker_at_cursor(track_id, event_id);
         ui.close_menu();
     }
-    if ui.button(tr("Remover marcador de mídia no cursor")).clicked() {
+    if ui
+        .button(tr("Remover marcador de mídia no cursor"))
+        .clicked()
+    {
         state.remove_media_marker_at_cursor(track_id, event_id);
         ui.close_menu();
     }
@@ -226,7 +255,8 @@ pub(super) fn paint_event_media_markers(
     }
     for marker in media_markers::markers_on_event(&state.timeline.media_markers, event) {
         let x = lanes_left
-            + ((marker.timeline_time + shift - state.scroll_seconds) * state.pixels_per_second) as f32;
+            + ((marker.timeline_time + shift - state.scroll_seconds) * state.pixels_per_second)
+                as f32;
         if x < lanes_left || x > lanes_right {
             continue;
         }
@@ -257,7 +287,14 @@ mod tests {
         for t in [1.0, 3.0, 8.0] {
             let cmd = markers::add_marker(&mut s.timeline, t, Some("m")).unwrap();
             s.history.execute(&mut s.timeline, cmd);
-            ids.push(s.timeline.markers.iter().find(|m| (m.time - t).abs() < 1e-9).unwrap().id);
+            ids.push(
+                s.timeline
+                    .markers
+                    .iter()
+                    .find(|m| (m.time - t).abs() < 1e-9)
+                    .unwrap()
+                    .id,
+            );
         }
         (s, [ids[0], ids[1], ids[2]])
     }
@@ -281,9 +318,16 @@ mod tests {
         assert_eq!(s.group_preview(d, ids[2], (8.0, 8.0)), (8.0, 8.0));
         let revision = s.history.revision();
         s.finish_mark_drag();
-        assert_eq!(s.history.revision(), revision + 1, "one step for the whole pick");
+        assert_eq!(
+            s.history.revision(),
+            revision + 1,
+            "one step for the whole pick"
+        );
         let times: Vec<f64> = s.timeline.markers.iter().map(|m| m.time).collect();
-        assert!((times[0] - 3.0).abs() < 0.05 && times[1] > 4.9 && times.len() == 3, "{times:?}");
+        assert!(
+            (times[0] - 3.0).abs() < 0.05 && times[1] > 4.9 && times.len() == 3,
+            "{times:?}"
+        );
         s.history.undo(&mut s.timeline);
         assert!((s.timeline.markers[0].time - 1.0).abs() < 1e-9);
         // A click on empty ruler clears the pick
@@ -325,7 +369,11 @@ mod tests {
         assert!(s.forced_dirty);
         s.playhead = 99.0;
         s.add_media_marker_at_cursor(track_id, event_id);
-        assert_eq!(s.timeline.media_markers.markers_of(4).len(), 1, "cursor off the event");
+        assert_eq!(
+            s.timeline.media_markers.markers_of(4).len(),
+            1,
+            "cursor off the event"
+        );
         // The option decides whether the marker is a snap target
         assert!(!s.with_media_marker_snap(vec![0.0]).contains(&12.0));
         s.prefs.snap_to_media_markers = true;

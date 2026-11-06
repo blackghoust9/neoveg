@@ -89,7 +89,10 @@ fn test_adv_tbe_delete_all_words_in_event() {
         "Event 2 start should ripple from 12.0s to 2.0s, actual={}",
         events[0].start
     );
-    assert_eq!(events[0].duration, 8.0, "Duration of Event 2 must be preserved");
+    assert_eq!(
+        events[0].duration, 8.0,
+        "Duration of Event 2 must be preserved"
+    );
 }
 
 #[test]
@@ -290,8 +293,14 @@ fn test_adv_stt_zero_duration_pure_silence_extreme_duration() {
             }
         })
         .expect("empty transcribe must succeed");
-    assert!(segs_empty.is_empty(), "Empty audio must return empty segments");
-    assert!(progress_called, "Progress 1.0 must be reported for empty audio");
+    assert!(
+        segs_empty.is_empty(),
+        "Empty audio must return empty segments"
+    );
+    assert!(
+        progress_called,
+        "Progress 1.0 must be reported for empty audio"
+    );
 
     // 2. Pure silence (energy < 1e-4) for a full 30-second window
     let silence = vec![0.0f32; WHISPER_SAMPLE_RATE as usize * 30];
@@ -673,20 +682,23 @@ fn test_adv_auto_reframe_extreme_aspect_ratios() {
     ];
 
     for ratio in test_ratios {
-        let pc = AutoReframeEngine::plan_reframe_trajectory(
-            &detections,
-            16.0 / 9.0,
-            ratio,
-            0.15,
-            1.0,
-        );
+        let pc =
+            AutoReframeEngine::plan_reframe_trajectory(&detections, 16.0 / 9.0, ratio, 0.15, 1.0);
 
         assert!(!pc.keys.is_empty());
         for key in &pc.keys {
             let f = &key.frame;
             // Crop width and height must be clamped within [0.05, 1.0]
-            assert!(f.width >= 0.049 && f.width <= 1.001, "Width bounds: {}", f.width);
-            assert!(f.height >= 0.049 && f.height <= 1.001, "Height bounds: {}", f.height);
+            assert!(
+                f.width >= 0.049 && f.width <= 1.001,
+                "Width bounds: {}",
+                f.width
+            );
+            assert!(
+                f.height >= 0.049 && f.height <= 1.001,
+                "Height bounds: {}",
+                f.height
+            );
 
             // Crop window must never project outside the source frame [0.0, 1.0]
             let left = f.x_center - f.width * 0.5;

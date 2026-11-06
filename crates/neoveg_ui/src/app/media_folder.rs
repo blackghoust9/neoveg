@@ -16,7 +16,11 @@ impl AppState {
     }
 
     /// Points the media found in `dir` at it and loads them again.
-    pub(super) fn swap_media_to_folder(&mut self, dir: &std::path::Path, ctx: &egui::Context) -> usize {
+    pub(super) fn swap_media_to_folder(
+        &mut self,
+        dir: &std::path::Path,
+        ctx: &egui::Context,
+    ) -> usize {
         let changed = relink::replace_by_folder(&mut self.project.media_pool, dir);
         for (id, path) in &changed {
             self.missing.retain(|m| m.id != *id);

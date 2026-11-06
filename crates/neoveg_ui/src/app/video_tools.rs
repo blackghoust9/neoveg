@@ -15,12 +15,14 @@ use super::AppState;
 use crate::event_color_window::{self as color, ColorAction, ColorView, EventColorWindow};
 use crate::ref_gallery_window::RefGalleryWindow;
 
+type StabilizeJobState = Arc<Mutex<((u64, u64), Option<Result<(), String>>)>>;
+
 /// A stabilization running on a worker thread.
 pub(super) struct StabilizeJob {
     output: PathBuf,
     cancel: Arc<AtomicBool>,
     /// `(done, total)` and, once over, how it ended.
-    state: Arc<Mutex<((u64, u64), Option<Result<(), String>>)>>,
+    state: StabilizeJobState,
 }
 
 /// State of the video tools windows.
@@ -82,7 +84,11 @@ impl AppState {
             .project_path
             .as_ref()
             .and_then(|p| p.parent().map(PathBuf::from))
-            .or_else(|| std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)))
+            .or_else(|| {
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|e| e.parent().map(PathBuf::from))
+            })
             .unwrap_or_default();
         base.join("quadros_de_referencia")
     }
@@ -137,7 +143,8 @@ impl AppState {
             if let Some(edit) = self.video_tools.storyboard.show(ctx, &self.timeline, track) {
                 if self.history.execute(&mut self.timeline, edit) {
                     self.last_frame_key = None;
-                    self.status = tr("Ordem do storyboard enviada para a linha do tempo.").to_string();
+                    self.status =
+                        tr("Ordem do storyboard enviada para a linha do tempo.").to_string();
                 }
             }
         }
@@ -157,9 +164,14 @@ impl AppState {
                 let Some(frame) = self.video_tools.frame.clone() else {
                     return;
                 };
-                let result =
-                    color::auto_color_edit(&self.timeline, track_id, event_id, &frame, self.playhead);
-                self.apply_color_edit(result, &tr("Cor automática aplicada ao evento."));
+                let result = color::auto_color_edit(
+                    &self.timeline,
+                    track_id,
+                    event_id,
+                    &frame,
+                    self.playhead,
+                );
+                self.apply_color_edit(result, tr("Cor automática aplicada ao evento."));
             }
             ColorAction::CancelStabilize => {
                 if let Some(job) = &self.video_tools.stabilize {
@@ -169,7 +181,7 @@ impl AppState {
             ColorAction::Stabilize => self.start_stabilize(track_id, event_id),
             ColorAction::Reset => {
                 let result = color::reset_edit(&self.timeline, track_id, event_id);
-                self.apply_color_edit(result, &tr("Correção de cor do evento removida."));
+                self.apply_color_edit(result, tr("Correção de cor do evento removida."));
             }
             ColorAction::Export => match color::export_text(&self.timeline, track_id, event_id) {
                 Ok(text) => {
@@ -197,7 +209,7 @@ impl AppState {
                 let result = std::fs::read_to_string(&path)
                     .map_err(|e| tr_args("Falha ao ler a correção: {}", &[&e.to_string()]))
                     .and_then(|text| color::import_edit(&self.timeline, track_id, event_id, &text));
-                self.apply_color_edit(result, &tr("Correção de cor importada."));
+                self.apply_color_edit(result, tr("Correção de cor importada."));
             }
         }
     }
@@ -224,14 +236,18 @@ impl AppState {
             return;
         };
         let src = PathBuf::from(&item.path);
-        let dir = self
-            .gallery_dir()
-            .with_file_name("estabilizados");
+        let dir = self.gallery_dir().with_file_name("estabilizados");
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            self.status = tr_args("Não foi possível criar a pasta {}: {}", &[&dir.display(), &e]);
+            self.status = tr_args(
+                "Não foi possível criar a pasta {}: {}",
+                &[&dir.display(), &e],
+            );
             return;
         }
-        let stem = src.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        let stem = src
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let output = (1..)
             .map(|n| dir.join(format!("{stem}_estabilizado_{n:03}.mp4")))
             .find(|p| !p.exists())
@@ -261,7 +277,11 @@ impl AppState {
             }
         });
         self.status = tr("Estabilizando o evento…").to_string();
-        self.video_tools.stabilize = Some(StabilizeJob { output, cancel, state });
+        self.video_tools.stabilize = Some(StabilizeJob {
+            output,
+            cancel,
+            state,
+        });
     }
 
     #[cfg(not(feature = "ffmpeg"))]
@@ -286,7 +306,10 @@ impl AppState {
         self.video_tools.stabilize = None;
         match outcome {
             Ok(()) => {
-                self.status = tr_args("Estabilizado: {} (importado na mídia do projeto)", &[&output.display()]);
+                self.status = tr_args(
+                    "Estabilizado: {} (importado na mídia do projeto)",
+                    &[&output.display()],
+                );
                 self.spawn_media(output, None, ctx);
             }
             Err(e) => self.status = tr_args("A estabilização falhou: {}", &[&e]),

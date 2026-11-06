@@ -53,8 +53,8 @@ impl AppState {
         };
         let target = transient::target_time(&self.timeline, self.playhead);
         let Some(command) = transient::align(&self.timeline, event_ref, offset, target) else {
-            self.status = tr("O evento já está alinhado, ou o pico cairia antes do início do projeto")
-                .into();
+            self.status =
+                tr("O evento já está alinhado, ou o pico cairia antes do início do projeto").into();
             return;
         };
         if self.history.execute(&mut self.timeline, command) {
@@ -98,7 +98,8 @@ impl AppState {
     /// come off (see `place_subclip`).
     pub(super) fn begin_bake_event_effects(&mut self, ctx: &egui::Context) {
         if !self.can_bake_event_effects() {
-            self.status = tr("Selecione um evento de áudio com efeitos ligados (e desbloqueado)").into();
+            self.status =
+                tr("Selecione um evento de áudio com efeitos ligados (e desbloqueado)").into();
             return;
         }
         let Some((event_ref, section, input)) = self.subclip_source() else {
@@ -125,7 +126,8 @@ impl AppState {
             self.status = tr("Não há pasta para guardar o áudio").into();
             return;
         };
-        let taken = |p: &std::path::Path| p.exists() || self.pending_subclips.iter().any(|s| s.path == p);
+        let taken =
+            |p: &std::path::Path| p.exists() || self.pending_subclips.iter().any(|s| s.path == p);
         let named = sub::output_path(&input, &dir, section, false, "wav", |_| false);
         let stem = named
             .file_stem()

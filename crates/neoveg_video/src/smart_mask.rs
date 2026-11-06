@@ -230,10 +230,8 @@ impl SmartMaskMatte {
                         || self.alpha_channel[((y + 1) * self.width + x) as usize] <= 128;
 
                     if is_edge && contour_points.len() < 256 {
-                        contour_points.push([
-                            x as f32 / self.width as f32,
-                            y as f32 / self.height as f32,
-                        ]);
+                        contour_points
+                            .push([x as f32 / self.width as f32, y as f32 / self.height as f32]);
                     }
                 }
             }
@@ -282,12 +280,14 @@ impl SmartMaskMatte {
             return;
         }
 
-        for (px, &alpha_val) in frame.rgba.as_chunks_mut::<4>().0.iter_mut().zip(self.alpha_channel.iter()) {
-            let factor = if invert {
-                255 - alpha_val
-            } else {
-                alpha_val
-            };
+        for (px, &alpha_val) in frame
+            .rgba
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(self.alpha_channel.iter())
+        {
+            let factor = if invert { 255 - alpha_val } else { alpha_val };
             px[3] = ((f32::from(px[3]) * f32::from(factor)) / 255.0).round() as u8;
         }
     }
@@ -341,12 +341,7 @@ mod tests {
         let matte = SmartMaskMatte {
             width: 4,
             height: 4,
-            alpha_channel: vec![
-                255, 255, 0, 0,
-                255, 255, 0, 0,
-                0, 0, 0, 0,
-                0, 0, 0, 0,
-            ],
+            alpha_channel: vec![255, 255, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         };
 
         matte.apply_to_frame(&mut frame, false);

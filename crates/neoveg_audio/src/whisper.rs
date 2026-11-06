@@ -504,7 +504,8 @@ impl WhisperEngine {
 
     /// Loads a Whisper model folder from disk if available, or falls back to the in-memory engine.
     pub fn load_dir_or_fallback(model_path: &Path) -> Self {
-        Self::load_dir(model_path).unwrap_or_else(|_| Self::fallback().expect("fallback engine must initialize"))
+        Self::load_dir(model_path)
+            .unwrap_or_else(|_| Self::fallback().expect("fallback engine must initialize"))
     }
 
     fn detect_language(&mut self, audio_features: &Tensor) -> Result<Option<u32>, String> {

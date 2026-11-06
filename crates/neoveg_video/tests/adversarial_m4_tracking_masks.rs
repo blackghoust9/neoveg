@@ -12,9 +12,7 @@ use neoveg_common::fx_mask::{FxMask, MaskShape, MAX_POINTS, MIN_POINTS};
 use neoveg_common::mask::{EventMask, EventMaskKey, MaskFeatherType};
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::mask::{apply_event_mask, compute_event_mask_coverage};
-use neoveg_video::smart_mask::{
-    SegmentationPrompt, SmartMaskMatte, SmartMaskPrecision,
-};
+use neoveg_video::smart_mask::{SegmentationPrompt, SmartMaskMatte, SmartMaskPrecision};
 use neoveg_video::tracking::{
     MotionTrajectory, TrackKeyframe, TrackingMode, TrackingPrecision, TrackingRegion,
 };
@@ -49,7 +47,11 @@ fn make_test_frame(w: u32, h: u32, pattern: &str) -> FrameBuffer {
             for y in 0..h {
                 for x in 0..w {
                     let idx = (y * w + x) as usize * 4;
-                    let val = if ((x / 8) + (y / 8)) % 2 == 0 { 240 } else { 20 };
+                    let val = if ((x / 8) + (y / 8)) % 2 == 0 {
+                        240
+                    } else {
+                        20
+                    };
                     frame.rgba[idx] = val;
                     frame.rgba[idx + 1] = val;
                     frame.rgba[idx + 2] = val;
@@ -188,13 +190,7 @@ fn adv_tracking_offscreen_bounding_box_clamping() {
     let frame_a = make_test_frame(32, 32, "checker");
     let frame_b = make_test_frame(32, 32, "checker");
 
-    let kf = traj.track_step(
-        &frame_a,
-        &frame_b,
-        0.0,
-        0.1,
-        TrackingPrecision::Accurate,
-    );
+    let kf = traj.track_step(&frame_a, &frame_b, 0.0, 0.1, TrackingPrecision::Accurate);
     // Center must be clamped within [0.0, 1.0]
     assert!(kf.center_x >= 0.0 && kf.center_x <= 1.0);
     assert!(kf.center_y >= 0.0 && kf.center_y <= 1.0);
@@ -227,10 +223,7 @@ fn adv_tracking_extreme_rapid_motion_and_scene_cuts() {
 
 #[test]
 fn adv_tracking_non_finite_timestamps_and_nan_coordinates() {
-    let mut traj = MotionTrajectory::new(
-        TrackingMode::LocationAndScale,
-        TrackingRegion::default(),
-    );
+    let mut traj = MotionTrajectory::new(TrackingMode::LocationAndScale, TrackingRegion::default());
 
     // Empty trajectory
     assert!(traj.sample_at(0.0).is_none());
@@ -284,10 +277,7 @@ fn adv_tracking_non_finite_timestamps_and_nan_coordinates() {
 
 #[test]
 fn adv_tracking_zero_dimension_and_mismatched_frames() {
-    let mut traj = MotionTrajectory::new(
-        TrackingMode::Perspective,
-        TrackingRegion::default(),
-    );
+    let mut traj = MotionTrajectory::new(TrackingMode::Perspective, TrackingRegion::default());
 
     let zero_w = FrameBuffer {
         width: 0,
@@ -298,13 +288,7 @@ fn adv_tracking_zero_dimension_and_mismatched_frames() {
     let diff_frame = make_test_frame(64, 64, "white");
 
     // Zero width frame
-    let kf1 = traj.track_step(
-        &zero_w,
-        &valid_frame,
-        0.0,
-        0.1,
-        TrackingPrecision::Balanced,
-    );
+    let kf1 = traj.track_step(&zero_w, &valid_frame, 0.0, 0.1, TrackingPrecision::Balanced);
     assert_eq!(kf1.confidence, 0.0);
 
     // Mismatched dimensions
@@ -324,15 +308,7 @@ fn adv_tracking_zero_dimension_and_mismatched_frames() {
 
 #[test]
 fn adv_mask_massive_feather_radius_exceeding_dimensions() {
-    let test_feathers = [
-        0.5f32,
-        1.0,
-        10.0,
-        1000.0,
-        f32::INFINITY,
-        f32::NAN,
-        -5.0,
-    ];
+    let test_feathers = [0.5f32, 1.0, 10.0, 1000.0, f32::INFINITY, f32::NAN, -5.0];
 
     for &f in &test_feathers {
         let mask = FxMask {
@@ -345,13 +321,7 @@ fn adv_mask_massive_feather_radius_exceeding_dimensions() {
             points: Vec::new(),
         };
 
-        let cov = compute_event_mask_coverage(
-            &mask,
-            32,
-            32,
-            MaskFeatherType::Both,
-            false,
-        );
+        let cov = compute_event_mask_coverage(&mask, 32, 32, MaskFeatherType::Both, false);
         assert_eq!(cov.len(), 32 * 32);
         for &val in &cov {
             assert!(

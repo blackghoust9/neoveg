@@ -365,8 +365,12 @@ mod tests {
 
     fn lit_in(frame: &FrameBuffer, x: std::ops::Range<usize>, y: std::ops::Range<usize>) -> usize {
         let w = frame.width as usize;
-        y.map(|yy| x.clone().filter(|&xx| frame.rgba[(yy * w + xx) * 4] > 128).count())
-            .sum()
+        y.map(|yy| {
+            x.clone()
+                .filter(|&xx| frame.rgba[(yy * w + xx) * 4] > 128)
+                .count()
+        })
+        .sum()
     }
 
     #[test]

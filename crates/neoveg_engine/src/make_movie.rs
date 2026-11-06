@@ -53,9 +53,17 @@ pub struct MakeMovieSettings {
 pub enum WizardStep {
     SelectDestination,
     ConfigureSettings(MakeMovieSettings),
-    Rendering { progress_fraction: f32, eta_seconds: f64 },
-    Completed { output_path: PathBuf },
-    Failed { error_code: AlertCode, message: String },
+    Rendering {
+        progress_fraction: f32,
+        eta_seconds: f64,
+    },
+    Completed {
+        output_path: PathBuf,
+    },
+    Failed {
+        error_code: AlertCode,
+        message: String,
+    },
 }
 
 /// Make Movie Wizard workflow engine.
@@ -194,7 +202,11 @@ impl MakeMovieWizard {
         } else {
             &self.project_settings.title
         };
-        let ext = if template.contains("DVD") { "mpg" } else { "mp4" };
+        let ext = if template.contains("DVD") {
+            "mpg"
+        } else {
+            "mp4"
+        };
         PathBuf::from(format!("{base_name}.{ext}"))
     }
 
@@ -222,14 +234,22 @@ mod tests {
         let mut wizard = MakeMovieWizard::new(&settings, false, 0.0);
         let res = wizard.choose_destination(ExportDestination::WebSharing);
         assert_eq!(res, Err(AlertCode::EmptyProjectRender));
-        assert!(matches!(wizard.current_step(), WizardStep::Failed { error_code: AlertCode::EmptyProjectRender, .. }));
+        assert!(matches!(
+            wizard.current_step(),
+            WizardStep::Failed {
+                error_code: AlertCode::EmptyProjectRender,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn insufficient_disk_space_yields_alert() {
         let settings = ProjectSettings::default();
         let mut wizard = MakeMovieWizard::new(&settings, true, 300.0);
-        wizard.choose_destination(ExportDestination::HardDrive).unwrap();
+        wizard
+            .choose_destination(ExportDestination::HardDrive)
+            .unwrap();
 
         if let WizardStep::ConfigureSettings(cfg) = wizard.current_step().clone() {
             // Provide 0 MB free space
@@ -244,7 +264,9 @@ mod tests {
     fn successful_flow_to_completion() {
         let settings = ProjectSettings::default();
         let mut wizard = MakeMovieWizard::new(&settings, true, 60.0);
-        wizard.choose_destination(ExportDestination::WebSharing).unwrap();
+        wizard
+            .choose_destination(ExportDestination::WebSharing)
+            .unwrap();
 
         let cfg = match wizard.current_step() {
             WizardStep::ConfigureSettings(c) => c.clone(),
@@ -252,10 +274,16 @@ mod tests {
         };
 
         wizard.validate_and_start_render(cfg, 10_000, true).unwrap();
-        assert!(matches!(wizard.current_step(), WizardStep::Rendering { .. }));
+        assert!(matches!(
+            wizard.current_step(),
+            WizardStep::Rendering { .. }
+        ));
 
         let out = PathBuf::from("movie.mp4");
         wizard.complete_render(out.clone());
-        assert_eq!(wizard.current_step(), &WizardStep::Completed { output_path: out });
+        assert_eq!(
+            wizard.current_step(),
+            &WizardStep::Completed { output_path: out }
+        );
     }
 }

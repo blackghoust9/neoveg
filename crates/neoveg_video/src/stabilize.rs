@@ -267,7 +267,10 @@ mod tests {
         assert_eq!(estimate_shift(&a, &b, 12), (-3.0, 2.0));
         assert_eq!(estimate_shift(&a, &a, 12), (0.0, 0.0));
         // Different sizes: no answer
-        assert_eq!(estimate_shift(&a, &FrameBuffer::solid(8, 8, [0; 4]), 12), (0.0, 0.0));
+        assert_eq!(
+            estimate_shift(&a, &FrameBuffer::solid(8, 8, [0; 4]), 12),
+            (0.0, 0.0)
+        );
     }
 
     #[test]
@@ -288,14 +291,33 @@ mod tests {
             f
         };
         let (dx, dy) = estimate_shift(&big(400, 400), &big(409, 396), 32);
-        assert!((dx + 9.0).abs() <= 1.0 && (dy - 4.0).abs() <= 1.0, "{dx} {dy}");
+        assert!(
+            (dx + 9.0).abs() <= 1.0 && (dy - 4.0).abs() <= 1.0,
+            "{dx} {dy}"
+        );
     }
 
     #[test]
     fn a_shaky_clip_comes_out_steadier_than_it_went_in() {
         // Camera jitter around a fixed point
-        let jitter = [(0, 0), (4, -3), (-3, 4), (5, 2), (-4, -4), (2, 5), (-5, 1), (3, -2), (0, 3), (-2, -5), (4, 4), (-3, 0)];
-        let frames: Vec<_> = jitter.iter().map(|&(x, y)| view(200 + x, 200 + y)).collect();
+        let jitter = [
+            (0, 0),
+            (4, -3),
+            (-3, 4),
+            (5, 2),
+            (-4, -4),
+            (2, 5),
+            (-5, 1),
+            (3, -2),
+            (0, 3),
+            (-2, -5),
+            (4, 4),
+            (-3, 0),
+        ];
+        let frames: Vec<_> = jitter
+            .iter()
+            .map(|&(x, y)| view(200 + x, 200 + y))
+            .collect();
         let truth = view(200, 200);
         let before: f32 = frames.iter().map(|f| error(f, &truth, 12)).sum::<f32>() / 12.0;
         let out = stabilize(
@@ -312,7 +334,10 @@ mod tests {
         };
         let (s_in, s_out) = (spread(&frames), spread(&out));
         assert!(before > 5.0, "the input really shakes: {before}");
-        assert!(s_out < s_in * 0.5, "frame-to-frame difference {s_in} -> {s_out}");
+        assert!(
+            s_out < s_in * 0.5,
+            "frame-to-frame difference {s_in} -> {s_out}"
+        );
     }
 
     #[test]

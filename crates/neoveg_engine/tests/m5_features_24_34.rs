@@ -40,7 +40,6 @@ use std::sync::Arc;
 // Feature 24: Project Properties Setup & Edge Cases
 // ============================================================================
 
-
 #[test]
 fn test_f24_project_settings_edge_cases() {
     let mut s = ProjectSettings::default();
@@ -62,9 +61,19 @@ fn test_f24_project_settings_edge_cases() {
     assert_eq!(s.width, 1920, "Must be even dimension");
     assert_eq!(s.height, 1078, "Must be even dimension");
     assert_eq!(s.stereo_busses, 26, "Stereo busses clamped to 26 max");
-    assert!(!s.lfe_filter_enabled, "LFE filter must be disabled in Stereo mode (Edge Case 5)");
-    assert_eq!(s.compositing_gamma, CompositingGamma::Video, "Gamma choice locked in 8-bit (Edge Case 3)");
-    assert_eq!(s.ruler_start, 0.0, "Audio CD ruler start must be 0.0 (Edge Case 6)");
+    assert!(
+        !s.lfe_filter_enabled,
+        "LFE filter must be disabled in Stereo mode (Edge Case 5)"
+    );
+    assert_eq!(
+        s.compositing_gamma,
+        CompositingGamma::Video,
+        "Gamma choice locked in 8-bit (Edge Case 3)"
+    );
+    assert_eq!(
+        s.ruler_start, 0.0,
+        "Audio CD ruler start must be 0.0 (Edge Case 6)"
+    );
 
     // Edge Case 4: HDR mode auto-configuration
     s.apply_hdr_mode(HdrMode::Hdr10);
@@ -83,7 +92,11 @@ fn test_f24_project_settings_edge_cases() {
 #[test]
 fn test_f25_templates_canonical_46_and_immutability() {
     let canonical = canonical_46_templates();
-    assert_eq!(canonical.len(), 46, "Must provide exactly 46 canonical .vqpt templates (§18.3)");
+    assert_eq!(
+        canonical.len(),
+        46,
+        "Must provide exactly 46 canonical .vqpt templates (§18.3)"
+    );
 
     let mut mgr = TemplateManager::new();
 
@@ -132,16 +145,28 @@ Attributes2 = "Progressive", 1.0, "Premultiplied (Dirty)", 2.400000
     assert_eq!(matcher.rules().len(), 2);
 
     // Later rule Key2 must win (Edge Case 12)
-    let matched = matcher.match_raw(None, None, 1920, 1080, 24.0, 8).expect("matched");
-    assert_eq!(matched.alpha_interpretation, AlphaMode::PremultipliedDirty, "Premultiplied Dirty alpha (Edge Case 14)");
+    let matched = matcher
+        .match_raw(None, None, 1920, 1080, 24.0, 8)
+        .expect("matched");
+    assert_eq!(
+        matched.alpha_interpretation,
+        AlphaMode::PremultipliedDirty,
+        "Premultiplied Dirty alpha (Edge Case 14)"
+    );
     assert_eq!(matched.gamma, 2.4);
 
     // Epsilon tolerance for FPS (Edge Case 13)
     let matched_eps = matcher.match_raw(None, None, 1920, 1080, 24.004, 8);
-    assert!(matched_eps.is_some(), "24.004 matches 24.0 within 0.005 tolerance");
+    assert!(
+        matched_eps.is_some(),
+        "24.004 matches 24.0 within 0.005 tolerance"
+    );
 
     let matched_out_of_bounds = matcher.match_raw(None, None, 1920, 1080, 24.010, 8);
-    assert!(matched_out_of_bounds.is_none(), "24.010 is outside 0.005 tolerance");
+    assert!(
+        matched_out_of_bounds.is_none(),
+        "24.010 is outside 0.005 tolerance"
+    );
 }
 
 // ============================================================================
@@ -164,9 +189,12 @@ fn test_f27_media_pool_twenty_three_columns_and_replace() {
     assert_eq!(res, Err(AlertCode::TimelineMediaDeleteConfirm));
 
     // Replace media with alternate file (Edge Case 16)
-    let mut new_info = MediaDetailRow::new(1, "HeroShot_v02.mov", PathBuf::from("clips/hero_v02.mov"));
+    let mut new_info =
+        MediaDetailRow::new(1, "HeroShot_v02.mov", PathBuf::from("clips/hero_v02.mov"));
     new_info.fps = 60.0;
-    assert!(pool.replace_media(1, PathBuf::from("clips/hero_v02.mov"), Some(new_info)).is_ok());
+    assert!(pool
+        .replace_media(1, PathBuf::from("clips/hero_v02.mov"), Some(new_info))
+        .is_ok());
     assert_eq!(pool.items()[0].path, PathBuf::from("clips/hero_v02.mov"));
 }
 
@@ -179,8 +207,14 @@ fn test_f28_bins_hierarchy_and_smart_evaluation() {
     let mut tree = MediaBinTree::new();
 
     // Cannot delete or rename root bin "All Media" (Edge Case 18)
-    assert_eq!(tree.delete_bin(MediaBinTree::ROOT_BIN_ID), Err(AlertCode::RootBinCannotRemove));
-    assert_eq!(tree.rename_bin(MediaBinTree::ROOT_BIN_ID, "Root"), Err(AlertCode::RootBinCannotRename));
+    assert_eq!(
+        tree.delete_bin(MediaBinTree::ROOT_BIN_ID),
+        Err(AlertCode::RootBinCannotRemove)
+    );
+    assert_eq!(
+        tree.rename_bin(MediaBinTree::ROOT_BIN_ID, "Root"),
+        Err(AlertCode::RootBinCannotRename)
+    );
 
     // Auto-rename on name collision (Edge Case 19)
     let b1 = tree.create_bin(None, "Interviews").unwrap();
@@ -189,7 +223,11 @@ fn test_f28_bins_hierarchy_and_smart_evaluation() {
     assert_eq!(tree.get_bin(b2).unwrap().name, "Interviews (1)");
 
     // Smart bin creation and evaluation
-    let crit = vec![SearchCriterion::new(SearchField::Type, SearchCondition::Equals, "Audio")];
+    let crit = vec![SearchCriterion::new(
+        SearchField::Type,
+        SearchCondition::Equals,
+        "Audio",
+    )];
     let smart_id = tree.create_smart_bin(None, "All Audio", crit).unwrap();
 
     let mut row1 = MediaDetailRow::new(10, "Narration.wav", PathBuf::from("audio.wav"));
@@ -232,7 +270,11 @@ fn test_f29_explorer_companion_file_filtering() {
     let items = explorer.navigate_to(&dir).expect("navigate");
 
     // Companion files must be hidden case-insensitively (Edge Case 21)
-    assert_eq!(items.len(), 1, "Must suppress lowercase and uppercase companion files");
+    assert_eq!(
+        items.len(),
+        1,
+        "Must suppress lowercase and uppercase companion files"
+    );
     assert_eq!(items[0].name, "nature.mp4");
 
     let _ = std::fs::remove_dir_all(dir);
@@ -257,34 +299,64 @@ fn test_f29_explorer_scene_detection_and_blender_fixtures() {
         .expect("BBB fixture must generate cleanly offline in target/test_fixtures/blender/");
 
     // Low threshold (0.25): detects the 2 cut points, yielding 3 subclip spans
-    let bbb_scenes = explorer.detect_scenes(&bbb_fixture, 0.25).expect("detect scenes BBB");
-    assert_eq!(bbb_scenes.len(), 3, "Big Buck Bunny fixture has 3 distinct luminance scenes");
+    let bbb_scenes = explorer
+        .detect_scenes(&bbb_fixture, 0.25)
+        .expect("detect scenes BBB");
+    assert_eq!(
+        bbb_scenes.len(),
+        3,
+        "Big Buck Bunny fixture has 3 distinct luminance scenes"
+    );
     assert_eq!(bbb_scenes[0].0, 0.0);
-    assert!((bbb_scenes[0].1 - 2.0).abs() < 0.2, "Cut 1 should occur at ~2.0s");
+    assert!(
+        (bbb_scenes[0].1 - 2.0).abs() < 0.2,
+        "Cut 1 should occur at ~2.0s"
+    );
     assert!((bbb_scenes[1].0 - 2.0).abs() < 0.2);
-    assert!((bbb_scenes[1].1 - 5.0).abs() < 0.2, "Cut 2 should occur at ~5.0s");
+    assert!(
+        (bbb_scenes[1].1 - 5.0).abs() < 0.2,
+        "Cut 2 should occur at ~5.0s"
+    );
     assert!((bbb_scenes[2].0 - 5.0).abs() < 0.2);
-    assert!((bbb_scenes[2].1 - 7.5).abs() < 0.05, "Final shot must be strictly bounded by 7.5s");
+    assert!(
+        (bbb_scenes[2].1 - 7.5).abs() < 0.05,
+        "Final shot must be strictly bounded by 7.5s"
+    );
 
     // High threshold (0.95): no transitions exceed threshold, returns single continuous span bounded by 7.5s (never 10.0s)
-    let bbb_single = explorer.detect_scenes(&bbb_fixture, 0.95).expect("detect scenes BBB high threshold");
+    let bbb_single = explorer
+        .detect_scenes(&bbb_fixture, 0.95)
+        .expect("detect scenes BBB high threshold");
     assert_eq!(bbb_single.len(), 1, "High threshold yields single span");
     assert_eq!(bbb_single[0].0, 0.0);
-    assert!((bbb_single[0].1 - 7.5).abs() < 0.01, "Must yield exactly 7.5s duration, never hardcoded 10.0s");
+    assert!(
+        (bbb_single[0].1 - 7.5).abs() < 0.01,
+        "Must yield exactly 7.5s duration, never hardcoded 10.0s"
+    );
 
     // 4. Blender Open Movie test fixture: Sintel (2 shots: 2.0s blizzard, 3.0s cavern = 5.0s total)
     let sintel_fixture = BlenderOpenMovieFixture::ensure_fixture("sintel")
         .expect("Sintel fixture must generate cleanly offline");
-    let sintel_scenes = explorer.detect_scenes(&sintel_fixture, 0.25).expect("detect scenes Sintel");
-    assert_eq!(sintel_scenes.len(), 2, "Sintel fixture has 2 distinct shots");
+    let sintel_scenes = explorer
+        .detect_scenes(&sintel_fixture, 0.25)
+        .expect("detect scenes Sintel");
+    assert_eq!(
+        sintel_scenes.len(),
+        2,
+        "Sintel fixture has 2 distinct shots"
+    );
     assert_eq!(sintel_scenes[0].0, 0.0);
     assert!((sintel_scenes[0].1 - 2.0).abs() < 0.2);
     assert!((sintel_scenes[1].0 - 2.0).abs() < 0.2);
-    assert!((sintel_scenes[1].1 - 5.0).abs() < 0.05, "Strictly bounded by 5.0s media duration");
+    assert!(
+        (sintel_scenes[1].1 - 5.0).abs() < 0.05,
+        "Strictly bounded by 5.0s media duration"
+    );
 
     // 5. Short 2.0s clip verification (Addressing Challenger 1 / Reviewer Finding 1):
     // A 2.0s clip must yield (0.0, 2.0), NEVER (0.0, 10.0)!
-    let short_clip_path = std::env::temp_dir().join(format!("short_clip_2s_{}.nvvid", std::process::id()));
+    let short_clip_path =
+        std::env::temp_dir().join(format!("short_clip_2s_{}.nvvid", std::process::id()));
     {
         // 48 frames at 24 fps = 2.0s
         let (w, h, fps, frames) = (32u32, 18u32, 24u32, 48u32);
@@ -301,9 +373,15 @@ fn test_f29_explorer_scene_detection_and_blender_fixtures() {
             f.write_all(&frame_buf).unwrap();
         }
     }
-    let short_scenes = explorer.detect_scenes(&short_clip_path, 0.5).expect("short clip detect");
+    let short_scenes = explorer
+        .detect_scenes(&short_clip_path, 0.5)
+        .expect("short clip detect");
     assert_eq!(short_scenes.len(), 1);
-    assert_eq!(short_scenes[0], (0.0, 2.0), "2.0s file must yield exactly (0.0, 2.0), NEVER 10.0s!");
+    assert_eq!(
+        short_scenes[0],
+        (0.0, 2.0),
+        "2.0s file must yield exactly (0.0, 2.0), NEVER 10.0s!"
+    );
     let _ = std::fs::remove_file(&short_clip_path);
 
     // 6. Real MP4 container inspection: sample_video.mp4 (15.0s duration)
@@ -313,21 +391,34 @@ fn test_f29_explorer_scene_detection_and_blender_fixtures() {
         let probed = explorer.probe_media(&repo_sample).expect("probe real mp4");
         assert_eq!(probed.width, 1920);
         assert_eq!(probed.height, 1080);
-        assert!((probed.duration_seconds - 15.0).abs() < 0.1, "Duration must be 15.0s");
+        assert!(
+            (probed.duration_seconds - 15.0).abs() < 0.1,
+            "Duration must be 15.0s"
+        );
 
-        let mp4_scenes = explorer.detect_scenes(&repo_sample, 0.95).expect("detect mp4");
+        let mp4_scenes = explorer
+            .detect_scenes(&repo_sample, 0.95)
+            .expect("detect mp4");
         assert_eq!(mp4_scenes.len(), 1);
         assert_eq!(mp4_scenes[0].0, 0.0);
-        assert!((mp4_scenes[0].1 - 15.0).abs() < 0.1, "MP4 span bounded strictly by 15.0s");
+        assert!(
+            (mp4_scenes[0].1 - 15.0).abs() < 0.1,
+            "MP4 span bounded strictly by 15.0s"
+        );
     }
 
     // 7. Blender Audio Fixture (WAV) scene/cut detection
     let audio_fixture = BlenderOpenMovieFixture::ensure_audio_fixture("bbb_audio")
         .expect("Audio fixture generation");
-    let audio_scenes = explorer.detect_scenes(&audio_fixture, 0.3).expect("detect scenes audio");
+    let audio_scenes = explorer
+        .detect_scenes(&audio_fixture, 0.3)
+        .expect("detect scenes audio");
     assert!(!audio_scenes.is_empty());
     assert_eq!(audio_scenes[0].0, 0.0);
-    assert!((audio_scenes.last().unwrap().1 - 4.0).abs() < 0.2, "Audio strictly bounded by 4.0s duration");
+    assert!(
+        (audio_scenes.last().unwrap().1 - 4.0).abs() < 0.2,
+        "Audio strictly bounded by 4.0s duration"
+    );
 }
 
 // ============================================================================
@@ -340,12 +431,20 @@ fn test_f30_make_movie_empty_validation_and_flow() {
 
     // Empty project triggers Alert ID 3404 (Edge Case 23)
     let mut wizard = MakeMovieWizard::new(&settings, false, 0.0);
-    assert_eq!(wizard.choose_destination(ExportDestination::WebSharing), Err(AlertCode::EmptyProjectRender));
+    assert_eq!(
+        wizard.choose_destination(ExportDestination::WebSharing),
+        Err(AlertCode::EmptyProjectRender)
+    );
 
     // Non-empty project succeeds to Step 2
     let mut wizard_ok = MakeMovieWizard::new(&settings, true, 120.0);
-    assert!(wizard_ok.choose_destination(ExportDestination::WebSharing).is_ok());
-    assert!(matches!(wizard_ok.current_step(), WizardStep::ConfigureSettings(_)));
+    assert!(wizard_ok
+        .choose_destination(ExportDestination::WebSharing)
+        .is_ok());
+    assert!(matches!(
+        wizard_ok.current_step(),
+        WizardStep::ConfigureSettings(_)
+    ));
 }
 
 // ============================================================================
@@ -392,8 +491,14 @@ fn test_f32_dynamic_ram_and_prerender_chunks() {
         .unwrap();
 
     assert_eq!(chunks.len(), 2);
-    assert_eq!(chunks[0].end_frame - chunks[0].start_frame, PRERENDER_MAX_CHUNK_FRAMES);
-    assert_eq!(chunks[1].end_frame - chunks[1].start_frame, PRERENDER_MAX_CHUNK_FRAMES);
+    assert_eq!(
+        chunks[0].end_frame - chunks[0].start_frame,
+        PRERENDER_MAX_CHUNK_FRAMES
+    );
+    assert_eq!(
+        chunks[1].end_frame - chunks[1].start_frame,
+        PRERENDER_MAX_CHUNK_FRAMES
+    );
 
     let _ = std::fs::remove_dir_all(dir);
 }

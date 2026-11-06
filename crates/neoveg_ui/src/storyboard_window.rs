@@ -72,13 +72,31 @@ impl StoryboardWindow {
             .default_size([560.0, 380.0])
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(self.selected.is_some(), egui::Button::new(tr("◀ Mais cedo"))).clicked() {
+                    if ui
+                        .add_enabled(
+                            self.selected.is_some(),
+                            egui::Button::new(tr("◀ Mais cedo")),
+                        )
+                        .clicked()
+                    {
                         self.move_selected(-1);
                     }
-                    if ui.add_enabled(self.selected.is_some(), egui::Button::new(tr("Mais tarde ▶"))).clicked() {
+                    if ui
+                        .add_enabled(
+                            self.selected.is_some(),
+                            egui::Button::new(tr("Mais tarde ▶")),
+                        )
+                        .clicked()
+                    {
                         self.move_selected(1);
                     }
-                    if ui.add_enabled(self.dirty, egui::Button::new(tr("Enviar para a linha do tempo"))).clicked() {
+                    if ui
+                        .add_enabled(
+                            self.dirty,
+                            egui::Button::new(tr("Enviar para a linha do tempo")),
+                        )
+                        .clicked()
+                    {
                         send = true;
                     }
                     if ui.button(tr("Recarregar")).clicked() {
@@ -92,21 +110,28 @@ impl StoryboardWindow {
                 }
                 let columns = storyboard::columns_for(ui.available_width(), CARD_WIDTH, GAP);
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    egui::Grid::new("storyboard_grid").spacing([GAP, GAP]).show(ui, |ui| {
-                        for (i, card) in self.cards.iter().enumerate() {
-                            let (_, col) = storyboard::grid_cell(i, columns);
-                            let label = format!("{}. {}\n{}", i + 1, card.name, tr_args("{} s", &[&format!("{:.2}", card.duration)]));
-                            let button = egui::Button::new(label)
-                                .min_size(egui::vec2(CARD_WIDTH, CARD_HEIGHT))
-                                .selected(self.selected == Some(i));
-                            if ui.add(button).clicked() {
-                                self.selected = Some(i);
+                    egui::Grid::new("storyboard_grid")
+                        .spacing([GAP, GAP])
+                        .show(ui, |ui| {
+                            for (i, card) in self.cards.iter().enumerate() {
+                                let (_, col) = storyboard::grid_cell(i, columns);
+                                let label = format!(
+                                    "{}. {}\n{}",
+                                    i + 1,
+                                    card.name,
+                                    tr_args("{} s", &[&format!("{:.2}", card.duration)])
+                                );
+                                let button = egui::Button::new(label)
+                                    .min_size(egui::vec2(CARD_WIDTH, CARD_HEIGHT))
+                                    .selected(self.selected == Some(i));
+                                if ui.add(button).clicked() {
+                                    self.selected = Some(i);
+                                }
+                                if col + 1 == columns {
+                                    ui.end_row();
+                                }
                             }
-                            if col + 1 == columns {
-                                ui.end_row();
-                            }
-                        }
-                    });
+                        });
                 });
             });
         self.open = open;
@@ -135,7 +160,13 @@ mod tests {
         let id = track.id;
         tl.tracks.push(track);
         for (name, start) in [("A", 0.0), ("B", 2.0), ("C", 4.0)] {
-            let event = TrackEvent { id: tl.alloc_id(), name: name.into(), start, duration: 2.0, ..TrackEvent::default() };
+            let event = TrackEvent {
+                id: tl.alloc_id(),
+                name: name.into(),
+                start,
+                duration: 2.0,
+                ..TrackEvent::default()
+            };
             tl.track_mut(id).unwrap().events.push(event);
         }
         (tl, id)
@@ -152,7 +183,10 @@ mod tests {
         w.selected = Some(0);
         w.move_selected(1);
         assert!(w.dirty);
-        assert_eq!(w.cards.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["B", "A", "C"]);
+        assert_eq!(
+            w.cards.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            ["B", "A", "C"]
+        );
         assert!(w.pending_edit(&tl).is_some());
         w.move_selected(-5); // clamps to the first place
         assert_eq!(w.selected, Some(0));

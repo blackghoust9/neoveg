@@ -291,7 +291,11 @@ pub fn split_timeline_transcript(
 impl SpeechIndex {
     /// Indexes a transcript of the timeline mix for the media it came from. Returns how many
     /// media got words.
-    pub fn add_timeline_transcript(&mut self, timeline: &Timeline, segments: &[TranscriptSegment]) -> usize {
+    pub fn add_timeline_transcript(
+        &mut self,
+        timeline: &Timeline,
+        segments: &[TranscriptSegment],
+    ) -> usize {
         let split = split_timeline_transcript(timeline, segments);
         let count = split.len();
         for (media, segs) in split {
@@ -362,7 +366,7 @@ mod tests {
     fn words_are_compared_without_case_accents_or_punctuation() {
         assert_eq!(normalize_word("Edição,"), "edicao");
         assert_eq!(normalize_word("OLÁ!"), "ola");
-        assert_eq!(normalize_word("...") , "");
+        assert_eq!(normalize_word("..."), "");
         let idx = index();
         let hits = idx.search("EDICAO", false);
         assert_eq!(hits.len(), 3, "two in media 1 and one in media 2");
@@ -380,7 +384,11 @@ mod tests {
         // "Olá, pessoal! Hoje vamos falar de edição." has 7 words over 4 s
         let hit = &idx.search("edição", false)[0];
         assert_eq!(hit.word_index, 6);
-        assert!((hit.start_s - 4.0 * 6.0 / 7.0).abs() < 1e-9, "{}", hit.start_s);
+        assert!(
+            (hit.start_s - 4.0 * 6.0 / 7.0).abs() < 1e-9,
+            "{}",
+            hit.start_s
+        );
         let first = &idx.search("ola", false)[0];
         assert_eq!(first.start_s, 0.0);
     }
@@ -436,14 +444,20 @@ mod tests {
         let mut idx = SpeechIndex::new();
         let n = idx.add_timeline_transcript(
             &tl,
-            &[seg(0.0, 2.0, "antes do corte"), seg(11.0, 12.0, "palavra certa")],
+            &[
+                seg(0.0, 2.0, "antes do corte"),
+                seg(11.0, 12.0, "palavra certa"),
+            ],
         );
         assert_eq!(n, 1);
         let hits = idx.search("certa", false);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].media_id, 7);
         assert!((hits[0].start_s - 6.5).abs() < 1e-9, "{}", hits[0].start_s);
-        assert!(idx.search("corte", false).is_empty(), "not played by any event");
+        assert!(
+            idx.search("corte", false).is_empty(),
+            "not played by any event"
+        );
         // And the hit leads back to the timeline position
         let points = jump_points(&tl, &hits);
         assert!((points[0] - 11.5).abs() < 1e-9);
@@ -464,7 +478,10 @@ mod tests {
         });
         tl.tracks.push(track);
         assert_eq!(timeline_positions(&tl, 1, 3.0), vec![11.0]);
-        assert!(timeline_positions(&tl, 1, 1.0).is_empty(), "before the trim");
+        assert!(
+            timeline_positions(&tl, 1, 1.0).is_empty(),
+            "before the trim"
+        );
         assert!(timeline_positions(&tl, 1, 4.5).is_empty(), "after the cut");
         assert!(timeline_positions(&tl, 9, 3.0).is_empty(), "another media");
         let hits = index().search("edição", false);

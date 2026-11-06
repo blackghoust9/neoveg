@@ -180,7 +180,11 @@ pub fn apply(template: &str, meta: &ItemMetadata, number: u32) -> Result<String,
 
 /// Names for a list of items, numbered from `start`. Names that come out equal get `_2`, `_3`...
 /// so no two items share one.
-pub fn apply_all(template: &str, items: &[ItemMetadata], start: u32) -> Result<Vec<String>, String> {
+pub fn apply_all(
+    template: &str,
+    items: &[ItemMetadata],
+    start: u32,
+) -> Result<Vec<String>, String> {
     let mut names: Vec<String> = Vec::with_capacity(items.len());
     for (i, meta) in items.iter().enumerate() {
         let name = apply(template, meta, start.saturating_add(i as u32))?;
@@ -219,7 +223,10 @@ mod tests {
 
     #[test]
     fn an_empty_field_takes_its_separator_with_it() {
-        assert_eq!(apply("{data}_{camera}_{n}", &meta(None), 1).unwrap(), "2026-11-06_1");
+        assert_eq!(
+            apply("{data}_{camera}_{n}", &meta(None), 1).unwrap(),
+            "2026-11-06_1"
+        );
         let no_date = ItemMetadata {
             name: "x.mp4".into(),
             ..ItemMetadata::default()

@@ -9,16 +9,15 @@
 
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::grading::{
-    hsl_to_rgb, match_color, pick_black_point, pick_white_balance,
-    pick_white_balance_from_region, pick_white_point, rgb_to_hsl, ColorMatcher,
-    HslCurve, HslCurveType, SplineCurve, StatisticalColorMatcher,
+    hsl_to_rgb, match_color, pick_black_point, pick_white_balance, pick_white_balance_from_region,
+    pick_white_point, rgb_to_hsl, ColorMatcher, HslCurve, HslCurveType, SplineCurve,
+    StatisticalColorMatcher,
 };
 use neoveg_video::ocio::{
-    aces_tonemap, acescc_to_linear, acescct_to_linear, linear_to_acescc,
-    linear_to_acescct, linear_to_slog1, linear_to_slog2, linear_to_slog3,
-    mat_mul_rgb, slog1_to_linear, slog2_to_linear, slog3_to_linear,
-    AcesSpace, AcesTransform, ViewTransform, M_AP0_TO_AP1, M_AP1_TO_AP0,
-    M_AP1_TO_REC709, M_REC709_TO_AP1,
+    aces_tonemap, acescc_to_linear, acescct_to_linear, linear_to_acescc, linear_to_acescct,
+    linear_to_slog1, linear_to_slog2, linear_to_slog3, mat_mul_rgb, slog1_to_linear,
+    slog2_to_linear, slog3_to_linear, AcesSpace, AcesTransform, ViewTransform, M_AP0_TO_AP1,
+    M_AP1_TO_AP0, M_AP1_TO_REC709, M_REC709_TO_AP1,
 };
 
 // ============================================================================
@@ -28,30 +27,47 @@ use neoveg_video::ocio::{
 #[test]
 fn adv_slog_negative_and_zero_inputs_resilience() {
     let test_inputs: &[f32] = &[
-        -1000.0, -100.0, -10.0, -1.0, -0.5, -0.1, -0.037584, -0.01125, -0.001,
-        -1e-5, -1e-8, 0.0,
+        -1000.0, -100.0, -10.0, -1.0, -0.5, -0.1, -0.037584, -0.01125, -0.001, -1e-5, -1e-8, 0.0,
     ];
 
     for &x in test_inputs {
         // S-Log1 forward and inverse
         let y1 = linear_to_slog1(x);
-        assert!(y1.is_finite(), "linear_to_slog1({x}) must be finite, got {y1}");
+        assert!(
+            y1.is_finite(),
+            "linear_to_slog1({x}) must be finite, got {y1}"
+        );
         let back1 = slog1_to_linear(y1);
-        assert!(back1.is_finite(), "slog1_to_linear({y1}) must be finite, got {back1}");
+        assert!(
+            back1.is_finite(),
+            "slog1_to_linear({y1}) must be finite, got {back1}"
+        );
 
         // S-Log2 forward and inverse
         let y2 = linear_to_slog2(x);
-        assert!(y2.is_finite(), "linear_to_slog2({x}) must be finite, got {y2}");
+        assert!(
+            y2.is_finite(),
+            "linear_to_slog2({x}) must be finite, got {y2}"
+        );
         let back2 = slog2_to_linear(y2);
-        assert!(back2.is_finite(), "slog2_to_linear({y2}) must be finite, got {back2}");
+        assert!(
+            back2.is_finite(),
+            "slog2_to_linear({y2}) must be finite, got {back2}"
+        );
 
         // S-Log3 forward and inverse
         let y3 = linear_to_slog3(x);
-        assert!(y3.is_finite(), "linear_to_slog3({x}) must be finite, got {y3}");
+        assert!(
+            y3.is_finite(),
+            "linear_to_slog3({x}) must be finite, got {y3}"
+        );
         let back3 = slog3_to_linear(y3);
-        assert!(back3.is_finite(), "slog3_to_linear({y3}) must be finite, got {back3}");
+        assert!(
+            back3.is_finite(),
+            "slog3_to_linear({y3}) must be finite, got {back3}"
+        );
         // S-Log3 linear toe formula guarantees exact roundtrip for negative values
-        if x <= 0.0 && x >= -0.01125 {
+        if (-0.01125..=0.0).contains(&x) {
             assert!(
                 (back3 - x).abs() < 1e-5,
                 "S-Log3 linear toe roundtrip mismatch at x={x}: back={back3}"
@@ -60,15 +76,27 @@ fn adv_slog_negative_and_zero_inputs_resilience() {
 
         // ACEScc forward and inverse
         let y_cc = linear_to_acescc(x);
-        assert!(y_cc.is_finite(), "linear_to_acescc({x}) must be finite, got {y_cc}");
+        assert!(
+            y_cc.is_finite(),
+            "linear_to_acescc({x}) must be finite, got {y_cc}"
+        );
         let back_cc = acescc_to_linear(y_cc);
-        assert!(back_cc.is_finite(), "acescc_to_linear({y_cc}) must be finite, got {back_cc}");
+        assert!(
+            back_cc.is_finite(),
+            "acescc_to_linear({y_cc}) must be finite, got {back_cc}"
+        );
 
         // ACEScct forward and inverse
         let y_cct = linear_to_acescct(x);
-        assert!(y_cct.is_finite(), "linear_to_acescct({x}) must be finite, got {y_cct}");
+        assert!(
+            y_cct.is_finite(),
+            "linear_to_acescct({x}) must be finite, got {y_cct}"
+        );
         let back_cct = acescct_to_linear(y_cct);
-        assert!(back_cct.is_finite(), "acescct_to_linear({y_cct}) must be finite, got {back_cct}");
+        assert!(
+            back_cct.is_finite(),
+            "acescct_to_linear({y_cct}) must be finite, got {back_cct}"
+        );
         // ACEScct linear toe formula guarantees exact roundtrip for all x <= X_BRK
         assert!(
             (back_cct - x).abs() < 1e-5,
@@ -83,9 +111,7 @@ fn adv_slog_negative_and_zero_inputs_resilience() {
 
 #[test]
 fn adv_slog_and_aces_hdr_values_stability() {
-    let hdr_inputs: &[f32] = &[
-        10.0, 20.0, 50.0, 100.0, 250.0, 500.0, 800.0, 1000.0, 5000.0,
-    ];
+    let hdr_inputs: &[f32] = &[10.0, 20.0, 50.0, 100.0, 250.0, 500.0, 800.0, 1000.0, 5000.0];
 
     let mut prev_slog1 = linear_to_slog1(9.9);
     let mut prev_slog2 = linear_to_slog2(9.9);
@@ -105,7 +131,10 @@ fn adv_slog_and_aces_hdr_values_stability() {
         assert!(y2 > prev_slog2, "S-Log2 must strictly increase at x={x}");
         assert!(y3 > prev_slog3, "S-Log3 must strictly increase at x={x}");
         assert!(y_cc > prev_acescc, "ACEScc must strictly increase at x={x}");
-        assert!(y_cct > prev_acescct, "ACEScct must strictly increase at x={x}");
+        assert!(
+            y_cct > prev_acescct,
+            "ACEScct must strictly increase at x={x}"
+        );
 
         prev_slog1 = y1;
         prev_slog2 = y2;
@@ -120,11 +149,26 @@ fn adv_slog_and_aces_hdr_values_stability() {
         let b_cc = acescc_to_linear(y_cc);
         let b_cct = acescct_to_linear(y_cct);
 
-        assert!(((b1 - x) / x).abs() < 1e-4, "S-Log1 HDR rel error at {x}: {b1}");
-        assert!(((b2 - x) / x).abs() < 1e-4, "S-Log2 HDR rel error at {x}: {b2}");
-        assert!(((b3 - x) / x).abs() < 1e-4, "S-Log3 HDR rel error at {x}: {b3}");
-        assert!(((b_cc - x) / x).abs() < 1e-4, "ACEScc HDR rel error at {x}: {b_cc}");
-        assert!(((b_cct - x) / x).abs() < 1e-4, "ACEScct HDR rel error at {x}: {b_cct}");
+        assert!(
+            ((b1 - x) / x).abs() < 1e-4,
+            "S-Log1 HDR rel error at {x}: {b1}"
+        );
+        assert!(
+            ((b2 - x) / x).abs() < 1e-4,
+            "S-Log2 HDR rel error at {x}: {b2}"
+        );
+        assert!(
+            ((b3 - x) / x).abs() < 1e-4,
+            "S-Log3 HDR rel error at {x}: {b3}"
+        );
+        assert!(
+            ((b_cc - x) / x).abs() < 1e-4,
+            "ACEScc HDR rel error at {x}: {b_cc}"
+        );
+        assert!(
+            ((b_cct - x) / x).abs() < 1e-4,
+            "ACEScct HDR rel error at {x}: {b_cct}"
+        );
     }
 }
 
@@ -227,7 +271,10 @@ fn adv_acescct_toe_breakpoint_continuity() {
             (y_right - y_left).abs() < 2.5e-4,
             "ACEScct delta at X_BRK with eps={eps}: left={y_left}, right={y_right}"
         );
-        assert!(y_right > y_left, "ACEScct must remain strictly increasing across X_BRK");
+        assert!(
+            y_right > y_left,
+            "ACEScct must remain strictly increasing across X_BRK"
+        );
 
         let y_inv_left = Y_BRK - eps;
         let y_inv_right = Y_BRK + eps;
@@ -238,7 +285,10 @@ fn adv_acescct_toe_breakpoint_continuity() {
             (x_inv_right - x_inv_left).abs() < 2.5e-4,
             "ACEScct inverse delta at Y_BRK with eps={eps}: left={x_inv_left}, right={x_inv_right}"
         );
-        assert!(x_inv_right > x_inv_left, "ACEScct inverse must remain strictly increasing across Y_BRK");
+        assert!(
+            x_inv_right > x_inv_left,
+            "ACEScct inverse must remain strictly increasing across Y_BRK"
+        );
     }
 }
 
@@ -258,7 +308,10 @@ fn adv_aces_tonemap_strict_monotonicity_and_asymptote() {
             tm >= prev,
             "Monotonicity violation at x={x}: tm={tm}, prev={prev}"
         );
-        assert!(tm >= 0.0 && tm <= 1.0, "ACES tonemap out of bounds: {tm}");
+        assert!(
+            (0.0..=1.0).contains(&tm),
+            "ACES tonemap out of bounds: {tm}"
+        );
         prev = tm;
     }
 
@@ -302,7 +355,8 @@ fn adv_gamut_matrices_precision_and_roundtrip() {
             assert!(
                 (ap0[c] - v[c]).abs() < 5e-4,
                 "AP0/AP1 matrix inverse failure in channel {c}: got {}, expected {}",
-                ap0[c], v[c]
+                ap0[c],
+                v[c]
             );
         }
 
@@ -313,7 +367,8 @@ fn adv_gamut_matrices_precision_and_roundtrip() {
             assert!(
                 (back_709[c] - v[c]).abs() < 2e-4,
                 "Rec709/AP1 matrix inverse failure in channel {c}: got {}, expected {}",
-                back_709[c], v[c]
+                back_709[c],
+                v[c]
             );
         }
     }
@@ -366,9 +421,15 @@ fn adv_color_match_zero_variance_solid_flat_frames() {
     let mut tgt_extreme = extreme_tgt.clone();
     match_color(&mut tgt_extreme, &extreme_ref, true, 1.0);
     let p = tgt_extreme.pixel(0, 0);
-    assert_eq!(p[0], 100, "20x ratio must clamp to 10x max gain (10 * 10 = 100)");
+    assert_eq!(
+        p[0], 100,
+        "20x ratio must clamp to 10x max gain (10 * 10 = 100)"
+    );
     assert_eq!(p[1], 50, "1x ratio produces exact 50");
-    assert_eq!(p[2], 18, "0.055x ratio must clamp to 0.1x min gain (180 * 0.1 = 18)");
+    assert_eq!(
+        p[2], 18,
+        "0.055x ratio must clamp to 0.1x min gain (180 * 0.1 = 18)"
+    );
 }
 
 // ============================================================================
@@ -710,7 +771,6 @@ fn adv_aces_transform_pipeline_standard_ranges() {
         }
     }
 }
-
 
 // ============================================================================
 // 15. Known Boundary Behaviors & Residual Findings

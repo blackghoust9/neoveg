@@ -195,7 +195,8 @@ pub trait TransitionRenderer: Send + Sync {
         target: &FrameBuffer,
         params: &BTreeMap<String, f32>,
     ) -> FrameBuffer {
-        self.render(source, target, 0.5, params).unwrap_or_else(|_| source.clone())
+        self.render(source, target, 0.5, params)
+            .unwrap_or_else(|_| source.clone())
     }
 }
 
@@ -291,7 +292,11 @@ impl TransitionProgressEnvelope {
         } else {
             1.0
         };
-        if let Some(pos) = self.points.iter().position(|pt| (pt.time - time).abs() < 1e-6) {
+        if let Some(pos) = self
+            .points
+            .iter()
+            .position(|pt| (pt.time - time).abs() < 1e-6)
+        {
             self.points[pos].progress = p;
             self.points[pos].shape = shape;
         } else {
@@ -528,7 +533,8 @@ impl TransitionRenderer for TransitionPreset {
             "shuffle" | "3d_shuffle" => SHUFFLE,
             other => other,
         };
-        let resolved = resolve(kind, &merged).ok_or_else(|| format!("Unknown transition preset kind: {kind}"))?;
+        let resolved = resolve(kind, &merged)
+            .ok_or_else(|| format!("Unknown transition preset kind: {kind}"))?;
         Ok(render_transition(source, target, &resolved, progress))
     }
 }
@@ -541,7 +547,8 @@ impl TransitionRenderer for &str {
         progress: f32,
         params: &BTreeMap<String, f32>,
     ) -> Result<FrameBuffer, String> {
-        let resolved = resolve(self, params).ok_or_else(|| format!("Unknown transition kind: {self}"))?;
+        let resolved =
+            resolve(self, params).ok_or_else(|| format!("Unknown transition kind: {self}"))?;
         Ok(render_transition(source, target, &resolved, progress))
     }
 }
@@ -573,7 +580,8 @@ impl TransitionRenderer for StandardTransitionRenderer {
             .get("transition_id")
             .map(|_| "custom")
             .unwrap_or(DISSOLVE);
-        let resolved = resolve(kind, params).ok_or_else(|| format!("Unknown transition: {kind}"))?;
+        let resolved =
+            resolve(kind, params).ok_or_else(|| format!("Unknown transition: {kind}"))?;
         Ok(render_transition(source, target, &resolved, progress))
     }
 }
@@ -1687,7 +1695,10 @@ fn apply_3d_fly_in(
         return incoming.clone();
     }
     if progress <= 0.0 {
-        return outgoing.map_or_else(|| FrameBuffer::solid(width, height, [0, 0, 0, 0]), |o| o.clone());
+        return outgoing.map_or_else(
+            || FrameBuffer::solid(width, height, [0, 0, 0, 0]),
+            |o| o.clone(),
+        );
     }
 
     let d_cam = 5.0;
@@ -1774,7 +1785,10 @@ fn apply_3d_shuffle(
         return incoming.clone();
     }
     if progress <= 0.0 {
-        return outgoing.map_or_else(|| FrameBuffer::solid(width, height, [0, 0, 0, 0]), |o| o.clone());
+        return outgoing.map_or_else(
+            || FrameBuffer::solid(width, height, [0, 0, 0, 0]),
+            |o| o.clone(),
+        );
     }
 
     let d_cam = 5.0;
@@ -2743,11 +2757,14 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let mut dot = 0.0f32;
-                for k in 0..3 {
-                    dot += r[i][k] * r[j][k];
+                for (&r_ik, &r_jk) in r[i].iter().zip(&r[j]) {
+                    dot += r_ik * r_jk;
                 }
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert!((dot - expected).abs() < 1e-4, "orthogonality at {i},{j}: {dot}");
+                assert!(
+                    (dot - expected).abs() < 1e-4,
+                    "orthogonality at {i},{j}: {dot}"
+                );
             }
         }
     }
@@ -2778,8 +2795,8 @@ mod tests {
             assert_eq!(mid.height, h);
             assert_eq!(mid.rgba.len(), (w * h * 4) as usize);
 
-            let has_red = mid.rgba.chunks_exact(4).any(|p| p[0] > 100);
-            let has_blue = mid.rgba.chunks_exact(4).any(|p| p[2] > 100);
+            let has_red = mid.rgba.as_chunks::<4>().0.iter().any(|p| p[0] > 100);
+            let has_blue = mid.rgba.as_chunks::<4>().0.iter().any(|p| p[2] > 100);
             assert!(has_red || has_blue, "{kind} has visible content");
 
             // Without outgoing frame, incoming frame is rendered cleanly without panic

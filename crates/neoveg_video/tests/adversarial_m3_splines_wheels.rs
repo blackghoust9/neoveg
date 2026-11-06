@@ -5,9 +5,7 @@
 //!
 //! Strict sequential execution: `-j 1` and `--test-threads=1`.
 
-use neoveg_common::grade::{
-    ColorWheelChannel, ColorWheelVector, ColorWheelsGrade,
-};
+use neoveg_common::grade::{ColorWheelChannel, ColorWheelVector, ColorWheelsGrade};
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::grading::{
     apply_hsl_curves, ColorWheelsExt, HslCurve, HslCurveType, HslCurves, SplineCurve,
@@ -21,8 +19,8 @@ use neoveg_video::grading::{
 fn adv_wheel_vector_extreme_angles() {
     // Angles: negative multiples, multiples > 360, zero, exact 360
     let test_angles = [
-        -720.0f32, -540.0, -180.0, -90.0, -0.0, 0.0, 45.0, 90.0, 180.0,
-        270.0, 360.0, 450.0, 720.0, 1080.0,
+        -720.0f32, -540.0, -180.0, -90.0, -0.0, 0.0, 45.0, 90.0, 180.0, 270.0, 360.0, 450.0, 720.0,
+        1080.0,
     ];
 
     for &angle in &test_angles {
@@ -58,7 +56,7 @@ fn adv_wheel_vector_to_polar_boundary_360_bug() {
     let v = ColorWheelVector::from_polar(-360.0, 0.75, 0.2);
     let (deg, sat, master) = v.to_polar();
     assert!(
-        deg >= 0.0 && deg < 360.0,
+        (0.0..360.0).contains(&deg),
         "to_polar() must strictly return in [0.0..360.0), got {deg}"
     );
     assert_eq!(deg, 0.0);
@@ -83,11 +81,17 @@ fn adv_wheel_vector_extreme_magnitudes_and_sanitization() {
     // Non-finite (NaN / Infinity) inputs
     let v_nan = ColorWheelVector::from_polar(f32::NAN, f32::NAN, f32::NAN);
     let sanitized = v_nan.sanitized();
-    assert!(sanitized.is_neutral(), "NaN vector after sanitized() must become neutral");
+    assert!(
+        sanitized.is_neutral(),
+        "NaN vector after sanitized() must become neutral"
+    );
 
     let v_inf = ColorWheelVector::from_polar(0.0, f32::INFINITY, f32::NEG_INFINITY);
     let sanitized_inf = v_inf.sanitized();
-    assert!(sanitized_inf.is_neutral(), "Inf vector after sanitized() must become neutral");
+    assert!(
+        sanitized_inf.is_neutral(),
+        "Inf vector after sanitized() must become neutral"
+    );
 
     // Direct NaN field injection
     let mut v_dirty = ColorWheelVector {
@@ -105,8 +109,16 @@ fn adv_wheel_vector_extreme_magnitudes_and_sanitization() {
 fn adv_wheel_vector_from_polar_nan_hue_bug() {
     // REMEDIATED: from_polar protects hue_deg against NaN (fallback to 0.0).
     let v = ColorWheelVector::from_polar(f32::NAN, 0.5, 0.0);
-    assert!(v.x.is_finite(), "hue_deg = NaN must produce finite x, got {}", v.x);
-    assert!(v.y.is_finite(), "hue_deg = NaN must produce finite y, got {}", v.y);
+    assert!(
+        v.x.is_finite(),
+        "hue_deg = NaN must produce finite x, got {}",
+        v.x
+    );
+    assert!(
+        v.y.is_finite(),
+        "hue_deg = NaN must produce finite y, got {}",
+        v.y
+    );
     assert_eq!(v.x, 0.5);
     assert_eq!(v.y, 0.0);
 
@@ -134,21 +146,31 @@ fn adv_wheel_vector_numpad_adjustments_wrapping_and_clamping() {
     assert!(v.is_neutral());
     v.adjust_red(0.35);
     v.adjust_cyan(0.35);
-    assert!(v.x.abs() < 1e-6, "Equal Red and Cyan adjustments must cancel to 0.0, got {}", v.x);
+    assert!(
+        v.x.abs() < 1e-6,
+        "Equal Red and Cyan adjustments must cancel to 0.0, got {}",
+        v.x
+    );
 
     // 4. Perpendicular axis: Green and Magenta
     v.reset();
     v.adjust_green(0.4);
     assert!(v.y > 0.0);
     v.adjust_magenta(0.4);
-    assert!(v.y.abs() < 1e-5, "Equal Green and Magenta adjustments must cancel y to 0.0");
+    assert!(
+        v.y.abs() < 1e-5,
+        "Equal Green and Magenta adjustments must cancel y to 0.0"
+    );
 
     // 5. Blue and Yellow cancellation
     v.reset();
     v.adjust_blue(0.5);
     assert!(v.y < 0.0);
     v.adjust_yellow(0.5);
-    assert!(v.y.abs() < 1e-5, "Equal Blue and Yellow adjustments must cancel y to 0.0");
+    assert!(
+        v.y.abs() < 1e-5,
+        "Equal Blue and Yellow adjustments must cancel y to 0.0"
+    );
 
     // 6. Master luma clamping
     v.reset();
@@ -168,7 +190,10 @@ fn adv_wheel_range_limited_inverted_and_extreme_thresholds() {
     let mut frame = FrameBuffer::solid(4, 4, [128, 128, 128, 255]);
     wheels.apply_range_limited(&mut frame, 0.9, 0.1);
     for px in frame.rgba.as_chunks::<4>().0 {
-        assert!(px[0] > 0 && px[0] < 255, "Inverted thresholds must not crash or produce black/blown pixels");
+        assert!(
+            px[0] > 0 && px[0] < 255,
+            "Inverted thresholds must not crash or produce black/blown pixels"
+        );
         assert_eq!(px[3], 255, "Alpha must remain untouched");
     }
 
@@ -241,19 +266,17 @@ fn adv_spline_collinear_flat_steps_and_reverse_order() {
     }
 
     // 3. Vertical-like step curve: jump from 0.0 to 1.0 over delta_x = 0.001
-    let step_pts = [
-        [0.0, 0.0],
-        [0.499, 0.0],
-        [0.501, 1.0],
-        [1.0, 1.0],
-    ];
+    let step_pts = [[0.0, 0.0], [0.499, 0.0], [0.501, 1.0], [1.0, 1.0]];
     let spline_step = SplineCurve::new(&step_pts);
     assert_eq!(spline_step.eval(0.25), 0.0);
     assert_eq!(spline_step.eval(0.499), 0.0);
     assert_eq!(spline_step.eval(0.501), 1.0);
     assert_eq!(spline_step.eval(0.75), 1.0);
     let y_mid = spline_step.eval(0.5);
-    assert!((0.0..=1.0).contains(&y_mid), "Step interpolation must not overshoot [0..1]: got {y_mid}");
+    assert!(
+        (0.0..=1.0).contains(&y_mid),
+        "Step interpolation must not overshoot [0..1]: got {y_mid}"
+    );
 
     // 4. Reverse order input points
     let reverse_pts = [
@@ -293,32 +316,37 @@ fn adv_spline_duplicates_near_duplicates_and_empty() {
     ];
     let s_dup = SplineCurve::new(&dup_pts);
     assert_eq!(s_dup.points().len(), 3, "Duplicate x must be collapsed");
-    assert_eq!(s_dup.points()[1][1], 0.8, "Later point y must overwrite earlier duplicate");
+    assert_eq!(
+        s_dup.points()[1][1],
+        0.8,
+        "Later point y must overwrite earlier duplicate"
+    );
     assert!(s_dup.eval(0.5).is_finite());
 
     // 2. Near-duplicate x-coordinates (|x1 - x2| < 1e-4)
-    let near_pts = [
-        [0.0, 0.0],
-        [0.5, 0.3],
-        [0.5 + 5e-5, 0.7],
-        [1.0, 1.0],
-    ];
+    let near_pts = [[0.0, 0.0], [0.5, 0.3], [0.5 + 5e-5, 0.7], [1.0, 1.0]];
     let s_near = SplineCurve::new(&near_pts);
-    assert_eq!(s_near.points().len(), 3, "Near-duplicate |dx| < 1e-4 must be collapsed");
+    assert_eq!(
+        s_near.points().len(),
+        3,
+        "Near-duplicate |dx| < 1e-4 must be collapsed"
+    );
 
     // 3. Near-duplicate x-coordinates just above threshold (|x1 - x2| = 1.1e-4)
-    let just_above = [
-        [0.0, 0.0],
-        [0.5, 0.3],
-        [0.5 + 1.1e-4, 0.7],
-        [1.0, 1.0],
-    ];
+    let just_above = [[0.0, 0.0], [0.5, 0.3], [0.5 + 1.1e-4, 0.7], [1.0, 1.0]];
     let s_above = SplineCurve::new(&just_above);
-    assert_eq!(s_above.points().len(), 4, "Points with |dx| >= 1e-4 must be kept");
+    assert_eq!(
+        s_above.points().len(),
+        4,
+        "Points with |dx| >= 1e-4 must be kept"
+    );
     for i in 0..=20 {
         let x = i as f32 * 0.05;
         let y = s_above.eval(x);
-        assert!(y.is_finite(), "Evaluation near threshold points must be finite, got {y} at {x}");
+        assert!(
+            y.is_finite(),
+            "Evaluation near threshold points must be finite, got {y} at {x}"
+        );
     }
 
     // 4. Single point
@@ -339,11 +367,19 @@ fn adv_spline_boundary_values_and_extrapolation() {
     let spline = SplineCurve::new(&pts);
 
     // Below 0.0
-    assert_eq!(spline.eval(-0.5), 0.1, "x < 0.0 must clamp to first control point y");
+    assert_eq!(
+        spline.eval(-0.5),
+        0.1,
+        "x < 0.0 must clamp to first control point y"
+    );
     assert_eq!(spline.eval(-1000.0), 0.1);
 
     // Above 1.0
-    assert_eq!(spline.eval(1.5), 0.9, "x > 1.0 must clamp to last control point y");
+    assert_eq!(
+        spline.eval(1.5),
+        0.9,
+        "x > 1.0 must clamp to last control point y"
+    );
     assert_eq!(spline.eval(1000.0), 0.9);
 
     // Infinity handling
@@ -358,9 +394,7 @@ fn adv_spline_nan_eval_underflow_panic_bug() {
     let pts = [[0.0, 0.1], [0.5, 0.5], [1.0, 0.9]];
     let spline = SplineCurve::new(&pts);
 
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        spline.eval(f32::NAN)
-    }));
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| spline.eval(f32::NAN)));
 
     assert!(
         res.is_ok(),
@@ -488,13 +522,21 @@ fn adv_hsl_curves_solid_black_white_and_grayscale_stability() {
     let mut black_frame = FrameBuffer::solid(4, 4, [0, 0, 0, 255]);
     apply_hsl_curves(&mut black_frame, &curves);
     let p_black = black_frame.pixel(0, 0);
-    assert_eq!(p_black, [0, 0, 0, 255], "Solid black must remain black through curves");
+    assert_eq!(
+        p_black,
+        [0, 0, 0, 255],
+        "Solid black must remain black through curves"
+    );
 
     // 2. Solid White frame
     let mut white_frame = FrameBuffer::solid(4, 4, [255, 255, 255, 255]);
     apply_hsl_curves(&mut white_frame, &curves);
     let p_white = white_frame.pixel(0, 0);
-    assert_eq!(p_white, [255, 255, 255, 255], "Solid white must remain white through curves");
+    assert_eq!(
+        p_white,
+        [255, 255, 255, 255],
+        "Solid white must remain white through curves"
+    );
 
     // 3. Grayscale gradient (saturation = 0 for all pixels)
     // With HueVsSat and SatVsSat default (sat 0 stays 0), gray pixels must remain perfectly neutral gray
@@ -553,8 +595,10 @@ fn adv_hsl_curves_hue_vs_lum_achromatic_discontinuity() {
     assert!((p_near[0] as i32 - 128).abs() <= 1);
     assert!((p_near[1] as i32 - 129).abs() <= 1);
 
-    let luma_gray = 0.2126 * p_gray[0] as f32 + 0.7152 * p_gray[1] as f32 + 0.0722 * p_gray[2] as f32;
-    let luma_near = 0.2126 * p_near[0] as f32 + 0.7152 * p_near[1] as f32 + 0.0722 * p_near[2] as f32;
+    let luma_gray =
+        0.2126 * p_gray[0] as f32 + 0.7152 * p_gray[1] as f32 + 0.0722 * p_gray[2] as f32;
+    let luma_near =
+        0.2126 * p_near[0] as f32 + 0.7152 * p_near[1] as f32 + 0.0722 * p_near[2] as f32;
     assert!(
         (luma_gray - luma_near).abs() < 2.0,
         "Achromatic discontinuity eliminated: luma diff is {}",

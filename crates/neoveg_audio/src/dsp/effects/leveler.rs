@@ -63,11 +63,39 @@ pub struct DialogueLeveler {
 
 impl DialogueLeveler {
     pub const PARAMS: &'static [ParamSpec] = &[
-        ParamSpec::new("target", "Nível alvo da fala", -50.0, -6.0, -22.0, Unit::Decibels),
-        ParamSpec::new("max_boost", "Reforço máximo", 0.0, 30.0, 15.0, Unit::Decibels),
+        ParamSpec::new(
+            "target",
+            "Nível alvo da fala",
+            -50.0,
+            -6.0,
+            -22.0,
+            Unit::Decibels,
+        ),
+        ParamSpec::new(
+            "max_boost",
+            "Reforço máximo",
+            0.0,
+            30.0,
+            15.0,
+            Unit::Decibels,
+        ),
         ParamSpec::new("max_cut", "Redução máxima", 0.0, 30.0, 12.0, Unit::Decibels),
-        ParamSpec::new("floor", "Piso de ruído", -90.0, -20.0, -55.0, Unit::Decibels),
-        ParamSpec::log("speed", "Velocidade", 50.0, 3000.0, 400.0, Unit::Milliseconds),
+        ParamSpec::new(
+            "floor",
+            "Piso de ruído",
+            -90.0,
+            -20.0,
+            -55.0,
+            Unit::Decibels,
+        ),
+        ParamSpec::log(
+            "speed",
+            "Velocidade",
+            50.0,
+            3000.0,
+            400.0,
+            Unit::Milliseconds,
+        ),
     ];
 
     pub fn new(sample_rate: f32, _channels: usize) -> Self {
@@ -119,7 +147,8 @@ impl AudioEffect for DialogueLeveler {
                 self.ms = 0.0;
             }
             let level = 10.0 * self.ms.max(1e-12).log10();
-            let want = leveler_gain_db(level, self.target, self.max_boost, self.max_cut, self.floor);
+            let want =
+                leveler_gain_db(level, self.target, self.max_boost, self.max_cut, self.floor);
             let c = if want < self.env { self.down } else { self.up };
             self.env = c * self.env + (1.0 - c) * want;
             if self.env.abs() < 1e-9 {
@@ -174,7 +203,10 @@ mod tests {
         let mut fx = DialogueLeveler::new(SR, 1);
         fx.process(&mut [&mut y]);
         assert!(before < -65.0, "{before}");
-        assert!(rms_db(&y[SR as usize..]) <= before + 0.5, "noise was boosted");
+        assert!(
+            rms_db(&y[SR as usize..]) <= before + 0.5,
+            "noise was boosted"
+        );
     }
 
     #[test]

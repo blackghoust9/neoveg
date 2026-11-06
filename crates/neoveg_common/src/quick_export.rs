@@ -157,7 +157,10 @@ mod tests {
         let audio = QuickExportTarget::AudioOnly.recipe();
         assert!(!audio.has_video);
         assert_eq!(audio.container, Container::WavPcm16);
-        assert!(QuickExportTarget::File.recipe().crf < web.crf, "file is better");
+        assert!(
+            QuickExportTarget::File.recipe().crf < web.crf,
+            "file is better"
+        );
         for t in QuickExportTarget::ALL {
             assert_eq!(QuickExportTarget::from_id(t.id()), Some(t));
         }
@@ -179,14 +182,22 @@ mod tests {
     fn the_output_goes_next_to_the_project_and_never_overwrites() {
         let dir = Path::new("C:/p");
         let fallback = Path::new("C:/Videos");
-        let p = output_path(QuickExportTarget::Web, "Meu: filme", Some(dir), fallback, |_| false);
+        let p = output_path(
+            QuickExportTarget::Web,
+            "Meu: filme",
+            Some(dir),
+            fallback,
+            |_| false,
+        );
         assert_eq!(p, dir.join("Meu_ filme_web.mp4"));
         let taken = [dir.join("Filme.mp4"), dir.join("Filme (2).mp4")];
         let p = output_path(QuickExportTarget::File, "Filme", Some(dir), fallback, |p| {
             taken.iter().any(|t| t == p)
         });
         assert_eq!(p, dir.join("Filme (3).mp4"));
-        let p = output_path(QuickExportTarget::AudioOnly, "  ", None, fallback, |_| false);
+        let p = output_path(QuickExportTarget::AudioOnly, "  ", None, fallback, |_| {
+            false
+        });
         assert_eq!(p, fallback.join("Projeto_audio.wav"));
     }
 }

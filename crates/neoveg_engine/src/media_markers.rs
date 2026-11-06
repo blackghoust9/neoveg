@@ -71,7 +71,10 @@ impl MediaMarkerStore {
     }
 
     pub fn markers_of(&self, media_id: u64) -> &[MediaMarker] {
-        self.by_media.get(&media_id).map(Vec::as_slice).unwrap_or(&[])
+        self.by_media
+            .get(&media_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 }
 

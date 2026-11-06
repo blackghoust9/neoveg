@@ -212,17 +212,15 @@ impl PreviewCacheRuler {
         }
 
         // Fallback: binary search
-        match self
-            .spans
-            .binary_search_by(|span| {
-                if frame < span.start_frame {
-                    std::cmp::Ordering::Greater
-                } else if frame >= span.end_frame {
-                    std::cmp::Ordering::Less
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            }) {
+        match self.spans.binary_search_by(|span| {
+            if frame < span.start_frame {
+                std::cmp::Ordering::Greater
+            } else if frame >= span.end_frame {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        }) {
             Ok(idx) => {
                 self.cursor_idx = idx;
                 self.spans[idx].status
@@ -268,7 +266,10 @@ mod tests {
         // Adjacent span with same status coalesces
         ruler.mark_span(200, 300, FrameCacheStatus::GreenCached);
         assert_eq!(ruler.percent_cached(), 20.0);
-        assert!(ruler.all_spans().iter().any(|s| s.start_frame == 100 && s.end_frame == 300));
+        assert!(ruler
+            .all_spans()
+            .iter()
+            .any(|s| s.start_frame == 100 && s.end_frame == 300));
     }
 
     #[test]

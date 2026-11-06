@@ -100,8 +100,9 @@ pub fn apply_effects(
         .map(|c| (0..frames).map(|f| samples[f * channels + c]).collect())
         .collect();
     for spec in chain {
-        let mut effect = crate::dsp::effects::create_effect(&spec.kind, sample_rate as f32, channels)
-            .ok_or_else(|| format!("o efeito `{}` não roda fora de tempo real", spec.kind))?;
+        let mut effect =
+            crate::dsp::effects::create_effect(&spec.kind, sample_rate as f32, channels)
+                .ok_or_else(|| format!("o efeito `{}` não roda fora de tempo real", spec.kind))?;
         for (id, value) in &spec.params {
             effect.set_param(id, *value);
         }
@@ -109,7 +110,7 @@ pub fn apply_effects(
         let latency = effect.latency();
         // Feed `latency` frames of silence after the end so the delayed tail comes out
         for ch in &mut planar {
-            ch.extend(std::iter::repeat(0.0).take(latency));
+            ch.extend(std::iter::repeat_n(0.0, latency));
         }
         let total = frames + latency;
         let mut pos = 0;
@@ -203,7 +204,13 @@ mod tests {
                 [v, v]
             })
             .collect();
-        let out = apply_effects(&samples, 2, 48_000, &[spec("amplify", &[("gain", -6.0206)])]).unwrap();
+        let out = apply_effects(
+            &samples,
+            2,
+            48_000,
+            &[spec("amplify", &[("gain", -6.0206)])],
+        )
+        .unwrap();
         assert_eq!(out.len(), samples.len());
         let ratio = out[2 * 1000] / samples[2 * 1000];
         assert!((ratio - 0.5).abs() < 0.01, "{ratio}");
@@ -211,9 +218,12 @@ mod tests {
         let mut loud = vec![0.0f32; 2 * n];
         loud[2 * 2_000] = 1.0;
         loud[2 * 2_000 + 1] = 1.0;
-        let out = apply_effects(&loud, 2, 48_000, &[spec("limiter", &[("ceiling", -6.0)])]).unwrap();
+        let out =
+            apply_effects(&loud, 2, 48_000, &[spec("limiter", &[("ceiling", -6.0)])]).unwrap();
         assert_eq!(out.len(), loud.len());
-        let peak_at = (0..n).max_by(|&a, &b| out[2 * a].abs().total_cmp(&out[2 * b].abs())).unwrap();
+        let peak_at = (0..n)
+            .max_by(|&a, &b| out[2 * a].abs().total_cmp(&out[2 * b].abs()))
+            .unwrap();
         assert!((peak_at as i64 - 2_000).abs() <= 1, "{peak_at}");
         assert!(out[2 * peak_at].abs() < 0.55, "{}", out[2 * peak_at]);
         assert!(apply_effects(&samples, 2, 48_000, &[spec("nope", &[])]).is_err());
@@ -230,13 +240,22 @@ mod tests {
         writer.write_samples(&vec![0.4f32; 8_000]).unwrap();
         writer.finish().unwrap();
         let output = dir.join("out.wav");
-        let seconds =
-            write_wav_with_effects(&input, &output, 0.0, 0.5, &[spec("amplify", &[("gain", -6.0206)])])
-                .unwrap();
+        let seconds = write_wav_with_effects(
+            &input,
+            &output,
+            0.0,
+            0.5,
+            &[spec("amplify", &[("gain", -6.0206)])],
+        )
+        .unwrap();
         assert!((seconds - 0.5).abs() < 1e-9);
         let back = decode_file(&output).unwrap();
         assert_eq!(back.frame_count(), 4_000);
-        assert!((back.samples[100] - 0.2).abs() < 0.01, "{}", back.samples[100]);
+        assert!(
+            (back.samples[100] - 0.2).abs() < 0.01,
+            "{}",
+            back.samples[100]
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

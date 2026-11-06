@@ -47,7 +47,13 @@ pub fn compare(current: &FrameBuffer, reference: &FrameBuffer, mode: CompareMode
     if w == 0 || h == 0 {
         return current.clone();
     }
-    let clamp = |p: f32| if p.is_finite() { p.clamp(0.0, 1.0) } else { 0.5 };
+    let clamp = |p: f32| {
+        if p.is_finite() {
+            p.clamp(0.0, 1.0)
+        } else {
+            0.5
+        }
+    };
     match mode {
         CompareMode::SideBySide => {
             let half = (w / 2).max(1);
@@ -90,7 +96,9 @@ pub fn compare(current: &FrameBuffer, reference: &FrameBuffer, mode: CompareMode
             let upto = edge.min(h) as usize * row;
             out.rgba[..upto].copy_from_slice(&reference.rgba[..upto]);
             if edge > 0 && edge < h {
-                for px in out.rgba[edge as usize * row..(edge as usize + 1) * row].chunks_exact_mut(4)
+                for px in out.rgba[edge as usize * row..(edge as usize + 1) * row]
+                    .as_chunks_mut::<4>()
+                    .0
                 {
                     px.copy_from_slice(&[255, 255, 255, 255]);
                 }
@@ -245,7 +253,10 @@ mod tests {
         assert_eq!(out.pixel(25, 5), [255, 255, 255, 255], "divider");
         assert_eq!(out.pixel(80, 5), [200, 0, 0, 255]);
         // At the extremes the wipe is entirely one side
-        assert_eq!(compare(&cur, &refr, CompareMode::WipeVertical { position: 0.0 }), cur);
+        assert_eq!(
+            compare(&cur, &refr, CompareMode::WipeVertical { position: 0.0 }),
+            cur
+        );
         let all_ref = compare(&cur, &refr, CompareMode::WipeVertical { position: 1.0 });
         assert_eq!(all_ref, refr);
     }
@@ -263,7 +274,11 @@ mod tests {
         assert_eq!(sbs.pixel(55, 30), [10, 200, 10, 255]);
         // The side-by-side keeps the structure of the reference (squeezed to half the width)
         let two = half_and_half(40, 10, [255, 0, 0, 255], [0, 0, 255, 255]);
-        let sbs2 = compare(&FrameBuffer::solid(40, 10, [0, 0, 0, 255]), &two, CompareMode::SideBySide);
+        let sbs2 = compare(
+            &FrameBuffer::solid(40, 10, [0, 0, 0, 255]),
+            &two,
+            CompareMode::SideBySide,
+        );
         assert_eq!(sbs2.pixel(2, 5), [255, 0, 0, 255]);
         assert_eq!(sbs2.pixel(17, 5), [0, 0, 255, 255]);
     }

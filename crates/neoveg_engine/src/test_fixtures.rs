@@ -90,10 +90,14 @@ impl BlenderOpenMovieFixture {
         // 28-byte NVVID100 header
         file.write_all(b"NVVID100")
             .map_err(|e| format!("Header write failed: {e}"))?;
-        file.write_all(&w.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&h.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&fps.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&1u32.to_le_bytes()).map_err(|e| e.to_string())?; // fps_den = 1
+        file.write_all(&w.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&h.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&fps.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&1u32.to_le_bytes())
+            .map_err(|e| e.to_string())?; // fps_den = 1
         file.write_all(&(total_frames as u32).to_le_bytes())
             .map_err(|e| e.to_string())?;
 
@@ -152,18 +156,27 @@ impl BlenderOpenMovieFixture {
 
         // 44-byte WAV header
         file.write_all(b"RIFF").map_err(|e| e.to_string())?;
-        file.write_all(&riff_len.to_le_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(&riff_len.to_le_bytes())
+            .map_err(|e| e.to_string())?;
         file.write_all(b"WAVE").map_err(|e| e.to_string())?;
         file.write_all(b"fmt ").map_err(|e| e.to_string())?;
-        file.write_all(&16u32.to_le_bytes()).map_err(|e| e.to_string())?; // Subchunk1Size
-        file.write_all(&1u16.to_le_bytes()).map_err(|e| e.to_string())?;  // AudioFormat = PCM
-        file.write_all(&channels.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&sample_rate.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&byte_rate.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&block_align.to_le_bytes()).map_err(|e| e.to_string())?;
-        file.write_all(&bits_per_sample.to_le_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(&16u32.to_le_bytes())
+            .map_err(|e| e.to_string())?; // Subchunk1Size
+        file.write_all(&1u16.to_le_bytes())
+            .map_err(|e| e.to_string())?; // AudioFormat = PCM
+        file.write_all(&channels.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&sample_rate.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&byte_rate.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&block_align.to_le_bytes())
+            .map_err(|e| e.to_string())?;
+        file.write_all(&bits_per_sample.to_le_bytes())
+            .map_err(|e| e.to_string())?;
         file.write_all(b"data").map_err(|e| e.to_string())?;
-        file.write_all(&data_len.to_le_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(&data_len.to_le_bytes())
+            .map_err(|e| e.to_string())?;
         file.write_all(&pcm_bytes).map_err(|e| e.to_string())?;
 
         file.flush().map_err(|e| e.to_string())?;

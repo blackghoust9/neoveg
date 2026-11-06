@@ -115,7 +115,11 @@ pub fn needs_color_mark(kind: TrackKind, event: &TrackEvent) -> bool {
         && !has_color_correction(event)
 }
 
-fn find_event(timeline: &Timeline, track_id: TrackId, event_id: EventId) -> Result<&TrackEvent, String> {
+fn find_event(
+    timeline: &Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+) -> Result<&TrackEvent, String> {
     timeline
         .track(track_id)
         .and_then(|t| t.events.iter().find(|e| e.id == event_id))
@@ -154,7 +158,9 @@ pub fn auto_color_edit(
         return Err(tr("Coloque o cursor sobre o evento para analisar o quadro.").to_string());
     }
     if has_color_correction(event) {
-        return Err(tr("O evento já tem correção: redefina-a antes de usar a cor automática.").to_string());
+        return Err(
+            tr("O evento já tem correção: redefina-a antes de usar a cor automática.").to_string(),
+        );
     }
     let grade = auto_color_grade(frame, AutoColorOptions::default())
         .ok_or_else(|| tr("O quadro atual não permite calcular a cor automática.").to_string())?;
@@ -163,6 +169,7 @@ pub fn auto_color_edit(
 
 /// What to stabilize for an event: its media, the start in the source and the length in seconds.
 /// Only events played at normal speed qualify (the stabilizer reads the source in order).
+#[allow(dead_code)]
 pub fn stabilize_plan(
     timeline: &Timeline,
     track_id: TrackId,
@@ -180,13 +187,21 @@ pub fn stabilize_plan(
 }
 
 /// Removes the correction of the event.
-pub fn reset_edit(timeline: &Timeline, track_id: TrackId, event_id: EventId) -> Result<EditCommand, String> {
+pub fn reset_edit(
+    timeline: &Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+) -> Result<EditCommand, String> {
     let event = find_event(timeline, track_id, event_id)?;
     set_grade(track_id, event_id, event, None)
 }
 
 /// The text of the correction file of the event.
-pub fn export_text(timeline: &Timeline, track_id: TrackId, event_id: EventId) -> Result<String, String> {
+pub fn export_text(
+    timeline: &Timeline,
+    track_id: TrackId,
+    event_id: EventId,
+) -> Result<String, String> {
     let event = find_event(timeline, track_id, event_id)?;
     ColorCorrectionFile::from_event(event)
         .map(|f| f.to_json())
@@ -271,7 +286,10 @@ mod tests {
         tl.tracks[0].events.push(video_event(2, 5.0, 2.0, 8));
         let import = import_edit(&tl, t, 2, &text).unwrap();
         assert!(History::default().execute(&mut tl, import));
-        assert_eq!(tl.tracks[0].events[1].color_grade, tl.tracks[0].events[0].color_grade);
+        assert_eq!(
+            tl.tracks[0].events[1].color_grade,
+            tl.tracks[0].events[0].color_grade
+        );
         assert!(import_edit(&tl, t, 2, "não é json").is_err());
         let reset = reset_edit(&tl, t, 2).unwrap();
         History::default().execute(&mut tl, reset);
@@ -284,11 +302,19 @@ mod tests {
         let marked = |tl: &Timeline| -> Vec<(TrackId, EventId)> {
             tl.tracks
                 .iter()
-                .flat_map(|tr| tr.events.iter().filter(|ev| needs_color_mark(tr.kind, ev)).map(|ev| (tr.id, ev.id)))
+                .flat_map(|tr| {
+                    tr.events
+                        .iter()
+                        .filter(|ev| needs_color_mark(tr.kind, ev))
+                        .map(|ev| (tr.id, ev.id))
+                })
                 .collect()
         };
         assert_eq!(marked(&tl), vec![(t, e)]);
-        assert_eq!(marked(&tl), neoveg_engine::color_correction::events_without_color_correction(&tl));
+        assert_eq!(
+            marked(&tl),
+            neoveg_engine::color_correction::events_without_color_correction(&tl)
+        );
         let command = auto_color_edit(&tl, t, e, &warm_frame(), 1.0).unwrap();
         History::default().execute(&mut tl, command);
         assert!(marked(&tl).is_empty());

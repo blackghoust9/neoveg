@@ -256,7 +256,10 @@ impl AppState {
         self.scroll_seconds = scroll;
         self.forced_dirty = true;
         self.reload_media(ctx);
-        self.status = tr_args("Projeto duplicado em uma nova aba: {}", &[&self.project.name]);
+        self.status = tr_args(
+            "Projeto duplicado em uma nova aba: {}",
+            &[&self.project.name],
+        );
     }
 
     /// Opens a project file in a tab: the tab of the file when it is already open, else a new one.

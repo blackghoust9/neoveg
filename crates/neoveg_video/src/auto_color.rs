@@ -71,7 +71,7 @@ pub fn analyze_frame(frame: &FrameBuffer, options: AutoColorOptions) -> Option<F
     let step = (total / 65_536).max(1);
     let mut sum = [0.0f64; 3];
     let mut n = 0usize;
-    for px in frame.rgba.chunks_exact(4).step_by(step) {
+    for px in frame.rgba.as_chunks::<4>().0.iter().step_by(step) {
         if px[3] == 0 {
             continue;
         }
@@ -96,7 +96,7 @@ pub fn analyze_frame(frame: &FrameBuffer, options: AutoColorOptions) -> Option<F
     // Histogram of the luma after the white balance
     let mut hist = [0u32; 256];
     let mut counted = 0u32;
-    for px in frame.rgba.chunks_exact(4).step_by(step) {
+    for px in frame.rgba.as_chunks::<4>().0.iter().step_by(step) {
         if px[3] == 0 {
             continue;
         }
@@ -165,8 +165,8 @@ mod tests {
             for x in 0..w {
                 let t = lo + (hi - lo) * x as f32 / (w - 1) as f32;
                 let i = ((y * w + x) * 4) as usize;
-                for c in 0..3 {
-                    f.rgba[i + c] = (t * cast[c] * 255.0).clamp(0.0, 255.0).round() as u8;
+                for (c, &weight) in cast.iter().enumerate() {
+                    f.rgba[i + c] = (t * weight * 255.0).clamp(0.0, 255.0).round() as u8;
                 }
             }
         }
@@ -176,9 +176,9 @@ mod tests {
     fn mean_of(f: &FrameBuffer) -> [f32; 3] {
         let mut s = [0.0f32; 3];
         let n = (f.rgba.len() / 4) as f32;
-        for px in f.rgba.chunks_exact(4) {
-            for c in 0..3 {
-                s[c] += f32::from(px[c]);
+        for px in f.rgba.as_chunks::<4>().0 {
+            for (c, &val) in px[..3].iter().enumerate() {
+                s[c] += f32::from(val);
             }
         }
         [s[0] / n, s[1] / n, s[2] / n]
@@ -230,11 +230,15 @@ mod tests {
         let f = ramp(0.0, 1.0, [1.0, 1.0, 1.0]);
         let grade = auto_color_grade(&f, AutoColorOptions::default()).unwrap();
         assert!(grade.is_neutral(), "{grade:?}");
-        assert!(auto_color_grade(&FrameBuffer::solid(0, 0, [0; 4]), AutoColorOptions::default())
-            .is_none());
-        assert!(
-            auto_color_grade(&FrameBuffer::solid(4, 4, [9, 9, 9, 0]), AutoColorOptions::default())
-                .is_none()
-        );
+        assert!(auto_color_grade(
+            &FrameBuffer::solid(0, 0, [0; 4]),
+            AutoColorOptions::default()
+        )
+        .is_none());
+        assert!(auto_color_grade(
+            &FrameBuffer::solid(4, 4, [9, 9, 9, 0]),
+            AutoColorOptions::default()
+        )
+        .is_none());
     }
 }

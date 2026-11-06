@@ -224,23 +224,35 @@ impl SelectiveDiskPrerender {
             let file_path = self.prerender_dir.join(file_name);
 
             // Write 64-byte binary header + index table + payload blocks
-            let mut file = File::create(&file_path)
-                .map_err(|e| format!("Failed to create prerender file {}: {e}", file_path.display()))?;
+            let mut file = File::create(&file_path).map_err(|e| {
+                format!(
+                    "Failed to create prerender file {}: {e}",
+                    file_path.display()
+                )
+            })?;
 
             // 1. Magic
             file.write_all(NVPRV_MAGIC).map_err(|e| e.to_string())?;
             // 2. Dimensions & FPS
-            file.write_all(&width.to_le_bytes()).map_err(|e| e.to_string())?;
-            file.write_all(&height.to_le_bytes()).map_err(|e| e.to_string())?;
-            file.write_all(&30000u32.to_le_bytes()).map_err(|e| e.to_string())?;
-            file.write_all(&1001u32.to_le_bytes()).map_err(|e| e.to_string())?;
+            file.write_all(&width.to_le_bytes())
+                .map_err(|e| e.to_string())?;
+            file.write_all(&height.to_le_bytes())
+                .map_err(|e| e.to_string())?;
+            file.write_all(&30000u32.to_le_bytes())
+                .map_err(|e| e.to_string())?;
+            file.write_all(&1001u32.to_le_bytes())
+                .map_err(|e| e.to_string())?;
             // 3. Pixel Format (1 = RGBA8)
-            file.write_all(&1u32.to_le_bytes()).map_err(|e| e.to_string())?;
+            file.write_all(&1u32.to_le_bytes())
+                .map_err(|e| e.to_string())?;
             // 4. Frame Count
-            file.write_all(&frame_count.to_le_bytes()).map_err(|e| e.to_string())?;
+            file.write_all(&frame_count.to_le_bytes())
+                .map_err(|e| e.to_string())?;
             // 5. Start Frame & Hash
-            file.write_all(&cur_start.to_le_bytes()).map_err(|e| e.to_string())?;
-            file.write_all(&generation_hash.to_le_bytes()).map_err(|e| e.to_string())?;
+            file.write_all(&cur_start.to_le_bytes())
+                .map_err(|e| e.to_string())?;
+            file.write_all(&generation_hash.to_le_bytes())
+                .map_err(|e| e.to_string())?;
             // 6. 16-byte padding to 64 bytes
             file.write_all(&[0u8; 16]).map_err(|e| e.to_string())?;
 
@@ -253,7 +265,8 @@ impl SelectiveDiskPrerender {
             let mut cur_offset = payload_start_offset;
 
             // Seek past index table to write payloads
-            file.seek(SeekFrom::Start(payload_start_offset)).map_err(|e| e.to_string())?;
+            file.seek(SeekFrom::Start(payload_start_offset))
+                .map_err(|e| e.to_string())?;
 
             for f in cur_start..cur_end {
                 offsets.push(cur_offset);
@@ -263,9 +276,11 @@ impl SelectiveDiskPrerender {
             }
 
             // Seek back to write index table
-            file.seek(SeekFrom::Start(index_table_offset)).map_err(|e| e.to_string())?;
+            file.seek(SeekFrom::Start(index_table_offset))
+                .map_err(|e| e.to_string())?;
             for off in offsets {
-                file.write_all(&off.to_le_bytes()).map_err(|e| e.to_string())?;
+                file.write_all(&off.to_le_bytes())
+                    .map_err(|e| e.to_string())?;
             }
 
             let chunk = PrerenderChunk {

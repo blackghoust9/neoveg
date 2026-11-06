@@ -10,7 +10,9 @@ use std::process::Command;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use neoveg_ofx::{describe_in_child, library_of, DefaultOfxHost, FrameBuffer, OfxHostContext, Options};
+use neoveg_ofx::{
+    describe_in_child, library_of, DefaultOfxHost, FrameBuffer, OfxHostContext, Options,
+};
 
 fn host_exe() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_neoveg_ofx_host"))
@@ -106,7 +108,9 @@ fn f10_t2_01_ofx_corrupt_or_non_plugin_library_error() {
     let not_a_plugin = host_exe();
     let err = describe_in_child(&not_a_plugin, &host_exe(), &Options::default())
         .expect_err("Non-plugin binary must fail cleanly");
-    assert!(err.contains("not found") || err.contains("OfxGetNumberOfPlugins") || err.contains("error"));
+    assert!(
+        err.contains("not found") || err.contains("OfxGetNumberOfPlugins") || err.contains("error")
+    );
 }
 
 #[test]
@@ -197,7 +201,9 @@ fn f10_t1_07_ofx_host_context_parameterized_execution() {
 fn f10_t2_06_ofx_host_context_missing_bundle_error() {
     let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
     let missing = Path::new("Z:/non_existent_bundle/plugin.ofx.bundle");
-    let err = host.load_bundle(missing).expect_err("Missing bundle must return error");
+    let err = host
+        .load_bundle(missing)
+        .expect_err("Missing bundle must return error");
     assert!(err.contains("does not exist"));
 }
 
@@ -211,4 +217,3 @@ fn f10_t2_07_ofx_host_context_unloaded_plugin_error() {
         .expect_err("Unloaded plugin must fail");
     assert!(err.contains("not found"));
 }
-

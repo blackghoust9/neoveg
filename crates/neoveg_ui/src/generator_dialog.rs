@@ -161,88 +161,107 @@ fn edit_rgba(ui: &mut egui::Ui, label: &str, rgba: &mut [u8; 4]) {
 /// are used; once it has a layer it replaces them.
 fn stack_controls(ui: &mut egui::Ui, stack: &mut neoveg_text::title_paint::PaintStack) {
     use neoveg_text::title_paint::{FillLayer, OutlineLayer, OutlinePlacement, ShadowLayer};
-    ui.collapsing(tr("Camadas empilhadas (preenchimentos, contornos e sombras)"), |ui| {
-        ui.weak(tr(
-            "Com ao menos uma camada, a pilha substitui o contorno e a sombra simples acima.",
-        ));
-        ui.horizontal(|ui| {
-            if ui.button(tr("+ Preenchimento")).clicked() && stack.fills.len() < 8 {
-                stack.fills.push(FillLayer {
-                    color: [255, 255, 255, 255],
-                    offset: [0, 0],
-                });
-            }
-            if ui.button(tr("+ Contorno")).clicked() && stack.outlines.len() < 8 {
-                stack.outlines.push(OutlineLayer {
-                    color: [0, 0, 0, 255],
-                    width: 3.0,
-                    placement: OutlinePlacement::Outer,
-                });
-            }
-            if ui.button(tr("+ Sombra")).clicked() && stack.shadows.len() < 8 {
-                stack.shadows.push(ShadowLayer {
-                    color: [0, 0, 0, 180],
-                    offset: [4, 4],
-                    blur: 0.0,
-                });
-            }
-            if ui.button(tr("Limpar pilha")).clicked() {
-                *stack = Default::default();
-            }
-        });
-        let mut remove: Option<(u8, usize)> = None;
-        for (i, f) in stack.fills.iter_mut().enumerate() {
+    ui.collapsing(
+        tr("Camadas empilhadas (preenchimentos, contornos e sombras)"),
+        |ui| {
+            ui.weak(tr(
+                "Com ao menos uma camada, a pilha substitui o contorno e a sombra simples acima.",
+            ));
             ui.horizontal(|ui| {
-                edit_rgba(ui, tr("Preenchimento:"), &mut f.color);
-                ui.add(egui::DragValue::new(&mut f.offset[0]).range(-24..=24).prefix("ΔX: "));
-                ui.add(egui::DragValue::new(&mut f.offset[1]).range(-24..=24).prefix("ΔY: "));
-                if ui.small_button("✕").clicked() {
-                    remove = Some((0, i));
+                if ui.button(tr("+ Preenchimento")).clicked() && stack.fills.len() < 8 {
+                    stack.fills.push(FillLayer {
+                        color: [255, 255, 255, 255],
+                        offset: [0, 0],
+                    });
+                }
+                if ui.button(tr("+ Contorno")).clicked() && stack.outlines.len() < 8 {
+                    stack.outlines.push(OutlineLayer {
+                        color: [0, 0, 0, 255],
+                        width: 3.0,
+                        placement: OutlinePlacement::Outer,
+                    });
+                }
+                if ui.button(tr("+ Sombra")).clicked() && stack.shadows.len() < 8 {
+                    stack.shadows.push(ShadowLayer {
+                        color: [0, 0, 0, 180],
+                        offset: [4, 4],
+                        blur: 0.0,
+                    });
+                }
+                if ui.button(tr("Limpar pilha")).clicked() {
+                    *stack = Default::default();
                 }
             });
-        }
-        for (i, o) in stack.outlines.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
-                edit_rgba(ui, tr("Contorno:"), &mut o.color);
-                ui.add(
-                    egui::DragValue::new(&mut o.width)
-                        .range(0.5..=24.0)
-                        .prefix(tr("Espessura: "))
-                        .suffix(" px"),
-                );
-                if ui.small_button("✕").clicked() {
-                    remove = Some((1, i));
+            let mut remove: Option<(u8, usize)> = None;
+            for (i, f) in stack.fills.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    edit_rgba(ui, tr("Preenchimento:"), &mut f.color);
+                    ui.add(
+                        egui::DragValue::new(&mut f.offset[0])
+                            .range(-24..=24)
+                            .prefix("ΔX: "),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut f.offset[1])
+                            .range(-24..=24)
+                            .prefix("ΔY: "),
+                    );
+                    if ui.small_button("✕").clicked() {
+                        remove = Some((0, i));
+                    }
+                });
+            }
+            for (i, o) in stack.outlines.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    edit_rgba(ui, tr("Contorno:"), &mut o.color);
+                    ui.add(
+                        egui::DragValue::new(&mut o.width)
+                            .range(0.5..=24.0)
+                            .prefix(tr("Espessura: "))
+                            .suffix(" px"),
+                    );
+                    if ui.small_button("✕").clicked() {
+                        remove = Some((1, i));
+                    }
+                });
+            }
+            for (i, sh) in stack.shadows.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    edit_rgba(ui, tr("Sombra:"), &mut sh.color);
+                    ui.add(
+                        egui::DragValue::new(&mut sh.offset[0])
+                            .range(-48..=48)
+                            .prefix("ΔX: "),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut sh.offset[1])
+                            .range(-48..=48)
+                            .prefix("ΔY: "),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut sh.blur)
+                            .range(0.0..=24.0)
+                            .prefix(tr("Desfoque: ")),
+                    );
+                    if ui.small_button("✕").clicked() {
+                        remove = Some((2, i));
+                    }
+                });
+            }
+            match remove {
+                Some((0, i)) => {
+                    stack.fills.remove(i);
                 }
-            });
-        }
-        for (i, sh) in stack.shadows.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
-                edit_rgba(ui, tr("Sombra:"), &mut sh.color);
-                ui.add(egui::DragValue::new(&mut sh.offset[0]).range(-48..=48).prefix("ΔX: "));
-                ui.add(egui::DragValue::new(&mut sh.offset[1]).range(-48..=48).prefix("ΔY: "));
-                ui.add(
-                    egui::DragValue::new(&mut sh.blur)
-                        .range(0.0..=24.0)
-                        .prefix(tr("Desfoque: ")),
-                );
-                if ui.small_button("✕").clicked() {
-                    remove = Some((2, i));
+                Some((1, i)) => {
+                    stack.outlines.remove(i);
                 }
-            });
-        }
-        match remove {
-            Some((0, i)) => {
-                stack.fills.remove(i);
+                Some((_, i)) => {
+                    stack.shadows.remove(i);
+                }
+                None => {}
             }
-            Some((1, i)) => {
-                stack.outlines.remove(i);
-            }
-            Some((_, i)) => {
-                stack.shadows.remove(i);
-            }
-            None => {}
-        }
-    });
+        },
+    );
 }
 
 /// The animation with the snake-case id of a title style.
@@ -580,7 +599,11 @@ impl GeneratorDialogState {
         let template = neoveg_video::title_template::TitleTemplate::new(&spec.name.clone(), spec);
         let mut filled = template.instantiate(&self.template.values);
         if let GeneratorKind::TitleText { text, .. } = &filled.kind {
-            let first = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("Título").trim();
+            let first = text
+                .lines()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("Título")
+                .trim();
             let short: String = first.chars().take(24).collect();
             filled.name = tr_args("Título: {}", &[&short]);
         }

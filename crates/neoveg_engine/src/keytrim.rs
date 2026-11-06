@@ -678,13 +678,21 @@ mod tests {
         run(&mut tl, |t| {
             nudge(t, sound_end, 1.0, TrimMode::Normal, FRAME, &no_limit)
         });
-        assert_eq!(tl.tracks[0].events[0].duration, 4.0, "the picture keeps its cut");
-        assert_eq!(tl.tracks[1].events[0].duration, 5.0, "the sound runs on: L cut");
+        assert_eq!(
+            tl.tracks[0].events[0].duration, 4.0,
+            "the picture keeps its cut"
+        );
+        assert_eq!(
+            tl.tracks[1].events[0].duration, 5.0,
+            "the sound runs on: L cut"
+        );
         run(&mut tl, |t| {
             nudge(t, sound_end, -2.0, TrimMode::Normal, FRAME, &no_limit)
         });
-        assert_eq!(tl.tracks[1].events[0].duration, 3.0, "the sound ends early: J cut");
+        assert_eq!(
+            tl.tracks[1].events[0].duration, 3.0,
+            "the sound ends early: J cut"
+        );
         assert_eq!(tl.tracks[0].events[0].duration, 4.0);
     }
 }
-

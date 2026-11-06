@@ -259,12 +259,8 @@ mod tests {
             },
         ];
 
-        let cmd = generate_timeline_captions(
-            &mut tl,
-            &segs,
-            &SubtitleFormattingOptions::default(),
-            true,
-        );
+        let cmd =
+            generate_timeline_captions(&mut tl, &segs, &SubtitleFormattingOptions::default(), true);
         assert!(cmd.is_some());
         assert_eq!(tl.captions.len(), 2);
         assert_eq!(tl.captions[0].text, "Caption 1");

@@ -64,7 +64,10 @@ pub fn single_lines(m: &MediaFacts, timecode_fps: f64) -> Vec<String> {
 }
 
 /// `value` when every item agrees, else `"variados"`.
-fn common<T: PartialEq + Copy>(values: impl Iterator<Item = T>, show: impl Fn(T) -> String) -> String {
+fn common<T: PartialEq + Copy>(
+    values: impl Iterator<Item = T>,
+    show: impl Fn(T) -> String,
+) -> String {
     let all: Vec<T> = values.collect();
     match all.split_first() {
         Some((first, rest)) if rest.iter().all(|v| v == first) => show(*first),
@@ -89,8 +92,13 @@ pub fn multiple_lines(items: &[MediaFacts]) -> Vec<String> {
         lines.push(format!(
             "Vídeo ({} arquivos): tamanho {}; taxa {}",
             videos.len(),
-            common(videos.iter().map(|v| (v.0, v.1)), |(w, h)| format!("{w}×{h}")),
-            common(videos.iter().map(|v| (v.2 * 1000.0).round() as i64), |f| format!("{:.3} qps", f as f64 / 1000.0)),
+            common(videos.iter().map(|v| (v.0, v.1)), |(w, h)| format!(
+                "{w}×{h}"
+            )),
+            common(
+                videos.iter().map(|v| (v.2 * 1000.0).round() as i64),
+                |f| format!("{:.3} qps", f as f64 / 1000.0)
+            ),
         ));
     }
     let audios: Vec<_> = items.iter().filter_map(|m| m.audio).collect();
@@ -110,7 +118,12 @@ pub fn multiple_lines(items: &[MediaFacts]) -> Vec<String> {
 }
 
 /// The status text while an event edge is trimmed: the new length and how it changed.
-pub fn trim_length_label(new_duration: f64, old_duration: f64, fps: f64, drop_frame: bool) -> String {
+pub fn trim_length_label(
+    new_duration: f64,
+    old_duration: f64,
+    fps: f64,
+    drop_frame: bool,
+) -> String {
     let delta = new_duration - old_duration;
     let change = if delta.abs() < 0.0005 {
         String::new()
@@ -129,7 +142,13 @@ mod tests {
     use super::*;
 
     fn video(name: &str, w: u32, h: u32, fps: f64, d: f64) -> MediaFacts {
-        MediaFacts { name: name.into(), duration: d, video: Some((w, h, fps)), audio: Some((48_000, 2)), file_bytes: Some(2 * 1024 * 1024) }
+        MediaFacts {
+            name: name.into(),
+            duration: d,
+            video: Some((w, h, fps)),
+            audio: Some((48_000, 2)),
+            file_bytes: Some(2 * 1024 * 1024),
+        }
     }
 
     #[test]
@@ -139,7 +158,11 @@ mod tests {
         assert_eq!(lines[1], "Vídeo: 1920×1080 a 25.000 quadros por segundo");
         assert_eq!(lines[2], "Áudio: 48000 Hz, estéreo");
         assert_eq!(lines[3], "Tamanho do arquivo: 2.0 MB");
-        let sound = MediaFacts { duration: 3.0, audio: Some((44_100, 1)), ..MediaFacts::default() };
+        let sound = MediaFacts {
+            duration: 3.0,
+            audio: Some((44_100, 1)),
+            ..MediaFacts::default()
+        };
         let lines = single_lines(&sound, 25.0);
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[1], "Áudio: 44100 Hz, mono");
@@ -148,22 +171,43 @@ mod tests {
 
     #[test]
     fn several_files_show_the_shared_value_or_varied() {
-        let same = multiple_lines(&[video("a", 1920, 1080, 25.0, 4.0), video("b", 1920, 1080, 25.0, 6.0)]);
+        let same = multiple_lines(&[
+            video("a", 1920, 1080, 25.0, 4.0),
+            video("b", 1920, 1080, 25.0, 6.0),
+        ]);
         assert_eq!(same[0], "2 mídias selecionadas");
         assert_eq!(same[1], "Duração total: 10.00 s");
-        assert_eq!(same[2], "Vídeo (2 arquivos): tamanho 1920×1080; taxa 25.000 qps");
+        assert_eq!(
+            same[2],
+            "Vídeo (2 arquivos): tamanho 1920×1080; taxa 25.000 qps"
+        );
         assert_eq!(same[3], "Áudio (2 arquivos): 48000 Hz; estéreo");
         assert_eq!(same[4], "Tamanho total: 4.0 MB");
-        let mixed = multiple_lines(&[video("a", 1920, 1080, 25.0, 4.0), video("b", 1280, 720, 30.0, 6.0)]);
-        assert_eq!(mixed[2], "Vídeo (2 arquivos): tamanho variados; taxa variados");
+        let mixed = multiple_lines(&[
+            video("a", 1920, 1080, 25.0, 4.0),
+            video("b", 1280, 720, 30.0, 6.0),
+        ]);
+        assert_eq!(
+            mixed[2],
+            "Vídeo (2 arquivos): tamanho variados; taxa variados"
+        );
         // One file is the single-file listing
-        assert_eq!(multiple_lines(&[video("a", 1920, 1080, 25.0, 4.0)]), single_lines(&video("a", 1920, 1080, 25.0, 4.0), 25.0));
+        assert_eq!(
+            multiple_lines(&[video("a", 1920, 1080, 25.0, 4.0)]),
+            single_lines(&video("a", 1920, 1080, 25.0, 4.0), 25.0)
+        );
     }
 
     #[test]
     fn the_trim_label_gives_the_new_length_and_what_changed() {
-        assert_eq!(trim_length_label(3.5, 5.0, 25.0, false), "Comprimento do evento: 00:00:03:12 · 3.50 s (-1.50 s)");
-        assert_eq!(trim_length_label(5.0, 5.0, 25.0, false), "Comprimento do evento: 00:00:05:00 · 5.00 s");
+        assert_eq!(
+            trim_length_label(3.5, 5.0, 25.0, false),
+            "Comprimento do evento: 00:00:03:12 · 3.50 s (-1.50 s)"
+        );
+        assert_eq!(
+            trim_length_label(5.0, 5.0, 25.0, false),
+            "Comprimento do evento: 00:00:05:00 · 5.00 s"
+        );
         assert!(trim_length_label(-1.0, 5.0, 25.0, false).contains("00:00:00:00"));
         assert_eq!(size_label(512), "512 B");
         assert_eq!(size_label(1536), "1.5 KB");

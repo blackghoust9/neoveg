@@ -7,9 +7,9 @@ pub use neoveg_common::grade::{
 };
 use serde::{Deserialize, Serialize};
 
-pub use crate::ocio::{AcesSpace, AcesTransform, ViewTransform};
 use crate::frame::FrameBuffer;
 use crate::lut::Lut;
+pub use crate::ocio::{AcesSpace, AcesTransform, ViewTransform};
 
 /// Extension trait providing FrameBuffer execution methods for [`ColorWheelsGrade`].
 pub trait ColorWheelsExt {
@@ -43,8 +43,16 @@ impl ColorWheelsExt for ColorWheelsGrade {
         if self.is_neutral() {
             return;
         }
-        let low_thresh = if low_thresh.is_finite() { low_thresh } else { 0.25 };
-        let high_thresh = if high_thresh.is_finite() { high_thresh } else { 0.75 };
+        let low_thresh = if low_thresh.is_finite() {
+            low_thresh
+        } else {
+            0.25
+        };
+        let high_thresh = if high_thresh.is_finite() {
+            high_thresh
+        } else {
+            0.75
+        };
         let low = low_thresh.clamp(0.0, 0.5);
         let high = high_thresh.clamp(0.5, 1.0);
 
@@ -399,9 +407,7 @@ impl HslCurve {
             HslCurveType::HueVsSat
             | HslCurveType::HueVsLum
             | HslCurveType::LumVsSat
-            | HslCurveType::SatVsLum => {
-                Self::new(curve_type, &[[0.0, 0.5], [1.0, 0.5]])
-            }
+            | HslCurveType::SatVsLum => Self::new(curve_type, &[[0.0, 0.5], [1.0, 0.5]]),
         }
     }
 
@@ -541,7 +547,8 @@ pub struct StatisticalColorMatcher;
 
 impl ColorMatcher for StatisticalColorMatcher {
     fn analyze_and_match(&self, reference: &FrameBuffer, target: &FrameBuffer) -> ColorWheelsGrade {
-        if target.width == 0 || target.height == 0 || reference.width == 0 || reference.height == 0 {
+        if target.width == 0 || target.height == 0 || reference.width == 0 || reference.height == 0
+        {
             return ColorWheelsGrade::default_neutral();
         }
 
@@ -615,7 +622,12 @@ pub fn match_color(
     } else {
         0.0
     };
-    if k <= 0.0 || target.width == 0 || target.height == 0 || reference.width == 0 || reference.height == 0 {
+    if k <= 0.0
+        || target.width == 0
+        || target.height == 0
+        || reference.width == 0
+        || reference.height == 0
+    {
         return;
     }
 
@@ -648,7 +660,8 @@ pub fn match_color(
 
         if !match_brightness {
             let y_orig = 0.2126 * orig[0] + 0.7152 * orig[1] + 0.0722 * orig[2];
-            let y_matched = (0.2126 * matched[0] + 0.7152 * matched[1] + 0.0722 * matched[2]).max(1e-4);
+            let y_matched =
+                (0.2126 * matched[0] + 0.7152 * matched[1] + 0.0722 * matched[2]).max(1e-4);
             let luma_ratio = y_orig / y_matched;
             matched[0] = (matched[0] * luma_ratio).clamp(0.0, 255.0);
             matched[1] = (matched[1] * luma_ratio).clamp(0.0, 255.0);
@@ -941,7 +954,10 @@ mod tests {
     fn white_balance_pickers() {
         let frame = FrameBuffer::solid(8, 8, [200, 150, 100, 255]);
         let (temp, _tint) = pick_white_balance_from_region(&frame, [2, 2, 4, 4]);
-        assert!(temp < 0.0, "Warm sample should produce cooling compensation");
+        assert!(
+            temp < 0.0,
+            "Warm sample should produce cooling compensation"
+        );
 
         let bp = pick_black_point([0.05, 0.05, 0.06]);
         assert!(bp.master < 0.0);

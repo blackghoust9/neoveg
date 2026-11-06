@@ -9,7 +9,10 @@ use crate::track_groups_window::GroupAction;
 
 impl AppState {
     /// The tracks of a group that still exist, in timeline order.
-    fn group_tracks(&self, id: neoveg_engine::track_groups::TrackGroupId) -> Vec<(TrackId, TrackKind)> {
+    fn group_tracks(
+        &self,
+        id: neoveg_engine::track_groups::TrackGroupId,
+    ) -> Vec<(TrackId, TrackKind)> {
         let Some(group) = self.timeline.track_groups.group(id) else {
             return Vec::new();
         };

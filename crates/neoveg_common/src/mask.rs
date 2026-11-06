@@ -4,8 +4,8 @@
 //! ellipse, diamond, or smooth Bézier spline) with keyframed animation, opacity, inversion,
 //! and directional feathering (In, Out, Both).
 
-use serde::{Deserialize, Serialize};
 use crate::fx_mask::FxMask;
+use serde::{Deserialize, Serialize};
 
 /// Feathering style for event mask edges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

@@ -13,16 +13,19 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
-use neoveg_common::i18n::{language_has_ideographs, language_name, set_language, tr_args, tr_text, LANGUAGES};
-use neoveg_common::media_props::{AlphaMode, FieldOrder, MediaProps, PIXEL_ASPECTS, PIXEL_ASPECT_RANGE, SUBSTITUTE_FPS};
+use neoveg_common::i18n::{
+    language_has_ideographs, language_name, set_language, tr_args, tr_text, LANGUAGES,
+};
+use neoveg_common::media_props::{
+    AlphaMode, FieldOrder, MediaProps, PIXEL_ASPECTS, PIXEL_ASPECT_RANGE, SUBSTITUTE_FPS,
+};
 use neoveg_common::presets::{
-    builtin_templates, clamp_size, display_aspect, frame_rate_of, resolution_named,
-    Deinterlace, FieldOrder as PresetFieldOrder, PixelFormat,
-    RenderQuality, FRAME_RATES, RESOLUTIONS,
+    builtin_templates, clamp_size, display_aspect, frame_rate_of, resolution_named, Deinterlace,
+    FieldOrder as PresetFieldOrder, PixelFormat, RenderQuality, FRAME_RATES, RESOLUTIONS,
 };
 use neoveg_common::project::{
-    CaptionStyle, MediaRef, MediaSource, ProjectInfo, ProjectNote, ProjectSettings,
-    next_note_id, notes_in_order, NOTE_COLORS,
+    next_note_id, notes_in_order, CaptionStyle, MediaRef, MediaSource, ProjectInfo, ProjectNote,
+    ProjectSettings, NOTE_COLORS,
 };
 
 fn repo_root() -> PathBuf {
@@ -44,7 +47,10 @@ fn f01_t1_01_worktree_aaf_tests_file_exists_and_non_empty() {
     assert!(p.exists(), "crates/neoveg_aaf/src/tests.rs must exist");
     let content = fs::read_to_string(&p).expect("read aaf tests.rs");
     assert!(!content.trim().is_empty(), "aaf tests.rs must not be empty");
-    assert!(content.contains("#[test]"), "aaf tests.rs must contain tests");
+    assert!(
+        content.contains("#[test]"),
+        "aaf tests.rs must contain tests"
+    );
 }
 
 #[test]
@@ -75,15 +81,31 @@ fn f01_t1_04_worktree_audio_record_module_exists() {
 fn f01_t1_05_worktree_all_14_crates_exist_in_workspace() {
     let crates_dir = repo_root().join("crates");
     let expected_crates = [
-        "neoveg_common", "neoveg_audio", "neoveg_video", "neoveg_engine",
-        "neoveg_text", "neoveg_media", "neoveg_h264", "neoveg_aac",
-        "neoveg_cfb", "neoveg_aaf", "neoveg_ofx", "neoveg_ofx_sample",
-        "neoveg_vst3_sample", "neoveg_ui",
+        "neoveg_common",
+        "neoveg_audio",
+        "neoveg_video",
+        "neoveg_engine",
+        "neoveg_text",
+        "neoveg_media",
+        "neoveg_h264",
+        "neoveg_aac",
+        "neoveg_cfb",
+        "neoveg_aaf",
+        "neoveg_ofx",
+        "neoveg_ofx_sample",
+        "neoveg_vst3_sample",
+        "neoveg_ui",
     ];
     for c in &expected_crates {
         let cp = crates_dir.join(c);
-        assert!(cp.exists() && cp.is_dir(), "Crate {c} must exist in crates/");
-        assert!(cp.join("Cargo.toml").exists(), "Crate {c} must contain Cargo.toml");
+        assert!(
+            cp.exists() && cp.is_dir(),
+            "Crate {c} must exist in crates/"
+        );
+        assert!(
+            cp.join("Cargo.toml").exists(),
+            "Crate {c} must contain Cargo.toml"
+        );
     }
 }
 
@@ -128,7 +150,10 @@ fn f01_t2_05_worktree_zero_broken_symlinks_in_assets() {
     if assets_dir.exists() {
         for entry in fs::read_dir(&assets_dir).unwrap().flatten() {
             let meta = entry.metadata().unwrap();
-            assert!(!meta.is_symlink() || entry.path().exists(), "Dangling symlink in Assets");
+            assert!(
+                !meta.is_symlink() || entry.path().exists(),
+                "Dangling symlink in Assets"
+            );
         }
     }
 }
@@ -162,11 +187,16 @@ fn f05_t1_01_trademark_check_en_us_translation_catalog() {
 
 #[test]
 fn f05_t1_02_trademark_check_all_7_catalogs() {
-    let langs = ["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"];
+    let langs = [
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ];
     for l in &langs {
         let p = repo_root().join(format!("Assets/i18n/strings/{l}.json"));
         let content = fs::read_to_string(&p).unwrap();
-        assert!(!content.contains("DaVinci Resolve"), "{l} has DaVinci Resolve");
+        assert!(
+            !content.contains("DaVinci Resolve"),
+            "{l} has DaVinci Resolve"
+        );
         assert!(!content.contains("Sony Vegas"), "{l} has Sony Vegas");
         assert!(!content.contains("MAGIX Vegas"), "{l} has MAGIX Vegas");
     }
@@ -222,9 +252,13 @@ fn f05_t2_01_trademark_case_insensitive_vendor_brands_check() {
 #[test]
 fn f05_t2_02_trademark_no_trademark_symbols_in_runtime_keys() {
     let p = repo_root().join("Assets/i18n/strings/en-US.json");
-    let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+    let map: HashMap<String, String> =
+        serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
     for key in map.keys() {
-        assert!(!key.contains('®'), "Key '{key}' contains registered trademark symbol");
+        assert!(
+            !key.contains('®'),
+            "Key '{key}' contains registered trademark symbol"
+        );
         assert!(!key.contains('™'), "Key '{key}' contains trademark symbol");
     }
 }
@@ -232,10 +266,17 @@ fn f05_t2_02_trademark_no_trademark_symbols_in_runtime_keys() {
 #[test]
 fn f05_t2_03_trademark_no_trademark_symbols_in_runtime_values() {
     let p = repo_root().join("Assets/i18n/strings/en-US.json");
-    let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+    let map: HashMap<String, String> =
+        serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
     for (k, v) in map {
-        assert!(!v.contains('®'), "Value for '{k}' contains registered trademark symbol");
-        assert!(!v.contains('™'), "Value for '{k}' contains trademark symbol");
+        assert!(
+            !v.contains('®'),
+            "Value for '{k}' contains registered trademark symbol"
+        );
+        assert!(
+            !v.contains('™'),
+            "Value for '{k}' contains trademark symbol"
+        );
     }
 }
 
@@ -243,8 +284,16 @@ fn f05_t2_03_trademark_no_trademark_symbols_in_runtime_values() {
 fn f05_t2_04_trademark_resolution_names_cleanliness() {
     for res in RESOLUTIONS {
         for &tm in FORBIDDEN_TRADEMARKS {
-            assert!(!res.name.contains(tm), "Resolution '{}' has trademark {tm}", res.name);
-            assert!(!res.group.contains(tm), "Group '{}' has trademark {tm}", res.group);
+            assert!(
+                !res.name.contains(tm),
+                "Resolution '{}' has trademark {tm}",
+                res.name
+            );
+            assert!(
+                !res.group.contains(tm),
+                "Group '{}' has trademark {tm}",
+                res.group
+            );
         }
     }
 }
@@ -253,10 +302,17 @@ fn f05_t2_04_trademark_resolution_names_cleanliness() {
 fn f05_t2_05_trademark_de_es_fr_catalogs_trademark_free() {
     for lang in &["de-DE", "es-ES", "fr-FR"] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
-        let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+        let map: HashMap<String, String> =
+            serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
         for (k, v) in map {
-            assert!(!v.contains("Pro Tools"), "{lang}: value for '{k}' contains Pro Tools");
-            assert!(!v.contains("DaVinci Resolve"), "{lang}: value for '{k}' contains DaVinci");
+            assert!(
+                !v.contains("Pro Tools"),
+                "{lang}: value for '{k}' contains Pro Tools"
+            );
+            assert!(
+                !v.contains("DaVinci Resolve"),
+                "{lang}: value for '{k}' contains DaVinci"
+            );
         }
     }
 }
@@ -290,13 +346,15 @@ fn f24_t1_02_project_info_empty_creation() {
 
 #[test]
 fn f24_t1_03_project_settings_serialization_roundtrip() {
-    let mut s = ProjectSettings::default();
-    s.width = 3840;
-    s.height = 2160;
-    s.fps = 60.0;
-    s.pixel_format = PixelFormat::Float32Full;
-    s.render_quality = RenderQuality::Best;
-    s.deinterlace = Deinterlace::Interpolate;
+    let s = ProjectSettings {
+        width: 3840,
+        height: 2160,
+        fps: 60.0,
+        pixel_format: PixelFormat::Float32Full,
+        render_quality: RenderQuality::Best,
+        deinterlace: Deinterlace::Interpolate,
+        ..Default::default()
+    };
     let json = serde_json::to_string(&s).expect("serialize");
     let back: ProjectSettings = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(back, s);
@@ -322,17 +380,21 @@ fn f24_t1_05_clamp_size_keeps_dimensions_even_and_bounded() {
 #[test]
 fn f24_t2_01_project_settings_extreme_fps_and_zero_height_aspect() {
     assert_eq!(display_aspect(1920, 0, 1.0), 0.0);
-    let mut s = ProjectSettings::default();
-    s.fps = 240.0;
+    let s = ProjectSettings {
+        fps: 240.0,
+        ..Default::default()
+    };
     assert!(s.fps > 0.0);
 }
 
 #[test]
 fn f24_t2_02_caption_style_sanitization_bounds() {
-    let mut style = CaptionStyle::default();
-    style.size = -5.0; // invalid negative size
-    style.margin = 10.0; // excessive margin
-    style.box_width = 0.05; // too narrow
+    let style = CaptionStyle {
+        size: -5.0,      // invalid negative size
+        margin: 10.0,    // excessive margin
+        box_width: 0.05, // too narrow
+        ..Default::default()
+    };
     let sanitized = style.sanitized();
     assert!(sanitized.size >= 0.02 && sanitized.size <= 0.15);
     assert!(sanitized.margin <= 0.4);
@@ -341,9 +403,30 @@ fn f24_t2_02_caption_style_sanitization_bounds() {
 
 #[test]
 fn f24_t2_03_project_notes_ordering_and_resolution() {
-    let n1 = ProjectNote { id: 1, time: 10.0, text: "A".into(), label: "".into(), color: 0, resolved: true };
-    let n2 = ProjectNote { id: 2, time: 5.0, text: "B".into(), label: "".into(), color: 1, resolved: false };
-    let n3 = ProjectNote { id: 3, time: 5.0, text: "C".into(), label: "".into(), color: 2, resolved: false };
+    let n1 = ProjectNote {
+        id: 1,
+        time: 10.0,
+        text: "A".into(),
+        label: "".into(),
+        color: 0,
+        resolved: true,
+    };
+    let n2 = ProjectNote {
+        id: 2,
+        time: 5.0,
+        text: "B".into(),
+        label: "".into(),
+        color: 1,
+        resolved: false,
+    };
+    let n3 = ProjectNote {
+        id: 3,
+        time: 5.0,
+        text: "C".into(),
+        label: "".into(),
+        color: 2,
+        resolved: false,
+    };
     let notes = vec![n1, n2, n3];
 
     let all = notes_in_order(&notes, false);
@@ -358,17 +441,42 @@ fn f24_t2_03_project_notes_ordering_and_resolution() {
 
 #[test]
 fn f24_t2_04_note_color_boundary_clamp() {
-    let n = ProjectNote { id: 1, time: 0.0, text: "".into(), label: "".into(), color: 255, resolved: false };
+    let n = ProjectNote {
+        id: 1,
+        time: 0.0,
+        text: "".into(),
+        label: "".into(),
+        color: 255,
+        resolved: false,
+    };
     assert_eq!(n.rgb(), NOTE_COLORS[NOTE_COLORS.len() - 1].1);
 }
 
 #[test]
 fn f24_t2_05_media_ref_source_distinction() {
-    let file_ref = MediaRef { id: 1, path: "clip.mp4".into(), duration_seconds: 10.0, subproject: false, format: None };
-    assert_eq!(file_ref.source(), MediaSource::File(PathBuf::from("clip.mp4")));
+    let file_ref = MediaRef {
+        id: 1,
+        path: "clip.mp4".into(),
+        duration_seconds: 10.0,
+        subproject: false,
+        format: None,
+    };
+    assert_eq!(
+        file_ref.source(),
+        MediaSource::File(PathBuf::from("clip.mp4"))
+    );
 
-    let sub_ref = MediaRef { id: 2, path: "nested.neoveg".into(), duration_seconds: 20.0, subproject: true, format: None };
-    assert_eq!(sub_ref.source(), MediaSource::SubProject(PathBuf::from("nested.neoveg")));
+    let sub_ref = MediaRef {
+        id: 2,
+        path: "nested.neoveg".into(),
+        duration_seconds: 20.0,
+        subproject: true,
+        format: None,
+    };
+    assert_eq!(
+        sub_ref.source(),
+        MediaSource::SubProject(PathBuf::from("nested.neoveg"))
+    );
 }
 
 // ============================================================================
@@ -378,7 +486,11 @@ fn f24_t2_05_media_ref_source_distinction() {
 #[test]
 fn f25_t1_01_builtin_templates_count_and_types() {
     let templates = builtin_templates();
-    assert!(templates.len() >= 25, "Expected standard built-in templates, got {}", templates.len());
+    assert!(
+        templates.len() >= 25,
+        "Expected standard built-in templates, got {}",
+        templates.len()
+    );
     let names: Vec<_> = templates.iter().map(|t| t.name.clone()).collect();
     assert!(names.iter().any(|n| n.contains("Full HD 1080p 29,97")));
     assert!(names.iter().any(|n| n.contains("4K UHD 23,976")));
@@ -408,17 +520,32 @@ fn f25_t1_03_frame_rate_of_lookup() {
 fn f25_t1_04_template_resolution_dimensions_match_settings() {
     for t in builtin_templates() {
         assert!(t.settings.width > 0 && t.settings.height > 0);
-        assert!(t.settings.width % 2 == 0, "Template {} width must be even", t.name);
-        assert!(t.settings.height % 2 == 0, "Template {} height must be even", t.name);
+        assert!(
+            t.settings.width % 2 == 0,
+            "Template {} width must be even",
+            t.name
+        );
+        assert!(
+            t.settings.height % 2 == 0,
+            "Template {} height must be even",
+            t.name
+        );
     }
 }
 
 #[test]
 fn f25_t1_05_vertical_and_square_social_templates_exist() {
     let templates = builtin_templates();
-    let has_vertical = templates.iter().any(|t| t.settings.width == 1080 && t.settings.height == 1920);
-    let has_square = templates.iter().any(|t| t.settings.width == 1080 && t.settings.height == 1080);
-    assert!(has_vertical, "Vertical 1080x1920 social template must exist");
+    let has_vertical = templates
+        .iter()
+        .any(|t| t.settings.width == 1080 && t.settings.height == 1920);
+    let has_square = templates
+        .iter()
+        .any(|t| t.settings.width == 1080 && t.settings.height == 1080);
+    assert!(
+        has_vertical,
+        "Vertical 1080x1920 social template must exist"
+    );
     assert!(has_square, "Square 1080x1080 social template must exist");
 }
 
@@ -437,24 +564,42 @@ fn f25_t2_02_unknown_framerate_returns_none() {
 #[test]
 fn f25_t2_03_broadcast_interlaced_field_order_settings() {
     let templates = builtin_templates();
-    let ntsc_interlaced = templates.iter().find(|t| t.name.contains("NTSC SD 4:3")).unwrap();
-    assert_eq!(ntsc_interlaced.settings.field_order, PresetFieldOrder::LowerFirst);
+    let ntsc_interlaced = templates
+        .iter()
+        .find(|t| t.name.contains("NTSC SD 4:3"))
+        .unwrap();
+    assert_eq!(
+        ntsc_interlaced.settings.field_order,
+        PresetFieldOrder::LowerFirst
+    );
 
-    let pal_interlaced = templates.iter().find(|t| t.name.contains("PAL SD 4:3")).unwrap();
-    assert_eq!(pal_interlaced.settings.field_order, PresetFieldOrder::UpperFirst);
+    let pal_interlaced = templates
+        .iter()
+        .find(|t| t.name.contains("PAL SD 4:3"))
+        .unwrap();
+    assert_eq!(
+        pal_interlaced.settings.field_order,
+        PresetFieldOrder::UpperFirst
+    );
 }
 
 #[test]
 fn f25_t2_04_pixel_aspect_ratios_are_strictly_positive() {
     for (par, name) in PIXEL_ASPECTS {
-        assert!(par >= PIXEL_ASPECT_RANGE.0 && par <= PIXEL_ASPECT_RANGE.1, "{name} PAR out of range");
+        assert!(
+            par >= PIXEL_ASPECT_RANGE.0 && par <= PIXEL_ASPECT_RANGE.1,
+            "{name} PAR out of range"
+        );
     }
 }
 
 #[test]
 fn f25_t2_05_frame_rates_table_monotonically_ordered() {
     for window in FRAME_RATES.windows(2) {
-        assert!(window[0].fps < window[1].fps, "Frame rates should be sorted ascending");
+        assert!(
+            window[0].fps < window[1].fps,
+            "Frame rates should be sorted ascending"
+        );
     }
 }
 
@@ -480,13 +625,16 @@ pub struct MediaProfileAttributes {
     pub gamma: f64,
 }
 
+#[derive(Default)]
 pub struct TestProfileMatcher {
     profiles: Vec<(MediaProfileKey, MediaProfileAttributes)>,
 }
 
 impl TestProfileMatcher {
     pub fn new() -> Self {
-        Self { profiles: Vec::new() }
+        Self {
+            profiles: Vec::new(),
+        }
     }
 
     pub fn add_rule(&mut self, key: MediaProfileKey, attr: MediaProfileAttributes) {
@@ -496,12 +644,15 @@ impl TestProfileMatcher {
     /// Search backwards from latest rule to earliest (results.md §18.4)
     pub fn match_stream(&self, target: &MediaProfileKey) -> Option<MediaProfileAttributes> {
         for (key, attr) in self.profiles.iter().rev() {
-            let clsid_match = key.file_io_clsid.is_none() || key.file_io_clsid == target.file_io_clsid;
+            let clsid_match =
+                key.file_io_clsid.is_none() || key.file_io_clsid == target.file_io_clsid;
             let subformat_match = key.subformat.is_empty() || key.subformat == target.subformat;
             let size_match = (key.size_x == 0 || key.size_x == target.size_x)
                 && (key.size_y == 0 || key.size_y == target.size_y);
-            let fps_match = key.frame_rate <= 0.0 || (key.frame_rate - target.frame_rate).abs() < 0.01;
-            let depth_match = key.color_bit_depth == 0 || key.color_bit_depth == target.color_bit_depth;
+            let fps_match =
+                key.frame_rate <= 0.0 || (key.frame_rate - target.frame_rate).abs() < 0.01;
+            let depth_match =
+                key.color_bit_depth == 0 || key.color_bit_depth == target.color_bit_depth;
 
             if clsid_match && subformat_match && size_match && fps_match && depth_match {
                 return Some(attr.clone());
@@ -804,7 +955,8 @@ pub fn get_standard_alert(code: AlertCode) -> AlertDefinition {
             code,
             category: AlertCategory::RenderPrerender,
             en_us: "Unable to render because the project contains no timeline events.",
-            pt_br: "Não é possível renderizar porque o projeto não contém eventos na linha do tempo.",
+            pt_br:
+                "Não é possível renderizar porque o projeto não contém eventos na linha do tempo.",
         },
         AlertCode::InsufficientDiscSpace => AlertDefinition {
             code,
@@ -886,14 +1038,20 @@ fn f33_t1_05_alert_plugin_load_error_16555() {
 fn f33_t2_01_alert_formatting_with_parameter_substitution() {
     let a = get_standard_alert(AlertCode::MediaFileNotFound);
     let formatted = a.en_us.replace("{0}", "vacation.mp4");
-    assert_eq!(formatted, "The file 'vacation.mp4' was not found in the specified path.");
+    assert_eq!(
+        formatted,
+        "The file 'vacation.mp4' was not found in the specified path."
+    );
 }
 
 #[test]
 fn f33_t2_02_alert_channel_count_formatting() {
     let a = get_standard_alert(AlertCode::UnsupportedChannelCount);
     let formatted = a.en_us.replace("{0}", "16");
-    assert_eq!(formatted, "Unsupported audio channel configuration (16 channels).");
+    assert_eq!(
+        formatted,
+        "Unsupported audio channel configuration (16 channels)."
+    );
 }
 
 #[test]
@@ -906,7 +1064,10 @@ fn f33_t2_03_alert_categories_coverage() {
         AlertCode::GpuAccelerationError,
         AlertCode::PluginFailedToLoad,
     ];
-    let categories: HashSet<_> = codes.iter().map(|&c| get_standard_alert(c).category).collect();
+    let categories: HashSet<_> = codes
+        .iter()
+        .map(|&c| get_standard_alert(c).category)
+        .collect();
     assert!(categories.contains(&AlertCategory::MissingMedia));
     assert!(categories.contains(&AlertCategory::CodecFormat));
     assert!(categories.contains(&AlertCategory::RenderPrerender));
@@ -917,20 +1078,35 @@ fn f33_t2_03_alert_categories_coverage() {
 #[test]
 fn f33_t2_04_alert_clean_room_text_no_vendor_trademarks() {
     let all_codes = [
-        AlertCode::MissingMediaPoolElements, AlertCode::MediaIsOfflinePrompt,
-        AlertCode::MediaFileNotFound, AlertCode::FindMissingFile,
-        AlertCode::MissingVideoCodec, AlertCode::MissingAudioCodec,
-        AlertCode::CorruptStreamFormat, AlertCode::UnsupportedChannelCount,
-        AlertCode::EmptyProjectCannotRender, AlertCode::InsufficientDiscSpace,
-        AlertCode::ConfirmCancelRender, AlertCode::GpuAccelerationError,
-        AlertCode::GpuDeviceDriverProblem, AlertCode::PluginFailedToLoad,
+        AlertCode::MissingMediaPoolElements,
+        AlertCode::MediaIsOfflinePrompt,
+        AlertCode::MediaFileNotFound,
+        AlertCode::FindMissingFile,
+        AlertCode::MissingVideoCodec,
+        AlertCode::MissingAudioCodec,
+        AlertCode::CorruptStreamFormat,
+        AlertCode::UnsupportedChannelCount,
+        AlertCode::EmptyProjectCannotRender,
+        AlertCode::InsufficientDiscSpace,
+        AlertCode::ConfirmCancelRender,
+        AlertCode::GpuAccelerationError,
+        AlertCode::GpuDeviceDriverProblem,
+        AlertCode::PluginFailedToLoad,
         AlertCode::PluginChainFull,
     ];
     for c in all_codes {
         let def = get_standard_alert(c);
         for &tm in FORBIDDEN_TRADEMARKS {
-            assert!(!def.en_us.contains(tm), "Alert {} en_us has trademark {tm}", c as u32);
-            assert!(!def.pt_br.contains(tm), "Alert {} pt_br has trademark {tm}", c as u32);
+            assert!(
+                !def.en_us.contains(tm),
+                "Alert {} en_us has trademark {tm}",
+                c as u32
+            );
+            assert!(
+                !def.pt_br.contains(tm),
+                "Alert {} pt_br has trademark {tm}",
+                c as u32
+            );
         }
     }
 }
@@ -938,13 +1114,20 @@ fn f33_t2_04_alert_clean_room_text_no_vendor_trademarks() {
 #[test]
 fn f33_t2_05_alert_codes_numeric_uniqueness() {
     let all_codes = [
-        AlertCode::MissingMediaPoolElements, AlertCode::MediaIsOfflinePrompt,
-        AlertCode::MediaFileNotFound, AlertCode::FindMissingFile,
-        AlertCode::MissingVideoCodec, AlertCode::MissingAudioCodec,
-        AlertCode::CorruptStreamFormat, AlertCode::UnsupportedChannelCount,
-        AlertCode::EmptyProjectCannotRender, AlertCode::InsufficientDiscSpace,
-        AlertCode::ConfirmCancelRender, AlertCode::GpuAccelerationError,
-        AlertCode::GpuDeviceDriverProblem, AlertCode::PluginFailedToLoad,
+        AlertCode::MissingMediaPoolElements,
+        AlertCode::MediaIsOfflinePrompt,
+        AlertCode::MediaFileNotFound,
+        AlertCode::FindMissingFile,
+        AlertCode::MissingVideoCodec,
+        AlertCode::MissingAudioCodec,
+        AlertCode::CorruptStreamFormat,
+        AlertCode::UnsupportedChannelCount,
+        AlertCode::EmptyProjectCannotRender,
+        AlertCode::InsufficientDiscSpace,
+        AlertCode::ConfirmCancelRender,
+        AlertCode::GpuAccelerationError,
+        AlertCode::GpuDeviceDriverProblem,
+        AlertCode::PluginFailedToLoad,
         AlertCode::PluginChainFull,
     ];
     let mut seen = HashSet::new();
@@ -995,8 +1178,18 @@ fn f41_t1_04_parity_matrix_python_script_syntax_validity() {
 fn f41_t1_05_parity_matrix_row_categories_covered() {
     let p = repo_root().join("scripts/parity_matrix.py");
     let content = fs::read_to_string(p).unwrap();
-    for cat in &["Arquivo", "Editar", "Inserir", "Ferramentas", "Opções", "Exibir"] {
-        assert!(content.contains(cat), "Parity matrix must contain category {cat}");
+    for cat in &[
+        "Arquivo",
+        "Editar",
+        "Inserir",
+        "Ferramentas",
+        "Opções",
+        "Exibir",
+    ] {
+        assert!(
+            content.contains(cat),
+            "Parity matrix must contain category {cat}"
+        );
     }
 }
 
@@ -1005,7 +1198,10 @@ fn f41_t2_01_parity_matrix_states_validity() {
     let p = repo_root().join("scripts/parity_matrix.py");
     let content = fs::read_to_string(p).unwrap();
     for state in &["feito", "parcial", "previsto", "sem_plano"] {
-        assert!(content.contains(state), "State '{state}' missing in parity script");
+        assert!(
+            content.contains(state),
+            "State '{state}' missing in parity script"
+        );
     }
 }
 
@@ -1096,7 +1292,9 @@ fn f42_t1_03_translation_ideograph_languages_flag() {
 
 #[test]
 fn f42_t1_04_translation_all_7_files_exist_on_disk() {
-    for lang in &["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"] {
+    for lang in &[
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
         assert!(p.exists(), "Translation catalog missing: {lang}.json");
     }
@@ -1104,10 +1302,16 @@ fn f42_t1_04_translation_all_7_files_exist_on_disk() {
 
 #[test]
 fn f42_t1_05_translation_all_7_files_valid_json_objects() {
-    for lang in &["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"] {
+    for lang in &[
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
-        let map: Result<HashMap<String, String>, _> = serde_json::from_str(&fs::read_to_string(p).unwrap());
-        assert!(map.is_ok(), "{lang}.json must parse into HashMap<String, String>");
+        let map: Result<HashMap<String, String>, _> =
+            serde_json::from_str(&fs::read_to_string(p).unwrap());
+        assert!(
+            map.is_ok(),
+            "{lang}.json must parse into HashMap<String, String>"
+        );
         assert!(!map.unwrap().is_empty(), "{lang}.json must not be empty");
     }
 }
@@ -1115,12 +1319,14 @@ fn f42_t1_05_translation_all_7_files_valid_json_objects() {
 #[test]
 fn f42_t2_01_translation_100_percent_key_matching_across_all_catalogs() {
     let en_path = repo_root().join("Assets/i18n/strings/en-US.json");
-    let en_map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(en_path).unwrap()).unwrap();
+    let en_map: HashMap<String, String> =
+        serde_json::from_str(&fs::read_to_string(en_path).unwrap()).unwrap();
     let en_keys: HashSet<_> = en_map.keys().collect();
 
     for lang in &["de-DE", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
-        let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+        let map: HashMap<String, String> =
+            serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
         let target_keys: HashSet<_> = map.keys().collect();
 
         let missing: Vec<_> = en_keys.difference(&target_keys).collect();
@@ -1136,9 +1342,12 @@ fn f42_t2_01_translation_100_percent_key_matching_across_all_catalogs() {
 
 #[test]
 fn f42_t2_02_translation_placeholder_marker_consistency() {
-    for lang in &["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"] {
+    for lang in &[
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
-        let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+        let map: HashMap<String, String> =
+            serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
         for (src, dst) in map {
             let src_count = src.matches("{}").count();
             let dst_count = dst.matches("{}").count();
@@ -1152,11 +1361,17 @@ fn f42_t2_02_translation_placeholder_marker_consistency() {
 
 #[test]
 fn f42_t2_03_translation_no_empty_translated_strings() {
-    for lang in &["de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN"] {
+    for lang in &[
+        "de-DE", "en-US", "es-ES", "fr-FR", "ja-JP", "ru-RU", "zh-CN",
+    ] {
         let p = repo_root().join(format!("Assets/i18n/strings/{lang}.json"));
-        let map: HashMap<String, String> = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
+        let map: HashMap<String, String> =
+            serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
         for (src, dst) in map {
-            assert!(!dst.trim().is_empty(), "{lang}: empty translation for '{src}'");
+            assert!(
+                !dst.trim().is_empty(),
+                "{lang}: empty translation for '{src}'"
+            );
         }
     }
 }

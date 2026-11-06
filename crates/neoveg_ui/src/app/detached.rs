@@ -267,9 +267,8 @@ impl NeovegApp {
                         i.key_pressed(egui::Key::Escape),
                     )
                 });
-                let (next, ends) = neoveg_common::window_layout::fullscreen_step(
-                    fullscreen, temporary, f11, esc,
-                );
+                let (next, ends) =
+                    neoveg_common::window_layout::fullscreen_step(fullscreen, temporary, f11, esc);
                 if next != fullscreen {
                     fullscreen = next;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(fullscreen));
@@ -610,8 +609,14 @@ mod fullscreen_preview_tests {
         assert_eq!(app.detached.len(), 1);
         let window = &app.detached[0];
         assert!(window.tab == Tab::Preview && window.fullscreen && window.temporary);
-        assert!(app.dock.find_tab(&Tab::Preview).is_none(), "not in both places");
-        assert!(app.saved_windows().is_empty(), "a review window is not saved");
+        assert!(
+            app.dock.find_tab(&Tab::Preview).is_none(),
+            "not in both places"
+        );
+        assert!(
+            app.saved_windows().is_empty(),
+            "a review window is not saved"
+        );
         app.toggle_fullscreen_preview(&ctx);
         assert!(app.detached.is_empty());
         assert!(app.dock.find_tab(&Tab::Preview).is_some());

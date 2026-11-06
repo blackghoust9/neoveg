@@ -353,9 +353,19 @@ impl MediaPoolManager {
                     || item.media_type.to_lowercase().contains(&self.search_filter)
                     || item.comment.to_lowercase().contains(&self.search_filter)
                     || item.tape_name.to_lowercase().contains(&self.search_filter)
-                    || item.path.to_string_lossy().to_lowercase().contains(&self.search_filter)
-                    || item.audio_format.to_lowercase().contains(&self.search_filter)
-                    || item.tags.iter().any(|t| t.to_lowercase().contains(&self.search_filter))
+                    || item
+                        .path
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .contains(&self.search_filter)
+                    || item
+                        .audio_format
+                        .to_lowercase()
+                        .contains(&self.search_filter)
+                    || item
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&self.search_filter))
             })
             .collect();
 

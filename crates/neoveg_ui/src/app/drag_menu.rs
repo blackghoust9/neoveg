@@ -28,7 +28,8 @@ pub(super) struct DragExtras {
 impl AppState {
     /// Called when a drag starts on the lanes: remembers the button and `Ctrl`.
     pub(super) fn note_drag_press(&mut self, ui: &egui::Ui) {
-        self.drag_extras.secondary = ui.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
+        self.drag_extras.secondary =
+            ui.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
         self.drag_extras.ctrl_at_press = ui.input(|i| i.modifiers.command);
     }
 
@@ -168,6 +169,9 @@ mod tests {
         assert_eq!(s.selection.len(), 1);
         s.apply_drag_choice(DragChoice::Move, &pending);
         assert_eq!(s.timeline.tracks[0].events.len(), 2);
-        assert!(s.timeline.tracks[0].events.iter().any(|e| e.id == ev_id && e.start == 10.0));
+        assert!(s.timeline.tracks[0]
+            .events
+            .iter()
+            .any(|e| e.id == ev_id && e.start == 10.0));
     }
 }

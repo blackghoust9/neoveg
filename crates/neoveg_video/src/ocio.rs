@@ -555,9 +555,9 @@ mod tests {
         let lut = tf.generate_3d_lut(4);
         assert_eq!(lut.title, "ACES Transform");
         let sampled = lut.apply([0.5, 0.5, 0.5]);
-        for c in 0..3 {
-            assert!(sampled[c].is_finite());
-            assert!(sampled[c] >= 0.0 && sampled[c] <= 1.0);
+        for val in sampled {
+            assert!(val.is_finite());
+            assert!((0.0..=1.0).contains(&val));
         }
     }
 }

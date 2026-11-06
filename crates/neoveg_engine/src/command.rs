@@ -514,13 +514,12 @@ impl EditCommand {
                 ..
             } => set_pan_crop(tl, *track_id, *event_id, after),
             Self::RenameEvents { changes } => {
-                changes.iter().all(|(t, e, _, _)| event_exists(tl, *t, *e))
-                    && {
-                        for (t, e, _, after) in changes {
-                            set_event_name(tl, *t, *e, after);
-                        }
-                        true
+                changes.iter().all(|(t, e, _, _)| event_exists(tl, *t, *e)) && {
+                    for (t, e, _, after) in changes {
+                        set_event_name(tl, *t, *e, after);
                     }
+                    true
+                }
             }
             Self::SetTrackMotion {
                 track_id, after, ..

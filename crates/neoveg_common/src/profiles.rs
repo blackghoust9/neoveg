@@ -150,7 +150,9 @@ impl MediaProfileMatcher {
 
         // Sequential index check: must start at 1 and stop at the first gap.
         let mut current_idx = 1;
-        while let (Some(key_str), Some(attr_str)) = (keys.get(&current_idx), attrs.get(&current_idx)) {
+        while let (Some(key_str), Some(attr_str)) =
+            (keys.get(&current_idx), attrs.get(&current_idx))
+        {
             let key = parse_key(key_str)?;
             let attr = parse_attributes(attr_str)?;
             matcher.rules.push(MediaProfileRule {
@@ -195,9 +197,7 @@ impl MediaProfileMatcher {
             let size_match = (rule.key.size_x == 0
                 || target.size_x == 0
                 || rule.key.size_x == target.size_x)
-                && (rule.key.size_y == 0
-                    || target.size_y == 0
-                    || rule.key.size_y == target.size_y);
+                && (rule.key.size_y == 0 || target.size_y == 0 || rule.key.size_y == target.size_y);
 
             let fps_match = rule.key.frame_rate <= 0.0
                 || target.frame_rate <= 0.0
@@ -241,67 +241,132 @@ impl MediaProfileMatcher {
         // 1. DV NTSC
         m.add_rule(
             MediaProfileKey::new(None, "None", 720, 480, 29.970030, 0),
-            MediaProfileAttributes::new(FieldOrder::LowerFirst, 0.909091, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::LowerFirst,
+                0.909091,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 2. DV PAL
         m.add_rule(
             MediaProfileKey::new(None, "None", 720, 576, 25.000000, 0),
-            MediaProfileAttributes::new(FieldOrder::LowerFirst, 1.092593, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::LowerFirst,
+                1.092593,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 3. DV NTSC Widescreen
         m.add_rule(
             MediaProfileKey::new(None, "DV Widescreen", 720, 480, 29.970030, 0),
-            MediaProfileAttributes::new(FieldOrder::LowerFirst, 1.212121, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::LowerFirst,
+                1.212121,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 4. DV PAL Widescreen
         m.add_rule(
             MediaProfileKey::new(None, "DV Widescreen", 720, 576, 25.000000, 0),
-            MediaProfileAttributes::new(FieldOrder::LowerFirst, 1.456790, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::LowerFirst,
+                1.456790,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 5. HDV 1080i NTSC
         m.add_rule(
             MediaProfileKey::new(None, "None", 1440, 1080, 29.970030, 0),
-            MediaProfileAttributes::new(FieldOrder::UpperFirst, 1.333333, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::UpperFirst,
+                1.333333,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 6. HDV 1080i PAL
         m.add_rule(
             MediaProfileKey::new(None, "None", 1440, 1080, 25.000000, 0),
-            MediaProfileAttributes::new(FieldOrder::UpperFirst, 1.333333, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::UpperFirst,
+                1.333333,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 7. HDV 720p 24
         m.add_rule(
             MediaProfileKey::new(None, "None", 1280, 720, 23.976024, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 8. HDV 720p 25
         m.add_rule(
             MediaProfileKey::new(None, "None", 1280, 720, 25.000000, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 9. HDV 720p 30
         m.add_rule(
             MediaProfileKey::new(None, "None", 1280, 720, 29.970030, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 10. HDV 720p 50
         m.add_rule(
             MediaProfileKey::new(None, "None", 1280, 720, 50.000000, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 11. HDV 720p 60
         m.add_rule(
             MediaProfileKey::new(None, "None", 1280, 720, 59.940060, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::None, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::None,
+                2.222222,
+            ),
         );
         // 12. 1080p Standard Square
         m.add_rule(
             MediaProfileKey::new(None, "None", 1920, 1080, 0.0, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::Auto, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::Auto,
+                2.222222,
+            ),
         );
         // 13. 4K UHD Standard Square
         m.add_rule(
             MediaProfileKey::new(None, "None", 3840, 2160, 0.0, 0),
-            MediaProfileAttributes::new(FieldOrder::Progressive, 1.000000, AlphaMode::Auto, 2.222222),
+            MediaProfileAttributes::new(
+                FieldOrder::Progressive,
+                1.000000,
+                AlphaMode::Auto,
+                2.222222,
+            ),
         );
         m
     }
@@ -322,11 +387,12 @@ fn parse_key(val: &str) -> Result<MediaProfileKey, String> {
         return Err(format!("Key requires 6 comma-separated fields, got: {val}"));
     }
     let clsid_raw = strip_quotes(parts[0]);
-    let file_io_clsid = if clsid_raw == "0" || clsid_raw.eq_ignore_ascii_case("None") || clsid_raw.is_empty() {
-        None
-    } else {
-        Some(clsid_raw.to_string())
-    };
+    let file_io_clsid =
+        if clsid_raw == "0" || clsid_raw.eq_ignore_ascii_case("None") || clsid_raw.is_empty() {
+            None
+        } else {
+            Some(clsid_raw.to_string())
+        };
 
     let subformat_raw = strip_quotes(parts[1]);
     let subformat = if subformat_raw == "0" || subformat_raw.eq_ignore_ascii_case("None") {
@@ -353,15 +419,21 @@ fn parse_key(val: &str) -> Result<MediaProfileKey, String> {
 fn parse_attributes(val: &str) -> Result<MediaProfileAttributes, String> {
     let parts: Vec<&str> = val.split(',').map(str::trim).collect();
     if parts.len() < 4 {
-        return Err(format!("Attributes requires 4 comma-separated fields, got: {val}"));
+        return Err(format!(
+            "Attributes requires 4 comma-separated fields, got: {val}"
+        ));
     }
 
     let interlace_str = strip_quotes(parts[0]);
     let interlace = match interlace_str {
-        s if s.eq_ignore_ascii_case("Lower field first") || s.eq_ignore_ascii_case("LowerFirst") => {
+        s if s.eq_ignore_ascii_case("Lower field first")
+            || s.eq_ignore_ascii_case("LowerFirst") =>
+        {
             FieldOrder::LowerFirst
         }
-        s if s.eq_ignore_ascii_case("Upper field first") || s.eq_ignore_ascii_case("UpperFirst") => {
+        s if s.eq_ignore_ascii_case("Upper field first")
+            || s.eq_ignore_ascii_case("UpperFirst") =>
+        {
             FieldOrder::UpperFirst
         }
         _ => FieldOrder::Progressive,

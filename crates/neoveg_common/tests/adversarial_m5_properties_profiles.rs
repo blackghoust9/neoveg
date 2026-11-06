@@ -13,19 +13,12 @@
 use neoveg_common::alerts::AlertCode;
 use neoveg_common::media_props::{AlphaMode, FieldOrder};
 use neoveg_common::presets::{
-    canonical_46_templates, export_vqpt, import_vqpt,
-    ProjectTemplate, TemplateManager,
+    canonical_46_templates, export_vqpt, import_vqpt, ProjectTemplate, TemplateManager,
 };
-use neoveg_common::profiles::{
-    MediaProfileAttributes, MediaProfileKey, MediaProfileMatcher,
-};
+use neoveg_common::profiles::{MediaProfileAttributes, MediaProfileKey, MediaProfileMatcher};
 use neoveg_common::project::ProjectSettings;
-use neoveg_engine::media_bins::{
-    MediaBinTree, SearchCondition, SearchCriterion, SearchField,
-};
-use neoveg_engine::media_pool::{
-    MediaDetailColumn, MediaDetailRow, MediaPoolManager,
-};
+use neoveg_engine::media_bins::{MediaBinTree, SearchCondition, SearchCriterion, SearchField};
+use neoveg_engine::media_pool::{MediaDetailColumn, MediaDetailRow, MediaPoolManager};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -35,7 +28,12 @@ static TEST_COUNTER: AtomicUsize = AtomicUsize::new(1);
 fn create_temp_test_dir(prefix: &str) -> PathBuf {
     let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     let mut dir = std::env::temp_dir();
-    dir.push(format!("neoveg_adversarial_m5_{}_{}_{}", prefix, std::process::id(), id));
+    dir.push(format!(
+        "neoveg_adversarial_m5_{}_{}_{}",
+        prefix,
+        std::process::id(),
+        id
+    ));
     fs::create_dir_all(&dir).expect("create temp test dir");
     dir
 }
@@ -67,7 +65,12 @@ fn test_profiles_reverse_order_with_multiple_overlapping_rules() {
     // Rule 4: highest priority (added last)
     matcher.add_rule(
         MediaProfileKey::new(None, "None", 1920, 1080, 24.0, 0),
-        MediaProfileAttributes::new(FieldOrder::Progressive, 2.0, AlphaMode::PremultipliedDirty, 1.8),
+        MediaProfileAttributes::new(
+            FieldOrder::Progressive,
+            2.0,
+            AlphaMode::PremultipliedDirty,
+            1.8,
+        ),
     );
 
     let query = MediaProfileKey::new(None, "None", 1920, 1080, 24.0, 8);
@@ -91,27 +94,45 @@ fn test_profiles_fps_epsilon_boundary_tolerances() {
 
     // 1. Exact match (diff = 0.0)
     let q_exact = MediaProfileKey::new(None, "None", 1920, 1080, 29.970, 0);
-    assert!(matcher.match_stream(&q_exact).is_some(), "Exact FPS must match");
+    assert!(
+        matcher.match_stream(&q_exact).is_some(),
+        "Exact FPS must match"
+    );
 
     // 2. Just within upper tolerance: 29.970 + 0.0049 = 29.9749 (diff = 0.0049 < 0.005)
     let q_inside_upper = MediaProfileKey::new(None, "None", 1920, 1080, 29.9749, 0);
-    assert!(matcher.match_stream(&q_inside_upper).is_some(), "diff 0.0049 must match");
+    assert!(
+        matcher.match_stream(&q_inside_upper).is_some(),
+        "diff 0.0049 must match"
+    );
 
     // 3. Just within lower tolerance: 29.970 - 0.0049 = 29.9651 (diff = 0.0049 < 0.005)
     let q_inside_lower = MediaProfileKey::new(None, "None", 1920, 1080, 29.9651, 0);
-    assert!(matcher.match_stream(&q_inside_lower).is_some(), "diff 0.0049 lower must match");
+    assert!(
+        matcher.match_stream(&q_inside_lower).is_some(),
+        "diff 0.0049 lower must match"
+    );
 
     // 4. Exact boundary: 29.970 + 0.0050 = 29.9750 (diff = 0.0050, strict < 0.005 must NOT match)
     let q_boundary_upper = MediaProfileKey::new(None, "None", 1920, 1080, 29.9750, 0);
-    assert!(matcher.match_stream(&q_boundary_upper).is_none(), "diff 0.0050 must not match (< 0.005)");
+    assert!(
+        matcher.match_stream(&q_boundary_upper).is_none(),
+        "diff 0.0050 must not match (< 0.005)"
+    );
 
     // 5. Outside boundary: 29.970 + 0.0051 = 29.9751 (diff = 0.0051 > 0.005)
     let q_outside_upper = MediaProfileKey::new(None, "None", 1920, 1080, 29.9751, 0);
-    assert!(matcher.match_stream(&q_outside_upper).is_none(), "diff 0.0051 must not match");
+    assert!(
+        matcher.match_stream(&q_outside_upper).is_none(),
+        "diff 0.0051 must not match"
+    );
 
     // 6. Outside lower boundary: 29.970 - 0.0051 = 29.9649 (diff = 0.0051 > 0.005)
     let q_outside_lower = MediaProfileKey::new(None, "None", 1920, 1080, 29.9649, 0);
-    assert!(matcher.match_stream(&q_outside_lower).is_none(), "diff 0.0051 lower must not match");
+    assert!(
+        matcher.match_stream(&q_outside_lower).is_none(),
+        "diff 0.0051 lower must not match"
+    );
 
     // 7. Wildcard FPS 0.0 in rule matches any query FPS
     let mut wildcard_matcher = MediaProfileMatcher::new();
@@ -120,11 +141,17 @@ fn test_profiles_fps_epsilon_boundary_tolerances() {
         MediaProfileAttributes::new(FieldOrder::Progressive, 1.0, AlphaMode::None, 2.222),
     );
     let q_any_fps = MediaProfileKey::new(None, "None", 1920, 1080, 120.0, 0);
-    assert!(wildcard_matcher.match_stream(&q_any_fps).is_some(), "0.0 FPS rule matches 120 FPS");
+    assert!(
+        wildcard_matcher.match_stream(&q_any_fps).is_some(),
+        "0.0 FPS rule matches 120 FPS"
+    );
 
     // 8. Query FPS <= 0.0 matches any rule FPS
     let q_zero_fps = MediaProfileKey::new(None, "None", 1920, 1080, 0.0, 0);
-    assert!(matcher.match_stream(&q_zero_fps).is_some(), "0.0 query FPS matches nominal 29.970");
+    assert!(
+        matcher.match_stream(&q_zero_fps).is_some(),
+        "0.0 query FPS matches nominal 29.970"
+    );
 }
 
 #[test]
@@ -136,7 +163,11 @@ Key1 = 0, "None", 1920, 1080, 24.0, 0
 Attributes1 = "Progressive", 1.0, "None", 2.222
 "#;
     let m1 = MediaProfileMatcher::parse_ini(ini_no_section).expect("parse without error");
-    assert_eq!(m1.rules().len(), 0, "Must ignore keys outside [Video Media Profiles]");
+    assert_eq!(
+        m1.rules().len(),
+        0,
+        "Must ignore keys outside [Video Media Profiles]"
+    );
 
     // 2. INI with gap in numbering (Key1, Key2, Key4) -> stops at Key2
     let ini_gap = r#"
@@ -149,7 +180,11 @@ Key4 = 0, "None", 3840, 2160, 60.0, 0
 Attributes4 = "Progressive", 1.0, "None", 2.222
 "#;
     let m2 = MediaProfileMatcher::parse_ini(ini_gap).expect("parse with gap");
-    assert_eq!(m2.rules().len(), 2, "Must stop parsing at first gap (Key3 missing)");
+    assert_eq!(
+        m2.rules().len(),
+        2,
+        "Must stop parsing at first gap (Key3 missing)"
+    );
 
     // 3. INI starting numbering at 2 (no Key1) -> terminates immediately (0 rules)
     let ini_start_at_two = r#"
@@ -158,7 +193,11 @@ Key2 = 0, "None", 1920, 1080, 24.0, 0
 Attributes2 = "Progressive", 1.0, "None", 2.222
 "#;
     let m3 = MediaProfileMatcher::parse_ini(ini_start_at_two).expect("parse start at 2");
-    assert_eq!(m3.rules().len(), 0, "Missing Key1 must result in 0 rules loaded");
+    assert_eq!(
+        m3.rules().len(),
+        0,
+        "Missing Key1 must result in 0 rules loaded"
+    );
 
     // 4. INI with missing Attributes for Key1
     let ini_missing_attrs = r#"
@@ -166,7 +205,11 @@ Attributes2 = "Progressive", 1.0, "None", 2.222
 Key1 = 0, "None", 1920, 1080, 24.0, 0
 "#;
     let m4 = MediaProfileMatcher::parse_ini(ini_missing_attrs).expect("parse missing attr");
-    assert_eq!(m4.rules().len(), 0, "Key1 without Attributes1 must result in 0 rules");
+    assert_eq!(
+        m4.rules().len(),
+        0,
+        "Key1 without Attributes1 must result in 0 rules"
+    );
 
     // 5. INI with malformed Key line (< 6 fields)
     let ini_malformed_key = r#"
@@ -184,7 +227,10 @@ Key1 = 0, "None", 1920, 1080, 24.0, 0
 Attributes1 = "Progressive", 1.0
 "#;
     let m6 = MediaProfileMatcher::parse_ini(ini_malformed_attr);
-    assert!(m6.is_err(), "Attributes with fewer than 4 fields must return Err");
+    assert!(
+        m6.is_err(),
+        "Attributes with fewer than 4 fields must return Err"
+    );
 
     // 7. Empty content
     let m7 = MediaProfileMatcher::parse_ini("").expect("empty content");
@@ -202,11 +248,17 @@ fn test_profiles_negative_and_infinite_numbers() {
     );
 
     let query_finite = MediaProfileKey::new(None, "None", 1920, 1080, 60.0, 0);
-    assert!(matcher.match_stream(&query_finite).is_some(), "Negative FPS rule acts as wildcard");
+    assert!(
+        matcher.match_stream(&query_finite).is_some(),
+        "Negative FPS rule acts as wildcard"
+    );
 
     // Negative query FPS also acts as wildcard
     let query_neg = MediaProfileKey::new(None, "None", 1920, 1080, -1.0, 0);
-    assert!(matcher.match_stream(&query_neg).is_some(), "Negative query FPS matches");
+    assert!(
+        matcher.match_stream(&query_neg).is_some(),
+        "Negative query FPS matches"
+    );
 
     // Finite rule: must not match NaN or Infinity query FPS
     let mut finite_matcher = MediaProfileMatcher::new();
@@ -216,10 +268,16 @@ fn test_profiles_negative_and_infinite_numbers() {
     );
 
     let query_nan = MediaProfileKey::new(None, "None", 1920, 1080, f64::NAN, 0);
-    assert!(finite_matcher.match_stream(&query_nan).is_none(), "NaN query FPS must not match finite rule");
+    assert!(
+        finite_matcher.match_stream(&query_nan).is_none(),
+        "NaN query FPS must not match finite rule"
+    );
 
     let query_inf = MediaProfileKey::new(None, "None", 1920, 1080, f64::INFINITY, 0);
-    assert!(finite_matcher.match_stream(&query_inf).is_none(), "Infinity query FPS must not match finite rule");
+    assert!(
+        finite_matcher.match_stream(&query_inf).is_none(),
+        "Infinity query FPS must not match finite rule"
+    );
 }
 
 // ============================================================================
@@ -229,29 +287,69 @@ fn test_profiles_negative_and_infinite_numbers() {
 #[test]
 fn test_templates_all_46_canonical_presets_properties_and_uniqueness() {
     let templates = canonical_46_templates();
-    assert_eq!(templates.len(), 46, "Must provide exactly 46 canonical .vqpt templates (§18.3)");
+    assert_eq!(
+        templates.len(),
+        46,
+        "Must provide exactly 46 canonical .vqpt templates (§18.3)"
+    );
 
     let mut names = std::collections::HashSet::new();
 
     for t in &templates {
-        assert!(t.is_builtin, "Canonical template '{}' must have is_builtin=true", t.name);
+        assert!(
+            t.is_builtin,
+            "Canonical template '{}' must have is_builtin=true",
+            t.name
+        );
         assert!(!t.name.trim().is_empty(), "Template name must not be blank");
-        assert!(names.insert(t.name.clone()), "Duplicate template name detected: {}", t.name);
+        assert!(
+            names.insert(t.name.clone()),
+            "Duplicate template name detected: {}",
+            t.name
+        );
 
         // Dimensional constraints: width & height must be positive and even
-        assert!(t.settings.width >= 16 && t.settings.width <= 16384, "Width in range: {}", t.settings.width);
-        assert!(t.settings.height >= 16 && t.settings.height <= 16384, "Height in range: {}", t.settings.height);
-        assert_eq!(t.settings.width % 2, 0, "Width must be even integer for codec compatibility");
-        assert_eq!(t.settings.height % 2, 0, "Height must be even integer for codec compatibility");
+        assert!(
+            t.settings.width >= 16 && t.settings.width <= 16384,
+            "Width in range: {}",
+            t.settings.width
+        );
+        assert!(
+            t.settings.height >= 16 && t.settings.height <= 16384,
+            "Height in range: {}",
+            t.settings.height
+        );
+        assert_eq!(
+            t.settings.width % 2,
+            0,
+            "Width must be even integer for codec compatibility"
+        );
+        assert_eq!(
+            t.settings.height % 2,
+            0,
+            "Height must be even integer for codec compatibility"
+        );
 
         // Frame rate sanity
-        assert!(t.settings.fps >= 10.0 && t.settings.fps <= 240.0, "FPS in range: {}", t.settings.fps);
+        assert!(
+            t.settings.fps >= 10.0 && t.settings.fps <= 240.0,
+            "FPS in range: {}",
+            t.settings.fps
+        );
 
         // Pixel aspect ratio sanity
-        assert!(t.settings.pixel_aspect >= 0.5 && t.settings.pixel_aspect <= 3.0, "PAR in range: {}", t.settings.pixel_aspect);
+        assert!(
+            t.settings.pixel_aspect >= 0.5 && t.settings.pixel_aspect <= 3.0,
+            "PAR in range: {}",
+            t.settings.pixel_aspect
+        );
 
         // Category must be assigned
-        assert!(t.category.is_some(), "Canonical template '{}' must have a category", t.name);
+        assert!(
+            t.category.is_some(),
+            "Canonical template '{}' must have a category",
+            t.name
+        );
     }
 }
 
@@ -262,14 +360,21 @@ fn test_templates_strict_immutability_rejection_for_every_canonical_template() {
 
     for t in &canonical {
         // 1. is_builtin check
-        assert!(mgr.is_builtin(&t.name), "Template '{}' must be recognized as built-in", t.name);
+        assert!(
+            mgr.is_builtin(&t.name),
+            "Template '{}' must be recognized as built-in",
+            t.name
+        );
 
         // 2. Overwrite rejection (Alert ID 1580 / 17365)
-        let modified_attempt = ProjectTemplate::new(&t.name, ProjectSettings {
-            width: 320,
-            height: 240,
-            ..ProjectSettings::default()
-        });
+        let modified_attempt = ProjectTemplate::new(
+            &t.name,
+            ProjectSettings {
+                width: 320,
+                height: 240,
+                ..ProjectSettings::default()
+            },
+        );
         let res_overwrite = mgr.save_custom(modified_attempt);
         assert!(
             res_overwrite.is_err(),
@@ -302,16 +407,23 @@ fn test_templates_custom_persistence_update_and_empty_name_rejection() {
     let mut mgr = TemplateManager::new();
 
     // 1. Empty and whitespace names rejected (Alert ID 1578)
-    assert!(mgr.save_custom(ProjectTemplate::new("", ProjectSettings::default())).is_err());
-    assert!(mgr.save_custom(ProjectTemplate::new("   \t\n", ProjectSettings::default())).is_err());
+    assert!(mgr
+        .save_custom(ProjectTemplate::new("", ProjectSettings::default()))
+        .is_err());
+    assert!(mgr
+        .save_custom(ProjectTemplate::new("   \t\n", ProjectSettings::default()))
+        .is_err());
 
     // 2. Add valid custom template
-    let custom1 = ProjectTemplate::new("My Custom 4K Vertical", ProjectSettings {
-        width: 2160,
-        height: 3840,
-        fps: 60.0,
-        ..ProjectSettings::default()
-    });
+    let custom1 = ProjectTemplate::new(
+        "My Custom 4K Vertical",
+        ProjectSettings {
+            width: 2160,
+            height: 3840,
+            fps: 60.0,
+            ..ProjectSettings::default()
+        },
+    );
     assert!(mgr.save_custom(custom1.clone()).is_ok());
 
     // Verify it appears in all_templates
@@ -319,15 +431,21 @@ fn test_templates_custom_persistence_update_and_empty_name_rejection() {
     assert!(!mgr.is_builtin("My Custom 4K Vertical"));
 
     // 3. Update existing custom template (overwrite allowed for custom presets per Alert ID 1583)
-    let custom1_updated = ProjectTemplate::new("My Custom 4K Vertical", ProjectSettings {
-        width: 2160,
-        height: 3840,
-        fps: 120.0, // changed fps
-        ..ProjectSettings::default()
-    });
+    let custom1_updated = ProjectTemplate::new(
+        "My Custom 4K Vertical",
+        ProjectSettings {
+            width: 2160,
+            height: 3840,
+            fps: 120.0, // changed fps
+            ..ProjectSettings::default()
+        },
+    );
     assert!(mgr.save_custom(custom1_updated).is_ok());
     let retrieved = mgr.find_by_name("My Custom 4K Vertical").unwrap();
-    assert_eq!(retrieved.settings.fps, 120.0, "Custom preset update must persist");
+    assert_eq!(
+        retrieved.settings.fps, 120.0,
+        "Custom preset update must persist"
+    );
 
     // 4. Delete custom template
     assert!(mgr.delete_custom("My Custom 4K Vertical").is_ok());
@@ -360,7 +478,10 @@ fn test_templates_vqpt_roundtrip_and_corrupt_rejection() {
     assert!(import_vqpt("{ broken json: ").is_err());
     assert!(import_vqpt(r#"{"name": "NoSettings"}"#).is_err());
     let err = import_vqpt(r#"{"corrupt": true}"#).unwrap_err();
-    assert!(err.contains("17437"), "Error message must report Alert ID 17437: {err}");
+    assert!(
+        err.contains("17437"),
+        "Error message must report Alert ID 17437: {err}"
+    );
 }
 
 // ============================================================================
@@ -385,7 +506,10 @@ fn test_bins_root_immutability_and_empty_name_rejection() {
 
     // 3. Empty or whitespace bin name rejected on create (Alert ID 12887)
     assert_eq!(tree.create_bin(None, ""), Err(AlertCode::BinNameEmpty));
-    assert_eq!(tree.create_bin(None, "   \t\n"), Err(AlertCode::BinNameEmpty));
+    assert_eq!(
+        tree.create_bin(None, "   \t\n"),
+        Err(AlertCode::BinNameEmpty)
+    );
 
     // 4. Empty or whitespace bin name rejected on rename
     let b1 = tree.create_bin(None, "Valid Bin").unwrap();
@@ -450,12 +574,18 @@ fn test_bins_deep_folder_nesting_and_recursive_deletion() {
 
     // Bins from Level 1 to 24 must still exist
     for &id in &chain[..24] {
-        assert!(tree.get_bin(id).is_some(), "Level prior to cut must survive");
+        assert!(
+            tree.get_bin(id).is_some(),
+            "Level prior to cut must survive"
+        );
     }
 
     // Bins from Level 25 to 50 must be completely removed by recursive deletion
     for &id in &chain[24..] {
-        assert!(tree.get_bin(id).is_none(), "Level after cut must be removed");
+        assert!(
+            tree.get_bin(id).is_none(),
+            "Level after cut must be removed"
+        );
     }
 }
 
@@ -497,10 +627,20 @@ fn test_smart_search_bins_complex_multi_predicate_filtering() {
     let criteria = vec![
         SearchCriterion::new(SearchField::Type, SearchCondition::Equals, "Video"),
         SearchCriterion::new(SearchField::Name, SearchCondition::Contains, "Drone"),
-        SearchCriterion::new(SearchField::Comment, SearchCondition::DoesNotContain, "Corrupt"),
-        SearchCriterion::new(SearchField::FieldOrder, SearchCondition::Equals, "Progressive"),
+        SearchCriterion::new(
+            SearchField::Comment,
+            SearchCondition::DoesNotContain,
+            "Corrupt",
+        ),
+        SearchCriterion::new(
+            SearchField::FieldOrder,
+            SearchCondition::Equals,
+            "Progressive",
+        ),
     ];
-    let smart_id = tree.create_smart_bin(None, "Clean 4K Drones", criteria).unwrap();
+    let smart_id = tree
+        .create_smart_bin(None, "Clean 4K Drones", criteria)
+        .unwrap();
 
     // Construct test items:
     // Item 1: matches all 4 criteria -> MUST MATCH
@@ -537,10 +677,22 @@ fn test_smart_search_bins_complex_multi_predicate_filtering() {
 
     let bin = tree.get_bin(smart_id).expect("smart bin exists");
     assert!(bin.media_ids.contains(&101), "Item 1 matches all criteria");
-    assert!(!bin.media_ids.contains(&102), "Item 2 filtered by comment condition");
-    assert!(!bin.media_ids.contains(&103), "Item 3 filtered by field order condition");
-    assert!(!bin.media_ids.contains(&104), "Item 4 filtered by name condition");
-    assert!(!bin.media_ids.contains(&105), "Item 5 filtered by type condition");
+    assert!(
+        !bin.media_ids.contains(&102),
+        "Item 2 filtered by comment condition"
+    );
+    assert!(
+        !bin.media_ids.contains(&103),
+        "Item 3 filtered by field order condition"
+    );
+    assert!(
+        !bin.media_ids.contains(&104),
+        "Item 4 filtered by name condition"
+    );
+    assert!(
+        !bin.media_ids.contains(&105),
+        "Item 5 filtered by type condition"
+    );
 }
 
 #[test]
@@ -548,17 +700,39 @@ fn test_smart_search_bins_text_operators_and_tag_conditions() {
     let mut tree = MediaBinTree::new();
 
     // StartsWith, EndsWith, IsEmpty, IsNotEmpty
-    let crit_starts = vec![SearchCriterion::new(SearchField::Name, SearchCondition::StartsWith, "RAW_")];
-    let b_starts = tree.create_smart_bin(None, "RAW Clips", crit_starts).unwrap();
+    let crit_starts = vec![SearchCriterion::new(
+        SearchField::Name,
+        SearchCondition::StartsWith,
+        "RAW_",
+    )];
+    let b_starts = tree
+        .create_smart_bin(None, "RAW Clips", crit_starts)
+        .unwrap();
 
-    let crit_ends = vec![SearchCriterion::new(SearchField::Path, SearchCondition::EndsWith, ".dng")];
+    let crit_ends = vec![SearchCriterion::new(
+        SearchField::Path,
+        SearchCondition::EndsWith,
+        ".dng",
+    )];
     let b_ends = tree.create_smart_bin(None, "DNG Files", crit_ends).unwrap();
 
-    let crit_empty_comment = vec![SearchCriterion::new(SearchField::Comment, SearchCondition::IsEmpty, "")];
-    let b_empty_comment = tree.create_smart_bin(None, "Uncommented", crit_empty_comment).unwrap();
+    let crit_empty_comment = vec![SearchCriterion::new(
+        SearchField::Comment,
+        SearchCondition::IsEmpty,
+        "",
+    )];
+    let b_empty_comment = tree
+        .create_smart_bin(None, "Uncommented", crit_empty_comment)
+        .unwrap();
 
-    let crit_has_tags = vec![SearchCriterion::new(SearchField::Tag, SearchCondition::IsNotEmpty, "")];
-    let b_has_tags = tree.create_smart_bin(None, "Tagged Clips", crit_has_tags).unwrap();
+    let crit_has_tags = vec![SearchCriterion::new(
+        SearchField::Tag,
+        SearchCondition::IsNotEmpty,
+        "",
+    )];
+    let b_has_tags = tree
+        .create_smart_bin(None, "Tagged Clips", crit_has_tags)
+        .unwrap();
 
     let mut row_a = MediaDetailRow::new(1, "RAW_001", PathBuf::from("C:/Media/RAW_001.dng"));
     row_a.comment = "".into();
@@ -576,8 +750,16 @@ fn test_smart_search_bins_text_operators_and_tag_conditions() {
     assert!(tree.get_bin(b_ends).unwrap().media_ids.contains(&1));
     assert!(!tree.get_bin(b_ends).unwrap().media_ids.contains(&2));
 
-    assert!(tree.get_bin(b_empty_comment).unwrap().media_ids.contains(&1));
-    assert!(!tree.get_bin(b_empty_comment).unwrap().media_ids.contains(&2));
+    assert!(tree
+        .get_bin(b_empty_comment)
+        .unwrap()
+        .media_ids
+        .contains(&1));
+    assert!(!tree
+        .get_bin(b_empty_comment)
+        .unwrap()
+        .media_ids
+        .contains(&2));
 
     assert!(tree.get_bin(b_has_tags).unwrap().media_ids.contains(&1));
     assert!(!tree.get_bin(b_has_tags).unwrap().media_ids.contains(&2));
@@ -673,15 +855,26 @@ fn test_media_pool_all_23_columns_ascending_and_descending_sorting() {
         // Ascending
         mgr.set_sort(col, true);
         let asc_ids: Vec<u64> = mgr.filtered_rows().into_iter().map(|r| r.id).collect();
-        assert_eq!(asc_ids.len(), 3, "Column {:?} ascending should return 3 items", col);
+        assert_eq!(
+            asc_ids.len(),
+            3,
+            "Column {:?} ascending should return 3 items",
+            col
+        );
 
         // Descending
         mgr.set_sort(col, false);
         let desc_ids: Vec<u64> = mgr.filtered_rows().into_iter().map(|r| r.id).collect();
-        assert_eq!(desc_ids.len(), 3, "Column {:?} descending should return 3 items", col);
+        assert_eq!(
+            desc_ids.len(),
+            3,
+            "Column {:?} descending should return 3 items",
+            col
+        );
 
         // First item in ascending must equal last item in descending (for strictly ordered unique columns)
-        if col != MediaDetailColumn::MediaFx { // MediaFx has a duplicate (r2 and r3 both true)
+        if col != MediaDetailColumn::MediaFx {
+            // MediaFx has a duplicate (r2 and r3 both true)
             assert_eq!(
                 asc_ids[0], desc_ids[2],
                 "Ascending first ID must match descending last ID for column {:?}",
@@ -805,22 +998,34 @@ fn test_media_pool_relink_missing_media() {
     let mut mgr = MediaPoolManager::new();
 
     // 1. Missing item
-    let mut missing_row = MediaDetailRow::new(100, "Lost Footage", PathBuf::from("D:/OldPath/lost_footage.mov"));
+    let mut missing_row = MediaDetailRow::new(
+        100,
+        "Lost Footage",
+        PathBuf::from("D:/OldPath/lost_footage.mov"),
+    );
     missing_row.is_missing = true;
 
     // 2. Already present item (not missing)
-    let mut present_row = MediaDetailRow::new(200, "Present Footage", PathBuf::from("C:/StillThere/other.mov"));
+    let mut present_row = MediaDetailRow::new(
+        200,
+        "Present Footage",
+        PathBuf::from("C:/StillThere/other.mov"),
+    );
     present_row.is_missing = false;
 
     // 3. Unresolvable missing item
-    let mut unresolvable_row = MediaDetailRow::new(300, "Never Found", PathBuf::from("E:/GoneForever/never.mov"));
+    let mut unresolvable_row = MediaDetailRow::new(
+        300,
+        "Never Found",
+        PathBuf::from("E:/GoneForever/never.mov"),
+    );
     unresolvable_row.is_missing = true;
 
     mgr.add_item(missing_row);
     mgr.add_item(present_row);
     mgr.add_item(unresolvable_row);
 
-    let relinked = mgr.relink_missing(&[temp_dir.clone()]);
+    let relinked = mgr.relink_missing(std::slice::from_ref(&temp_dir));
 
     assert_eq!(relinked.len(), 1, "Only 1 item should be relinked");
     assert_eq!(relinked[0].0, 100);

@@ -62,7 +62,13 @@ pub fn event_name_at(timeline: &Timeline, time: f64) -> Option<String> {
 }
 
 /// Draws the burn-in of the frame at `time` (the timeline time, which the timecode shows).
-pub fn burn_in_frame(frame: &mut FrameBuffer, burn: &BurnIn, timeline: &Timeline, time: f64, fps: f64) {
+pub fn burn_in_frame(
+    frame: &mut FrameBuffer,
+    burn: &BurnIn,
+    timeline: &Timeline,
+    time: f64,
+    fps: f64,
+) {
     let name = event_name_at(timeline, time);
     burn.apply(frame, time, fps, name.as_deref());
 }

@@ -110,7 +110,12 @@ impl PaintStack {
     /// it before [`PaintStack::layers`].
     pub fn margin(&self) -> usize {
         let shift = |o: [i32; 2]| o[0].unsigned_abs().max(o[1].unsigned_abs()) as usize;
-        let fills = self.fills.iter().map(|f| shift(f.offset)).max().unwrap_or(0);
+        let fills = self
+            .fills
+            .iter()
+            .map(|f| shift(f.offset))
+            .max()
+            .unwrap_or(0);
         let outlines = self
             .outlines
             .iter()

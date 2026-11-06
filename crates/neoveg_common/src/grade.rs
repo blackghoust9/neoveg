@@ -154,8 +154,16 @@ impl ColorWheelVector {
     pub fn from_polar(hue_deg: f32, sat: f32, master: f32) -> Self {
         let hue_deg = if hue_deg.is_finite() { hue_deg } else { 0.0 };
         let rad = hue_deg.to_radians();
-        let sat = if sat.is_finite() { sat.clamp(0.0, 1.0) } else { 0.0 };
-        let master = if master.is_finite() { master.clamp(-1.0, 1.0) } else { 0.0 };
+        let sat = if sat.is_finite() {
+            sat.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let master = if master.is_finite() {
+            master.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         Self {
             x: sat * rad.cos(),
             y: sat * rad.sin(),
@@ -192,7 +200,11 @@ impl ColorWheelVector {
         let b0 = b - avg;
         let x = r0;
         let y = (g0 - b0) / 3.0f32.sqrt();
-        let master = if master.is_finite() { master.clamp(-1.0, 1.0) } else { 0.0 };
+        let master = if master.is_finite() {
+            master.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         Self {
             x: x.clamp(-1.0, 1.0),
             y: y.clamp(-1.0, 1.0),
@@ -269,7 +281,13 @@ impl ColorWheelVector {
     }
 
     pub fn sanitized(self) -> Self {
-        let sanitize = |v: f32| if v.is_finite() { v.clamp(-1.0, 1.0) } else { 0.0 };
+        let sanitize = |v: f32| {
+            if v.is_finite() {
+                v.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            }
+        };
         Self {
             x: sanitize(self.x),
             y: sanitize(self.y),
@@ -328,10 +346,26 @@ impl ColorWheelsGrade {
         let (lr, lg, lb, _) = self.lift.to_rgb_sliders();
         let (mr, mg, mb, _) = self.gamma.to_rgb_sliders();
 
-        let off_m = if self.offset.master.is_finite() { self.offset.master } else { 0.0 };
-        let gain_m = if self.gain.master.is_finite() { self.gain.master } else { 0.0 };
-        let lift_m = if self.lift.master.is_finite() { self.lift.master } else { 0.0 };
-        let gamma_m = if self.gamma.master.is_finite() { self.gamma.master } else { 0.0 };
+        let off_m = if self.offset.master.is_finite() {
+            self.offset.master
+        } else {
+            0.0
+        };
+        let gain_m = if self.gain.master.is_finite() {
+            self.gain.master
+        } else {
+            0.0
+        };
+        let lift_m = if self.lift.master.is_finite() {
+            self.lift.master
+        } else {
+            0.0
+        };
+        let gamma_m = if self.gamma.master.is_finite() {
+            self.gamma.master
+        } else {
+            0.0
+        };
 
         // 1. Offset (additive global pedestal)
         out[0] += off_m + or;
@@ -392,7 +426,13 @@ impl WhiteBalanceGrade {
     }
 
     pub fn sanitized(self) -> Self {
-        let clamp = |v: f32| if v.is_finite() { v.clamp(-1.0, 1.0) } else { 0.0 };
+        let clamp = |v: f32| {
+            if v.is_finite() {
+                v.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            }
+        };
         Self {
             temperature: clamp(self.temperature),
             tint: clamp(self.tint),
@@ -400,8 +440,16 @@ impl WhiteBalanceGrade {
     }
 
     pub fn apply(&self, rgb: [f32; 3]) -> [f32; 3] {
-        let temp = if self.temperature.is_finite() { self.temperature.clamp(-1.0, 1.0) } else { 0.0 };
-        let tint = if self.tint.is_finite() { self.tint.clamp(-1.0, 1.0) } else { 0.0 };
+        let temp = if self.temperature.is_finite() {
+            self.temperature.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        let tint = if self.tint.is_finite() {
+            self.tint.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         let warm = 1.0 + 0.5 * temp;
         let cool = 1.0 - 0.5 * temp;
         let green = 1.0 + 0.5 * tint;
@@ -458,7 +506,11 @@ impl GradeUtilities {
 
     pub fn sanitized(self) -> Self {
         let clamp = |v: f32, lo: f32, hi: f32, neutral: f32| {
-            if v.is_finite() { v.clamp(lo, hi) } else { neutral }
+            if v.is_finite() {
+                v.clamp(lo, hi)
+            } else {
+                neutral
+            }
         };
         Self {
             exposure: clamp(self.exposure, -4.0, 4.0, 0.0),

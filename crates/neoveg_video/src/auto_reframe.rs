@@ -220,7 +220,10 @@ mod tests {
 
         let det = AutoReframeEngine::detect_subject(&frame, 1.0);
         assert_eq!(det.time_s, 1.0);
-        assert!(det.center_x > 0.5, "Centroid should be pulled to the right side");
+        assert!(
+            det.center_x > 0.5,
+            "Centroid should be pulled to the right side"
+        );
     }
 
     #[test]

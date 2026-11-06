@@ -22,11 +22,7 @@ pub fn rename_command(
     let mut found: Vec<(EventRef, f64, String)> = refs
         .iter()
         .filter_map(|r| {
-            let event = timeline
-                .track(r.0)?
-                .events
-                .iter()
-                .find(|e| e.id == r.1)?;
+            let event = timeline.track(r.0)?.events.iter().find(|e| e.id == r.1)?;
             Some((*r, event.start, event.name.clone()))
         })
         .collect();

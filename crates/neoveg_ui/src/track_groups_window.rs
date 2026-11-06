@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 
 use eframe::egui;
 use neoveg_common::i18n::tr;
-use neoveg_engine::track_groups::{GroupSwitch, TrackGroupId, TRACK_COLORS};
 use neoveg_engine::timeline::{Timeline, TrackId};
+use neoveg_engine::track_groups::{GroupSwitch, TrackGroupId, TRACK_COLORS};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupAction {
@@ -30,7 +30,10 @@ pub struct TrackGroupsWindow {
 
 fn swatch_row(ui: &mut egui::Ui, current: Option<[u8; 3]>) -> Option<Option<[u8; 3]>> {
     let mut chosen = None;
-    if ui.selectable_label(current.is_none(), tr("Sem cor")).clicked() {
+    if ui
+        .selectable_label(current.is_none(), tr("Sem cor"))
+        .clicked()
+    {
         chosen = Some(None);
     }
     for rgb in TRACK_COLORS {
@@ -38,8 +41,11 @@ fn swatch_row(ui: &mut egui::Ui, current: Option<[u8; 3]>) -> Option<Option<[u8;
         let (rect, response) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::click());
         ui.painter().rect_filled(rect, 2.0, color);
         if current == Some(rgb) {
-            ui.painter()
-                .rect_stroke(rect, 2.0, egui::Stroke::new(2.0_f32, ui.visuals().text_color()));
+            ui.painter().rect_stroke(
+                rect,
+                2.0,
+                egui::Stroke::new(2.0_f32, ui.visuals().text_color()),
+            );
         }
         if response.clicked() {
             chosen = Some(Some(rgb));
@@ -69,7 +75,8 @@ impl TrackGroupsWindow {
                     .show(ui, |ui| {
                         for (i, track) in timeline.tracks.iter().enumerate() {
                             let mut on = self.picked.contains(&track.id);
-                            let tag = match groups.group_of(track.id).and_then(|g| groups.group(g)) {
+                            let tag = match groups.group_of(track.id).and_then(|g| groups.group(g))
+                            {
                                 Some(g) => format!("{}  [{}]", track.name, g.name),
                                 None => track.name.clone(),
                             };
@@ -82,8 +89,15 @@ impl TrackGroupsWindow {
                                     }
                                 }
                                 if let Some(rgb) = groups.color_of(track.id) {
-                                    let (r, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
-                                    ui.painter().rect_filled(r, 2.0, egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
+                                    let (r, _) = ui.allocate_exact_size(
+                                        egui::vec2(10.0, 10.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter().rect_filled(
+                                        r,
+                                        2.0,
+                                        egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
+                                    );
                                 }
                             });
                         }
@@ -95,7 +109,10 @@ impl TrackGroupsWindow {
                             .desired_width(180.0),
                     );
                     if ui
-                        .add_enabled(!self.picked.is_empty(), egui::Button::new(tr("Criar grupo")))
+                        .add_enabled(
+                            !self.picked.is_empty(),
+                            egui::Button::new(tr("Criar grupo")),
+                        )
                         .clicked()
                     {
                         actions.push(GroupAction::Create {
@@ -129,7 +146,8 @@ impl TrackGroupsWindow {
                     ui.push_id(group.id, |ui| {
                         ui.horizontal(|ui| {
                             let mut name = group.name.clone();
-                            let edit = ui.add(egui::TextEdit::singleline(&mut name).desired_width(140.0));
+                            let edit =
+                                ui.add(egui::TextEdit::singleline(&mut name).desired_width(140.0));
                             if edit.lost_focus() && name != group.name {
                                 actions.push(GroupAction::Rename(group.id, name));
                             }
@@ -141,14 +159,19 @@ impl TrackGroupsWindow {
                             let solo = groups.solo_state(timeline, group.id);
                             if ui
                                 .selectable_label(muted != GroupSwitch::None, tr("Mudo"))
-                                .on_hover_text(tr("Liga ou desliga o mudo de todas as faixas do grupo"))
+                                .on_hover_text(tr(
+                                    "Liga ou desliga o mudo de todas as faixas do grupo",
+                                ))
                                 .clicked()
                             {
-                                actions.push(GroupAction::Mute(group.id, muted != GroupSwitch::All));
+                                actions
+                                    .push(GroupAction::Mute(group.id, muted != GroupSwitch::All));
                             }
                             if ui
                                 .selectable_label(solo != GroupSwitch::None, tr("Solo"))
-                                .on_hover_text(tr("Liga ou desliga o solo de todas as faixas de áudio do grupo"))
+                                .on_hover_text(tr(
+                                    "Liga ou desliga o solo de todas as faixas de áudio do grupo",
+                                ))
                                 .clicked()
                             {
                                 actions.push(GroupAction::Solo(group.id, solo != GroupSwitch::All));

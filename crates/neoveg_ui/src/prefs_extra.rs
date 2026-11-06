@@ -52,7 +52,11 @@ pub fn extra_keys_ui(ui: &mut egui::Ui, prefs: &mut Preferences) {
         });
     ui.horizontal(|ui| {
         ui.label(tr("Suavidade padrão de keyframes"));
-        ui.add(egui::DragValue::new(&mut prefs.keyframe_smoothness).range(-1.0..=1.0).speed(0.05));
+        ui.add(
+            egui::DragValue::new(&mut prefs.keyframe_smoothness)
+                .range(-1.0..=1.0)
+                .speed(0.05),
+        );
     });
     ui.checkbox(
         &mut prefs.show_safe_areas,

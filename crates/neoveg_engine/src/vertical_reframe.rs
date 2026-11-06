@@ -175,7 +175,10 @@ mod tests {
         // 9:16 over 16:9 keeps 0.3164 of the width and the whole height
         assert!((fa.width - 0.31640625).abs() < 1e-4 && fa.height == 1.0);
         assert!((fa.x_center - 0.8).abs() < 1e-6);
-        assert_eq!(eb.pan_crop.keys[0].frame.x_center, 0.5, "no subject: centered");
+        assert_eq!(
+            eb.pan_crop.keys[0].frame.x_center, 0.5,
+            "no subject: centered"
+        );
         assert!(
             tl2.tracks[1].events[0].pan_crop.is_default(),
             "audio events are untouched"

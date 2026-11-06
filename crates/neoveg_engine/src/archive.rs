@@ -63,7 +63,10 @@ fn used_span(event: &crate::timeline::TrackEvent, media_len: f64) -> (f64, f64) 
     } else {
         1.0
     };
-    (start, (start + event.duration * rate).min(media_len.max(start)))
+    (
+        start,
+        (start + event.duration * rate).min(media_len.max(start)),
+    )
 }
 
 /// Builds the plan for the media the timeline uses. Media in the pool that no event uses is left
@@ -154,12 +157,15 @@ pub struct ArchiveReport {
     pub bytes: u64,
 }
 
+/// Callback used to cut a segment out of a source file during archiving.
+pub type ArchiveCutter<'a> = dyn FnMut(&Path, &Path, f64, f64) -> Result<(), String> + 'a;
+
 /// Copies the media of `plan` into `dest/Midia`. `cutter(source, dest, start, end)` writes the
 /// part of `source` between the two times; when it fails the whole file is copied instead.
 pub fn run(
     plan: &ArchivePlan,
     dest: &Path,
-    cutter: &mut dyn FnMut(&Path, &Path, f64, f64) -> Result<(), String>,
+    cutter: &mut ArchiveCutter,
 ) -> Result<ArchiveReport, String> {
     let media_dir = dest.join(MEDIA_FOLDER);
     std::fs::create_dir_all(&media_dir)
@@ -238,7 +244,7 @@ pub fn archive_project(
     timeline: &Timeline,
     dest: &Path,
     options: ArchiveOptions,
-    cutter: &mut dyn FnMut(&Path, &Path, f64, f64) -> Result<(), String>,
+    cutter: &mut ArchiveCutter,
 ) -> Result<ArchiveReport, String> {
     let plan = plan(info, timeline, options, |p| p.is_file());
     let report = run(&plan, dest, cutter)?;
@@ -274,7 +280,11 @@ pub fn sanitize_file_name(name: &str) -> String {
 
 /// Text written next to a rendered file so it can be traced back to its project: the project name,
 /// where the project file is, and the part of the timeline rendered.
-pub fn render_reference(project_name: &str, project_path: Option<&Path>, range: (f64, f64)) -> String {
+pub fn render_reference(
+    project_name: &str,
+    project_path: Option<&Path>,
+    range: (f64, f64),
+) -> String {
     let path = project_path
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(projeto ainda não salvo)".into());
@@ -397,7 +407,11 @@ mod tests {
         };
         let report = archive_project(&info, &tl, &dest, opts, &mut cutter).unwrap();
         assert_eq!(report.cut, vec![(1, 19.0)]);
-        assert_eq!(report.copied, vec![2], "a failed cut falls back to a whole copy");
+        assert_eq!(
+            report.copied,
+            vec![2],
+            "a failed cut falls back to a whole copy"
+        );
         assert_eq!(report.bytes, 60);
         assert_eq!(std::fs::read(dest.join("Midia/a.wav")).unwrap().len(), 10);
         assert_eq!(std::fs::read(dest.join("Midia/b.wav")).unwrap().len(), 50);
@@ -415,9 +429,13 @@ mod tests {
     fn missing_sources_are_reported_and_kept_as_they_were() {
         let (info, tl) = project(&[("C:/nao/existe.mp4", 60.0)]);
         let dest = std::env::temp_dir().join(format!("neoveg_archive_miss_{}", std::process::id()));
-        let report = archive_project(&info, &tl, &dest, ArchiveOptions::default(), &mut |_, _, _, _| {
-            Ok(())
-        })
+        let report = archive_project(
+            &info,
+            &tl,
+            &dest,
+            ArchiveOptions::default(),
+            &mut |_, _, _, _| Ok(()),
+        )
         .unwrap();
         assert_eq!(report.missing, vec![1]);
         let (info2, _) = crate::project_file::load(&dest.join("Meu_ projeto.neoveg")).unwrap();

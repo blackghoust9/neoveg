@@ -230,9 +230,20 @@ mod tests {
 
     #[test]
     fn interpolate_rebuilds_the_second_field_from_the_first() {
-        let out = deinterlace(&combed(2, 6), Deinterlace::Interpolate, FieldOrder::UpperFirst);
-        assert!((0..6).all(|y| r(&out, y) == 0), "every row follows the black field");
-        let out = deinterlace(&combed(2, 6), Deinterlace::Interpolate, FieldOrder::LowerFirst);
+        let out = deinterlace(
+            &combed(2, 6),
+            Deinterlace::Interpolate,
+            FieldOrder::UpperFirst,
+        );
+        assert!(
+            (0..6).all(|y| r(&out, y) == 0),
+            "every row follows the black field"
+        );
+        let out = deinterlace(
+            &combed(2, 6),
+            Deinterlace::Interpolate,
+            FieldOrder::LowerFirst,
+        );
         // Lower-first keeps the odd (white) rows and the even ones are rebuilt from them
         assert!((1..6).all(|y| r(&out, y) == 255));
         assert_eq!(r(&out, 0), 255);
@@ -240,7 +251,11 @@ mod tests {
 
     #[test]
     fn blend_fields_mixes_neighbouring_rows() {
-        let out = deinterlace(&combed(1, 6), Deinterlace::BlendFields, FieldOrder::UpperFirst);
+        let out = deinterlace(
+            &combed(1, 6),
+            Deinterlace::BlendFields,
+            FieldOrder::UpperFirst,
+        );
         // Row 2 is black between two white rows: (255 + 0 + 255 + 2) / 4; row 1 the reverse
         assert_eq!(r(&out, 2), 128);
         assert_eq!(r(&out, 1), 128);
@@ -253,15 +268,25 @@ mod tests {
             deinterlace(&still, Deinterlace::SmartAdaptive, FieldOrder::UpperFirst),
             still
         );
-        let out = deinterlace(&combed(2, 6), Deinterlace::SmartAdaptive, FieldOrder::UpperFirst);
+        let out = deinterlace(
+            &combed(2, 6),
+            Deinterlace::SmartAdaptive,
+            FieldOrder::UpperFirst,
+        );
         assert!((0..6).all(|y| r(&out, y) == 0));
     }
 
     #[test]
     fn progressive_or_none_changes_nothing() {
         let f = combed(2, 6);
-        assert_eq!(deinterlace(&f, Deinterlace::Interpolate, FieldOrder::Progressive), f);
-        assert_eq!(deinterlace(&f, Deinterlace::None, FieldOrder::UpperFirst), f);
+        assert_eq!(
+            deinterlace(&f, Deinterlace::Interpolate, FieldOrder::Progressive),
+            f
+        );
+        assert_eq!(
+            deinterlace(&f, Deinterlace::None, FieldOrder::UpperFirst),
+            f
+        );
         let mode = ViewMode {
             deinterlace: Some(Deinterlace::Interpolate),
             field_order: Some(FieldOrder::Progressive),

@@ -16,16 +16,16 @@ use candle_nn::VarBuilder;
 use candle_transformers::models::whisper::{self, Config};
 
 use neoveg_audio::record::{
-    convert_chunk, list_inputs, map_frame, probe_input, wav_float_header,
-    InputInfo, MonitorRing, MonitorStatus, RecordOptions, Recording, WavWriter,
+    convert_chunk, list_inputs, map_frame, probe_input, wav_float_header, InputInfo, MonitorRing,
+    MonitorStatus, RecordOptions, Recording, WavWriter,
 };
 use neoveg_audio::sync::{
     envelope, find_offset, Sync, ENVELOPE_RATE, MAX_OFFSET_SECONDS, MIN_CONFIDENCE,
     MIN_OVERLAP_SECONDS, WINDOW_SECONDS,
 };
 use neoveg_audio::whisper::{
-    mix_to_mono_16k, resample_mono_to_16k, slaney_mel_filters, TranscriptSegment,
-    WhisperEngine, WhisperTokenizer, SUPPORTED_LANGUAGES, WHISPER_SAMPLE_RATE,
+    mix_to_mono_16k, resample_mono_to_16k, slaney_mel_filters, TranscriptSegment, WhisperEngine,
+    WhisperTokenizer, SUPPORTED_LANGUAGES, WHISPER_SAMPLE_RATE,
 };
 
 // ============================================================================
@@ -38,13 +38,20 @@ fn f02_t1_01_list_inputs_returns_valid_unique_list() {
     let mut deduped = inputs.clone();
     deduped.sort();
     deduped.dedup();
-    assert_eq!(inputs.len(), deduped.len(), "list_inputs must not contain duplicate names");
+    assert_eq!(
+        inputs.len(),
+        deduped.len(),
+        "list_inputs must not contain duplicate names"
+    );
 }
 
 #[test]
 fn f02_t1_02_default_record_options_device_is_none() {
     let opt = RecordOptions::default();
-    assert!(opt.device.is_none(), "Default device should be None (system default)");
+    assert!(
+        opt.device.is_none(),
+        "Default device should be None (system default)"
+    );
     assert_eq!(opt.monitor_volume, 1.0);
     assert!(!opt.monitor);
 }
@@ -71,7 +78,10 @@ fn f02_t1_04_probe_input_headless_resilience() {
             assert!(info.channels > 0);
         }
         Err(err_msg) => {
-            assert!(!err_msg.is_empty(), "Error message must describe missing hardware");
+            assert!(
+                !err_msg.is_empty(),
+                "Error message must describe missing hardware"
+            );
         }
     }
 }
@@ -204,11 +214,18 @@ fn f04_t1_03_monitor_ring_push_pop_fifo_integrity() {
 fn f04_t1_04_map_frame_stereo_and_mono_routing() {
     let mut stereo_out = [0.0f32; 2];
     map_frame(&[0.75], &mut stereo_out, 1.0);
-    assert_eq!(stereo_out, [0.75, 0.75], "Mono input should map to stereo L & R");
+    assert_eq!(
+        stereo_out,
+        [0.75, 0.75],
+        "Mono input should map to stereo L & R"
+    );
 
     let mut mono_out = [0.0f32; 1];
     map_frame(&[0.4, 0.8], &mut mono_out, 1.0);
-    assert!((mono_out[0] - 0.6).abs() < 1e-6, "Stereo into mono should average channels");
+    assert!(
+        (mono_out[0] - 0.6).abs() < 1e-6,
+        "Stereo into mono should average channels"
+    );
 }
 
 #[test]
@@ -279,7 +296,10 @@ pub struct TextBasedTimelineCut {
     pub end_sec: f64,
 }
 
-pub fn timeline_cuts_from_transcript(segments: &[TranscriptSegment], deleted_indices: &[usize]) -> Vec<TextBasedTimelineCut> {
+pub fn timeline_cuts_from_transcript(
+    segments: &[TranscriptSegment],
+    deleted_indices: &[usize],
+) -> Vec<TextBasedTimelineCut> {
     let mut cuts = Vec::new();
     for (idx, seg) in segments.iter().enumerate() {
         if deleted_indices.contains(&idx) {
@@ -308,9 +328,21 @@ fn f20_t1_01_transcript_segment_structure() {
 #[test]
 fn f20_t1_02_text_based_cuts_generation() {
     let segs = vec![
-        TranscriptSegment { start_s: 0.0, end_s: 1.0, text: "Primeiro".into() },
-        TranscriptSegment { start_s: 1.0, end_s: 2.0, text: "Segundo".into() },
-        TranscriptSegment { start_s: 2.0, end_s: 3.0, text: "Terceiro".into() },
+        TranscriptSegment {
+            start_s: 0.0,
+            end_s: 1.0,
+            text: "Primeiro".into(),
+        },
+        TranscriptSegment {
+            start_s: 1.0,
+            end_s: 2.0,
+            text: "Segundo".into(),
+        },
+        TranscriptSegment {
+            start_s: 2.0,
+            end_s: 3.0,
+            text: "Terceiro".into(),
+        },
     ];
     let cuts = timeline_cuts_from_transcript(&segs, &[1]);
     assert_eq!(cuts.len(), 1);
@@ -322,8 +354,16 @@ fn f20_t1_02_text_based_cuts_generation() {
 #[test]
 fn f20_t1_03_text_based_ripple_duration_computation() {
     let segs = vec![
-        TranscriptSegment { start_s: 2.0, end_s: 3.5, text: "ehhh".into() },
-        TranscriptSegment { start_s: 5.0, end_s: 6.0, text: "hummm".into() },
+        TranscriptSegment {
+            start_s: 2.0,
+            end_s: 3.5,
+            text: "ehhh".into(),
+        },
+        TranscriptSegment {
+            start_s: 5.0,
+            end_s: 6.0,
+            text: "hummm".into(),
+        },
     ];
     let cuts = timeline_cuts_from_transcript(&segs, &[0, 1]);
     let total_deleted_sec: f64 = cuts.iter().map(|c| c.end_sec - c.start_sec).sum();
@@ -355,14 +395,22 @@ fn f20_t2_01_resample_mono_to_16k_empty_input() {
 
 #[test]
 fn f20_t2_02_transcript_cut_empty_deletions() {
-    let segs = vec![TranscriptSegment { start_s: 0.0, end_s: 1.0, text: "A".into() }];
+    let segs = vec![TranscriptSegment {
+        start_s: 0.0,
+        end_s: 1.0,
+        text: "A".into(),
+    }];
     let cuts = timeline_cuts_from_transcript(&segs, &[]);
     assert!(cuts.is_empty());
 }
 
 #[test]
 fn f20_t2_03_transcript_cut_out_of_bounds_index() {
-    let segs = vec![TranscriptSegment { start_s: 0.0, end_s: 1.0, text: "A".into() }];
+    let segs = vec![TranscriptSegment {
+        start_s: 0.0,
+        end_s: 1.0,
+        text: "A".into(),
+    }];
     let cuts = timeline_cuts_from_transcript(&segs, &[99]);
     assert!(cuts.is_empty());
 }
@@ -406,7 +454,8 @@ fn synthetic_tokenizer_json() -> String {
             { "id": 57, "content": "<|notimestamps|>" },
             { "id": 58, "content": "<|0.00|>" }
         ]
-    }).to_string()
+    })
+    .to_string()
 }
 
 #[test]
@@ -433,7 +482,8 @@ fn f21_t1_02_slaney_mel_filters_dimensions() {
 
 #[test]
 fn f21_t1_03_whisper_tokenizer_decodes_special_tokens() {
-    let tok = WhisperTokenizer::from_json_str(&synthetic_tokenizer_json()).expect("parse tokenizer");
+    let tok =
+        WhisperTokenizer::from_json_str(&synthetic_tokenizer_json()).expect("parse tokenizer");
     assert_eq!(tok.language_token("pt"), Some(52));
     assert_eq!(tok.language_token("en"), Some(53));
     assert_eq!(tok.timestamp_seconds(58), Some(0.0));
@@ -563,7 +613,10 @@ fn f21_t2_05_transcript_segment_offset_preservation() {
     let res = engine.transcribe(&tone, 15.0, Some("pt"), &cancel, |_| {});
     if let Ok(segs) = res {
         for seg in segs {
-            assert!(seg.start_s >= 15.0, "Segment start should respect base offset");
+            assert!(
+                seg.start_s >= 15.0,
+                "Segment start should respect base offset"
+            );
         }
     }
 }
@@ -620,17 +673,24 @@ fn f38_t1_04_find_offset_delayed_signal_detects_offset() {
     let sig_a: Vec<f32> = base.iter().flat_map(|&s| [s, s]).collect();
     let sig_b: Vec<f32> = (0..delay_frames)
         .map(|_| 0.0f32)
-        .chain(base.into_iter())
+        .chain(base)
         .flat_map(|s| [s, s])
         .collect();
 
     let res = find_offset(&sig_a, rate, &sig_b, rate).expect("should detect offset");
-    assert!((res.offset - (-0.5)).abs() < 0.05, "Detected offset: {}", res.offset);
+    assert!(
+        (res.offset - (-0.5)).abs() < 0.05,
+        "Detected offset: {}",
+        res.offset
+    );
 }
 
 #[test]
 fn f38_t1_05_sync_struct_properties() {
-    let s = Sync { offset: 1.25, confidence: 0.88 };
+    let s = Sync {
+        offset: 1.25,
+        confidence: 0.88,
+    };
     assert_eq!(s.offset, 1.25);
     assert_eq!(s.confidence, 0.88);
 }
@@ -654,8 +714,12 @@ fn f38_t2_03_find_offset_completely_uncorrelated_noise_returns_none() {
     let rate = 48_000;
     let frames = rate as usize * 4;
     // Two distinct frequencies
-    let a: Vec<f32> = (0..frames).flat_map(|i| [(i as f32 * 0.01).sin(), (i as f32 * 0.01).sin()]).collect();
-    let b: Vec<f32> = (0..frames).flat_map(|i| [(i as f32 * 0.99).cos(), (i as f32 * 0.99).cos()]).collect();
+    let a: Vec<f32> = (0..frames)
+        .flat_map(|i| [(i as f32 * 0.01).sin(), (i as f32 * 0.01).sin()])
+        .collect();
+    let b: Vec<f32> = (0..frames)
+        .flat_map(|i| [(i as f32 * 0.99).cos(), (i as f32 * 0.99).cos()])
+        .collect();
     let res = find_offset(&a, rate, &b, rate);
     assert!(res.is_none() || res.unwrap().confidence < 0.5);
 }
@@ -668,9 +732,14 @@ fn f38_t2_04_envelope_empty_samples_returns_empty() {
 #[test]
 fn f38_t2_05_envelope_mean_centered_property() {
     let rate = 48_000;
-    let samples: Vec<f32> = (0..rate * 3 * 2).map(|i| if i % 2 == 0 { 0.8 } else { 0.2 }).collect();
+    let samples: Vec<f32> = (0..rate * 3 * 2)
+        .map(|i| if i % 2 == 0 { 0.8 } else { 0.2 })
+        .collect();
     let env = envelope(&samples, rate);
     assert!(!env.is_empty());
     let sum: f32 = env.iter().sum();
-    assert!(sum.abs() < 1e-4, "Envelope should be zero-mean centered, got {sum}");
+    assert!(
+        sum.abs() < 1e-4,
+        "Envelope should be zero-mean centered, got {sum}"
+    );
 }

@@ -173,12 +173,18 @@ mod tests {
 
     #[test]
     fn tracks_gives_each_media_a_track_at_the_same_start() {
-        let items = [item(1, 2.0, TrackKind::Audio), item(2, 3.0, TrackKind::Video)];
+        let items = [
+            item(1, 2.0, TrackKind::Audio),
+            item(2, 3.0, TrackKind::Video),
+        ];
         let tl = run(AddMode::Tracks, &items, 1.5);
         assert_eq!(tl.tracks.len(), 2);
         assert_eq!(tl.tracks[0].kind, TrackKind::Audio);
         assert_eq!(tl.tracks[1].kind, TrackKind::Video);
-        assert!(tl.tracks.iter().all(|t| t.events.len() == 1 && t.events[0].start == 1.5));
+        assert!(tl
+            .tracks
+            .iter()
+            .all(|t| t.events.len() == 1 && t.events[0].start == 1.5));
     }
 
     #[test]
@@ -193,7 +199,11 @@ mod tests {
         let events = &tl.tracks[0].events;
         assert_eq!(events.len(), 1);
         let ids: Vec<_> = events[0].takes.iter().map(|t| t.media_id).collect();
-        assert_eq!(ids, vec![Some(1), Some(2)], "the video does not stand in for audio");
+        assert_eq!(
+            ids,
+            vec![Some(1), Some(2)],
+            "the video does not stand in for audio"
+        );
         assert_eq!((events[0].media_id, events[0].duration), (Some(1), 2.0));
     }
 
@@ -202,7 +212,10 @@ mod tests {
         let mut tl = Timeline::default();
         let track = tl.new_track(TrackKind::Audio);
         tl.tracks.push(track);
-        let items = [item(1, 2.0, TrackKind::Audio), item(2, 2.0, TrackKind::Audio)];
+        let items = [
+            item(1, 2.0, TrackKind::Audio),
+            item(2, 2.0, TrackKind::Audio),
+        ];
         let command = add_media(&mut tl, AddMode::Sequence, &items, 0.0).unwrap();
         let mut history = History::new();
         history.execute(&mut tl, command);

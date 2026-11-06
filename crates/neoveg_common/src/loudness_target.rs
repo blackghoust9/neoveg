@@ -81,21 +81,15 @@ mod tests {
     #[test]
     fn the_gain_reaches_the_target_unless_the_peak_would_pass_the_ceiling() {
         // A quiet programme is lifted to -16
-        assert_eq!(
-            LoudnessTarget::Podcast.gain_db(-24.0, -12.0),
-            Some(8.0)
-        );
+        assert_eq!(LoudnessTarget::Podcast.gain_db(-24.0, -12.0), Some(8.0));
         // A loud one is brought down to -23
-        assert_eq!(
-            LoudnessTarget::EbuR128.gain_db(-14.0, -3.0),
-            Some(-9.0)
-        );
+        assert_eq!(LoudnessTarget::EbuR128.gain_db(-14.0, -3.0), Some(-9.0));
         // Lifting -20 to -14 would put a -4 dBTP peak at +2: held back to the -1 ceiling
-        assert_eq!(
-            LoudnessTarget::Streaming.gain_db(-20.0, -4.0),
-            Some(3.0)
-        );
+        assert_eq!(LoudnessTarget::Streaming.gain_db(-20.0, -4.0), Some(3.0));
         assert_eq!(LoudnessTarget::Off.gain_db(-20.0, -4.0), None);
-        assert_eq!(LoudnessTarget::Podcast.gain_db(f64::NEG_INFINITY, f64::NEG_INFINITY), None);
+        assert_eq!(
+            LoudnessTarget::Podcast.gain_db(f64::NEG_INFINITY, f64::NEG_INFINITY),
+            None
+        );
     }
 }

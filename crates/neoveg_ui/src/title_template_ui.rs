@@ -94,7 +94,13 @@ pub fn load_template(dialog: &mut GeneratorDialogState, template: &TitleTemplate
 fn file_stem_name(name: &str) -> String {
     let clean: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     clean.trim().to_string()
 }
@@ -118,7 +124,10 @@ pub fn template_row(ui: &mut egui::Ui, dialog: &mut GeneratorDialogState) {
                     .selected_text(tr("Escolher modelo…"))
                     .show_ui(ui, |ui| {
                         for p in &dialog.template.library {
-                            let label = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                            let label = p
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_default();
                             if ui.selectable_label(false, label).clicked() {
                                 picked = Some(p.clone());
                             }
@@ -137,14 +146,20 @@ pub fn template_row(ui: &mut egui::Ui, dialog: &mut GeneratorDialogState) {
                         .desired_width(160.0),
                 );
                 let named = !dialog.template.name.trim().is_empty();
-                if ui.add_enabled(named, egui::Button::new(tr("Salvar modelo"))).clicked() {
+                if ui
+                    .add_enabled(named, egui::Button::new(tr("Salvar modelo")))
+                    .clicked()
+                {
                     let name = dialog.template.name.trim().to_string();
                     let template = current_template(dialog, &name);
                     let result = match &dir {
                         Some(d) => std::fs::create_dir_all(d)
                             .map_err(|e| e.to_string())
                             .and_then(|()| {
-                                let path = d.join(format!("{}.{TEMPLATE_EXTENSION}", file_stem_name(&name)));
+                                let path = d.join(format!(
+                                    "{}.{TEMPLATE_EXTENSION}",
+                                    file_stem_name(&name)
+                                ));
                                 template.save(&path).map(|()| path)
                             }),
                         None => Err(tr("pasta de dados indisponível").to_string()),
@@ -157,14 +172,18 @@ pub fn template_row(ui: &mut egui::Ui, dialog: &mut GeneratorDialogState) {
                         Err(e) => tr_args("Falha ao salvar o modelo: {}", &[&e]),
                     };
                 }
-                if ui.add_enabled(named, egui::Button::new(tr("Salvar como…"))).clicked() {
+                if ui
+                    .add_enabled(named, egui::Button::new(tr("Salvar como…")))
+                    .clicked()
+                {
                     let name = dialog.template.name.trim().to_string();
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter(tr("Modelo de título"), &[TEMPLATE_EXTENSION])
                         .set_file_name(format!("{}.{TEMPLATE_EXTENSION}", file_stem_name(&name)))
                         .save_file()
                     {
-                        dialog.template.message = match current_template(dialog, &name).save(&path) {
+                        dialog.template.message = match current_template(dialog, &name).save(&path)
+                        {
                             Ok(()) => tr_args("Modelo salvo: {}", &[&path.display().to_string()]),
                             Err(e) => tr_args("Falha ao salvar o modelo: {}", &[&e]),
                         };
@@ -181,7 +200,9 @@ pub fn template_row(ui: &mut egui::Ui, dialog: &mut GeneratorDialogState) {
 
             let fields = neoveg_video::title_template::field_names(&dialog.title_text);
             if fields.is_empty() {
-                ui.weak(tr("Escreva {{nome}} no texto para criar um campo preenchível."));
+                ui.weak(tr(
+                    "Escreva {{nome}} no texto para criar um campo preenchível.",
+                ));
             } else {
                 ui.label(tr("Campos do texto:"));
                 dialog.template.values.retain(|k, _| fields.contains(k));
@@ -208,7 +229,10 @@ mod tests {
         let mut dialog = GeneratorDialogState::default();
         dialog.title_text = "Olá {{nome}}, {{cargo}}".into();
         dialog.title_scale = 9;
-        dialog.template.values.insert("cargo".into(), "diretor".into());
+        dialog
+            .template
+            .values
+            .insert("cargo".into(), "diretor".into());
         let template = current_template(&dialog, "Apresentação");
 
         let mut other = GeneratorDialogState::default();
@@ -230,7 +254,9 @@ mod tests {
         let mut dialog = GeneratorDialogState::default();
         dialog.title_text = "{{a}}".into();
         let template = current_template(&dialog, "Um");
-        template.save(&dir.join(format!("um.{TEMPLATE_EXTENSION}"))).unwrap();
+        template
+            .save(&dir.join(format!("um.{TEMPLATE_EXTENSION}")))
+            .unwrap();
         std::fs::write(dir.join("outro.txt"), "x").unwrap();
         let found = list_templates(&dir);
         assert_eq!(found.len(), 1);

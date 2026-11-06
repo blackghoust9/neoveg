@@ -188,7 +188,10 @@ impl ExplorerModel {
     /// Edge Case 22: Rapid file selection immediately halts and flushes previous playback.
     pub fn play_preview(&mut self, media_path: &Path) -> Result<(), String> {
         if !media_path.exists() {
-            return Err(format!("Media file does not exist: {}", media_path.display()));
+            return Err(format!(
+                "Media file does not exist: {}",
+                media_path.display()
+            ));
         }
 
         // Halt and flush previous playback
@@ -221,13 +224,19 @@ impl ExplorerModel {
         use std::io::Read;
 
         if !media_path.exists() {
-            return Err(format!("Media file does not exist: {}", media_path.display()));
+            return Err(format!(
+                "Media file does not exist: {}",
+                media_path.display()
+            ));
         }
 
         let metadata = std::fs::metadata(media_path)
             .map_err(|e| format!("Cannot read file metadata {}: {e}", media_path.display()))?;
         if metadata.len() == 0 {
-            return Err(format!("Media file is empty (0 bytes): {}", media_path.display()));
+            return Err(format!(
+                "Media file is empty (0 bytes): {}",
+                media_path.display()
+            ));
         }
 
         // 1. Try ISO-BMFF (MP4 / MOV) demuxer
@@ -301,7 +310,8 @@ impl ExplorerModel {
                     let width = u32::from_le_bytes(head[8..12].try_into().unwrap_or([0; 4]));
                     let height = u32::from_le_bytes(head[12..16].try_into().unwrap_or([0; 4]));
                     let fps_num = u32::from_le_bytes(head[16..20].try_into().unwrap_or([0; 4]));
-                    let fps_den = u32::from_le_bytes(head[20..24].try_into().unwrap_or([1; 4])).max(1);
+                    let fps_den =
+                        u32::from_le_bytes(head[20..24].try_into().unwrap_or([1; 4])).max(1);
                     let frame_count = u32::from_le_bytes(head[24..28].try_into().unwrap_or([0; 4]));
                     let fps = fps_num as f64 / fps_den as f64;
                     let duration = if fps > 0.0 {
@@ -336,8 +346,7 @@ impl ExplorerModel {
                 {
                     let byte_rate =
                         u32::from_le_bytes(head[28..32].try_into().unwrap_or([0; 4])).max(1);
-                    let data_len =
-                        u32::from_le_bytes(head[40..44].try_into().unwrap_or([0; 4]));
+                    let data_len = u32::from_le_bytes(head[40..44].try_into().unwrap_or([0; 4]));
                     let duration = data_len as f64 / byte_rate as f64;
                     if duration <= 0.0 {
                         return Err(format!(
@@ -362,7 +371,10 @@ impl ExplorerModel {
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
-        if matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "bmp" | "tif" | "tiff") {
+        if matches!(
+            ext.as_str(),
+            "png" | "jpg" | "jpeg" | "bmp" | "tif" | "tiff"
+        ) {
             let mut head = [0u8; 32];
             if let Ok(mut f) = std::fs::File::open(media_path) {
                 let n = f.read(&mut head).unwrap_or(0);
@@ -426,8 +438,10 @@ impl ExplorerModel {
             let width = u32::from_le_bytes(head[8..12].try_into().unwrap_or([0; 4])) as usize;
             let height = u32::from_le_bytes(head[12..16].try_into().unwrap_or([0; 4])) as usize;
             let fps_num = u32::from_le_bytes(head[16..20].try_into().unwrap_or([0; 4])) as f64;
-            let fps_den = u32::from_le_bytes(head[20..24].try_into().unwrap_or([1; 4])).max(1) as f64;
-            let frame_count = u32::from_le_bytes(head[24..28].try_into().unwrap_or([0; 4])) as usize;
+            let fps_den =
+                u32::from_le_bytes(head[20..24].try_into().unwrap_or([1; 4])).max(1) as f64;
+            let frame_count =
+                u32::from_le_bytes(head[24..28].try_into().unwrap_or([0; 4])) as usize;
             let fps = fps_num / fps_den;
             let frame_bytes = width * height;
 
@@ -537,7 +551,8 @@ impl ExplorerModel {
                                             && pts_sec > 0.05
                                             && pts_sec < (duration - 0.05)
                                             && (cuts.is_empty()
-                                                || (pts_sec - cuts.last().copied().unwrap_or(0.0)) >= 0.2)
+                                                || (pts_sec - cuts.last().copied().unwrap_or(0.0))
+                                                    >= 0.2)
                                         {
                                             cuts.push(pts_sec);
                                         }
@@ -565,7 +580,8 @@ impl ExplorerModel {
                             && &head[8..12] == b"WAVE"
                         {
                             let byte_rate =
-                                u32::from_le_bytes(head[28..32].try_into().unwrap_or([0; 4])).max(1);
+                                u32::from_le_bytes(head[28..32].try_into().unwrap_or([0; 4]))
+                                    .max(1);
                             let block_size = (byte_rate / 10).max(1024) as usize; // ~100ms blocks
                             let mut block = vec![0u8; block_size];
                             let mut prev_rms: Option<f32> = None;
@@ -653,7 +669,22 @@ fn is_media_extension(path: &Path) -> bool {
         let ext = ext.to_lowercase();
         matches!(
             ext.as_str(),
-            "mp4" | "mov" | "avi" | "mxf" | "mkv" | "wav" | "mp3" | "aac" | "flac" | "png" | "jpg" | "jpeg" | "tif" | "tiff" | "exr" | "dng"
+            "mp4"
+                | "mov"
+                | "avi"
+                | "mxf"
+                | "mkv"
+                | "wav"
+                | "mp3"
+                | "aac"
+                | "flac"
+                | "png"
+                | "jpg"
+                | "jpeg"
+                | "tif"
+                | "tiff"
+                | "exr"
+                | "dng"
         )
     } else {
         false
@@ -688,7 +719,11 @@ mod tests {
         let mut explorer = ExplorerModel::new();
         let items = explorer.navigate_to(&dir).expect("navigate");
 
-        assert_eq!(items.len(), 1, "Must suppress all case variations of companion files");
+        assert_eq!(
+            items.len(),
+            1,
+            "Must suppress all case variations of companion files"
+        );
         assert_eq!(items[0].name, "clip.mp4");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -750,26 +785,41 @@ mod tests {
 
     #[test]
     fn test_detect_scenes_synthetic_fixture_and_duration_bounding() {
-        let fixture_path = crate::test_fixtures::BlenderOpenMovieFixture::ensure_fixture("big_buck_bunny")
-            .expect("fixture generation");
+        let fixture_path =
+            crate::test_fixtures::BlenderOpenMovieFixture::ensure_fixture("big_buck_bunny")
+                .expect("fixture generation");
 
         let explorer = ExplorerModel::new();
 
         // 1. Scene detection with default threshold (0.25) detects the 3 distinct shots
-        let scenes = explorer.detect_scenes(&fixture_path, 0.25).expect("detect scenes");
-        assert_eq!(scenes.len(), 3, "Big Buck Bunny fixture has 3 distinct luminance shots");
+        let scenes = explorer
+            .detect_scenes(&fixture_path, 0.25)
+            .expect("detect scenes");
+        assert_eq!(
+            scenes.len(),
+            3,
+            "Big Buck Bunny fixture has 3 distinct luminance shots"
+        );
         assert_eq!(scenes[0].0, 0.0);
         assert!((scenes[0].1 - 2.0).abs() < 0.15, "Shot 1 ends near 2.0s");
         assert!((scenes[1].0 - 2.0).abs() < 0.15);
         assert!((scenes[1].1 - 5.0).abs() < 0.15, "Shot 2 ends near 5.0s");
         assert!((scenes[2].0 - 5.0).abs() < 0.15);
-        assert!((scenes[2].1 - 7.5).abs() < 0.15, "Final shot bounded strictly by 7.5s");
+        assert!(
+            (scenes[2].1 - 7.5).abs() < 0.15,
+            "Final shot bounded strictly by 7.5s"
+        );
 
         // 2. High threshold (0.95) returns single continuous span strictly bounded by duration
-        let single_scene = explorer.detect_scenes(&fixture_path, 0.95).expect("high threshold");
+        let single_scene = explorer
+            .detect_scenes(&fixture_path, 0.95)
+            .expect("high threshold");
         assert_eq!(single_scene.len(), 1);
         assert_eq!(single_scene[0].0, 0.0);
-        assert!((single_scene[0].1 - 7.5).abs() < 0.01, "Must be bounded strictly by file duration (7.5s, not 10.0)");
+        assert!(
+            (single_scene[0].1 - 7.5).abs() < 0.01,
+            "Must be bounded strictly by file duration (7.5s, not 10.0)"
+        );
 
         // 3. Non-existent file returns Err
         let missing = std::path::Path::new("does_not_exist_xyz123.mp4");

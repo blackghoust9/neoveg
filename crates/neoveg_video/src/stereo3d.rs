@@ -89,7 +89,13 @@ pub fn split_eyes(frame: &FrameBuffer, layout: StereoLayout) -> (FrameBuffer, Fr
 pub fn anaglyph(left: &FrameBuffer, right: &FrameBuffer) -> FrameBuffer {
     let mut out = right.clone();
     if left.width == right.width && left.height == right.height {
-        for (o, l) in out.rgba.chunks_exact_mut(4).zip(left.rgba.chunks_exact(4)) {
+        for (o, l) in out
+            .rgba
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(left.rgba.as_chunks::<4>().0.iter())
+        {
             o[0] = l[0];
         }
     }
@@ -120,7 +126,8 @@ pub fn side_by_side(left: &FrameBuffer, right: &FrameBuffer) -> FrameBuffer {
             let src = if x < w / 2 { left } else { right };
             let sx = (if x < w / 2 { x } else { x - w / 2 } * 2).min(w - 1);
             let from = (y * w + sx) * 4;
-            out.rgba[(y * w + x) * 4..(y * w + x) * 4 + 4].copy_from_slice(&src.rgba[from..from + 4]);
+            out.rgba[(y * w + x) * 4..(y * w + x) * 4 + 4]
+                .copy_from_slice(&src.rgba[from..from + 4]);
         }
     }
     out
@@ -166,35 +173,73 @@ mod tests {
         for layout in StereoLayout::ALL {
             let (l, r) = split_eyes(&pair(layout), layout);
             assert_eq!((l.width, l.height), (8, 4));
-            assert!(l.rgba.chunks_exact(4).all(|p| p[..3] == [200, 10, 10]), "{layout:?}");
-            assert!(r.rgba.chunks_exact(4).all(|p| p[..3] == [10, 20, 220]), "{layout:?}");
+            assert!(
+                l.rgba
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .all(|p| p[..3] == [200, 10, 10]),
+                "{layout:?}"
+            );
+            assert!(
+                r.rgba
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .all(|p| p[..3] == [10, 20, 220]),
+                "{layout:?}"
+            );
         }
     }
 
     #[test]
     fn an_anaglyph_takes_red_from_the_left_eye_and_the_rest_from_the_right() {
-        let out = stereo_view(&pair(StereoLayout::SideBySide), StereoLayout::SideBySide, StereoOutput::Anaglyph);
-        assert!(out.rgba.chunks_exact(4).all(|p| p == [200, 20, 220, 255]));
+        let out = stereo_view(
+            &pair(StereoLayout::SideBySide),
+            StereoLayout::SideBySide,
+            StereoOutput::Anaglyph,
+        );
+        assert!(out
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p == &[200, 20, 220, 255]));
     }
 
     #[test]
     fn interleaved_rows_alternate_the_eyes() {
-        let out = stereo_view(&pair(StereoLayout::TopBottom), StereoLayout::TopBottom, StereoOutput::RowInterleaved);
+        let out = stereo_view(
+            &pair(StereoLayout::TopBottom),
+            StereoLayout::TopBottom,
+            StereoOutput::RowInterleaved,
+        );
         for y in 0..4 {
-            let want = if y % 2 == 0 { [200, 10, 10] } else { [10, 20, 220] };
+            let want = if y % 2 == 0 {
+                [200, 10, 10]
+            } else {
+                [10, 20, 220]
+            };
             assert_eq!(out.pixel(3, y)[..3], want, "row {y}");
         }
     }
 
     #[test]
     fn side_by_side_output_converts_a_top_bottom_source() {
-        let out = stereo_view(&pair(StereoLayout::TopBottom), StereoLayout::TopBottom, StereoOutput::SideBySide);
+        let out = stereo_view(
+            &pair(StereoLayout::TopBottom),
+            StereoLayout::TopBottom,
+            StereoOutput::SideBySide,
+        );
         assert_eq!(out, pair(StereoLayout::SideBySide));
     }
 
     #[test]
     fn off_leaves_the_frame_alone() {
         let f = pair(StereoLayout::SideBySide);
-        assert_eq!(stereo_view(&f, StereoLayout::SideBySide, StereoOutput::Off), f);
+        assert_eq!(
+            stereo_view(&f, StereoLayout::SideBySide, StereoOutput::Off),
+            f
+        );
     }
 }

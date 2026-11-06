@@ -102,7 +102,11 @@ pub fn has_color_correction(event: &TrackEvent) -> bool {
 /// review of the whole film.
 pub fn events_without_color_correction(timeline: &Timeline) -> Vec<(TrackId, EventId)> {
     let mut out = Vec::new();
-    for track in timeline.tracks.iter().filter(|t| t.kind == TrackKind::Video) {
+    for track in timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Video)
+    {
         let mut events: Vec<&TrackEvent> = track
             .events
             .iter()
@@ -198,9 +202,16 @@ mod tests {
         );
         let vid = v.id;
         tl.tracks.push(v);
-        let a = track(&mut tl, TrackKind::Audio, vec![event(20, 0.0, Some(2), false)]);
+        let a = track(
+            &mut tl,
+            TrackKind::Audio,
+            vec![event(20, 0.0, Some(2), false)],
+        );
         tl.tracks.push(a);
-        assert_eq!(events_without_color_correction(&tl), vec![(vid, 12), (vid, 10)]);
+        assert_eq!(
+            events_without_color_correction(&tl),
+            vec![(vid, 12), (vid, 10)]
+        );
         // A neutral grade counts as no correction
         let mut tl2 = tl.clone();
         tl2.tracks[0].events[0].color_grade = Some(EventColorGrade::default());

@@ -10,7 +10,8 @@ use super::AppState;
 impl AppState {
     /// Adds a transcript of the timeline mix to the index kept in the project (saved with it).
     pub(super) fn index_whisper_transcript(&mut self, segments: &[TranscriptSegment]) {
-        let split = neoveg_engine::speech_index::split_timeline_transcript(&self.timeline, segments);
+        let split =
+            neoveg_engine::speech_index::split_timeline_transcript(&self.timeline, segments);
         for (media, segs) in split {
             self.timeline.speech_index.add_media(media, &segs);
         }
@@ -31,7 +32,10 @@ impl AppState {
         if let Some(time) = jump {
             self.playhead = time;
             self.blink_origin = ctx.input(|i| i.time);
-            self.status = tr_args("Cursor em {} s (busca de palavra falada)", &[&format!("{time:.2}")]);
+            self.status = tr_args(
+                "Cursor em {} s (busca de palavra falada)",
+                &[&format!("{time:.2}")],
+            );
         }
     }
 }

@@ -42,7 +42,9 @@ pub fn grid_cell(index: usize, columns: usize) -> (usize, usize) {
 /// Index of the card at `(row, column)`, `None` outside the grid or past the last card.
 pub fn index_at(row: usize, column: usize, columns: usize, len: usize) -> Option<usize> {
     let columns = columns.max(1);
-    (column < columns).then(|| row * columns + column).filter(|i| *i < len)
+    (column < columns)
+        .then(|| row * columns + column)
+        .filter(|i| *i < len)
 }
 
 /// How many columns of `card_width` (plus `gap`) fit in `available` width; at least one.
@@ -73,7 +75,11 @@ pub fn send_to_timeline(
     if order.len() != track.events.len() {
         return None;
     }
-    let first = track.events.iter().map(|e| e.start).fold(f64::INFINITY, f64::min);
+    let first = track
+        .events
+        .iter()
+        .map(|e| e.start)
+        .fold(f64::INFINITY, f64::min);
     let mut at = first;
     let mut moves = Vec::new();
     let mut seen = Vec::new();
@@ -159,7 +165,15 @@ mod tests {
         let command = send_to_timeline(&tl, track, &order).expect("order changes");
         let mut history = History::new();
         assert!(history.execute(&mut tl, command));
-        let start_of = |tl: &Timeline, id| tl.track(track).unwrap().events.iter().find(|e| e.id == id).unwrap().start;
+        let start_of = |tl: &Timeline, id| {
+            tl.track(track)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == id)
+                .unwrap()
+                .start
+        };
         assert_eq!(start_of(&tl, ids[2]), 5.0);
         assert_eq!(start_of(&tl, ids[0]), 6.0);
         assert_eq!(start_of(&tl, ids[1]), 8.0);
@@ -171,9 +185,18 @@ mod tests {
     #[test]
     fn a_bad_order_or_no_change_sends_nothing() {
         let (tl, track, ids) = timeline();
-        assert!(send_to_timeline(&tl, track, &ids[..2]).is_none(), "missing a card");
-        assert!(send_to_timeline(&tl, track, &[ids[0], ids[0], ids[1]]).is_none(), "repeated card");
-        assert!(send_to_timeline(&tl, track, &[ids[0], ids[1], 777]).is_none(), "unknown card");
+        assert!(
+            send_to_timeline(&tl, track, &ids[..2]).is_none(),
+            "missing a card"
+        );
+        assert!(
+            send_to_timeline(&tl, track, &[ids[0], ids[0], ids[1]]).is_none(),
+            "repeated card"
+        );
+        assert!(
+            send_to_timeline(&tl, track, &[ids[0], ids[1], 777]).is_none(),
+            "unknown card"
+        );
         // Already packed in this order? Pack once, then the same order changes nothing
         let mut tl = tl;
         let mut history = History::new();

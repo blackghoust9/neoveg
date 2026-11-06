@@ -394,7 +394,10 @@ mod tests {
         let mut dialog = MediaPropsDialog::default();
         assert_eq!(dialog.take_pulldown_request(), None);
         dialog.pulldown_request = Some((3, PulldownMode::Remove));
-        assert_eq!(dialog.take_pulldown_request(), Some((3, PulldownMode::Remove)));
+        assert_eq!(
+            dialog.take_pulldown_request(),
+            Some((3, PulldownMode::Remove))
+        );
         assert_eq!(dialog.take_pulldown_request(), None);
     }
 

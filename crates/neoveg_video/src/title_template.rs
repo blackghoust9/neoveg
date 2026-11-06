@@ -43,10 +43,7 @@ enum Piece {
 fn parse(text: &str) -> Vec<Piece> {
     let mut pieces = Vec::new();
     let mut rest = text;
-    loop {
-        let Some(open) = rest.find("{{") else {
-            break;
-        };
+    while let Some(open) = rest.find("{{") {
         let Some(close) = rest[open + 2..].find("}}") else {
             break;
         };
@@ -159,7 +156,11 @@ impl TitleTemplate {
         let mut spec = self.spec.clone();
         if let GeneratorKind::TitleText { text, layout, .. } = &mut spec.kind {
             let (filled, map) = fill_text(text, &all);
-            let at = |i: usize| map.get(i).copied().unwrap_or_else(|| map.last().copied().unwrap_or(0));
+            let at = |i: usize| {
+                map.get(i)
+                    .copied()
+                    .unwrap_or_else(|| map.last().copied().unwrap_or(0))
+            };
             for span in &mut layout.spans {
                 span.start = at(span.start);
                 span.end = at(span.end);
@@ -245,7 +246,10 @@ mod tests {
         // The template itself is left alone and shows its markers
         assert_eq!(text_of(&t.spec), "{{nome}}\n{{cargo}}");
         // A missing field turns into nothing
-        assert_eq!(text_of(&template("A {{x}} B").instantiate(&values(&[]))), "A  B");
+        assert_eq!(
+            text_of(&template("A {{x}} B").instantiate(&values(&[]))),
+            "A  B"
+        );
     }
 
     #[test]
@@ -284,7 +288,9 @@ mod tests {
         let back = TitleTemplate::load(&path).unwrap();
         assert_eq!(back, t);
         let one = back.instantiate(&values(&[("nome", "ABC")])).render(0.0, 0);
-        let two = back.instantiate(&values(&[("nome", "ABCDEFGH")])).render(0.0, 0);
+        let two = back
+            .instantiate(&values(&[("nome", "ABCDEFGH")]))
+            .render(0.0, 0);
         assert_ne!(one.rgba, two.rgba, "another text, another picture");
         assert!(TitleTemplate::load(&dir.join("nao_existe")).is_err());
         let _ = std::fs::remove_dir_all(&dir);

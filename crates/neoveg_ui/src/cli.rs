@@ -11,13 +11,22 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cli {
     /// Start the editor (opening `project` in a tab when given).
-    Run { open: Option<PathBuf> },
+    Run {
+        open: Option<PathBuf>,
+    },
     /// Render `project` to `output` without a window and exit.
-    Render { project: PathBuf, output: PathBuf },
+    Render {
+        project: PathBuf,
+        output: PathBuf,
+    },
     /// Render the interface offscreen to PNG files in `dir` and exit.
-    Screenshots { dir: PathBuf },
+    Screenshots {
+        dir: PathBuf,
+    },
     /// Run a script file without a window and exit.
-    RunScript { script: PathBuf },
+    RunScript {
+        script: PathBuf,
+    },
     Help,
     Version,
 }
@@ -56,9 +65,9 @@ where
                 open = Some(path.into());
             }
             "--render" => {
-                let project = args
-                    .next()
-                    .ok_or_else(|| "--render precisa do projeto e do arquivo de saída".to_string())?;
+                let project = args.next().ok_or_else(|| {
+                    "--render precisa do projeto e do arquivo de saída".to_string()
+                })?;
                 let output = args
                     .next()
                     .ok_or_else(|| "--render precisa do arquivo de saída".to_string())?;

@@ -6,7 +6,9 @@ fn toolbar_source() -> String {
     let src = include_str!("app.rs");
     let from = src.find("fn toolbar_ui(").expect("toolbar_ui exists");
     let rest = &src[from..];
-    let to = rest.find("fn timeline_canvas(").expect("timeline_canvas follows");
+    let to = rest
+        .find("fn timeline_canvas(")
+        .expect("timeline_canvas follows");
     rest[..to].to_string()
 }
 

@@ -48,6 +48,7 @@ impl SpeechSearchState {
         self.searched = Some(key);
     }
 
+    #[allow(dead_code)]
     pub fn hits(&self) -> &[SpeechHit] {
         &self.hits
     }
@@ -164,8 +165,10 @@ mod tests {
     #[test]
     fn the_window_state_searches_and_the_hit_leads_to_the_timeline() {
         let tl = timeline_with_media_1();
-        let mut state = SpeechSearchState::default();
-        state.query = "AMIGOS".into();
+        let mut state = SpeechSearchState {
+            query: "AMIGOS".into(),
+            ..Default::default()
+        };
         state.refresh(&index());
         assert_eq!(state.hits().len(), 1);
         let target = seek_target(&tl, &state.hits()[0], 0.0).unwrap();

@@ -11,14 +11,17 @@ use neoveg_video::pulldown_job::PulldownMode;
 
 use super::AppState;
 
+type PulldownJobState = Arc<Mutex<((u64, u64), Option<Result<(), String>>)>>;
+
 /// A pulldown conversion running on a worker thread.
 pub(super) struct PulldownJob {
     output: PathBuf,
     /// `(done, total)` and, once over, how it ended.
-    state: Arc<Mutex<((u64, u64), Option<Result<(), String>>)>>,
+    state: PulldownJobState,
 }
 
 /// File name of the converted copy of `stem`: `stem_sem_pulldown_001.mp4`, the first number free.
+#[allow(dead_code)]
 pub(super) fn output_name(stem: &str, mode: PulldownMode, taken: impl Fn(&str) -> bool) -> String {
     (1..)
         .map(|n| format!("{stem}_{}_{n:03}.mp4", mode.suffix()))
@@ -42,10 +45,16 @@ impl AppState {
         let src = PathBuf::from(&item.path);
         let dir = self.gallery_dir().with_file_name("pulldown");
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            self.status = tr_args("Não foi possível criar a pasta {}: {}", &[&dir.display(), &e]);
+            self.status = tr_args(
+                "Não foi possível criar a pasta {}: {}",
+                &[&dir.display(), &e],
+            );
             return;
         }
-        let stem = src.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        let stem = src
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let output = dir.join(output_name(&stem, mode, |n| dir.join(n).exists()));
         let cancel = std::sync::atomic::AtomicBool::new(false);
         let state = Arc::new(Mutex::new(((0, 1), None)));
@@ -97,7 +106,10 @@ impl AppState {
         self.video_tools.pulldown = None;
         match outcome {
             Ok(()) => {
-                self.status = tr_args("Pulldown convertido: {} (importado na mídia do projeto)", &[&output.display()]);
+                self.status = tr_args(
+                    "Pulldown convertido: {} (importado na mídia do projeto)",
+                    &[&output.display()],
+                );
                 self.spawn_media(output, None, ctx);
             }
             Err(e) => self.status = tr_args("A conversão de pulldown falhou: {}", &[&e]),
@@ -114,6 +126,9 @@ mod tests {
         let taken = ["clip_sem_pulldown_001.mp4", "clip_sem_pulldown_002.mp4"];
         let name = output_name("clip", PulldownMode::Remove, |n| taken.contains(&n));
         assert_eq!(name, "clip_sem_pulldown_003.mp4");
-        assert_eq!(output_name("clip", PulldownMode::Apply, |_| false), "clip_com_pulldown_001.mp4");
+        assert_eq!(
+            output_name("clip", PulldownMode::Apply, |_| false),
+            "clip_com_pulldown_001.mp4"
+        );
     }
 }

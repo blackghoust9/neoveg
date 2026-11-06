@@ -363,18 +363,23 @@ mod tests {
         assert!(!off.create_peak_files && !off.hide_peak_files);
         // Default effects on imported sound are off unless asked for
         assert!(!p.import_gate && !p.import_eq && !p.import_compressor);
-        let on: Preferences = serde_json::from_str(r#"{"import_gate":true,"import_compressor":true}"#).unwrap();
+        let on: Preferences =
+            serde_json::from_str(r#"{"import_gate":true,"import_compressor":true}"#).unwrap();
         assert!(on.import_gate && !on.import_eq && on.import_compressor);
     }
 
     #[test]
     fn a_file_from_before_the_extra_keys_gets_their_defaults() {
-        let p: Preferences = serde_json::from_str(r#"{"language":"en-US","quantize_to_frames":false}"#).unwrap();
+        let p: Preferences =
+            serde_json::from_str(r#"{"language":"en-US","quantize_to_frames":false}"#).unwrap();
         assert_eq!(p.quick_fade_ms, 10.0);
         assert!(!p.cut_to_overlap && p.envelope_fade && p.preserve_pitch_on_stretch);
         assert_eq!(p.thumbnails(), "all");
         assert!(p.create_fx_undos && !p.show_safe_areas);
-        assert_eq!((p.safe_area_action_percent, p.safe_area_title_percent), (93.0, 90.0));
+        assert_eq!(
+            (p.safe_area_action_percent, p.safe_area_title_percent),
+            (93.0, 90.0)
+        );
         assert_eq!((p.keyframe_smoothness, p.grid_divisions), (0.0, 3));
         let own: Preferences = serde_json::from_str(
             r#"{"quick_fade_ms":25.0,"cut_to_overlap":true,"thumbnails_mode":"first","grid_divisions":4}"#,
@@ -420,7 +425,8 @@ mod tests {
             ..ProjectSettings::default()
         };
         p.new_project_settings = Some(settings.clone());
-        p.custom_templates.push(ProjectTemplate::new("Meu 4K", settings));
+        p.custom_templates
+            .push(ProjectTemplate::new("Meu 4K", settings));
         p.add_recent_project(Path::new("x.neoveg"));
         p.save(&path).unwrap();
         let back = Preferences::load(&path);

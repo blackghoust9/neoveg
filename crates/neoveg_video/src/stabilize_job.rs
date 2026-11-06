@@ -114,18 +114,24 @@ mod tests {
             output: &src,
         };
         let cancel = AtomicBool::new(false);
-        encode_video(RenderEngine::Internal, &spec, &cancel, |_, _| {}, |i| {
-            let shake = if i % 2 == 0 { 0 } else { 3 };
-            let mut f = FrameBuffer::solid(128, 72, [0, 0, 0, 255]);
-            for y in 0..72u32 {
-                for x in 0..128u32 {
-                    let v = noise((x + shake) / 4, y / 4);
-                    let at = ((y * 128 + x) * 4) as usize;
-                    f.rgba[at..at + 4].copy_from_slice(&[v, v, v, 255]);
+        encode_video(
+            RenderEngine::Internal,
+            &spec,
+            &cancel,
+            |_, _| {},
+            |i| {
+                let shake = if i % 2 == 0 { 0 } else { 3 };
+                let mut f = FrameBuffer::solid(128, 72, [0, 0, 0, 255]);
+                for y in 0..72u32 {
+                    for x in 0..128u32 {
+                        let v = noise((x + shake) / 4, y / 4);
+                        let at = ((y * 128 + x) * 4) as usize;
+                        f.rgba[at..at + 4].copy_from_slice(&[v, v, v, 255]);
+                    }
                 }
-            }
-            Ok(f)
-        })
+                Ok(f)
+            },
+        )
         .unwrap();
         let mut progress = Vec::new();
         stabilize_file(
@@ -145,10 +151,30 @@ mod tests {
         assert!((info.duration - 1.0).abs() < 0.2, "{}", info.duration);
         assert_eq!(progress.last(), Some(&(20, 20)));
         // Too long a clip is refused, and a cancel stops it
-        let too_long = stabilize_file(&src, 0.0, 1e6, 10.0, &out, StabilizeOptions::default(), RenderEngine::Internal, &cancel, |_, _| {});
+        let too_long = stabilize_file(
+            &src,
+            0.0,
+            1e6,
+            10.0,
+            &out,
+            StabilizeOptions::default(),
+            RenderEngine::Internal,
+            &cancel,
+            |_, _| {},
+        );
         assert!(too_long.is_err());
         let stop = AtomicBool::new(true);
-        let stopped = stabilize_file(&src, 0.0, 1.0, 10.0, &dir.join("x.mp4"), StabilizeOptions::default(), RenderEngine::Internal, &stop, |_, _| {});
+        let stopped = stabilize_file(
+            &src,
+            0.0,
+            1.0,
+            10.0,
+            &dir.join("x.mp4"),
+            StabilizeOptions::default(),
+            RenderEngine::Internal,
+            &stop,
+            |_, _| {},
+        );
         assert!(stopped.is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }

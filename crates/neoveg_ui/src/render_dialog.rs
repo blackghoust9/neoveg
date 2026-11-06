@@ -176,10 +176,8 @@ impl RenderDialogState {
                             remove = Some(id);
                         }
                     }
-                    QueueState::Running => {
-                        if ui.small_button(tr("Cancelar")).clicked() {
-                            cancel = Some(id);
-                        }
+                    QueueState::Running if ui.small_button(tr("Cancelar")).clicked() => {
+                        cancel = Some(id);
                     }
                     _ => {}
                 }
@@ -719,8 +717,10 @@ mod queue_tests {
 
     #[test]
     fn a_direct_render_in_progress_holds_the_queue() {
-        let mut dialog = RenderDialogState::default();
-        dialog.active_job = Some(job(false, None));
+        let mut dialog = RenderDialogState {
+            active_job: Some(job(false, None)),
+            ..Default::default()
+        };
         dialog.enqueue(request("a.wav"));
         assert!(dialog.pump_queue().is_none());
         dialog.active_job = Some(job(true, None));

@@ -39,7 +39,9 @@ pub struct SmartProxyManager {
 
 impl SmartProxyManager {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     pub fn entries(&self) -> &[SmartProxyEntry] {
@@ -49,14 +51,21 @@ impl SmartProxyManager {
     /// Computes canonical proxy companion path (.sfvp0) alongside the original file.
     pub fn get_proxy_path_for(original: &Path) -> PathBuf {
         let mut p = original.to_path_buf();
-        let name = format!("{}.sfvp0", p.file_name().unwrap_or_default().to_string_lossy());
+        let name = format!(
+            "{}.sfvp0",
+            p.file_name().unwrap_or_default().to_string_lossy()
+        );
         p.set_file_name(name);
         p
     }
 
     /// Registers a media path for smart proxy management.
     pub fn register_media(&mut self, original_path: PathBuf, width: u32, height: u32) {
-        if self.entries.iter().any(|e| e.original_path == original_path) {
+        if self
+            .entries
+            .iter()
+            .any(|e| e.original_path == original_path)
+        {
             return;
         }
 
@@ -99,7 +108,11 @@ impl SmartProxyManager {
 
         match quality {
             RenderQuality::Draft | RenderQuality::Preview => {
-                if let Some(entry) = self.entries.iter().find(|e| e.original_path == original_path) {
+                if let Some(entry) = self
+                    .entries
+                    .iter()
+                    .find(|e| e.original_path == original_path)
+                {
                     if entry.state == ProxyState::Available && entry.proxy_path.exists() {
                         return &entry.proxy_path;
                     }
@@ -144,7 +157,11 @@ impl SmartProxyManager {
 
     /// Triggers proxy creation for an entry, setting state to Available once complete.
     pub fn mark_proxy_available(&mut self, original_path: &Path) {
-        if let Some(entry) = self.entries.iter_mut().find(|e| e.original_path == original_path) {
+        if let Some(entry) = self
+            .entries
+            .iter_mut()
+            .find(|e| e.original_path == original_path)
+        {
             entry.state = ProxyState::Available;
         }
     }

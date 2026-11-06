@@ -120,12 +120,9 @@ pub fn apply_choice(
     };
     match choice {
         DragChoice::Copy => copy_moved(timeline, &all, delta, Some(to_track)),
-        DragChoice::Shuffle => ripple::shuffle_events(
-            timeline,
-            track,
-            event,
-            new_start + origin.duration / 2.0,
-        ),
+        DragChoice::Shuffle => {
+            ripple::shuffle_events(timeline, track, event, new_start + origin.duration / 2.0)
+        }
         DragChoice::Move => {
             if all.len() > 1 {
                 groups::move_events(timeline, &all, delta)
@@ -223,7 +220,11 @@ mod tests {
         run(&mut tl, out);
         // A block stays on its own tracks and gets one new shared group
         assert_eq!(tl.tracks[0].events.len(), 5);
-        let new: Vec<_> = tl.tracks[0].events.iter().filter(|e| e.start >= 20.0).collect();
+        let new: Vec<_> = tl.tracks[0]
+            .events
+            .iter()
+            .filter(|e| e.start >= 20.0)
+            .collect();
         assert_eq!(new.len(), 2);
         assert_eq!(new[0].group, new[1].group);
         assert_ne!(new[0].group, Some(group));
@@ -235,23 +236,55 @@ mod tests {
         assert_eq!(DragChoice::available(1).len(), 3);
         assert_eq!(DragChoice::available(2).len(), 2);
         // Move
-        let out = apply_choice(&mut tl, DragChoice::Move, tracks[0], ids[2], &[], 8.0, tracks[0])
-            .unwrap();
+        let out = apply_choice(
+            &mut tl,
+            DragChoice::Move,
+            tracks[0],
+            ids[2],
+            &[],
+            8.0,
+            tracks[0],
+        )
+        .unwrap();
         run(&mut tl, out);
         assert_eq!(tl.tracks[0].events.last().unwrap().start, 8.0);
         // Copy
-        let out =
-            apply_choice(&mut tl, DragChoice::Copy, tracks[0], ids[0], &[], 30.0, tracks[0])
-                .unwrap();
+        let out = apply_choice(
+            &mut tl,
+            DragChoice::Copy,
+            tracks[0],
+            ids[0],
+            &[],
+            30.0,
+            tracks[0],
+        )
+        .unwrap();
         run(&mut tl, out);
         assert_eq!(tl.tracks[0].events.len(), 4);
         // Shuffle: the first event goes after the second (drop mid-point past its midpoint)
         let (mut tl2, tracks2, ids2) = timeline();
-        let out = apply_choice(&mut tl2, DragChoice::Shuffle, tracks2[0], ids2[0], &[], 4.0, tracks2[0])
-            .unwrap();
+        let out = apply_choice(
+            &mut tl2,
+            DragChoice::Shuffle,
+            tracks2[0],
+            ids2[0],
+            &[],
+            4.0,
+            tracks2[0],
+        )
+        .unwrap();
         run(&mut tl2, out);
         assert_eq!(tl2.tracks[0].events[1].id, ids2[0]);
         // Dropping where it started does nothing
-        assert!(apply_choice(&mut tl2, DragChoice::Move, tracks2[0], ids2[1], &[], 0.0, tracks2[0]).is_none());
+        assert!(apply_choice(
+            &mut tl2,
+            DragChoice::Move,
+            tracks2[0],
+            ids2[1],
+            &[],
+            0.0,
+            tracks2[0]
+        )
+        .is_none());
     }
 }

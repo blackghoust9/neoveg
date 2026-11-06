@@ -500,14 +500,21 @@ mod tests {
         let d = dir("by_folder");
         std::fs::write(d.join("a.WAV"), b"x").unwrap();
         std::fs::write(d.join("b.mp4"), b"x").unwrap();
-        let mut pool = vec![media("C:/old/a.wav"), media("C:/old/c.wav"), media("C:/old/b.mp4")];
+        let mut pool = vec![
+            media("C:/old/a.wav"),
+            media("C:/old/c.wav"),
+            media("C:/old/b.mp4"),
+        ];
         pool[1].id = 2;
         pool[2].id = 3;
         let changed = replace_by_folder(&mut pool, &d);
         let ids: Vec<u64> = changed.iter().map(|(id, _)| *id).collect();
         assert_eq!(ids, vec![1, 3]);
         assert!(pool[0].path.ends_with("a.WAV"));
-        assert_eq!(pool[1].path, "C:/old/c.wav", "no file of that name: untouched");
+        assert_eq!(
+            pool[1].path, "C:/old/c.wav",
+            "no file of that name: untouched"
+        );
         // Running it again changes nothing: they are already there
         assert!(replace_by_folder(&mut pool, &d).is_empty());
         // A sub-project is never swapped

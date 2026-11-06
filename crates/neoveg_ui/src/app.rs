@@ -9,31 +9,31 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+mod audio_edit;
+mod caption_regions;
+pub(crate) mod cli_render;
 mod composite;
 mod detached;
 mod dock_footer;
+mod drag_menu;
+mod event_rate;
 pub(crate) mod headless;
-pub(crate) mod cli_render;
+mod mark_tools;
+mod media_facts_ui;
+mod media_folder;
 mod mixing_console;
+mod placement_cmds;
+mod pulldown_tools;
 mod render_extras;
 mod render_job;
 mod render_to_track;
-mod placement_cmds;
 mod scene_detect;
-mod track_group_ui;
-mod mark_tools;
 mod spoken;
-mod audio_edit;
 mod subclip;
-mod drag_menu;
-mod event_rate;
-mod media_folder;
-mod caption_regions;
 mod tabs;
+mod track_group_ui;
 mod trim_monitor;
 mod video_tools;
-mod pulldown_tools;
-mod media_facts_ui;
 
 use crate::theme as ui_theme;
 use eframe::egui::{
@@ -5611,7 +5611,8 @@ impl AppState {
                                 if is_fade_in {
                                     new_g.fade_in = d.current.fade_in.clamp(0.0, partner.duration);
                                 } else {
-                                    new_g.fade_out = d.current.fade_out.clamp(0.0, partner.duration);
+                                    new_g.fade_out =
+                                        d.current.fade_out.clamp(0.0, partner.duration);
                                 }
                                 if new_g != partner.geometry() {
                                     batch.push(EditCommand::EditEvent {
@@ -6913,7 +6914,8 @@ impl AppState {
             Ok(frame) => {
                 self.frame_scopes = Some(Scopes::from_frame(&frame));
                 self.frame_scopes_version += 1;
-                self.video_tools.keep_frame(&frame, self.frame_scopes_version);
+                self.video_tools
+                    .keep_frame(&frame, self.frame_scopes_version);
                 let frame = neoveg_video::stereo3d::stereo_view(
                     &frame,
                     self.video_tools.stereo_layout,
@@ -6923,7 +6925,11 @@ impl AppState {
                 let mut view = self.video_tools.view_mode;
                 view.field_order = Some(self.project.settings.field_order);
                 view.deinterlace = view.deinterlace.map(|_| self.project.settings.deinterlace);
-                let frame = if view.is_identity() { frame } else { view.apply(&frame) };
+                let frame = if view.is_identity() {
+                    frame
+                } else {
+                    view.apply(&frame)
+                };
                 let image = egui::ColorImage::from_rgba_unmultiplied(
                     [frame.width as usize, frame.height as usize],
                     &frame.rgba,
@@ -8978,9 +8984,16 @@ impl AppState {
             }
             Command::InsertEmptyEvent => self.insert_empty_event(),
             Command::RenderToNewTrack => self.begin_render_to_track(false, ctx),
-            Command::QuickExportWeb => self.quick_export(neoveg_common::quick_export::QuickExportTarget::Web, ctx),
-            Command::QuickExportFile => self.quick_export(neoveg_common::quick_export::QuickExportTarget::File, ctx),
-            Command::QuickExportAudio => self.quick_export(neoveg_common::quick_export::QuickExportTarget::AudioOnly, ctx),
+            Command::QuickExportWeb => {
+                self.quick_export(neoveg_common::quick_export::QuickExportTarget::Web, ctx)
+            }
+            Command::QuickExportFile => {
+                self.quick_export(neoveg_common::quick_export::QuickExportTarget::File, ctx)
+            }
+            Command::QuickExportAudio => self.quick_export(
+                neoveg_common::quick_export::QuickExportTarget::AudioOnly,
+                ctx,
+            ),
             Command::FileArchiveProject => self.archive_to_folder(false),
             Command::EditRenameByMetadata => self.rename_dialog.open = true,
             Command::FileConsolidateMedia => self.archive_to_folder(true),
@@ -9163,8 +9176,12 @@ impl AppState {
             Command::EditPitchOctaveUp => self.nudge_selected_pitch(12.0),
             Command::EditPitchOctaveDown => self.nudge_selected_pitch(-12.0),
             Command::EditPitchReset => self.reset_selected_pitch(),
-            Command::EditRateUp => self.nudge_selected_rate(1.0 + neoveg_engine::event_rate::RATE_STEP),
-            Command::EditRateDown => self.nudge_selected_rate(1.0 / (1.0 + neoveg_engine::event_rate::RATE_STEP)),
+            Command::EditRateUp => {
+                self.nudge_selected_rate(1.0 + neoveg_engine::event_rate::RATE_STEP)
+            }
+            Command::EditRateDown => {
+                self.nudge_selected_rate(1.0 / (1.0 + neoveg_engine::event_rate::RATE_STEP))
+            }
             Command::EditMediaProperties => self.open_selected_media_properties(),
             Command::EditNextTake => self.step_take(1),
             Command::EditPreviousTake => self.step_take(-1),
@@ -10397,7 +10414,8 @@ impl NeovegApp {
             duration,
             &mut style,
         );
-        if self.state.render_dialog.loudness_target != self.state.project.settings.render_loudness_target
+        if self.state.render_dialog.loudness_target
+            != self.state.project.settings.render_loudness_target
         {
             self.state.project.settings.render_loudness_target =
                 self.state.render_dialog.loudness_target;
@@ -10621,7 +10639,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.missing_open = true;
                 ui.close_menu();
             }
-            if ui.button(tr("Trocar arquivos de mídia por pasta…")).clicked() {
+            if ui
+                .button(tr("Trocar arquivos de mídia por pasta…"))
+                .clicked()
+            {
                 let ctx = ui.ctx().clone();
                 state.replace_media_by_folder(&ctx);
                 ui.close_menu();
@@ -11086,7 +11107,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 tr("Destacar eventos sem correção"),
             );
             ui.checkbox(&mut state.video_tools.storyboard.open, tr("Storyboard"));
-            crate::stereo_menu::stereo_menu(ui, &mut state.video_tools.stereo_layout, &mut state.video_tools.stereo_output);
+            crate::stereo_menu::stereo_menu(
+                ui,
+                &mut state.video_tools.stereo_layout,
+                &mut state.video_tools.stereo_output,
+            );
             command_item(state, ui, Command::ViewEditDetails);
             ui.separator();
             for command in [
@@ -14312,7 +14337,11 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
                     Color32::from_gray(60)
                 };
 
-                painter.rect_stroke(tile_rect, Rounding::ZERO, Stroke::new(1.5_f32, border_color));
+                painter.rect_stroke(
+                    tile_rect,
+                    Rounding::ZERO,
+                    Stroke::new(1.5_f32, border_color),
+                );
                 painter.text(
                     pos2(tile_rect.left() + 6.0, tile_rect.top() + 6.0),
                     Align2::LEFT_TOP,
@@ -16073,30 +16102,22 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.add_track(TrackKind::Video);
         }
         let loop_tip = state.with_hint(tr(Command::TransportLoop.label()), Command::TransportLoop);
-        if icons::icon_button(ui, Icon::Loop, &loop_tip, state.looping)
-        .clicked()
-        {
+        if icons::icon_button(ui, Icon::Loop, &loop_tip, state.looping).clicked() {
             state.toggle_loop();
         }
         let group_tip = state.with_hint(
             tr(Command::EditIgnoreGrouping.label()),
             Command::EditIgnoreGrouping,
         );
-        if icons::icon_button(ui, Icon::Group, &group_tip, !state.ignore_grouping)
-        .clicked()
-        {
+        if icons::icon_button(ui, Icon::Group, &group_tip, !state.ignore_grouping).clicked() {
             state.toggle_ignore_grouping();
         }
         let selected_refs = state.selection.refs();
         let all_locked = !selected_refs.is_empty()
             && switches::state(&state.timeline, &selected_refs, Switch::Lock) == SwitchState::On;
-        let lock_tip = state.with_hint(
-            tr(Command::EditSwitchLock.label()),
-            Command::EditSwitchLock,
-        );
-        if icons::icon_button(ui, Icon::Lock, &lock_tip, all_locked)
-        .clicked()
-        {
+        let lock_tip =
+            state.with_hint(tr(Command::EditSwitchLock.label()), Command::EditSwitchLock);
+        if icons::icon_button(ui, Icon::Lock, &lock_tip, all_locked).clicked() {
             state.toggle_event_switch(Switch::Lock);
         }
         let lock_env_tip = state.with_hint(
@@ -16126,9 +16147,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             tr(Command::OptionsSnapping.label()),
             Command::OptionsSnapping,
         );
-        if icons::icon_button(ui, Icon::Snap, &snap_tip, state.snapping)
-        .clicked()
-        {
+        if icons::icon_button(ui, Icon::Snap, &snap_tip, state.snapping).clicked() {
             state.snapping = !state.snapping;
         }
         ui.separator();
@@ -16231,7 +16250,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     };
     let mark_tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
     if response.clicked() {
-        if let Some(p) = response.interact_pointer_pos().filter(|p| in_mark_strip(*p)) {
+        if let Some(p) = response
+            .interact_pointer_pos()
+            .filter(|p| in_mark_strip(*p))
+        {
             let additive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
             let t = x_to_time(state, lanes.left(), p.x);
             state.click_mark_strip(t, mark_tolerance, additive);
@@ -17644,9 +17666,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let is_sync_linked_to_selected = state.timeline.sync_links.iter().any(|l| {
                 l.linked_track == track.id
                     && l.linked_event == ev.id
-                    && state
-                        .selection
-                        .contains((l.master_track, l.master_event))
+                    && state.selection.contains((l.master_track, l.master_event))
             });
             let border = if selected {
                 Color32::WHITE
@@ -17838,7 +17858,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         }
         if let Some(rgb) = state.timeline.track_groups.color_of(track.id) {
             let stripe = Rect::from_min_max(pos2(row.right() - 4.0, row.top()), row.max);
-            header_painter.rect_filled(stripe, Rounding::ZERO, Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
+            header_painter.rect_filled(
+                stripe,
+                Rounding::ZERO,
+                Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
+            );
         }
         header_painter.rect_stroke(
             row,
@@ -21779,7 +21803,10 @@ mod tests {
     fn aligning_to_the_transient_puts_the_first_peak_on_the_cursor_or_the_nearest_marker() {
         let (mut s, track, id) = state_with_clip();
         s.media.insert(1, loaded_with_hit(1.0));
-        assert!(!s.command_enabled(Command::EditAlignToTransient), "nothing selected");
+        assert!(
+            !s.command_enabled(Command::EditAlignToTransient),
+            "nothing selected"
+        );
         s.selection.set([(track, id)]);
         assert!(s.command_enabled(Command::EditAlignToTransient));
         // The event starts at 2.0 and its hit is 1.0 s in: the cursor at 10.0 gives a start of 9.0
@@ -21800,15 +21827,22 @@ mod tests {
     }
 
     #[test]
-    fn baking_the_effects_needs_effects_that_sound_and_a_ready_file_swaps_the_media_in_one_undo_step() {
+    fn baking_the_effects_needs_effects_that_sound_and_a_ready_file_swaps_the_media_in_one_undo_step(
+    ) {
         let (mut s, track, id) = state_with_clip();
         s.media.insert(1, loaded_with_hit(1.0));
         s.selection.set([(track, id)]);
-        assert!(!s.command_enabled(Command::EditApplyEventEffects), "no effects yet");
+        assert!(
+            !s.command_enabled(Command::EditApplyEventEffects),
+            "no effects yet"
+        );
         let mut bypassed = neoveg_engine::TrackEffect::new("amplify");
         bypassed.bypass = true;
         s.timeline.track_mut(track).unwrap().events[0].audio_effects = vec![bypassed];
-        assert!(!s.command_enabled(Command::EditApplyEventEffects), "a bypassed effect does not sound");
+        assert!(
+            !s.command_enabled(Command::EditApplyEventEffects),
+            "a bypassed effect does not sound"
+        );
         s.timeline.track_mut(track).unwrap().events[0].audio_effects =
             vec![neoveg_engine::TrackEffect::new("amplify")];
         assert!(s.command_enabled(Command::EditApplyEventEffects));
@@ -21819,7 +21853,10 @@ mod tests {
             reverse: false,
             bake: true,
         });
-        assert!(!s.command_enabled(Command::EditApplyEventEffects), "one at a time");
+        assert!(
+            !s.command_enabled(Command::EditApplyEventEffects),
+            "one at a time"
+        );
         s.place_subclip(path, 4.0, None, None);
         let event = &s.timeline.track(track).unwrap().events[0];
         assert!(event.audio_effects.is_empty() && event.media_id != Some(1));

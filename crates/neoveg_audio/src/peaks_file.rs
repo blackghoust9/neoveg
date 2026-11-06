@@ -41,7 +41,10 @@ pub fn is_peak_file_name(name: &str) -> bool {
 
 /// `clip.wav` -> `clip.wav.nvpk`.
 pub fn peak_file_path(media: &Path) -> PathBuf {
-    let mut name = media.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut name = media
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
     name.push(format!(".{EXTENSION}"));
     media.with_file_name(name)
 }
@@ -129,7 +132,9 @@ impl PeakFile {
             return None;
         }
         let blocks = data
-            .chunks_exact(8)
+            .as_chunks::<8>()
+            .0
+            .iter()
             .map(|c| {
                 (
                     f32::from_le_bytes(c[..4].try_into().unwrap()),
@@ -212,7 +217,10 @@ mod tests {
         let path = write_if_enabled(&media, 8_000, &store()).expect("written");
         assert_eq!(path, dir.join("voz.wav.nvpk"));
         let file = read_valid(&media).expect("valid");
-        assert_eq!((file.sample_rate, file.frames, file.block_frames), (8_000, 1000, 256));
+        assert_eq!(
+            (file.sample_rate, file.frames, file.block_frames),
+            (8_000, 1000, 256)
+        );
         assert_eq!(file.blocks.len(), 4);
         assert_eq!(file.blocks[0], (0.0, 255.0 / 2000.0));
         assert_eq!(file.blocks[3].0, -0.25);
@@ -234,14 +242,13 @@ mod tests {
         let media = dir.join("seno.wav");
         std::fs::write(&media, b"x").unwrap();
         // A mono sine, mirrored into both channels as the decoder does
-        let mono: Vec<f32> = (0..4096)
-            .map(|i| 0.8 * (i as f32 * 0.05).sin())
-            .collect();
+        let mono: Vec<f32> = (0..4096).map(|i| 0.8 * (i as f32 * 0.05).sin()).collect();
         let samples: Vec<f32> = mono.iter().flat_map(|&v| [v, v]).collect();
         let store = Arc::new(PcmStore::from_vec(samples));
         let peaks = PeakFile::from_store(&media, 8_000, &store).unwrap();
         let direct = WaveformSource::from_pcm(8_000, Arc::clone(&store)).unwrap();
-        let fast = WaveformSource::from_pcm_with_peaks(8_000, 1, Arc::clone(&store), Some(&peaks)).unwrap();
+        let fast = WaveformSource::from_pcm_with_peaks(8_000, 1, Arc::clone(&store), Some(&peaks))
+            .unwrap();
         // Columns that cover whole blocks come straight from the summaries
         for fpc in [256.0, 512.0, 1024.0] {
             let mut a = vec![0.0f32; 4 * COLUMN_STRIDE];
@@ -250,21 +257,36 @@ mod tests {
             fast.query_columns(0.0, fpc, &mut b);
             for c in 0..4 {
                 for k in [0, 1, 3, 4] {
-                    assert_eq!(a[c * COLUMN_STRIDE + k], b[c * COLUMN_STRIDE + k], "fpc {fpc} col {c} field {k}");
+                    assert_eq!(
+                        a[c * COLUMN_STRIDE + k],
+                        b[c * COLUMN_STRIDE + k],
+                        "fpc {fpc} col {c} field {k}"
+                    );
                 }
                 let (ra, rb) = (a[c * COLUMN_STRIDE + 2], b[c * COLUMN_STRIDE + 2]);
                 assert!((ra - rb).abs() < 0.05, "rms {ra} vs {rb}");
             }
         }
         // Columns finer than a block read the samples: identical
-        let (mut a, mut b) = (vec![0.0f32; 8 * COLUMN_STRIDE], vec![0.0f32; 8 * COLUMN_STRIDE]);
+        let (mut a, mut b) = (
+            vec![0.0f32; 8 * COLUMN_STRIDE],
+            vec![0.0f32; 8 * COLUMN_STRIDE],
+        );
         direct.query_columns(10.0, 7.0, &mut a);
         fast.query_columns(10.0, 7.0, &mut b);
         assert_eq!(a, b);
         // Stereo sound, or peaks of another sound: the sound is scanned, so nothing changes
-        let stereo = WaveformSource::from_pcm_with_peaks(8_000, 2, Arc::clone(&store), Some(&peaks)).unwrap();
-        let other = WaveformSource::from_pcm_with_peaks(44_100, 1, Arc::clone(&store), Some(&peaks)).unwrap();
-        let (mut x, mut y, mut z) = (vec![0.0f32; 4 * COLUMN_STRIDE], vec![0.0f32; 4 * COLUMN_STRIDE], vec![0.0f32; 4 * COLUMN_STRIDE]);
+        let stereo =
+            WaveformSource::from_pcm_with_peaks(8_000, 2, Arc::clone(&store), Some(&peaks))
+                .unwrap();
+        let other =
+            WaveformSource::from_pcm_with_peaks(44_100, 1, Arc::clone(&store), Some(&peaks))
+                .unwrap();
+        let (mut x, mut y, mut z) = (
+            vec![0.0f32; 4 * COLUMN_STRIDE],
+            vec![0.0f32; 4 * COLUMN_STRIDE],
+            vec![0.0f32; 4 * COLUMN_STRIDE],
+        );
         direct.query_columns(0.0, 512.0, &mut x);
         stereo.query_columns(0.0, 512.0, &mut y);
         other.query_columns(0.0, 512.0, &mut z);

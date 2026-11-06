@@ -75,6 +75,7 @@ impl RefGalleryWindow {
         }
     }
 
+    #[allow(dead_code)]
     pub fn entry_count(&self) -> usize {
         self.gallery.as_ref().map_or(0, |g| g.entries().len())
     }
@@ -113,6 +114,7 @@ impl RefGalleryWindow {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn set_mode(&mut self, mode: ViewMode, position: f32) {
         self.mode = mode;
         self.position = position.clamp(0.0, 1.0);
@@ -150,7 +152,10 @@ impl RefGalleryWindow {
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut self.name);
                     if ui
-                        .add_enabled(current.is_some(), egui::Button::new(tr("Guardar quadro atual")))
+                        .add_enabled(
+                            current.is_some(),
+                            egui::Button::new(tr("Guardar quadro atual")),
+                        )
                         .clicked()
                     {
                         if let Some(frame) = current {
@@ -173,7 +178,10 @@ impl RefGalleryWindow {
                 let mut remove = None;
                 for (id, name) in &entries {
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(self.selected == Some(*id), name).clicked() {
+                        if ui
+                            .selectable_label(self.selected == Some(*id), name)
+                            .clicked()
+                        {
                             self.select(Some(*id));
                         }
                         if ui.small_button(tr("Remover")).clicked() {
@@ -208,7 +216,8 @@ impl RefGalleryWindow {
                             [composed.width as usize, composed.height as usize],
                             &composed.rgba,
                         );
-                        self.texture = Some(ctx.load_texture("ref_gallery", image, TextureOptions::LINEAR));
+                        self.texture =
+                            Some(ctx.load_texture("ref_gallery", image, TextureOptions::LINEAR));
                         self.shown_key = Some(key);
                     }
                     if let Some(texture) = &self.texture {
@@ -241,7 +250,9 @@ mod tests {
     fn a_saved_frame_is_listed_selected_and_compared_by_wipe_and_side_by_side() {
         let dir = temp_dir("a");
         let mut w = RefGalleryWindow::default();
-        assert!(w.save_current(&FrameBuffer::solid(8, 8, [1, 1, 1, 255]), "x").is_err());
+        assert!(w
+            .save_current(&FrameBuffer::solid(8, 8, [1, 1, 1, 255]), "x")
+            .is_err());
         w.ensure_open(&dir);
         let red = FrameBuffer::solid(8, 8, [255, 0, 0, 255]);
         let blue = FrameBuffer::solid(8, 8, [0, 0, 255, 255]);

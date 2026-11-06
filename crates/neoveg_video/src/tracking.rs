@@ -162,12 +162,7 @@ impl MotionTrajectory {
         let hh = (self.region.height * 0.25).max(0.02);
 
         // 4 probe points relative to center: TL, TR, BR, BL
-        let probe_offsets = [
-            [-hw, -hh],
-            [hw, -hh],
-            [hw, hh],
-            [-hw, hh],
-        ];
+        let probe_offsets = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
 
         let search_radius = match precision {
             TrackingPrecision::Fast => 4,
@@ -458,13 +453,7 @@ mod tests {
         let region = TrackingRegion::new(0.3, 0.3, 0.4, 0.4);
         let mut traj = MotionTrajectory::new(TrackingMode::Location, region);
 
-        let kf = traj.track_step(
-            &frame_a,
-            &frame_b,
-            0.0,
-            1.0,
-            TrackingPrecision::Balanced,
-        );
+        let kf = traj.track_step(&frame_a, &frame_b, 0.0, 1.0, TrackingPrecision::Balanced);
 
         assert_eq!(kf.time_s, 1.0);
         assert!(kf.confidence > 0.0);

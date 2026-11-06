@@ -441,13 +441,26 @@ mod tests {
         }
         // Off: the file is what the mixer makes, untouched
         let wav = dir.join("off.wav");
-        let (report, gain) =
-            render_mixer_to_wav_pcm16_to_target(make, &wav, rate, 0.0, 4.0, 1.0, LoudnessTarget::Off)
-                .unwrap();
+        let (report, gain) = render_mixer_to_wav_pcm16_to_target(
+            make,
+            &wav,
+            rate,
+            0.0,
+            4.0,
+            1.0,
+            LoudnessTarget::Off,
+        )
+        .unwrap();
         assert_eq!(gain, None);
         assert!((report.summary.integrated_lufs - -20.0).abs() < 0.4);
         // Silence cannot be measured: no gain
-        let silent = || BlockMixer::new(vec![sine_clip(997.0, 0.0, rate, 4.0)], &FxPlan::default(), rate as f32);
+        let silent = || {
+            BlockMixer::new(
+                vec![sine_clip(997.0, 0.0, rate, 4.0)],
+                &FxPlan::default(),
+                rate as f32,
+            )
+        };
         let (_, gain) = render_mixer_to_wav_pcm16_to_target(
             silent,
             &dir.join("silent.wav"),

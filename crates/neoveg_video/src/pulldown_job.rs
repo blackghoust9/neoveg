@@ -194,13 +194,21 @@ mod tests {
         let film: Vec<_> = (0..12).map(film_frame).collect();
         let mut apply = Converter::new(Mode::Apply, 0);
         let video: Vec<_> = (0..output_frame_count(Mode::Apply, 12, 0))
-            .map(|i| apply.frame(i, &mut |n| Ok(film[n as usize].clone())).unwrap())
+            .map(|i| {
+                apply
+                    .frame(i, &mut |n| Ok(film[n as usize].clone()))
+                    .unwrap()
+            })
             .collect();
         assert_eq!(video, apply_pulldown(&film));
         let phase = detect_phase(&video).unwrap();
         let mut remove = Converter::new(Mode::Remove, phase);
         let back: Vec<_> = (0..output_frame_count(Mode::Remove, 15, phase))
-            .map(|i| remove.frame(i, &mut |n| Ok(video[n as usize].clone())).unwrap())
+            .map(|i| {
+                remove
+                    .frame(i, &mut |n| Ok(video[n as usize].clone()))
+                    .unwrap()
+            })
             .collect();
         assert_eq!(back, film);
         // A missing input frame is an error, not a panic
@@ -216,32 +224,67 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("neoveg_pd_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let (film_path, tele, back) = (dir.join("filme.mp4"), dir.join("tele.mp4"), dir.join("volta.mp4"));
+        let (film_path, tele, back) = (
+            dir.join("filme.mp4"),
+            dir.join("tele.mp4"),
+            dir.join("volta.mp4"),
+        );
         let cancel = AtomicBool::new(false);
-        let film: Vec<_> = (0..24).map(|i| {
-            let mut f = film_frame(i);
-            // Larger to survive the encoder: replicate into 64x48
-            let mut big = FrameBuffer::solid(64, 48, [0, 0, 0, 255]);
-            for y in 0..48u32 {
-                for x in 0..64u32 {
-                    let s = ((y / 4 * 16 + x / 4) * 4) as usize;
-                    let d = ((y * 64 + x) * 4) as usize;
-                    big.rgba[d..d + 4].copy_from_slice(&f.rgba[s..s + 4]);
+        let film: Vec<_> = (0..24)
+            .map(|i| {
+                let mut f = film_frame(i);
+                // Larger to survive the encoder: replicate into 64x48
+                let mut big = FrameBuffer::solid(64, 48, [0, 0, 0, 255]);
+                for y in 0..48u32 {
+                    for x in 0..64u32 {
+                        let s = ((y / 4 * 16 + x / 4) * 4) as usize;
+                        let d = ((y * 64 + x) * 4) as usize;
+                        big.rgba[d..d + 4].copy_from_slice(&f.rgba[s..s + 4]);
+                    }
                 }
-            }
-            f = big;
-            f
-        }).collect();
+                f = big;
+                f
+            })
+            .collect();
         let spec = VideoEncodeSpec {
-            format: RenderFormat::Mp4H264, width: 64, height: 48, fps: 24.0, crf: 12,
-            total_frames: 24, audio_wav: None, output: &film_path,
+            format: RenderFormat::Mp4H264,
+            width: 64,
+            height: 48,
+            fps: 24.0,
+            crf: 12,
+            total_frames: 24,
+            audio_wav: None,
+            output: &film_path,
         };
-        encode_video(RenderEngine::Internal, &spec, &cancel, |_, _| {}, |i| Ok(film[i as usize].clone())).unwrap();
-        convert_file(&film_path, Mode::Apply, &tele, RenderEngine::Internal, &cancel, |_, _| {}).unwrap();
+        encode_video(
+            RenderEngine::Internal,
+            &spec,
+            &cancel,
+            |_, _| {},
+            |i| Ok(film[i as usize].clone()),
+        )
+        .unwrap();
+        convert_file(
+            &film_path,
+            Mode::Apply,
+            &tele,
+            RenderEngine::Internal,
+            &cancel,
+            |_, _| {},
+        )
+        .unwrap();
         let info = probe(&tele).unwrap();
         assert!((info.fps - 30.0).abs() < 0.1, "{}", info.fps);
         // Progressive material shows no cadence, so removing it from the original is refused
-        assert!(convert_file(&film_path, Mode::Remove, &dir.join("x.mp4"), RenderEngine::Internal, &cancel, |_, _| {}).is_err());
+        assert!(convert_file(
+            &film_path,
+            Mode::Remove,
+            &dir.join("x.mp4"),
+            RenderEngine::Internal,
+            &cancel,
+            |_, _| {}
+        )
+        .is_err());
         let _ = back;
         let _ = std::fs::remove_dir_all(&dir);
     }

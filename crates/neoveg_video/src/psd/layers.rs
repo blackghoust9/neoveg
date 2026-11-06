@@ -70,7 +70,9 @@ fn record(name: &str, b: &[u8], mut pos: usize) -> Result<(Record, usize), Strin
     let ranges_len = be32(b, ranges_at).ok_or_else(trunc)? as usize;
     let name_at = ranges_at.checked_add(4 + ranges_len).ok_or_else(trunc)?;
     let name_len = usize::from(*b.get(name_at).ok_or_else(trunc)?);
-    let pascal = b.get(name_at + 1..name_at + 1 + name_len).ok_or_else(trunc)?;
+    let pascal = b
+        .get(name_at + 1..name_at + 1 + name_len)
+        .ok_or_else(trunc)?;
     let mut layer_name = String::from_utf8_lossy(pascal).into_owned();
     // Additional blocks: the Unicode name (`luni`) beats the Pascal one
     let mut p = name_at + ((1 + name_len + 3) & !3);
@@ -145,7 +147,9 @@ fn channel(
     }
     // 16 bits: round to 8
     Ok(if bytes == 2 {
-        raw.chunks_exact(2)
+        raw.as_chunks::<2>()
+            .0
+            .iter()
             .map(|s| {
                 let v = u32::from(u16::from_be_bytes([s[0], s[1]]));
                 ((v * 255 + 32_767) / 65_535) as u8
@@ -222,7 +226,7 @@ pub fn decode_layers_bytes(name: &str, b: &[u8]) -> Result<Vec<PsdLayer>, String
         }
         let alpha = plane(-1);
         let mut rgba = vec![255u8; w * h * 4];
-        for (i, px) in rgba.chunks_exact_mut(4).enumerate() {
+        for (i, px) in rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             for (c, p) in colour.iter().enumerate() {
                 px[c] = p.map_or(0, |p| p[i]);
             }
@@ -426,11 +430,23 @@ mod tests {
         let layers = decode_layers_bytes("teste.psd", &psd).unwrap();
         assert_eq!(layers.len(), 2);
         let bg = &layers[0];
-        assert_eq!((bg.name.as_str(), bg.left, bg.top, bg.width, bg.height), ("Fundo", 0, 0, 8, 6));
+        assert_eq!(
+            (bg.name.as_str(), bg.left, bg.top, bg.width, bg.height),
+            ("Fundo", 0, 0, 8, 6)
+        );
         assert_eq!(bg.rgba.len(), 8 * 6 * 4);
         assert_eq!(bg.rgba[..4], [10, 20, 30, 255]);
         let logo = &layers[1];
-        assert_eq!((logo.name.as_str(), logo.left, logo.top, logo.width, logo.height), ("Logo", 2, 1, 3, 2));
+        assert_eq!(
+            (
+                logo.name.as_str(),
+                logo.left,
+                logo.top,
+                logo.width,
+                logo.height
+            ),
+            ("Logo", 2, 1, 3, 2)
+        );
         assert_eq!(logo.opacity, 128);
         assert!(logo.visible);
         assert_eq!(logo.rgba[..4], [200, 100, 50, 200]);
@@ -456,7 +472,11 @@ mod tests {
         assert_eq!(layers[0].name, "Título ção");
         assert!(!layers[0].visible);
         assert_eq!(layers[1].name, "Depois");
-        assert_eq!(layers[1].rgba[..3], [4, 5, 6], "pixels stay with their layer after a skipped one");
+        assert_eq!(
+            layers[1].rgba[..3],
+            [4, 5, 6],
+            "pixels stay with their layer after a skipped one"
+        );
     }
 
     #[test]
@@ -481,7 +501,10 @@ mod tests {
             (8, 6),
             &[
                 layer("A", (0, 0, 6, 8), [1, 2, 3]),
-                L { rle: true, ..layer("B", (0, 0, 2, 2), [1, 2, 3]) },
+                L {
+                    rle: true,
+                    ..layer("B", (0, 0, 2, 2), [1, 2, 3])
+                },
             ],
         );
         for cut in 0..psd.len() {

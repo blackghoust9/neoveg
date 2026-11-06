@@ -978,11 +978,12 @@ mod tests {
         let target_track_id = 42u64;
 
         // 2. Track arming and record options configuration
-        let mut options = RecordOptions::default();
-        options.device = Some(chosen_device.clone());
-        options.monitor = true;
-        options.monitor_volume = 1.2;
-        options.track_id = Some(target_track_id);
+        let options = RecordOptions {
+            device: Some(chosen_device.clone()),
+            monitor: true,
+            monitor_volume: 1.2,
+            track_id: Some(target_track_id),
+        };
 
         assert_eq!(options.device.as_deref(), Some("Mock Loopback Audio Input"));
         assert!(options.monitor);

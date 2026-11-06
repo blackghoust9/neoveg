@@ -277,7 +277,10 @@ pub struct TitleLayout {
     pub spans: Vec<TitleSpan>,
     /// Several fills, outlines and shadows over the text. While empty, the title uses its single
     /// fill, outline and shadow.
-    #[serde(default, skip_serializing_if = "neoveg_text::title_paint::PaintStack::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "neoveg_text::title_paint::PaintStack::is_empty"
+    )]
     pub stack: neoveg_text::title_paint::PaintStack,
 }
 
@@ -769,8 +772,10 @@ fn render_countdown(
     );
     for (dst, src) in frame
         .rgba
-        .chunks_exact_mut(4)
-        .zip(digits.rgba.chunks_exact(4))
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(digits.rgba.as_chunks::<4>().0.iter())
     {
         if src[3] > 0 {
             blend_over_px(dst, [src[0], src[1], src[2], src[3]], 1.0);
@@ -1449,7 +1454,10 @@ mod tests {
         // The vertical roll keeps its own axis
         let credits = scrolling_title(TitleAnimation::CreditRoll, TitleLayout::default());
         let mid = text_columns(&credits.render(2.0, 0));
-        assert!(mid.0 != usize::MAX && mid.0 > 20, "centred, not shifted: {mid:?}");
+        assert!(
+            mid.0 != usize::MAX && mid.0 > 20,
+            "centred, not shifted: {mid:?}"
+        );
     }
 
     #[test]
@@ -1480,12 +1488,34 @@ mod tests {
         };
         let stacked = scrolling_title(TitleAnimation::Static, layout.clone()).render(0.0, 0);
         let count = |f: &FrameBuffer, pred: fn(&[u8]) -> bool| {
-            f.rgba.chunks_exact(4).filter(|p| pred(p)).count()
+            f.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| pred(*p))
+                .count()
         };
         assert_eq!(count(&plain, |p| p[0] > 200 && p[1] < 60 && p[3] > 200), 0);
-        assert!(count(&stacked, |p| p[0] > 200 && p[1] < 60 && p[2] < 60 && p[3] > 200) > 50, "wide red outline");
-        assert!(count(&stacked, |p| p[2] > 200 && p[0] < 60 && p[3] > 200) > 50, "thin blue outline over it");
-        assert!(count(&stacked, |p| p[1] > 200 && p[0] < 60 && p[2] < 60 && p[3] > 200) > 20, "green shadow");
+        assert!(
+            count(&stacked, |p| p[0] > 200
+                && p[1] < 60
+                && p[2] < 60
+                && p[3] > 200)
+                > 50,
+            "wide red outline"
+        );
+        assert!(
+            count(&stacked, |p| p[2] > 200 && p[0] < 60 && p[3] > 200) > 50,
+            "thin blue outline over it"
+        );
+        assert!(
+            count(&stacked, |p| p[1] > 200
+                && p[0] < 60
+                && p[2] < 60
+                && p[3] > 200)
+                > 20,
+            "green shadow"
+        );
         // The blue ring is inside the red one: the red shows around it
         let (a, b) = (text_columns(&plain), text_columns(&stacked));
         assert!(b.0 < a.0 && b.1 > a.1, "the layers widen the picture");
@@ -1498,7 +1528,13 @@ mod tests {
             ..TitleLayout::default()
         };
         let only = scrolling_title(TitleAnimation::Static, outline_only).render(0.0, 0);
-        assert!(count(&only, |p| p[0] > 240 && p[1] > 240 && p[2] > 240 && p[3] > 240) > 50);
+        assert!(
+            count(&only, |p| p[0] > 240
+                && p[1] > 240
+                && p[2] > 240
+                && p[3] > 240)
+                > 50
+        );
         // A stack is saved in the manifest and an empty one is left out
         let json = serde_json::to_string(&scrolling_title(TitleAnimation::Static, layout)).unwrap();
         assert!(json.contains("outlines"));
@@ -1537,7 +1573,7 @@ mod tests {
         let json = serde_json::to_string(&spec).unwrap();
         assert_eq!(serde_json::from_str::<GeneratorSpec>(&json).unwrap(), spec);
         // Bright digit pixels exist around the middle
-        assert!(a.rgba.chunks_exact(4).any(|p| p[0] > 200));
+        assert!(a.rgba.as_chunks::<4>().0.iter().any(|p| p[0] > 200));
     }
 
     fn title_spec_without_layout() -> GeneratorSpec {

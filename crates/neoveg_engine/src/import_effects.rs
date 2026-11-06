@@ -24,7 +24,11 @@ pub fn wanted_kinds(gate: bool, eq: bool, compressor: bool) -> Vec<&'static str>
 /// One undoable edit that adds to the chain of `track_id` the effects of `kinds` it does not have
 /// yet, so importing a second sound onto the same track adds nothing. `None` when there is nothing
 /// to add.
-pub fn default_chain_edit(timeline: &Timeline, track_id: TrackId, kinds: &[&str]) -> Option<EditCommand> {
+pub fn default_chain_edit(
+    timeline: &Timeline,
+    track_id: TrackId,
+    kinds: &[&str],
+) -> Option<EditCommand> {
     let mut staged = timeline.clone();
     let mut commands = Vec::new();
     for kind in kinds {
@@ -77,7 +81,13 @@ mod tests {
         let edit = default_chain_edit(&tl, track, &kinds).expect("something to add");
         let mut history = History::new();
         assert!(history.execute(&mut tl, edit));
-        let chain: Vec<_> = tl.track(track).unwrap().effects.iter().map(|e| e.kind.as_str()).collect();
+        let chain: Vec<_> = tl
+            .track(track)
+            .unwrap()
+            .effects
+            .iter()
+            .map(|e| e.kind.as_str())
+            .collect();
         assert_eq!(chain, [GATE, COMPRESSOR]);
         // A second import onto the same track adds nothing
         assert!(default_chain_edit(&tl, track, &kinds).is_none());

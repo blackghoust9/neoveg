@@ -34,7 +34,9 @@ pub use neoveg_video::grading::{
 use neoveg_video::lut::Lut;
 use neoveg_video::optical_flow::interpolate_frames;
 use neoveg_video::scopes::Scopes as VideoScopes;
-use neoveg_video::transition_library::{category, in_category, preset, presets_of, preview, Category, PRESETS};
+use neoveg_video::transition_library::{
+    category, in_category, preset, presets_of, preview, Category, PRESETS,
+};
 use neoveg_video::transitions::{self, CUBE, DISSOLVE, FLIP, LINEAR_WIPE, PAGE_PEEL, PAGE_ROLL};
 use neoveg_video::vfx::{apply_chain_cpu, curve_luts, lut_lookup, spec, VideoEffect, CURVE_POINTS};
 
@@ -93,7 +95,12 @@ fn f06_t1_04_presets_collection_non_empty_and_mapped_to_kinds() {
         assert!(!p.label.is_empty());
         assert!(!p.kind.is_empty());
         let spec = transitions::transitions().iter().find(|t| t.id == p.kind);
-        assert!(spec.is_some(), "Preset {} references unknown kind {}", p.id, p.kind);
+        assert!(
+            spec.is_some(),
+            "Preset {} references unknown kind {}",
+            p.id,
+            p.kind
+        );
     }
 }
 
@@ -110,7 +117,10 @@ fn f06_t1_05_transition_preview_renders_valid_frame() {
 
 #[test]
 fn f06_t2_01_unknown_transition_id_falls_back_to_effects_category() {
-    assert_eq!(category("unknown_custom_plugin_transition"), Category::Effects);
+    assert_eq!(
+        category("unknown_custom_plugin_transition"),
+        Category::Effects
+    );
 }
 
 #[test]
@@ -152,26 +162,41 @@ fn f06_t2_05_preview_unknown_kind_returns_none() {
 
 #[test]
 fn f07_t1_01_page_peel_transition_spec_and_params() {
-    let t_spec = transitions::transitions().iter().find(|t| t.id == PAGE_PEEL).expect("Page Peel");
+    let t_spec = transitions::transitions()
+        .iter()
+        .find(|t| t.id == PAGE_PEEL)
+        .expect("Page Peel");
     assert!(t_spec.params.iter().any(|p| p.id == "angle"));
 }
 
 #[test]
 fn f07_t1_02_page_roll_transition_spec_and_params() {
-    let t_spec = transitions::transitions().iter().find(|t| t.id == PAGE_ROLL).expect("Page Roll");
+    let t_spec = transitions::transitions()
+        .iter()
+        .find(|t| t.id == PAGE_ROLL)
+        .expect("Page Roll");
     assert!(t_spec.params.iter().any(|p| p.id == "angle"));
 }
 
 #[test]
 fn f07_t1_03_cube_transition_perspective_parameter() {
-    let t_spec = transitions::transitions().iter().find(|t| t.id == CUBE).expect("Cube");
+    let t_spec = transitions::transitions()
+        .iter()
+        .find(|t| t.id == CUBE)
+        .expect("Cube");
     assert!(t_spec.params.iter().any(|p| p.id == "perspective"));
 }
 
 #[test]
 fn f07_t1_04_flip_transition_rotation_parameters() {
-    let t_spec = transitions::transitions().iter().find(|t| t.id == FLIP).expect("Flip");
-    assert!(t_spec.params.iter().any(|p| p.id == "direction" || p.id == "perspective"));
+    let t_spec = transitions::transitions()
+        .iter()
+        .find(|t| t.id == FLIP)
+        .expect("Flip");
+    assert!(t_spec
+        .params
+        .iter()
+        .any(|p| p.id == "direction" || p.id == "perspective"));
 }
 
 #[test]
@@ -179,7 +204,10 @@ fn f07_t1_05_page_peel_cpu_preview_at_zero_and_one() {
     let params = BTreeMap::new();
     let f_start = preview(PAGE_PEEL, &params, 32, 32, 0.0).unwrap();
     let f_end = preview(PAGE_PEEL, &params, 32, 32, 1.0).unwrap();
-    assert_ne!(f_start.rgba, f_end.rgba, "Progress 0.0 and 1.0 must produce different frames");
+    assert_ne!(
+        f_start.rgba, f_end.rgba,
+        "Progress 0.0 and 1.0 must produce different frames"
+    );
 }
 
 #[test]
@@ -228,8 +256,14 @@ fn f07_t2_05_threed_needs_outgoing_flag() {
 #[test]
 fn f09_t1_01_vfx_list_registered_effects() {
     let effects = [
-        "brightness_contrast", "gaussian_blur", "vignette",
-        "hsl_adjust", "color_balance", "levels", "sepia", "posterize",
+        "brightness_contrast",
+        "gaussian_blur",
+        "vignette",
+        "hsl_adjust",
+        "color_balance",
+        "levels",
+        "sepia",
+        "posterize",
     ];
     for eff in effects {
         assert!(spec(eff).is_some(), "Effect {} should be registered", eff);
@@ -250,10 +284,15 @@ fn f09_t1_02_brightness_and_contrast_cpu_reference_execution() {
 fn f09_t1_03_gaussian_blur_cpu_execution() {
     let mut frame = FrameBuffer::solid(64, 64, [0, 0, 0, 255]);
     set_pixel(&mut frame, 32, 32, [255, 255, 255, 255]);
-    let chain = [VideoEffect::new("gaussian_blur").with("h_range", 0.05).with("v_range", 0.05)];
+    let chain = [VideoEffect::new("gaussian_blur")
+        .with("h_range", 0.05)
+        .with("v_range", 0.05)];
     apply_chain_cpu(&mut frame, &chain);
     let neighbor = frame.pixel(32, 33);
-    assert!(neighbor[0] > 0, "Blur must diffuse intensity to neighboring pixels");
+    assert!(
+        neighbor[0] > 0,
+        "Blur must diffuse intensity to neighboring pixels"
+    );
 }
 
 #[test]
@@ -295,7 +334,10 @@ fn f09_t2_03_vfx_nan_parameter_fallback() {
     let original = frame.clone();
     let chain = [VideoEffect::new("brightness_and_contrast").with("brightness", f32::NAN)];
     apply_chain_cpu(&mut frame, &chain);
-    assert_eq!(frame, original, "NaN parameter must fall back to neutral default");
+    assert_eq!(
+        frame, original,
+        "NaN parameter must fall back to neutral default"
+    );
 }
 
 #[test]
@@ -330,16 +372,32 @@ fn f11_t1_01_apply_neutral_grade_is_identity() {
 #[test]
 fn f11_t1_02_apply_exposure_grade() {
     let mut frame = FrameBuffer::solid(2, 2, [50, 50, 50, 255]);
-    apply_grade(&mut frame, &Grade { exposure: 1.0, ..Grade::default() });
+    apply_grade(
+        &mut frame,
+        &Grade {
+            exposure: 1.0,
+            ..Grade::default()
+        },
+    );
     assert_eq!(frame.pixel(0, 0), [100, 100, 100, 255]);
 }
 
 #[test]
 fn f11_t1_03_apply_temperature_and_tint_grade() {
     let mut frame = FrameBuffer::solid(2, 2, [100, 100, 100, 255]);
-    apply_grade(&mut frame, &Grade { temperature: 0.5, tint: 0.0, ..Grade::default() });
+    apply_grade(
+        &mut frame,
+        &Grade {
+            temperature: 0.5,
+            tint: 0.0,
+            ..Grade::default()
+        },
+    );
     let p = frame.pixel(0, 0);
-    assert!(p[0] > p[2], "Warm temperature should raise Red relative to Blue");
+    assert!(
+        p[0] > p[2],
+        "Warm temperature should raise Red relative to Blue"
+    );
 }
 
 #[test]
@@ -352,7 +410,10 @@ fn f11_t1_04_fade_to_color_full_amount() {
 #[test]
 fn f11_t1_05_apply_look_combines_grade_and_lut() {
     let mut frame = FrameBuffer::solid(2, 2, [100, 100, 100, 255]);
-    let grade = Grade { exposure: 0.5, ..Grade::default() };
+    let grade = Grade {
+        exposure: 0.5,
+        ..Grade::default()
+    };
     apply_look(&mut frame, &grade, None);
     assert!(frame.pixel(0, 0)[0] > 100);
 }
@@ -360,7 +421,13 @@ fn f11_t1_05_apply_look_combines_grade_and_lut() {
 #[test]
 fn f11_t2_01_grade_saturation_monochrome_gray() {
     let mut frame = FrameBuffer::solid(2, 2, [200, 100, 50, 255]);
-    apply_grade(&mut frame, &Grade { saturation: -1.0, ..Grade::default() });
+    apply_grade(
+        &mut frame,
+        &Grade {
+            saturation: -1.0,
+            ..Grade::default()
+        },
+    );
     let p = frame.pixel(0, 0);
     assert_eq!(p[0], p[1]);
     assert_eq!(p[1], p[2]);
@@ -369,7 +436,13 @@ fn f11_t2_01_grade_saturation_monochrome_gray() {
 #[test]
 fn f11_t2_02_grade_lift_raises_blacks() {
     let mut frame = FrameBuffer::solid(2, 2, [0, 0, 0, 255]);
-    apply_grade(&mut frame, &Grade { lift: 0.2, ..Grade::default() });
+    apply_grade(
+        &mut frame,
+        &Grade {
+            lift: 0.2,
+            ..Grade::default()
+        },
+    );
     let p = frame.pixel(0, 0);
     assert!(p[0] > 0);
 }
@@ -394,7 +467,11 @@ fn f11_t2_04_fade_to_color_nan_or_negative_amount_handled() {
 
 #[test]
 fn f11_t2_05_grade_sanitization_clamps_infinite_exposure() {
-    let g = Grade { exposure: f32::INFINITY, ..Grade::default() }.sanitized();
+    let g = Grade {
+        exposure: f32::INFINITY,
+        ..Grade::default()
+    }
+    .sanitized();
     assert_eq!(g.exposure, 0.0);
 }
 
@@ -429,7 +506,10 @@ fn f12_t1_03_color_wheels_lift_adjusts_shadows() {
     assert!((res_black[0] - 0.1).abs() < 1e-5);
 
     let res_white = wheels.apply_to_rgb([1.0, 1.0, 1.0]);
-    assert!((res_white[0] - 1.0).abs() < 1e-5, "White should remain untouched by lift");
+    assert!(
+        (res_white[0] - 1.0).abs() < 1e-5,
+        "White should remain untouched by lift"
+    );
 }
 
 #[test]
@@ -471,12 +551,19 @@ fn f12_t2_03_color_wheels_superwhites_preserved_in_32bit() {
     let wheels = ColorWheelsGrade::default_neutral();
     let superwhite = [1.5f32, 2.0, 3.0];
     let res = wheels.apply_to_rgb(superwhite);
-    assert_eq!(res, superwhite, "32-bit float levels must retain values > 1.0");
+    assert_eq!(
+        res, superwhite,
+        "32-bit float levels must retain values > 1.0"
+    );
 }
 
 #[test]
 fn f12_t2_04_color_wheels_vectors_chroma_bounds() {
-    let v = ColorWheelVector { x: 1.5, y: -2.0, master: 0.0 };
+    let v = ColorWheelVector {
+        x: 1.5,
+        y: -2.0,
+        master: 0.0,
+    };
     let clamped_x = v.x.clamp(-1.0, 1.0);
     let clamped_y = v.y.clamp(-1.0, 1.0);
     assert_eq!(clamped_x, 1.0);
@@ -522,7 +609,10 @@ fn f13_t1_03_white_balance_cool_sample_compensates_warm() {
 #[test]
 fn f13_t1_04_white_balance_green_tint_sample_compensates_magenta() {
     let (_, tint) = pick_white_balance([0.5, 0.8, 0.5]);
-    assert!(tint < 0.0, "Green tint sample must yield magenta compensation");
+    assert!(
+        tint < 0.0,
+        "Green tint sample must yield magenta compensation"
+    );
 }
 
 #[test]
@@ -763,7 +853,10 @@ fn f15_t2_01_parse_cube_corrupt_text_returns_err() {
 #[test]
 fn f15_t2_02_parse_cube_unsupported_dimensions_clamp() {
     let absurd = "LUT_3D_SIZE 500\n";
-    assert!(Lut::parse_cube(absurd).is_err(), "Absurd 3D sizes must be rejected");
+    assert!(
+        Lut::parse_cube(absurd).is_err(),
+        "Absurd 3D sizes must be rejected"
+    );
 }
 
 #[test]
@@ -932,7 +1025,10 @@ fn m3_f12_color_wheels_polar_conversion() {
 fn m3_f12_color_wheels_rgb_sliders() {
     let v = ColorWheelVector::from_rgb_sliders(0.2, -0.1, -0.1, 0.3);
     let (r, g, b, m) = v.to_rgb_sliders();
-    assert!((r + g + b).abs() < 1e-5, "Sliders must be zero-sum chromatic offsets");
+    assert!(
+        (r + g + b).abs() < 1e-5,
+        "Sliders must be zero-sum chromatic offsets"
+    );
     assert!((m - 0.3).abs() < 1e-5);
 }
 
@@ -1013,15 +1109,20 @@ fn m3_f14_spline_curve_arbitrary_points() {
     for i in 0..100 {
         let x = i as f32 * 0.01;
         let y = curve.eval(x);
-        assert!(y >= prev, "Monotone Hermite spline must not decrease: x={x}, y={y}, prev={prev}");
+        assert!(
+            y >= prev,
+            "Monotone Hermite spline must not decrease: x={x}, y={y}, prev={prev}"
+        );
         prev = y;
     }
 }
 
 #[test]
 fn m3_f14_rgb_curves_lut_application() {
-    let mut rgb = RgbCurves::default();
-    rgb.master = SplineCurve::new(&[[0.0, 0.0], [0.5, 0.7], [1.0, 1.0]]);
+    let rgb = RgbCurves {
+        master: SplineCurve::new(&[[0.0, 0.0], [0.5, 0.7], [1.0, 1.0]]),
+        ..Default::default()
+    };
     let mut frame = FrameBuffer::solid(4, 4, [128, 128, 128, 255]);
     apply_rgb_curves(&mut frame, &rgb);
     let p = frame.pixel(0, 0);
@@ -1033,7 +1134,10 @@ fn m3_f14_rgb_curves_lut_application() {
 #[test]
 fn m3_f14_hsl_curves_periodic_wrapping() {
     // Hue vs Hue with wrap around 360 degrees
-    let h_curve = HslCurve::new(HslCurveType::HueVsHue, &[[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]]);
+    let h_curve = HslCurve::new(
+        HslCurveType::HueVsHue,
+        &[[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]],
+    );
     // Near 0 and near 360 should evaluate smoothly
     let v0 = h_curve.eval(0.01);
     let v360 = h_curve.eval(0.99);
@@ -1077,9 +1181,9 @@ fn m3_f15_aces_all_spaces() {
     for space in spaces {
         let tf = AcesTransform::new(space, AcesSpace::AcesCg, ViewTransform::AcesRrtRec709);
         let out = tf.transform_rgb([0.5, 0.5, 0.5]);
-        for c in 0..3 {
-            assert!(out[c].is_finite());
-            assert!(out[c] >= 0.0 && out[c] <= 1.0);
+        for val in out {
+            assert!(val.is_finite());
+            assert!((0.0..=1.0).contains(&val));
         }
     }
 }
@@ -1111,7 +1215,10 @@ fn m3_f16_color_matcher_trait_and_brightness() {
     // Match color without matching brightness
     match_color(&mut matched_no_bright, &ref_frame, false, 1.0);
     let p = matched_no_bright.pixel(0, 0);
-    assert!(p[0] > p[2], "Should shift chromatic balance toward warm red");
+    assert!(
+        p[0] > p[2],
+        "Should shift chromatic balance toward warm red"
+    );
 
     // Partial strength
     let mut matched_half = tgt_frame.clone();
@@ -1232,9 +1339,15 @@ fn f18_t1_01_rectangular_mask_coverage_computation() {
     assert_eq!(cov.len(), 16 * 16);
     // Center pixel should be covered
     let center_idx = 8 * 16 + 8;
-    assert!(cov[center_idx] > 0.8, "Center of rectangular mask should be covered");
+    assert!(
+        cov[center_idx] > 0.8,
+        "Center of rectangular mask should be covered"
+    );
     // Corner pixel should be empty
-    assert_eq!(cov[0], 0.0, "Corner pixel outside rectangular mask should be 0");
+    assert_eq!(
+        cov[0], 0.0,
+        "Corner pixel outside rectangular mask should be 0"
+    );
 }
 
 #[test]
@@ -1263,10 +1376,7 @@ fn f18_t1_03_bezier_mask_coverage_computation() {
         rotation_deg: 0.0,
         feather: 0.0,
         invert: false,
-        points: vec![
-            [0.2, 0.2], [0.8, 0.2],
-            [0.8, 0.8], [0.2, 0.8],
-        ],
+        points: vec![[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
     };
     let cov = coverage(&mask, 16, 16);
     assert_eq!(cov.len(), 256);
@@ -1274,10 +1384,12 @@ fn f18_t1_03_bezier_mask_coverage_computation() {
 
 #[test]
 fn f18_t1_04_mask_inversion_flips_coverage() {
-    let mut normal = FxMask::default();
-    normal.shape = MaskShape::Rectangle;
-    normal.size = [0.4, 0.4];
-    normal.invert = false;
+    let normal = FxMask {
+        shape: MaskShape::Rectangle,
+        size: [0.4, 0.4],
+        invert: false,
+        ..Default::default()
+    };
 
     let mut inverted = normal.clone();
     inverted.invert = true;
@@ -1285,16 +1397,21 @@ fn f18_t1_04_mask_inversion_flips_coverage() {
     let cov_norm = coverage(&normal, 16, 16);
     let cov_inv = coverage(&inverted, 16, 16);
     for (a, b) in cov_norm.iter().zip(cov_inv.iter()) {
-        assert!((a + b - 1.0).abs() < 1e-4, "Inverted mask must complement coverage");
+        assert!(
+            (a + b - 1.0).abs() < 1e-4,
+            "Inverted mask must complement coverage"
+        );
     }
 }
 
 #[test]
 fn f18_t1_05_mask_feather_softens_edges() {
-    let mut sharp = FxMask::default();
-    sharp.shape = MaskShape::Rectangle;
-    sharp.size = [0.5, 0.5];
-    sharp.feather = 0.0;
+    let sharp = FxMask {
+        shape: MaskShape::Rectangle,
+        size: [0.5, 0.5],
+        feather: 0.0,
+        ..Default::default()
+    };
 
     let mut feathered = sharp.clone();
     feathered.feather = 0.1;
@@ -1337,21 +1454,25 @@ fn f18_t2_02_mask_full_size_covers_all_pixels() {
 
 #[test]
 fn f18_t2_03_mask_rotation_computation() {
-    let mut mask = FxMask::default();
-    mask.shape = MaskShape::Rectangle;
-    mask.size = [0.8, 0.2]; // thin horizontal bar
-    mask.rotation_deg = 90.0; // rotated to vertical
+    let mask = FxMask {
+        shape: MaskShape::Rectangle,
+        size: [0.8, 0.2],   // thin horizontal bar
+        rotation_deg: 90.0, // rotated to vertical
+        ..Default::default()
+    };
     let cov = coverage(&mask, 16, 16);
     assert_eq!(cov.len(), 256);
 }
 
 #[test]
 fn f18_t2_04_mask_extreme_feather_bounds() {
-    let mut mask = FxMask::default();
-    mask.shape = MaskShape::Rectangle;
-    mask.feather = 5.0; // excessive feather
+    let mask = FxMask {
+        shape: MaskShape::Rectangle,
+        feather: 5.0, // excessive feather
+        ..Default::default()
+    };
     let cov = coverage(&mask, 16, 16);
-    assert!(cov.iter().all(|&v| v >= 0.0 && v <= 1.0));
+    assert!(cov.iter().all(|&v| (0.0..=1.0).contains(&v)));
 }
 
 #[test]
@@ -1386,10 +1507,16 @@ impl SmartMaskMatte {
         let (w, h) = (frame.width, frame.height);
         let mut alpha = Vec::with_capacity((w * h) as usize);
         for px in frame.rgba.as_chunks::<4>().0 {
-            let luma = (0.2126 * f32::from(px[0]) + 0.7152 * f32::from(px[1]) + 0.0722 * f32::from(px[2])) as u8;
+            let luma = (0.2126 * f32::from(px[0])
+                + 0.7152 * f32::from(px[1])
+                + 0.0722 * f32::from(px[2])) as u8;
             alpha.push(if luma >= threshold_luma { 255 } else { 0 });
         }
-        Self { width: w, height: h, alpha_channel: alpha }
+        Self {
+            width: w,
+            height: h,
+            alpha_channel: alpha,
+        }
     }
 }
 
@@ -1432,7 +1559,10 @@ fn f19_t1_05_smart_mask_binary_contrast_matte() {
     let frame = FrameBuffer::solid(4, 4, [128, 128, 128, 255]);
     let matte = SmartMaskMatte::cpu_fallback_segment(&frame, 128);
     for a in matte.alpha_channel {
-        assert!(a == 0 || a == 255, "Matte must be high contrast binary value");
+        assert!(
+            a == 0 || a == 255,
+            "Matte must be high contrast binary value"
+        );
     }
 }
 
@@ -1540,7 +1670,10 @@ fn f31_t1_02_ruler_mark_range_green_cached() {
 fn f31_t1_03_ruler_mark_range_yellow_playable() {
     let mut ruler = PreviewRulerMap::new(50);
     ruler.mark_range(0, 50, RulerFrameStatus::Yellow);
-    assert!(ruler.statuses.iter().all(|&s| s == RulerFrameStatus::Yellow));
+    assert!(ruler
+        .statuses
+        .iter()
+        .all(|&s| s == RulerFrameStatus::Yellow));
 }
 
 #[test]
@@ -1661,7 +1794,11 @@ fn f32_t2_01_lru_cache_eviction_when_max_bytes_exceeded() {
     let mut cache = LruFrameCache::new(700); // holds only 1 frame
     cache.insert(1, Arc::new(FrameBuffer::solid(10, 10, [0, 0, 0, 255])));
     cache.insert(2, Arc::new(FrameBuffer::solid(10, 10, [0, 0, 0, 255])));
-    assert_eq!(cache.len(), 1, "Oldest frame must be evicted when memory exceeds limit");
+    assert_eq!(
+        cache.len(),
+        1,
+        "Oldest frame must be evicted when memory exceeds limit"
+    );
     assert!(!cache.contains(&1));
     assert!(cache.contains(&2));
 }
@@ -1715,13 +1852,23 @@ fn f32_t2_05_lru_cache_hit_ratio_calculation() {
 #[test]
 fn f06_t2_06_twelve_named_presets_registered_and_retrievable() {
     use neoveg_video::transitions::{
-        get_preset, TransitionCategory, CUBE, CROSS_DISSOLVE, FLY_IN, IRIS,
-        LINEAR_WIPE, PAGE_PEEL, PAGE_ROLL, PUSH, RADIAL_WIPE, SHUFFLE, SLIDE, ZOOM,
+        get_preset, TransitionCategory, CROSS_DISSOLVE, CUBE, FLY_IN, IRIS, LINEAR_WIPE, PAGE_PEEL,
+        PAGE_ROLL, PUSH, RADIAL_WIPE, SHUFFLE, SLIDE, ZOOM,
     };
 
     let expected = [
-        CROSS_DISSOLVE, LINEAR_WIPE, RADIAL_WIPE, IRIS, PUSH, SLIDE, ZOOM,
-        FLY_IN, PAGE_PEEL, PAGE_ROLL, CUBE, SHUFFLE,
+        CROSS_DISSOLVE,
+        LINEAR_WIPE,
+        RADIAL_WIPE,
+        IRIS,
+        PUSH,
+        SLIDE,
+        ZOOM,
+        FLY_IN,
+        PAGE_PEEL,
+        PAGE_ROLL,
+        CUBE,
+        SHUFFLE,
     ];
 
     for id in expected {
@@ -1790,4 +1937,3 @@ fn f07_t2_07_transition_progress_envelope_shaping() {
     assert_eq!(env.progress_at(-1.0), 0.0);
     assert_eq!(env.progress_at(2.0), 1.0);
 }
-

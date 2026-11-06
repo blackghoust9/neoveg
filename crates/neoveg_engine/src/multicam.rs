@@ -264,7 +264,10 @@ pub fn create_multicamera_track(
 
         for (cam_idx, &tid) in camera_track_ids.iter().enumerate() {
             let track = timeline.track(tid)?;
-            let ev_opt = track.events.iter().find(|e| e.start <= mid && e.end() >= mid);
+            let ev_opt = track
+                .events
+                .iter()
+                .find(|e| e.start <= mid && e.end() >= mid);
 
             match ev_opt {
                 Some(ev) => {
@@ -423,7 +426,10 @@ pub fn expand_multicamera_track(
     timeline: &mut Timeline,
     multicam_track_id: TrackId,
 ) -> Option<Vec<TrackId>> {
-    let track_idx = timeline.tracks.iter().position(|t| t.id == multicam_track_id)?;
+    let track_idx = timeline
+        .tracks
+        .iter()
+        .position(|t| t.id == multicam_track_id)?;
     let multicam_track = timeline.tracks.remove(track_idx);
 
     if multicam_track.events.is_empty() {
@@ -492,7 +498,8 @@ mod tests {
         let mut ref_audio = vec![0.0f32; num_samples];
         for i in 0..num_samples {
             let t = i as f32 / sample_rate as f32;
-            let envelope = ((2.0 * std::f32::consts::PI * 1.5 * t).sin().powi(4) > 0.6) as i32 as f32;
+            let envelope =
+                ((2.0 * std::f32::consts::PI * 1.5 * t).sin().powi(4) > 0.6) as i32 as f32;
             let carrier = (2.0 * std::f32::consts::PI * 440.0 * t).sin();
             ref_audio[i] = envelope * carrier;
         }
@@ -507,14 +514,19 @@ mod tests {
 
         let synchronizer = MulticamSynchronizer::new();
         let tracks: &[(u64, &[f32])] = &[(101, &ref_audio), (102, &target_audio)];
-        let res = synchronizer.sync_by_audio_correlation(tracks, sample_rate)
+        let res = synchronizer
+            .sync_by_audio_correlation(tracks, sample_rate)
             .expect("audio sync should succeed");
 
         assert_eq!(res.len(), 2);
         assert_eq!(res[0], (101, 0.0));
         assert_eq!(res[1].0, 102);
         // Verified < 0.1 ms precision (target is delayed by 0.25s, so alignment offset is -0.25s)
-        assert!((res[1].1 - (-delay_sec)).abs() < 0.001, "offset was {}", res[1].1);
+        assert!(
+            (res[1].1 - (-delay_sec)).abs() < 0.001,
+            "offset was {}",
+            res[1].1
+        );
     }
 
     #[test]
@@ -546,8 +558,8 @@ mod tests {
         });
         tl.tracks.push(t2);
 
-        let mc_id = create_multicamera_track(&mut tl, &[tid1, tid2])
-            .expect("should create multicam track");
+        let mc_id =
+            create_multicamera_track(&mut tl, &[tid1, tid2]).expect("should create multicam track");
         let mc_track = tl.track(mc_id).unwrap();
         assert_eq!(mc_track.events.len(), 2); // [0..2] and [2..10]
 

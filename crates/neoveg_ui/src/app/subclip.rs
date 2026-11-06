@@ -227,7 +227,8 @@ impl AppState {
         } else {
             sub::move_to_media(&self.timeline, &pending.replace, media_id)
         };
-        let moved = command.is_some_and(|command| self.history.execute(&mut self.timeline, command));
+        let moved =
+            command.is_some_and(|command| self.history.execute(&mut self.timeline, command));
         if !moved {
             self.status = tr_args("Subclipe na mídia do projeto: {}", &[&name]);
             return;

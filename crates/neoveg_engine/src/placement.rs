@@ -140,11 +140,7 @@ pub fn match_frame(timeline: &Timeline, event: EventRef, cursor: f64) -> Option<
 
 /// *Reverse match*: every event that shows `source_time` of `media_id`, with the time of the
 /// timeline where it shows it, in time order.
-pub fn reverse_match(
-    timeline: &Timeline,
-    media_id: u64,
-    source_time: f64,
-) -> Vec<(EventRef, f64)> {
+pub fn reverse_match(timeline: &Timeline, media_id: u64, source_time: f64) -> Vec<(EventRef, f64)> {
     let mut found = Vec::new();
     for track in &timeline.tracks {
         for e in &track.events {

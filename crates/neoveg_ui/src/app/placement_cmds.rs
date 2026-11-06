@@ -70,7 +70,8 @@ impl AppState {
                 self.status = "Eventos movidos para terminar no cursor".into();
             }
             None => {
-                self.status = "Nada a mover: os eventos já terminam no cursor ou estão bloqueados".into()
+                self.status =
+                    "Nada a mover: os eventos já terminam no cursor ou estão bloqueados".into()
             }
         }
     }
@@ -239,7 +240,9 @@ mod tests {
         let mut s = AppState::new();
         let ev = with_event(&mut s, 1, 2.0, 3.0, 0.0);
         s.selected_track = Some(ev.0);
-        s.trimmer = Some(neoveg_engine::trimmer::TrimmerState::new(9, "clip", 8.0, 25.0));
+        s.trimmer = Some(neoveg_engine::trimmer::TrimmerState::new(
+            9, "clip", 8.0, 25.0,
+        ));
         s.run_command(Command::EditAppendToTrack, &egui::Context::default(), 0.0);
         let events = &s.timeline.track(ev.0).unwrap().events;
         assert_eq!(events.len(), 2);
@@ -256,7 +259,11 @@ mod tests {
         let mut trimmer = neoveg_engine::trimmer::TrimmerState::new(9, "clip", 20.0, 25.0);
         trimmer.set_cursor(10.0);
         s.trimmer = Some(trimmer);
-        s.run_command(Command::EditReplaceFromSource, &egui::Context::default(), 0.0);
+        s.run_command(
+            Command::EditReplaceFromSource,
+            &egui::Context::default(),
+            0.0,
+        );
         let e = &s.timeline.track(ev.0).unwrap().events[0];
         assert_eq!((e.media_id, e.start, e.duration), (Some(9), 5.0, 4.0));
         assert_eq!(e.trim_in, 9.0);

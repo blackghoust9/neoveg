@@ -34,7 +34,9 @@ fn ffmpeg_cut(source: &Path, dest: &Path, start: f64, end: f64) -> Result<(), St
     if ["wav", "flac", "aiff", "aif"].contains(&ext.as_str()) {
         cmd.args(["-c", "copy"]);
     } else {
-        cmd.args(["-c:v", "libx264", "-crf", "14", "-preset", "fast", "-c:a", "aac"]);
+        cmd.args([
+            "-c:v", "libx264", "-crf", "14", "-preset", "fast", "-c:a", "aac",
+        ]);
     }
     let status = cmd
         .arg(dest)
@@ -66,7 +68,8 @@ impl AppState {
         };
         let engine = RenderEngine::Auto;
         if format.has_video() && !engine.can_write(format) {
-            self.status = tr("Nenhum codificador de vídeo disponível para a exportação rápida").to_string();
+            self.status =
+                tr("Nenhum codificador de vídeo disponível para a exportação rápida").to_string();
             return;
         }
         let fallback = neoveg_common::paths::app_data_dir()
@@ -215,7 +218,8 @@ impl AppState {
         }
         let mut open = true;
         let mut apply = false;
-        let template_error = neoveg_common::rename_pattern::validate(&self.rename_dialog.template).err();
+        let template_error =
+            neoveg_common::rename_pattern::validate(&self.rename_dialog.template).err();
         crate::dialogs::dialog(ctx, tr("Renomear eventos por metadados"))
             .open(&mut open)
             .collapsible(false)
