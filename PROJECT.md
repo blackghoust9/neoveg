@@ -20,7 +20,7 @@ Neoveg is a pure clean-room Rust non-linear video editing system structured as a
 ### Data Flow & Execution Boundaries
 1. **Model Decoupling**: Business logic and data structures reside in `neoveg_common`, `neoveg_video`, `neoveg_audio`, and `neoveg_engine`. `neoveg_ui` is strictly a presentation and command dispatch layer.
 2. **CPU Fallback Strategy**: Dedicated GPU hardware or external AI services cannot be required for CI/test execution. All GPU effects, OFX plugins, and AI models have deterministic pure-CPU software fallbacks and synthetic in-memory fixtures.
-3. **Execution Budget**: Sequential execution with `-j 1` and `--test-threads=1`. `neoveg_ui` is verified exclusively with `cargo check` and `cargo clippy` (never `cargo test -p neoveg_ui`).
+3. **Execution Budget**: Sequential execution with `-j 1` and `--test-threads=1`. The E2E opaque-box suite excludes `neoveg_ui`; the interface keeps its own unit tests (several hundred, many of them drawing windows), which run in the background so they never block the foreground work (see `CLAUDE.md`).
 4. **Clean-Room License & Trademark**: `MIT OR Apache-2.0` compliant (`deny.toml`), zero GPL/AGPL dependencies, zero third-party registered trademarks in runtime strings or user-visible text.
 5. **Real-World Test Media (Blender Open Movies)**: Real-world video and audio tests utilize Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel) cached in a gitignored/temp test fixtures directory (e.g. `target/test_fixtures/blender/`) or via lightweight synthetic/sample fallback frames so large binary media does not bloat git commits/pushes on `preview/version-2.1.0`.
 
@@ -72,7 +72,7 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
 | 39 | Multicamera Track & Live Angle Switching | Container track with multi-angle preview grid and real-time click-to-cut | M6 | Survey / R2.12 |
 | 40 | Alternative Event Takes System | Multiple media takes within a single event container with cycling and slip-all | M6 | Survey / R2.12 |
 | 41 | Parity Matrix & README Synchronization | Update `scripts/parity_matrix.py` classifications and sync `README.md` | M6 | Survey / R3 |
-| 42 | Translation Catalogs Synchronization | 100% key synchronization across all 7 translation files in `Assets/i18n/strings/` | M6 | Survey / R3 |
+| 42 | Translation Catalogs Synchronization | 100% key synchronization across all 7 translation files in `assets/i18n/strings/` | M6 | Survey / R3 |
 | 43 | 100% E2E Test Suite Validation (Tiers 1-4) | Comprehensive opaque-box test execution across all features | M7 | Dual Track Final |
 | 44 | Adversarial Coverage Hardening (Tier 5) | White-box stress testing, gap analysis, and boundary hardening | M7 | Dual Track Final |
 
@@ -88,7 +88,7 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
 | M4 | Motion Tracking, Event Masks, Smart Mask & AI Features | Features 17–23: Motion tracking, geometric/Bézier masks, Smart Mask, text editing, speech-to-text, upscale, auto reframe | M1 | DONE |
 | M5 | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1 | DONE |
 | M6 | Advanced Timeline Editing, Multicam & Takes | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, and parity matrix | M2, M3, M4, M5 | DONE |
-| M7 | E2E Test Suite Pass (Tiers 1-4) & Adversarial Hardening (Tier 5) | Features 43–44: Pass 100% E2E test suite published in `TEST_READY.md`, followed by Tier 5 adversarial stress testing | M6, TEST_READY.md | PLANNED |
+| M7 | E2E Test Suite Pass (Tiers 1-4) & Adversarial Hardening (Tier 5) | Features 43–44: Pass 100% E2E test suite published in `TEST_READY.md`, followed by Tier 5 adversarial stress testing | M6, TEST_READY.md | DONE (2026-11-06) |
 
 ---
 
@@ -153,7 +153,7 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
   - `src/app.rs`: Application shell, commands, sanitized trademark strings.
   - `src/dialogs/`: Standardized dialogs, Make Movie wizard, Project Properties.
   - `src/dock/`: Media pool view, Explorer view, Color Grading panel.
-- `Assets/i18n/strings/`:
+- `assets/i18n/strings/`:
   - `de-DE.json`, `en-US.json`, `es-ES.json`, `fr-FR.json`, `ja-JP.json`, `ru-RU.json`, `zh-CN.json`.
 - `tests/`:
   - Workspace E2E opaque-box test suites (Tiers 1–4).

@@ -40,7 +40,7 @@ Neoveg Workspace
 │   ├── neoveg_vst3_sample/    # the gain example of the `vst3` crate as a loadable `.vst3` library, for the tests of the isolated VST3 host (`neoveg_audio/tests/isolated_vst3.rs`)
 │   └── neoveg_ui/             # egui/eframe application (binary `neoveg`)
 ├── docs/                      # research knowledge base (docs/research/nle_features_research.txt) and the legacy QA dashboard
-├── Assets/i18n/               # runtime localization resources (pt-BR default)
+├── assets/i18n/               # runtime localization resources (pt-BR default)
 └── extensions/, third_party/, plugins/, scripts/, runtimes/   # supporting material
 ```
 
@@ -61,7 +61,7 @@ Dependency direction: `neoveg_common` is the base; `neoveg_audio`, `neoveg_video
 - **Pure rules live in the engine.** Geometry, snapping, trimming, crossfade detection and relinking are plain functions in `neoveg_engine` with unit tests; the UI only translates pointer input into calls. UI state logic (drag handling, hit-testing, clip building) must stay testable without a GUI.
 - **Real-time audio callback:** no allocation, locks or I/O. It reads an immutable mix plan and shared atomics only.
 - **Persisted formats are versioned and backward compatible:** carry a `format_version`, and give every field added later a `#[serde(default)]` so older files keep loading (tests must cover this).
-- **Errors:** return `Result` for anything driven by user data or the filesystem; never panic on a bad file. `unsafe` is not used; if it ever becomes necessary it needs a `// SAFETY:` comment and a test.
+- **Errors:** return `Result` for anything driven by user data or the filesystem; never panic on a bad file. Pure-Rust code stays safe: `unsafe` is confined to the FFI boundaries (`neoveg_ofx`, `neoveg_ofx_sample`, the VST3/CLAP hosts in `neoveg_audio` and the FFmpeg bridge in `neoveg_video`), where every block needs a `// SAFETY:` comment stating the invariant it relies on and a test around it.
 - **Lint-clean:** `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` must pass before every commit.
 
 ---
@@ -110,7 +110,7 @@ The behavior below is normative. Colors, sizes and thresholds are part of the sp
   - **Built** (`neoveg_ui/src/event_header.rs` for the geometry, `header_button_at` / `header_button_clicked` in `app.rs`; manual v21 p.242): the name on the left and the buttons right aligned inside the header strip, 12 px each, with a margin for the fade-out handle. Which ones an event has: *Generated Media* only for a `.neoveggen` media, *Pan/Crop* for video events other than adjustment events, *FX* and the menu for all. A narrow event keeps the name (36 px) and loses buttons from the left, the menu last. A click on a button selects the event and acts without moving the cursor or starting a drag: *Pan/Crop* opens its window; *FX* shows the Efeitos de Vídeo tab on the Event scope (video) or the Efeitos de Áudio tab on the track (audio) through `WindowAction::Show`, which raises or reopens a window and never closes it; *Generated Media* opens the generator dialog on the media's values; the menu hands the timeline a right click on the next frame (`raw_input_hook`), so it is the very same context menu. Applying an edited generated media writes a new `.neoveggen` manifest and repoints the media (the render cache is keyed by file, so an old name could show an old picture; the earlier manifest stays on disk). The inspector (*Ferramentas > Inspetor*) edits the name (`switches::rename_event`), start and duration, the switches, the resample mode and the speed, fades and pitch, and shows the media. Not built: the configurable button set (event length, freeze frame, ...).
 - **Event Pan/Crop:** it opens as a pop-up window from the video clip's event header button (it is not docked beside the Preview) and includes an embedded side-by-side live Video Preview toggle next to the `'F'` gizmo canvas.
   - **Built so far** (`neoveg_common::pan_crop`, `neoveg_engine::pan_crop`, `neoveg_video::pan_crop`, `neoveg_ui/src/pan_crop_window.rs`; Ferramentas > Pan/Crop do evento, or the event context menu): `TrackEvent::pan_crop` holds a selection box over the source (centre, size and rotation as fractions of the source, so the same box frames a quarter-size preview and the render) with keyframes measured from the event start and a *smoothness* per key; `EditCommand::SetPanCrop` is one undo step per gesture. The window shows the source frame, the box with eight resize handles, a rotation handle and a move area, the numeric fields (centre X and Y, width, height, rotation), *Lock aspect*, *Size about center*, move free or on one axis, *Stretch to fill*, restore, centre, match the source or the project aspect, the keyframe strip and the side-by-side preview. While a drag is going on the preview shows the draft (`PanCropDraft`) and the project changes on release. The worker draws it on the CPU (bilinear, premultiplied) right after the chroma key and before the effects; the output keeps the source size and the compositor fits it as usual. The rotation is the box's: a box turned clockwise straightens what is inside it, so the picture appears turned counter-clockwise. Not built yet: masks, a rotation centre other than the box centre, flip commands and the Pan/Crop button on the event header.
-- **Internationalization:** default language Brazilian Portuguese (`pt-BR`) with runtime support for `en-US`, `de-DE`, `es-ES`, `fr-FR`, `zh-CN`, `ja-JP` and `ru-RU`; resources live in `Assets/i18n/`.
+- **Internationalization:** default language Brazilian Portuguese (`pt-BR`) with runtime support for `en-US`, `de-DE`, `es-ES`, `fr-FR`, `zh-CN`, `ja-JP` and `ru-RU`; resources live in `assets/i18n/`.
 
 ### 4.2. Video Preview
 
@@ -477,7 +477,7 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
    - File names use universal NLE functional terminology (`split.bmp`, `snapping.bmp`, `pan_crop.bmp`, `event_fx.bmp`, `mute.bmp`, `solo.bmp`, etc.). Secondary multi-format exports (`png/`, `bmp/`, `#1e1e1e` `jpg/`) live outside Git in `D:\ambiente_neoveg\assets\icons\` via `scripts/generate_icon_formats.py`.
 
 3. **Trademark Neutrality:**
-   - Rust crates (`crates/`), UI strings (`Assets/i18n/`), and the Obsidian vault (`docs_obsidian/`) must never use third-party registered NLE brand names or trademarks; the software is exclusively named **Neoveg** (`.neoveg`).
+   - Rust crates (`crates/`), UI strings (`assets/i18n/`), and the Obsidian vault (`docs_obsidian/`) must never use third-party registered NLE brand names or trademarks; the software is exclusively named **Neoveg** (`.neoveg`).
 
 4. **Dual Licensing & `cargo-deny` Governance:**
    - All Neoveg workspace crates are dual-licensed under `MIT OR Apache-2.0`, backed by root `LICENSE-MIT` and `LICENSE-APACHE` (plus `LICENSE`, `AUTHORS.md`, and `third_party/README.md`).

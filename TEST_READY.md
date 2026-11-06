@@ -2,9 +2,9 @@
 
 ## Status
 - **Test Suite Status**: **READY & VERIFIED PASSING**
-- **Execution Date**: 2026-11-06
-- **Test Count**: **468 tests** (100% pass, 0 failures, 0 panics)
-- **Target Exclusions**: `neoveg_ui` (per specification: headless CLI/engine execution only)
+- **Execution Date**: 2026-11-06 (re-run after the review fixes of the same day)
+- **Test Count**: **508 opaque-box E2E tests** (Tiers 1–4, the suites listed below) and **2,075+ tests** in the non-UI crates together with the unit and Tier 5 adversarial suites — 0 failures, 0 panics.
+- **Target Exclusions**: `neoveg_ui` (per specification: the E2E opaque-box suite is headless CLI/engine execution only; the interface has its own unit tests, run apart, many of them drawing windows)
 - **Hardware Prerequisites**: **ZERO** (100% headless CPU execution; no physical GPU, audio hardware, or external AI services required)
 
 ---
@@ -14,17 +14,19 @@
 To execute the entire integration test suite sequentially on any standard CPU or CI runner:
 
 ```bash
-cargo test -j 1 --test-threads=1 --workspace --exclude neoveg_ui
+cargo test -j 1 --workspace --exclude neoveg_ui -- --test-threads=1
 ```
+
+`--test-threads` is a test-harness flag, so it has to come after `--`; before it, cargo rejects it with `unexpected argument '--test-threads'`. The `-j 1` is the cargo flag and stays before `--`.
 
 To run individual opaque-box test suites:
 ```bash
-cargo test -j 1 --test-threads=1 -p neoveg_common --test e2e_common
-cargo test -j 1 --test-threads=1 -p neoveg_audio --test e2e_audio
-cargo test -j 1 --test-threads=1 -p neoveg_video --test e2e_video
-cargo test -j 1 --test-threads=1 -p neoveg_ofx --test e2e_ofx
-cargo test -j 1 --test-threads=1 -p neoveg_engine --test e2e_engine
-cargo test -j 1 --test-threads=1 -p neoveg_engine --test e2e_scenarios
+cargo test -j 1 -p neoveg_common --test e2e_common -- --test-threads=1
+cargo test -j 1 -p neoveg_audio --test e2e_audio -- --test-threads=1
+cargo test -j 1 -p neoveg_video --test e2e_video -- --test-threads=1
+cargo test -j 1 -p neoveg_ofx --test e2e_ofx -- --test-threads=1
+cargo test -j 1 -p neoveg_engine --test e2e_engine -- --test-threads=1
+cargo test -j 1 -p neoveg_engine --test e2e_scenarios -- --test-threads=1
 ```
 
 ---
@@ -58,7 +60,9 @@ crates/
 | **Tier 2** | Boundary & Corner Cases (Clamping, edge values, error handling) | 5 per feature | 210 | **PASS (210/210)** |
 | **Tier 3** | Cross-Feature Interactions (Pairwise combinations across features) | 42 pairwise pairs | 42 | **PASS (42/42)** |
 | **Tier 4** | Real-World Scenarios (End-to-end production workloads) | 6 full workflows | 6 | **PASS (6/6)** |
-| **TOTAL** | **Comprehensive Opaque-Box Test Suite** | — | **468** | **PASS (468/468)** |
+| **TOTAL** | **Comprehensive Opaque-Box Test Suite** | — | **508** | **PASS (508/508)** |
+
+The four tiers add up to the 468 cases of the original plan; the suites carry 508 because several features received more than the minimum, and the M5/M6 feature suites (`m5_features_24_34.rs`, `m6_features_35_42.rs`) were added with them.
 
 ---
 

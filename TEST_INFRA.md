@@ -53,7 +53,7 @@
 
 ## Test Architecture
 - **Location**: `tests/` integration test suites in workspace crates (`neoveg_common`, `neoveg_video`, `neoveg_audio`, `neoveg_engine`).
-- **Invocation**: `cargo test -j 1 --test-threads=1 --workspace --exclude neoveg_ui`
+- **Invocation**: `cargo test -j 1 --workspace --exclude neoveg_ui -- --test-threads=1` (the `--test-threads` harness flag comes after `--`)
 - **Pass/Fail Semantics**: 0 failures, 0 panics, zero unhandled errors.
 - **Mock/Fixture Strategy**:
   - In-memory mock audio recorder loopback (`Recorder::create_mock_loopback()`).
