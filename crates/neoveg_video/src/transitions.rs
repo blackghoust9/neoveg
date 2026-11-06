@@ -85,6 +85,16 @@ pub struct TransitionPreset {
     pub params: BTreeMap<String, f32>,
 }
 
+impl TransitionPreset {
+    pub fn label(&self) -> &'static str {
+        self.name_key
+    }
+
+    pub fn kind(&self) -> &'static str {
+        self.id
+    }
+}
+
 /// 3D spatial transformation parameters for perspective transitions.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ThreeDTransform {
@@ -140,6 +150,32 @@ impl ThreeDTransform {
             [cy * sz, cx * cz + sx * sy * sz, -cz * sx + cx * sy * sz],
             [-sy, cy * sx, cx * cy],
         ]
+    }
+
+    /// Pure-CPU software rendering fallback applying this 3D transformation to a frame buffer.
+    pub fn apply_cpu(&self, source: &FrameBuffer) -> FrameBuffer {
+        let (width, height) = (source.width, source.height);
+        if width == 0 || height == 0 {
+            return source.clone();
+        }
+        let d_cam = 5.0;
+        let (w, h) = (width as f32, height as f32);
+        let rot = self.rotation_matrix();
+
+        render(width, height, |x, y| {
+            let sx = (x as f32 + 0.5) / w * 2.0 - 1.0;
+            let sy = (y as f32 + 0.5) / h * 2.0 - 1.0;
+            if let Some((_qz, u, v, n, q)) =
+                ray_intersect_plane(sx, sy, d_cam, 0.0, 0.0, self.depth_z, &rot)
+            {
+                let tx = (u + 1.0) * 0.5 * w;
+                let ty = (v + 1.0) * 0.5 * h;
+                let px = sample(source, tx, ty);
+                shade_lit(px, n, q, self.specular_light, d_cam)
+            } else {
+                [0.0; 4]
+            }
+        })
     }
 }
 
@@ -300,7 +336,7 @@ impl TransitionProgressEnvelope {
 
 /// Looks up a transition preset by its identifier or name key.
 pub fn get_preset(id: &str) -> Option<TransitionPreset> {
-    let lower = id.to_lowercase().replace('-', "_").replace(' ', "_");
+    let lower = id.to_lowercase().replace(['-', ' '], "_");
     match lower.as_str() {
         "cross_dissolve" | "dissolve" => Some(TransitionPreset {
             id: "cross_dissolve",
@@ -344,7 +380,19 @@ pub fn get_preset(id: &str) -> Option<TransitionPreset> {
             name_key: "Zoom",
             params: BTreeMap::new(),
         }),
-        "fly_in" | "3d_fly_in" => Some(TransitionPreset {
+        "fly_in" => Some(TransitionPreset {
+            id: "fly_in",
+            category: TransitionCategory::ThreeD,
+            name_key: "3D Fly In",
+            params: BTreeMap::from([
+                ("far_z".into(), 4.0),
+                ("rotation_x".into(), 25.0),
+                ("rotation_y".into(), 35.0),
+                ("rotation_z".into(), 10.0),
+                ("specular_light".into(), 0.5),
+            ]),
+        }),
+        "3d_fly_in" => Some(TransitionPreset {
             id: "3d_fly_in",
             category: TransitionCategory::ThreeD,
             name_key: "3D Fly In",
@@ -374,10 +422,20 @@ pub fn get_preset(id: &str) -> Option<TransitionPreset> {
             name_key: "Cube",
             params: BTreeMap::from([("angle".into(), 0.0), ("perspective".into(), 0.5)]),
         }),
-        "shuffle" | "3d_shuffle" => Some(TransitionPreset {
+        "shuffle" => Some(TransitionPreset {
             id: "shuffle",
             category: TransitionCategory::ThreeD,
             name_key: "Shuffle",
+            params: BTreeMap::from([
+                ("extra_spins".into(), 0.0),
+                ("stagger".into(), 0.2),
+                ("specular_light".into(), 0.4),
+            ]),
+        }),
+        "3d_shuffle" => Some(TransitionPreset {
+            id: "3d_shuffle",
+            category: TransitionCategory::ThreeD,
+            name_key: "3D Shuffle",
             params: BTreeMap::from([
                 ("extra_spins".into(), 0.0),
                 ("stagger".into(), 0.2),
@@ -393,6 +451,36 @@ pub fn get_preset(id: &str) -> Option<TransitionPreset> {
                 params: p.values(),
             })
         }
+    }
+}
+
+/// Renders a two-frame transition blending from `source` (outgoing) to `target` (incoming).
+fn render_transition(
+    source: &FrameBuffer,
+    target: &FrameBuffer,
+    t: &Resolved,
+    progress: f32,
+) -> FrameBuffer {
+    if matches!(
+        t,
+        Resolved::Push { .. }
+            | Resolved::PageRoll { .. }
+            | Resolved::PagePeel { .. }
+            | Resolved::Cube { .. }
+            | Resolved::Flip { .. }
+            | Resolved::FlyIn { .. }
+            | Resolved::Shuffle { .. }
+            | Resolved::WarpFlow
+    ) {
+        apply2(Some(source), target, t, progress)
+    } else {
+        let inc = apply(target, t, progress);
+        crate::composite::blend_buffer_cpu(
+            source,
+            &inc,
+            neoveg_common::composite::CompositeMode::SourceAlpha,
+            1.0,
+        )
     }
 }
 
@@ -424,7 +512,7 @@ impl TransitionRenderer for TransitionPreset {
             other => other,
         };
         let resolved = resolve(kind, &merged).ok_or_else(|| format!("Unknown transition preset kind: {kind}"))?;
-        Ok(apply2(Some(source), target, &resolved, progress))
+        Ok(render_transition(source, target, &resolved, progress))
     }
 }
 
@@ -437,7 +525,7 @@ impl TransitionRenderer for &str {
         params: &BTreeMap<String, f32>,
     ) -> Result<FrameBuffer, String> {
         let resolved = resolve(self, params).ok_or_else(|| format!("Unknown transition kind: {self}"))?;
-        Ok(apply2(Some(source), target, &resolved, progress))
+        Ok(render_transition(source, target, &resolved, progress))
     }
 }
 
@@ -469,7 +557,7 @@ impl TransitionRenderer for StandardTransitionRenderer {
             .map(|_| "custom")
             .unwrap_or(DISSOLVE);
         let resolved = resolve(kind, params).ok_or_else(|| format!("Unknown transition: {kind}"))?;
-        Ok(apply2(Some(source), target, &resolved, progress))
+        Ok(render_transition(source, target, &resolved, progress))
     }
 }
 
@@ -1516,6 +1604,7 @@ fn shade_lit(px: [f32; 4], n: [f32; 3], q: [f32; 3], specular: f32, d_cam: f32) 
     ]
 }
 
+#[allow(clippy::type_complexity)]
 fn ray_intersect_plane(
     sx: f32,
     sy: f32,
@@ -1557,6 +1646,7 @@ fn ray_intersect_plane(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_3d_fly_in(
     outgoing: Option<&FrameBuffer>,
     incoming: &FrameBuffer,

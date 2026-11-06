@@ -1554,3 +1554,87 @@ fn f32_t2_05_lru_cache_hit_ratio_calculation() {
     assert_eq!(cache.hits(), 2);
     assert_eq!(cache.misses(), 1);
 }
+
+// ============================================================================
+// Feature 6 & 7 Extensions: 3D Transitions, Presets, Renderers & Envelopes
+// ============================================================================
+
+#[test]
+fn f06_t2_06_twelve_named_presets_registered_and_retrievable() {
+    use neoveg_video::transitions::{
+        get_preset, TransitionCategory, CUBE, CROSS_DISSOLVE, FLY_IN, IRIS,
+        LINEAR_WIPE, PAGE_PEEL, PAGE_ROLL, PUSH, RADIAL_WIPE, SHUFFLE, SLIDE, ZOOM,
+    };
+
+    let expected = [
+        CROSS_DISSOLVE, LINEAR_WIPE, RADIAL_WIPE, IRIS, PUSH, SLIDE, ZOOM,
+        FLY_IN, PAGE_PEEL, PAGE_ROLL, CUBE, SHUFFLE,
+    ];
+
+    for id in expected {
+        let p = get_preset(id).unwrap_or_else(|| panic!("Preset {} should be found", id));
+        assert_eq!(p.id, id);
+        assert!(!p.label().is_empty());
+        assert!(!p.kind().is_empty());
+        match p.category {
+            TransitionCategory::Dissolve
+            | TransitionCategory::Wipes
+            | TransitionCategory::Shapes
+            | TransitionCategory::Motion
+            | TransitionCategory::ThreeD
+            | TransitionCategory::Effects => {}
+        }
+    }
+}
+
+#[test]
+fn f06_t2_07_transition_renderer_thumbnail_generation() {
+    use neoveg_video::transitions::{get_preset, TransitionRenderer, CROSS_DISSOLVE};
+
+    let preset = get_preset(CROSS_DISSOLVE).unwrap();
+    let src = FrameBuffer::solid(32, 32, [255, 0, 0, 255]);
+    let dst = FrameBuffer::solid(32, 32, [0, 0, 255, 255]);
+
+    let thumb = preset.render_thumbnail(&src, &dst, &preset.params);
+    assert_eq!(thumb.width, 32);
+    assert_eq!(thumb.height, 32);
+    // At progress 0.5, cross dissolve mixes red and blue evenly: ~127 red, ~127 blue
+    let p = thumb.pixel(16, 16);
+    assert!((p[0] as i16 - 127).abs() <= 2);
+    assert!((p[2] as i16 - 127).abs() <= 2);
+}
+
+#[test]
+fn f07_t2_06_threed_transform_software_fallback() {
+    use neoveg_video::transitions::ThreeDTransform;
+
+    let t = ThreeDTransform {
+        rotation_x_deg: 15.0,
+        rotation_y_deg: -30.0,
+        rotation_z_deg: 10.0,
+        depth_z: -0.2,
+        specular_light: 0.5,
+    };
+    let src = FrameBuffer::solid(32, 32, [200, 100, 50, 255]);
+    let transformed = t.apply_cpu(&src);
+    assert_eq!(transformed.width, 32);
+    assert_eq!(transformed.height, 32);
+}
+
+#[test]
+fn f07_t2_07_transition_progress_envelope_shaping() {
+    use neoveg_video::transitions::{TransitionEnvelopeShape, TransitionProgressEnvelope};
+
+    let mut env = TransitionProgressEnvelope::new(1.0);
+    env.add_point(0.0, 0.0, TransitionEnvelopeShape::Linear);
+    env.add_point(0.5, 0.8, TransitionEnvelopeShape::Fast);
+    env.add_point(1.0, 1.0, TransitionEnvelopeShape::Slow);
+
+    assert_eq!(env.progress_at(0.0), 0.0);
+    assert_eq!(env.progress_at(0.5), 0.8);
+    assert_eq!(env.progress_at(1.0), 1.0);
+    // Boundary clamping
+    assert_eq!(env.progress_at(-1.0), 0.0);
+    assert_eq!(env.progress_at(2.0), 1.0);
+}
+

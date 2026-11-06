@@ -195,7 +195,7 @@ impl OfxHostContext for DefaultOfxHost {
                 .unwrap_or(1.0)
                 .clamp(0.0, 1.0);
 
-            for chunk in out.rgba.chunks_exact_mut(4) {
+            for chunk in out.rgba.as_chunks_mut::<4>().0 {
                 let r = chunk[0] as f32;
                 let g = chunk[1] as f32;
                 let b = chunk[2] as f32;
@@ -207,13 +207,13 @@ impl OfxHostContext for DefaultOfxHost {
             }
         } else if id_lower.contains("gain") || id_lower.contains("brightness") {
             let factor = params.get("gain").or_else(|| params.get("brightness")).copied().unwrap_or(1.0);
-            for chunk in out.rgba.chunks_exact_mut(4) {
+            for chunk in out.rgba.as_chunks_mut::<4>().0 {
                 chunk[0] = (chunk[0] as f32 * factor).clamp(0.0, 255.0) as u8;
                 chunk[1] = (chunk[1] as f32 * factor).clamp(0.0, 255.0) as u8;
                 chunk[2] = (chunk[2] as f32 * factor).clamp(0.0, 255.0) as u8;
             }
         } else if id_lower.contains("grayscale") || id_lower.contains("black_and_white") {
-            for chunk in out.rgba.chunks_exact_mut(4) {
+            for chunk in out.rgba.as_chunks_mut::<4>().0 {
                 let gray = (0.299 * chunk[0] as f32 + 0.587 * chunk[1] as f32 + 0.114 * chunk[2] as f32)
                     .clamp(0.0, 255.0) as u8;
                 chunk[0] = gray;
