@@ -431,15 +431,16 @@ fn adv_envelope_out_of_order_timestamps() {
 
 /// EMPIRICAL BUG REPRODUCTION:
 /// Calling `add_point(f64::NAN, ...)` inserts a point at index 0 because `NaN < time` is false.
-/// When `progress_at(0.5)` is called, `points[0].time` is NaN, so `time <= points[0].time` is false,
+/// When `progress_at(0.0)` is called, `points[0].time` is NaN, so `time <= points[0].time` is false,
 /// and `partition_point` returns 0.
 /// Line 319 then evaluates `idx - 1` on usize (0 - 1), causing `attempt to subtract with overflow` panic.
 #[test]
 #[should_panic(expected = "attempt to subtract with overflow")]
-fn adv_envelope_nan_timestamp_reproduces_underflow_panic() {
+fn adv_envelope_nan_timestamp_causes_underflow_panic() {
     let mut env = TransitionProgressEnvelope::new(1.0);
     env.add_point(f64::NAN, 0.5, TransitionEnvelopeShape::Linear);
-    let _ = env.progress_at(0.5);
+    // At t = 0.0, partition_point returns 0, and idx - 1 underflows usize
+    let _ = env.progress_at(0.0);
 }
 
 /// EMPIRICAL VULNERABILITY REPRODUCTION:
@@ -448,10 +449,11 @@ fn adv_envelope_nan_timestamp_reproduces_underflow_panic() {
 /// violating the contract that progress is unconditionally clamped to 0.0..=1.0.
 #[test]
 fn adv_envelope_infinite_timestamp_exposes_nan_propagation() {
-    let mut env = TransitionProgressEnvelope::new(1.0);
-    env.add_point(f64::NEG_INFINITY, 0.5, TransitionEnvelopeShape::Linear);
-    let p = env.progress_at(0.25);
-    assert!(p.is_nan(), "Empirically verifies that progress_at returns NaN instead of clamping to 0.0..=1.0");
+    let mut env_inf = TransitionProgressEnvelope::new(1.0);
+    env_inf.add_point(f64::NEG_INFINITY, 0.5, TransitionEnvelopeShape::Linear);
+    let pinf = env_inf.progress_at(-10.0);
+    // Bug exposed: pinf is NaN rather than clamped to 0.0..=1.0!
+    assert!(pinf.is_nan(), "Empirically verifies that progress_at returns NaN instead of clamping to 0.0..=1.0");
 }
 
 // ============================================================================

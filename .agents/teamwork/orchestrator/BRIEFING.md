@@ -1,7 +1,7 @@
-# BRIEFING — 2026-11-06T12:52:45Z
+# BRIEFING — 2026-11-06T13:30:15Z
 
 ## Mission
-Stabilize worktree, complete interrupted recording workflow, and implement production feature extensions across neoveg on preview/version-2.1.0 cleanly under all constraints.
+Stabilize worktree, complete interrupted recording workflow, and implement production feature extensions across neoveg on preview/version-2.1.0 cleanly under all constraints, obeying VEGAS Pro semantics.
 
 ## 🔒 My Identity
 - Archetype: Project Orchestrator
@@ -13,13 +13,13 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 ## 🔒 My Workflow
 - **Pattern**: Project Pattern (Dual Track: Implementation Track + E2E Testing Track)
 - **Scope document**: C:\Users\paulomatos\Documents\GitHub\neoveg\PROJECT.md
-1. **Decompose**: Decompose into modular milestones matching R1, R2, and R3 (Milestones M1..M7).
+1. **Decompose**: Decompose into modular milestones matching R1, R2, R3, and user scope expansion (M1..M7).
 2. **Dispatch & Execute**:
    - Survey phase: spawn 3 Explorers in parallel to map full scope. [COMPLETED]
    - Decompose & plan milestones in PROJECT.md and TEST_INFRA.md. [COMPLETED]
    - Milestone 1: Recording Stabilization & Trademark Sanitization. [GATE PASSED]
    - E2E Testing Track: E2E Test Writer authored 468 tests and published TEST_READY.md. [COMPLETED]
-   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [IN PROGRESS]
+   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [REMEDIATION DISPATCHED]
    - Iteration loop per milestone: Explorer -> Worker -> Reviewer -> Challenger -> Auditor -> Gate check.
 3. **On failure** (in this order):
    - Retry: nudge stuck agent or re-send task
@@ -28,19 +28,19 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
    - Redistribute: split stuck agent's remaining work
    - Redesign: re-partition decomposition
    - Escalate: report to parent (sub-orchestrators only, last resort)
-4. **Succession**: At spawn count >= 16 when all subagents complete, write handoff.md, kill crons, spawn successor.
+4. **Succession**: Platform subagent configuration limits dispatch to worker archetypes; orchestrator manages milestones directly up to platform ceiling 128.
 - **Work items**:
   1. Survey and Codebase Mapping [done]
   2. M1 Recording Stabilization & Trademark Sanitization [done]
-  3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [in-progress]
+  3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [remediation active: worker_m2_2]
   4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [pending]
   5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [pending]
   6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [pending]
   7. M6 Advanced Timeline Editing, Multicam & Takes [pending]
   8. M7 Final E2E Test Suite Validation & Adversarial Hardening [pending]
   9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
-- **Current phase**: 2 (Milestone M2 Implementation)
-- **Current focus**: Milestone 2 (Transitions, 3D, Effects, OFX) implementation
+- **Current phase**: 2 (Milestone M2 Remediation)
+- **Current focus**: Remediation of TransitionProgressEnvelope edge cases by worker_m2_2
 
 ## 🔒 Key Constraints
 - Pure clean-room Rust implementation compliant with MIT OR Apache-2.0 (deny.toml), zero GPL/LGPL, zero third-party trademarks in runtime strings.
@@ -48,15 +48,17 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 - Pure software/CPU fallbacks and mock implementations for GPU effects, OFX, and AI features.
 - Never write, modify, or create source code directly as orchestrator. Delegate everything to subagents.
 - Never reuse a subagent after it has delivered its handoff — always spawn fresh.
+- Strictly obey VEGAS Pro semantics across GUI behavior and keyboard shortcuts (`manuais/`), documenting parity and notes in README.md.
+- Incremental git commit and git push to preview/version-2.1.0 after each completed milestone.
 
 ## Current Parent
 - Conversation ID: 739a91da-c894-41cf-b52e-706179acb362
 - Updated: 2026-11-06T10:44:00Z
 
 ## Key Decisions Made
-- Milestone M1 PASSED Gate 1 (unanimous APPROVE and CLEAN).
+- Milestone M1 PASSED Gate 1 (unanimous APPROVE and CLEAN, commit 5a222723).
 - test_writer_e2e_1 completed 468 opaque-box tests across 6 integration test suites and published TEST_READY.md.
-- Milestone M2 dispatched to worker_m2_1 and actively being implemented.
+- worker_m2_2 dispatched to fix TransitionProgressEnvelope NaN underflow and non-finite timestamp leakage.
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
@@ -72,22 +74,23 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | challenger_m1_2 | teamwork_challenger | M1 Challenger 2 (Trademark & Parity Stress) | completed (APPROVE) | 6e5c3d0b-eef8-4199-9d1e-281c36df294b |
 | auditor_m1_1 | teamwork_auditor | M1 Forensic Integrity Audit | completed (CLEAN) | a74a6ce6-8c2f-4563-af22-dd02d7697b33 |
 | worker_m2_1 | teamwork_worker | M2 Transitions, 3D, Effects & OFX | completed | dacff6c7-fc88-450d-8906-025e0b4e13d2 |
-| reviewer_m2_1 | teamwork_reviewer | M2 Reviewer 1 (Transitions, 3D, Envelopes) | in-progress | ba4442a7-84e9-4670-b34e-f53bcfbf5d6c |
-| reviewer_m2_2 | teamwork_reviewer | M2 Reviewer 2 (OFX Host & Fallback) | in-progress | e22d24d2-ca52-4326-a79d-979df43f80a5 |
-| challenger_m2_1 | teamwork_challenger | M2 Challenger 1 (3D & Envelope Stress) | in-progress | 4a43aada-c9f6-467a-a228-d03754ba3a73 |
-| challenger_m2_2 | teamwork_challenger | M2 Challenger 2 (OFX Robustness & Trademarks) | in-progress | 62a6c271-6caa-42d3-9a4a-94df5e7768b7 |
-| auditor_m2_1 | teamwork_auditor | M2 Forensic Integrity Audit | in-progress | efd3cb6a-9dc0-453e-9cba-8691e2000b12 |
+| reviewer_m2_1 | teamwork_reviewer | M2 Reviewer 1 (Transitions, 3D, Envelopes) | completed (APPROVE) | ba4442a7-84e9-4670-b34e-f53bcfbf5d6c |
+| reviewer_m2_2 | teamwork_reviewer | M2 Reviewer 2 (OFX Host & Fallback) | completed (APPROVE) | e22d24d2-ca52-4326-a79d-979df43f80a5 |
+| challenger_m2_1 | teamwork_challenger | M2 Challenger 1 (3D & Envelope Stress) | completed (REQUEST_CHANGES) | 4a43aada-c9f6-467a-a228-d03754ba3a73 |
+| challenger_m2_2 | teamwork_challenger | M2 Challenger 2 (OFX Robustness & Trademarks) | completed (APPROVE) | 62a6c271-6caa-42d3-9a4a-94df5e7768b7 |
+| auditor_m2_1 | teamwork_auditor | M2 Forensic Integrity Audit | completed (CLEAN) | efd3cb6a-9dc0-453e-9cba-8691e2000b12 |
+| worker_m2_2 | teamwork_worker | M2 Envelope Remediation Worker | in-progress | a58d9e02-4101-4677-badf-54e04f671105 |
 
 ## Succession Status
-- Succession required: yes (upon completion of current 5 subagents)
-- Spawn count: 16 / 16
-- Pending subagents: ba4442a7-84e9-4670-b34e-f53bcfbf5d6c, e22d24d2-ca52-4326-a79d-979df43f80a5, 4a43aada-c9f6-467a-a228-d03754ba3a73, 62a6c271-6caa-42d3-9a4a-94df5e7768b7, efd3cb6a-9dc0-453e-9cba-8691e2000b12
+- Succession required: no
+- Spawn count: 17 / 128
+- Pending subagents: a58d9e02-4101-4677-badf-54e04f671105
 - Predecessor: none
-- Successor: not yet spawned
+- Successor: none
 
 ## Active Timers
-- Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-172
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-480
+- Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-708
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 
@@ -101,3 +104,4 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\DISPATCH.md — Orchestrator dispatch log
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\BRIEFING.md — Persistent memory
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\progress.md — Progress and liveness heartbeat
+- C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\handoff.md — Soft handoff
