@@ -35,6 +35,12 @@ impl StoryboardWindow {
         let Some(from) = self.selected else {
             return;
         };
+        // The cards can go away while a card is still marked (the track was removed or the project
+        // changed); clamping to `len - 1` with an empty list would panic on `i64::clamp`.
+        if self.cards.is_empty() {
+            self.selected = None;
+            return;
+        }
         let to = (from as i64 + i64::from(delta)).clamp(0, self.cards.len() as i64 - 1) as usize;
         if to != from {
             self.selected = Some(storyboard::move_card(&mut self.cards, from, to));
@@ -61,7 +67,10 @@ impl StoryboardWindow {
         if self.track != track && !self.dirty {
             match track {
                 Some(t) => self.reload(timeline, t),
-                None => self.cards.clear(),
+                None => {
+                    self.cards.clear();
+                    self.selected = None;
+                }
             }
         }
         let mut open = true;
@@ -190,5 +199,16 @@ mod tests {
         assert!(w.pending_edit(&tl).is_some());
         w.move_selected(-5); // clamps to the first place
         assert_eq!(w.selected, Some(0));
+    }
+
+    #[test]
+    fn moving_with_no_cards_left_drops_the_stale_selection_instead_of_panicking() {
+        let mut w = StoryboardWindow {
+            selected: Some(3),
+            ..StoryboardWindow::default()
+        };
+        w.move_selected(1);
+        assert_eq!(w.selected, None);
+        assert!(!w.dirty);
     }
 }

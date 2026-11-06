@@ -6974,6 +6974,12 @@ impl AppState {
             return;
         };
         let (media_id, name) = (trimmer.media_id, trimmer.name.clone());
+        // The Trimmer outlives a tab switch: a media id from the project that was open before
+        // would put an event on the timeline that the project's pool does not have.
+        if !self.project.media_pool.iter().any(|m| m.id == media_id) {
+            self.status = tr("Essa mídia não está no projeto").into();
+            return;
+        }
         let placement: Option<Placement> = match mode {
             TrimmerAdd::FromCursor => match self.time_selection {
                 // Two timeline points and one Trimmer point
