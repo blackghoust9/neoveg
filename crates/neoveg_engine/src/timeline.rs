@@ -830,6 +830,9 @@ pub struct Timeline {
     /// media id; a media with nothing changed has no entry (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub media_props: BTreeMap<u64, MediaProps>,
+    /// Persistent one-way sync links (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sync_links: Vec<crate::sync_link::SyncLink>,
     next_id: u64,
 }
 
