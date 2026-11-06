@@ -242,10 +242,13 @@ impl<'a> CompoundFile<'a> {
             if steps > self.minifat.len().max(1) {
                 return Err(invalid("mini sector chain loops"));
             }
-            let at = s as usize * MINI_SECTOR_SIZE;
+            let at = (s as usize)
+                .checked_mul(MINI_SECTOR_SIZE)
+                .and_then(|at| at.checked_add(MINI_SECTOR_SIZE))
+                .ok_or_else(|| invalid("mini sector offset overflows"))?;
             let b = self
                 .mini_stream
-                .get(at..at + MINI_SECTOR_SIZE)
+                .get(at - MINI_SECTOR_SIZE..at)
                 .ok_or_else(|| invalid("mini sector outside the mini stream"))?;
             out.extend_from_slice(b);
             s = *self

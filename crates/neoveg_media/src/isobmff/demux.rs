@@ -924,7 +924,9 @@ fn parse_stbl(
         if chunks.len() > budget.samples {
             return Err(Error::TooLarge("chunk count"));
         }
-        samples.reserve(chunks.len());
+        samples
+            .try_reserve(chunks.len())
+            .map_err(|_| Error::TooLarge("chunk count"))?;
         for (ci, &off) in chunks.iter().enumerate() {
             while stsc_i + 1 < stsc.len() && stsc[stsc_i + 1].0 as usize <= ci + 1 {
                 stsc_i += 1;
@@ -1125,7 +1127,9 @@ fn parse_moof(
             }
             let first_flags = if tf & 4 != 0 { Some(c.u32()?) } else { None };
             let t = &mut tracks[ti];
-            t.samples.reserve(n);
+            t.samples
+                .try_reserve(n)
+                .map_err(|_| Error::TooLarge("sample count"))?;
             for i in 0..n {
                 let dur = if tf & 0x100 != 0 { c.u32()? } else { def_dur };
                 let size = if tf & 0x200 != 0 { c.u32()? } else { def_size };

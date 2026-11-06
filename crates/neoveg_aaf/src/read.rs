@@ -899,7 +899,7 @@ impl R<'_> {
                 .2
                 .map(|r| FrameRate::new(r.0, r.1))
                 .unwrap_or_else(|| FrameRate::new(tslot.1, 1));
-            Some((tslot.0 + tcr.frame_at(off), tcr))
+            Some((tslot.0.saturating_add(tcr.frame_at(off)), tcr))
         });
         let mut s = Source {
             key,
