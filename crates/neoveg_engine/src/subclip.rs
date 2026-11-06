@@ -108,6 +108,26 @@ pub fn same_section(timeline: &Timeline, refs: &[EventRef], event: EventRef) -> 
 /// new file holds just the part they played). Position, length, rate, fades, effects and envelopes
 /// stay. One undo step; `None` when no event changes.
 pub fn move_to_media(timeline: &Timeline, refs: &[EventRef], media_id: u64) -> Option<EditCommand> {
+    move_to_media_with(timeline, refs, media_id, false)
+}
+
+/// Like [`move_to_media`] for an effect written into the sound (*efeito fora de tempo real*): the
+/// event's own audio effects are taken off too, since the new file already has them in it. One undo
+/// step brings back the old media and the effects.
+pub fn bake_effects_to_media(
+    timeline: &Timeline,
+    refs: &[EventRef],
+    media_id: u64,
+) -> Option<EditCommand> {
+    move_to_media_with(timeline, refs, media_id, true)
+}
+
+fn move_to_media_with(
+    timeline: &Timeline,
+    refs: &[EventRef],
+    media_id: u64,
+    clear_effects: bool,
+) -> Option<EditCommand> {
     let mut changes = Vec::new();
     for track in &timeline.tracks {
         let mut after = track.events.clone();
@@ -121,6 +141,9 @@ pub fn move_to_media(timeline: &Timeline, refs: &[EventRef], media_id: u64) -> O
             {
                 event.media_id = Some(media_id);
                 event.trim_in = 0.0;
+                if clear_effects {
+                    event.audio_effects.clear();
+                }
                 changed = true;
             }
         }
@@ -217,6 +240,22 @@ mod tests {
         let ids = (v.id, a.id);
         tl.tracks.extend([v, a]);
         (tl, ids.0, ids.1)
+    }
+
+    #[test]
+    fn baking_moves_to_the_new_media_and_takes_the_event_effects_off_in_one_undo_step() {
+        let (mut tl, _, a) = timeline();
+        let fx = crate::timeline::TrackEffect::new("amplify");
+        tl.track_mut(a).unwrap().events[0].audio_effects = vec![fx.clone()];
+        let command = bake_effects_to_media(&tl, &[(a, 2)], 88).unwrap();
+        let mut h = History::new();
+        assert!(h.execute(&mut tl, command));
+        let e = &tl.track(a).unwrap().events[0];
+        assert_eq!((e.media_id, e.trim_in), (Some(88), 0.0));
+        assert!(e.audio_effects.is_empty());
+        assert!(h.undo(&mut tl));
+        let e = &tl.track(a).unwrap().events[0];
+        assert_eq!((e.media_id, e.audio_effects.clone()), (Some(4), vec![fx]));
     }
 
     #[test]

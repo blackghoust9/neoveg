@@ -471,6 +471,7 @@ pub(super) fn composite_request(
                     maintain_aspect_ratio: e.maintain_aspect_ratio,
                     reduce_interlace_flicker: e.reduce_interlace_flicker,
                     media_look: look,
+                    color_grade: e.color_grade.clone(),
                     pan_crop: pan_crop_request(e, track.id, time, settings),
                     effects: {
                         // The media's chain runs first, then the event's own
@@ -656,6 +657,7 @@ pub(super) fn has_effects(
                 || opacity_on
                 || !track.composite_mode.is_default()
                 || media_props_on
+                || neoveg_engine::color_correction::has_color_correction(e)
             {
                 return true;
             }

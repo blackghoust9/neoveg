@@ -17,6 +17,7 @@ pub mod playback;
 pub mod readout;
 pub mod record;
 pub mod stretch;
+pub mod peaks_file;
 pub mod subclip;
 pub mod sync;
 pub mod vst3_host;

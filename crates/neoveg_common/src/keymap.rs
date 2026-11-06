@@ -213,6 +213,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::FileCreateSubproject, &["Alt+C"]),
     (Command::FileClose, &["Ctrl+F4"]),
     (Command::FileProperties, &["Alt+Enter"]),
+    (Command::FileDuplicateProject, &["Ctrl+Shift+Y"]),
+    (Command::FileSequenceReport, &["Ctrl+Shift+H"]),
     (Command::EditUndo, &["Ctrl+Z", "Alt+Backspace"]),
     (Command::EditRedo, &["Ctrl+Y", "Ctrl+Shift+Z"]),
     (Command::EditRippleDelete, &["Ctrl+Delete"]),
@@ -236,6 +238,10 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditReverseEvent, &["Ctrl+Shift+R"]),
     // Same for splitting stereo into a doubled mono pair
     (Command::EditDualMono, &["Alt+Shift+L"]),
+    // Aligning a sound to the cursor by its first peak and baking the effects of an event into its
+    // sound are Neoveg's own too
+    (Command::EditAlignToTransient, &["Alt+Shift+T"]),
+    (Command::EditApplyEventEffects, &["Alt+Shift+A"]),
     (Command::EditMediaProperties, &["Ctrl+Alt+Enter"]),
     (Command::EditPitchUp, &["="]),
     (Command::EditPitchDown, &["-"]),
@@ -244,7 +250,16 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::EditPitchOctaveUp, &["Shift+="]),
     (Command::EditPitchOctaveDown, &["Shift+-"]),
     (Command::EditPitchReset, &["Ctrl+Shift+=", "Ctrl+Shift+-"]),
+    // Time-stretching an event in steps (the pitch keys with Alt)
+    (Command::EditRateUp, &["Alt+="]),
+    (Command::EditRateDown, &["Alt+-"]),
     (Command::EditHeal, &["Ctrl+Alt+H"]),
+    (Command::EditEndAtCursor, &["Ctrl+Alt+W"]),
+    (Command::EditAppendToTrack, &["Ctrl+Alt+Q"]),
+    (Command::EditReplaceFromSource, &["Ctrl+Alt+Z"]),
+    (Command::EditSelectDupes, &["Ctrl+Shift+K"]),
+    (Command::CursorMatchFrame, &["Ctrl+Alt+M"]),
+    (Command::CursorReverseMatch, &["Ctrl+Shift+J"]),
     (Command::EditCut, &["Ctrl+X", "Shift+Delete"]),
     (Command::EditCopy, &["Ctrl+C", "Ctrl+Insert"]),
     (Command::EditPaste, &["Ctrl+V", "Shift+Insert"]),
@@ -305,6 +320,14 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     (Command::InsertCommandMarker, &["C"]),
     (Command::RenderToNewTrack, &["Ctrl+M"]),
     (Command::RenderAndReplace, &["Ctrl+Alt+Shift+B"]),
+    (Command::EditRenameByMetadata, &["Alt+Shift+N"]),
+    (Command::QuickExportWeb, &["Ctrl+Alt+Shift+W"]),
+    (Command::QuickExportFile, &["Ctrl+Alt+Shift+R"]),
+    (Command::QuickExportAudio, &["Ctrl+Alt+Shift+Y"]),
+    (Command::FileArchiveProject, &["Ctrl+Alt+Shift+Z"]),
+    (Command::FileConsolidateMedia, &["Ctrl+Alt+Shift+U"]),
+    (Command::FileVerticalCopy, &["Ctrl+Alt+Shift+I"]),
+    (Command::ViewFullscreenPreview, &["Ctrl+Alt+Shift+F"]),
     // One frame per arrow key is kept from the first Neoveg releases; the reference map uses
     // Alt+Left/Right for it, so both are bound.
     (Command::CursorLeftByFrame, &["Left", "Alt+Left"]),
@@ -401,6 +424,8 @@ const DEFAULT_BINDINGS: &[(Command, &[&str])] = &[
     // Edit Details
     (Command::ViewProjectNotes, &["Alt+6"]),
     (Command::ViewMediaGenerators, &["Alt+9"]),
+    (Command::ViewSpeechSearch, &["Ctrl+Alt+8"]),
+    (Command::ViewTrackGroups, &["Ctrl+Alt+3"]),
     (Command::ViewPluginManager, &["Ctrl+Alt+1"]),
     (Command::ViewEditDetails, &["Ctrl+Alt+4"]),
     (Command::ViewMixingConsole, &["Ctrl+Alt+5"]),

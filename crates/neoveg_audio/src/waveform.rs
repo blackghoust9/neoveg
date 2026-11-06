@@ -386,6 +386,55 @@ impl WaveformSource {
         })
     }
 
+    /// Like [`Self::from_pcm`], but the block summaries come from a valid peak file instead of a
+    /// pass over the sound. A peak file keeps one lowest/highest pair for both channels, so it
+    /// stands in for the summary of a mono sound exactly (the level is estimated as a sine of that
+    /// peak); for anything else, or when the file does not match the sound, the sound is scanned.
+    pub fn from_pcm_with_peaks(
+        sample_rate: u32,
+        channels: u16,
+        store: Arc<PcmStore>,
+        peaks: Option<&crate::peaks_file::PeakFile>,
+    ) -> Result<Self, String> {
+        let usable = peaks.filter(|p| {
+            channels == 1
+                && p.sample_rate == sample_rate
+                && p.frames == store.frames() as u64
+                && p.block_frames as usize == SUMMARY_BLOCK_FRAMES
+                && p.blocks.len() == store.frames().div_ceil(SUMMARY_BLOCK_FRAMES)
+        });
+        let Some(peaks) = usable else {
+            return Self::from_pcm(sample_rate, store);
+        };
+        let frames = store.frames();
+        let summary: Vec<ChannelSummary> = peaks
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(i, &(lo, hi))| {
+                let n = (frames - i * SUMMARY_BLOCK_FRAMES).min(SUMMARY_BLOCK_FRAMES);
+                let peak = f64::from(lo.abs().max(hi.abs()));
+                ChannelSummary {
+                    min: lo,
+                    max: hi,
+                    sum_sq: n as f64 * peak * peak / 2.0,
+                }
+            })
+            .collect();
+        Ok(Self {
+            sample_rate,
+            channels: 2,
+            data: Raw::Pcm(store),
+            frames,
+            frame_size: 8,
+            bytes_per_sample: 4,
+            right_offset: 4,
+            is_float: true,
+            summary_left: summary.clone(),
+            summary_right: summary,
+        })
+    }
+
     /// Builds a source from decoded interleaved `f32` samples (1 or 2+ channels; only the first two are kept).
     pub fn from_interleaved_f32(
         sample_rate: u32,

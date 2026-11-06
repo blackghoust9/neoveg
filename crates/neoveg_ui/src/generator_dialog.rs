@@ -17,15 +17,17 @@ pub enum GeneratorTab {
     TestPattern,
     Gradient,
     Noise,
+    Countdown,
     TitleText,
 }
 
 impl GeneratorTab {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::SolidColor,
         Self::TestPattern,
         Self::Gradient,
         Self::Noise,
+        Self::Countdown,
         Self::TitleText,
     ];
 
@@ -35,6 +37,7 @@ impl GeneratorTab {
             Self::TestPattern => tr("Padrão de teste"),
             Self::Gradient => tr("Gradiente"),
             Self::Noise => tr("Ruído"),
+            Self::Countdown => tr("Contagem regressiva"),
             Self::TitleText => tr("Títulos e texto"),
         }
     }
@@ -62,6 +65,11 @@ pub struct GeneratorDialogState {
     pub noise_grain: u32,
     pub noise_seed: u32,
     pub noise_animated: bool,
+    // Countdown
+    pub countdown_from: u32,
+    pub countdown_text: [u8; 4],
+    pub countdown_bg: [u8; 4],
+    pub countdown_line: [u8; 4],
     // Title & text
     pub title_text: String,
     pub title_scale: u32,
@@ -88,6 +96,8 @@ pub struct GeneratorDialogState {
     style_name: String,
     /// The saved styles changed: the caller keeps the preferences.
     pub styles_dirty: bool,
+    /// Title templates: values of the fields of the text and the library picker.
+    pub template: crate::title_template_ui::TemplateUi,
 }
 
 impl Default for GeneratorDialogState {
@@ -109,6 +119,10 @@ impl Default for GeneratorDialogState {
             noise_grain: 1,
             noise_seed: 1,
             noise_animated: true,
+            countdown_from: 5,
+            countdown_text: [255, 255, 255, 255],
+            countdown_bg: [0, 0, 0, 255],
+            countdown_line: [96, 96, 96, 255],
             title_text: "NEOVEG STUDIO".into(),
             title_scale: 6,
             title_rgba: [255, 255, 255, 255],
@@ -128,6 +142,7 @@ impl Default for GeneratorDialogState {
             font_list: Vec::new(),
             style_name: String::new(),
             styles_dirty: false,
+            template: Default::default(),
         }
     }
 }
@@ -138,6 +153,94 @@ fn edit_rgba(ui: &mut egui::Ui, label: &str, rgba: &mut [u8; 4]) {
         ui.label(label);
         if ui.color_edit_button_srgba(&mut color).changed() {
             *rgba = color.to_srgba_unmultiplied();
+        }
+    });
+}
+
+/// The stack of fills, outlines and shadows over the text: while it is empty the single ones above
+/// are used; once it has a layer it replaces them.
+fn stack_controls(ui: &mut egui::Ui, stack: &mut neoveg_text::title_paint::PaintStack) {
+    use neoveg_text::title_paint::{FillLayer, OutlineLayer, OutlinePlacement, ShadowLayer};
+    ui.collapsing(tr("Camadas empilhadas (preenchimentos, contornos e sombras)"), |ui| {
+        ui.weak(tr(
+            "Com ao menos uma camada, a pilha substitui o contorno e a sombra simples acima.",
+        ));
+        ui.horizontal(|ui| {
+            if ui.button(tr("+ Preenchimento")).clicked() && stack.fills.len() < 8 {
+                stack.fills.push(FillLayer {
+                    color: [255, 255, 255, 255],
+                    offset: [0, 0],
+                });
+            }
+            if ui.button(tr("+ Contorno")).clicked() && stack.outlines.len() < 8 {
+                stack.outlines.push(OutlineLayer {
+                    color: [0, 0, 0, 255],
+                    width: 3.0,
+                    placement: OutlinePlacement::Outer,
+                });
+            }
+            if ui.button(tr("+ Sombra")).clicked() && stack.shadows.len() < 8 {
+                stack.shadows.push(ShadowLayer {
+                    color: [0, 0, 0, 180],
+                    offset: [4, 4],
+                    blur: 0.0,
+                });
+            }
+            if ui.button(tr("Limpar pilha")).clicked() {
+                *stack = Default::default();
+            }
+        });
+        let mut remove: Option<(u8, usize)> = None;
+        for (i, f) in stack.fills.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                edit_rgba(ui, tr("Preenchimento:"), &mut f.color);
+                ui.add(egui::DragValue::new(&mut f.offset[0]).range(-24..=24).prefix("ΔX: "));
+                ui.add(egui::DragValue::new(&mut f.offset[1]).range(-24..=24).prefix("ΔY: "));
+                if ui.small_button("✕").clicked() {
+                    remove = Some((0, i));
+                }
+            });
+        }
+        for (i, o) in stack.outlines.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                edit_rgba(ui, tr("Contorno:"), &mut o.color);
+                ui.add(
+                    egui::DragValue::new(&mut o.width)
+                        .range(0.5..=24.0)
+                        .prefix(tr("Espessura: "))
+                        .suffix(" px"),
+                );
+                if ui.small_button("✕").clicked() {
+                    remove = Some((1, i));
+                }
+            });
+        }
+        for (i, sh) in stack.shadows.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                edit_rgba(ui, tr("Sombra:"), &mut sh.color);
+                ui.add(egui::DragValue::new(&mut sh.offset[0]).range(-48..=48).prefix("ΔX: "));
+                ui.add(egui::DragValue::new(&mut sh.offset[1]).range(-48..=48).prefix("ΔY: "));
+                ui.add(
+                    egui::DragValue::new(&mut sh.blur)
+                        .range(0.0..=24.0)
+                        .prefix(tr("Desfoque: ")),
+                );
+                if ui.small_button("✕").clicked() {
+                    remove = Some((2, i));
+                }
+            });
+        }
+        match remove {
+            Some((0, i)) => {
+                stack.fills.remove(i);
+            }
+            Some((1, i)) => {
+                stack.outlines.remove(i);
+            }
+            Some((_, i)) => {
+                stack.shadows.remove(i);
+            }
+            None => {}
         }
     });
 }
@@ -421,6 +524,18 @@ impl GeneratorDialogState {
                 self.noise_seed = *seed;
                 self.noise_animated = *animated;
             }
+            GeneratorKind::Countdown {
+                from,
+                text_rgba,
+                bg_rgba,
+                line_rgba,
+            } => {
+                self.tab = GeneratorTab::Countdown;
+                self.countdown_from = *from;
+                self.countdown_text = *text_rgba;
+                self.countdown_bg = *bg_rgba;
+                self.countdown_line = *line_rgba;
+            }
             GeneratorKind::TitleText {
                 text,
                 scale,
@@ -456,7 +571,24 @@ impl GeneratorDialogState {
         self.open = true;
     }
 
+    /// The spec with the fields `{{name}}` of a title filled in from the template controls.
     pub fn build_spec(&self, width: u32, height: u32, fps: f64) -> GeneratorSpec {
+        let spec = self.build_spec_raw(width, height, fps);
+        if self.tab != GeneratorTab::TitleText {
+            return spec;
+        }
+        let template = neoveg_video::title_template::TitleTemplate::new(&spec.name.clone(), spec);
+        let mut filled = template.instantiate(&self.template.values);
+        if let GeneratorKind::TitleText { text, .. } = &filled.kind {
+            let first = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("Título").trim();
+            let short: String = first.chars().take(24).collect();
+            filled.name = tr_args("Título: {}", &[&short]);
+        }
+        filled
+    }
+
+    /// The spec exactly as the controls hold it (markers of fields kept in the text).
+    pub fn build_spec_raw(&self, width: u32, height: u32, fps: f64) -> GeneratorSpec {
         let (name, kind) = match self.tab {
             GeneratorTab::SolidColor => (
                 tr("Cor sólida").to_string(),
@@ -488,6 +620,15 @@ impl GeneratorDialogState {
                     grain: self.noise_grain.clamp(1, 64),
                     seed: self.noise_seed,
                     animated: self.noise_animated,
+                },
+            ),
+            GeneratorTab::Countdown => (
+                tr("Contagem regressiva").to_string(),
+                GeneratorKind::Countdown {
+                    from: self.countdown_from.clamp(1, 99),
+                    text_rgba: self.countdown_text,
+                    bg_rgba: self.countdown_bg,
+                    line_rgba: self.countdown_line,
                 },
             ),
             GeneratorTab::TitleText => {
@@ -636,8 +777,18 @@ impl GeneratorDialogState {
                             tr("Animado (muda a cada quadro)"),
                         );
                     }
+                    GeneratorTab::Countdown => {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Contar a partir de:"));
+                            ui.add(egui::DragValue::new(&mut self.countdown_from).range(1..=99));
+                        });
+                        edit_rgba(ui, tr("Cor do número:"), &mut self.countdown_text);
+                        edit_rgba(ui, tr("Cor do fundo:"), &mut self.countdown_bg);
+                        edit_rgba(ui, tr("Cor do anel e da mira:"), &mut self.countdown_line);
+                    }
                     GeneratorTab::TitleText => {
                         self.style_row(ui, styles);
+                        crate::title_template_ui::template_row(ui, self);
                         ui.label(tr("Texto do título (suporta múltiplas linhas):"));
                         let edited = egui::TextEdit::multiline(&mut self.title_text)
                             .desired_rows(3)
@@ -759,6 +910,7 @@ impl GeneratorDialogState {
                                     .prefix("ΔY: "),
                             );
                         });
+                        stack_controls(ui, &mut self.title_layout.stack);
                     }
                 }
 

@@ -34,6 +34,7 @@ pub mod mask;
 pub mod raster;
 pub mod render;
 pub mod sfnt;
+pub mod title_paint;
 
 pub use fonts::{FaceId, Resolved, families, resolve};
 pub use layout::{

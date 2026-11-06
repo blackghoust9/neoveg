@@ -833,6 +833,16 @@ pub struct Timeline {
     /// Persistent one-way sync links (older projects have none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sync_links: Vec<crate::sync_link::SyncLink>,
+    /// Where each word is said in the media, built when the speech is transcribed (older projects
+    /// have none).
+    #[serde(default, skip_serializing_if = "crate::speech_index::SpeechIndex::is_empty")]
+    pub speech_index: crate::speech_index::SpeechIndex,
+    /// Markers that belong to a media file (older projects have none).
+    #[serde(default, skip_serializing_if = "crate::media_markers::MediaMarkerStore::is_empty")]
+    pub media_markers: crate::media_markers::MediaMarkerStore,
+    /// Named groups of tracks and track colours (older projects have none).
+    #[serde(default, skip_serializing_if = "crate::track_groups::TrackGroups::is_empty")]
+    pub track_groups: crate::track_groups::TrackGroups,
     next_id: u64,
 }
 

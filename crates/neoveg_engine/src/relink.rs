@@ -473,9 +473,48 @@ pub fn relink_to(pool: &mut [MediaRef], id: u64, path: &Path) -> bool {
     }
 }
 
+/// *Trocar arquivos de mídia por pasta*: every media of the pool (not only the missing ones) whose
+/// file name (case-insensitive) is found in `dir` is pointed at that file. Sub-projects and media
+/// that already live in `dir` are left alone. Returns `(id, new path)` of each media changed.
+pub fn replace_by_folder(pool: &mut [MediaRef], dir: &Path) -> Vec<(u64, PathBuf)> {
+    let dirs = [dir.to_path_buf()];
+    let mut changed = Vec::new();
+    for item in pool.iter_mut().filter(|m| !m.subproject) {
+        if is_in_folder(Path::new(&item.path), dir) {
+            continue;
+        }
+        if let Some(found) = find_exact(item, &dirs) {
+            item.path = found.to_string_lossy().into_owned();
+            changed.push((item.id, found));
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_replaces_every_media_it_has_by_name() {
+        let d = dir("by_folder");
+        std::fs::write(d.join("a.WAV"), b"x").unwrap();
+        std::fs::write(d.join("b.mp4"), b"x").unwrap();
+        let mut pool = vec![media("C:/old/a.wav"), media("C:/old/c.wav"), media("C:/old/b.mp4")];
+        pool[1].id = 2;
+        pool[2].id = 3;
+        let changed = replace_by_folder(&mut pool, &d);
+        let ids: Vec<u64> = changed.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids, vec![1, 3]);
+        assert!(pool[0].path.ends_with("a.WAV"));
+        assert_eq!(pool[1].path, "C:/old/c.wav", "no file of that name: untouched");
+        // Running it again changes nothing: they are already there
+        assert!(replace_by_folder(&mut pool, &d).is_empty());
+        // A sub-project is never swapped
+        pool[2].subproject = true;
+        pool[2].path = "C:/old/b.mp4".into();
+        assert!(replace_by_folder(&mut pool, &d).is_empty());
+    }
 
     fn dir(tag: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("neoveg_relink_{tag}_{}", std::process::id()));

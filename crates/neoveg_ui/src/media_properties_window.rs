@@ -39,6 +39,8 @@ struct Target {
 #[derive(Default)]
 pub struct MediaPropsDialog {
     target: Option<Target>,
+    /// A pulldown conversion the user asked for: the media and the direction.
+    pulldown_request: Option<(u64, neoveg_video::pulldown_job::PulldownMode)>,
 }
 
 /// The start timecode `text` (`hh:mm:ss:ff`) in seconds, counted at `fps`; `None` when it is not one.
@@ -84,6 +86,13 @@ impl MediaPropsDialog {
         });
     }
 
+    /// The pulldown conversion asked for since the last call, if any.
+    pub fn take_pulldown_request(
+        &mut self,
+    ) -> Option<(u64, neoveg_video::pulldown_job::PulldownMode)> {
+        self.pulldown_request.take()
+    }
+
     /// Draws the dialog; the action is returned the moment *Aplicar* is pressed.
     pub fn show(&mut self, ctx: &egui::Context) -> Option<MediaPropsAction> {
         let mut target = self.target.take()?;
@@ -95,6 +104,31 @@ impl MediaPropsDialog {
             .open(&mut open)
             .show(ctx, |ui| {
                 apply = body(ui, &mut target);
+                if target.is_video {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        use neoveg_video::pulldown_job::PulldownMode;
+                        ui.label(tr("Pulldown 3:2"));
+                        if ui
+                            .button(tr("Remover pulldown…"))
+                            .on_hover_text(tr(
+                                "Reconstrói os quadros de filme (29,97 para 23,976 fps) num arquivo novo",
+                            ))
+                            .clicked()
+                        {
+                            self.pulldown_request = Some((target.media_id, PulldownMode::Remove));
+                        }
+                        if ui
+                            .button(tr("Aplicar pulldown…"))
+                            .on_hover_text(tr(
+                                "Leva material de filme (23,976 para 29,97 fps) ao ritmo 2:3 num arquivo novo",
+                            ))
+                            .clicked()
+                        {
+                            self.pulldown_request = Some((target.media_id, PulldownMode::Apply));
+                        }
+                    });
+                }
                 ui.separator();
                 ui.horizontal(|ui| {
                     let valid = target.draft.timecode_start.is_none()
@@ -352,6 +386,16 @@ mod tests {
         assert_eq!(pixel_aspect_label(0.9091), "0.9091 (NTSC DV)");
         assert_eq!(pixel_aspect_label(1.4587), "1.4587 (PAL DV 16:9)");
         assert_eq!(pixel_aspect_label(1.5), "1.5000");
+    }
+
+    #[test]
+    fn a_pulldown_request_is_handed_over_once() {
+        use neoveg_video::pulldown_job::PulldownMode;
+        let mut dialog = MediaPropsDialog::default();
+        assert_eq!(dialog.take_pulldown_request(), None);
+        dialog.pulldown_request = Some((3, PulldownMode::Remove));
+        assert_eq!(dialog.take_pulldown_request(), Some((3, PulldownMode::Remove)));
+        assert_eq!(dialog.take_pulldown_request(), None);
     }
 
     #[test]

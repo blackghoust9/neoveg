@@ -157,6 +157,11 @@ pub enum EditCommand {
         before: Vec<TrackEffect>,
         after: Vec<TrackEffect>,
     },
+    /// New names for several events at once (rename by metadata): `(track, event, before, after)`
+    /// for each, one undo step.
+    RenameEvents {
+        changes: Vec<(TrackId, EventId, String, String)>,
+    },
     /// Any change to the Pan/Crop of a video event (a key added, moved or removed, the stretch
     /// switch): the whole Pan/Crop before and after, so it is one exactly reversible undo step.
     SetPanCrop {
@@ -508,6 +513,15 @@ impl EditCommand {
                 after,
                 ..
             } => set_pan_crop(tl, *track_id, *event_id, after),
+            Self::RenameEvents { changes } => {
+                changes.iter().all(|(t, e, _, _)| event_exists(tl, *t, *e))
+                    && {
+                        for (t, e, _, after) in changes {
+                            set_event_name(tl, *t, *e, after);
+                        }
+                        true
+                    }
+            }
             Self::SetTrackMotion {
                 track_id, after, ..
             } => match tl.track_mut(*track_id) {
@@ -811,6 +825,11 @@ impl EditCommand {
                 ..
             } => {
                 set_pan_crop(tl, *track_id, *event_id, before);
+            }
+            Self::RenameEvents { changes } => {
+                for (t, e, before, _) in changes {
+                    set_event_name(tl, *t, *e, before);
+                }
             }
             Self::SetTrackMotion {
                 track_id, before, ..
@@ -1264,6 +1283,20 @@ impl History {
 
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
+    }
+}
+
+fn event_exists(tl: &Timeline, track_id: TrackId, event_id: EventId) -> bool {
+    tl.track(track_id)
+        .is_some_and(|t| t.events.iter().any(|e| e.id == event_id))
+}
+
+fn set_event_name(tl: &mut Timeline, track_id: TrackId, event_id: EventId, name: &str) {
+    if let Some(e) = tl
+        .track_mut(track_id)
+        .and_then(|t| t.events.iter_mut().find(|e| e.id == event_id))
+    {
+        e.name = name.to_string();
     }
 }
 

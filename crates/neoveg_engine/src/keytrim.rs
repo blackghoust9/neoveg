@@ -645,4 +645,46 @@ mod tests {
             "locked events have no edges"
         );
     }
+
+    #[test]
+    fn a_keyboard_nudge_on_one_linked_event_is_a_j_or_l_cut() {
+        // A linked picture and sound with the same edges: moving only the sound's end leaves the
+        // picture alone (the sound runs past the cut: an L cut; back, a J cut)
+        use crate::timeline::{TrackEvent, TrackKind};
+        let mut tl = Timeline::new();
+        let group = tl.alloc_id();
+        let mut ids = Vec::new();
+        let mut tracks = Vec::new();
+        for kind in [TrackKind::Video, TrackKind::Audio] {
+            let mut t = tl.new_track(kind);
+            let ev = TrackEvent {
+                id: tl.alloc_id(),
+                start: 0.0,
+                duration: 4.0,
+                media_id: Some(1),
+                group: Some(group),
+                ..TrackEvent::default()
+            };
+            ids.push(ev.id);
+            t.events.push(ev);
+            tracks.push(t.id);
+            tl.tracks.push(t);
+        }
+        let sound_end = Edge {
+            track: tracks[1],
+            event: ids[1],
+            side: EdgeSide::End,
+        };
+        run(&mut tl, |t| {
+            nudge(t, sound_end, 1.0, TrimMode::Normal, FRAME, &no_limit)
+        });
+        assert_eq!(tl.tracks[0].events[0].duration, 4.0, "the picture keeps its cut");
+        assert_eq!(tl.tracks[1].events[0].duration, 5.0, "the sound runs on: L cut");
+        run(&mut tl, |t| {
+            nudge(t, sound_end, -2.0, TrimMode::Normal, FRAME, &no_limit)
+        });
+        assert_eq!(tl.tracks[1].events[0].duration, 3.0, "the sound ends early: J cut");
+        assert_eq!(tl.tracks[0].events[0].duration, 4.0);
+    }
 }
+

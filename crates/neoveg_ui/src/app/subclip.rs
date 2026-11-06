@@ -16,11 +16,14 @@ pub(super) struct PendingSubclip {
     /// The events that move to the new file when it is ready (none: it only joins the pool).
     pub(super) replace: Vec<EventRef>,
     pub(super) reverse: bool,
+    /// The file has the effects of the event written into it (*efeito fora de tempo real*): the
+    /// event moves to it and its own effects come off.
+    pub(super) bake: bool,
 }
 
 impl AppState {
     /// Where the subclips go: beside the project, or in the data folder of an unsaved one.
-    fn subclip_dir(&self) -> Option<PathBuf> {
+    pub(super) fn subclip_dir(&self) -> Option<PathBuf> {
         match self
             .project_path
             .as_deref()
@@ -32,7 +35,7 @@ impl AppState {
     }
 
     /// The primary selected event, the part of its media it plays and the media file.
-    fn subclip_source(&self) -> Option<(EventRef, sub::Section, PathBuf)> {
+    pub(super) fn subclip_source(&self) -> Option<(EventRef, sub::Section, PathBuf)> {
         let (track_id, event_id) = self.selection.primary()?;
         let event = self
             .timeline
@@ -135,6 +138,7 @@ impl AppState {
             path: output.clone(),
             replace: refs,
             reverse,
+            bake: false,
         });
         let (tx, ctx) = (self.loader_tx.clone(), ctx.clone());
         std::thread::spawn(move || {
@@ -218,8 +222,12 @@ impl AppState {
             self.status = tr_args("Subclipe na mídia do projeto: {}", &[&name]);
             return;
         }
-        let moved = sub::move_to_media(&self.timeline, &pending.replace, media_id)
-            .is_some_and(|command| self.history.execute(&mut self.timeline, command));
+        let command = if pending.bake {
+            sub::bake_effects_to_media(&self.timeline, &pending.replace, media_id)
+        } else {
+            sub::move_to_media(&self.timeline, &pending.replace, media_id)
+        };
+        let moved = command.is_some_and(|command| self.history.execute(&mut self.timeline, command));
         if !moved {
             self.status = tr_args("Subclipe na mídia do projeto: {}", &[&name]);
             return;
@@ -228,7 +236,9 @@ impl AppState {
         self.last_composite_key = None;
         self.restart_audio_if_playing();
         self.status = tr_args(
-            if pending.reverse {
+            if pending.bake {
+                "Efeitos gravados no áudio do evento: agora toca {}"
+            } else if pending.reverse {
                 "Evento revertido: agora toca {}"
             } else {
                 "Evento trocado pelo subclipe {}"

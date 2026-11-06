@@ -195,6 +195,9 @@ pub struct ProjectSettings {
     pub lfe_quality: LfeFilterQuality,
     #[serde(default)]
     pub audio_resample_quality: RenderQuality,
+    /// The loudness the mixdown is normalised to when the project is rendered.
+    #[serde(default)]
+    pub render_loudness_target: crate::loudness_target::LoudnessTarget,
 
     // --- Folder Paths (Dialog 892) ---
     #[serde(default)]
@@ -342,6 +345,7 @@ impl Default for ProjectSettings {
             lfe_cutoff_hz: default_lfe_cutoff(),
             lfe_quality: LfeFilterQuality::default(),
             audio_resample_quality: RenderQuality::Good,
+            render_loudness_target: Default::default(),
             prerender_folder: PathBuf::new(),
             recorded_files_folder: PathBuf::new(),
             title: String::new(),

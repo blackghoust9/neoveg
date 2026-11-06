@@ -241,6 +241,24 @@ impl AppState {
         self.status = "Novo projeto".into();
     }
 
+    /// File > Duplicate project: a copy of the active project in a new tab, to try another version
+    /// of the edit without losing the original. The copy has no file yet, so it asks to be saved.
+    pub(super) fn duplicate_tab(&mut self, ctx: &egui::Context) {
+        self.ensure_tab();
+        let mut info = self.project.clone();
+        let timeline = self.timeline.clone();
+        let (playhead, scroll) = (self.playhead, self.scroll_seconds);
+        info.name = tr_args("{} (cópia)", &[&tr_text(&info.name)]);
+        self.new_tab();
+        self.project = info;
+        self.timeline = timeline;
+        self.playhead = playhead;
+        self.scroll_seconds = scroll;
+        self.forced_dirty = true;
+        self.reload_media(ctx);
+        self.status = tr_args("Projeto duplicado em uma nova aba: {}", &[&self.project.name]);
+    }
+
     /// Opens a project file in a tab: the tab of the file when it is already open, else a new one.
     pub(super) fn open_path_in_tab(&mut self, path: &Path, ctx: &egui::Context) {
         self.ensure_tab();
@@ -589,6 +607,28 @@ mod tests {
         s.switch_tab(second, &ctx);
         s.switch_tab(999, &ctx);
         assert_eq!(s.timeline.tracks.len(), 2);
+    }
+
+    #[test]
+    fn duplicating_a_project_opens_an_independent_copy_in_a_new_tab() {
+        let ctx = egui::Context::default();
+        let mut s = state();
+        s.project.name = "Original".into();
+        add_event(&mut s, 0.0, 2.0);
+        let first = s.ensure_tab();
+        s.duplicate_tab(&ctx);
+        let copy = s.tabs.active.unwrap();
+        assert_ne!(first, copy);
+        assert_eq!(s.tab_ids(), vec![first, copy]);
+        assert!(s.project.name.contains("Original") && s.project.name.contains("cópia"));
+        assert_eq!(s.timeline.tracks.len(), 1);
+        assert!(s.is_dirty(), "the copy has no file yet");
+        // Editing the copy leaves the original alone
+        add_event(&mut s, 5.0, 1.0);
+        assert_eq!(s.timeline.tracks.len(), 2);
+        s.switch_tab(first, &ctx);
+        assert_eq!(s.project.name, "Original");
+        assert_eq!(s.timeline.tracks.len(), 1);
     }
 
     #[test]

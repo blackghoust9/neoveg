@@ -39,6 +39,13 @@ pub struct ExplorerModel {
     preview_position_sec: f64,
     preview_volume: f32, // 0.0 to 1.0
     active_preview_file: Option<PathBuf>,
+    /// Leave the peak files of the sound (`.nvpk`, `.sfk`) out of the listing.
+    #[serde(default = "default_hide_peak_files")]
+    hide_peak_files: bool,
+}
+
+fn default_hide_peak_files() -> bool {
+    true
 }
 
 impl Default for ExplorerModel {
@@ -57,7 +64,18 @@ impl ExplorerModel {
             preview_position_sec: 0.0,
             preview_volume: 1.0,
             active_preview_file: None,
+            hide_peak_files: true,
         }
+    }
+
+    /// Whether the listing leaves out peak files.
+    pub fn hide_peak_files(&self) -> bool {
+        self.hide_peak_files
+    }
+
+    /// Shows or hides the peak files in the listing (*ocultar arquivos de picos*).
+    pub fn set_hide_peak_files(&mut self, hide: bool) {
+        self.hide_peak_files = hide;
     }
 
     pub fn current_dir(&self) -> &Path {
@@ -124,7 +142,8 @@ impl ExplorerModel {
 
             // Edge Case 21: Companion file suppression (.sfk, .sfvp0, .nvprv) case-insensitive
             let name_lower = file_name.to_lowercase();
-            if name_lower.ends_with(".sfk")
+            let peak_file = name_lower.ends_with(".sfk") || name_lower.ends_with(".nvpk");
+            if (peak_file && self.hide_peak_files)
                 || name_lower.ends_with(".sfvp0")
                 || name_lower.ends_with(".nvprv")
             {
@@ -672,6 +691,29 @@ mod tests {
         assert_eq!(items.len(), 1, "Must suppress all case variations of companion files");
         assert_eq!(items[0].name, "clip.mp4");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peak_files_show_in_the_listing_only_when_the_option_to_hide_them_is_off() {
+        let dir = std::env::temp_dir().join(format!("neoveg_exp_peaks_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["voz.wav", "voz.wav.nvpk", "voz.wav.sfk"] {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+        let mut explorer = ExplorerModel::new();
+        assert!(explorer.hide_peak_files(), "hidden by default");
+        assert_eq!(explorer.navigate_to(&dir).unwrap().len(), 1);
+        explorer.set_hide_peak_files(false);
+        let mut names: Vec<String> = explorer
+            .navigate_to(&dir)
+            .unwrap()
+            .into_iter()
+            .map(|i| i.name)
+            .collect();
+        names.sort();
+        assert_eq!(names, ["voz.wav", "voz.wav.nvpk", "voz.wav.sfk"]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

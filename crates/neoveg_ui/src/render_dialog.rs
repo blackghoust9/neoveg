@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 use neoveg_audio::readout::LoudnessSnapshot;
 use neoveg_common::project::CaptionStyle;
+use neoveg_engine::render_queue::{QueueState, RenderQueue};
 use neoveg_video::frame::FrameBuffer;
 use neoveg_video::render::{RenderEngine, RenderFormat};
 
@@ -55,9 +56,15 @@ pub struct RenderDialogState {
     pub crf: u8,
     pub engine: RenderEngine,
     pub burn_captions: bool,
+    /// Timecode and event name drawn into the picture (review copies).
+    pub burn_in: crate::render_burn_in::BurnInSettings,
     pub loop_region_only: bool,
     pub save_loudness_log: bool,
+    /// The loudness the mixdown is normalised to (kept in the project settings by the app).
+    pub loudness_target: neoveg_common::loudness_target::LoudnessTarget,
     pub active_job: Option<ActiveRenderJob>,
+    /// Renders waiting to run one after the other (the dialog lists them).
+    pub queue: RenderQueue<RenderLaunchRequest>,
     /// Families and their styles, read from the text engine when the style controls first open.
     font_list: Vec<(String, Vec<String>)>,
     /// The style the preview was drawn for, and the picture.
@@ -76,9 +83,12 @@ impl Default for RenderDialogState {
             crf: 18,
             engine: RenderEngine::Auto,
             burn_captions: false,
+            burn_in: Default::default(),
             loop_region_only: false,
             save_loudness_log: true,
+            loudness_target: Default::default(),
             active_job: None,
+            queue: RenderQueue::new(),
             font_list: Vec::new(),
             preview_for: None,
             preview: None,
@@ -87,6 +97,111 @@ impl Default for RenderDialogState {
 }
 
 impl RenderDialogState {
+    /// Puts a render at the end of the queue; it starts when the ones before it are done.
+    pub fn enqueue(&mut self, request: RenderLaunchRequest) -> u64 {
+        let label = request
+            .output_path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| request.output_path.display().to_string());
+        self.queue.enqueue(label, request)
+    }
+
+    /// Called every frame: records how the running queue job ended and hands out the next
+    /// request when no render is running. The caller starts the returned request.
+    pub fn pump_queue(&mut self) -> Option<RenderLaunchRequest> {
+        if let Some(running) = self.queue.running().map(|j| j.id) {
+            let outcome = self
+                .active_job
+                .as_ref()
+                .map(|j| j.status.lock().map(|s| (s.finished, s.error.clone())));
+            match outcome {
+                Some(Ok((false, _))) => return None,
+                Some(Ok((true, error))) => {
+                    self.queue.finish(running, error.map_or(Ok(()), Err));
+                }
+                _ => {
+                    self.queue
+                        .finish(running, Err("estado da renderização indisponível".into()));
+                }
+            }
+        }
+        if self.is_running() {
+            return None;
+        }
+        self.queue.start_next().map(|j| j.payload.clone())
+    }
+
+    /// The list of queued renders with their states.
+    fn queue_ui(&mut self, ui: &mut egui::Ui) {
+        if self.queue.is_empty() {
+            return;
+        }
+        ui.separator();
+        let (done, total) = self.queue.progress();
+        ui.strong(tr_args("Fila de renderização ({} de {})", &[&done, &total]));
+        let ids: Vec<u64> = self.queue.jobs().iter().map(|j| j.id).collect();
+        let mut remove = None;
+        let mut cancel = None;
+        let mut mv: Option<(u64, bool)> = None;
+        for id in ids {
+            let Some(job) = self.queue.get(id) else {
+                continue;
+            };
+            let (state, label) = (job.state.clone(), job.label.clone());
+            ui.horizontal(|ui| {
+                let (text, color) = match &state {
+                    QueueState::Waiting => (tr("Aguardando"), ui.visuals().weak_text_color()),
+                    QueueState::Running => {
+                        (tr("Renderizando"), egui::Color32::from_rgb(90, 160, 240))
+                    }
+                    QueueState::Done => (tr("Concluído"), egui::Color32::from_rgb(102, 214, 132)),
+                    QueueState::Failed(_) => (tr("Falhou"), egui::Color32::from_rgb(242, 100, 92)),
+                    QueueState::Cancelled => (tr("Cancelado"), ui.visuals().weak_text_color()),
+                };
+                ui.colored_label(color, text);
+                let response = ui.label(label);
+                if let QueueState::Failed(error) = &state {
+                    response.on_hover_text(error);
+                }
+                match state {
+                    QueueState::Waiting => {
+                        if ui.small_button("▲").clicked() {
+                            mv = Some((id, true));
+                        }
+                        if ui.small_button("▼").clicked() {
+                            mv = Some((id, false));
+                        }
+                        if ui.small_button(tr("Remover")).clicked() {
+                            remove = Some(id);
+                        }
+                    }
+                    QueueState::Running => {
+                        if ui.small_button(tr("Cancelar")).clicked() {
+                            cancel = Some(id);
+                        }
+                    }
+                    _ => {}
+                }
+            });
+        }
+        if let Some((id, up)) = mv {
+            self.queue.move_job(id, up);
+        }
+        if let Some(id) = remove {
+            self.queue.remove(id);
+        }
+        if let Some(id) = cancel {
+            if let Some(job) = &self.active_job {
+                job.cancel.store(true, Ordering::Relaxed);
+            }
+            self.queue.cancel(id);
+        }
+        if ui.button(tr("Limpar concluídos")).clicked() {
+            self.queue.clear_finished();
+        }
+    }
+
     pub fn is_running(&self) -> bool {
         self.active_job
             .as_ref()
@@ -230,6 +345,7 @@ impl RenderDialogState {
                                     self.caption_style_ui(ui, caption_style);
                                 });
                         }
+                        self.burn_in.ui(ui);
                     }
 
                     ui.add_enabled(
@@ -247,6 +363,24 @@ impl RenderDialogState {
                         &mut self.save_loudness_log,
                         tr("Salvar relatório de loudness ao lado do arquivo (<nome>_loud.txt)"),
                     );
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Alvo de loudness:"));
+                        egui::ComboBox::from_id_salt("render_loudness_target")
+                            .selected_text(self.loudness_target.label())
+                            .show_ui(ui, |ui| {
+                                for target in neoveg_common::loudness_target::LoudnessTarget::ALL {
+                                    ui.selectable_value(
+                                        &mut self.loudness_target,
+                                        target,
+                                        target.label(),
+                                    );
+                                }
+                            })
+                            .response
+                            .on_hover_text(tr(
+                                "Mede a mixagem (BS.1770) e a normaliza para o alvo ao renderizar, sem passar de -1 dBTP",
+                            ));
+                    });
                 });
 
                 ui.separator();
@@ -339,6 +473,37 @@ impl RenderDialogState {
                             });
                         }
                     }
+                    let can_queue = timeline_duration > 1e-3
+                        && (!self.format.has_video() || self.engine.can_write(self.format));
+                    if ui
+                        .add_enabled(can_queue, egui::Button::new(tr("Adicionar à fila…")))
+                        .on_hover_text(tr(
+                            "Guarda esta renderização na fila; as da fila rodam uma depois da outra",
+                        ))
+                        .clicked()
+                    {
+                        let ext = self.format.default_extension();
+                        if let Some(path) = rfd::FileDialog::new()
+                            .set_title("Adicionar à fila de renderização")
+                            .set_file_name(tr_args("render.{}", &[&ext]))
+                            .add_filter(self.format.label(), &[ext])
+                            .save_file()
+                        {
+                            let request = RenderLaunchRequest {
+                                output_path: path,
+                                format: self.format,
+                                width: self.width.max(2) & !1,
+                                height: self.height.max(2) & !1,
+                                fps: project_fps,
+                                crf: self.crf,
+                                engine: self.engine,
+                                burn_captions: self.burn_captions && self.format.has_video(),
+                                loop_region_only: self.loop_region_only && has_loop_region,
+                                save_loudness_log: self.save_loudness_log,
+                            };
+                            self.enqueue(request);
+                        }
+                    }
                     if !running && ui.button(tr("Fechar")).clicked() {
                         close_requested = true;
                     }
@@ -346,6 +511,7 @@ impl RenderDialogState {
                 if timeline_duration <= 1e-3 {
                     ui.weak(tr("Adicione eventos à timeline antes de renderizar."));
                 }
+                self.queue_ui(ui);
             });
 
         self.open = open && !close_requested;
@@ -489,5 +655,75 @@ impl RenderDialogState {
         if let Some(texture) = &self.preview {
             ui.image((texture.id(), egui::vec2(320.0, 180.0)));
         }
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    fn request(name: &str) -> RenderLaunchRequest {
+        RenderLaunchRequest {
+            output_path: PathBuf::from(name),
+            format: RenderFormat::WavPcm16,
+            width: 2,
+            height: 2,
+            fps: 30.0,
+            crf: 18,
+            engine: RenderEngine::Auto,
+            burn_captions: false,
+            loop_region_only: false,
+            save_loudness_log: false,
+        }
+    }
+
+    fn job(finished: bool, error: Option<&str>) -> ActiveRenderJob {
+        ActiveRenderJob {
+            status: Arc::new(Mutex::new(RenderJobStatus {
+                phase: String::new(),
+                current_frame: 0,
+                total_frames: 0,
+                started_at: Instant::now(),
+                finished,
+                error: error.map(String::from),
+                output_path: PathBuf::new(),
+                loudness_path: None,
+                loudness_summary: None,
+            })),
+            cancel: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    #[test]
+    fn the_queue_hands_out_one_render_at_a_time_in_order() {
+        let mut dialog = RenderDialogState::default();
+        dialog.enqueue(request("a.wav"));
+        dialog.enqueue(request("b.wav"));
+        let first = dialog.pump_queue().expect("the first starts");
+        assert_eq!(first.output_path, PathBuf::from("a.wav"));
+        // The caller starts it: a running job is in place
+        dialog.active_job = Some(job(false, None));
+        assert!(dialog.pump_queue().is_none(), "waits for the running one");
+        // It ends with an error; the next one starts anyway
+        dialog.active_job = Some(job(true, Some("sem espaço")));
+        let second = dialog.pump_queue().expect("the second starts");
+        assert_eq!(second.output_path, PathBuf::from("b.wav"));
+        assert_eq!(
+            dialog.queue.jobs()[0].state,
+            QueueState::Failed("sem espaço".into())
+        );
+        dialog.active_job = Some(job(true, None));
+        assert!(dialog.pump_queue().is_none(), "nothing left");
+        assert_eq!(dialog.queue.jobs()[1].state, QueueState::Done);
+    }
+
+    #[test]
+    fn a_direct_render_in_progress_holds_the_queue() {
+        let mut dialog = RenderDialogState::default();
+        dialog.active_job = Some(job(false, None));
+        dialog.enqueue(request("a.wav"));
+        assert!(dialog.pump_queue().is_none());
+        dialog.active_job = Some(job(true, None));
+        assert!(dialog.pump_queue().is_some());
     }
 }

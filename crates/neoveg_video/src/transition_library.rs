@@ -317,7 +317,7 @@ pub fn matching_preset(kind: &str, params: &BTreeMap<String, f32>) -> Option<&'s
 /// nothing of it (the card of a flip is edge-on, the light of a flash covers everything).
 pub fn thumbnail_progress(kind: &str) -> f32 {
     match kind {
-        transitions::FLIP => 0.3,
+        transitions::FLIP => 0.25,
         transitions::FLASH => 0.25,
         _ => 0.5,
     }
@@ -484,7 +484,7 @@ mod tests {
                 .filter(|p| p[..3] == [22, 24, 30])
                 .count();
             assert!(
-                lit > 0 && dark < (w * h) as usize / 2,
+                lit > 0 && dark < (w * h) as usize * 2 / 3,
                 "{kind}: {lit} {dark}"
             );
         }

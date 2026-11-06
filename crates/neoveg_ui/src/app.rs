@@ -13,13 +13,27 @@ mod composite;
 mod detached;
 mod dock_footer;
 pub(crate) mod headless;
+pub(crate) mod cli_render;
 mod mixing_console;
+mod render_extras;
 mod render_job;
 mod render_to_track;
+mod placement_cmds;
 mod scene_detect;
+mod track_group_ui;
+mod mark_tools;
+mod spoken;
+mod audio_edit;
 mod subclip;
+mod drag_menu;
+mod event_rate;
+mod media_folder;
+mod caption_regions;
 mod tabs;
 mod trim_monitor;
+mod video_tools;
+mod pulldown_tools;
+mod media_facts_ui;
 
 use crate::theme as ui_theme;
 use eframe::egui::{
@@ -739,6 +753,8 @@ struct AppState {
     /// Scopes of the frame at the cursor, and a counter that changes with every new frame.
     frame_scopes: Option<Scopes>,
     frame_scopes_version: u64,
+    /// Color of the selected event, reference frame gallery, lane mark (see `video_tools`).
+    video_tools: video_tools::VideoTools,
     /// Scopes of the SMPTE bars, computed when first needed.
     bars_scopes: Option<Scopes>,
     scopes_panel: ScopesPanelState,
@@ -804,6 +820,9 @@ struct AppState {
     session_id: String,
     saved_revision: u64,
     forced_dirty: bool,
+    /// Set by the full-screen preview command; the window code (which owns the dock) acts on it.
+    fullscreen_preview_requested: bool,
+    rename_dialog: render_extras::RenameDialog,
     last_autosave_time: f64,
     last_autosave_revision: Option<u64>,
     autosave_busy: Arc<AtomicBool>,
@@ -859,14 +878,22 @@ struct AppState {
     ruler_start_dialog: Option<String>,
     /// Command Properties (Inserir marcador de comando).
     command_dialog: crate::command_marker_window::CommandDialog,
+    /// Spoken-word search window (Exibir > Busca de palavra falada).
+    speech_search: crate::speech_search_window::SpeechSearchState,
+    /// Track groups window (Exibir > Grupos de faixas).
+    track_groups_window: crate::track_groups_window::TrackGroupsWindow,
     /// Whether the timeline context menu was opened over the track header column.
     context_header: bool,
     name_edit: Option<NameEdit>,
     mark_drag: Option<MarkDrag>,
+    /// Markers and regions picked on the ruler (Ctrl/Shift+click); they move and resize together.
+    marks_picked: Vec<MarkId>,
     /// Ctrl+Shift+U: clicking one event of a group selects only that event.
     ignore_grouping: bool,
     /// `Shift` was held when the current edge drag started: only the dragged event is trimmed.
     drag_ignores_group: bool,
+    /// Ctrl+drag copy and the right-button drag menu.
+    drag_extras: drag_menu::DragExtras,
     /// Ctrl+Shift+D: multicamera editing mode enabled (displays tiled angle grid in preview).
     multicam_mode: bool,
     marquee: Option<Marquee>,
@@ -1641,8 +1668,8 @@ impl AppState {
     fn import_captions(&mut self) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter(
-                "Legendas (SRT, WebVTT, SCC, MCC)",
-                &["srt", "vtt", "scc", "mcc"],
+                "Legendas (SRT, WebVTT, SCC, MCC, TXT, CSV)",
+                &["srt", "vtt", "scc", "mcc", "txt", "csv"],
             )
             .pick_file()
         else {
@@ -1657,7 +1684,14 @@ impl AppState {
             }
         };
         let extension = path.extension().and_then(|e| e.to_str());
-        match captions::parse_bytes(&bytes, None, extension) {
+        let is_table = neoveg_engine::caption_table::is_table_extension(extension);
+        let parsed = if is_table {
+            let doc = neoveg_engine::caption_table::parse_bytes(&bytes, extension);
+            Ok((captions::Format::Srt, doc))
+        } else {
+            captions::parse_bytes(&bytes, None, extension)
+        };
+        match parsed {
             Ok((format, doc)) => {
                 for warning in &doc.warnings {
                     tracing::warn!("[WARN] {}: {warning}", path.display());
@@ -1670,7 +1704,11 @@ impl AppState {
                             "{} legendas importadas ({}){}",
                             &[
                                 &count,
-                                &format.name(),
+                                &if is_table {
+                                    "tabela TXT/CSV"
+                                } else {
+                                    format.name()
+                                },
                                 &if doc.warnings.is_empty() {
                                     String::new()
                                 } else {
@@ -1789,6 +1827,7 @@ impl AppState {
                     segments,
                     replace_all,
                 } => {
+                    let segments_for_index = segments.clone();
                     let mut doc = captions::Document {
                         cues: segments
                             .into_iter()
@@ -1802,6 +1841,7 @@ impl AppState {
                         ..Default::default()
                     };
                     doc.normalize();
+                    self.index_whisper_transcript(&segments_for_index);
                     let count = doc.cues.len();
                     let cmd = captions::import_document(&mut self.timeline, &doc, 0.0, replace_all);
                     if cmd.is_some() {
@@ -2020,6 +2060,7 @@ impl AppState {
             selection_history: navigation::TimeSelectionHistory::default(),
             frame_scopes: None,
             frame_scopes_version: 0,
+            video_tools: Default::default(),
             bars_scopes: None,
             scopes_panel: ScopesPanelState::default(),
             bars_texture: None,
@@ -2071,6 +2112,8 @@ impl AppState {
             session_id: autosave::new_session_id(),
             saved_revision: 0,
             forced_dirty: false,
+            fullscreen_preview_requested: false,
+            rename_dialog: render_extras::RenameDialog::default(),
             last_autosave_time: 0.0,
             last_autosave_revision: None,
             autosave_busy: Arc::new(AtomicBool::new(false)),
@@ -2102,11 +2145,15 @@ impl AppState {
             focus_track_list: false,
             ruler_start_dialog: None,
             command_dialog: Default::default(),
+            speech_search: Default::default(),
+            track_groups_window: Default::default(),
             context_header: false,
             name_edit: None,
             mark_drag: None,
+            marks_picked: Vec::new(),
             ignore_grouping: false,
             drag_ignores_group: false,
+            drag_extras: Default::default(),
             multicam_mode: false,
             marquee: None,
             snapping: true,
@@ -2710,6 +2757,11 @@ impl AppState {
 
     /// Opens the Media Properties dialog on `media_id`.
     fn open_media_properties(&mut self, media_id: u64) {
+        self.open_media_properties_for(media_id, &[media_id]);
+    }
+
+    /// Opens the Media Properties dialog on `media_id`; the facts shown cover all of `group`.
+    fn open_media_properties_for(&mut self, media_id: u64, group: &[u64]) {
         let Some(item) = self.project.media_pool.iter().find(|m| m.id == media_id) else {
             self.status = "Essa mídia não está no projeto".into();
             return;
@@ -2721,14 +2773,7 @@ impl AppState {
         let project_fps = self.project.settings.fps;
         let drop_frame = self.drop_frame();
         let video = self.video_info.get(&media_id);
-        let summary = match (video, self.media.get(&media_id)) {
-            (Some(v), _) => format!(
-                "{}×{} · {:.3} fps · {:.2} s",
-                v.width, v.height, v.fps, v.duration
-            ),
-            (None, Some(m)) => format!("{} Hz · {:.2} s", m.sample_rate, m.duration),
-            (None, None) => String::new(),
-        };
+        let summary = self.media_summary_text(group);
         let timecode_fps = video.map_or(project_fps, |v| v.fps.max(1.0));
         let props = neoveg_engine::media_props::props_of(&self.timeline, media_id);
         self.media_props_dialog.open(
@@ -2745,16 +2790,19 @@ impl AppState {
 
     /// Edit > Media properties: the dialog of the media the first selected event plays.
     fn open_selected_media_properties(&mut self) {
-        let media = self.selection.refs().iter().find_map(|(track, event)| {
-            self.timeline
-                .track(*track)?
-                .events
-                .iter()
-                .find(|e| e.id == *event)?
-                .media_id
-        });
-        match media {
-            Some(id) => self.open_media_properties(id),
+        let mut group: Vec<u64> = Vec::new();
+        for (track, event) in self.selection.refs() {
+            let media = self
+                .timeline
+                .track(track)
+                .and_then(|t| t.events.iter().find(|e| e.id == event))
+                .and_then(|e| e.media_id);
+            if let Some(id) = media.filter(|id| !group.contains(id)) {
+                group.push(id);
+            }
+        }
+        match group.first().copied() {
+            Some(id) => self.open_media_properties_for(id, &group),
             None => self.status = "Selecione um evento que toque uma mídia".into(),
         }
     }
@@ -3801,6 +3849,10 @@ impl AppState {
         let Some(d) = self.mark_drag.take() else {
             return;
         };
+        if let Some(command) = self.group_mark_command(&d) {
+            self.history.execute(&mut self.timeline, command);
+            return;
+        }
         if let Some(command) =
             markers::set_mark_span(&self.timeline, d.id, d.current.0, d.current.1)
         {
@@ -3812,6 +3864,7 @@ impl AppState {
     fn shown_span(&self, id: MarkId, stored: (f64, f64)) -> (f64, f64) {
         match &self.mark_drag {
             Some(d) if d.id == id => d.current,
+            Some(d) => self.group_preview(d, id, stored),
             _ => stored,
         }
     }
@@ -4114,6 +4167,13 @@ impl AppState {
             Command::RenderToNewTrack | Command::RenderAndReplace => {
                 !self.selection.refs().is_empty()
             }
+            Command::QuickExportWeb | Command::QuickExportFile | Command::QuickExportAudio => {
+                self.timeline.duration() > 1e-3 && !self.render_dialog.is_running()
+            }
+            Command::EditRenameByMetadata => has_events,
+            Command::FileArchiveProject
+            | Command::FileConsolidateMedia
+            | Command::FileVerticalCopy => !self.project.media_pool.is_empty(),
             Command::TrackLock => self.selected_track.is_some(),
             Command::TrackArm => self
                 .selected_track
@@ -4146,6 +4206,10 @@ impl AppState {
             | Command::EditCutToTransition
             | Command::EditTransitionToCut => self.selection.primary().is_some(),
             Command::EditHeal => ops::can_heal_events(&self.timeline, &self.selection.refs()),
+            Command::EditEndAtCursor => has_events || self.selected_track.is_some(),
+            Command::CursorMatchFrame => has_events || self.selected_track.is_some(),
+            Command::EditAppendToTrack | Command::CursorReverseMatch => self.trimmer.is_some(),
+            Command::EditReplaceFromSource => has_events && self.trimmer.is_some(),
             Command::EditPitchUp
             | Command::EditPitchDown
             | Command::EditPitchCentUp
@@ -4155,6 +4219,7 @@ impl AppState {
             | Command::EditPitchReset => {
                 neoveg_engine::event_pitch::can_change(&self.timeline, &self.selection.refs())
             }
+            Command::EditRateUp | Command::EditRateDown => !self.selection.is_empty(),
             Command::EditMediaProperties => self.selection.refs().iter().any(|(track, event)| {
                 self.timeline
                     .track(*track)
@@ -4201,6 +4266,8 @@ impl AppState {
                 self.can_subclip(false)
             }
             Command::EditReverseEvent => self.can_subclip(true),
+            Command::EditAlignToTransient => self.can_align_to_transient(),
+            Command::EditApplyEventEffects => self.can_bake_event_effects(),
             Command::EditDualMono => {
                 let refs = self.selection.refs();
                 refs.iter()
@@ -4985,13 +5052,13 @@ impl AppState {
 
     /// Times events can snap to: the origin, the playhead and the edges of every other event.
     fn snap_candidates(&self, exclude: &[EventRef]) -> Vec<f64> {
-        neoveg_engine::snapping::candidates(
+        self.with_media_marker_snap(neoveg_engine::snapping::candidates(
             &self.timeline,
             self.snap_sources,
             exclude,
             self.playhead,
             self.time_selection.map(|r| (r.start, r.end)),
-        )
+        ))
     }
 
     /// Seconds between two lines of the frame grid at the current zoom.
@@ -5276,6 +5343,8 @@ impl AppState {
                 let (edge, mark) = snap(pointer_time);
                 drag.snap_mark = mark;
                 drag.current = edit::trim_left(drag.origin, edge, min_len);
+                let (now, before) = (drag.current.duration, drag.origin.duration);
+                self.show_trim_length(now, before);
             }
             DragMode::TrimRight => {
                 // A looping event may be dragged past the end of its source
@@ -5292,6 +5361,8 @@ impl AppState {
                 let (edge, mark) = snap(pointer_time);
                 drag.snap_mark = mark;
                 drag.current = edit::trim_right(drag.origin, edge, min_len, len);
+                let (now, before) = (drag.current.duration, drag.origin.duration);
+                self.show_trim_length(now, before);
             }
             DragMode::RollLeft | DragMode::RollRight => {
                 let (edge, mark) = snap(pointer_time);
@@ -6842,6 +6913,17 @@ impl AppState {
             Ok(frame) => {
                 self.frame_scopes = Some(Scopes::from_frame(&frame));
                 self.frame_scopes_version += 1;
+                self.video_tools.keep_frame(&frame, self.frame_scopes_version);
+                let frame = neoveg_video::stereo3d::stereo_view(
+                    &frame,
+                    self.video_tools.stereo_layout,
+                    self.video_tools.stereo_output,
+                );
+                // Deinterlace follows the project properties; rotation and mirroring are the user's
+                let mut view = self.video_tools.view_mode;
+                view.field_order = Some(self.project.settings.field_order);
+                view.deinterlace = view.deinterlace.map(|_| self.project.settings.deinterlace);
+                let frame = if view.is_identity() { frame } else { view.apply(&frame) };
                 let image = egui::ColorImage::from_rgba_unmultiplied(
                     [frame.width as usize, frame.height as usize],
                     &frame.rgba,
@@ -6990,6 +7072,16 @@ impl AppState {
         );
         if self.prefs.import_dual_mono && stereo {
             self.split_dual_mono(&[(track_id, event_id)]);
+        }
+        let kinds = neoveg_engine::import_effects::wanted_kinds(
+            self.prefs.import_gate,
+            self.prefs.import_eq,
+            self.prefs.import_compressor,
+        );
+        if let Some(edit) =
+            neoveg_engine::import_effects::default_chain_edit(&self.timeline, track_id, &kinds)
+        {
+            self.history.execute(&mut self.timeline, edit);
         }
     }
 
@@ -8861,6 +8953,8 @@ impl AppState {
     fn run_command(&mut self, command: Command, ctx: &egui::Context, now: f64) {
         match command {
             Command::FileNew | Command::FileNewQuick => self.new_tab(),
+            Command::FileDuplicateProject => self.duplicate_tab(ctx),
+            Command::FileSequenceReport => self.export_sequence_report(),
             Command::FileClose => {
                 let id = self.ensure_tab();
                 self.request_close_tab(id, ctx);
@@ -8884,6 +8978,14 @@ impl AppState {
             }
             Command::InsertEmptyEvent => self.insert_empty_event(),
             Command::RenderToNewTrack => self.begin_render_to_track(false, ctx),
+            Command::QuickExportWeb => self.quick_export(neoveg_common::quick_export::QuickExportTarget::Web, ctx),
+            Command::QuickExportFile => self.quick_export(neoveg_common::quick_export::QuickExportTarget::File, ctx),
+            Command::QuickExportAudio => self.quick_export(neoveg_common::quick_export::QuickExportTarget::AudioOnly, ctx),
+            Command::FileArchiveProject => self.archive_to_folder(false),
+            Command::EditRenameByMetadata => self.rename_dialog.open = true,
+            Command::FileConsolidateMedia => self.archive_to_folder(true),
+            Command::FileVerticalCopy => self.save_vertical_copy(),
+            Command::ViewFullscreenPreview => self.fullscreen_preview_requested = true,
             Command::RenderAndReplace => self.begin_render_to_track(true, ctx),
             Command::InsertCommandMarker => {
                 let (fps, drop_frame) = (self.project.settings.fps, self.drop_frame());
@@ -8982,6 +9084,8 @@ impl AppState {
             }
             Command::ViewProjectNotes => self.notes.open = true,
             Command::ViewMediaGenerators => self.generator_dialog.open = true,
+            Command::ViewSpeechSearch => self.speech_search.open = true,
+            Command::ViewTrackGroups => self.track_groups_window.open = true,
             Command::ViewPluginManager => self.plugin_manager.open = true,
             Command::ViewEditDetails => self.show_details = true,
             Command::ViewLayoutLoad | Command::ViewLayoutSave => {
@@ -9046,6 +9150,12 @@ impl AppState {
                 self.focus_event_name = true;
             }
             Command::EditHeal => self.heal_selected_events(),
+            Command::EditEndAtCursor => self.end_selected_at_cursor(),
+            Command::EditAppendToTrack => self.append_trimmer_to_track_end(),
+            Command::EditReplaceFromSource => self.replace_with_trimmer_clip(),
+            Command::EditSelectDupes => self.select_dupes(),
+            Command::CursorMatchFrame => self.match_frame_to_trimmer(),
+            Command::CursorReverseMatch => self.reverse_match_from_trimmer(),
             Command::EditPitchUp => self.nudge_selected_pitch(1.0),
             Command::EditPitchDown => self.nudge_selected_pitch(-1.0),
             Command::EditPitchCentUp => self.nudge_selected_pitch(0.01),
@@ -9053,6 +9163,8 @@ impl AppState {
             Command::EditPitchOctaveUp => self.nudge_selected_pitch(12.0),
             Command::EditPitchOctaveDown => self.nudge_selected_pitch(-12.0),
             Command::EditPitchReset => self.reset_selected_pitch(),
+            Command::EditRateUp => self.nudge_selected_rate(1.0 + neoveg_engine::event_rate::RATE_STEP),
+            Command::EditRateDown => self.nudge_selected_rate(1.0 / (1.0 + neoveg_engine::event_rate::RATE_STEP)),
             Command::EditMediaProperties => self.open_selected_media_properties(),
             Command::EditNextTake => self.step_take(1),
             Command::EditPreviousTake => self.step_take(-1),
@@ -9205,6 +9317,8 @@ impl AppState {
             Command::EditCreateSubclip => self.begin_subclip(false, false, ctx),
             Command::EditCreateReverseSubclip => self.begin_subclip(true, false, ctx),
             Command::EditReverseEvent => self.begin_subclip(true, true, ctx),
+            Command::EditAlignToTransient => self.align_to_transient(),
+            Command::EditApplyEventEffects => self.begin_bake_event_effects(ctx),
             Command::EditDualMono => {
                 let refs = self.selection.refs();
                 self.split_dual_mono(&refs);
@@ -9621,6 +9735,9 @@ impl NeovegApp {
     /// The Media Properties dialog: what it applies is one undoable edit.
     fn run_media_properties_dialog(&mut self, ctx: &egui::Context) {
         let state = &mut self.state;
+        if let Some((media_id, mode)) = state.media_props_dialog.take_pulldown_request() {
+            state.start_pulldown(media_id, mode);
+        }
         let Some(action) = state.media_props_dialog.show(ctx) else {
             return;
         };
@@ -10032,7 +10149,12 @@ impl NeovegApp {
         );
         Self {
             dock: default_dock(),
-            state: AppState::new(),
+            state: {
+                let mut state = AppState::new();
+                // `neoveg --open <projeto>`: the project opens in a tab on the first frame
+                state.tabs.open_request = crate::cli::startup_open();
+                state
+            },
             splash: Some(Splash::new(&STARTUP_STEPS, &gpu)),
             gpu,
             detached: Vec::new(),
@@ -10218,9 +10340,12 @@ impl NeovegApp {
         insert_time_window(ctx, &mut self.state);
         self.run_start_dialogs(ctx);
         self.run_notes_window(ctx);
+        self.state.run_video_tools(ctx);
         self.run_compositors_window(ctx);
         self.run_media_properties_dialog(ctx);
         self.state.run_command_dialog(ctx);
+        self.state.run_speech_search(ctx);
+        self.state.run_track_groups_window(ctx);
         self.state.poll_render_to_track(ctx);
         self.state.run_trim_monitor(ctx);
         self.state.run_toolbar_editor(ctx);
@@ -10258,6 +10383,11 @@ impl NeovegApp {
         let duration = self.state.timeline.duration();
         let style_before = self.state.project.settings.caption_style.clone();
         let mut style = style_before.clone();
+        // The loudness target belongs to the project; the dialog edits a copy while it is open
+        if !self.state.render_dialog.open {
+            self.state.render_dialog.loudness_target =
+                self.state.project.settings.render_loudness_target;
+        }
         let launch = self.state.render_dialog.show(
             ctx,
             width,
@@ -10267,11 +10397,20 @@ impl NeovegApp {
             duration,
             &mut style,
         );
+        if self.state.render_dialog.loudness_target != self.state.project.settings.render_loudness_target
+        {
+            self.state.project.settings.render_loudness_target =
+                self.state.render_dialog.loudness_target;
+            self.state.forced_dirty = true;
+        }
         if style != style_before {
             // The style is part of the project, but not an edit that can be undone
             self.state.project.settings.caption_style = style;
             self.state.forced_dirty = true;
         }
+        self.state.show_rename_dialog(ctx);
+        // The queue starts its next render once the one before it is over
+        let launch = launch.or_else(|| self.state.render_dialog.pump_queue());
         if let Some(request) = launch {
             self.state.start_render(request, ctx);
         }
@@ -10380,7 +10519,17 @@ fn load_audio(path: &std::path::Path) -> Result<LoadedMedia, String> {
     let audio = decode_to_store(path)?;
     let duration = audio.duration_seconds();
     let store = Arc::new(audio.store);
-    let waveform = WaveformSource::from_pcm(audio.sample_rate, Arc::clone(&store))?;
+    // The peak file is a convenience: it is written only when the preference allows it
+    let known_peaks = neoveg_audio::peaks_file::read_valid(path);
+    if known_peaks.is_none() {
+        neoveg_audio::peaks_file::write_if_enabled(path, audio.sample_rate, &store);
+    }
+    let waveform = WaveformSource::from_pcm_with_peaks(
+        audio.sample_rate,
+        audio.channels,
+        Arc::clone(&store),
+        known_peaks.as_ref(),
+    )?;
     Ok(LoadedMedia {
         name: path
             .file_name()
@@ -10412,11 +10561,14 @@ fn scrolling_menu(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut
 fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
     // the interface language follows the preference, also right after the selector changes it
     neoveg_common::i18n::set_language(&state.prefs.language);
+    neoveg_audio::peaks_file::set_create(state.prefs.create_peak_files);
     state.cjk_fonts.update(ui.ctx(), &state.prefs.language);
     egui::menu::bar(ui, |ui| {
         scrolling_menu(ui, tr("Arquivo"), |ui| {
             // New and open
             command_item(state, ui, Command::FileNew);
+            command_item(state, ui, Command::FileDuplicateProject);
+            command_item(state, ui, Command::FileSequenceReport);
             command_item(state, ui, Command::FileClose);
             if ui
                 .button(state.with_hint(tr("Abrir…"), Command::FileOpen))
@@ -10469,6 +10621,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 state.missing_open = true;
                 ui.close_menu();
             }
+            if ui.button(tr("Trocar arquivos de mídia por pasta…")).clicked() {
+                let ctx = ui.ctx().clone();
+                state.replace_media_by_folder(&ctx);
+                ui.close_menu();
+            }
             ui.menu_button(tr("Importar"), |ui| {
                 if ui.button(tr("Mídia…")).clicked() {
                     let ctx = ui.ctx().clone();
@@ -10499,6 +10656,10 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.separator();
                 if ui.button(tr("Legendas (SRT, WebVTT)…")).clicked() {
                     state.import_captions();
+                    ui.close_menu();
+                }
+                if ui.button(tr("Legendas das regiões")).clicked() {
+                    state.captions_from_regions();
                     ui.close_menu();
                 }
             });
@@ -10643,6 +10804,12 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 Command::EditTransitionToCut,
                 Command::EditHeal,
                 Command::EditMediaProperties,
+                Command::EditEndAtCursor,
+                Command::EditAppendToTrack,
+                Command::EditReplaceFromSource,
+                Command::EditSelectDupes,
+                Command::CursorMatchFrame,
+                Command::CursorReverseMatch,
                 Command::EditCloseGaps,
                 Command::EditResizeAdjustmentToProject,
                 Command::EditTrimToSelection,
@@ -10671,6 +10838,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     command_item(state, ui, command);
                 }
             });
+            command_item(state, ui, Command::EditRateUp);
+            command_item(state, ui, Command::EditRateDown);
             ui.separator();
             command_item(state, ui, Command::EditSelectAll);
             command_item(state, ui, Command::EditSelectNone);
@@ -10706,6 +10875,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     state.run_command(command, &ctx, now);
                 }
             }
+            let mut snap_media = state.prefs.snap_to_media_markers;
+            if ui
+                .checkbox(&mut snap_media, tr("Alinhar a marcadores de mídia"))
+                .changed()
+            {
+                state.prefs.snap_to_media_markers = snap_media;
+                state.persist_preferences();
+            }
             ui.separator();
             if ui.button(tr("Preferências…")).clicked() {
                 state.show_preferences = true;
@@ -10727,6 +10904,8 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.close_menu();
             }
             command_item(state, ui, Command::ViewMediaGenerators);
+            command_item(state, ui, Command::ViewSpeechSearch);
+            command_item(state, ui, Command::ViewTrackGroups);
             if ui.button(tr("Inserir apresentação de slides…")).clicked() {
                 state.slideshow.open = true;
                 ui.close_menu();
@@ -10809,10 +10988,20 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
             }
             command_item(state, ui, Command::ViewPluginManager);
             command_item(state, ui, Command::RenderToNewTrack);
+            command_item(state, ui, Command::QuickExportWeb);
+            command_item(state, ui, Command::QuickExportFile);
+            command_item(state, ui, Command::QuickExportAudio);
+            command_item(state, ui, Command::FileArchiveProject);
+            command_item(state, ui, Command::FileConsolidateMedia);
+            command_item(state, ui, Command::FileVerticalCopy);
+            command_item(state, ui, Command::ViewFullscreenPreview);
             command_item(state, ui, Command::RenderAndReplace);
+            command_item(state, ui, Command::EditRenameByMetadata);
             command_item(state, ui, Command::EditCreateSubclip);
             command_item(state, ui, Command::EditCreateReverseSubclip);
             command_item(state, ui, Command::EditReverseEvent);
+            command_item(state, ui, Command::EditAlignToTransient);
+            command_item(state, ui, Command::EditApplyEventEffects);
             ui.separator();
             // Video tools
             let video_event = state
@@ -10884,6 +11073,20 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
         scrolling_menu(ui, tr("Exibir"), |ui| {
             ui.checkbox(&mut state.show_bars, tr("Barras de cor SMPTE"));
             command_item(state, ui, Command::ViewProjectNotes);
+            if ui.button(tr("Correção de cor do evento…")).clicked() {
+                state.open_event_color_window();
+                ui.close_menu();
+            }
+            if ui.button(tr("Galeria de quadros de referência…")).clicked() {
+                state.open_ref_gallery_window();
+                ui.close_menu();
+            }
+            ui.checkbox(
+                &mut state.video_tools.highlight_uncorrected,
+                tr("Destacar eventos sem correção"),
+            );
+            ui.checkbox(&mut state.video_tools.storyboard.open, tr("Storyboard"));
+            crate::stereo_menu::stereo_menu(ui, &mut state.video_tools.stereo_layout, &mut state.video_tools.stereo_output);
             command_item(state, ui, Command::ViewEditDetails);
             ui.separator();
             for command in [
@@ -13107,6 +13310,20 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         tr("Importar áudio estéreo como mono duplo (esquerdo na faixa, direito em uma faixa nova abaixo)"),
                     );
                     ui.checkbox(
+                        &mut prefs.create_peak_files,
+                        tr("Criar arquivos de picos de áudio (<nome>.nvpk) ao lado da mídia"),
+                    );
+                    ui.label(tr("Efeitos padrão ao importar áudio (na faixa):"));
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut prefs.import_gate, tr("Noise Gate"));
+                        ui.checkbox(&mut prefs.import_eq, tr("Equalizador"));
+                        ui.checkbox(&mut prefs.import_compressor, tr("Compressor"));
+                    });
+                    ui.checkbox(
+                        &mut prefs.hide_peak_files,
+                        tr("Ocultar arquivos de picos no explorador de arquivos"),
+                    );
+                    ui.checkbox(
                         &mut prefs.quantize_audio_edits,
                         tr("Quantizar para quadros também as edições só de áudio"),
                     );
@@ -13114,6 +13331,7 @@ fn preferences_window(ctx: &egui::Context, state: &mut AppState) {
                         &mut prefs.lock_envelopes_to_events,
                         tr("Travar envelopes aos eventos ao mover na timeline"),
                     );
+                    crate::prefs_extra::extra_keys_ui(ui, &mut prefs);
                     ui.checkbox(
                         &mut prefs.color_icons,
                         tr("Ícones coloridos (BMP) onde existirem; o tema High Contrast usa sempre os monocromáticos"),
@@ -14032,6 +14250,7 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             .on_hover_text(tr("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela"));
         ui.checkbox(&mut state.show_bars, tr("Barras SMPTE"));
         ui.checkbox(&mut state.multicam_mode, tr("Grade multicâmera"));
+        crate::view_mode_ui::controls(ui, &mut state.video_tools.view_mode);
     });
 
     let avail = ui.available_size();
@@ -15501,6 +15720,7 @@ fn event_context_menu(
         ui.separator();
     }
     command_item(state, ui, Command::FileCreateSubproject);
+    mark_tools::media_marker_menu(state, ui, track_id, event_id);
     let is_adjustment = state
         .timeline
         .track(track_id)
@@ -15806,7 +16026,7 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.stop();
         }
         let tip = state.with_hint(
-            tr("Gravar do dispositivo de entrada (na faixa armada, se houver)"),
+            tr(Command::TransportRecord.label()),
             Command::TransportRecord,
         );
         if icons::icon_button(ui, Icon::Record, &tip, state.recorder.is_some()).clicked() {
@@ -15852,22 +16072,17 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         if icon(ui, Icon::AddVideoTrack, &tip) {
             state.add_track(TrackKind::Video);
         }
-        if icons::icon_button(
-            ui,
-            Icon::Loop,
-            tr("Reprodução em laço (Q); Shift+Q define a região de laço"),
-            state.looping,
-        )
+        let loop_tip = state.with_hint(tr(Command::TransportLoop.label()), Command::TransportLoop);
+        if icons::icon_button(ui, Icon::Loop, &loop_tip, state.looping)
         .clicked()
         {
             state.toggle_loop();
         }
-        if icons::icon_button(
-            ui,
-            Icon::Group,
-            tr("Agrupamento de eventos (G agrupa, U desagrupa, Ctrl+Shift+U ignora)"),
-            !state.ignore_grouping,
-        )
+        let group_tip = state.with_hint(
+            tr(Command::EditIgnoreGrouping.label()),
+            Command::EditIgnoreGrouping,
+        );
+        if icons::icon_button(ui, Icon::Group, &group_tip, !state.ignore_grouping)
         .clicked()
         {
             state.toggle_ignore_grouping();
@@ -15875,12 +16090,11 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
         let selected_refs = state.selection.refs();
         let all_locked = !selected_refs.is_empty()
             && switches::state(&state.timeline, &selected_refs, Switch::Lock) == SwitchState::On;
-        if icons::icon_button(
-            ui,
-            Icon::Lock,
-            tr("Bloquear ou desbloquear os eventos selecionados (Editar > Interruptores)"),
-            all_locked,
-        )
+        let lock_tip = state.with_hint(
+            tr(Command::EditSwitchLock.label()),
+            Command::EditSwitchLock,
+        );
+        if icons::icon_button(ui, Icon::Lock, &lock_tip, all_locked)
         .clicked()
         {
             state.toggle_event_switch(Switch::Lock);
@@ -15908,21 +16122,24 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             }
         }
         ui.separator();
-        if icons::icon_button(
-            ui,
-            Icon::Snap,
-            tr("Alinhar a bordas, cursor e quadros (F8; segure Alt ao arrastar para ignorar)"),
-            state.snapping,
-        )
+        let snap_tip = state.with_hint(
+            tr(Command::OptionsSnapping.label()),
+            Command::OptionsSnapping,
+        );
+        if icons::icon_button(ui, Icon::Snap, &snap_tip, state.snapping)
         .clicked()
         {
             state.snapping = !state.snapping;
         }
         ui.separator();
+        let xfade_tip = state.with_hint(
+            tr(Command::OptionsAutoCrossfade.label()),
+            Command::OptionsAutoCrossfade,
+        );
         if icons::icon_button(
             ui,
             Icon::Crossfade,
-            tr("Crossfade automático entre eventos sobrepostos"),
+            &xfade_tip,
             state.project.settings.auto_crossfade,
         )
         .clicked()
@@ -15931,11 +16148,12 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             state.forced_dirty = true;
         }
         // Toolbar zoom is anchored at the edit cursor
-        for (which, tip, factor) in [
-            (Icon::ZoomOut, "Reduzir zoom", 0.5),
-            (Icon::ZoomIn, "Ampliar zoom", 2.0),
+        for (which, command, factor) in [
+            (Icon::ZoomOut, Command::ViewZoomOut, 0.5),
+            (Icon::ZoomIn, Command::ViewZoomIn, 2.0),
         ] {
-            if icon(ui, which, tip) {
+            let tip = state.with_hint(tr(command.label()), command);
+            if icon(ui, which, &tip) {
                 state.zoom_at_cursor(factor);
             }
         }
@@ -16012,6 +16230,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         p.x >= lanes.left() && p.y >= ruler_bottom - MARK_STRIP_HEIGHT && p.y < ruler_bottom
     };
     let mark_tolerance = f64::from(MARK_HIT_PX) / state.pixels_per_second;
+    if response.clicked() {
+        if let Some(p) = response.interact_pointer_pos().filter(|p| in_mark_strip(*p)) {
+            let additive = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+            let t = x_to_time(state, lanes.left(), p.x);
+            state.click_mark_strip(t, mark_tolerance, additive);
+        }
+    }
     if response.drag_started() {
         let press = ui.input(|i| i.pointer.press_origin());
         if let Some(p) = press.filter(|p| in_mark_strip(*p)) {
@@ -16228,6 +16453,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
     // ---- dragging events: move, trim left/right, change track ------------------------------------
     if response.drag_started() {
+        state.note_drag_press(ui);
         let press = ui.input(|i| i.pointer.press_origin());
         if let Some(p) = press.filter(|p| {
             p.x >= lanes.left()
@@ -16488,9 +16714,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         state.finish_event_level_drag();
         state.finish_mark_drag();
         state.finish_marquee();
-        state.finish_drag();
+        state.finish_drag_routed(ui);
         state.range_anchor = None;
     }
+    state.show_drag_menu(ui.ctx());
 
     // Right-click on a track header, an envelope, an event or a ruler mark
     if response.secondary_clicked() {
@@ -16587,6 +16814,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     state.remove_mark(id);
                     ui.close_menu();
                 }
+                mark_tools::picked_marks_menu(state, ui);
                 if ui
                     .button(tr("Apagar todos os marcadores e regiões"))
                     .clicked()
@@ -16602,6 +16830,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 for command in [Command::InsertMarker, Command::InsertRegion] {
                     command_item(state, ui, command);
                 }
+                mark_tools::picked_marks_menu(state, ui);
                 if ui
                     .add_enabled(
                         !state.timeline.marks().is_empty(),
@@ -16814,7 +17043,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             Rounding::ZERO,
             Color32::from_rgba_unmultiplied(0x2E, 0xCC, 0x71, 70),
         );
-        let edge = Stroke::new(hairline, Color32::from_rgb(0x2E, 0xCC, 0x71));
+        let edge_color = if state.marks_picked.contains(&region.id) {
+            mark_tools::PICKED_COLOR
+        } else {
+            Color32::from_rgb(0x2E, 0xCC, 0x71)
+        };
+        let edge = Stroke::new(hairline, edge_color);
         for x in [x0, x1] {
             ruler_painter.line_segment([pos2(x, strip_top), pos2(x, rect.bottom())], edge);
         }
@@ -16849,7 +17083,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         if x < lanes.left() - 1.0 || x > lanes.right() + 1.0 {
             continue;
         }
-        let color = Color32::from_rgb(0xF1, 0xC4, 0x0F);
+        let color = if state.marks_picked.contains(&marker.id) {
+            mark_tools::PICKED_COLOR
+        } else {
+            Color32::from_rgb(0xF1, 0xC4, 0x0F)
+        };
         ruler_painter.line_segment(
             [pos2(x, strip_top), pos2(x, rect.bottom())],
             Stroke::new(hairline, color.gamma_multiply(0.6)),
@@ -17089,6 +17327,28 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             }
             if let Some(drift) = sync_drift {
                 title.push_str(&format!(" [{:+.2}s]", drift));
+            }
+            mark_tools::paint_event_media_markers(
+                &lane_painter,
+                state,
+                ev,
+                ev_rect,
+                g.start - ev.start,
+                lanes.left(),
+                lanes.right(),
+            );
+            // Video events with no color correction get an orange bar when the view asks for it
+            if state.video_tools.highlight_uncorrected
+                && crate::event_color_window::needs_color_mark(track.kind, ev)
+            {
+                lane_painter.rect_filled(
+                    Rect::from_min_max(
+                        pos2(ev_rect.left(), ev_rect.bottom() - 4.0),
+                        ev_rect.right_bottom(),
+                    ),
+                    0.0,
+                    Color32::from_rgb(230, 140, 30),
+                );
             }
             // The header: the name up to the first button, then the buttons
             let buttons =
@@ -17575,6 +17835,10 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
         if track.adjustment {
             let stripe = Rect::from_min_max(row.min, pos2(row.left() + 3.0, row.bottom()));
             header_painter.rect_filled(stripe, Rounding::ZERO, Color32::from_rgb(0x3A, 0x8F, 0xE0));
+        }
+        if let Some(rgb) = state.timeline.track_groups.color_of(track.id) {
+            let stripe = Rect::from_min_max(pos2(row.right() - 4.0, row.top()), row.max);
+            header_painter.rect_filled(stripe, Rounding::ZERO, Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
         }
         header_painter.rect_stroke(
             row,
@@ -21441,6 +21705,7 @@ mod tests {
             path: PathBuf::from("x.wav"),
             replace: Vec::new(),
             reverse: false,
+            bake: false,
         });
         assert!(!s.can_subclip(false), "one at a time");
         assert!(s.takes_subclip(std::path::Path::new("x.wav")));
@@ -21462,6 +21727,7 @@ mod tests {
             path: path.clone(),
             replace: vec![(track, id)],
             reverse: true,
+            bake: false,
         });
         s.place_subclip(path.clone(), 4.0, None, None);
         assert_eq!(s.project.media_pool.len(), pool + 1);
@@ -21483,10 +21749,84 @@ mod tests {
             path: path.clone(),
             replace: Vec::new(),
             reverse: false,
+            bake: false,
         });
         s.place_subclip(path, 4.0, None, None);
         assert_eq!(s.project.media_pool.len(), pool + 2);
         assert_eq!(s.timeline.track(track).unwrap().events[0].media_id, Some(1));
+    }
+
+    /// A loaded sound of 4 s at 8 kHz, silent but for a strong hit `hit` seconds in.
+    fn loaded_with_hit(hit: f64) -> LoadedMedia {
+        let rate = 8_000u32;
+        let mut samples = vec![0.0f32; rate as usize * 4 * 2];
+        let at = (hit * f64::from(rate)) as usize * 2;
+        samples[at] = 0.9;
+        samples[at + 1] = 0.9;
+        let store = Arc::new(neoveg_audio::pcm::PcmStore::from_vec(samples));
+        LoadedMedia {
+            path: PathBuf::from("x.wav"),
+            name: "x.wav".into(),
+            waveform: Arc::new(WaveformSource::from_pcm(rate, Arc::clone(&store)).unwrap()),
+            stereo: store,
+            sample_rate: rate,
+            channels: 2,
+            duration: 4.0,
+        }
+    }
+
+    #[test]
+    fn aligning_to_the_transient_puts_the_first_peak_on_the_cursor_or_the_nearest_marker() {
+        let (mut s, track, id) = state_with_clip();
+        s.media.insert(1, loaded_with_hit(1.0));
+        assert!(!s.command_enabled(Command::EditAlignToTransient), "nothing selected");
+        s.selection.set([(track, id)]);
+        assert!(s.command_enabled(Command::EditAlignToTransient));
+        // The event starts at 2.0 and its hit is 1.0 s in: the cursor at 10.0 gives a start of 9.0
+        s.playhead = 10.0;
+        run(&mut s, Command::EditAlignToTransient);
+        assert_eq!(s.timeline.track(track).unwrap().events[0].start, 9.0);
+        run(&mut s, Command::EditUndo);
+        assert_eq!(s.timeline.track(track).unwrap().events[0].start, 2.0);
+        // A marker near the cursor takes the hit instead of the cursor
+        let command = neoveg_engine::markers::add_marker(&mut s.timeline, 10.4, None).unwrap();
+        s.history.execute(&mut s.timeline, command);
+        run(&mut s, Command::EditAlignToTransient);
+        let start = s.timeline.track(track).unwrap().events[0].start;
+        assert!((start - 9.4).abs() < 1e-6, "{start}");
+        // A locked event stays where it is
+        s.timeline.track_mut(track).unwrap().events[0].locked = true;
+        assert!(!s.command_enabled(Command::EditAlignToTransient));
+    }
+
+    #[test]
+    fn baking_the_effects_needs_effects_that_sound_and_a_ready_file_swaps_the_media_in_one_undo_step() {
+        let (mut s, track, id) = state_with_clip();
+        s.media.insert(1, loaded_with_hit(1.0));
+        s.selection.set([(track, id)]);
+        assert!(!s.command_enabled(Command::EditApplyEventEffects), "no effects yet");
+        let mut bypassed = neoveg_engine::TrackEffect::new("amplify");
+        bypassed.bypass = true;
+        s.timeline.track_mut(track).unwrap().events[0].audio_effects = vec![bypassed];
+        assert!(!s.command_enabled(Command::EditApplyEventEffects), "a bypassed effect does not sound");
+        s.timeline.track_mut(track).unwrap().events[0].audio_effects =
+            vec![neoveg_engine::TrackEffect::new("amplify")];
+        assert!(s.command_enabled(Command::EditApplyEventEffects));
+        let path = PathBuf::from("subclipes/x_2.00s-6.00s_fx.wav");
+        s.pending_subclips.push(subclip::PendingSubclip {
+            path: path.clone(),
+            replace: vec![(track, id)],
+            reverse: false,
+            bake: true,
+        });
+        assert!(!s.command_enabled(Command::EditApplyEventEffects), "one at a time");
+        s.place_subclip(path, 4.0, None, None);
+        let event = &s.timeline.track(track).unwrap().events[0];
+        assert!(event.audio_effects.is_empty() && event.media_id != Some(1));
+        assert!(s.status.contains("Efeitos gravados"), "{}", s.status);
+        run(&mut s, Command::EditUndo);
+        let event = &s.timeline.track(track).unwrap().events[0];
+        assert_eq!((event.media_id, event.audio_effects.len()), (Some(1), 1));
     }
 
     #[test]

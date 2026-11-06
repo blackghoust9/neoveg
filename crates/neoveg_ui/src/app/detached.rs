@@ -9,7 +9,7 @@
 use super::*;
 use crate::dock;
 use egui_dock::Surface;
-use neoveg_common::i18n::tr_args;
+use neoveg_common::i18n::{tr, tr_args};
 use neoveg_common::window_layout::{SavedWindow, WindowGeometry};
 
 /// A panel that lives in its own window.
@@ -22,6 +22,8 @@ pub(super) struct DetachedTab {
     /// window while it is dragged, and the window shakes.
     pub opened_at: WindowGeometry,
     pub fullscreen: bool,
+    /// Opened only for a full-screen review: `Esc` closes it and the panel goes back to the dock.
+    pub temporary: bool,
 }
 
 impl DetachedTab {
@@ -82,6 +84,9 @@ fn main_window(ctx: &egui::Context) -> (egui::Pos2, Option<(f32, f32)>) {
 impl NeovegApp {
     /// Turns every floating dock window into native windows, one per panel.
     pub(super) fn promote_floating_windows(&mut self, ctx: &egui::Context) {
+        if std::mem::take(&mut self.state.fullscreen_preview_requested) {
+            self.toggle_fullscreen_preview(ctx);
+        }
         let mut floating = Vec::new();
         for (index, surface) in self.dock.iter_surfaces().enumerate() {
             if let Surface::Window(_, state) = surface {
@@ -105,6 +110,41 @@ impl NeovegApp {
         self.sync_detached_prefs(true);
     }
 
+    /// *Prévia em tela cheia*: the preview panel in a window of its own, full screen on the
+    /// monitor of the main window, until `Esc` (or the command again) takes it back to the dock.
+    fn toggle_fullscreen_preview(&mut self, ctx: &egui::Context) {
+        if let Some(window) = self.detached.iter_mut().find(|d| d.tab == Tab::Preview) {
+            // Already in a window: toggle its full screen; a review window goes back when it ends
+            window.fullscreen = !window.fullscreen;
+            ctx.send_viewport_cmd_to(
+                window.viewport_id(),
+                egui::ViewportCommand::Fullscreen(window.fullscreen),
+            );
+            if !window.fullscreen && window.temporary {
+                self.redock(Tab::Preview);
+            }
+            return;
+        }
+        if let Some(location) = self.dock.find_tab(&Tab::Preview) {
+            self.dock.remove_tab(location);
+        }
+        let (origin, monitor) = main_window(ctx);
+        let (w, h) = monitor.unwrap_or((1280.0, 720.0));
+        let geometry = WindowGeometry {
+            x: origin.x,
+            y: origin.y,
+            width: w,
+            height: h,
+            ..WindowGeometry::default()
+        };
+        self.detach(Tab::Preview, geometry);
+        if let Some(window) = self.detached.iter_mut().find(|d| d.tab == Tab::Preview) {
+            window.fullscreen = true;
+            window.temporary = true;
+        }
+        self.state.status = tr("Prévia em tela cheia: Esc para voltar").to_string();
+    }
+
     fn detach(&mut self, tab: Tab, geometry: WindowGeometry) {
         if self.detached.iter().all(|d| d.tab != tab) {
             self.state.status = tr_args("{} em janela própria", &[&tab.title()]);
@@ -113,6 +153,7 @@ impl NeovegApp {
                 opened_at: geometry.clone(),
                 geometry,
                 fullscreen: false,
+                temporary: false,
             });
         }
     }
@@ -146,6 +187,7 @@ impl NeovegApp {
     pub(super) fn saved_windows(&self) -> Vec<SavedWindow> {
         self.detached
             .iter()
+            .filter(|d| !d.temporary)
             .map(|d| SavedWindow {
                 tab: d.tab.id().to_owned(),
                 geometry: d.geometry.clone(),
@@ -199,12 +241,15 @@ impl NeovegApp {
         let mut windows = std::mem::take(&mut self.detached);
         let mut to_dock = Vec::new();
         for window in &mut windows {
-            let builder = dock::viewport_builder(&window.opened_at, window.tab.title());
+            // A review window opens in full screen; the flag never changes during its life
+            let builder = dock::viewport_builder(&window.opened_at, window.tab.title())
+                .with_fullscreen(window.temporary);
             let tab = window.tab;
             let id = window.viewport_id();
             let state = &mut self.state;
             let mut close = false;
             let mut fullscreen = window.fullscreen;
+            let temporary = window.temporary;
             let mut geometry = window.geometry.clone();
             ctx.show_viewport_immediate(id, builder, |ctx, class| {
                 if class == egui::ViewportClass::Embedded {
@@ -216,12 +261,22 @@ impl NeovegApp {
                     close = true;
                     return;
                 }
-                if ctx.input(|i| i.key_pressed(egui::Key::F11)) {
-                    fullscreen = !fullscreen;
+                let (f11, esc) = ctx.input(|i| {
+                    (
+                        i.key_pressed(egui::Key::F11),
+                        i.key_pressed(egui::Key::Escape),
+                    )
+                });
+                let (next, ends) = neoveg_common::window_layout::fullscreen_step(
+                    fullscreen, temporary, f11, esc,
+                );
+                if next != fullscreen {
+                    fullscreen = next;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(fullscreen));
-                } else if fullscreen && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-                    fullscreen = false;
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                }
+                if ends {
+                    close = true;
+                    return;
                 }
                 state.handle_shortcuts(ctx);
                 egui::CentralPanel::default()
@@ -533,5 +588,48 @@ mod trimmer_tests {
         assert!((events[0].trim_in - 2.0).abs() < 0.04);
         assert!(state.history.undo(&mut state.timeline));
         assert!(state.timeline.tracks.iter().all(|t| t.events.is_empty()));
+    }
+}
+
+#[cfg(test)]
+mod fullscreen_preview_tests {
+    use super::*;
+
+    #[test]
+    fn the_command_opens_a_temporary_full_screen_preview_and_the_second_press_docks_it_back() {
+        let mut app = NeovegApp {
+            dock: default_dock(),
+            state: AppState::new(),
+            splash: None,
+            gpu: String::new(),
+            detached: Vec::new(),
+            detached_restored: true,
+        };
+        let ctx = egui::Context::default();
+        app.toggle_fullscreen_preview(&ctx);
+        assert_eq!(app.detached.len(), 1);
+        let window = &app.detached[0];
+        assert!(window.tab == Tab::Preview && window.fullscreen && window.temporary);
+        assert!(app.dock.find_tab(&Tab::Preview).is_none(), "not in both places");
+        assert!(app.saved_windows().is_empty(), "a review window is not saved");
+        app.toggle_fullscreen_preview(&ctx);
+        assert!(app.detached.is_empty());
+        assert!(app.dock.find_tab(&Tab::Preview).is_some());
+    }
+
+    #[test]
+    fn the_command_flag_is_consumed_by_the_window_code() {
+        let mut app = NeovegApp {
+            dock: default_dock(),
+            state: AppState::new(),
+            splash: None,
+            gpu: String::new(),
+            detached: Vec::new(),
+            detached_restored: true,
+        };
+        app.state.fullscreen_preview_requested = true;
+        app.promote_floating_windows(&egui::Context::default());
+        assert!(!app.state.fullscreen_preview_requested);
+        assert_eq!(app.detached.len(), 1);
     }
 }

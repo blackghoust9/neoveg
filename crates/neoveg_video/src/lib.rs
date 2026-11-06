@@ -1,5 +1,6 @@
 //! Video pipeline: RGBA frame buffers, procedural generators, GPU upload (wgpu) and FFmpeg decoding.
 
+pub mod auto_color;
 pub mod auto_reframe;
 pub mod burn;
 pub mod cache;
@@ -19,18 +20,27 @@ pub mod ocio;
 pub mod optical_flow;
 pub mod pan_crop;
 pub mod psd;
+pub mod pulldown;
+pub mod pulldown_job;
 pub mod raw;
+pub mod ref_gallery;
 pub mod render;
 pub mod render_native;
 pub mod scene;
 pub mod scopes;
 pub mod smart_mask;
+pub mod stabilize;
+pub mod stereo3d;
+#[cfg(feature = "ffmpeg")]
+pub mod stabilize_job;
 pub mod still;
 pub mod subclip;
+pub mod title_template;
 pub mod tracking;
 pub mod transition_library;
 pub mod transitions;
 pub mod upscale;
+pub mod view_mode;
 pub mod vfx;
 pub mod vfx_gpu;
 pub mod worker;

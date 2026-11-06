@@ -98,6 +98,21 @@ impl WindowGeometry {
     }
 }
 
+/// What a full-screen window does after a frame: `F11` toggles full screen and `Esc` leaves it.
+/// A `temporary` window (opened only for a full-screen review, like the full-screen preview) is
+/// closed when full screen ends, so `Esc` takes the panel back where it came from.
+/// Returns `(fullscreen, close)`.
+pub fn fullscreen_step(fullscreen: bool, temporary: bool, f11: bool, esc: bool) -> (bool, bool) {
+    let next = if f11 {
+        !fullscreen
+    } else if fullscreen && esc {
+        false
+    } else {
+        fullscreen
+    };
+    (next, temporary && fullscreen && !next)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +195,22 @@ mod tests {
         // Only the tab: every other field falls back to its default
         let bare: SavedWindow = serde_json::from_str(r#"{"tab":"timeline"}"#).unwrap();
         assert_eq!(bare.geometry, WindowGeometry::default());
+    }
+
+    #[test]
+    fn f11_toggles_and_esc_leaves_full_screen() {
+        assert_eq!(fullscreen_step(false, false, true, false), (true, false));
+        assert_eq!(fullscreen_step(true, false, true, false), (false, false));
+        assert_eq!(fullscreen_step(true, false, false, true), (false, false));
+        assert_eq!(fullscreen_step(false, false, false, true), (false, false));
+        assert_eq!(fullscreen_step(true, false, false, false), (true, false));
+    }
+
+    #[test]
+    fn a_temporary_window_closes_when_full_screen_ends() {
+        assert_eq!(fullscreen_step(true, true, false, true), (false, true));
+        assert_eq!(fullscreen_step(true, true, true, false), (false, true));
+        assert_eq!(fullscreen_step(true, true, false, false), (true, false));
+        assert_eq!(fullscreen_step(false, true, false, true), (false, false));
     }
 }

@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use neoveg_audio::fxmixer::{BlockMixer, FxPlan};
 use neoveg_audio::loudness_report::{
-    render_mixer_to_wav_pcm16, save_loudness_log, sidecar_loudness_path,
+    render_mixer_to_wav_pcm16_to_target, save_loudness_log, sidecar_loudness_path,
 };
 use neoveg_audio::mixer::MixClip;
 use neoveg_engine::project_manager::Flattened;
@@ -42,6 +42,8 @@ pub(super) struct RenderPlan {
     /// The part of the timeline to render, in seconds.
     pub range: (f64, f64),
     pub master_gain: f32,
+    /// The loudness the mixdown is normalised to (`Off`: it is rendered as it is).
+    pub loudness_target: neoveg_common::loudness_target::LoudnessTarget,
     /// Sample rate of the exported audio: the project's.
     pub sample_rate: u32,
     pub title: String,
@@ -49,6 +51,8 @@ pub(super) struct RenderPlan {
     pub captions: Vec<neoveg_engine::captions::Caption>,
     /// How the captions look when they are burned in.
     pub caption_style: neoveg_common::project::CaptionStyle,
+    /// Timecode and event name drawn into every frame, when asked for.
+    pub burn_in: Option<neoveg_video::burn::BurnIn>,
 }
 
 /// Draws the captions showing at `time` into `frame`.
@@ -122,8 +126,18 @@ fn run(
         request.output_path.clone()
     };
     let rate = plan.sample_rate.clamp(8_000, 192_000);
-    let mut mixer = BlockMixer::new(plan.clips.clone(), &plan.fx, rate as f32);
-    let report = render_mixer_to_wav_pcm16(&mut mixer, &wav_path, rate, t0, t1, plan.master_gain)?;
+    let (report, applied_db) = render_mixer_to_wav_pcm16_to_target(
+        || BlockMixer::new(plan.clips.clone(), &plan.fx, rate as f32),
+        &wav_path,
+        rate,
+        t0,
+        t1,
+        plan.master_gain,
+        plan.loudness_target,
+    )?;
+    if let Some(db) = applied_db {
+        tracing::info!("[INFO] mixdown normalised to the loudness target: {db:+.1} dB");
+    }
     update(status, |s| s.loudness_summary = Some(report.summary));
     if request.save_loudness_log {
         let log = sidecar_loudness_path(&request.output_path);
@@ -194,6 +208,9 @@ fn run(
             if request.burn_captions {
                 burn_captions(&mut frame, &plan.captions, time, &subtitle_style);
             }
+            if let Some(burn) = &plan.burn_in {
+                crate::render_burn_in::burn_in_frame(&mut frame, burn, &plan.timeline, time, fps);
+            }
             composing.set(composing.get() + began.elapsed());
             Ok(frame)
         },
@@ -243,6 +260,15 @@ impl AppState {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.project.name.clone());
+        // A small file beside the render says which project and which part it came from
+        let _ = std::fs::write(
+            neoveg_engine::archive::render_reference_path(&request.output_path),
+            neoveg_engine::archive::render_reference(
+                &self.project.name,
+                self.project_path.as_deref(),
+                range,
+            ),
+        );
         let plan = RenderPlan {
             fx: fx_panel::fx_plan(&timeline),
             lut: self.current_lut(),
@@ -251,6 +277,12 @@ impl AppState {
             auto_crossfade: self.project.settings.auto_crossfade,
             resample_mode: self.project.settings.resample_mode,
             master_gain: self.master_volume,
+            // Only the render of the whole project is normalised, not the ones of some events
+            loudness_target: if only.is_none() {
+                self.project.settings.render_loudness_target
+            } else {
+                Default::default()
+            },
             sample_rate: self.project.settings.sample_rate,
             request,
             timeline,
@@ -260,6 +292,7 @@ impl AppState {
             title,
             captions: self.timeline.captions.clone(),
             caption_style: self.project.settings.caption_style.clone(),
+            burn_in: self.render_dialog.burn_in.to_burn_in(self.drop_frame()),
         };
         self.status = tr_args("Renderizando {}…", &[&plan.title]);
         self.render_dialog.active_job = Some(spawn(plan, ctx.clone()));

@@ -16,6 +16,8 @@
 use std::io::Read;
 use std::path::Path;
 
+pub mod layers;
+
 /// Largest side allowed by the classic `8BPS` v1 specification.
 const MAX_SIDE: u32 = 30_000;
 /// Largest picture decoded (`1 << 28` pixels).

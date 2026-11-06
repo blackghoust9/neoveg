@@ -13,6 +13,7 @@ mod dialogs;
 mod dock;
 mod edge_frames;
 mod envelope_canvas;
+mod event_color_window;
 mod event_header;
 mod event_volume_panel;
 mod external;
@@ -27,12 +28,18 @@ mod layouts;
 mod log_viewer;
 mod loudness_panel;
 mod media_properties_window;
+mod storyboard_window;
+mod stereo_menu;
 mod mixer_panel;
 mod notes_window;
 mod pan_crop_window;
 mod plugin_manager;
 mod precision_slider;
+mod cli;
 mod project_dialog;
+mod prefs_extra;
+mod ref_gallery_window;
+mod render_burn_in;
 mod render_dialog;
 mod scene_window;
 mod scopes_panel;
@@ -43,13 +50,19 @@ mod templates_window;
 mod theme;
 mod timeline_scroll;
 #[cfg(test)]
+mod toolbar_tips_audit;
+#[cfg(test)]
 mod tips_audit;
 mod toolbar_editor_window;
 mod transitions_panel;
+mod speech_search_window;
+mod title_template_ui;
+mod track_groups_window;
 mod trim_monitor_window;
 mod velocity_editor;
 mod video_fx_panel;
 mod waveform_paint;
+mod view_mode_ui;
 mod welcome;
 
 use eframe::egui;
@@ -78,6 +91,40 @@ fn app_icon() -> egui::IconData {
 }
 
 fn main() -> eframe::Result<()> {
+    match cli::parse(std::env::args().skip(1)) {
+        Ok(cli::Cli::Help) => {
+            println!("{}", cli::HELP);
+            std::process::exit(0);
+        }
+        Ok(cli::Cli::Version) => {
+            println!("neoveg {}", env!("CARGO_PKG_VERSION"));
+            std::process::exit(0);
+        }
+        Ok(cli::Cli::Render { project, output }) => {
+            let code = match app::cli_render::run(&project, &output) {
+                Ok(()) => 0,
+                Err(e) => {
+                    eprintln!("erro: {e}");
+                    1
+                }
+            };
+            std::process::exit(code);
+        }
+        Ok(cli::Cli::RunScript { script }) => {
+            eprintln!(
+                "erro: o scripting ainda não existe; não foi possível executar {}",
+                script.display()
+            );
+            std::process::exit(2);
+        }
+        Ok(cli::Cli::Run { open: Some(path) }) => cli::set_startup_open(path),
+        Ok(cli::Cli::Run { open: None } | cli::Cli::Screenshots { .. }) => {}
+        Err(message) => {
+            eprintln!("erro: {message}
+{}", cli::HELP);
+            std::process::exit(2);
+        }
+    }
     if let Some(dir) = screenshots_dir() {
         // No window, no log files, none of the user's data: see `app::headless`
         // A thread with a big stack: the demonstration projects of the ten screenshots live in one

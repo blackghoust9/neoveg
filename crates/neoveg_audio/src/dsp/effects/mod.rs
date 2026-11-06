@@ -11,6 +11,7 @@ pub mod dynamics;
 pub mod eq;
 pub mod essential;
 pub mod filters;
+pub mod leveler;
 pub mod modulation;
 pub mod multiband;
 pub mod pitch;
@@ -25,6 +26,7 @@ pub use declick::ClickRemover;
 pub use dynamics::{Compressor, Gate, Limiter};
 pub use eq::{ParametricEq, SimpleEq};
 pub use essential::{DeEsser, DeReverb, SpeechEnhance, StereoWidth};
+pub use leveler::DialogueLeveler;
 pub use filters::{FftFilter, FullParametricEq, GraphicEq, NotchFilter, ScientificFilter};
 pub use modulation::{AnalogDelay, ChorusFlanger, Flanger, MultitapDelay, Phaser};
 pub use multiband::{DynamicsRack, MultibandCompressor, TubeCompressor};
@@ -118,6 +120,12 @@ static REGISTRY: &[EffectInfo] = &[
     entry!("compressor", "Compressor", Dynamics, Compressor),
     entry!("gate", "Expansor / Gate", Dynamics, Gate),
     entry!("limiter", "Limitador", Dynamics, Limiter),
+    entry!(
+        "dialogue_leveler",
+        "Nivelar diálogo",
+        Dynamics,
+        DialogueLeveler
+    ),
     entry!("delay", "Delay", Time, Delay),
     entry!("reverb", "Reverb", Time, Reverb),
     entry!(

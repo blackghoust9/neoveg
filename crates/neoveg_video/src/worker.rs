@@ -83,6 +83,8 @@ pub struct VideoClipRequest {
     pub reduce_interlace_flicker: bool,
     /// What the user said about the media (alpha, background, pixel aspect), applied to each decoded frame.
     pub media_look: neoveg_common::media_props::MediaProps,
+    /// The event's own primary color correction, applied after the media look.
+    pub color_grade: Option<neoveg_common::grade::EventColorGrade>,
 }
 
 /// Recursive track compositing request node (single track or parent/child group).
@@ -698,6 +700,9 @@ fn hash_clip(h: &mut impl Hasher, clip: &VideoClipRequest, max_width: u32) {
     clip.maintain_aspect_ratio.hash(h);
     clip.reduce_interlace_flicker.hash(h);
     hash_media_look(h, &clip.media_look);
+    if let Some(grade) = &clip.color_grade {
+        serde_json::to_string(grade).unwrap_or_default().hash(h);
+    }
 }
 
 /// The parts of the media properties that change the picture.
@@ -869,10 +874,18 @@ fn decode_clip_raw(
     } else {
         raw
     };
-    if clip.media_look.changes_picture() {
-        Ok(Arc::new(crate::media_look::apply(&raw, &clip.media_look)))
+    let raw = if clip.media_look.changes_picture() {
+        Arc::new(crate::media_look::apply(&raw, &clip.media_look))
     } else {
-        Ok(raw)
+        raw
+    };
+    match clip.color_grade.as_ref().filter(|g| !g.is_neutral()) {
+        Some(grade) => {
+            let mut graded = (*raw).clone();
+            crate::grading::apply_event_grade(&mut graded, grade);
+            Ok(Arc::new(graded))
+        }
+        None => Ok(raw),
     }
 }
 
@@ -1420,6 +1433,7 @@ mod tests {
             maintain_aspect_ratio: true,
             reduce_interlace_flicker: false,
             media_look: Default::default(),
+            color_grade: None,
         };
         let mut state = WorkerState::new();
         let chroma = ChromaKey::default();
@@ -1483,6 +1497,7 @@ mod tests {
                         maintain_aspect_ratio: true,
                         reduce_interlace_flicker: false,
                         media_look: Default::default(),
+            color_grade: None,
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -1572,6 +1587,7 @@ mod tests {
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
                     media_look: Default::default(),
+            color_grade: None,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1642,6 +1658,7 @@ mod tests {
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
                     media_look: Default::default(),
+            color_grade: None,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,
@@ -1701,6 +1718,7 @@ mod tests {
                         maintain_aspect_ratio: true,
                         reduce_interlace_flicker: false,
                         media_look: Default::default(),
+            color_grade: None,
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -1771,6 +1789,7 @@ mod tests {
             maintain_aspect_ratio: true,
             reduce_interlace_flicker: false,
             media_look: Default::default(),
+            color_grade: None,
         };
         let track = |path: &Path, sized: bool| TrackCompositeNode::Track {
             clips: vec![clip(path)],
@@ -2205,6 +2224,7 @@ mod tests {
                         maintain_aspect_ratio,
                         reduce_interlace_flicker,
                         media_look: Default::default(),
+            color_grade: None,
                     }],
                     mode: CompositeMode::SourceAlpha,
                     level: 1.0,
@@ -2282,6 +2302,7 @@ mod tests {
                     maintain_aspect_ratio: true,
                     reduce_interlace_flicker: false,
                     media_look: Default::default(),
+            color_grade: None,
                 }],
                 mode: CompositeMode::SourceAlpha,
                 level: 1.0,

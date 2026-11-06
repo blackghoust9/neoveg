@@ -134,6 +134,108 @@ pub fn burn_subtitle(frame: &mut FrameBuffer, text: &str, style: &SubtitleStyle)
     blit(frame, &padded, mx, my, style.text_rgba);
 }
 
+/// Where a burned-in label sits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LabelCorner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+/// Burns `text` (one or more lines) into a corner of `frame`, with the same outlined look as the
+/// subtitles. `style.margin` is the distance from the top or bottom edge and `style.box_width`
+/// the width of the text box; the distance from the side edge is the same as from the top or
+/// bottom one.
+pub fn burn_label(frame: &mut FrameBuffer, text: &str, corner: LabelCorner, style: &SubtitleStyle) {
+    let text = text.trim();
+    if text.is_empty() || frame.width == 0 || frame.height == 0 {
+        return;
+    }
+    let (w, h) = (frame.width as f32, frame.height as f32);
+    let text_style = TextStyle {
+        family: style.family.clone(),
+        style: style.style.clone(),
+        size: (h * style.size).max(6.0),
+        ..TextStyle::default()
+    };
+    let box_w = (w * style.box_width).max(8.0);
+    let right = matches!(corner, LabelCorner::TopRight | LabelCorner::BottomRight);
+    let para = ParagraphStyle {
+        align: if right { Align::Right } else { Align::Left },
+        width: Some(box_w),
+        ..ParagraphStyle::default()
+    };
+    let laid = neoveg_text::layout(text, &text_style, &para);
+    let block_h = laid.bounds[3] - laid.bounds[1];
+    let gap = h * style.margin;
+    let x = if right { w - gap - box_w } else { gap };
+    let y = match corner {
+        LabelCorner::TopLeft | LabelCorner::TopRight => gap,
+        _ => h - gap - block_h,
+    };
+    let origin = neoveg_text::render::at(x, y);
+    let (glyphs, gx, gy) = neoveg_text::render::rasterize(&laid, &origin);
+    let outline_px = (h * style.outline).round().max(0.0);
+    let pad = outline_px as usize + 2;
+    let mut padded = Mask::new(glyphs.w + 2 * pad, glyphs.h + 2 * pad);
+    padded.add(&glyphs, pad as i32, pad as i32);
+    let (mx, my) = (gx - pad as i32, gy - pad as i32);
+    if outline_px > 0.0 && style.outline_rgba[3] > 0 {
+        let ring = stroke(&padded, outline_px, StrokeKind::Outer);
+        blit(frame, &ring, mx, my, style.outline_rgba);
+    }
+    blit(frame, &padded, mx, my, style.text_rgba);
+}
+
+/// What to burn into the picture for review outside the editor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BurnIn {
+    /// Burn the timecode of the project.
+    pub timecode: bool,
+    /// Burn the name of the event under the playhead.
+    pub event_name: bool,
+    pub timecode_corner: LabelCorner,
+    pub name_corner: LabelCorner,
+    pub drop_frame: bool,
+    pub style: SubtitleStyle,
+}
+
+impl Default for BurnIn {
+    fn default() -> Self {
+        Self {
+            timecode: true,
+            event_name: true,
+            timecode_corner: LabelCorner::BottomLeft,
+            name_corner: LabelCorner::TopLeft,
+            drop_frame: false,
+            style: SubtitleStyle {
+                family: "JetBrains Mono".into(),
+                style: "Regular".into(),
+                size: 0.04,
+                box_width: 0.45,
+                margin: 0.04,
+                ..SubtitleStyle::default()
+            },
+        }
+    }
+}
+
+impl BurnIn {
+    /// Burns the timecode of `seconds` at `fps`, and `event_name` when asked for, into `frame`.
+    pub fn apply(&self, frame: &mut FrameBuffer, seconds: f64, fps: f64, event_name: Option<&str>) {
+        if self.timecode {
+            let tc = neoveg_common::timecode::seconds_to_timecode(seconds, fps, self.drop_frame);
+            burn_label(frame, &tc, self.timecode_corner, &self.style);
+        }
+        if self.event_name {
+            if let Some(name) = event_name {
+                burn_label(frame, name, self.name_corner, &self.style);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +361,62 @@ mod tests {
             )
         });
         assert!(!left && !right, "the text stays inside the box");
+    }
+
+    fn lit_in(frame: &FrameBuffer, x: std::ops::Range<usize>, y: std::ops::Range<usize>) -> usize {
+        let w = frame.width as usize;
+        y.map(|yy| x.clone().filter(|&xx| frame.rgba[(yy * w + xx) * 4] > 128).count())
+            .sum()
+    }
+
+    #[test]
+    fn a_label_goes_to_the_corner_asked_for_and_nowhere_else() {
+        let blank = FrameBuffer::solid(640, 360, [0, 0, 0, 255]);
+        let style = BurnIn::default().style;
+        for (corner, xs, ys) in [
+            (LabelCorner::TopLeft, 0..320, 0..180),
+            (LabelCorner::TopRight, 320..640, 0..180),
+            (LabelCorner::BottomLeft, 0..320, 180..360),
+            (LabelCorner::BottomRight, 320..640, 180..360),
+        ] {
+            let mut f = blank.clone();
+            burn_label(&mut f, "01:02:03:04", corner, &style);
+            let inside = lit_in(&f, xs, ys);
+            let total = lit_in(&f, 0..640, 0..360);
+            assert!(inside > 60, "{corner:?}: {inside}");
+            assert_eq!(inside, total, "{corner:?} stays in its quadrant");
+        }
+        let mut same = blank.clone();
+        burn_label(&mut same, " ", LabelCorner::TopLeft, &style);
+        assert_eq!(same, blank);
+    }
+
+    #[test]
+    fn the_burn_in_changes_with_the_time_and_follows_what_is_switched_on() {
+        let blank = FrameBuffer::solid(640, 360, [0, 0, 0, 255]);
+        let burn = BurnIn::default();
+        let at = |t: f64, name: Option<&str>| {
+            let mut f = blank.clone();
+            burn.apply(&mut f, t, 25.0, name);
+            f
+        };
+        let a = at(1.0, Some("Entrevista"));
+        let b = at(2.0, Some("Entrevista"));
+        assert_ne!(a, b, "another timecode, another picture");
+        assert_eq!(a, at(1.0, Some("Entrevista")), "deterministic");
+        // The name sits top-left, the timecode bottom-left
+        assert!(lit_in(&a, 0..320, 0..180) > 60);
+        assert!(lit_in(&a, 0..320, 180..360) > 60);
+        // Without a name only the timecode is burned
+        let tc_only = at(1.0, None);
+        assert_eq!(lit_in(&tc_only, 0..640, 0..180), 0);
+        let off = BurnIn {
+            timecode: false,
+            event_name: false,
+            ..BurnIn::default()
+        };
+        let mut f = blank.clone();
+        off.apply(&mut f, 1.0, 25.0, Some("x"));
+        assert_eq!(f, blank);
     }
 }

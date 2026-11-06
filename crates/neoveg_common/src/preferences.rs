@@ -23,6 +23,16 @@ pub struct Preferences {
     pub still_image_seconds: f64,
     /// Show the welcome screen (recent projects, new project) when the program starts.
     pub show_welcome_on_startup: bool,
+    /// Write a peak file (`<name>.nvpk`) beside each sound file that is loaded.
+    pub create_peak_files: bool,
+    /// Put a Noise Gate on the track of every imported sound.
+    pub import_gate: bool,
+    /// Put an equalizer on the track of every imported sound.
+    pub import_eq: bool,
+    /// Put a compressor on the track of every imported sound.
+    pub import_compressor: bool,
+    /// Leave peak files out of the file explorer listing.
+    pub hide_peak_files: bool,
     /// Templates of command markers (command, parameter and comment under a name).
     pub command_templates: Vec<crate::command_template::CommandTemplate>,
     /// Presets of the video effects (values of every parameter under a name, for each effect).
@@ -69,6 +79,8 @@ pub struct Preferences {
     pub snap_to_markers: bool,
     /// Snap to the edges of events on other tracks (`Ctrl+Shift+F8`).
     pub snap_to_all_events: bool,
+    /// Snap to the markers a media carries, as they show on its events.
+    pub snap_to_media_markers: bool,
     /// Quantize to Frames (`Alt+F8`): drags land on frame boundaries.
     pub quantize_to_frames: bool,
     /// Quantize edits that only touch audio too; off leaves them between frames.
@@ -93,6 +105,41 @@ pub struct Preferences {
     pub monitor_input: bool,
     /// Gain of the monitor, `0.0..=2.0`.
     pub monitor_volume: f32,
+    /// Length of the quick fade (the short ramp that hides a click at a cut), in milliseconds.
+    pub quick_fade_ms: f64,
+    /// A cut that overlaps another event trims the one below to the overlap instead of covering it.
+    pub cut_to_overlap: bool,
+    /// New envelope points ramp with a fade curve instead of a hard step.
+    pub envelope_fade: bool,
+    /// New events keep the pitch when they are stretched in time.
+    pub preserve_pitch_on_stretch: bool,
+    /// How the events show thumbnails: `all`, `first` (only the first frame) or `none`.
+    pub thumbnails_mode: String,
+    /// Every change of an effect parameter is one undo step (off: only the end of a drag is).
+    pub create_fx_undos: bool,
+    /// Smoothness a new keyframe starts with, `-1.0` (slow) to `1.0` (fast); `0.0` is linear.
+    pub keyframe_smoothness: f32,
+    /// Show the title-safe and action-safe areas over the preview.
+    pub show_safe_areas: bool,
+    /// Action-safe and title-safe margins, in percent of the frame.
+    pub safe_area_action_percent: f32,
+    pub safe_area_title_percent: f32,
+    /// Divisions of the grid drawn over the preview (columns and rows).
+    pub grid_divisions: u32,
+}
+
+/// The values `Preferences::thumbnails_mode` accepts.
+pub const THUMBNAIL_MODES: [&str; 3] = ["all", "first", "none"];
+
+impl Preferences {
+    /// `thumbnails_mode` as one of [`THUMBNAIL_MODES`] (an unknown text counts as `all`).
+    pub fn thumbnails(&self) -> &'static str {
+        THUMBNAIL_MODES
+            .iter()
+            .copied()
+            .find(|m| *m == self.thumbnails_mode)
+            .unwrap_or("all")
+    }
 }
 
 impl Default for Preferences {
@@ -102,6 +149,11 @@ impl Default for Preferences {
             auto_fade_on_import: false,
             still_image_seconds: 5.0,
             show_welcome_on_startup: true,
+            create_peak_files: true,
+            import_gate: false,
+            import_eq: false,
+            import_compressor: false,
+            hide_peak_files: true,
             command_templates: Vec::new(),
             video_effect_presets: Vec::new(),
             audio_effect_presets: Vec::new(),
@@ -124,6 +176,7 @@ impl Default for Preferences {
             snap_to_grid: false,
             snap_to_markers: true,
             snap_to_all_events: true,
+            snap_to_media_markers: false,
             quantize_to_frames: true,
             quantize_audio_edits: true,
             hardware_decoding: true,
@@ -135,6 +188,17 @@ impl Default for Preferences {
             input_device: None,
             monitor_input: false,
             monitor_volume: 1.0,
+            quick_fade_ms: 10.0,
+            cut_to_overlap: false,
+            envelope_fade: true,
+            preserve_pitch_on_stretch: true,
+            thumbnails_mode: "all".into(),
+            create_fx_undos: true,
+            keyframe_smoothness: 0.0,
+            show_safe_areas: false,
+            safe_area_action_percent: 93.0,
+            safe_area_title_percent: 90.0,
+            grid_divisions: 3,
         }
     }
 }
@@ -292,6 +356,35 @@ mod tests {
         assert!(!p.snap_to_grid && p.snap_to_markers && p.snap_to_all_events);
         assert!(p.quantize_to_frames && p.quantize_audio_edits);
         assert!(!p.lock_envelopes_to_events);
+        // Files written before the peak-file options existed create and hide them
+        assert!(p.create_peak_files && p.hide_peak_files);
+        let off: Preferences =
+            serde_json::from_str(r#"{"create_peak_files":false,"hide_peak_files":false}"#).unwrap();
+        assert!(!off.create_peak_files && !off.hide_peak_files);
+        // Default effects on imported sound are off unless asked for
+        assert!(!p.import_gate && !p.import_eq && !p.import_compressor);
+        let on: Preferences = serde_json::from_str(r#"{"import_gate":true,"import_compressor":true}"#).unwrap();
+        assert!(on.import_gate && !on.import_eq && on.import_compressor);
+    }
+
+    #[test]
+    fn a_file_from_before_the_extra_keys_gets_their_defaults() {
+        let p: Preferences = serde_json::from_str(r#"{"language":"en-US","quantize_to_frames":false}"#).unwrap();
+        assert_eq!(p.quick_fade_ms, 10.0);
+        assert!(!p.cut_to_overlap && p.envelope_fade && p.preserve_pitch_on_stretch);
+        assert_eq!(p.thumbnails(), "all");
+        assert!(p.create_fx_undos && !p.show_safe_areas);
+        assert_eq!((p.safe_area_action_percent, p.safe_area_title_percent), (93.0, 90.0));
+        assert_eq!((p.keyframe_smoothness, p.grid_divisions), (0.0, 3));
+        let own: Preferences = serde_json::from_str(
+            r#"{"quick_fade_ms":25.0,"cut_to_overlap":true,"thumbnails_mode":"first","grid_divisions":4}"#,
+        )
+        .unwrap();
+        assert_eq!(own.quick_fade_ms, 25.0);
+        assert!(own.cut_to_overlap);
+        assert_eq!((own.thumbnails(), own.grid_divisions), ("first", 4));
+        let odd: Preferences = serde_json::from_str(r#"{"thumbnails_mode":"zzz"}"#).unwrap();
+        assert_eq!(odd.thumbnails(), "all");
     }
 
     #[test]

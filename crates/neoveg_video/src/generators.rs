@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::frame::FrameBuffer;
 use crate::info::{fit_size, VideoInfo};
+use neoveg_text::title_paint::{scroll_position, ScrollDirection};
 
 /// File extension for procedural media generator manifests in the media pool.
 pub const GENERATOR_EXTENSION: &str = "neoveggen";
@@ -92,15 +93,21 @@ pub enum TitleAnimation {
     Typewriter,
     SlideUp,
     CreditRoll,
+    /// Ticker: crosses the frame from the right edge to the left one.
+    ScrollLeft,
+    /// Crosses the frame from the left edge to the right one.
+    ScrollRight,
 }
 
 impl TitleAnimation {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Static,
         Self::FadeIn,
         Self::Typewriter,
         Self::SlideUp,
         Self::CreditRoll,
+        Self::ScrollLeft,
+        Self::ScrollRight,
     ];
 
     pub fn label(self) -> &'static str {
@@ -110,6 +117,8 @@ impl TitleAnimation {
             Self::Typewriter => tr("Máquina de escrever"),
             Self::SlideUp => tr("Subir suave (Lower-Third)"),
             Self::CreditRoll => tr("Rolagem de créditos"),
+            Self::ScrollLeft => tr("Rolagem horizontal (direita para esquerda)"),
+            Self::ScrollRight => tr("Rolagem horizontal (esquerda para direita)"),
         }
     }
 }
@@ -143,6 +152,15 @@ pub enum GeneratorKind {
         seed: u32,
         /// A new noise at every frame (film grain) instead of one that stays.
         animated: bool,
+    },
+    /// A leader countdown: a big number that goes from `from` down to 1, each number lasting an
+    /// equal share of the duration, with a ring, a cross and a sweeping hand that turns once per
+    /// number.
+    Countdown {
+        from: u32,
+        text_rgba: [u8; 4],
+        bg_rgba: [u8; 4],
+        line_rgba: [u8; 4],
     },
     TitleText {
         text: String,
@@ -257,6 +275,10 @@ pub struct TitleLayout {
     pub box_width: f32,
     #[serde(default)]
     pub spans: Vec<TitleSpan>,
+    /// Several fills, outlines and shadows over the text. While empty, the title uses its single
+    /// fill, outline and shadow.
+    #[serde(default, skip_serializing_if = "neoveg_text::title_paint::PaintStack::is_empty")]
+    pub stack: neoveg_text::title_paint::PaintStack,
 }
 
 impl TitleLayout {
@@ -327,9 +349,12 @@ impl GeneratorKind {
                 animation: TitleAnimation::FadeIn
                     | TitleAnimation::Typewriter
                     | TitleAnimation::SlideUp
-                    | TitleAnimation::CreditRoll,
+                    | TitleAnimation::CreditRoll
+                    | TitleAnimation::ScrollLeft
+                    | TitleAnimation::ScrollRight,
                 ..
             } | Self::Noise { animated: true, .. }
+                | Self::Countdown { .. }
         )
     }
 
@@ -438,6 +463,19 @@ impl GeneratorSpec {
                 };
                 render_noise(w, h, scale_ratio, &look)
             }
+            GeneratorKind::Countdown {
+                from,
+                text_rgba,
+                bg_rgba,
+                line_rgba,
+            } => render_countdown(
+                w,
+                h,
+                *from,
+                [*text_rgba, *bg_rgba, *line_rgba],
+                seconds,
+                self.duration.max(0.1),
+            ),
             GeneratorKind::TitleText {
                 text,
                 scale,
@@ -651,6 +689,96 @@ fn render_gradient(
     }
 }
 
+/// The number shown by a countdown of `from` numbers over `duration` seconds at `seconds`, and the
+/// fraction (`0.0..1.0`) of that number already elapsed. The last number stays on at the very end.
+pub fn countdown_state(from: u32, duration: f64, seconds: f64) -> (u32, f32) {
+    let from = from.max(1);
+    let step = duration.max(0.001) / from as f64;
+    let t = seconds.max(0.0) / step;
+    let index = (t.floor() as u32).min(from - 1);
+    let frac = if t >= from as f64 {
+        0.999
+    } else {
+        (t - index as f64).clamp(0.0, 0.999) as f32
+    };
+    (from - index, frac)
+}
+
+fn render_countdown(
+    w: u32,
+    h: u32,
+    from: u32,
+    colors: [[u8; 4]; 3],
+    seconds: f64,
+    duration: f64,
+) -> FrameBuffer {
+    let [text_rgba, bg_rgba, line_rgba] = colors;
+    let (number, frac) = countdown_state(from, duration, seconds);
+    let mut frame = FrameBuffer::solid(w, h, bg_rgba);
+    let (cx, cy) = (w as f32 / 2.0, h as f32 / 2.0);
+    let radius = h.min(w) as f32 * 0.38;
+    let thick = (h as f32 / 200.0).max(1.0);
+    let put = |frame: &mut FrameBuffer, x: i32, y: i32| {
+        if x >= 0 && y >= 0 && (x as u32) < w && (y as u32) < h {
+            let i = (y as usize * w as usize + x as usize) * 4;
+            blend_over_px(&mut frame.rgba[i..i + 4], line_rgba, 1.0);
+        }
+    };
+    // Ring and cross
+    for y in 0..h as i32 {
+        for x in 0..w as i32 {
+            let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            let d = (dx * dx + dy * dy).sqrt();
+            if (d - radius).abs() <= thick / 2.0 + 0.5
+                || dx.abs() <= thick / 2.0
+                || dy.abs() <= thick / 2.0
+            {
+                put(&mut frame, x, y);
+            }
+        }
+    }
+    // The hand turns once per number, starting at the top and going clockwise
+    let angle = frac * std::f32::consts::TAU;
+    let steps = (radius * 2.0) as i32;
+    for k in 0..=steps {
+        let r = radius * k as f32 / steps.max(1) as f32;
+        let (px, py) = (cx + r * angle.sin(), cy - r * angle.cos());
+        for oy in 0..thick.ceil() as i32 {
+            for ox in 0..thick.ceil() as i32 {
+                put(&mut frame, px as i32 + ox, py as i32 + oy);
+            }
+        }
+    }
+    let digits = render_title_text(
+        w,
+        h,
+        &number.to_string(),
+        ((h as f32 / 14.0).round() as u32).max(1),
+        ("Inter", "Bold"),
+        text_rgba,
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        0,
+        [0, 0, 0, 0],
+        [0, 0],
+        0.5,
+        TitleAnimation::Static,
+        &TitleLayout::default(),
+        0.0,
+        1.0,
+    );
+    for (dst, src) in frame
+        .rgba
+        .chunks_exact_mut(4)
+        .zip(digits.rgba.chunks_exact(4))
+    {
+        if src[3] > 0 {
+            blend_over_px(dst, [src[0], src[1], src[2], src[3]], 1.0);
+        }
+    }
+    frame
+}
+
 fn blend_over_px(dst: &mut [u8], src: [u8; 4], alpha_mul: f32) {
     let sa = (src[3] as f32 / 255.0 * alpha_mul).clamp(0.0, 1.0);
     if sa <= 0.0 {
@@ -728,6 +856,7 @@ fn render_title_text(
     };
     // The styles of stretches of the text, each with the colour it asks for (or the title's)
     let runs = title_runs(&visible_str, &look.spans, &style);
+    let runs_own: Vec<Option<[u8; 4]>> = runs.iter().map(|(_, c)| *c).collect();
     let run_colors: Vec<[u8; 4]> = runs
         .iter()
         .map(|(_, color)| color.unwrap_or(text_rgba))
@@ -763,9 +892,34 @@ fn render_title_text(
         None if look.align == TitleAlign::Center => w as f32 / 2.0,
         None => w as f32 / 2.0 - (left + right) / 2.0,
     };
+    // A horizontal scroll moves the whole block along x, from outside one edge to outside the other
+    let origin_x = match animation {
+        TitleAnimation::ScrollLeft | TitleAnimation::ScrollRight => {
+            let direction = if animation == TitleAnimation::ScrollLeft {
+                ScrollDirection::Left
+            } else {
+                ScrollDirection::Right
+            };
+            let content = (right - left).max(1.0);
+            scroll_position(direction, progress, content, w as f32) - left
+        }
+        _ => origin_x,
+    };
     let origin = neoveg_text::render::at(origin_x, base_y as f32 - top);
     let (glyphs, gx, gy) = neoveg_text::render::rasterize(&laid, &origin);
-    let pad = outline_px as usize + 2;
+    // A stack without a fill still shows the text in the title's colour
+    let mut stack = look.stack.clone();
+    if !stack.is_empty() && stack.fills.is_empty() {
+        stack.fills.push(neoveg_text::title_paint::FillLayer {
+            color: text_rgba,
+            offset: [0, 0],
+        });
+    }
+    let pad = if stack.is_empty() {
+        outline_px as usize + 2
+    } else {
+        stack.margin()
+    };
     let mut padded = Mask::new(glyphs.w + 2 * pad, glyphs.h + 2 * pad);
     padded.add(&glyphs, pad as i32, pad as i32);
     let (mx, my) = (gx - pad as i32, gy - pad as i32);
@@ -792,6 +946,22 @@ fn render_title_text(
         }
     };
 
+    // A stack of fills, outlines and shadows replaces the single ones; stretches with a colour of
+    // their own are drawn over it
+    if !stack.is_empty() {
+        for (mask, color) in stack.layers(&padded) {
+            blit(&mut frame, &mask, mx, my, color);
+        }
+        for (index, own) in runs_own.iter().enumerate() {
+            if let Some(color) = own {
+                let mut own_mask = Mask::new(padded.w, padded.h);
+                let run = u16::try_from(index + 1).unwrap_or(u16::MAX);
+                neoveg_text::render::draw_run(&laid, &origin, &mut own_mask, (mx, my), Some(run));
+                blit(&mut frame, &own_mask, mx, my, *color);
+            }
+        }
+        return frame;
+    }
     // 1. Drop shadow, 2. outline, 3. the glyphs themselves.
     if shadow_rgba[3] > 0 && (shadow_offset[0] != 0 || shadow_offset[1] != 0) {
         blit(
@@ -1142,6 +1312,7 @@ mod tests {
                     align,
                     box_width: 0.5,
                     spans: Vec::new(),
+                    ..TitleLayout::default()
                 },
             )
         };
@@ -1224,6 +1395,7 @@ mod tests {
             align: TitleAlign::Justify,
             box_width: 0.6,
             spans: vec![TitleSpan::new(0, 2)],
+            ..TitleLayout::default()
         };
         let json = serde_json::to_string(&layout).unwrap();
         assert_eq!(serde_json::from_str::<TitleLayout>(&json).unwrap(), layout);
@@ -1232,6 +1404,140 @@ mod tests {
         let old = serde_json::to_string(&title_spec_without_layout()).unwrap();
         assert!(!old.contains("layout"));
         assert!(serde_json::from_str::<GeneratorSpec>(&old).is_ok());
+    }
+
+    fn scrolling_title(animation: TitleAnimation, layout: TitleLayout) -> GeneratorSpec {
+        let mut spec = title_spec_without_layout();
+        spec.width = 320;
+        spec.height = 160;
+        spec.duration = 4.0;
+        spec.kind = GeneratorKind::TitleText {
+            text: "ROLAGEM".into(),
+            scale: 4,
+            text_rgba: [255, 255, 255, 255],
+            bg_rgba: [0, 0, 0, 0],
+            outline_rgba: [0, 0, 0, 255],
+            outline_px: 0,
+            shadow_rgba: [0, 0, 0, 0],
+            shadow_offset: [0, 0],
+            align_y: 0.5,
+            animation,
+            font: "Inter".into(),
+            font_style: "Bold".into(),
+            layout,
+        };
+        spec
+    }
+
+    #[test]
+    fn a_horizontal_scroll_crosses_the_frame_in_each_direction() {
+        let left = scrolling_title(TitleAnimation::ScrollLeft, TitleLayout::default());
+        assert!(left.kind.is_time_varying());
+        // Out of the frame at both ends, in view and moving left in between
+        assert_eq!(text_columns(&left.render(0.0, 0)).0, usize::MAX);
+        assert_eq!(text_columns(&left.render(4.0, 0)).0, usize::MAX);
+        let early = text_columns(&left.render(1.0, 0));
+        let late = text_columns(&left.render(2.0, 0));
+        assert!(early.0 != usize::MAX && late.0 != usize::MAX);
+        assert!(late.0 < early.0, "moves to the left: {early:?} -> {late:?}");
+        let right = scrolling_title(TitleAnimation::ScrollRight, TitleLayout::default());
+        let (a, b) = (
+            text_columns(&right.render(1.0, 0)),
+            text_columns(&right.render(2.0, 0)),
+        );
+        assert!(b.0 > a.0, "moves to the right: {a:?} -> {b:?}");
+        // The vertical roll keeps its own axis
+        let credits = scrolling_title(TitleAnimation::CreditRoll, TitleLayout::default());
+        let mid = text_columns(&credits.render(2.0, 0));
+        assert!(mid.0 != usize::MAX && mid.0 > 20, "centred, not shifted: {mid:?}");
+    }
+
+    #[test]
+    fn a_stack_of_outlines_and_shadows_shows_every_layer() {
+        use neoveg_text::title_paint::{OutlineLayer, OutlinePlacement, PaintStack, ShadowLayer};
+        let plain = scrolling_title(TitleAnimation::Static, TitleLayout::default()).render(0.0, 0);
+        let mut stack = PaintStack::single([255, 255, 255, 255], [0; 4], 0, [0; 4], [0, 0]);
+        stack.outlines = vec![
+            OutlineLayer {
+                color: [255, 0, 0, 255],
+                width: 8.0,
+                placement: OutlinePlacement::Outer,
+            },
+            OutlineLayer {
+                color: [0, 0, 255, 255],
+                width: 3.0,
+                placement: OutlinePlacement::Outer,
+            },
+        ];
+        stack.shadows = vec![ShadowLayer {
+            color: [0, 255, 0, 255],
+            offset: [10, 10],
+            blur: 0.0,
+        }];
+        let layout = TitleLayout {
+            stack: stack.clone(),
+            ..TitleLayout::default()
+        };
+        let stacked = scrolling_title(TitleAnimation::Static, layout.clone()).render(0.0, 0);
+        let count = |f: &FrameBuffer, pred: fn(&[u8]) -> bool| {
+            f.rgba.chunks_exact(4).filter(|p| pred(p)).count()
+        };
+        assert_eq!(count(&plain, |p| p[0] > 200 && p[1] < 60 && p[3] > 200), 0);
+        assert!(count(&stacked, |p| p[0] > 200 && p[1] < 60 && p[2] < 60 && p[3] > 200) > 50, "wide red outline");
+        assert!(count(&stacked, |p| p[2] > 200 && p[0] < 60 && p[3] > 200) > 50, "thin blue outline over it");
+        assert!(count(&stacked, |p| p[1] > 200 && p[0] < 60 && p[2] < 60 && p[3] > 200) > 20, "green shadow");
+        // The blue ring is inside the red one: the red shows around it
+        let (a, b) = (text_columns(&plain), text_columns(&stacked));
+        assert!(b.0 < a.0 && b.1 > a.1, "the layers widen the picture");
+        // A stack with an outline and no fill still draws the text in its own colour
+        let outline_only = TitleLayout {
+            stack: PaintStack {
+                outlines: vec![stack.outlines[0]],
+                ..PaintStack::default()
+            },
+            ..TitleLayout::default()
+        };
+        let only = scrolling_title(TitleAnimation::Static, outline_only).render(0.0, 0);
+        assert!(count(&only, |p| p[0] > 240 && p[1] > 240 && p[2] > 240 && p[3] > 240) > 50);
+        // A stack is saved in the manifest and an empty one is left out
+        let json = serde_json::to_string(&scrolling_title(TitleAnimation::Static, layout)).unwrap();
+        assert!(json.contains("outlines"));
+        let old = serde_json::to_string(&title_spec_without_layout()).unwrap();
+        assert!(!old.contains("stack"));
+    }
+
+    #[test]
+    fn the_countdown_counts_down_and_draws_each_number() {
+        // 5 numbers over 5 seconds: one per second, the last one stays to the end
+        assert_eq!(countdown_state(5, 5.0, 0.0).0, 5);
+        assert_eq!(countdown_state(5, 5.0, 0.99).0, 5);
+        assert_eq!(countdown_state(5, 5.0, 1.0).0, 4);
+        assert_eq!(countdown_state(5, 5.0, 4.5).0, 1);
+        assert_eq!(countdown_state(5, 5.0, 99.0).0, 1);
+        let (_, frac) = countdown_state(5, 5.0, 2.5);
+        assert!((frac - 0.5).abs() < 1e-4);
+        let spec = GeneratorSpec {
+            name: "C".into(),
+            width: 160,
+            height: 90,
+            fps: 25.0,
+            duration: 3.0,
+            kind: GeneratorKind::Countdown {
+                from: 3,
+                text_rgba: [255, 255, 255, 255],
+                bg_rgba: [0, 0, 0, 255],
+                line_rgba: [90, 90, 90, 255],
+            },
+        };
+        assert!(spec.kind.is_time_varying());
+        let (a, b) = (spec.render(0.5, 0), spec.render(1.5, 0));
+        assert_ne!(a.rgba, b.rgba, "another number, another picture");
+        // The same instant renders the same and the manifest round trips
+        assert_eq!(a.rgba, spec.render(0.5, 0).rgba);
+        let json = serde_json::to_string(&spec).unwrap();
+        assert_eq!(serde_json::from_str::<GeneratorSpec>(&json).unwrap(), spec);
+        // Bright digit pixels exist around the middle
+        assert!(a.rgba.chunks_exact(4).any(|p| p[0] > 200));
     }
 
     fn title_spec_without_layout() -> GeneratorSpec {

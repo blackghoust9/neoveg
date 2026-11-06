@@ -2980,6 +2980,8 @@ name = "neoveg_text"
 version = "2.1.0"
 dependencies = [
  "harfrust",
+ "serde",
+ "serde_json",
  "skrifa",
  "tempfile",
  "unicode-bidi",

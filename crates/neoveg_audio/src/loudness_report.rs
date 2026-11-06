@@ -339,6 +339,47 @@ pub fn render_mixer_to_wav_pcm16(
     })
 }
 
+/// Like [`render_mixer_to_wav_pcm16`], with the mixdown normalised to `target` (*Alvo de loudness na
+/// renderização*): the range is measured first (a mixer is built with `make_mixer` for each pass,
+/// since a mixer keeps its state), one gain takes the integrated loudness to the target without
+/// pushing the true peak over the ceiling, and the second pass writes the file with that gain on
+/// top of `master_gain`. The report is the one of what was written. Returns the gain applied in dB
+/// (`None` when the target is off or the sound is silent: the file is then written as it is).
+pub fn render_mixer_to_wav_pcm16_to_target(
+    make_mixer: impl Fn() -> BlockMixer,
+    wav_path: &Path,
+    sample_rate: u32,
+    start_seconds: f64,
+    end_seconds: f64,
+    master_gain: f32,
+    target: neoveg_common::loudness_target::LoudnessTarget,
+) -> Result<(LoudnessReport, Option<f64>), String> {
+    let mut gain_db = None;
+    if target.lufs().is_some() {
+        let measured = measure_mixer_offline(
+            &mut make_mixer(),
+            sample_rate,
+            start_seconds,
+            end_seconds,
+            master_gain,
+        );
+        gain_db = target.gain_db(
+            measured.summary.integrated_lufs,
+            measured.summary.true_peak_dbtp,
+        );
+    }
+    let gain = master_gain * gain_db.map_or(1.0, |db| 10f32.powf(db as f32 / 20.0));
+    let report = render_mixer_to_wav_pcm16(
+        &mut make_mixer(),
+        wav_path,
+        sample_rate,
+        start_seconds,
+        end_seconds,
+        gain,
+    )?;
+    Ok((report, gain_db))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +406,60 @@ mod tests {
             track: 0,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn the_mixdown_is_normalised_to_the_chosen_loudness_target() {
+        use neoveg_common::loudness_target::LoudnessTarget;
+        let rate = 48_000u32;
+        let dir = std::env::temp_dir().join(format!("neoveg_loud_target_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let make = || {
+            BlockMixer::new(
+                vec![sine_clip(997.0, 0.1, rate, 4.0)],
+                &FxPlan::default(),
+                rate as f32,
+            )
+        };
+        // The source is at -20 LUFS: each target moves it by a different gain
+        for (target, lufs) in [
+            (LoudnessTarget::EbuR128, -23.0),
+            (LoudnessTarget::Podcast, -16.0),
+            (LoudnessTarget::Streaming, -14.0),
+        ] {
+            let wav = dir.join(format!("{lufs}.wav"));
+            let (report, gain) =
+                render_mixer_to_wav_pcm16_to_target(make, &wav, rate, 0.0, 4.0, 1.0, target)
+                    .unwrap();
+            assert!(
+                (report.summary.integrated_lufs - lufs).abs() < 0.4,
+                "{target:?}: {}",
+                report.summary.integrated_lufs
+            );
+            assert!((gain.unwrap() - (lufs + 20.0)).abs() < 0.4, "{gain:?}");
+        }
+        // Off: the file is what the mixer makes, untouched
+        let wav = dir.join("off.wav");
+        let (report, gain) =
+            render_mixer_to_wav_pcm16_to_target(make, &wav, rate, 0.0, 4.0, 1.0, LoudnessTarget::Off)
+                .unwrap();
+        assert_eq!(gain, None);
+        assert!((report.summary.integrated_lufs - -20.0).abs() < 0.4);
+        // Silence cannot be measured: no gain
+        let silent = || BlockMixer::new(vec![sine_clip(997.0, 0.0, rate, 4.0)], &FxPlan::default(), rate as f32);
+        let (_, gain) = render_mixer_to_wav_pcm16_to_target(
+            silent,
+            &dir.join("silent.wav"),
+            rate,
+            0.0,
+            4.0,
+            1.0,
+            LoudnessTarget::Podcast,
+        )
+        .unwrap();
+        assert_eq!(gain, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

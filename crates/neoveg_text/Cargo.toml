@@ -19,5 +19,9 @@ unicode-linebreak = "0.1.5"
 # UAX #29 extended grapheme clusters (MIT OR Apache-2.0).
 unicode-segmentation = "1.13"
 
+# Titles keep their paint stack in the project manifests
+serde.workspace = true
+
 [dev-dependencies]
 tempfile = "3"
+serde_json.workspace = true
