@@ -221,7 +221,7 @@ pub enum TransitionEnvelopeShape {
 
 impl TransitionEnvelopeShape {
     pub fn eval(self, u: f32) -> f32 {
-        let u = u.clamp(0.0, 1.0);
+        let u = if u.is_nan() { 0.0 } else { u.clamp(0.0, 1.0) };
         match self {
             TransitionEnvelopeShape::Linear => u,
             TransitionEnvelopeShape::Fast => u.sqrt(),
@@ -283,7 +283,14 @@ impl TransitionProgressEnvelope {
     }
 
     pub fn add_point(&mut self, time: f64, progress: f32, shape: TransitionEnvelopeShape) {
-        let p = progress.clamp(0.0, 1.0);
+        if !time.is_finite() {
+            return;
+        }
+        let p = if progress.is_finite() {
+            progress.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
         if let Some(pos) = self.points.iter().position(|pt| (pt.time - time).abs() < 1e-6) {
             self.points[pos].progress = p;
             self.points[pos].shape = shape;
@@ -301,7 +308,7 @@ impl TransitionProgressEnvelope {
     }
 
     pub fn progress_at(&self, time: f64) -> f32 {
-        if !self.enabled || self.points.is_empty() || time.is_nan() {
+        if !self.enabled || self.points.is_empty() || !time.is_finite() {
             return 1.0;
         }
 
@@ -315,18 +322,28 @@ impl TransitionProgressEnvelope {
         }
 
         let idx = self.points.partition_point(|pt| pt.time < time);
+        if idx == 0 {
+            return self.points[0].progress.clamp(0.0, 1.0);
+        }
+        if idx >= self.points.len() {
+            return last.progress.clamp(0.0, 1.0);
+        }
         let p1 = &self.points[idx];
         let p0 = &self.points[idx - 1];
 
         let dt = p1.time - p0.time;
-        if dt.abs() < 1e-6 {
+        if !dt.is_finite() || dt.abs() < 1e-6 {
             return p0.progress.clamp(0.0, 1.0);
         }
 
         let u = ((time - p0.time) / dt) as f32;
         let factor = p0.shape.eval(u);
         let value = p0.progress + (p1.progress - p0.progress) * factor;
-        value.clamp(0.0, 1.0)
+        if value.is_nan() {
+            p0.progress.clamp(0.0, 1.0)
+        } else {
+            value.clamp(0.0, 1.0)
+        }
     }
 
     pub fn is_active(&self) -> bool {
