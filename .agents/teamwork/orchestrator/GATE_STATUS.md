@@ -4,7 +4,7 @@
 - Milestone 1 (M1): Recording Stabilization & Trademark Sanitization [DONE]
 - Milestone 2 (M2): Video Transitions, 3D Transforms, GPU Effects & OFX Host [DONE]
 - Milestone 3 (M3): Color Grading, Color Wheels, OCIO/ACES & Color Match [DONE]
-- Milestone 4 (M4): Motion Tracking, Event Masks, Smart Mask & AI Features [PLANNED]
+- Milestone 4 (M4): Motion Tracking, Event Masks, Smart Mask & AI Features [DONE]
 - Milestone 5 (M5): Project Properties, Media Pool, Explorer, Render Caching & Alerts [PLANNED]
 - Milestone 6 (M6): Advanced Timeline Editing, Multicam & Takes [PLANNED]
 - Milestone 7 (M7): Final E2E Test Suite Pass (Tiers 1-4) & Adversarial Coverage Hardening (Tier 5) [PLANNED]
@@ -93,3 +93,45 @@ Gate Result: **PASS**
   - `cargo check --workspace` & `cargo clippy --workspace`: 0 errors, 0 warnings
   - `cargo check -p neoveg_ui` & `cargo clippy -p neoveg_ui`: 0 errors, 0 warnings
   - `python scripts/parity_matrix.py --check`: 872 commands mapped, 0 unclassified
+
+---
+
+## Gate — Iteration 4 (Milestone M4 Evaluation)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m4_1 | teamwork_worker | DONE (1448 tests passed) | handoff.md |
+| reviewer_m4_1 | teamwork_reviewer | APPROVE | handoff.md |
+| reviewer_m4_2 | teamwork_reviewer | APPROVE | handoff.md |
+| challenger_m4_1 | teamwork_challenger | APPROVE (15/15 passed) | handoff.md |
+| challenger_m4_2 | teamwork_challenger | APPROVE (14/14 passed) | handoff.md |
+| auditor_m4_1 | teamwork_auditor | CLEAN | handoff.md |
+| worker_readme_sync_2 | teamwork_worker | DONE (pushed e02efd7) | handoff.md |
+
+Gate Result: **PASS** (Milestone 4 Approved and Passed; README.md Checkboxes Synchronized & Pushed)
+- Features 17–23 fully implemented:
+  - Feature 17: Point & Planar Motion Tracking (`crates/neoveg_video/src/tracking.rs`, 4 tracking modes, optical flow displacement, Pan/Crop & mask keyframe generation)
+  - Feature 18: Geometric & Bézier Event Masks (`crates/neoveg_common/src/mask.rs`, `crates/neoveg_video/src/mask.rs`, `crates/neoveg_engine/src/timeline.rs`, 3-pass fast box blur feathering, directional In/Out/Both)
+  - Feature 19: Smart Mask AI Object Segmentation (`crates/neoveg_video/src/smart_mask.rs`, point/box prompts, CPU GrabCut/color energy solver fallback, vectorization to Bézier)
+  - Feature 20: Text-Based Timeline Editing (`crates/neoveg_engine/src/text_edit.rs`, word-level timeline sync, atomic split + auto ripple deletion)
+  - Feature 21: Speech-to-Text Subtitle Generation (`crates/neoveg_engine/src/subtitles.rs`, `crates/neoveg_audio/src/whisper.rs`, broadcast CPL/CPS/duration constraints, Titles & Text generator events, timeline captions, Whisper fallback)
+  - Feature 22: Smart Upscale & Super-Resolution (`crates/neoveg_video/src/upscale.rs`, 16-tap Catmull-Rom bicubic and NEDI edge-directed directional interpolation + unsharp masking)
+  - Feature 23: AI Auto Reframe (`crates/neoveg_video/src/auto_reframe.rs`, aspect ratios 16:9 -> 9:16/1:1/4:5, saliency centroid detection, deadband camera smoothing, PanCropKey ease-in-out keyframing)
+- Forensic Auditor verdict: CLEAN (genuine math algorithms, zero facades, zero trademarks, 100% license compliance).
+- Reviewers reviewer_m4_1 and reviewer_m4_2: APPROVE.
+- Challengers challenger_m4_1 (15/15 tests) and challenger_m4_2 (14/14 tests): APPROVE.
+- Work committed (`eab85a7` & `e02efd7`) and pushed to `preview/version-2.1.0`.
+- All completed roadmap checkboxes across Milestones 1, 2, 3, and 4 in `README.md` verified `- [x]`. Parity matrix 100% valid.
+
+---
+
+## Gate — Iteration 5 (Milestone M5 Verification)
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m5_1 | teamwork_worker | DONE (251 common + 657 engine tests passed) | handoff.md |
+| reviewer_m5_1 | teamwork_reviewer | REQUEST_CHANGES | handoff.md |
+| reviewer_m5_2 | teamwork_reviewer | APPROVE | handoff.md |
+| challenger_m5_1 | teamwork_challenger | IN_PROGRESS | pending |
+| challenger_m5_2 | teamwork_challenger | IN_PROGRESS | pending |
+| auditor_m5_1 | teamwork_auditor | CLEAN | handoff.md |
+
+Gate Result: **IN_PROGRESS**

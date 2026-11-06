@@ -73,3 +73,40 @@ Sentinel Execution Guidance:
 2. Do not spend time or cycles on speculative extensions outside of what `README.md`'s roadmap unchecked boxes require.
 3. Once Gate 3 remediation is finalized, commit & push Milestone 3, check off the corresponding items in `README.md`, and systematically drive through the remaining unchecked milestones in `README.md` until 100% completion.
 4. Maintain all hard constraints: zero build/clippy errors, sequential execution (`-j 1`, `--test-threads=1`), clean-room licenses, trademark cleanliness, and i18n/parity matrix synchronization.
+
+## 2026-11-06T16:19:42Z
+# URGENT MANDATORY DIRECTIVE: Audit and Check Off Completed Checkboxes in README.md
+
+**User Directive**:
+"os agentes não estão marcando as caixas vazias do readme"
+
+**Audit Findings**:
+The user is completely right. In `README.md`, several items implemented in Milestones 1, 2, 3 (and 4) are STILL UNCHECKED (`- [ ]`):
+1. **Line 464**: `- [ ] Transições: feitas as dezenove do registro, as categorias, as predefinições, as miniaturas e o Cubo...` (Milestone 2 - COMPLETED)
+2. **Line 606**: `- [ ] Gravação de áudio (armar faixa, takes em laço, punch-in com pré/pós-roll, monitoração Off/On/Auto, ...)` (Milestone 1 - COMPLETED)
+3. **Line 662**: `- [ ] Curvas de cor (matiz x saturação, saturação x saturação), correspondência de cor e fluxos S-Log/ACES` (Milestone 3 - COMPLETED)
+4. **Line 476**: `- [ ] Rastreamento de movimento, máscaras e *Smart Mask*` (Milestone 4 - COMPLETED & PUSHED in `eab85a7`)
+5. **Line 483**: `- [ ] IA: edição por texto, fala para texto, *upscale*, *auto reframe*` (Milestone 4 - COMPLETED & PUSHED in `eab85a7`)
+6. **Line 661**: `- [ ] Máscaras de Bézier com animação por ponto, *Smart Mask*, rastreamento de movimento e Z-Depth` (Milestone 4 - COMPLETED & PUSHED)
+7. Check all other completed items (e.g. line 562, 594, 617, 623 that say "feitos" but still have `[ ]`).
+
+**Action Required**:
+1. Dispatch a dedicated worker (`worker_readme_sync`) IMMEDIATELY to inspect and check off (`- [ ]` -> `- [x]`) all completed roadmap items in `README.md` across Milestones 1, 2, 3, and 4.
+2. Commit and push the changes to `origin/preview/version-2.1.0`.
+3. Add a HARD GATE REQUIREMENT for Gate 4 and every subsequent milestone (M5, M6, M7): verify via `git diff` / `Select-String` on `README.md` that all completed checklist lines are actually `- [x]` before closing the gate.
+4. Report back when the commit and push of `README.md` are verified on `preview/version-2.1.0`.
+
+## 2026-11-06T16:42:28Z
+# Sentinel Milestone 5 Guidance
+
+Received. Milestone 5 exploration underway. Proceed with synthesizing exploration findings and dispatching the implementation worker. Remember the hard gate requirement: verify all corresponding Milestone 5 checklist items in README.md are updated from `- [ ]` to `- [x]` and committed/pushed before closing Gate 5.
+
+## 2026-11-06T17:00:17Z
+# Sentinel Milestone 5 Implementation Dispatch Acknowledgment
+
+Received. Milestone 5 implementation worker worker_m5_1 dispatched for Features 24–34. Standing by for worker completion, Gate 5 independent verification panel, and mandatory README.md checkbox synchronization.
+
+## 2026-11-06T17:38:06Z
+# Sentinel Gate 5 Verification Panel Acknowledgment
+
+Received. Gate 5 verification panel confirmed active across reviewer_m5_1, reviewer_m5_2, challenger_m5_1, challenger_m5_2, and auditor_m5_1. Standing by for panel verdicts, mandatory README.md checkbox synchronization, and git commit/push to origin/preview/version-2.1.0.

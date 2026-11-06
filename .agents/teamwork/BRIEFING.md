@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-06T16:01:00Z
+# BRIEFING — 2026-11-06T16:39:00Z
 
 ## Mission
 Orchestrate execution and independent audit for neoveg recording workflow completion, feature extensions, and scope expansion on branch preview/version-2.1.0, strictly following the README.md unchecked roadmap items to 100% completion.
@@ -13,21 +13,22 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
 - Strict focus ONLY on unchecked items in README.md until all are completed and checked off
+- HARD GATE REQUIREMENT: In every milestone gate, verify via git diff / Select-String on README.md that all completed checklist lines (- [ ]) are actually changed to (- [x]) and committed/pushed before closing the milestone
 - Pure clean-room Rust compliant with MIT OR Apache-2.0 (deny.toml), without GPL/LGPL, zero third-party trademarks in runtime strings
 - Strict 8 GB RAM execution budget: run Cargo sequentially with -j 1 and --test-threads=1; NEVER run cargo test -p neoveg_ui
 - Pure software/CPU fallbacks and mock implementations for GPU effects, OFX, and AI features
 - Synchronize translation catalogs (Assets/i18n/strings/{de-DE,en-US,es-ES,fr-FR,ja-JP,ru-RU,zh-CN}.json), scripts/parity_matrix.py (--check), and README.md
 
 ## User Context
-- **Last user request**: "apenas siga o roteiro, as caixas desmarcadas do readme, até terminar todas elas, foque somente no que falta a colcluir no readme" — Focus strictly on unchecked items in README.md.
+- **Last user request**: "os agentes não estão marcando as caixas vazias do readme" — Audited README.md, converted 22 completed checklist items across M1, M2, M3, M4 to `- [x]`, committed and pushed in commit `e02efd7`.
 - **Pending clarifications**: none
-- **Delivered results**: M1 (commit 5a222723), M2 (commit 1689178), M3 (commit 58f4ff08) committed & pushed to preview/version-2.1.0; Milestone 4 Features 17-23 fully authored, clippy passed, test runs in progress.
+- **Delivered results**: M1, M2, M3, M4 core committed & pushed; README.md roadmap checkboxes audited, updated, and pushed (commit e02efd7); Gate 4 panel unanimously approved.
 
 ## Project Status
 - **Phase**: in progress
 - **Route**: General (teamwork_orchestrator)
-- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (supervising worker_m4_1 test verification)
-- **Milestones**: M1 (DONE - commit 5a222723), M2 (DONE - commit 1689178), M3 (DONE - commit 58f4ff08), M4 (TESTING: Features 17-23 authored, cargo check/clippy passed, sequential test runs executing), M5-M7 + README roadmap (queued)
+- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (concluding Gate 4 and launching Milestone 5)
+- **Milestones**: M1 (DONE), M2 (DONE), M3 (DONE), M4 (PASSED GATE 4 & PUSHED), M5 (GATE 5 IN PROGRESS: worker_m5_1 finished, 5-member panel reviewing & testing), M6-M7 (queued)
 
 ## Victory Audit Status
 - **Triggered**: no

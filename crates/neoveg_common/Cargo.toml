@@ -16,3 +16,6 @@ sysinfo = { version = "0.33", default-features = false, features = ["system"] }
 whoami = "1"
 # The hour on the clock of this machine, for the greeting of the welcome screen
 time = { version = "0.3", default-features = false, features = ["std", "local-offset"] }
+
+[dev-dependencies]
+neoveg_engine.workspace = true

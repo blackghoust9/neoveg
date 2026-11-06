@@ -13,3 +13,8 @@ serde.workspace = true
 serde_json.workspace = true
 roxmltree = "0.21"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+neoveg_audio.workspace = true
+neoveg_video.workspace = true
+

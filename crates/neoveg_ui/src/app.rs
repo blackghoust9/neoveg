@@ -5865,7 +5865,7 @@ impl AppState {
                         .custom_templates
                         .retain(|t| t.name != template.name);
                     self.status = tr_args("Modelo salvo: {}", &[&template.name]);
-                    self.prefs.custom_templates.push(template);
+                    self.prefs.custom_templates.push(*template);
                     self.persist_preferences();
                 }
                 ProjectAction::MatchMedia => self.pick_media_to_match(),
@@ -18109,15 +18109,17 @@ mod tests {
         use crate::project_dialog::ProjectAction;
         use neoveg_common::presets::ProjectTemplate;
         let mut s = AppState::new();
-        let make = |width| ProjectTemplate {
-            name: "Meu formato".into(),
-            settings: ProjectSettings {
-                width,
-                ..ProjectSettings::default()
-            },
+        let make = |width| {
+            ProjectTemplate::new(
+                "Meu formato",
+                ProjectSettings {
+                    width,
+                    ..ProjectSettings::default()
+                },
+            )
         };
-        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1280))]);
-        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1920))]);
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(Box::new(make(1280)))]);
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(Box::new(make(1920)))]);
         assert_eq!(s.prefs.custom_templates.len(), 1);
         assert_eq!(s.prefs.custom_templates[0].settings.width, 1920);
     }

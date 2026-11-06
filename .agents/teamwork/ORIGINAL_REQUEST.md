@@ -75,3 +75,17 @@ User focus directive update for this active Teamwork run:
 
 **Additional Context**:
 - Keep the team strictly focused ONLY on completing the unchecked checklist items (`- [ ]`) in `README.md` until all of them are completed and checked off (`- [x]`), without spending cycles on extra tasks outside the unchecked `README.md` roadmap items (while still maintaining build/test/clippy/i18n/parity_matrix cleanliness and incremental git commits/pushes on `preview/version-2.1.0`).
+
+
+## Follow-up — 2026-11-06T16:18:27Z
+
+User directive regarding README.md unchecked checkboxes:
+
+**Task**: os agentes não estão marcando as caixas vazias do readme
+
+**Additional Context**:
+- User noticed that `README.md` still has unchecked `- [ ]` checkboxes for items the agents worked on in completed milestones!
+- Immediately audit the actual `README.md` file on disk / in git:
+  1. Check all `- [ ]` checkboxes in `README.md` corresponding to completed Milestones 1, 2, 3 (e.g. input device selection / track arming / recording with monitoring; transitions categories/presets/thumbnails/3D + GPU video effects + OFX; color grading per event / color wheels / OCIO + Color Match / S-Log/ACES) — verify each is genuinely complete (including UI wiring where applicable) and ACTUALLY edit `README.md` (`- [ ]` -> `- [x]`), then commit and push (`git commit` + `git push`).
+  2. When Gate 4 finishes, immediately mark Milestone 4's checkboxes (`- [ ]` -> `- [x]`) in `README.md` as part of the Milestone 4 commit & push.
+  3. Add a hard Gate requirement for EVERY milestone from now until completion: before closing any milestone, verify via `git diff` / `Select-String` on `README.md` that the corresponding `- [ ]` lines were actually changed to `- [x]` and committed/pushed to `origin/preview/version-2.1.0`. Never report an item as checked off in `README.md` without verifying the actual edit in `README.md`!

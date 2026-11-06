@@ -2917,6 +2917,7 @@ version = "2.1.0"
 name = "neoveg_common"
 version = "2.1.0"
 dependencies = [
+ "neoveg_engine",
  "serde",
  "serde_json",
  "sysinfo",
@@ -2931,7 +2932,9 @@ name = "neoveg_engine"
 version = "2.1.0"
 dependencies = [
  "neoveg_aaf",
+ "neoveg_audio",
  "neoveg_common",
+ "neoveg_video",
  "roxmltree",
  "serde",
  "serde_json",

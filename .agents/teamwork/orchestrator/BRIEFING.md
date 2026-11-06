@@ -35,13 +35,13 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
   2. M1 Recording Stabilization & Trademark Sanitization [done, commit 5a222723]
   3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [done, commit 1689178]
   4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [done, commit 58f4ff08]
-  5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [in-progress: exploration]
-  6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [pending]
+  5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [done, commits eab85a7 & e02efd7]
+  6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [in-progress: exploration]
   7. M6 Advanced Timeline Editing, Multicam & Takes [pending]
   8. M7 Final E2E Test Suite Validation & Adversarial Hardening [pending]
   9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
-- **Current phase**: 2 (Milestone M4 Exploration)
-- **Current focus**: Milestone 4 (Motion Tracking, Masks, Smart Mask & AI Features) survey & architecture
+- **Current phase**: 2 (Milestone M5 Gate Verification)
+- **Current focus**: Milestone 5 (Project Properties, Media Pool, Explorer, Render Caching, Alerts, Smart Proxies) review, challenge, and forensic integrity audit
 
 ## 🔒 Key Constraints
 - Pure clean-room Rust implementation compliant with MIT OR Apache-2.0 (deny.toml), zero GPL/LGPL, zero third-party trademarks in runtime strings.
@@ -98,18 +98,34 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | spec_miner_m4_1 | teamwork_spec_miner | M4 VEGAS Pro & AI Spec Miner | completed | 2d807e2a-bea1-448a-afc3-bd89a622359c |
 | explorer_m4_2 | teamwork_explorer | M4 Codebase Architecture Explorer | completed | f3b8e7e2-8110-4a98-80d7-747d006f2eff |
 | explorer_m4_3 | teamwork_explorer | M4 Low-Spec CPU Architecture Explorer | completed | f2897e9f-22a4-4693-930b-6fc78eccc756 |
-| worker_m4_1 | teamwork_worker | M4 Implementation Worker (Features 17-23) | in-progress | a461dcb1-5c86-4503-a9c3-b6143b8e6cb3 |
+| worker_m4_1 | teamwork_worker | M4 Implementation Worker (Features 17-23) | completed | a461dcb1-5c86-4503-a9c3-b6143b8e6cb3 |
+| reviewer_m4_1 | teamwork_reviewer | M4 Tracking & Masks Reviewer | completed (APPROVE) | 2c99c0f2-799a-456c-ab1c-a47719fadc06 |
+| reviewer_m4_2 | teamwork_reviewer | M4 AI Audio & Video FX Reviewer | completed (APPROVE) | d67ae258-419f-4119-aff4-8acc060ac2d8 |
+| challenger_m4_1 | teamwork_challenger | M4 Tracking & Masks Challenger | completed (APPROVE) | 7a89dbbc-ded7-4099-aa96-ca963efe2019 |
+| challenger_m4_2 | teamwork_challenger | M4 AI Audio & Video FX Challenger | completed (APPROVE) | 1afda550-1770-4525-afb1-422ebea6e9f7 |
+| auditor_m4_1 | teamwork_auditor | M4 Forensic Integrity Auditor | completed (CLEAN) | e0b1cae2-27a1-498a-b8c6-4b4eb3c567d8 |
+| worker_readme_sync | teamwork_worker | README Checkbox Audit & Sync Worker | retired | 80955c4a-cb6d-4e27-a748-62b3dd9bcf61 |
+| worker_readme_sync_2 | teamwork_worker | README Checkbox Sync Worker (Replacement) | completed (pushed e02efd7) | ccb9ac89-7463-4e8c-92ec-f3134c1bad21 |
+| spec_miner_m5_1 | teamwork_spec_miner | M5 VEGAS Pro & Alerts Spec Miner | completed | 1f5d8e47-7817-4873-a38f-0db20cb25713 |
+| explorer_m5_2 | teamwork_explorer | M5 Codebase Architecture Explorer | completed | 690fafe6-7707-4b00-a6dd-56afbd21e1a4 |
+| explorer_m5_3 | teamwork_explorer | M5 Low-Spec CPU Architecture Explorer | completed | abd7fd7c-245e-4c31-aa6b-ec1360e1a2d0 |
+| worker_m5_1 | teamwork_worker | M5 Implementation Worker (Features 24-34) | completed | c80bfd4d-ea9e-46ca-bc2b-e90520dfb453 |
+| reviewer_m5_1 | teamwork_reviewer | M5 Properties, Templates & Media Reviewer | completed (REQUEST_CHANGES) | 3451afb9-b790-44df-be77-d50f77b3dda9 |
+| reviewer_m5_2 | teamwork_reviewer | M5 Make Movie, Caching & Proxies Reviewer | completed (APPROVE) | a9880724-b893-4f58-8c33-adf9c6eb4e69 |
+| challenger_m5_1 | teamwork_challenger | M5 Properties & Profiles Challenger | in-progress | 9366094e-32af-43db-933c-f4f2ac75ddb0 |
+| challenger_m5_2 | teamwork_challenger | M5 Caching & Proxies Challenger | in-progress | 60df8215-37e6-4301-8f18-9f8ba42f0d9b |
+| auditor_m5_1 | teamwork_auditor | M5 Forensic Integrity Auditor | completed (CLEAN) | 42460178-c910-425c-bfd8-5f44a703e1c4 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 33 / 128
-- Pending subagents: a461dcb1-5c86-4503-a9c3-b6143b8e6cb3
+- Spawn count: 49 / 128
+- Pending subagents: 9366094e-32af-43db-933c-f4f2ac75ddb0, 60df8215-37e6-4301-8f18-9f8ba42f0d9b
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-1346
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-1821
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

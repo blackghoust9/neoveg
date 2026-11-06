@@ -40,7 +40,7 @@ pub enum ProjectAction {
         close: bool,
     },
     /// Keep the draft as a template of the user's.
-    SaveTemplate(ProjectTemplate),
+    SaveTemplate(Box<ProjectTemplate>),
     /// Choose a media file whose settings the draft should copy.
     MatchMedia,
 }
@@ -229,10 +229,10 @@ impl ProjectDialogState {
                 .add_enabled(!name.is_empty(), egui::Button::new(tr("Salvar modelo")))
                 .clicked()
             {
-                actions.push(ProjectAction::SaveTemplate(ProjectTemplate {
+                actions.push(ProjectAction::SaveTemplate(Box::new(ProjectTemplate::new(
                     name,
-                    settings: self.sanitized(),
-                }));
+                    self.sanitized(),
+                ))));
             }
         });
         ui.separator();
