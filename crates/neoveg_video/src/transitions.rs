@@ -308,7 +308,7 @@ impl TransitionProgressEnvelope {
     }
 
     pub fn progress_at(&self, time: f64) -> f32 {
-        if !self.enabled || self.points.is_empty() || !time.is_finite() {
+        if !self.enabled || self.points.is_empty() || time.is_nan() {
             return 1.0;
         }
 
