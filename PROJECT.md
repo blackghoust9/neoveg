@@ -87,7 +87,7 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
 | M3 | Color Grading, Color Wheels, OCIO/ACES & Color Match | Features 11–16: 4-way wheels, curves, white balance, OCIO/ACES pipeline, color match | M1 | DONE |
 | M4 | Motion Tracking, Event Masks, Smart Mask & AI Features | Features 17–23: Motion tracking, geometric/Bézier masks, Smart Mask, text editing, speech-to-text, upscale, auto reframe | M1 | DONE |
 | M5 | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1 | DONE |
-| M6 | Advanced Timeline Editing, Multicam & Takes | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, and parity matrix | M2, M3, M4, M5 | PLANNED |
+| M6 | Advanced Timeline Editing, Multicam & Takes | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, and parity matrix | M2, M3, M4, M5 | IN_PROGRESS (worker_m6_1) |
 | M7 | E2E Test Suite Pass (Tiers 1-4) & Adversarial Hardening (Tier 5) | Features 43–44: Pass 100% E2E test suite published in `TEST_READY.md`, followed by Tier 5 adversarial stress testing | M6, TEST_READY.md | PLANNED |
 
 ---

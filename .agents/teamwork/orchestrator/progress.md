@@ -1,7 +1,7 @@
 # Progress — Project Orchestrator
 
 ## Current Status
-Last visited: 2026-11-06T18:48:45Z
+Last visited: 2026-11-06T18:58:45Z
 
 - [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
 - [x] Phase 0: Survey Completed (3 Explorers)
@@ -45,8 +45,12 @@ Last visited: 2026-11-06T18:48:45Z
 - [x] Phase 2: Milestone 5 Remediation & Checkbox Sync (`worker_m5_2` completed: scene detection genuine, case-insensitive companion suppression, 1.0 FPS clamp fixed, Blender fixtures added, README.md synced)
 - [x] Phase 2: Milestone 5 Targeted Re-Review (`reviewer_m5_3` APPROVE, Gate 5 PASSED)
 - [x] Phase 2: Milestone 5 Git Commit & Push (Commit `37840b1` pushed to `origin/preview/version-2.1.0`)
-- [/] Phase 2: Milestone 6 (Timeline Editing, Multicam, Takes, VEGAS Pro Parity & i18n Sync) — Exploration (`spec_miner_m6_1`, `explorer_m6_2`, `explorer_m6_3` active)
-- [ ] Phase 2: Milestone 6 Implementation & Gate Verification
+- [x] Phase 2: Milestone 6 Exploration completed:
+  - `spec_miner_m6_1`: VEGAS Pro reference manual specs mined (L/J cuts, simultaneous fades, 10ms quickfades, sync links, multicam, takes).
+  - `explorer_m6_2`: Codebase architecture blueprint mapped across `neoveg_engine` and `neoveg_ui`.
+  - `explorer_m6_3`: CPU audio cross-correlation strategy (< 100 ms, < 15 MB RAM), 7-locale translation audit (1,795 keys), and parity/roadmap audit.
+- [/] Phase 2: Milestone 6 Implementation (`worker_m6_1` dispatched)
+- [ ] Phase 2: Milestone 6 Gate Verification (Reviewers, Challengers, Auditor)
 - [ ] Phase 2: Milestone 6 Git Commit & Push
 - [ ] Phase 2: Milestone 7 (Final E2E Test Pass Tiers 1-4 & Tier 5 Adversarial Hardening)
 - [ ] Phase 3: Final build check (`build_portable.py`), parity matrix sync, and comprehensive `README.md` update
