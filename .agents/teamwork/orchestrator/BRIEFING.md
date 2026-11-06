@@ -88,16 +88,16 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | spec_miner_m3_2 | teamwork_spec_miner | M3 VEGAS Pro & OCIO Spec Miner | completed | 5d0fbb4d-4667-43e7-a338-e566dc49d0f5 |
 | explorer_m3_3 | teamwork_explorer | M3 Integration & CPU Architecture Explorer | completed | 4426a1c1-c319-4e76-a7ae-b607829a46bb |
 | worker_m3_1 | teamwork_worker | M3 Color Grading & OCIO Worker | completed | a1f1a938-b602-4b25-8381-d4d454057571 |
-| reviewer_m3_1 | teamwork_reviewer | M3 Color Wheels & Curves Reviewer | in-progress | 65f6676f-fafa-4b17-84c8-c875ea814378 |
-| reviewer_m3_2 | teamwork_reviewer | M3 OCIO & Color Match Reviewer | in-progress | c4cf1125-cd5b-4add-9f81-3487105883b6 |
+| reviewer_m3_1 | teamwork_reviewer | M3 Color Wheels & Curves Reviewer | completed (APPROVE) | 65f6676f-fafa-4b17-84c8-c875ea814378 |
+| reviewer_m3_2 | teamwork_reviewer | M3 OCIO & Color Match Reviewer | completed (APPROVE) | c4cf1125-cd5b-4add-9f81-3487105883b6 |
 | challenger_m3_1 | teamwork_challenger | M3 Color Wheels & Curves Challenger | in-progress | 4e286468-ed95-4d89-aa4a-4d3477a5f0b6 |
 | challenger_m3_2 | teamwork_challenger | M3 OCIO & Color Match Challenger | in-progress | 37a6da38-a38d-47ce-9704-5cf72b2ef447 |
-| auditor_m3_1 | teamwork_auditor | M3 Forensic Integrity Auditor | in-progress | da2f5204-e261-474d-80e3-0477407bd7c7 |
+| auditor_m3_1 | teamwork_auditor | M3 Forensic Integrity Auditor | completed (CLEAN) | da2f5204-e261-474d-80e3-0477407bd7c7 |
 
 ## Succession Status
 - Succession required: no
 - Spawn count: 27 / 128
-- Pending subagents: 65f6676f-fafa-4b17-84c8-c875ea814378, c4cf1125-cd5b-4add-9f81-3487105883b6, 4e286468-ed95-4d89-aa4a-4d3477a5f0b6, 37a6da38-a38d-47ce-9704-5cf72b2ef447, da2f5204-e261-474d-80e3-0477407bd7c7
+- Pending subagents: 4e286468-ed95-4d89-aa4a-4d3477a5f0b6, 37a6da38-a38d-47ce-9704-5cf72b2ef447
 - Predecessor: none
 - Successor: none
 
