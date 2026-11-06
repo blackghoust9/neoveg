@@ -125,18 +125,18 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | reviewer_m6_1 | teamwork_reviewer | M6 Focused Reviewer | completed (APPROVE) | 6641e0d1-0e3b-4393-8eb3-ddeeb296cd6a |
 | auditor_m6_1 | teamwork_auditor | M6 Forensic Auditor | completed (CLEAN) | 6ffde48f-1c02-4fad-b19a-9860c8089d83 |
 
-| worker_git_m6 | teamwork_worker | M6 Git Commit & Push Worker | in-progress | 74982238-c92a-4a4f-9184-8b4dca4bd102 |
+| worker_git_m6 | teamwork_worker | M6 Git Commit & Push Worker | completed (pushed a8f167c) | 74982238-c92a-4a4f-9184-8b4dca4bd102 |
 
 ## Succession Status
 - Succession required: no
 - Spawn count: 59 / 128
-- Pending subagents: 74982238-c92a-4a4f-9184-8b4dca4bd102
+- Pending subagents: none
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
-- Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-2455
+- Heartbeat cron: none (cancelled for 17:00 wrap-up)
+- Safety timer: none
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

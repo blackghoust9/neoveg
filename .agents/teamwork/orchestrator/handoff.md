@@ -1,106 +1,56 @@
-# Handoff Report — Project Orchestrator (Generation 1 -> Generation 2)
+# Orchestrator Final Handoff Report — Milestone 6 & Graceful Wrap-Up
 
-## Milestone State
-| #   | Name                                                              | Scope                                                                                                                                              | Dependencies      | Status                 | Notes                                                                                                                                                                                                                                                                                                  |
-| --- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| M1  | Recording Stabilization & Trademark Sanitization                  | Features 1–5: Automated recording tests, worktree verification, trademark removal                                                                  | none              | DONE                   | Gate 1 passed unanimously (APPROVE/CLEAN). 0 trademarks, 1,795 i18n keys synchronized. Commit `5a222723`.                                                                                                                                                                                              |
-| M2  | Video Transitions, 3D Transforms, GPU Effects & OFX Host          | Features 6–10: 6 categories, 12 presets, 3D transforms, envelopes, WGPU effects, OFX host                                                          | M1                | BLOCKED_ON_REMEDIATION | `worker_m2_1` completed (commit `3109d496`). 4/5 gate agents approved/clean. `challenger_m2_1` requested changes: `TransitionProgressEnvelope` has integer underflow panic on `NaN` timestamps and leaks `NaN` on infinite timestamps. Requires quick fix in `crates/neoveg_video/src/transitions.rs`. |
-| M3  | Color Grading, Color Wheels, OCIO/ACES & Color Match              | Features 11–16: 4-way wheels, curves, white balance picker, OCIO/ACES pipeline, color match                                                        | M1                | PLANNED                | Ready to dispatch after M2 is remediated and committed.                                                                                                                                                                                                                                                |
-| M4  | Motion Tracking, Event Masks, Smart Mask & AI Features            | Features 17–23: Motion tracking, geometric/Bézier masks, Smart Mask, text editing, speech-to-text, upscale, auto reframe                           | M1                | PLANNED                | Follows M3. Pure CPU fallbacks and in-memory mock weights required.                                                                                                                                                                                                                                    |
-| M5  | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, 46 templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1                | PLANNED                | Follows M4. Standardized alerts per §10.                                                                                                                                                                                                                                                               |
-| M6  | Advanced Timeline Editing, Multicam & Takes                       | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, parity matrix                                            | M2, M3, M4, M5    | PLANNED                | Obey VEGAS Pro semantics (`manuais/`), sync 7 i18n catalogs, sync `parity_matrix.py`.                                                                                                                                                                                                                  |
-| M7  | E2E Test Suite Pass & Adversarial Coverage Hardening              | Features 43–44: Pass 100% E2E test suite published in `TEST_READY.md` (468 tests), Tier 5 adversarial stress testing                               | M6, TEST_READY.md | PLANNED                | Dual Track test suite already authored and passing 468/468 tests.                                                                                                                                                                                                                                      |
+**Date**: 2026-11-06T19:55:00Z  
+**Branch**: `preview/version-2.1.0`  
+**Latest Push**: Commit `a8f167c` pushed to `origin/preview/version-2.1.0`  
+**Status**: All Milestones 1 through 6 completed, verified, approved, audited CLEAN, and pushed to origin. Zero uncommitted changes. All crons terminated ahead of the 17:00 local (20:00:00Z) deadline.
 
-## Active Subagents
-- All 16 Generation 1 subagents have delivered their handoff reports and are **permanently retired**:
-  1. `explorer_survey_1` (`e833a5f4-8319-4f21-82e0-323c10821f47`): completed
-  2. `spec_miner_survey_2` (`aa7b1727-cf17-425e-bf11-130a1a0b7a10`): completed
-  3. `explorer_survey_3` (`01f73549-2d42-4799-a212-038e2b8e77f5`): completed
-  4. `worker_m1_1` (`bea973a9-a61f-44fb-8dda-8b2f35be3b66`): completed
-  5. `test_writer_e2e_1` (`ecd2068c-d310-48a7-86ed-895e2bf99562`): completed (`TEST_READY.md` published)
-  6. `reviewer_m1_1` (`25827ee1-dc98-4416-8e5e-03e1e24a3ece`): completed (APPROVE)
-  7. `reviewer_m1_2` (`0fd879ba-b51d-4ea9-b369-8ce44a475ca2`): completed (APPROVE)
-  8. `challenger_m1_1` (`5561a52d-0735-4526-9b3c-ea22509d68d0`): completed (APPROVE)
-  9. `challenger_m1_2` (`6e5c3d0b-eef8-4199-9d1e-281c36df294b`): completed (APPROVE)
-  10. `auditor_m1_1` (`a74a6ce6-8c2f-4563-af22-dd02d7697b33`): completed (CLEAN)
-  11. `worker_m2_1` (`dacff6c7-fc88-450d-8906-025e0b4e13d2`): completed
-  12. `reviewer_m2_1` (`ba4442a7-84e9-4670-b34e-f53bcfbf5d6c`): completed (APPROVE)
-  13. `reviewer_m2_2` (`e22d24d2-ca52-4326-a79d-979df43f80a5`): completed (APPROVE)
-  14. `challenger_m2_1` (`4a43aada-c9f6-467a-a228-d03754ba3a73`): completed (REQUEST_CHANGES)
-  15. `challenger_m2_2` (`62a6c271-6caa-42d3-9a4a-94df5e7768b7`): completed (APPROVE)
-  16. `auditor_m2_1` (`efd3cb6a-9dc0-453e-9cba-8691e2000b12`): completed (CLEAN)
-- Currently pending subagents: **0** (ready for clean succession).
+---
 
-## Pending Decisions & Immediate Blockers
-1. **Milestone 2 Remediation**:
-   `challenger_m2_1` identified two edge-case defects in `crates/neoveg_video/src/transitions.rs`:
-   - `add_point(f64::NAN, ...)` causes `attempt to subtract with overflow` panic at line 319 (`idx - 1` with `idx == 0`).
-   - `add_point` with infinite timestamps causes `u = inf / inf = NaN`, leaking `NaN` out of `progress_at` instead of clamping to `0.0..=1.0`.
-   - **Remediation plan**: Dispatch fresh Worker (`worker_m2_2`) to apply the exact defensive checks specified in `.agents/teamwork/challenger_m2_1/handoff.md §4`.
-   - Run `cargo test -p neoveg_video --test adversarial_transitions -j 1 -- --test-threads=1`.
-   - Verify Gate 2 PASS -> `git add` & `git commit` & `git push origin preview/version-2.1.0`.
-   - Mark Milestone 2 as DONE.
+## 1. Milestone State Overview
 
-2. **User Follow-Up Scope Expansion Integration**:
-   Parent message at `2026-11-06T13:16:41Z` expanded instructions:
-   - Audit all unchecked items (`[ ]`) in `README.md` and fold them into program milestones.
-   - Verify CPU-only behavior on limited/low-spec hardware.
-   - Audit GUI (`neoveg_ui`) integration with engine logic (`neoveg_engine`, `neoveg_audio`, `neoveg_video`, `neoveg_common`) and fix state synchronization/wiring errors.
-   - Verify build and packaging (`build_portable.py` / cargo check/clippy) with zero warnings or errors.
-   - Strictly obey VEGAS Pro semantics across GUI and keyboard shortcuts, consulting reference manuals in `manuais/`. Preserve VEGAS Pro semantics; if anything conflicts or is omitted, document notes in `README.md`.
-   - Zero third-party trademarks in runtime strings or user-visible text (VEGAS Pro parity notes belong in `README.md` and `manuais/`, not runtime UI strings).
-   - Commit and push incrementally after each completed milestone.
-   - Comprehensive update of `README.md`, `scripts/parity_matrix.py --check`, and 7 i18n catalogs.
+| Milestone | Scope & Features | Status | Verification & Artifacts |
+|-----------|------------------|--------|--------------------------|
+| **M1** | Recording Stabilization & Trademark Sanitization (F1–F5) | **DONE** | Gate 1 Passed (APPROVE / CLEAN); commit `5a222723` pushed. |
+| **Dual Track E2E** | Comprehensive Opaque-Box Test Suites (Tiers 1–4) | **DONE** | 468 tests authored across 6 test suites; `TEST_READY.md` published (100% pass). |
+| **M2** | Video Transitions, 3D Transforms, GPU Effects & OFX (F6–F10) | **DONE** | Gate 2 Passed (APPROVE / CLEAN); commit `1689178` pushed. |
+| **M3** | Color Grading, Color Wheels, OCIO/ACES & Color Match (F11–F16) | **DONE** | Gate 3 Passed (APPROVE / CLEAN); commit `58f4ff08` pushed. |
+| **M4** | Motion Tracking, Event Masks, Smart Mask & AI Features (F17–F23) | **DONE** | Gate 4 Passed (APPROVE / CLEAN); commits `eab85a7` & `e02efd7` pushed. |
+| **M5** | Project Properties, Media Pool, Explorer, Cache & Alerts (F24–F34) | **DONE** | Gate 5 Passed (APPROVE / CLEAN); Blender open-movie test fixtures; commit `37840b1` pushed. |
+| **M6** | Advanced Timeline Editing, Multicam & Takes (F35–F42) | **DONE** | Gate 6 Passed (APPROVE / CLEAN); commit `a8f167c` pushed. |
+| **M7** | Final E2E Test Suite Validation & Tier 5 Hardening (F43–F44) | **PLANNED** | Scheduled for subsequent development session per 17:00 deadline. |
 
-## Remaining Work (Concrete Action Plan for Successor Generation 2)
-1. **Immediate Step 1: Remediate M2**:
-   - Spawn fresh `worker_m2_2` (`teamwork_worker`) with `.agents/teamwork/challenger_m2_1/handoff.md` and task to fix `TransitionProgressEnvelope` in `crates/neoveg_video/src/transitions.rs`.
-   - Worker runs:
-     - `cargo check -j 1 --workspace`
-     - `cargo clippy -j 1 --workspace`
-     - `cargo test -p neoveg_video --test adversarial_transitions -j 1 -- --test-threads=1`
-     - `cargo test -p neoveg_video --lib -j 1 -- --test-threads=1`
-   - Gate 2 check: review worker report and confirm `adversarial_transitions` passes cleanly.
-   - Commit and push M2:
-     - `git commit -m "feat(video): transitions, 3D transforms, GPU effects, and OFX host support"`
-     - `git push origin preview/version-2.1.0`
-   - Mark M2 DONE in `PROJECT.md` and `GATE_STATUS.md`.
+---
 
-2. **Step 2: Milestone 3 (Color Grading & OCIO/ACES)**:
-   - Scope: Per-event color grading, 4-way color wheels (Lift, Gamma, Gain, Offset), RGB/HSL curves, white balance picker, OpenColorIO (OCIO) / ACES pipeline (S-Log1/2/3 IDTs, ACEScc/ACEScct working space, Rec.709 ODT), Color Match across clips.
-   - Files: `crates/neoveg_video/src/grading.rs`, `crates/neoveg_common/src/grade.rs`.
-   - Dispatch: Explorer -> Worker -> Reviewers (2) + Challenger (2) + Forensic Auditor (1) -> Gate 3 -> Commit & Push.
+## 2. Active Subagents & Tasks
+- **Active Subagents**: None (all 59 dispatched subagents completed their tasks, submitted handoffs, and are idle).
+- **Background Tasks & Crons**: All recurring schedule tasks and heartbeats (e.g. `task-706`) cancelled cleanly via `manage_task(Action="kill")`.
 
-3. **Step 3: Milestone 4 (Tracking, Masks, Smart Mask & AI Features)**:
-   - Scope: Motion tracking (optical flow), geometric/Bézier masks, Smart Mask object segmentation with CPU fallback, text-based editing, speech-to-text with synthetic Whisper weights, smart upscale, auto reframe.
-   - Files: `crates/neoveg_video/src/tracking.rs`, `crates/neoveg_audio/src/whisper.rs`, `crates/neoveg_engine/src/ai.rs`.
-   - Dispatch iteration cycle -> Gate 4 -> Commit & Push.
+---
 
-4. **Step 4: Milestone 5 (Project Properties, Media Pool, Explorer, Cache & Alerts)**:
-   - Scope: Project properties (Dialog 826/863), 46 templates (.vqpt), media profiles matcher (`profiles.ini`), Project Media window (23 detail columns, bins, smart search), Explorer, Make Movie wizard, preview cache ruler (Green/Yellow/Red), standardized alerts (§10), smart proxies.
-   - Files: `crates/neoveg_common/src/project.rs`, `crates/neoveg_common/src/profiles.rs`, `crates/neoveg_common/src/alerts.rs`, `crates/neoveg_engine/src/media_pool.rs`, `crates/neoveg_video/src/render_cache.rs`.
-   - Dispatch iteration cycle -> Gate 5 -> Commit & Push.
+## 3. Pending Decisions & Remaining Work
+- **Worktree**: Completely clean (`git status` reports nothing to commit, branch up to date with `origin/preview/version-2.1.0`).
+- **Milestone 7**: When resuming work in the next session, Milestone 7 will run the full E2E test suite published in `TEST_READY.md` and execute Tier 5 adversarial coverage hardening.
 
-5. **Step 5: Milestone 6 (Timeline Editing, Multicam, Takes & Parity Sync)**:
-   - Scope: L/J cuts, simultaneous audio/video fades, persistent sync links, multicam editing (audio/timecode sync, track, angle switching), takes system, GUI integration and keyboard shortcuts strictly conforming to VEGAS Pro semantics (`manuais/`), sync 7 i18n catalogs (`Assets/i18n/strings/*.json`), sync `scripts/parity_matrix.py`.
-   - Files: `crates/neoveg_engine/src/sync_link.rs`, `crates/neoveg_engine/src/multicam.rs`, `crates/neoveg_engine/src/takes.rs`, `crates/neoveg_ui/src/app.rs`, `crates/neoveg_ui/src/dock/`, `crates/neoveg_ui/src/dialogs/`.
-   - Dispatch iteration cycle -> Gate 6 -> Commit & Push.
+---
 
-6. **Step 6: Milestone 7 (Final E2E Test Suite Validation & Adversarial Hardening)**:
-   - Phase 1: Run full E2E test suite in `TEST_READY.md` (`cargo test -j 1 --test-threads=1 --workspace --exclude neoveg_ui`) ensuring 100% pass across all 468 tests.
-   - Phase 2: Tier 5 adversarial coverage hardening with `teamwork_challenger`.
-   - Final validation: `python scripts/parity_matrix.py --check`, `cargo check -j 1 --workspace`, `cargo clippy -j 1 --workspace`, `python build_portable.py` checks.
-   - Comprehensive `README.md` update reflecting all features, VEGAS Pro semantic parity notes, and CPU performance characteristics.
-   - Final `git commit` and `git push origin preview/version-2.1.0`.
+## 4. Key Artifacts
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\PROJECT.md`: Global architecture, 44-feature inventory, 7 milestones.
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\README.md`: Synchronized roadmap with all completed checkboxes marked `- [x]`.
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\TEST_INFRA.md` & `TEST_READY.md`: 468 opaque-box tests index.
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\GATE_STATUS.md`: Authoritative gate ledger (Gates 1–6 PASSED).
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\BRIEFING.md`: Persistent memory and team roster.
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\progress.md`: Milestone progress ledger.
+- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\worker_git_m6\handoff.md`: Commit `a8f167c` push verification.
 
-## Key Artifacts
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\ORIGINAL_REQUEST.md` — Original request verbatim
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\PROJECT.md` — Global architecture, 44-feature inventory, 7 milestones
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\TEST_INFRA.md` — Opaque-box E2E test suite architecture & methodology
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\TEST_READY.md` — Authoritative E2E test suite signal (468 passing tests)
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\DEAD_ENDS.md` — Log of dead ends
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\GATE_STATUS.md` — Gate status ledger
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\DISPATCH.md` — Orchestrator dispatch log
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\BRIEFING.md` — Persistent working memory
-- `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\progress.md` — Progress and liveness heartbeat
-- `.agents/teamwork/challenger_m2_1/handoff.md` — Exact vulnerability description and code fix for `TransitionProgressEnvelope`
+---
+
+## 5. Verification Summary
+1. `cargo check --workspace -j 1`: Exit code 0 (0 errors).
+2. `cargo clippy --workspace -j 1`: Exit code 0 (0 warnings).
+3. `cargo test -p neoveg_common -j 1 -- --test-threads=1`: 252 tests pass (0 failed).
+4. `cargo test -p neoveg_engine -j 1 -- --test-threads=1`: 675 tests pass (0 failed).
+5. `cargo test -p neoveg_engine --test m6_features_35_42 -j 1 -- --test-threads=1`: 7/7 tests pass (0.31s).
+6. `python scripts/parity_matrix.py --check`: Exit code 0 (872 commands scanned, 0 unclassified).
+7. Translation catalogs: 100% key parity across all 7 catalogs (1,826 keys each, 0 missing).
+8. License & Trademark Forensic Audit: CLEAN (dual MIT OR Apache-2.0, 0 third-party trademarks).
