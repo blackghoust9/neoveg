@@ -43,6 +43,8 @@ impl ColorWheelsExt for ColorWheelsGrade {
         if self.is_neutral() {
             return;
         }
+        let low_thresh = if low_thresh.is_finite() { low_thresh } else { 0.25 };
+        let high_thresh = if high_thresh.is_finite() { high_thresh } else { 0.75 };
         let low = low_thresh.clamp(0.0, 0.5);
         let high = high_thresh.clamp(0.5, 1.0);
 
@@ -278,6 +280,12 @@ impl SplineCurve {
     }
 
     pub fn eval(&self, v: f32) -> f32 {
+        if !v.is_finite() {
+            if v == f32::INFINITY {
+                return self.points.last().map_or(0.0, |p| p[1]);
+            }
+            return self.points.first().map_or(0.0, |p| p[1]);
+        }
         let n = self.points.len();
         if n == 0 {
             return v;
@@ -496,7 +504,7 @@ pub fn apply_hsl_curves(frame: &mut FrameBuffer, curves: &HslCurves) {
                     hsl[1] = (hsl[1] * mult).clamp(0.0, 1.0);
                 }
                 HslCurveType::HueVsLum => {
-                    let delta = c.eval(hsl[0] / 360.0) - 0.5;
+                    let delta = (c.eval(hsl[0] / 360.0) - 0.5) * hsl[1];
                     hsl[2] = (hsl[2] + delta).clamp(0.0, 1.0);
                 }
                 HslCurveType::LumVsSat => {

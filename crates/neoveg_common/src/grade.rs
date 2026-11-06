@@ -152,6 +152,7 @@ impl ColorWheelVector {
     /// Creates a wheel vector from polar coordinates: hue in degrees `[0.0..360.0)`,
     /// saturation radius in `[0.0..=1.0]`, and master luma in `[-1.0..=1.0]`.
     pub fn from_polar(hue_deg: f32, sat: f32, master: f32) -> Self {
+        let hue_deg = if hue_deg.is_finite() { hue_deg } else { 0.0 };
         let rad = hue_deg.to_radians();
         let sat = if sat.is_finite() { sat.clamp(0.0, 1.0) } else { 0.0 };
         let master = if master.is_finite() { master.clamp(-1.0, 1.0) } else { 0.0 };
@@ -167,8 +168,14 @@ impl ColorWheelVector {
     pub fn to_polar(&self) -> (f32, f32, f32) {
         let sat = (self.x * self.x + self.y * self.y).sqrt().clamp(0.0, 1.0);
         let mut deg = self.y.atan2(self.x).to_degrees();
+        if !deg.is_finite() {
+            deg = 0.0;
+        }
         if deg < 0.0 {
             deg += 360.0;
+        }
+        if deg >= 360.0 {
+            deg -= 360.0;
         }
         (deg, sat, self.master)
     }
@@ -176,6 +183,9 @@ impl ColorWheelVector {
     /// Creates a wheel vector from RGB chromatic offsets preserving luminance:
     /// `r + g + b = 0`.
     pub fn from_rgb_sliders(r: f32, g: f32, b: f32, master: f32) -> Self {
+        let r = if r.is_finite() { r } else { 0.0 };
+        let g = if g.is_finite() { g } else { 0.0 };
+        let b = if b.is_finite() { b } else { 0.0 };
         let avg = (r + g + b) / 3.0;
         let r0 = r - avg;
         let g0 = g - avg;

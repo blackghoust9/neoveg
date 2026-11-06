@@ -172,10 +172,11 @@ pub fn linear_to_acescc(x: f32) -> f32 {
 
 /// Inverse ACEScc (SMPTE S-2014-003): ACEScc `y` to scene-linear `x`.
 pub fn acescc_to_linear(y: f32) -> f32 {
+    let exp = (y * 17.52 - 9.72).clamp(-100.0, 100.0);
     if y < -0.30136986 {
-        (2.0f32.powf(y * 17.52 - 9.72) - 2.0f32.powf(-16.0)) * 2.0
+        (2.0f32.powf(exp) - 2.0f32.powf(-16.0)) * 2.0
     } else {
-        2.0f32.powf(y * 17.52 - 9.72)
+        2.0f32.powf(exp)
     }
 }
 
@@ -199,7 +200,8 @@ pub fn acescct_to_linear(y: f32) -> f32 {
     if y <= Y_BRK {
         (y - B) / A
     } else {
-        2.0f32.powf(y * 17.52 - 9.72)
+        let exp = (y * 17.52 - 9.72).clamp(-100.0, 100.0);
+        2.0f32.powf(exp)
     }
 }
 
@@ -252,7 +254,12 @@ pub fn srgb_to_linear(v: f32) -> f32 {
 /// Analytical ACES 1.0 RRT tone curve fit (Stephen Hill / Narkowicz fit).
 /// Maps scene-linear input `x` to display-referred tone-mapped output in `[0.0..=1.0]`.
 pub fn aces_tonemap(x: f32) -> f32 {
-    let x = x.max(0.0);
+    if x <= 0.0 {
+        return 0.0;
+    }
+    if !x.is_finite() || x >= 50.0 {
+        return 1.0;
+    }
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;

@@ -718,35 +718,36 @@ fn adv_aces_transform_pipeline_standard_ranges() {
 
 #[test]
 fn adv_aces_tonemap_infinite_and_overflow_exposure() {
-    // Evaluating Narkowicz ACES tonemap on infinity or large inputs (x > 1.84e19)
-    // results in inf/inf = NaN due to lack of an infinite/large-x asymptote guard.
+    // Evaluating Narkowicz ACES tonemap on infinity or large inputs (x >= 50.0)
+    // cleanly clamps to 1.0 asymptote without overflowing to NaN.
     let tm_inf = aces_tonemap(f32::INFINITY);
-    assert!(
-        tm_inf.is_nan(),
-        "Empirical finding: aces_tonemap(inf) produces NaN instead of clamping to 1.0 asymptote"
+    assert_eq!(
+        tm_inf, 1.0,
+        "Hardened: aces_tonemap(inf) cleanly returns 1.0 asymptote"
     );
 
     let tm_huge = aces_tonemap(1e20);
-    assert!(
-        tm_huge.is_nan(),
-        "Empirical finding: aces_tonemap(1e20) produces NaN because x^2 overflows f32 to inf"
+    assert_eq!(
+        tm_huge, 1.0,
+        "Hardened: aces_tonemap(1e20) cleanly returns 1.0 asymptote"
     );
 }
 
 #[test]
 fn adv_acescc_log_exponent_overflow_exposure() {
-    // For extreme unnormalized log values y >= 7.81, 2^(y*17.52 - 9.72) overflows f32 max exponent (127)
+    // For extreme unnormalized log values y >= 7.81, the exponent is clamped to 100.0,
+    // avoiding f32 overflow to infinity.
     let y_extreme = 8.0f32;
     let lin = acescc_to_linear(y_extreme);
     assert!(
-        lin.is_infinite(),
-        "Empirical finding: acescc_to_linear(8.0) overflows to +inf"
+        lin.is_finite(),
+        "Hardened: acescc_to_linear(8.0) does not overflow to inf: got {lin}"
     );
 
     let lin_cct = acescct_to_linear(y_extreme);
     assert!(
-        lin_cct.is_infinite(),
-        "Empirical finding: acescct_to_linear(8.0) overflows to +inf"
+        lin_cct.is_finite(),
+        "Hardened: acescct_to_linear(8.0) does not overflow to inf: got {lin_cct}"
     );
 }
 

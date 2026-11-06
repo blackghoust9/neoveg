@@ -53,16 +53,17 @@ fn adv_wheel_vector_extreme_angles() {
 
 #[test]
 fn adv_wheel_vector_to_polar_boundary_360_bug() {
-    // BUG REPRODUCTION: ColorWheelVector::to_polar() contract states `hue_deg in [0.0..360.0)`.
-    // However, when hue_deg = -360.0, floating-point inexactness gives y = -6.55e-8.
-    // In to_polar(), deg is -0.000005, and deg + 360.0 in f32 rounds up to exactly 360.0!
-    // Since there is no `if deg >= 360.0 { deg = 0.0; }`, it returns 360.0, violating [0.0..360.0).
+    // REMEDIATED: ColorWheelVector::to_polar() contract states `hue_deg in [0.0..360.0)`.
+    // When hue_deg = -360.0, floating-point rounding is clamped so deg returns strictly in [0.0..360.0).
     let v = ColorWheelVector::from_polar(-360.0, 0.75, 0.2);
-    let (deg, _, _) = v.to_polar();
-    assert_eq!(
-        deg, 360.0,
-        "Empirical proof: to_polar() returns 360.0 on -360.0, violating the [0.0..360.0) contract"
+    let (deg, sat, master) = v.to_polar();
+    assert!(
+        deg >= 0.0 && deg < 360.0,
+        "to_polar() must strictly return in [0.0..360.0), got {deg}"
     );
+    assert_eq!(deg, 0.0);
+    assert!((sat - 0.75).abs() < 1e-4);
+    assert!((master - 0.2).abs() < 1e-4);
 }
 
 #[test]
@@ -102,14 +103,18 @@ fn adv_wheel_vector_extreme_magnitudes_and_sanitization() {
 
 #[test]
 fn adv_wheel_vector_from_polar_nan_hue_bug() {
-    // BUG REPRODUCTION: from_polar protects sat and master against NaN,
-    // but does NOT protect hue_deg. When hue_deg is NaN, x and y become NaN.
+    // REMEDIATED: from_polar protects hue_deg against NaN (fallback to 0.0).
     let v = ColorWheelVector::from_polar(f32::NAN, 0.5, 0.0);
-    assert!(v.x.is_nan(), "hue_deg = NaN causes x to become NaN");
-    assert!(v.y.is_nan(), "hue_deg = NaN causes y to become NaN");
-    // sanitized() clears them:
-    let clean = v.sanitized();
-    assert!(clean.is_neutral());
+    assert!(v.x.is_finite(), "hue_deg = NaN must produce finite x, got {}", v.x);
+    assert!(v.y.is_finite(), "hue_deg = NaN must produce finite y, got {}", v.y);
+    assert_eq!(v.x, 0.5);
+    assert_eq!(v.y, 0.0);
+
+    // Also verify from_rgb_sliders protects r, g, b against NaN:
+    let v_rgb = ColorWheelVector::from_rgb_sliders(f32::NAN, f32::NAN, f32::NAN, f32::NAN);
+    assert!(v_rgb.x.is_finite());
+    assert!(v_rgb.y.is_finite());
+    assert!(v_rgb.master.is_finite());
 }
 
 #[test]
@@ -177,19 +182,19 @@ fn adv_wheel_range_limited_inverted_and_extreme_thresholds() {
 
 #[test]
 fn adv_wheel_range_limited_nan_threshold_bug() {
-    // BUG REPRODUCTION: NaN thresholds in apply_range_limited() corrupt all pixels to solid black [0, 0, 0, 255]!
-    // low = NaN.clamp(0.0, 0.5) produces NaN, causing smooth_ramp to produce NaN,
-    // which propagates through apply_to_rgb resulting in (NaN * 255.0) as u8 == 0.
+    // REMEDIATED: NaN thresholds in apply_range_limited() safely fall back to 0.25 and 0.75,
+    // preventing NaN propagation and protecting frame content.
     let mut wheels = ColorWheelsGrade::default_neutral();
     wheels.lift.master = 0.2;
     let mut frame_nan = FrameBuffer::solid(4, 4, [80, 80, 80, 255]);
     wheels.apply_range_limited(&mut frame_nan, f32::NAN, f32::NAN);
     let p_nan = frame_nan.pixel(0, 0);
-    assert_eq!(
+    assert_ne!(
         p_nan,
         [0, 0, 0, 255],
-        "Empirical proof: NaN thresholds destroy frame content, producing pitch black [0, 0, 0, 255]"
+        "NaN thresholds must not corrupt frame to solid pitch black"
     );
+    assert!(p_nan[0] > 0);
 }
 
 // ============================================================================
@@ -348,11 +353,8 @@ fn adv_spline_boundary_values_and_extrapolation() {
 
 #[test]
 fn adv_spline_nan_eval_underflow_panic_bug() {
-    // BUG REPRODUCTION: SplineCurve::eval(f32::NAN) panics with integer underflow!
-    // At line 294 of grading.rs:
-    // `let k = self.points.partition_point(|p| p[0] <= v) - 1;`
-    // Because comparisons with NaN return false, partition_point returns 0.
-    // 0usize - 1 panics with `attempt to subtract with overflow`.
+    // REMEDIATED: SplineCurve::eval(f32::NAN) guards against non-finite floats,
+    // safely returning the first control point y without underflow panic.
     let pts = [[0.0, 0.1], [0.5, 0.5], [1.0, 0.9]];
     let spline = SplineCurve::new(&pts);
 
@@ -361,9 +363,10 @@ fn adv_spline_nan_eval_underflow_panic_bug() {
     }));
 
     assert!(
-        res.is_err(),
-        "Empirical proof: SplineCurve::eval(f32::NAN) panics with attempt to subtract with overflow"
+        res.is_ok(),
+        "SplineCurve::eval(f32::NAN) must not panic with attempt to subtract with overflow"
     );
+    assert_eq!(spline.eval(f32::NAN), 0.1);
 }
 
 #[test]
@@ -525,16 +528,17 @@ fn adv_hsl_curves_solid_black_white_and_grayscale_stability() {
 
 #[test]
 fn adv_hsl_curves_hue_vs_lum_achromatic_discontinuity() {
-    // BUG REPRODUCTION: Boost luminance specifically for Red (hue = 0 / 360) by +0.3
+    // REMEDIATED: HueVsLum luminance delta is weighted by saturation (hsl[1]),
+    // eliminating threshold posterization on neutral gray / achromatic pixels.
     let mut curves = HslCurves::default();
     curves.curves[2] = HslCurve::new(
         HslCurveType::HueVsLum,
         &[[0.0, 0.8], [0.1, 0.5], [0.9, 0.5], [1.0, 0.8]],
     );
 
-    // Pixel A: exact neutral gray (128, 128, 128) -> rgb_to_hsl assigns hue = 0.0
+    // Pixel A: exact neutral gray (128, 128, 128) -> rgb_to_hsl assigns hue = 0.0, sat = 0.0
     let mut frame_gray = FrameBuffer::solid(1, 1, [128, 128, 128, 255]);
-    // Pixel B: nearly neutral gray with green +1 (128, 129, 128) -> rgb_to_hsl assigns hue = 120.0
+    // Pixel B: nearly neutral gray with green +1 (128, 129, 128) -> rgb_to_hsl assigns hue = 120.0, sat ~ 0.0039
     let mut frame_near_gray = FrameBuffer::solid(1, 1, [128, 129, 128, 255]);
 
     apply_hsl_curves(&mut frame_gray, &curves);
@@ -543,13 +547,17 @@ fn adv_hsl_curves_hue_vs_lum_achromatic_discontinuity() {
     let p_gray = frame_gray.pixel(0, 0);
     let p_near = frame_near_gray.pixel(0, 0);
 
-    // Neutral gray was boosted as Red to [205, 205, 205]!
-    assert_eq!(p_gray, [205, 205, 205, 255]);
-    // Near-gray stayed at [128, 129, 128]!
-    assert_eq!(p_near, [128, 129, 128, 255]);
+    // Neutral gray has saturation 0.0, so HueVsLum delta is 0; it remains 128:
+    assert_eq!(p_gray, [128, 128, 128, 255]);
+    // Near-gray has tiny saturation, so delta is negligible; it remains within 1 level:
+    assert!((p_near[0] as i32 - 128).abs() <= 1);
+    assert!((p_near[1] as i32 - 129).abs() <= 1);
 
-    // This proves the achromatic discontinuity:
     let luma_gray = 0.2126 * p_gray[0] as f32 + 0.7152 * p_gray[1] as f32 + 0.0722 * p_gray[2] as f32;
     let luma_near = 0.2126 * p_near[0] as f32 + 0.7152 * p_near[1] as f32 + 0.0722 * p_near[2] as f32;
-    assert!((luma_gray - luma_near).abs() > 70.0);
+    assert!(
+        (luma_gray - luma_near).abs() < 2.0,
+        "Achromatic discontinuity eliminated: luma diff is {}",
+        (luma_gray - luma_near).abs()
+    );
 }
