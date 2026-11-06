@@ -139,7 +139,7 @@ fn correlate_two_stage(ref_samples: &[f32], target_samples: &[f32], rate: u32) -
             .map(|i| f64::from(coarse_a[i]) * f64::from(coarse_b[(i as i64 - lag) as usize]))
             .sum();
         let ea = pref_a[t_u] - pref_a[f_u];
-        let (bf, bt) = ((from as i64 - lag) as usize, (to as i64 - lag) as usize);
+        let (bf, bt) = ((from - lag) as usize, (to - lag) as usize);
         let eb = pref_b[bt] - pref_b[bf];
         let denom = (ea * eb).sqrt();
         if denom > 1e-12 {
@@ -183,7 +183,7 @@ fn correlate_two_stage(ref_samples: &[f32], target_samples: &[f32], rate: u32) -
             .map(|i| f64::from(fine_a[i]) * f64::from(fine_b[(i as i64 - lag) as usize]))
             .sum();
         let ea = pref_fine_a[t_u] - pref_fine_a[f_u];
-        let (bf, bt) = ((from as i64 - lag) as usize, (to as i64 - lag) as usize);
+        let (bf, bt) = ((from - lag) as usize, (to - lag) as usize);
         let eb = pref_fine_b[bt] - pref_fine_b[bf];
         let denom = (ea * eb).sqrt();
         if denom > 1e-12 {

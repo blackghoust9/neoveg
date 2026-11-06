@@ -6175,7 +6175,7 @@ impl AppState {
     fn toggle_multicam_mode(&mut self) {
         self.multicam_mode = !self.multicam_mode;
         self.status = if self.multicam_mode {
-            tr("Edição multicâmera ao vivo")
+            tr("Edição multicâmera ao vivo").to_string()
         } else {
             "Edição multicâmera desativada".into()
         };
@@ -6183,7 +6183,7 @@ impl AppState {
 
     /// Switches camera angle in-place (when paused) or splits and cuts to new angle (during playback).
     fn switch_or_cut_multicam_angle(&mut self, angle_idx: usize, crossfade: bool) {
-        let cursor = self.cursor;
+        let cursor = self.playhead;
         let is_playing = self.playing;
         let overlap = if crossfade { Some(0.5) } else { None };
 
@@ -6192,7 +6192,7 @@ impl AppState {
             .filter(|&t| {
                 self.timeline
                     .track(t)
-                    .map_or(false, |tr| tr.kind == TrackKind::Video)
+                    .is_some_and(|tr| tr.kind == TrackKind::Video)
             })
             .or_else(|| {
                 self.timeline
@@ -14086,14 +14086,14 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
                 let max = pos2(min.x + cell_w, min.y + cell_h);
                 let tile_rect = Rect::from_min_max(min, max);
 
-                let is_hovered = pointer_pos.map_or(false, |p| tile_rect.contains(p));
+                let is_hovered = pointer_pos.is_some_and(|p| tile_rect.contains(p));
                 let border_color = if is_hovered {
                     Color32::from_rgb(0x34, 0x98, 0xDB)
                 } else {
                     Color32::from_gray(60)
                 };
 
-                painter.rect_stroke(tile_rect, Rounding::ZERO, Stroke::new(1.5, border_color));
+                painter.rect_stroke(tile_rect, Rounding::ZERO, Stroke::new(1.5_f32, border_color));
                 painter.text(
                     pos2(tile_rect.left() + 6.0, tile_rect.top() + 6.0),
                     Align2::LEFT_TOP,
