@@ -1,7 +1,7 @@
 # Progress — Project Orchestrator
 
 ## Current Status
-Last visited: 2026-11-06T18:34:20Z
+Last visited: 2026-11-06T18:48:45Z
 
 - [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
 - [x] Phase 0: Survey Completed (3 Explorers)
@@ -44,10 +44,12 @@ Last visited: 2026-11-06T18:34:20Z
   - `reviewer_m5_1`: REQUEST_CHANGES (scene detection stub, case-sensitive suppression, 1.0 FPS clamp)
 - [x] Phase 2: Milestone 5 Remediation & Checkbox Sync (`worker_m5_2` completed: scene detection genuine, case-insensitive companion suppression, 1.0 FPS clamp fixed, Blender fixtures added, README.md synced)
 - [x] Phase 2: Milestone 5 Targeted Re-Review (`reviewer_m5_3` APPROVE, Gate 5 PASSED)
-- [/] Phase 2: Milestone 5 Git Commit & Push (`worker_git_m5` dispatched)
-- [ ] Phase 2: Milestone 6 (Timeline Editing, Multicam, Takes, VEGAS Pro Parity & i18n Sync)
+- [x] Phase 2: Milestone 5 Git Commit & Push (Commit `37840b1` pushed to `origin/preview/version-2.1.0`)
+- [/] Phase 2: Milestone 6 (Timeline Editing, Multicam, Takes, VEGAS Pro Parity & i18n Sync) — Exploration (`spec_miner_m6_1`, `explorer_m6_2`, `explorer_m6_3` active)
+- [ ] Phase 2: Milestone 6 Implementation & Gate Verification
+- [ ] Phase 2: Milestone 6 Git Commit & Push
 - [ ] Phase 2: Milestone 7 (Final E2E Test Pass Tiers 1-4 & Tier 5 Adversarial Hardening)
 - [ ] Phase 3: Final build check (`build_portable.py`), parity matrix sync, and comprehensive `README.md` update
 
 ## Iteration Status
-Current iteration: 4 / 32 (Milestones 1, 2, 3, 4 PASSED & PUSHED)
+Current iteration: 5 / 32 (Milestones 1, 2, 3, 4, 5 PASSED & PUSHED)

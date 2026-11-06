@@ -28,7 +28,7 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 - **Phase**: in progress
 - **Route**: General (teamwork_orchestrator)
 - **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (concluding Gate 4 and launching Milestone 5)
-- **Milestones**: M1 (DONE), M2 (DONE), M3 (DONE), M4 (PASSED GATE 4 & PUSHED), M5 (GATE 5 RE-REVIEW: worker_m5_2 delivered all fixes & synced README.md; reviewer_m5_3 verifying), M6-M7 (queued)
+- **Milestones**: M1 (DONE), M2 (DONE), M3 (DONE), M4 (PASSED GATE 4 & PUSHED), M5 (DONE: commit `37840b1` pushed), M6 (IN PROGRESS: Exploration across 3 subagents for Features 35–42), M7 (queued)
 
 ## Victory Audit Status
 - **Triggered**: no

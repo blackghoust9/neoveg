@@ -1,0 +1,382 @@
+[
+  {
+    "line": 273,
+    "section": "Roteiro (o que já está pronto e o que falta) > Decisões",
+    "text": "Scripting para o usuário em Rust (substituir Roslyn/Python) (Em decisão: os scripts e extensões feitos para o VEGAS são código .NET 2 e 3.5 (C#, VB.NET, JScript) e não rodam no Neoveg; falta escolher entre só Rhai com um guia de migração, um conversor Python que traduz esses scripts para Rhai, ou um host .NET 2 e 3.5 opcional e isolado, e como espelhar o modelo de objetos sem copiar nomes de outro produto)."
+  },
+  {
+    "line": 274,
+    "section": "Roteiro (o que já está pronto e o que falta) > Decisões",
+    "text": "Empacotamento portátil (Windows, Linux, macOS x64/arm64) e CI com `cargo build/test/clippy/llvm-cov` (Em decisão: o foco agora é o Windows 10/11; o pacote portátil e a CI do Windows seguem obrigatórios, e Linux e macOS x64/arm64 rodam na CI em modo experimental até a fase do porte, com o ambiente Docker já pronto mas pausado. Pacote do Windows conferido em 31/10/2026: `python build_portable.py build --ffmpeg` gera o `.zip` e o `.exe`, que abre com um PATH mínimo, com as DLLs do FFmpeg, as tabelas de cor e as licenças dentro; CI em `.github/workflows/rust.yml` só no Windows desde 05/11/2026: Linux e macOS saíram da CI até a fase do porte) (para Linux é até que \"fácil\", para macOS vai precisar de uma máquina real)"
+  },
+  {
+    "line": 493,
+    "section": "Roteiro (o que já está pronto e o que falta) > A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)",
+    "text": "Edições em L-cut e J-cut, fades simultâneos de áudio e vídeo e sincronismo de eventos (*sync links*) (VP12/VP13)"
+  },
+  {
+    "line": 494,
+    "section": "Roteiro (o que já está pronto e o que falta) > A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)",
+    "text": "Edição multicâmera (sincronizar, criar evento multicâmera, alternar câmeras) e *takes* como versões alternativas do evento (VP13)"
+  },
+  {
+    "line": 496,
+    "section": "Roteiro (o que já está pronto e o que falta) > A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)",
+    "text": "Exportar/importar preferências (**feito**: Preferências > Geral, `Preferences::import`) e trocar arquivos de mídia por pasta (VP18; falta)"
+  },
+  {
+    "line": 500,
+    "section": "Roteiro (o que já está pronto e o que falta) > A fazer a partir da pesquisa dos manuais e do `results.md` (inventário local, fora do repositório)",
+    "text": "Opções para ocultar ou não criar arquivos de picos de áudio (`.sfk` no VEGAS; equivalente no Neoveg) (VP21)"
+  },
+  {
+    "line": 512,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Arrastar com `Ctrl` copia; arrastar com o botão direito abre \"Mover aqui / Copiar aqui / Embaralhar\""
+  },
+  {
+    "line": 520,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "`RippleScope` (faixas afetadas / + marcadores e regiões / tudo) e `ripple_after(edição, escopo)` — **engine pronto** (`ripple_after`, `ripple_delete_scoped`) e escopo ligado a `F`, `Ctrl+F`, `Ctrl+Shift+F`, ao Auto Ripple e à exclusão com ripple; o Auto Ripple também vale ao aparar e esticar bordas (`ripple_resize`); `F` / `Ctrl+F` / `Ctrl+Shift+F` também fazem o ripple da última edição (exclusão simples ou aparo/esticar de uma borda) enquanto ela for a última mudança do histórico; o ripple ao mover e ao colar já existe (`ripple_move`, `paste_with_ripple`, `move_hint`, `paste_hint`); falta o ripple manual de outras edições; teclas `F`, `Ctrl+F`, `Ctrl+Shift+F`; modo Auto Ripple (`Ctrl+L`) com lista de escopos"
+  },
+  {
+    "line": 521,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "`TrimMode` {Normal, Slip, Slide, Stretch, Roll}; slip e slide por mouse e por teclado; resolver o conflito `Alt` (hoje ignora o snap) antes de adotar `Alt` = slip"
+  },
+  {
+    "line": 523,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Aparo adjacente (rolling) arrastando a borda entre dois eventos (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam já funciona, com regra `edit::roll` testada; falta o aparo por teclado e o corte em J/L); aparar a borda de um evento agrupado também apara os membros do grupo que têm a mesma borda e `Shift`+arrastar (ou Ignorar agrupamento) apara só aquele evento, os cortes em J e L (não vale com o Ripple automático ligado)"
+  },
+  {
+    "line": 524,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)"
+  },
+  {
+    "line": 544,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Esticar no tempo e mudar o tom pelas teclas `=` e `-` (o tom por evento já existe no Inspetor, com formantes), taxa de reprodução e subamostragem de vídeo"
+  },
+  {
+    "line": 547,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)"
+  },
+  {
+    "line": 554,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)"
+  },
+  {
+    "line": 555,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Marcadores de mídia mostrados nos eventos (snap opcional); os marcadores de comando já existem"
+  },
+  {
+    "line": 567,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Grupos de faixas (recolher, nomear, mudo/solo de grupo), cor e altura de faixa, minimizar/maximizar (**feito**: duplicar faixa, menu Faixas, `neoveg_engine::track_ops`)"
+  },
+  {
+    "line": 570,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Cadeias de FX atribuíveis (envio/retorno) e FX de barramento"
+  },
+  {
+    "line": 586,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)"
+  },
+  {
+    "line": 593,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "(núcleo pronto na Fase 13; falta ligar os menus de contexto, a barra de ferramentas e os tooltips) Tabela única de ações (`Command`: id pontuado, rótulo i18n, atalho, predicado de habilitação) usada pelo menu principal, menus de contexto, tooltips e pela janela \"Personalizar teclado\"; overrides em `preferences.json` (`keymap`)"
+  },
+  {
+    "line": 595,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)"
+  },
+  {
+    "line": 597,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade"
+  },
+  {
+    "line": 598,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking por keyframes de volume (o por faixa já existe), inserir legendas de arquivo `.txt`/`.csv` ou de regiões"
+  },
+  {
+    "line": 620,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Aparar e mover no teclado numérico: `7`/`9`, `5`, `1`/`3`, `4`/`6`, `8`/`2` (mover entre faixas) e os modificadores `Ctrl` (esticar), `Alt` (slip), `Shift` (corte em J/L), `Ctrl+Alt` (slide/aparo adjacente), `Ctrl+Alt+Shift`; modificadores de mouse (`Alt`+arrastar slip, `Shift`+borda, `Ctrl+Alt`+borda, `Ctrl+Alt+Shift`+clique divide, `Ctrl`+borda estica, `Alt+Shift`+evento)"
+  },
+  {
+    "line": 622,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Takes e corte para transição: `T`/`Shift+T` takes; `Num /`, `Num *`, `Num -` corte para transição; `Ctrl+Num /` transição para corte; `Ctrl+E` editor de áudio"
+  },
+  {
+    "line": 625,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Trimmer, Track Motion, Surround Panner, Mixing Console e roda do mouse: tabelas da entrada 17 (conferir a roda e o Mixing Console no aplicativo)"
+  },
+  {
+    "line": 630,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Áudio avançado: surround 5.1 com painel Surround Panner, leis de pan, buses/sends/inserts, FX atribuíveis, compensação de atraso de plug-ins, VST3, gravação com monitoração, normalização, esticar sem mudar o tom, formantes"
+  },
+  {
+    "line": 631,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "3D estereoscópico (modos lado a lado, anaglífico, linha alternada), plug-in de ajuste 3D e pareamento de subclipes"
+  },
+  {
+    "line": 632,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Formatos e fluxos profissionais: HDV/XDCAM/RED/AVCHD/P2, proxy-first com relink por pasta, renderização inteligente (sem recompressão), saída multicanal com mapeamento de canais"
+  },
+  {
+    "line": 633,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Linha de comando (`neoveg --open`, `--run-script`), scripting e extensões em Rust, comandos reutilizados por um controle remoto local"
+  },
+  {
+    "line": 634,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Controle externo: superfícies MIDI, joystick para pan, remoto pela rede; sincronismo por MIDI timecode e MIDI clock"
+  },
+  {
+    "line": 635,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Saída para disco (CD/DVD/Blu-ray) e upload direto para sites de vídeo (baixa prioridade)"
+  },
+  {
+    "line": 636,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Modelos de projeto (cerca de 30 predefinições de saída), \"iniciar novos projetos com estas configurações\", predefinições de renderização por finalidade"
+  },
+  {
+    "line": 637,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Efeitos padrão ao importar áudio (Noise Gate, EQ e Compressor na faixa), Chroma Key, Pitch Shift e Reverb nativos"
+  },
+  {
+    "line": 645,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois"
+  },
+  {
+    "line": 646,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Arquivar projetos (copiar projeto e mídia para uma pasta) e referências do projeto nos arquivos renderizados"
+  },
+  {
+    "line": 650,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Estabilização de clipes de vídeo, congelar quadro no cursor e reverter evento"
+  },
+  {
+    "line": 651,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Corrigir deslocamentos de sincronismo A/V (adicionar fluxos ausentes, mover ou deslizar)"
+  },
+  {
+    "line": 653,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Exibição do comprimento do evento ao aparar e propriedades de áudio e de vídeo da mídia (arquivo único e vários)"
+  },
+  {
+    "line": 654,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Arquivos PSD em camadas (**feito para a imagem composta**: `neoveg_video::psd` lê e decodifica `.psd` `8BPS` de 8 e 16 bits por canal em tons de cinza e RGB, bruto ou PackBits RLE, em Rust puro; falta abrir cada camada individual em sua própria faixa), Broadcast Wave, Blackmagic RAW, P2 e AVCHD; importar mídia de outro projeto"
+  },
+  {
+    "line": 655,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Captura de tela e câmeras (dispositivos, DVD, HDV) e Hub de mídia"
+  },
+  {
+    "line": 656,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Pastas de mídia (*bins*) e *smart bins* com busca automática dos arquivos gravados ou capturados"
+  },
+  {
+    "line": 659,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Edição multicâmera: alternar a visão, sincronizar por áudio e criar evento multicâmera"
+  },
+  {
+    "line": 660,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Projetos aninhados com visão da linha do tempo pai e `Esc` para voltar (hoje o sub-projeto abre em outra aba)"
+  },
+  {
+    "line": 663,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Opções de interface dos manuais: janela de explorador unificado, botão de alternar o comportamento da barra de espaço, ocultar arquivos de picos"
+  },
+  {
+    "line": 664,
+    "section": "Roteiro (o que já está pronto e o que falta) > Plano de implementação detalhado (entradas 7 a 16 da pesquisa)",
+    "text": "Modos de visualização reais da prévia (desentrelaçamento, rotação, HDR) e das propriedades que hoje só ficam gravadas no projeto: formato de pixel, gama de composição, qualidade da renderização, desfoque de movimento"
+  },
+  {
+    "line": 682,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Modelos de título com texto trocável** (*Live Text*, p.441): um modelo de título cujos campos de texto são preenchidos na hora de usar; os estilos de título que já existem guardam só a aparência"
+  },
+  {
+    "line": 683,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Pilha de preenchimento, contorno e sombra por título** (p.456): vários preenchimentos, contornos e sombras empilhados no mesmo texto, em vez de um de cada"
+  },
+  {
+    "line": 684,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Rolagem horizontal de títulos** (p.461): hoje há a rolagem de créditos na vertical; conferir a horizontal"
+  },
+  {
+    "line": 685,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Clipes sintéticos** (p.346): barras e tons, contagem regressiva e vídeo preto prontos para inserir (parte vem dos geradores de mídia que já existem; falta a contagem regressiva)"
+  },
+  {
+    "line": 686,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Painel de eventos de aviso** (p.368): uma lista com os avisos e erros da sessão (mídia ausente, codec, efeito ignorado) e um clique para ir ao evento; o visualizador de logs mostra o texto mas não leva ao evento"
+  },
+  {
+    "line": 687,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do Premiere Pro CC 2015 (registradas em 04/11/2026)",
+    "text": "**Estabilizador de distorção** (p.493): estabilização de vídeo por análise do movimento (já está no roteiro como estabilização de clipes de vídeo)"
+  },
+  {
+    "line": 695,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Fila de renderização** com vários trabalhos (p.581-586): enfileirar renderizações com formatos e intervalos diferentes (região de laço, seleção, projeto) e rodar em sequência com a lista de estados; hoje só há uma por vez (também limita *Renderizar para nova faixa*)"
+  },
+  {
+    "line": 696,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Exportação rápida** (p.174): um comando que renderiza o projeto com um destino pronto (web, arquivo, só áudio) sem abrir o diálogo, ligado às predefinições de renderização por finalidade"
+  },
+  {
+    "line": 697,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Prévia em tela cheia** (p.173): a visualização ocupando a tela (ou outro monitor) para revisar, com `Esc` para voltar"
+  },
+  {
+    "line": 698,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Duplicar o projeto como nova aba** (p.70): copiar a linha do tempo atual numa aba nova para testar uma versão alternativa da edição sem perder a original (os projetos em abas já existem)"
+  },
+  {
+    "line": 699,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Inserir terminando no cursor** (*backtiming*, p.59): colocar o evento ou a mídia com o **fim** (e não o começo) no cursor, ou entre o cursor e a marca, útil para preencher até um ponto fixo"
+  },
+  {
+    "line": 700,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Adicionar ao fim da faixa** (p.42): acrescentar a mídia logo depois do último evento da faixa selecionada"
+  },
+  {
+    "line": 701,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Substituir evento pelo clipe da fonte** (*Replace edit*, p.89): trocar o conteúdo de um evento mantendo posição e comprimento, alinhando o quadro do cursor com o quadro da fonte"
+  },
+  {
+    "line": 702,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Cor automática** (p.211): balanço de branco e níveis calculados por análise do quadro, aplicados no corretor de cor do evento como um ponto de partida editável"
+  },
+  {
+    "line": 703,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Galeria de quadros de referência** (p.306): guardar quadros com a correção aplicada e compará-los com o quadro atual por cortina ou lado a lado (o VEGAS copia o quadro; a galeria é nova)"
+  },
+  {
+    "line": 704,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Destacar eventos sem correção de cor** (p.300): filtro ou marca visível nos eventos de vídeo que ainda não têm correção, para revisar o filme inteiro"
+  },
+  {
+    "line": 705,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Exportar e importar a correção de cor** (p.317): gravar a correção de um evento em arquivo e aplicá-la em outro projeto (a predefinição de efeitos de vídeo já existe; falta o arquivo da correção primária)"
+  },
+  {
+    "line": 706,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Nivelar diálogo** (*AI Dialogue Leveler*, p.442): um efeito de áudio que iguala o volume da fala ao longo do evento (compressão adaptativa com expansor, sem IA)"
+  },
+  {
+    "line": 707,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Alinhar ao transiente** (*aligning sound effects*, p.467): mover um evento de áudio para que o primeiro pico forte caia no cursor ou no marcador mais próximo"
+  },
+  {
+    "line": 708,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Renomear eventos e mídias por metadados** (p.384): modelo de nome com data, câmera e número a partir dos metadados do arquivo"
+  },
+  {
+    "line": 709,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Alvo de loudness na renderização** (p.571): normalizar a mixagem para um alvo (EBU R128, streaming, podcast) ao renderizar, usando o medidor BS.1770 que já existe"
+  },
+  {
+    "line": 710,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias do guia do DaVinci Resolve 20 (registradas em 04/11/2026)",
+    "text": "**Reenquadrar para vertical** (p.545-566): duplicar o projeto em 9:16 e reenquadrar cada evento (Pan/Crop) com um assistente que centraliza o assunto (sem IA, com ajuste manual por evento)"
+  },
+  {
+    "line": 719,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Combinar quadro e combinar inverso** (*Match Frame* e *Reverse Match*, Guia 426, Basics 261): do evento sob o cursor, abrir a mídia dele no Trimmer no mesmo quadro; do Trimmer, achar na linha do tempo o evento que usa aquele trecho"
+  },
+  {
+    "line": 720,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Detecção de duplicatas** (*Dupe Detection*, Guia 591, Basics 311): listar e selecionar os eventos que repetem o mesmo trecho de uma mídia, para entrega e licença de material de arquivo"
+  },
+  {
+    "line": 721,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Relatório da sequência** (Guia 237): a lista da mídia usada, com origem, ponto de entrada e saída, duração e quantos eventos a usam, exportável em CSV, junto das mídias ausentes (a janela *Detalhes de edição* já mostra a tabela na tela)"
+  },
+  {
+    "line": 722,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Busca de palavra falada** (*PhraseFind* e *ScriptSync*, Guia 428 e 448): indexar a transcrição que o Whisper já gera e achar onde cada palavra é dita nas mídias do projeto, com salto ao ponto"
+  },
+  {
+    "line": 723,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Consolidar mídia com margens** (*Consolidate*, Guia 155): copiar para uma pasta só o trecho usado de cada mídia, mais uma margem de segurança nas pontas; complementa *Arquivar projetos*"
+  },
+  {
+    "line": 724,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Timecode gravado na imagem** (*burn-in*, Guia 126 e 483): sobrepor ao filme renderizado o timecode e o nome do evento, para revisão fora do editor (o texto já é desenhado nas legendas gravadas na imagem)"
+  },
+  {
+    "line": 725,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Efeito de áudio fora de tempo real** (*AudioSuite*, Guia 154): aplicar um efeito ao áudio de um evento e gravar o resultado no lugar (um passo de desfazer), em vez de rodar o efeito a cada reprodução; usa a mesma estrutura de *Renderizar e substituir*"
+  },
+  {
+    "line": 726,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Remover e aplicar *pulldown* 3:2** (Basics 108, Guia 7 a 11 no índice): ao importar material de 23,976 quadros por segundo gravado em 29,97, reconstruir os quadros originais, ou o contrário; trabalha com a reamostragem que já existe"
+  },
+  {
+    "line": 727,
+    "section": "Roteiro (o que já está pronto e o que falta) > Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)",
+    "text": "**Seleção por retângulo** (*lasso*, Guia 251, Basics 187): arrastar numa área vazia da linha do tempo para selecionar todos os eventos tocados pelo retângulo; **conferir antes** se o arrasto com o botão esquerdo já faz isso no Neoveg"
+  }
+]
