@@ -63,3 +63,13 @@ User follow-up directive / scope expansion for this active Teamwork run (incorpo
   5. Strictly obey VEGAS Pro semantics across the entire program — especially GUI behavior and keyboard shortcuts — consulting the reference manuals in `C:\Users\paulomatos\Documents\GitHub\neoveg\manuais` (and web documentation where needed). Evaluate features against VEGAS Pro semantics: include beneficial features that preserve VEGAS Pro semantics; avoid features that conflict with VEGAS Pro semantics and document clear notes in `README.md` explaining why. (Keep runtime UI strings free of third-party trademarks per repository policy while documenting VEGAS Pro parity/notes in `README.md`.)
   6. Commit and push (`git commit` and `git push`) incrementally after each completed milestone / new change (including committing/pushing completed M1 & M2 changes once Gate 2 passes).
   7. Perform a comprehensive update of `README.md` (and `scripts/parity_matrix.py --check` + 7 i18n catalogs) reflecting everything that has been completed and any semantic notes.
+
+## 2026-11-06T15:01:28Z
+
+# High Priority User Focus Directive
+User Directive: "apenas siga o roteiro, as caixas desmarcadas do readme, até terminar todas elas, foque somente no que falta a colcluir no readme"
+Sentinel Execution Guidance:
+1. Keep the team strictly and laser-focused ONLY on completing the unchecked items (`- [ ]`) in `README.md` until every single one is implemented, verified, and checked off (`- [x]`).
+2. Do not spend time or cycles on speculative extensions outside of what `README.md`'s roadmap unchecked boxes require.
+3. Once Gate 3 remediation is finalized, commit & push Milestone 3, check off the corresponding items in `README.md`, and systematically drive through the remaining unchecked milestones in `README.md` until 100% completion.
+4. Maintain all hard constraints: zero build/clippy errors, sequential execution (`-j 1`, `--test-threads=1`), clean-room licenses, trademark cleanliness, and i18n/parity matrix synchronization.

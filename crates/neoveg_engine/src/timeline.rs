@@ -283,6 +283,9 @@ pub struct TrackEvent {
     /// Dedicated color grade of the event (older projects have none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color_grade: Option<EventColorGrade>,
+    /// Geometric & Bézier event mask (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_mask: Option<neoveg_common::mask::EventMask>,
 }
 
 impl Default for TrackEvent {
@@ -328,6 +331,7 @@ impl Default for TrackEvent {
             audio_effects: Vec::new(),
             active_take: 0,
             color_grade: None,
+            event_mask: None,
         }
     }
 }

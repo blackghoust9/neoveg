@@ -1,7 +1,7 @@
-# BRIEFING — 2026-11-06T14:53:30Z
+# BRIEFING — 2026-11-06T16:01:00Z
 
 ## Mission
-Orchestrate execution and independent audit for neoveg recording workflow completion, feature extensions, and scope expansion on branch preview/version-2.1.0.
+Orchestrate execution and independent audit for neoveg recording workflow completion, feature extensions, and scope expansion on branch preview/version-2.1.0, strictly following the README.md unchecked roadmap items to 100% completion.
 
 ## 🔒 My Identity
 - Archetype: sentinel
@@ -12,21 +12,22 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
+- Strict focus ONLY on unchecked items in README.md until all are completed and checked off
 - Pure clean-room Rust compliant with MIT OR Apache-2.0 (deny.toml), without GPL/LGPL, zero third-party trademarks in runtime strings
 - Strict 8 GB RAM execution budget: run Cargo sequentially with -j 1 and --test-threads=1; NEVER run cargo test -p neoveg_ui
 - Pure software/CPU fallbacks and mock implementations for GPU effects, OFX, and AI features
 - Synchronize translation catalogs (Assets/i18n/strings/{de-DE,en-US,es-ES,fr-FR,ja-JP,ru-RU,zh-CN}.json), scripts/parity_matrix.py (--check), and README.md
 
 ## User Context
-- **Last user request**: User follow-up directive: incorporate all unchecked items in README.md, CPU-only/low-spec hardware performance optimization, GUI/engine wiring and bug fixes, zero build errors across workspace and build_portable.py, strict VEGAS Pro semantics across GUI/shortcuts using reference manuals, incremental git commit and push after each milestone, and full README update.
+- **Last user request**: "apenas siga o roteiro, as caixas desmarcadas do readme, até terminar todas elas, foque somente no que falta a colcluir no readme" — Focus strictly on unchecked items in README.md.
 - **Pending clarifications**: none
-- **Delivered results**: M1 (commit 5a222723), M2 (commit 1689178) committed & pushed to preview/version-2.1.0; M3 pipeline commit dde4e7e landed; Gate 3 Auditor CLEAN, Reviewer 1 & 2 APPROVE; Challenger 1 reported REQUEST_CHANGES (5 edge-case hardening items identified with test reproducer).
+- **Delivered results**: M1 (commit 5a222723), M2 (commit 1689178), M3 (commit 58f4ff08) committed & pushed to preview/version-2.1.0; Milestone 4 Features 17-23 fully authored, clippy passed, test runs in progress.
 
 ## Project Status
 - **Phase**: in progress
 - **Route**: General (teamwork_orchestrator)
-- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (coordinating Gate 3 remediation)
-- **Milestones**: M1 (DONE - commit 5a222723), M2 (DONE - commit 1689178), M3 (GATE 3 REMEDIATION: 5 adversarial edge cases identified by challenger_m3_1 in adversarial_m3_splines_wheels.rs, awaiting fix), M4-M7 + Follow-up Scope (queued)
+- **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (supervising worker_m4_1 test verification)
+- **Milestones**: M1 (DONE - commit 5a222723), M2 (DONE - commit 1689178), M3 (DONE - commit 58f4ff08), M4 (TESTING: Features 17-23 authored, cargo check/clippy passed, sequential test runs executing), M5-M7 + README roadmap (queued)
 
 ## Victory Audit Status
 - **Triggered**: no

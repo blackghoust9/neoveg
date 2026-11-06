@@ -65,3 +65,13 @@ User follow-up directive / scope expansion for this active Teamwork run (incorpo
   5. Strictly obey VEGAS Pro semantics across the entire program — especially GUI behavior and keyboard shortcuts — consulting the reference manuals in `C:\Users\paulomatos\Documents\GitHub\neoveg\manuais` (and web documentation where needed). Evaluate features against VEGAS Pro semantics: include beneficial features that preserve VEGAS Pro semantics; avoid features that conflict with VEGAS Pro semantics and document clear notes in `README.md` explaining why. (Keep runtime UI strings free of third-party trademarks per repository policy while documenting VEGAS Pro parity/notes in `README.md`.)
   6. Commit and push (`git commit` and `git push`) incrementally after each completed milestone / new change (including committing/pushing completed M1 & M2 changes once Gate 2 passes).
   7. Perform a comprehensive update of `README.md` (and `scripts/parity_matrix.py --check` + 7 i18n catalogs) reflecting everything that has been completed and any semantic notes.
+
+
+## Follow-up — 2026-11-06T15:00:31Z
+
+User focus directive update for this active Teamwork run:
+
+**Task**: apenas siga o roteiro, as caixas desmarcadas do readme, até terminar todas elas, foque somente no que falta a colcluir no readme
+
+**Additional Context**:
+- Keep the team strictly focused ONLY on completing the unchecked checklist items (`- [ ]`) in `README.md` until all of them are completed and checked off (`- [x]`), without spending cycles on extra tasks outside the unchecked `README.md` roadmap items (while still maintaining build/test/clippy/i18n/parity_matrix cleanliness and incremental git commits/pushes on `preview/version-2.1.0`).

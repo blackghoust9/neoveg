@@ -13,7 +13,7 @@ use neoveg_text::raster::{fill, Path};
 const ELLIPSE_STEPS: usize = 96;
 
 /// The outline of `mask` on a `w` by `h` frame, in pixels.
-fn outline(mask: &FxMask, w: f32, h: f32) -> Path {
+pub(crate) fn outline(mask: &FxMask, w: f32, h: f32) -> Path {
     let (cx, cy) = (mask.center[0] * w, mask.center[1] * h);
     let (hw, hh) = (mask.size[0] * w * 0.5, mask.size[1] * h * 0.5);
     let (sin, cos) = mask.rotation_deg.to_radians().sin_cos();

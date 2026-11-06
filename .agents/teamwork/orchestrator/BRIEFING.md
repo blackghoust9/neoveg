@@ -34,14 +34,14 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
   1. Survey and Codebase Mapping [done]
   2. M1 Recording Stabilization & Trademark Sanitization [done, commit 5a222723]
   3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [done, commit 1689178]
-  4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [in-progress: exploration]
-  5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [pending]
+  4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [done, commit 58f4ff08]
+  5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [in-progress: exploration]
   6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [pending]
   7. M6 Advanced Timeline Editing, Multicam & Takes [pending]
   8. M7 Final E2E Test Suite Validation & Adversarial Hardening [pending]
   9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
-- **Current phase**: 2 (Milestone M3 Exploration)
-- **Current focus**: Milestone 3 (Color Grading & OCIO/ACES) survey & architecture
+- **Current phase**: 2 (Milestone M4 Exploration)
+- **Current focus**: Milestone 4 (Motion Tracking, Masks, Smart Mask & AI Features) survey & architecture
 
 ## 🔒 Key Constraints
 - Pure clean-room Rust implementation compliant with MIT OR Apache-2.0 (deny.toml), zero GPL/LGPL, zero third-party trademarks in runtime strings.
@@ -90,20 +90,26 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | worker_m3_1 | teamwork_worker | M3 Color Grading & OCIO Worker | completed | a1f1a938-b602-4b25-8381-d4d454057571 |
 | reviewer_m3_1 | teamwork_reviewer | M3 Color Wheels & Curves Reviewer | completed (APPROVE) | 65f6676f-fafa-4b17-84c8-c875ea814378 |
 | reviewer_m3_2 | teamwork_reviewer | M3 OCIO & Color Match Reviewer | completed (APPROVE) | c4cf1125-cd5b-4add-9f81-3487105883b6 |
-| challenger_m3_1 | teamwork_challenger | M3 Color Wheels & Curves Challenger | in-progress | 4e286468-ed95-4d89-aa4a-4d3477a5f0b6 |
-| challenger_m3_2 | teamwork_challenger | M3 OCIO & Color Match Challenger | in-progress | 37a6da38-a38d-47ce-9704-5cf72b2ef447 |
+| challenger_m3_1 | teamwork_challenger | M3 Color Wheels & Curves Challenger | completed (REQUEST_CHANGES) | 4e286468-ed95-4d89-aa4a-4d3477a5f0b6 |
+| challenger_m3_2 | teamwork_challenger | M3 OCIO & Color Match Challenger | completed (APPROVE) | 37a6da38-a38d-47ce-9704-5cf72b2ef447 |
 | auditor_m3_1 | teamwork_auditor | M3 Forensic Integrity Auditor | completed (CLEAN) | da2f5204-e261-474d-80e3-0477407bd7c7 |
+| worker_m3_2 | teamwork_worker | M3 Color Grading Remediation Worker | completed (DONE) | 2463cd0a-6a61-4e41-a7f3-183ea6677e25 |
+| worker_git_m3 | teamwork_worker | M3 Git Commit & Push Worker | completed (pushed 58f4ff08) | da9fb247-57bd-486f-b450-1e6aff79b0fd |
+| spec_miner_m4_1 | teamwork_spec_miner | M4 VEGAS Pro & AI Spec Miner | completed | 2d807e2a-bea1-448a-afc3-bd89a622359c |
+| explorer_m4_2 | teamwork_explorer | M4 Codebase Architecture Explorer | completed | f3b8e7e2-8110-4a98-80d7-747d006f2eff |
+| explorer_m4_3 | teamwork_explorer | M4 Low-Spec CPU Architecture Explorer | completed | f2897e9f-22a4-4693-930b-6fc78eccc756 |
+| worker_m4_1 | teamwork_worker | M4 Implementation Worker (Features 17-23) | in-progress | a461dcb1-5c86-4503-a9c3-b6143b8e6cb3 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 27 / 128
-- Pending subagents: 4e286468-ed95-4d89-aa4a-4d3477a5f0b6, 37a6da38-a38d-47ce-9704-5cf72b2ef447
+- Spawn count: 33 / 128
+- Pending subagents: a461dcb1-5c86-4503-a9c3-b6143b8e6cb3
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-998
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-1346
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

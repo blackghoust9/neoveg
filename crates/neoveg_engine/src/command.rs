@@ -694,6 +694,7 @@ impl EditCommand {
                     active_take: left.active_take,
                     audio_effects: left.audio_effects.clone(),
                     color_grade: left.color_grade.clone(),
+                    event_mask: left.event_mask.clone(),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
