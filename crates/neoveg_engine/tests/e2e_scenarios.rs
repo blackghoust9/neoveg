@@ -386,7 +386,7 @@ fn t3_19_fuzzy_relink_matches_alternate_case_and_dashes() {
     let _ = std::fs::create_dir_all(&dir);
     let _ = std::fs::write(dir.join("INTERVIEW-PART-01.MOV"), b"data");
 
-    let found = find_fuzzy(&media, &[dir.clone()]);
+    let found = find_fuzzy(&media, std::slice::from_ref(&dir));
     assert!(found.is_some());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -631,7 +631,7 @@ fn t3_36_relink_rejects_non_matching_stem() {
     let _ = std::fs::create_dir_all(&dir);
     let _ = std::fs::write(dir.join("intro.mp4"), b"sample");
 
-    assert_eq!(find_fuzzy(&media, &[dir.clone()]), None);
+    assert_eq!(find_fuzzy(&media, std::slice::from_ref(&dir)), None);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -654,8 +654,10 @@ fn t3_38_l_cut_with_audio_pre_roll() {
 
 #[test]
 fn t3_39_project_settings_field_order_variants() {
-    let mut s = ProjectSettings::default();
-    s.field_order = PresetFieldOrder::UpperFirst;
+    let mut s = ProjectSettings {
+        field_order: PresetFieldOrder::UpperFirst,
+        ..ProjectSettings::default()
+    };
     assert_eq!(s.field_order, PresetFieldOrder::UpperFirst);
     s.field_order = PresetFieldOrder::Progressive;
     assert_eq!(s.field_order, PresetFieldOrder::Progressive);
@@ -1021,11 +1023,12 @@ fn t4_scenario_06_smart_proxy_offline_online_and_alerts() {
     assert!(reg.has_alerts());
 
     // Step 2: Auto-relink finds proxy candidate
-    let found_proxy = find_fuzzy(&media, &[proxy_dir.clone()]).expect("Proxy found");
+    let found_proxy = find_fuzzy(&media, std::slice::from_ref(&proxy_dir)).expect("Proxy found");
     assert_eq!(found_proxy, proxy_file);
 
     // Step 3: Conforming - switch back to online raw media
-    let found_raw = find_exact(&media, &[online_dir.clone()]).expect("RAW media conformed");
+    let found_raw =
+        find_exact(&media, std::slice::from_ref(&online_dir)).expect("RAW media conformed");
     assert_eq!(found_raw, online_dir.join("SCENE_01_RAW.MOV"));
 
     // Cleanup

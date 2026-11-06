@@ -336,9 +336,11 @@ fn f22_t1_04_upscale_bicubic_kernel_weights() {
 
 #[test]
 fn f22_t1_05_upscale_hd_to_uhd_geometry_mapping() {
-    let mut s = ProjectSettings::default();
-    s.width = 3840;
-    s.height = 2160;
+    let s = ProjectSettings {
+        width: 3840,
+        height: 2160,
+        ..ProjectSettings::default()
+    };
     assert_eq!(s.width, 3840);
     assert_eq!(s.height, 2160);
 }
@@ -449,8 +451,10 @@ fn f23_t1_04_pan_crop_timeline_get_and_set() {
     let current = pan_crop::get(&tl, v_id, 10).unwrap();
     assert!(current.is_default());
 
-    let mut new_pc = PanCrop::default();
-    new_pc.stretch_to_fill = false;
+    let new_pc = PanCrop {
+        stretch_to_fill: false,
+        ..PanCrop::default()
+    };
     let cmd = pan_crop::set(&tl, v_id, 10, new_pc).unwrap();
     let mut h = History::new();
     assert!(h.execute(&mut tl, cmd));
@@ -1153,7 +1157,7 @@ fn f34_t1_01_relink_find_exact_file_match() {
         format: None,
     };
 
-    let found = find_exact(&media, &[dir.clone()]);
+    let found = find_exact(&media, std::slice::from_ref(&dir));
     assert_eq!(found, Some(target));
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1173,7 +1177,7 @@ fn f34_t1_02_relink_find_fuzzy_case_insensitive_match() {
         format: None,
     };
 
-    let found = find_fuzzy(&media, &[dir.clone()]);
+    let found = find_fuzzy(&media, std::slice::from_ref(&dir));
     assert!(found.is_some());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1205,7 +1209,7 @@ fn f34_t1_04_relink_requires_same_extension_for_fuzzy() {
         format: None,
     };
 
-    let found = find_fuzzy(&media, &[dir.clone()]);
+    let found = find_fuzzy(&media, std::slice::from_ref(&dir));
     assert_eq!(
         found, None,
         "Fuzzy match must reject mismatched file extension"
@@ -1302,7 +1306,7 @@ fn f34_t2_05_relink_case_insensitive_exact_match() {
         format: None,
     };
 
-    let found = find_exact(&media, &[dir.clone()]);
+    let found = find_exact(&media, std::slice::from_ref(&dir));
     assert_eq!(found, Some(target));
     let _ = std::fs::remove_dir_all(&dir);
 }

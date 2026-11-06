@@ -271,10 +271,12 @@ mod tests {
     fn test_delete_transcript_ranges_with_ripple() {
         let mut tl = Timeline::new();
         let mut track = tl.new_track(TrackKind::Video);
-        let mut ev = TrackEvent::default();
-        ev.id = 1;
-        ev.start = 0.0;
-        ev.duration = 10.0;
+        let ev = TrackEvent {
+            id: 1,
+            start: 0.0,
+            duration: 10.0,
+            ..TrackEvent::default()
+        };
         track.events.push(ev);
         tl.tracks.push(track);
 

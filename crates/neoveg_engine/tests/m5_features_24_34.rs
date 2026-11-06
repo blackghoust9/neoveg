@@ -42,19 +42,20 @@ use std::sync::Arc;
 
 #[test]
 fn test_f24_project_settings_edge_cases() {
-    let mut s = ProjectSettings::default();
-
-    // Edge Case 1 & 2: Odd dimensions and range bounds
-    s.width = 1921;
-    s.height = 1079;
-    s.fps = 29.97003;
-    s.stereo_busses = 50; // Max is 26
-    s.lfe_filter_enabled = true;
-    s.master_bus = MasterBusMode::Stereo; // In Stereo, LFE must be disabled
-    s.pixel_format = PixelFormat::Legacy8Video; // In 8-bit, gamma must be Video 2.222
-    s.compositing_gamma = CompositingGamma::Linear;
-    s.ruler_format = RulerFormat::AudioCd;
-    s.ruler_start = 12.5; // Audio CD start offset must be forced to 0.0
+    let mut s = ProjectSettings {
+        // Edge Case 1 & 2: Odd dimensions and range bounds
+        width: 1921,
+        height: 1079,
+        fps: 29.97003,
+        stereo_busses: 50, // Max is 26
+        lfe_filter_enabled: true,
+        master_bus: MasterBusMode::Stereo, // In Stereo, LFE must be disabled
+        pixel_format: PixelFormat::Legacy8Video, // In 8-bit, gamma must be Video 2.222
+        compositing_gamma: CompositingGamma::Linear,
+        ruler_format: RulerFormat::AudioCd,
+        ruler_start: 12.5, // Audio CD start offset must be forced to 0.0
+        ..ProjectSettings::default()
+    };
 
     s.sanitize();
 

@@ -496,21 +496,19 @@ mod tests {
 
         // Generate synthetic reference audio with distinctive pulse envelope
         let mut ref_audio = vec![0.0f32; num_samples];
-        for i in 0..num_samples {
+        for (i, sample) in ref_audio.iter_mut().enumerate() {
             let t = i as f32 / sample_rate as f32;
             let envelope =
                 ((2.0 * std::f32::consts::PI * 1.5 * t).sin().powi(4) > 0.6) as i32 as f32;
             let carrier = (2.0 * std::f32::consts::PI * 440.0 * t).sin();
-            ref_audio[i] = envelope * carrier;
+            *sample = envelope * carrier;
         }
 
         // Target audio delayed by 0.25 seconds
         let delay_sec = 0.25;
         let delay_samples = (delay_sec * sample_rate as f64) as usize;
         let mut target_audio = vec![0.0f32; num_samples];
-        for i in delay_samples..num_samples {
-            target_audio[i] = ref_audio[i - delay_samples];
-        }
+        target_audio[delay_samples..].copy_from_slice(&ref_audio[..num_samples - delay_samples]);
 
         let synchronizer = MulticamSynchronizer::new();
         let tracks: &[(u64, &[f32])] = &[(101, &ref_audio), (102, &target_audio)];
