@@ -164,11 +164,8 @@ Gate Result: **PASS**
 ## Gate — Iteration 6 (Milestone M6 Verification)
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
-| worker_m6_1 | teamwork_worker | IN_PROGRESS | pending |
-| reviewer_m6_1 | teamwork_reviewer | PLANNED | pending |
-| reviewer_m6_2 | teamwork_reviewer | PLANNED | pending |
-| challenger_m6_1 | teamwork_challenger | PLANNED | pending |
-| challenger_m6_2 | teamwork_challenger | PLANNED | pending |
-| auditor_m6_1 | teamwork_auditor | PLANNED | pending |
+| worker_m6_1 | teamwork_worker | DONE (252 common + 675 engine tests, 7 M6 passed, 0 clippy warnings) | handoff.md |
+| reviewer_m6_1 | teamwork_reviewer | IN_PROGRESS (6641e0d1-0e3b-4393-8eb3-ddeeb296cd6a) | pending |
+| auditor_m6_1 | teamwork_auditor | IN_PROGRESS (6ffde48f-1c02-4fad-b19a-9860c8089d83) | pending |
 
 Gate Result: **IN_PROGRESS**

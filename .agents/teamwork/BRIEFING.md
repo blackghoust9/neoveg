@@ -20,7 +20,7 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 - Synchronize translation catalogs (Assets/i18n/strings/{de-DE,en-US,es-ES,fr-FR,ja-JP,ru-RU,zh-CN}.json), scripts/parity_matrix.py (--check), and README.md
 
 ## User Context
-- **Last user request**: "use os filmes do blender pra fazer testes de video e audio" — Incorporate real-world video & audio tests using Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel) cached in gitignored/temp directories so binaries do not bloat git commits/pushes.
+- **Last user request**: "encerrar tudo as 17 horas" — HARD DEADLINE 17:00 local time (`2026-11-06T20:00:00Z`). Graceful wrap-up: conclude Milestone 6 validation, verify README.md `- [x]` checkboxes, git commit and push to `preview/version-2.1.0` by 16:58 (`19:58Z`), cancel crons, terminate subagents, and deliver final summary report before 17:00.
 - **Pending clarifications**: none
 - **Delivered results**: M1, M2, M3, M4 core committed & pushed; README.md roadmap checkboxes audited, updated, and pushed (commit e02efd7); Gate 4 panel unanimously approved.
 

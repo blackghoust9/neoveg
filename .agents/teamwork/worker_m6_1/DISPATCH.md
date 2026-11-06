@@ -69,3 +69,13 @@ Implement all Milestone 6 features (Features 35–42: Timeline Editing, Multicam
      `cargo test -p neoveg_engine --test m6_features_35_42 -j 1 -- --test-threads=1`
      `python scripts/parity_matrix.py --check`
    - NEVER execute `cargo test -p neoveg_ui`.
+
+
+## 2026-11-06T19:40:22Z
+**Context**: Milestone 6 Wrap-up Deadline (17:00 local / 20:00Z)
+**Content**: 
+1. Use `;` instead of `&&` in PowerShell: `git add crates/neoveg_engine/src/multicam.rs crates/neoveg_ui/src/app.rs crates/neoveg_engine/tests/m6_features_35_42.rs; git commit -m "feat(m6): integration tests and clippy fixes"`
+2. Verify that `README.md` lines 493, 494, 547, 622, 651, 659 and lingering 636, 656, 663, 686 are `- [x]` if completed.
+3. Write your handoff report to `C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\worker_m6_1\handoff.md` immediately with the test results (`m6_features_35_42.rs` 7/7 passed, clippy 0 warnings, parity matrix 0 unclassified).
+4. Send completion message back so we can push to `preview/version-2.1.0` before 16:58.
+**Action**: Commit changes, write handoff.md, and reply immediately.

@@ -98,3 +98,16 @@ User directive regarding README.md unchecked checkboxes:
 **Additional Context**:
 - Incorporate real-world video and audio tests using Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel, Elephants Dream — check local fixtures/downloads first or cache lightweight Blender open-movie sample clips in a gitignored/temp test cache directory so large media binaries do not bloat git commits/pushes on `preview/version-2.1.0`, while keeping tests reproducible if offline).
 - Keep the 8 GB RAM / `-j 1` / `--test-threads=1` budget intact and continue completing all remaining unchecked `- [ ]` checkboxes in `README.md`.
+
+
+## Follow-up — 2026-11-06T19:38:50Z
+
+**Task**: encerrar tudo as 17 horas
+
+**Additional Context**:
+- HARD DEADLINE: **17:00 local time (`2026-11-06T20:00:00Z`)** — approximately **21 minutes from now**!
+- Immediately switch to graceful wrap-up mode so all work is safely saved, verified, committed, and pushed BEFORE `16:58` (`19:58Z`):
+  1. Let `worker_m6_1` finish its current Milestone 6 validation (`cargo check`, `cargo clippy`, `m6_features_35_42` / engine tests, `parity_matrix.py --check`, i18n sync, and `README.md` `- [x]` updates for completed items).
+  2. Run a fast, focused verification check (do NOT start long multi-round subagent exploration or Milestone 7 runs that would exceed 16:58 / 19:58Z).
+  3. Ensure `README.md` accurately reflects every genuinely completed feature (`- [x]`), run `git status`, `git commit`, and `git push` to `origin/preview/version-2.1.0` so ZERO uncommitted work is left behind in the worktree by `16:58` (`19:58Z`).
+  4. Cancel internal cron jobs, terminate remaining child subagents cleanly, and deliver your final summary report before **17:00 (`20:00Z`)** (at 17:00 sharp, the host will terminate all remaining subagents and background tasks).
