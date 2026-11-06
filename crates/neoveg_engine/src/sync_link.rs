@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_calculate_media_out_of_sync() {
-        let (mut tl, _, _) = test_timeline();
+        let (tl, _, _) = test_timeline();
         let master = tl.tracks[0].events[0].clone();
         let mut linked = tl.tracks[1].events[0].clone();
 

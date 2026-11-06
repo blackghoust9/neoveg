@@ -457,4 +457,53 @@ mod tests {
         let back: TrackEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(back, event(&tl, r));
     }
+
+    #[test]
+    fn test_take_container_next_prev_and_slip_all_takes() {
+        let takes = vec![
+            Take {
+                media_id: Some(10),
+                trim_offset: 0.0,
+                name: "Take 1".into(),
+            },
+            Take {
+                media_id: Some(20),
+                trim_offset: 2.0,
+                name: "Take 2".into(),
+            },
+            Take {
+                media_id: Some(30),
+                trim_offset: 4.0,
+                name: "Take 3".into(),
+            },
+        ];
+        let mut container = TakeContainer::new(takes, 0, 1.0, Some(10));
+        assert_eq!(container.count(), 3);
+        assert_eq!(container.active_take, 0);
+
+        // Next take
+        container.next_take();
+        assert_eq!(container.active_take, 1);
+        assert_eq!(container.media_id, Some(20));
+
+        // Next take
+        container.next_take();
+        assert_eq!(container.active_take, 2);
+        assert_eq!(container.media_id, Some(30));
+
+        // Wrap around
+        container.next_take();
+        assert_eq!(container.active_take, 0);
+        assert_eq!(container.media_id, Some(10));
+
+        // Prev take
+        container.prev_take();
+        assert_eq!(container.active_take, 2);
+        assert_eq!(container.media_id, Some(30));
+
+        // Slip all takes by +0.5s
+        container.slip_all_takes(0.5);
+        assert!((container.trim_in - 5.5).abs() < 1e-9);
+        assert!((container.takes[2].trim_offset - 0.5).abs() < 1e-9);
+    }
 }

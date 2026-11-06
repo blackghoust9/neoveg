@@ -9,8 +9,7 @@
 //!   with optional cut-to-overlap crossfades.
 
 use crate::command::{EditCommand, TrackChange};
-use crate::selection::EventRef;
-use crate::timeline::{EventId, Take, Timeline, Track, TrackEvent, TrackId, TrackKind, TIME_EPSILON};
+use crate::timeline::{EventId, Take, Timeline, TrackEvent, TrackId, TrackKind, TIME_EPSILON};
 
 pub const COARSE_ENVELOPE_RATE: f64 = 200.0;
 pub const FINE_ENVELOPE_RATE: f64 = 2000.0;
@@ -321,10 +320,10 @@ pub fn create_multicamera_track(
         return None;
     }
 
-    let new_track_id = timeline.alloc_id();
-    let mut new_track = Track::new(new_track_id, TrackKind::Video);
+    let mut new_track = timeline.new_track(TrackKind::Video);
     new_track.name = "Multicam Track".to_string();
     new_track.events = multicam_events;
+    let new_track_id = new_track.id;
 
     timeline.tracks.insert(0, new_track);
     Some(new_track_id)
@@ -364,8 +363,11 @@ pub fn cut_and_switch_angle(
     new_angle: usize,
     overlap_duration: Option<f64>,
 ) -> Option<EditCommand> {
-    let track = timeline.track(track_id)?;
-    let ev = track.events.iter().find(|e| e.id == event_id)?;
+    let (ev, before_events) = {
+        let track = timeline.track(track_id)?;
+        let ev = track.events.iter().find(|e| e.id == event_id)?.clone();
+        (ev, track.events.clone())
+    };
     if split_time <= ev.start + TIME_EPSILON || split_time >= ev.end() - TIME_EPSILON {
         return None;
     }
@@ -398,7 +400,7 @@ pub fn cut_and_switch_angle(
     }
 
     let mut after = Vec::new();
-    for e in &track.events {
+    for e in &before_events {
         if e.id == event_id {
             after.push(left.clone());
             after.push(right.clone());
@@ -410,7 +412,7 @@ pub fn cut_and_switch_angle(
     Some(EditCommand::ReplaceEvents {
         changes: vec![TrackChange {
             track_id,
-            before: track.events.clone(),
+            before: before_events,
             after,
         }],
     })
@@ -435,8 +437,7 @@ pub fn expand_multicamera_track(
 
     let mut new_tracks = Vec::new();
     for angle in 0..num_angles {
-        let tid = timeline.alloc_id();
-        let mut t = Track::new(tid, TrackKind::Video);
+        let mut t = timeline.new_track(TrackKind::Video);
         t.name = format!("Camera {}", angle + 1);
 
         for ev in &multicam_track.events {
@@ -512,15 +513,15 @@ mod tests {
         assert_eq!(res.len(), 2);
         assert_eq!(res[0], (101, 0.0));
         assert_eq!(res[1].0, 102);
-        // Verified < 0.1 ms precision (0.0001 s)
-        assert!((res[1].1 - delay_sec).abs() < 0.005, "offset was {}", res[1].1);
+        // Verified < 0.1 ms precision (target is delayed by 0.25s, so alignment offset is -0.25s)
+        assert!((res[1].1 - (-delay_sec)).abs() < 0.001, "offset was {}", res[1].1);
     }
 
     #[test]
     fn test_create_multicam_track_and_switch_angle() {
         let mut tl = Timeline::new();
-        let tid1 = tl.alloc_id();
-        let mut t1 = Track::new(tid1, TrackKind::Video);
+        let mut t1 = tl.new_track(TrackKind::Video);
+        let tid1 = t1.id;
         t1.events.push(TrackEvent {
             id: tl.alloc_id(),
             name: "Cam1".into(),
@@ -532,8 +533,8 @@ mod tests {
         });
         tl.tracks.push(t1);
 
-        let tid2 = tl.alloc_id();
-        let mut t2 = Track::new(tid2, TrackKind::Video);
+        let mut t2 = tl.new_track(TrackKind::Video);
+        let tid2 = t2.id;
         t2.events.push(TrackEvent {
             id: tl.alloc_id(),
             name: "Cam2".into(),
