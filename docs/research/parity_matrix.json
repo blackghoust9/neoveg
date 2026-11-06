@@ -236,8 +236,8 @@
     {
       "id": "edit.takes",
       "area": "Editar",
-      "estado": "previsto",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 6
     },
     {
@@ -502,8 +502,8 @@
     {
       "id": "fer.multicam",
       "area": "Ferramentas",
-      "estado": "previsto",
-      "prioridade": "P3",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 8
     },
     {
@@ -558,8 +558,8 @@
     {
       "id": "opc.slip_takes",
       "area": "Opções",
-      "estado": "previsto",
-      "prioridade": "P3",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 1
     },
     {
@@ -677,8 +677,8 @@
     {
       "id": "exi.evento",
       "area": "Exibir",
-      "estado": "previsto",
-      "prioridade": "P2",
+      "estado": "feito",
+      "prioridade": "-",
       "comandos": 9
     },
     {

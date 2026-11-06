@@ -867,6 +867,8 @@ struct AppState {
     ignore_grouping: bool,
     /// `Shift` was held when the current edge drag started: only the dragged event is trimmed.
     drag_ignores_group: bool,
+    /// Ctrl+Shift+D: multicamera editing mode enabled (displays tiled angle grid in preview).
+    multicam_mode: bool,
     marquee: Option<Marquee>,
     snapping: bool,
     /// Which optional sources snapping uses (grid, markers, events of other tracks).
@@ -2105,6 +2107,7 @@ impl AppState {
             mark_drag: None,
             ignore_grouping: false,
             drag_ignores_group: false,
+            multicam_mode: false,
             marquee: None,
             snapping: true,
             snap_sources: Default::default(),
@@ -5506,6 +5509,66 @@ impl AppState {
                 return;
             }
         }
+        if matches!(d.mode, DragMode::FadeIn | DragMode::FadeOut)
+            && d.target_track == d.track_id
+            && !self.ignore_grouping
+            && !self.drag_ignores_group
+        {
+            let is_fade_in = d.mode == DragMode::FadeIn;
+            let members = groups::group_members(&self.timeline, (d.track_id, d.event_id));
+            if members.len() > 1 {
+                let mut batch = vec![EditCommand::EditEvent {
+                    from_track: d.track_id,
+                    to_track: d.target_track,
+                    event_id: d.event_id,
+                    old: d.origin,
+                    new: d.current,
+                }];
+                for &(t_id, e_id) in &members {
+                    if (t_id, e_id) == (d.track_id, d.event_id) {
+                        continue;
+                    }
+                    if let Some(track) = self.timeline.track(t_id) {
+                        if let Some(partner) = track.events.iter().find(|e| e.id == e_id) {
+                            let shares_edge = if is_fade_in {
+                                (partner.start - d.origin.start).abs() <= TIME_EPSILON
+                            } else {
+                                (partner.end() - d.origin.end()).abs() <= TIME_EPSILON
+                            };
+                            if shares_edge {
+                                let mut new_g = partner.geometry();
+                                if is_fade_in {
+                                    new_g.fade_in = d.current.fade_in.clamp(0.0, partner.duration);
+                                } else {
+                                    new_g.fade_out = d.current.fade_out.clamp(0.0, partner.duration);
+                                }
+                                if new_g != partner.geometry() {
+                                    batch.push(EditCommand::EditEvent {
+                                        from_track: t_id,
+                                        to_track: t_id,
+                                        event_id: e_id,
+                                        old: partner.geometry(),
+                                        new: new_g,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                if batch.len() > 1 {
+                    self.execute_timeline(EditCommand::Batch(batch));
+                    self.selected_track = Some(d.target_track);
+                    if d.target_track != d.track_id
+                        || !self.selection.contains((d.target_track, d.event_id))
+                    {
+                        self.selection.select_only((d.target_track, d.event_id));
+                    }
+                    self.restart_audio_if_playing();
+                    self.last_frame_key = None;
+                    return;
+                }
+            }
+        }
         self.execute_timeline(EditCommand::EditEvent {
             from_track: d.track_id,
             to_track: d.target_track,
@@ -6106,6 +6169,74 @@ impl AppState {
         } else {
             "Agrupamento ativo".into()
         };
+    }
+
+    /// `Ctrl+Shift+D`: toggles multicamera editing mode (angle grid in video preview).
+    fn toggle_multicam_mode(&mut self) {
+        self.multicam_mode = !self.multicam_mode;
+        self.status = if self.multicam_mode {
+            tr("Edição multicâmera ao vivo")
+        } else {
+            "Edição multicâmera desativada".into()
+        };
+    }
+
+    /// Switches camera angle in-place (when paused) or splits and cuts to new angle (during playback).
+    fn switch_or_cut_multicam_angle(&mut self, angle_idx: usize, crossfade: bool) {
+        let cursor = self.cursor;
+        let is_playing = self.playing;
+        let overlap = if crossfade { Some(0.5) } else { None };
+
+        let track_id_opt = self
+            .selected_track
+            .filter(|&t| {
+                self.timeline
+                    .track(t)
+                    .map_or(false, |tr| tr.kind == TrackKind::Video)
+            })
+            .or_else(|| {
+                self.timeline
+                    .tracks
+                    .iter()
+                    .find(|t| t.kind == TrackKind::Video)
+                    .map(|t| t.id)
+            });
+
+        if let Some(track_id) = track_id_opt {
+            if let Some(track) = self.timeline.track(track_id) {
+                if let Some(ev) = track
+                    .events
+                    .iter()
+                    .find(|e| cursor >= e.start && cursor <= e.end())
+                    .cloned()
+                {
+                    if is_playing {
+                        if let Some(cmd) = neoveg_engine::multicam::cut_and_switch_angle(
+                            &mut self.timeline,
+                            track_id,
+                            ev.id,
+                            cursor,
+                            angle_idx,
+                            overlap,
+                        ) {
+                            self.history.execute(&mut self.timeline, cmd);
+                        }
+                    } else {
+                        let mut updated = ev.clone();
+                        if neoveg_engine::multicam::switch_angle(&mut updated, angle_idx) {
+                            let cmd = EditCommand::EditEvent {
+                                from_track: track_id,
+                                to_track: track_id,
+                                event_id: ev.id,
+                                old: ev.geometry(),
+                                new: updated.geometry(),
+                            };
+                            self.history.execute(&mut self.timeline, cmd);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ---- unsaved changes and autosave -----------------------------------------------------------
@@ -16847,6 +16978,43 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     &[&format!("{:+.1}", 20.0 * ev.normalize_gain.log10())],
                 ));
             }
+            let mut sync_drift: Option<f64> = None;
+            for link in &state.timeline.sync_links {
+                if link.linked_track == track.id && link.linked_event == ev.id {
+                    if let Some(master_t) = state.timeline.track(link.master_track) {
+                        if let Some(master_ev) =
+                            master_t.events.iter().find(|e| e.id == link.master_event)
+                        {
+                            let drift = link.calculate_drift(master_ev, ev);
+                            if drift.abs() > TIME_EPSILON {
+                                sync_drift = Some(drift);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if sync_drift.is_none() && ev.media_id.is_some() {
+                for other_t in &state.timeline.tracks {
+                    if other_t.id != track.id && other_t.kind != track.kind {
+                        if let Some(paired) =
+                            other_t.events.iter().find(|e| e.media_id == ev.media_id)
+                        {
+                            if let Some(drift) =
+                                neoveg_engine::sync_link::calculate_media_out_of_sync(paired, ev)
+                            {
+                                if drift.abs() > TIME_EPSILON {
+                                    sync_drift = Some(drift);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(drift) = sync_drift {
+                title.push_str(&format!(" [{:+.2}s]", drift));
+            }
             // The header: the name up to the first button, then the buttons
             let buttons =
                 event_header::buttons_for(track.kind, state.is_generated_event(ev), ev.adjustment);
@@ -17138,8 +17306,19 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     ));
                 }
             }
+            let is_sync_linked_to_selected = state.timeline.sync_links.iter().any(|l| {
+                l.linked_track == track.id
+                    && l.linked_event == ev.id
+                    && state
+                        .selection
+                        .contains((l.master_track, l.master_event))
+            });
             let border = if selected {
                 Color32::WHITE
+            } else if is_sync_linked_to_selected {
+                Color32::from_rgb(0x9B, 0x59, 0xB6)
+            } else if sync_drift.is_some() {
+                Color32::from_rgb(0xE7, 0x4C, 0x3C)
             } else {
                 Color32::from_gray(15)
             };

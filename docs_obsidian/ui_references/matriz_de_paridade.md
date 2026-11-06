@@ -15,16 +15,16 @@ Cada comando da varredura da versão recente do editor de referência (872 coman
 | Área | Comandos | No escopo | Feito | Parcial | Previsto | Sem plano | Cobertura* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Arquivo | 37 | 25 | 22 | 2 | 1 | 12 | 92 % |
-| Editar | 100 | 100 | 25 | 65 | 10 | 0 | 58 % |
+| Editar | 100 | 100 | 31 | 65 | 4 | 0 | 64 % |
 | Inserir | 32 | 30 | 18 | 11 | 1 | 2 | 78 % |
-| Ferramentas | 56 | 38 | 6 | 9 | 23 | 18 | 28 % |
-| Opções | 57 | 54 | 10 | 5 | 39 | 3 | 23 % |
-| Exibir | 75 | 70 | 14 | 41 | 15 | 5 | 49 % |
+| Ferramentas | 56 | 38 | 14 | 9 | 15 | 18 | 49 % |
+| Opções | 57 | 54 | 11 | 5 | 38 | 3 | 25 % |
+| Exibir | 75 | 70 | 23 | 41 | 6 | 5 | 62 % |
 | Ajuda | 14 | 7 | 0 | 7 | 0 | 7 | 50 % |
 | Menus de contexto e auxiliares | 501 | 438 | 71 | 202 | 165 | 63 | 39 % |
-| **Total** | **872** | **762** | | | | | **44 %** |
+| **Total** | **872** | **762** | | | | | **47 %** |
 
-Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 42 feitas, 36 parciais, 33 previstas e 18 sem plano, de 129 linhas (111 no escopo).
+Por **linha da matriz** (cada linha é uma função, sem o peso do número de comandos): 46 feitas, 36 parciais, 29 previstas e 18 sem plano, de 129 linhas (111 no escopo).
 
 \* Cobertura = (feito + metade do parcial) sobre os comandos no escopo, isto é, sem contar os de `sem plano`. É uma medida por **comando da referência**, não por esforço: um comando de menu pode esconder uma função enorme (por exemplo, o Pan/Crop).
 
@@ -35,7 +35,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P1 | Envelope de velocidade do evento de vídeo | Inserir | 1 | parcial |
 | P2 | Modo de edição expandida (entrar e sair) | Editar | 2 | previsto |
 | P2 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | Editar | 5 | parcial |
-| P2 | Takes do evento: renomear, escolher, próximo, anterior, apagar | Editar | 6 | previsto |
 | P2 | Envelope do progresso de uma transição de vídeo | Inserir | 1 | parcial |
 | P2 | Inserir barramento de áudio, de entrada e efeito atribuível | Inserir | 3 | parcial |
 | P2 | Inserir fluxo ausente, evento vazio e evento de ajuste | Inserir | 3 | parcial |
@@ -52,7 +51,6 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | P2 | Janela de transições | Exibir | 1 | parcial |
 | P2 | Janelas de compositores e gerenciador de plug-ins | Exibir | 2 | previsto |
 | P2 | Fader de prévia do mixer e trilhas de barramento | Exibir | 3 | parcial |
-| P2 | Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | Exibir | 9 | previsto |
 | P2 | Mostrar envelopes de áudio e de vídeo | Exibir | 12 | parcial |
 | P2 | Menu de contexto do evento (abrir no Trimmer, aninhar, propriedades, escopo de cena) | Menus de contexto e auxiliares | 33 | parcial |
 | P2 | Menu de contexto da faixa (pasta, duplicar, apagar, cores de esmaecimento) | Menus de contexto e auxiliares | 35 | parcial |
@@ -108,7 +106,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Ferramentas de edição: normal, seleção, envelope, zoom, próxima e anterior | 5 | parcial | normal, slip, slide e embaralhar com ciclo (`D`); faltam esticar e dividir-aparar | P2 |
 | Interruptores do evento: mudo, trava, fase, laço, normalizar | 5 | feito | `edit.switch.*` | - |
 | Interruptores de vídeo: último quadro, mistura de quadros, fluxo óptico, reamostragem, proporção, cintilação | 9 | parcial | reamostragem do projeto e do evento (projeto, mistura de quadros, fluxo óptico, desativar), manter proporção (`edit.switch.maintain_aspect`), reduzir cintilação do entrelaçamento (`edit.switch.reduce_interlace_flicker`) e retenção do último quadro sem laço feitos (manual v21 p.99-100, 355-358); faltam aparar para todos os quadros e normalização automática | P3 |
-| Takes do evento: renomear, escolher, próximo, anterior, apagar | 6 | previsto | `edit.take.*` têm atalho, sem ação | P2 |
+| Takes do evento: renomear, escolher, próximo, anterior, apagar | 6 | feito | `edit.take.*` feitos (`TakeContainer`, T/Shift+T, slip all takes) | - |
 | Grupos: criar, remover, limpar, selecionar, recortar, copiar e apagar tudo | 7 | parcial | criar, remover, desagrupar e selecionar feitos (`edit.group`, `edit.ungroup`) | P3 |
 | Escolha do fluxo de origem e dos canais (ambos, esquerdo, direito, combinar, trocar) | 6 | parcial | canais feitos (`ChannelMode`); fluxo de origem não | P3 |
 | Menu de extensões | 1 | feito | gerenciador de extensões (Exibir) | - |
@@ -156,7 +154,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Salvar avançado | 1 | previsto | sem plano de detalhe | P3 |
 | Executar scripts e reexaminar a pasta de scripts | 2 | previsto | roteiro: scripting em Rust | P3 |
 | Menu de extensões | 1 | feito | gerenciador de extensões | - |
-| Multicâmera: sincronizar, criar, expandir e editar | 8 | previsto | roteiro (README) | P3 |
+| Multicâmera: sincronizar, criar, expandir e editar | 8 | feito | sincronização por áudio/timecode, faixa multicâmera e corte ao vivo (1..9) | - |
 | Limpar mídia do projeto e reconstruir áudio aninhado | 2 | previsto | relink existe; a limpeza não | P3 |
 
 ### Opções
@@ -169,7 +167,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Formato da régua (amostras, tempo, quadros, compassos, filme, SMPTE) | 18 | previsto | roteiro (fase 12); hoje SMPTE com e sem drop | P2 |
 | Fade rápido nas edições de áudio | 1 | previsto | roteiro (preferência `quick_fade_ms`) | P3 |
 | Ripple automático e escopo do ripple | 5 | feito | `options.auto_ripple`, `edit.ripple.*` | - |
-| Deslizar todos os takes | 1 | previsto | depende dos takes | P3 |
+| Deslizar todos os takes | 1 | feito | deslizar todos os takes no container de takes (`takes::slip_all_takes`) | - |
 | Metrônomo | 1 | feito | Ferramentas > Metrônomo | - |
 | Ignorar todos os efeitos de áudio e silenciar todo áudio ou vídeo | 3 | previsto | sem plano de detalhe | P3 |
 | Timecode e relógio MIDI | 3 | sem plano | MIDI fora do escopo | - |
@@ -191,7 +189,7 @@ Por **linha da matriz** (cada linha é uma função, sem o peso do número de co
 | Janelas de compositores e gerenciador de plug-ins | 2 | previsto | roteiro (README) | P2 |
 | Janelas de pan surround, explorador de dispositivos, disco profissional e hub online | 5 | sem plano | hardware e serviço do fabricante | - |
 | Fader de prévia do mixer e trilhas de barramento | 3 | parcial | barramentos e envios feitos, sem faixas de barramento na linha do tempo nem fader de prévia | P2 |
-| Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | 9 | previsto | roteiro: atalhos de visualização | P2 |
+| Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento | 9 | feito | exibição do take ativo, bordas e indicador de sincronismo do evento | - |
 | Mostrar envelopes de áudio e de vídeo | 12 | parcial | áudio e, no vídeo, nível, esmaecer e mudo feitos; velocidade, progresso, desfoque de movimento e supersampling não | P2 |
 | Minimizar todas as trilhas e reconstruir picos de áudio | 2 | previsto | roteiro: cache de picos | P3 |
 | Menu de extensões | 1 | feito | gerenciador de extensões | - |
