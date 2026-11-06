@@ -11,7 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::envelope::AutomationMode;
 use neoveg_common::fade::FadeCurve;
-use neoveg_common::grade::Grade;
+use neoveg_common::grade::{EventColorGrade, Grade};
 use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
@@ -270,6 +270,13 @@ pub enum EditCommand {
         before: Grade,
         after: Grade,
     },
+    /// Dedicated color grade of a timeline event.
+    SetEventColorGrade {
+        track_id: TrackId,
+        event_id: EventId,
+        before: Option<EventColorGrade>,
+        after: Option<EventColorGrade>,
+    },
     /// Chroma key (green/blue screen) of the video.
     SetChromaKey {
         before: ChromaKey,
@@ -468,6 +475,21 @@ impl EditCommand {
             }
             Self::SetVideoGrade { after, .. } => {
                 tl.video_grade = after.sanitized();
+                true
+            }
+            Self::SetEventColorGrade {
+                track_id,
+                event_id,
+                after,
+                ..
+            } => {
+                let Some(t) = tl.track_mut(*track_id) else {
+                    return false;
+                };
+                let Some(event) = t.events.iter_mut().find(|e| e.id == *event_id) else {
+                    return false;
+                };
+                event.color_grade = after.clone();
                 true
             }
             Self::SetChromaKey { after, .. } => {
@@ -671,6 +693,8 @@ impl EditCommand {
                     takes: left.takes.clone(),
                     active_take: left.active_take,
                     audio_effects: left.audio_effects.clone(),
+                    color_grade: left.color_grade.clone(),
+                    event_mask: left.event_mask.clone(),
                 };
                 left.duration = left_duration;
                 left.fade_out = 0.0;
@@ -760,6 +784,18 @@ impl EditCommand {
                 }
             }
             Self::SetVideoGrade { before, .. } => tl.video_grade = before.sanitized(),
+            Self::SetEventColorGrade {
+                track_id,
+                event_id,
+                before,
+                ..
+            } => {
+                if let Some(t) = tl.track_mut(*track_id) {
+                    if let Some(event) = t.events.iter_mut().find(|e| e.id == *event_id) {
+                        event.color_grade = before.clone();
+                    }
+                }
+            }
             Self::SetChromaKey { before, .. } => tl.chroma_key = before.sanitized(),
             Self::SetVideoLut { before, .. } => tl.video_lut = before.clone(),
             Self::SetEffects { target, before, .. } => {

@@ -16,9 +16,11 @@
 pub mod abi;
 pub mod client;
 pub mod describe;
+pub mod host;
 pub mod report;
 pub mod store;
 pub mod suites;
 
 pub use client::{default_host_exe, describe as describe_in_child, library_of, Options};
+pub use host::{DefaultOfxHost, FrameBuffer, OfxHostContext};
 pub use report::{Answer, ParamReport, PluginReport};

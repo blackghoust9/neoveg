@@ -1,5 +1,6 @@
 //! Shared types for every Neoveg crate.
 
+pub mod alerts;
 pub mod channels;
 pub mod chroma;
 pub mod clock;
@@ -17,6 +18,7 @@ pub mod i18n;
 pub mod keymap;
 pub mod keymap_sets;
 pub mod logging;
+pub mod mask;
 pub mod media_props;
 pub mod pan;
 pub mod pan_crop;
@@ -24,6 +26,7 @@ pub mod paths;
 pub mod pitch_change;
 pub mod preferences;
 pub mod presets;
+pub mod profiles;
 pub mod project;
 pub mod ruler_format;
 pub mod sys_info;
@@ -32,4 +35,5 @@ pub mod time_input;
 pub mod timecode;
 pub mod title_style;
 pub mod toolbar;
+pub mod transcript;
 pub mod window_layout;

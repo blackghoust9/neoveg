@@ -11,7 +11,7 @@ use neoveg_common::chroma::ChromaKey;
 use neoveg_common::composite::CompositeMode;
 use neoveg_common::envelope::{eval_points_opt, AutomationMode, EnvelopePoint};
 use neoveg_common::fade::FadeCurve;
-use neoveg_common::grade::Grade;
+use neoveg_common::grade::{EventColorGrade, Grade};
 use neoveg_common::media_props::MediaProps;
 use neoveg_common::pan::PanLaw;
 use neoveg_common::pan_crop::PanCrop;
@@ -280,6 +280,12 @@ pub struct TrackEvent {
     /// Index into `takes` of the take that plays.
     #[serde(default, skip_serializing_if = "is_zero_index")]
     pub active_take: usize,
+    /// Dedicated color grade of the event (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_grade: Option<EventColorGrade>,
+    /// Geometric & Bézier event mask (older projects have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_mask: Option<neoveg_common::mask::EventMask>,
 }
 
 impl Default for TrackEvent {
@@ -324,6 +330,8 @@ impl Default for TrackEvent {
             takes: Vec::new(),
             audio_effects: Vec::new(),
             active_take: 0,
+            color_grade: None,
+            event_mask: None,
         }
     }
 }
@@ -822,6 +830,9 @@ pub struct Timeline {
     /// media id; a media with nothing changed has no entry (older projects have none).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub media_props: BTreeMap<u64, MediaProps>,
+    /// Persistent one-way sync links (older projects have none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sync_links: Vec<crate::sync_link::SyncLink>,
     next_id: u64,
 }
 

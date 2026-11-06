@@ -867,6 +867,8 @@ struct AppState {
     ignore_grouping: bool,
     /// `Shift` was held when the current edge drag started: only the dragged event is trimmed.
     drag_ignores_group: bool,
+    /// Ctrl+Shift+D: multicamera editing mode enabled (displays tiled angle grid in preview).
+    multicam_mode: bool,
     marquee: Option<Marquee>,
     snapping: bool,
     /// Which optional sources snapping uses (grid, markers, events of other tracks).
@@ -1286,7 +1288,7 @@ impl AppState {
             self.project.settings.fps,
         );
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .add_filter("XML de intercâmbio", &["xml"])
             .set_file_name(format!("{}.xml", self.project.name))
             .save_file()
         else {
@@ -1304,7 +1306,7 @@ impl AppState {
     /// File > Import FCP7 XML: places the clips whose media is in the project, as one undo step.
     fn import_fcp7(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .add_filter("XML de intercâmbio", &["xml"])
             .pick_file()
         else {
             return;
@@ -1363,7 +1365,7 @@ impl AppState {
             s.sample_rate,
         );
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro FCPXML", &["fcpxml"])
+            .add_filter("FCPXML", &["fcpxml"])
             .set_file_name(format!("{}.fcpxml", self.project.name))
             .save_file()
         else {
@@ -1381,7 +1383,7 @@ impl AppState {
     /// File > Import FCPXML: places the clips and markers whose media is in the project, as one undo step.
     fn import_fcpxml(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro FCPXML", &["fcpxml", "xml"])
+            .add_filter("FCPXML", &["fcpxml", "xml"])
             .pick_file()
         else {
             return;
@@ -2105,6 +2107,7 @@ impl AppState {
             mark_drag: None,
             ignore_grouping: false,
             drag_ignores_group: false,
+            multicam_mode: false,
             marquee: None,
             snapping: true,
             snap_sources: Default::default(),
@@ -5506,6 +5509,66 @@ impl AppState {
                 return;
             }
         }
+        if matches!(d.mode, DragMode::FadeIn | DragMode::FadeOut)
+            && d.target_track == d.track_id
+            && !self.ignore_grouping
+            && !self.drag_ignores_group
+        {
+            let is_fade_in = d.mode == DragMode::FadeIn;
+            let members = groups::group_members(&self.timeline, (d.track_id, d.event_id));
+            if members.len() > 1 {
+                let mut batch = vec![EditCommand::EditEvent {
+                    from_track: d.track_id,
+                    to_track: d.target_track,
+                    event_id: d.event_id,
+                    old: d.origin,
+                    new: d.current,
+                }];
+                for &(t_id, e_id) in &members {
+                    if (t_id, e_id) == (d.track_id, d.event_id) {
+                        continue;
+                    }
+                    if let Some(track) = self.timeline.track(t_id) {
+                        if let Some(partner) = track.events.iter().find(|e| e.id == e_id) {
+                            let shares_edge = if is_fade_in {
+                                (partner.start - d.origin.start).abs() <= TIME_EPSILON
+                            } else {
+                                (partner.end() - d.origin.end()).abs() <= TIME_EPSILON
+                            };
+                            if shares_edge {
+                                let mut new_g = partner.geometry();
+                                if is_fade_in {
+                                    new_g.fade_in = d.current.fade_in.clamp(0.0, partner.duration);
+                                } else {
+                                    new_g.fade_out = d.current.fade_out.clamp(0.0, partner.duration);
+                                }
+                                if new_g != partner.geometry() {
+                                    batch.push(EditCommand::EditEvent {
+                                        from_track: t_id,
+                                        to_track: t_id,
+                                        event_id: e_id,
+                                        old: partner.geometry(),
+                                        new: new_g,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                if batch.len() > 1 {
+                    self.execute_timeline(EditCommand::Batch(batch));
+                    self.selected_track = Some(d.target_track);
+                    if d.target_track != d.track_id
+                        || !self.selection.contains((d.target_track, d.event_id))
+                    {
+                        self.selection.select_only((d.target_track, d.event_id));
+                    }
+                    self.restart_audio_if_playing();
+                    self.last_frame_key = None;
+                    return;
+                }
+            }
+        }
         self.execute_timeline(EditCommand::EditEvent {
             from_track: d.track_id,
             to_track: d.target_track,
@@ -5865,7 +5928,7 @@ impl AppState {
                         .custom_templates
                         .retain(|t| t.name != template.name);
                     self.status = tr_args("Modelo salvo: {}", &[&template.name]);
-                    self.prefs.custom_templates.push(template);
+                    self.prefs.custom_templates.push(*template);
                     self.persist_preferences();
                 }
                 ProjectAction::MatchMedia => self.pick_media_to_match(),
@@ -6106,6 +6169,74 @@ impl AppState {
         } else {
             "Agrupamento ativo".into()
         };
+    }
+
+    /// `Ctrl+Shift+D`: toggles multicamera editing mode (angle grid in video preview).
+    fn toggle_multicam_mode(&mut self) {
+        self.multicam_mode = !self.multicam_mode;
+        self.status = if self.multicam_mode {
+            tr("Edição multicâmera ao vivo").to_string()
+        } else {
+            "Edição multicâmera desativada".into()
+        };
+    }
+
+    /// Switches camera angle in-place (when paused) or splits and cuts to new angle (during playback).
+    fn switch_or_cut_multicam_angle(&mut self, angle_idx: usize, crossfade: bool) {
+        let cursor = self.playhead;
+        let is_playing = self.playing;
+        let overlap = if crossfade { Some(0.5) } else { None };
+
+        let track_id_opt = self
+            .selected_track
+            .filter(|&t| {
+                self.timeline
+                    .track(t)
+                    .is_some_and(|tr| tr.kind == TrackKind::Video)
+            })
+            .or_else(|| {
+                self.timeline
+                    .tracks
+                    .iter()
+                    .find(|t| t.kind == TrackKind::Video)
+                    .map(|t| t.id)
+            });
+
+        if let Some(track_id) = track_id_opt {
+            if let Some(track) = self.timeline.track(track_id) {
+                if let Some(ev) = track
+                    .events
+                    .iter()
+                    .find(|e| cursor >= e.start && cursor <= e.end())
+                    .cloned()
+                {
+                    if is_playing {
+                        if let Some(cmd) = neoveg_engine::multicam::cut_and_switch_angle(
+                            &mut self.timeline,
+                            track_id,
+                            ev.id,
+                            cursor,
+                            angle_idx,
+                            overlap,
+                        ) {
+                            self.history.execute(&mut self.timeline, cmd);
+                        }
+                    } else {
+                        let mut updated = ev.clone();
+                        if neoveg_engine::multicam::switch_angle(&mut updated, angle_idx) {
+                            let cmd = EditCommand::EditEvent {
+                                from_track: track_id,
+                                to_track: track_id,
+                                event_id: ev.id,
+                                old: ev.geometry(),
+                                new: updated.geometry(),
+                            };
+                            self.history.execute(&mut self.timeline, cmd);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ---- unsaved changes and autosave -----------------------------------------------------------
@@ -8405,7 +8536,10 @@ impl AppState {
                     );
                     self.playhead = self.record_start;
                     // The take goes on the armed track, if there is one
-                    if let Some(armed) = neoveg_engine::track_arm::target_track(&self.timeline) {
+                    let armed_target = recording
+                        .track_id
+                        .or_else(|| neoveg_engine::track_arm::target_track(&self.timeline));
+                    if let Some(armed) = armed_target {
                         self.selected_track = Some(armed);
                     }
                     self.status = tr_args(
@@ -8439,6 +8573,7 @@ impl AppState {
             device: self.prefs.input_device.clone(),
             monitor: self.prefs.monitor_input,
             monitor_volume: self.prefs.monitor_volume,
+            track_id: neoveg_engine::track_arm::target_track(&self.timeline),
         };
         match Recorder::start(&path, &options) {
             Ok(recorder) => {
@@ -8606,6 +8741,38 @@ impl AppState {
                         return;
                     }
                     None => self.layout_chord = Some((save, until)),
+                }
+            }
+        }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::D,
+            )
+        }) {
+            self.toggle_multicam_mode();
+            return;
+        }
+        if self.multicam_mode {
+            const DIGITS: [egui::Key; 9] = [
+                egui::Key::Num1,
+                egui::Key::Num2,
+                egui::Key::Num3,
+                egui::Key::Num4,
+                egui::Key::Num5,
+                egui::Key::Num6,
+                egui::Key::Num7,
+                egui::Key::Num8,
+                egui::Key::Num9,
+            ];
+            for (idx, &k) in DIGITS.iter().enumerate() {
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, k)) {
+                    self.switch_or_cut_multicam_angle(idx, true);
+                    return;
+                }
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, k)) {
+                    self.switch_or_cut_multicam_angle(idx, false);
+                    return;
                 }
             }
         }
@@ -10313,11 +10480,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     state.import_edl();
                     ui.close_menu();
                 }
-                if ui.button("XML (Final Cut Pro 7)…").clicked() {
+                if ui.button("XML de intercâmbio…").clicked() {
                     state.import_fcp7();
                     ui.close_menu();
                 }
-                if ui.button("FCPXML (Final Cut Pro)…").clicked() {
+                if ui.button("FCPXML…").clicked() {
                     state.import_fcpxml();
                     ui.close_menu();
                 }
@@ -10352,14 +10519,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
                 if ui
-                    .add_enabled(has_events, egui::Button::new("XML (Final Cut Pro 7)…"))
+                    .add_enabled(has_events, egui::Button::new("XML de intercâmbio…"))
                     .clicked()
                 {
                     state.export_fcp7();
                     ui.close_menu();
                 }
                 if ui
-                    .add_enabled(has_events, egui::Button::new("FCPXML (Final Cut Pro)…"))
+                    .add_enabled(has_events, egui::Button::new("FCPXML…"))
                     .clicked()
                 {
                     state.export_fcpxml();
@@ -12353,7 +12520,7 @@ fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
         .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.label(tr(
-                "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).",
+                "Exportar a linha do tempo para AAF (compatível com estações de áudio e vídeo de intercâmbio).",
             ));
             ui.add_space(4.0);
             ui.checkbox(
@@ -13864,6 +14031,7 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             .response
             .on_hover_text(tr("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela"));
         ui.checkbox(&mut state.show_bars, tr("Barras SMPTE"));
+        ui.checkbox(&mut state.multicam_mode, tr("Grade multicâmera"));
     });
 
     let avail = ui.available_size();
@@ -13897,6 +14065,48 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
         );
+    }
+
+    if state.multicam_mode {
+        let cols = 2;
+        let rows = 2;
+        let cell_w = frame_rect.width() / cols as f32;
+        let cell_h = frame_rect.height() / rows as f32;
+        let pointer_pos = ui.input(|i| i.pointer.hover_pos());
+        let clicked = ui.input(|i| i.pointer.primary_clicked());
+        let ctrl_held = ui.input(|i| i.modifiers.command);
+
+        for row in 0..rows {
+            for col in 0..cols {
+                let angle_idx = row * cols + col;
+                let min = pos2(
+                    frame_rect.left() + col as f32 * cell_w,
+                    frame_rect.top() + row as f32 * cell_h,
+                );
+                let max = pos2(min.x + cell_w, min.y + cell_h);
+                let tile_rect = Rect::from_min_max(min, max);
+
+                let is_hovered = pointer_pos.is_some_and(|p| tile_rect.contains(p));
+                let border_color = if is_hovered {
+                    Color32::from_rgb(0x34, 0x98, 0xDB)
+                } else {
+                    Color32::from_gray(60)
+                };
+
+                painter.rect_stroke(tile_rect, Rounding::ZERO, Stroke::new(1.5_f32, border_color));
+                painter.text(
+                    pos2(tile_rect.left() + 6.0, tile_rect.top() + 6.0),
+                    Align2::LEFT_TOP,
+                    format!("Camera {}", angle_idx + 1),
+                    FontId::proportional(12.0),
+                    Color32::WHITE,
+                );
+
+                if is_hovered && clicked {
+                    state.switch_or_cut_multicam_angle(angle_idx, ctrl_held);
+                }
+            }
+        }
     }
 
     if state.show_bars {
@@ -16843,6 +17053,43 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     &[&format!("{:+.1}", 20.0 * ev.normalize_gain.log10())],
                 ));
             }
+            let mut sync_drift: Option<f64> = None;
+            for link in &state.timeline.sync_links {
+                if link.linked_track == track.id && link.linked_event == ev.id {
+                    if let Some(master_t) = state.timeline.track(link.master_track) {
+                        if let Some(master_ev) =
+                            master_t.events.iter().find(|e| e.id == link.master_event)
+                        {
+                            let drift = link.calculate_drift(master_ev, ev);
+                            if drift.abs() > TIME_EPSILON {
+                                sync_drift = Some(drift);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if sync_drift.is_none() && ev.media_id.is_some() {
+                for other_t in &state.timeline.tracks {
+                    if other_t.id != track.id && other_t.kind != track.kind {
+                        if let Some(paired) =
+                            other_t.events.iter().find(|e| e.media_id == ev.media_id)
+                        {
+                            if let Some(drift) =
+                                neoveg_engine::sync_link::calculate_media_out_of_sync(paired, ev)
+                            {
+                                if drift.abs() > TIME_EPSILON {
+                                    sync_drift = Some(drift);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(drift) = sync_drift {
+                title.push_str(&format!(" [{:+.2}s]", drift));
+            }
             // The header: the name up to the first button, then the buttons
             let buttons =
                 event_header::buttons_for(track.kind, state.is_generated_event(ev), ev.adjustment);
@@ -17134,8 +17381,19 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     ));
                 }
             }
+            let is_sync_linked_to_selected = state.timeline.sync_links.iter().any(|l| {
+                l.linked_track == track.id
+                    && l.linked_event == ev.id
+                    && state
+                        .selection
+                        .contains((l.master_track, l.master_event))
+            });
             let border = if selected {
                 Color32::WHITE
+            } else if is_sync_linked_to_selected {
+                Color32::from_rgb(0x9B, 0x59, 0xB6)
+            } else if sync_drift.is_some() {
+                Color32::from_rgb(0xE7, 0x4C, 0x3C)
             } else {
                 Color32::from_gray(15)
             };
@@ -18105,15 +18363,17 @@ mod tests {
         use crate::project_dialog::ProjectAction;
         use neoveg_common::presets::ProjectTemplate;
         let mut s = AppState::new();
-        let make = |width| ProjectTemplate {
-            name: "Meu formato".into(),
-            settings: ProjectSettings {
-                width,
-                ..ProjectSettings::default()
-            },
+        let make = |width| {
+            ProjectTemplate::new(
+                "Meu formato",
+                ProjectSettings {
+                    width,
+                    ..ProjectSettings::default()
+                },
+            )
         };
-        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1280))]);
-        s.run_project_actions(vec![ProjectAction::SaveTemplate(make(1920))]);
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(Box::new(make(1280)))]);
+        s.run_project_actions(vec![ProjectAction::SaveTemplate(Box::new(make(1920)))]);
         assert_eq!(s.prefs.custom_templates.len(), 1);
         assert_eq!(s.prefs.custom_templates[0].settings.width, 1920);
     }

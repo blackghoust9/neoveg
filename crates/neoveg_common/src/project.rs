@@ -5,6 +5,116 @@ use crate::presets::{
     OutputRotation, PixelFormat, RenderQuality, ResampleMode,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+/// ACES version for project color management (Dialog 826 / results.md §8.7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcesVersion {
+    #[default]
+    V1_0,
+    V1_1,
+    V1_2,
+}
+
+impl AcesVersion {
+    pub const ALL: [AcesVersion; 3] = [AcesVersion::V1_0, AcesVersion::V1_1, AcesVersion::V1_2];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AcesVersion::V1_0 => "ACES 1.0",
+            AcesVersion::V1_1 => "ACES 1.1",
+            AcesVersion::V1_2 => "ACES 1.2",
+        }
+    }
+}
+
+/// ACES working and container color space (Dialog 826).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcesColorSpace {
+    Aces2065_1,
+    #[default]
+    AcesCg,
+    AcesCc,
+    AcesCct,
+}
+
+impl AcesColorSpace {
+    pub const ALL: [AcesColorSpace; 4] = [
+        AcesColorSpace::Aces2065_1,
+        AcesColorSpace::AcesCg,
+        AcesColorSpace::AcesCc,
+        AcesColorSpace::AcesCct,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AcesColorSpace::Aces2065_1 => "ACES2065-1 (AP0)",
+            AcesColorSpace::AcesCg => "ACEScg (AP1)",
+            AcesColorSpace::AcesCc => "ACEScc",
+            AcesColorSpace::AcesCct => "ACEScct",
+        }
+    }
+}
+
+/// Display view transform / ODT for project color pipeline (Dialog 826).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcesViewTransform {
+    #[default]
+    Rec709,
+    Srgb,
+    Rec2020,
+    Hlg,
+    Raw,
+}
+
+impl AcesViewTransform {
+    pub const ALL: [AcesViewTransform; 5] = [
+        AcesViewTransform::Rec709,
+        AcesViewTransform::Srgb,
+        AcesViewTransform::Rec2020,
+        AcesViewTransform::Hlg,
+        AcesViewTransform::Raw,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AcesViewTransform::Rec709 => "Rec.709",
+            AcesViewTransform::Srgb => "sRGB",
+            AcesViewTransform::Rec2020 => "Rec.2020 (1000 nits)",
+            AcesViewTransform::Hlg => "HLG (1000 nits)",
+            AcesViewTransform::Raw => "Raw (Unmanaged)",
+        }
+    }
+}
+
+/// Low-pass filter quality for LFE channel in 5.1 surround projects (Dialog 863).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LfeFilterQuality {
+    Draft,
+    #[default]
+    Good,
+    Best,
+}
+
+impl LfeFilterQuality {
+    pub const ALL: [LfeFilterQuality; 3] = [
+        LfeFilterQuality::Draft,
+        LfeFilterQuality::Good,
+        LfeFilterQuality::Best,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            LfeFilterQuality::Draft => "Rascunho (Draft)",
+            LfeFilterQuality::Good => "Boa (Good)",
+            LfeFilterQuality::Best => "Melhor (Best)",
+        }
+    }
+}
 
 /// Video and audio properties of a project.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,6 +173,48 @@ pub struct ProjectSettings {
     /// The time the ruler reads at the origin of the project, seconds.
     #[serde(default)]
     pub ruler_start: f64,
+
+    // --- ACES / OCIO Configuration (Dialog 826) ---
+    #[serde(default)]
+    pub aces_version: AcesVersion,
+    #[serde(default)]
+    pub aces_color_space: AcesColorSpace,
+    #[serde(default)]
+    pub view_transform: AcesViewTransform,
+    #[serde(default)]
+    pub look_transform: Option<String>,
+
+    // --- Audio Busses & Surround LFE (Dialog 863) ---
+    #[serde(default)]
+    pub stereo_busses: u32,
+    #[serde(default)]
+    pub lfe_filter_enabled: bool,
+    #[serde(default = "default_lfe_cutoff")]
+    pub lfe_cutoff_hz: f32,
+    #[serde(default)]
+    pub lfe_quality: LfeFilterQuality,
+    #[serde(default)]
+    pub audio_resample_quality: RenderQuality,
+
+    // --- Folder Paths (Dialog 892) ---
+    #[serde(default)]
+    pub prerender_folder: PathBuf,
+    #[serde(default)]
+    pub recorded_files_folder: PathBuf,
+
+    // --- Project Summary & Defaults (Dialog 807) ---
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub artist: String,
+    #[serde(default)]
+    pub engineer: String,
+    #[serde(default)]
+    pub copyright: String,
+    #[serde(default)]
+    pub comments: String,
+    #[serde(default)]
+    pub start_all_new_projects: bool,
 }
 
 /// How the captions are drawn into the picture when a movie is rendered. Sizes are fractions of the
@@ -151,6 +303,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_lfe_cutoff() -> f32 {
+    80.0
+}
+
 impl Default for ProjectSettings {
     fn default() -> Self {
         Self {
@@ -177,6 +333,81 @@ impl Default for ProjectSettings {
             caption_style: CaptionStyle::default(),
             ruler_format: Default::default(),
             ruler_start: 0.0,
+            aces_version: AcesVersion::default(),
+            aces_color_space: AcesColorSpace::default(),
+            view_transform: AcesViewTransform::default(),
+            look_transform: None,
+            stereo_busses: 0,
+            lfe_filter_enabled: false,
+            lfe_cutoff_hz: default_lfe_cutoff(),
+            lfe_quality: LfeFilterQuality::default(),
+            audio_resample_quality: RenderQuality::Good,
+            prerender_folder: PathBuf::new(),
+            recorded_files_folder: PathBuf::new(),
+            title: String::new(),
+            artist: String::new(),
+            engineer: String::new(),
+            copyright: String::new(),
+            comments: String::new(),
+            start_all_new_projects: false,
+        }
+    }
+}
+
+impl ProjectSettings {
+    /// Sanitizes all project settings according to format limits and VEGAS Pro rules.
+    pub fn sanitize(&mut self) {
+        self.width = crate::presets::clamp_size(self.width);
+        self.height = crate::presets::clamp_size(self.height);
+        self.fps = if self.fps.is_finite() && self.fps >= 1.0 {
+            self.fps.clamp(1.0, 240.0)
+        } else {
+            29.97
+        };
+        self.pixel_aspect = if self.pixel_aspect.is_finite() && self.pixel_aspect > 0.0 {
+            self.pixel_aspect.clamp(0.25, 4.0)
+        } else {
+            1.0
+        };
+        self.stereo_busses = self.stereo_busses.min(26);
+        self.sample_rate = self.sample_rate.clamp(8_000, 192_000);
+        self.lfe_cutoff_hz = if self.lfe_cutoff_hz.is_finite() {
+            self.lfe_cutoff_hz.clamp(10.0, 1000.0)
+        } else {
+            80.0
+        };
+
+        // Edge Case 3: Compositing gamma choice is only active in Float32Full.
+        if self.pixel_format != PixelFormat::Float32Full {
+            self.compositing_gamma = CompositingGamma::Video;
+        }
+
+        // Edge Case 5: LFE filter controls are disabled if Master Bus is Stereo.
+        if self.master_bus != MasterBusMode::Surround51 {
+            self.lfe_filter_enabled = false;
+        }
+
+        // Edge Case 6: Audio CD Time format requires start offset = 0.
+        if self.ruler_format == crate::ruler_format::RulerFormat::AudioCd {
+            self.ruler_start = 0.0;
+        }
+    }
+
+    /// Automatically sets dependent color pipeline parameters when changing HDR mode (Edge Case 4).
+    pub fn apply_hdr_mode(&mut self, mode: HdrMode) {
+        self.hdr_mode = mode;
+        match mode {
+            HdrMode::Hdr10 => {
+                self.pixel_format = PixelFormat::Float32Full;
+                self.compositing_gamma = CompositingGamma::Linear;
+                self.view_transform = AcesViewTransform::Rec2020;
+            }
+            HdrMode::Hlg => {
+                self.pixel_format = PixelFormat::Float32Full;
+                self.compositing_gamma = CompositingGamma::Linear;
+                self.view_transform = AcesViewTransform::Hlg;
+            }
+            HdrMode::Off => {}
         }
     }
 }
@@ -399,5 +630,22 @@ mod tests {
                 fps: None
             })
         );
+    }
+
+    #[test]
+    fn sanitize_preserves_legitimate_one_fps_project() {
+        let mut settings = ProjectSettings {
+            fps: 1.0,
+            ..Default::default()
+        };
+        settings.sanitize();
+        assert_eq!(settings.fps, 1.0, "1.0 FPS project must be preserved");
+
+        let mut sub_one = ProjectSettings {
+            fps: 0.5,
+            ..Default::default()
+        };
+        sub_one.sanitize();
+        assert_eq!(sub_one.fps, 29.97, "FPS < 1.0 resets to default 29.97");
     }
 }

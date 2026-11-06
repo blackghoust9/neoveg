@@ -40,6 +40,8 @@ pub struct Recording {
     pub frames: u64,
     /// Chunks the writer could not take in time (0 on a healthy disk).
     pub overruns: u64,
+    /// The armed track target for the recording (`None`: untracked or default).
+    pub track_id: Option<u64>,
 }
 
 impl Recording {
@@ -57,6 +59,8 @@ pub struct RecordOptions {
     pub monitor: bool,
     /// Gain of the monitor, `0.0..=2.0`.
     pub monitor_volume: f32,
+    /// The armed track target for the recording (`None`: untracked or default).
+    pub track_id: Option<u64>,
 }
 
 impl Default for RecordOptions {
@@ -65,6 +69,7 @@ impl Default for RecordOptions {
             device: None,
             monitor: false,
             monitor_volume: 1.0,
+            track_id: None,
         }
     }
 }
@@ -395,6 +400,10 @@ pub struct Recorder {
     /// The monitor's output stream, while there is one.
     monitor_stream: Option<cpal::Stream>,
     monitor: MonitorStatus,
+    track_id: Option<u64>,
+    monitor_ring: Option<Arc<MonitorRing>>,
+    data_sender: Option<SyncSender<Vec<f32>>>,
+    free_receiver: Option<Receiver<Vec<f32>>>,
 }
 
 fn build_stream<T>(
@@ -505,7 +514,7 @@ impl Recorder {
                 free_rx,
                 data_tx,
                 channels,
-                ring,
+                ring.clone(),
             ),
             SampleFormat::I16 => build_stream::<i16>(
                 &device,
@@ -514,7 +523,7 @@ impl Recorder {
                 free_rx,
                 data_tx,
                 channels,
-                ring,
+                ring.clone(),
             ),
             SampleFormat::U16 => build_stream::<u16>(
                 &device,
@@ -523,7 +532,7 @@ impl Recorder {
                 free_rx,
                 data_tx,
                 channels,
-                ring,
+                ring.clone(),
             ),
             SampleFormat::I32 => build_stream::<i32>(
                 &device,
@@ -532,7 +541,7 @@ impl Recorder {
                 free_rx,
                 data_tx,
                 channels,
-                ring,
+                ring.clone(),
             ),
             other => Err(format!("formato de entrada não suportado: {other:?}")),
         }?;
@@ -563,12 +572,178 @@ impl Recorder {
             info,
             monitor_stream,
             monitor,
+            track_id: options.track_id,
+            monitor_ring: ring,
+            data_sender: None,
+            free_receiver: None,
         })
+    }
+
+    /// Creates a mock loopback recorder for headless environments.
+    /// It records synthetic audio frames to a temporary WAV file, maintains peak levels,
+    /// frame counts, and pushes to a live memory [`MonitorRing`].
+    pub fn create_mock_loopback() -> Self {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = temp_dir.join(format!("neoveg_mock_loopback_{timestamp}.wav"));
+        let options = RecordOptions {
+            device: Some("Mock Loopback Device".to_string()),
+            monitor: true,
+            monitor_volume: 1.0,
+            track_id: Some(1),
+        };
+        Self::create_mock_loopback_with(&path, &options)
+            .expect("mock loopback recorder initialization")
+    }
+
+    /// Creates a mock loopback recorder at the given `path` with `options`.
+    pub fn create_mock_loopback_with(path: &Path, options: &RecordOptions) -> Result<Self, String> {
+        let sample_rate = 48_000;
+        let channels = 2;
+        let info = InputInfo {
+            device: options
+                .device
+                .clone()
+                .unwrap_or_else(|| "Mock Loopback Device".into()),
+            sample_rate,
+            channels,
+        };
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| format!("pasta de gravação: {e}"))?;
+        }
+        let file = File::create(path)
+            .map_err(|e| format!("não foi possível criar {}: {e}", path.display()))?;
+        let writer = WavWriter::new(BufWriter::new(file), channels, sample_rate)
+            .map_err(|e| format!("não foi possível escrever o WAV: {e}"))?;
+
+        let shared = Arc::new(Shared {
+            peak_bits: AtomicU32::new(0),
+            frames: AtomicU64::new(0),
+            overruns: AtomicU64::new(0),
+            stop: AtomicBool::new(false),
+        });
+
+        let (data_tx, data_rx) = sync_channel::<Vec<f32>>(CHUNKS);
+        let (free_tx, free_rx) = sync_channel::<Vec<f32>>(CHUNKS);
+        for _ in 0..CHUNKS {
+            let _ = free_tx.try_send(Vec::with_capacity(CHUNK_SAMPLES));
+        }
+
+        let monitor_ring = if options.monitor {
+            Some(Arc::new(MonitorRing::new()))
+        } else {
+            None
+        };
+        let monitor = if options.monitor {
+            MonitorStatus::On
+        } else {
+            MonitorStatus::Off
+        };
+
+        let writer_thread = std::thread::Builder::new()
+            .name("neoveg-mock-record-writer".into())
+            .spawn(move || {
+                let mut writer = writer;
+                while let Ok(chunk) = data_rx.recv() {
+                    writer
+                        .write_samples(&chunk)
+                        .map_err(|e| format!("falha ao gravar o arquivo: {e}"))?;
+                    let _ = free_tx.try_send(chunk);
+                }
+                Ok(writer)
+            })
+            .map_err(|e| format!("thread de gravação mock: {e}"))?;
+
+        let mut rec = Self {
+            stream: None,
+            shared,
+            writer: Some(writer_thread),
+            path: path.to_owned(),
+            info,
+            monitor_stream: None,
+            monitor,
+            track_id: options.track_id,
+            monitor_ring,
+            data_sender: Some(data_tx),
+            free_receiver: Some(free_rx),
+        };
+
+        // Feed an initial chunk of synthetic audio (960 stereo frames = 20ms of 440 Hz tone)
+        let mut initial_samples = Vec::with_capacity(1920);
+        for i in 0..960 {
+            let sample = (2.0 * std::f32::consts::PI * 440.0 * (i as f32) / 48000.0).sin() * 0.5;
+            initial_samples.push(sample);
+            initial_samples.push(sample);
+        }
+        rec.push_mock_samples(&initial_samples);
+
+        Ok(rec)
+    }
+
+    /// Feeds mock samples directly into the recording and monitor pipelines.
+    pub fn push_mock_samples(&mut self, samples: &[f32]) {
+        if self.shared.stop.load(Ordering::Relaxed) {
+            return;
+        }
+        let channels = self.info.channels.max(1);
+        for part in samples.chunks(CHUNK_SAMPLES) {
+            let chunk = if let Some(free_rx) = &self.free_receiver {
+                match free_rx.try_recv() {
+                    Ok(mut c) => {
+                        convert_chunk(part, &mut c);
+                        c
+                    }
+                    Err(_) => {
+                        self.shared.overruns.fetch_add(1, Ordering::Relaxed);
+                        continue;
+                    }
+                }
+            } else {
+                let mut c = Vec::with_capacity(part.len());
+                convert_chunk(part, &mut c);
+                c
+            };
+
+            let peak = chunk.iter().fold(0.0f32, |acc, &s| acc.max(s.abs()));
+            if let Some(ring) = &self.monitor_ring {
+                ring.push(&chunk);
+            }
+            self.shared
+                .peak_bits
+                .fetch_max(peak.to_bits(), Ordering::Relaxed);
+            self.shared.frames.fetch_add(
+                (chunk.len() / usize::from(channels)) as u64,
+                Ordering::Relaxed,
+            );
+            if let Some(data_tx) = &self.data_sender {
+                if data_tx.try_send(chunk).is_err() {
+                    self.shared.overruns.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
     }
 
     /// Whether the recording is being monitored.
     pub fn monitor(&self) -> &MonitorStatus {
         &self.monitor
+    }
+
+    /// Status of the monitor.
+    pub fn monitor_status(&self) -> MonitorStatus {
+        self.monitor.clone()
+    }
+
+    /// The live monitor ring buffer, if monitoring is enabled.
+    pub fn monitor_ring(&self) -> Option<Arc<MonitorRing>> {
+        self.monitor_ring.clone()
+    }
+
+    /// The armed track target id associated with this recording session, if any.
+    pub fn track_id(&self) -> Option<u64> {
+        self.track_id
     }
 
     pub fn info(&self) -> &InputInfo {
@@ -595,6 +770,8 @@ impl Recorder {
         // Dropping the stream drops the callback and with it the only sender
         drop(self.stream.take());
         drop(self.monitor_stream.take());
+        drop(self.data_sender.take());
+        drop(self.free_receiver.take());
         let writer = self
             .writer
             .take()
@@ -611,6 +788,7 @@ impl Recorder {
             channels: self.info.channels,
             frames,
             overruns: self.shared.overruns.load(Ordering::Relaxed),
+            track_id: self.track_id,
         })
     }
 }
@@ -619,6 +797,8 @@ impl Drop for Recorder {
     fn drop(&mut self) {
         drop(self.stream.take());
         drop(self.monitor_stream.take());
+        drop(self.data_sender.take());
+        drop(self.free_receiver.take());
         if let Some(writer) = self.writer.take() {
             if let Ok(Ok(w)) = writer.join() {
                 let _ = w.finish();
@@ -698,6 +878,7 @@ mod tests {
             channels: 2,
             frames: 96_000,
             overruns: 0,
+            track_id: None,
         };
         assert!((r.seconds() - 2.0).abs() < 1e-9);
     }
@@ -778,12 +959,118 @@ mod tests {
     #[test]
     fn the_default_options_record_the_default_input_without_monitor() {
         let options = RecordOptions::default();
-        assert!(options.device.is_none() && !options.monitor);
+        assert!(options.device.is_none() && !options.monitor && options.track_id.is_none());
         assert_eq!(options.monitor_volume, 1.0);
         // A list of devices is always a list (empty on a machine with none), default first
         let names = list_inputs();
         let mut sorted = names.clone();
         sorted.dedup();
         assert_eq!(names.len(), sorted.len(), "no name twice");
+    }
+
+    #[test]
+    fn interrupted_recording_workflow_with_input_selection_track_arming_and_monitoring() {
+        // 1. Input device selection & probing
+        let _inputs = list_inputs();
+        let _probed = probe_input(None);
+
+        let chosen_device = "Mock Loopback Audio Input".to_string();
+        let target_track_id = 42u64;
+
+        // 2. Track arming and record options configuration
+        let mut options = RecordOptions::default();
+        options.device = Some(chosen_device.clone());
+        options.monitor = true;
+        options.monitor_volume = 1.2;
+        options.track_id = Some(target_track_id);
+
+        assert_eq!(options.device.as_deref(), Some("Mock Loopback Audio Input"));
+        assert!(options.monitor);
+        assert_eq!(options.monitor_volume, 1.2);
+        assert_eq!(options.track_id, Some(42));
+
+        // 3. Start recording with mock loopback and live memory ring buffer monitoring
+        let temp_dir = std::env::temp_dir();
+        let temp_file = temp_dir.join(format!(
+            "test_recording_{}.wav",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut recorder = Recorder::create_mock_loopback_with(&temp_file, &options)
+            .expect("failed to create mock loopback recorder");
+
+        // Verify device and track association
+        assert_eq!(recorder.info().device, chosen_device);
+        assert_eq!(recorder.info().sample_rate, 48_000);
+        assert_eq!(recorder.info().channels, 2);
+        assert_eq!(recorder.track_id(), Some(target_track_id));
+        assert_eq!(recorder.monitor_status(), MonitorStatus::On);
+
+        // Verify memory ring buffer monitoring
+        let ring = recorder
+            .monitor_ring()
+            .expect("monitor ring should be present");
+        assert!(
+            ring.available() > 0,
+            "initial synthetic samples populated the ring buffer"
+        );
+
+        let mut monitor_buf = [0.0f32; 256];
+        let read = ring.pop(&mut monitor_buf);
+        assert!(read > 0, "read samples from live monitor ring");
+        assert!(
+            monitor_buf.iter().any(|&s| s != 0.0),
+            "monitored audio is non-silent"
+        );
+
+        // Feed dynamic test samples (e.g. 1000 stereo samples of known peak 0.85)
+        let mut test_samples = Vec::new();
+        for _ in 0..500 {
+            test_samples.push(0.85f32);
+            test_samples.push(-0.85f32);
+        }
+        recorder.push_mock_samples(&test_samples);
+
+        // Verify live peak metering
+        let peak = recorder.take_peak();
+        assert!(
+            (peak - 0.85).abs() < 1e-4,
+            "peak was accurately tracked: {peak}"
+        );
+        // Peak is reset after taking
+        assert_eq!(recorder.take_peak(), 0.0, "peak is reset after take_peak");
+
+        // Verify frames and duration elapsed
+        assert!(recorder.frames() >= 1460); // 960 initial + 500 added
+        assert!(recorder.seconds() > 0.0);
+
+        // Stop recording
+        let recording = recorder.stop().expect("failed to stop recording cleanly");
+        assert_eq!(recording.track_id, Some(target_track_id));
+        assert_eq!(recording.sample_rate, 48_000);
+        assert_eq!(recording.channels, 2);
+        assert_eq!(recording.overruns, 0);
+        assert!(recording.frames >= 1460);
+        assert!(recording.path.exists());
+
+        // Verify written WAV file through WaveformSource parser
+        let wav_bytes = std::fs::read(&recording.path).expect("read recorded file");
+        let source = WaveformSource::from_wav_bytes(wav_bytes).expect("WAV must be valid");
+        assert_eq!(source.sample_rate, 48_000);
+        assert_eq!(source.frame_count() as u64, recording.frames);
+
+        // Clean up temp file
+        let _ = std::fs::remove_file(&recording.path);
+
+        // 4. Also verify default parameterless create_mock_loopback()
+        let loopback = Recorder::create_mock_loopback();
+        assert_eq!(loopback.monitor_status(), MonitorStatus::On);
+        assert!(loopback.frames() > 0);
+        let path = loopback.path.clone();
+        let res = loopback.stop().expect("stop default mock loopback");
+        assert!(res.frames > 0);
+        let _ = std::fs::remove_file(path);
     }
 }

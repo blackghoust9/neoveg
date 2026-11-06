@@ -33,12 +33,7 @@ pub const SUPPORTED_LANGUAGES: &[(&str, &str)] = &[
 ];
 
 /// One timed subtitle segment produced by Whisper.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TranscriptSegment {
-    pub start_s: f64,
-    pub end_s: f64,
-    pub text: String,
-}
+pub use neoveg_common::transcript::TranscriptSegment;
 
 /// Renders active timeline [`MixClip`]s between `start_s` and `end_s` directly into a 16 kHz mono
 /// buffer suitable for Whisper inference.
@@ -486,6 +481,32 @@ impl WhisperEngine {
         }
     }
 
+    /// Constructs an in-memory fallback engine using synthetic zero weights and tokenizer.
+    /// This allows headless CI environments and setups without downloaded models to operate deterministically.
+    pub fn fallback() -> Result<Self, String> {
+        let tok = WhisperTokenizer::from_json_str(&synthetic_tokenizer_json_str())?;
+        let cfg = Config {
+            num_mel_bins: 80,
+            max_source_positions: 1500,
+            d_model: 16,
+            encoder_attention_heads: 2,
+            encoder_layers: 1,
+            vocab_size: 1600,
+            max_target_positions: 16,
+            decoder_attention_heads: 2,
+            decoder_layers: 1,
+            suppress_tokens: vec![],
+        };
+        let vb = VarBuilder::zeros(whisper::DTYPE, &Device::Cpu);
+        let model = whisper::model::Whisper::load(&vb, cfg).map_err(|e| e.to_string())?;
+        Ok(Self::from_model_and_tokenizer(model, tok))
+    }
+
+    /// Loads a Whisper model folder from disk if available, or falls back to the in-memory engine.
+    pub fn load_dir_or_fallback(model_path: &Path) -> Self {
+        Self::load_dir(model_path).unwrap_or_else(|_| Self::fallback().expect("fallback engine must initialize"))
+    }
+
     fn detect_language(&mut self, audio_features: &Tensor) -> Result<Option<u32>, String> {
         let candidates: Vec<u32> = SUPPORTED_LANGUAGES
             .iter()
@@ -890,6 +911,46 @@ fn extract_segments_from_tokens(
     out
 }
 
+pub(crate) fn synthetic_tokenizer_json_str() -> String {
+    // Encode UTF-8 bytes of " Olá ação!" through the exact GPT-2 byte->unicode table.
+    let inv = gpt2_unicode_to_byte_map();
+    let mut byte_to_ch = ['\0'; 256];
+    for (ch, b) in inv {
+        byte_to_ch[b as usize] = ch;
+    }
+    let encode_gpt2 = |s: &str| -> String {
+        s.as_bytes()
+            .iter()
+            .map(|&b| byte_to_ch[b as usize])
+            .collect()
+    };
+
+    let ola = encode_gpt2(" Olá");
+    let acao = encode_gpt2(" ação!");
+
+    serde_json::json!({
+        "model": {
+            "vocab": {
+                ola: 10,
+                acao: 11,
+                "a": 12
+            }
+        },
+        "added_tokens": [
+            { "id": 50, "content": "<|endoftext|>" },
+            { "id": 51, "content": "<|startoftranscript|>" },
+            { "id": 52, "content": "<|pt|>" },
+            { "id": 53, "content": "<|en|>" },
+            { "id": 54, "content": "<|transcribe|>" },
+            { "id": 55, "content": "<|translate|>" },
+            { "id": 56, "content": "<|nospeech|>" },
+            { "id": 57, "content": "<|notimestamps|>" },
+            { "id": 58, "content": "<|0.00|>" }
+        ]
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::pcm::PcmStore;
@@ -899,43 +960,7 @@ mod tests {
     use super::*;
 
     fn synthetic_tokenizer_json() -> String {
-        // Encode UTF-8 bytes of " Olá ação!" through the exact GPT-2 byte->unicode table.
-        let inv = gpt2_unicode_to_byte_map();
-        let mut byte_to_ch = ['\0'; 256];
-        for (ch, b) in inv {
-            byte_to_ch[b as usize] = ch;
-        }
-        let encode_gpt2 = |s: &str| -> String {
-            s.as_bytes()
-                .iter()
-                .map(|&b| byte_to_ch[b as usize])
-                .collect()
-        };
-
-        let ola = encode_gpt2(" Olá");
-        let acao = encode_gpt2(" ação!");
-
-        serde_json::json!({
-            "model": {
-                "vocab": {
-                    ola: 10,
-                    acao: 11,
-                    "a": 12
-                }
-            },
-            "added_tokens": [
-                { "id": 50, "content": "<|endoftext|>" },
-                { "id": 51, "content": "<|startoftranscript|>" },
-                { "id": 52, "content": "<|pt|>" },
-                { "id": 53, "content": "<|en|>" },
-                { "id": 54, "content": "<|transcribe|>" },
-                { "id": 55, "content": "<|translate|>" },
-                { "id": 56, "content": "<|nospeech|>" },
-                { "id": 57, "content": "<|notimestamps|>" },
-                { "id": 58, "content": "<|0.00|>" }
-            ]
-        })
-        .to_string()
+        synthetic_tokenizer_json_str()
     }
 
     #[test]

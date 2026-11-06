@@ -16,6 +16,26 @@ pub const SMART_SPLIT_OVERLAP_FRAMES: f64 = 5.0;
 /// Transition id applied automatically to the incoming half created by [`smart_split`].
 pub const WARP_FLOW_TRANSITION_ID: &str = "warp_flow";
 
+/// Default rapid micro-quickfade duration applied to cut edges of split audio events (10 ms).
+pub const DEFAULT_AUDIO_QUICKFADE_SEC: f64 = 0.010;
+
+/// Applies an audio micro-quickfade (default 10 ms) to cut edges to eliminate transients and clicks.
+pub fn apply_audio_micro_quickfade(
+    event: &mut TrackEvent,
+    fade_in: bool,
+    fade_out: bool,
+    fade_sec: f64,
+) {
+    let max_fade = (event.duration / 2.0).max(0.0);
+    let clamped = fade_sec.clamp(0.0, max_fade);
+    if fade_in && event.fade_in < clamped {
+        event.fade_in = clamped;
+    }
+    if fade_out && event.fade_out < clamped {
+        event.fade_out = clamped;
+    }
+}
+
 /// A command plus the events the UI should select once it ran (pasted or created events).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
@@ -170,6 +190,7 @@ fn split_list(
     at: f64,
     alloc: &mut impl FnMut() -> u64,
     pick: impl Fn(&TrackEvent) -> bool,
+    quickfade: Option<f64>,
 ) -> Vec<EventId> {
     let mut created = Vec::new();
     let mut result = Vec::with_capacity(list.len() + 1);
@@ -177,7 +198,17 @@ fn split_list(
         if pick(&ev) && at > ev.start + TIME_EPSILON && at < ev.end() - TIME_EPSILON {
             let left = clip_to(&ev, TimeRange::new(ev.start, at));
             let right = clip_to(&ev, TimeRange::new(at, ev.end()));
-            if let (Some(left), Some(mut right)) = (left, right) {
+            if let (Some(mut left), Some(mut right)) = (left, right) {
+                if let Some(q) = quickfade {
+                    let q_left = q.min(left.duration / 2.0);
+                    if left.fade_out < q_left {
+                        left.fade_out = q_left;
+                    }
+                    let q_right = q.min(right.duration / 2.0);
+                    if right.fade_in < q_right {
+                        right.fade_in = q_right;
+                    }
+                }
                 right.id = alloc();
                 created.push(right.id);
                 result.push(left);
@@ -476,7 +507,7 @@ fn paste_copies(
         let mut alloc = || timeline.alloc_id();
         for track_id in tracks {
             if let Some(list) = draft.list(track_id) {
-                split_list(list, at, &mut alloc, |_| true);
+                split_list(list, at, &mut alloc, |_| true, None);
                 for ev in list.iter_mut().filter(|e| e.start >= at - TIME_EPSILON) {
                     ev.start += clip.length;
                 }
@@ -587,7 +618,7 @@ pub fn insert_time(
         let Some(list) = draft.list(track_id) else {
             continue;
         };
-        split_list(list, at, &mut alloc, |e| !e.locked);
+        split_list(list, at, &mut alloc, |e| !e.locked, None);
         for e in list.iter_mut() {
             if !e.locked && e.start >= at - TIME_EPSILON {
                 e.start += length;
@@ -914,6 +945,12 @@ pub fn heal_events(timeline: &Timeline, selected: &[EventRef]) -> Option<Outcome
 pub fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> Option<Outcome> {
     let mut draft = Draft::new(timeline);
     let track_ids: Vec<TrackId> = timeline.tracks.iter().map(|t| t.id).collect();
+    let audio_tracks: BTreeSet<TrackId> = timeline
+        .tracks
+        .iter()
+        .filter(|t| t.kind == TrackKind::Audio)
+        .map(|t| t.id)
+        .collect();
     let mut alloc = || timeline.alloc_id();
     let mut touched = Vec::new();
     // (group, split time) -> group of the right-hand halves, so a split cuts a group in two
@@ -922,10 +959,20 @@ pub fn split_at_times(timeline: &mut Timeline, times: &[f64], scope: Scope) -> O
         let Some(list) = draft.list(track_id) else {
             continue;
         };
+        let is_audio = audio_tracks.contains(&track_id);
+        let quickfade = if is_audio {
+            Some(DEFAULT_AUDIO_QUICKFADE_SEC)
+        } else {
+            None
+        };
         for &at in times {
-            let created = split_list(list, at, &mut alloc, |e| {
-                !e.locked && scope.includes(track_id, e.id)
-            });
+            let created = split_list(
+                list,
+                at,
+                &mut alloc,
+                |e| !e.locked && scope.includes(track_id, e.id),
+                quickfade,
+            );
             for id in &created {
                 if let Some(e) = list.iter_mut().find(|e| e.id == *id) {
                     if let Some(old) = e.group {
@@ -1589,5 +1636,57 @@ mod tests {
         tl.track_mut(v_tid).unwrap().events[1].start = 9.0;
         tl.track_mut(v_tid).unwrap().events[1].media_id = Some(99);
         assert!(!can_heal_events(&tl, &v_refs));
+    }
+
+    #[test]
+    fn test_audio_split_applies_micro_quickfades() {
+        let mut tl = Timeline::new();
+        let mut track = tl.new_track(TrackKind::Audio);
+        let id = tl.alloc_id();
+        track.events.push(TrackEvent {
+            id,
+            name: "audio_clip".into(),
+            media_id: Some(1),
+            start: 0.0,
+            duration: 1.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            ..Default::default()
+        });
+        tl.tracks.push(track);
+
+        let mut history = History::new();
+        let outcome = split_at(&mut tl, 0.5, Scope::AllTracks);
+        run(&mut tl, &mut history, outcome);
+
+        let events = &tl.tracks[0].events;
+        assert_eq!(events.len(), 2);
+        // Left event cut edge has 10 ms (0.010 s) fade-out
+        assert!((events[0].fade_out - DEFAULT_AUDIO_QUICKFADE_SEC).abs() < 1e-9);
+        assert_eq!(events[0].fade_in, 0.0);
+        // Right event cut edge has 10 ms (0.010 s) fade-in
+        assert!((events[1].fade_in - DEFAULT_AUDIO_QUICKFADE_SEC).abs() < 1e-9);
+        assert_eq!(events[1].fade_out, 0.0);
+
+        // Edge case: split on short audio event (12 ms) clamps quickfades to half duration (6 ms = 0.006 s)
+        let mut short_tl = Timeline::new();
+        let mut short_track = short_tl.new_track(TrackKind::Audio);
+        let sid = short_tl.alloc_id();
+        short_track.events.push(TrackEvent {
+            id: sid,
+            name: "short_audio".into(),
+            media_id: Some(2),
+            start: 0.0,
+            duration: 0.012,
+            ..Default::default()
+        });
+        short_tl.tracks.push(short_track);
+
+        let short_out = split_at(&mut short_tl, 0.006, Scope::AllTracks);
+        run(&mut short_tl, &mut history, short_out);
+        let short_evs = &short_tl.tracks[0].events;
+        assert_eq!(short_evs.len(), 2);
+        assert!((short_evs[0].fade_out - 0.003).abs() < 1e-9);
+        assert!((short_evs[1].fade_in - 0.003).abs() < 1e-9);
     }
 }

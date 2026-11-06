@@ -17,13 +17,16 @@ use crate::pan_crop::{render, sample};
 use crate::vfx::{EffectSpec, ParamSpec};
 
 pub const DISSOLVE: &str = "dissolve";
+pub const CROSS_DISSOLVE: &str = "cross_dissolve";
 pub const LINEAR_WIPE: &str = "linear_wipe";
 pub const CLOCK_WIPE: &str = "clock_wipe";
+pub const RADIAL_WIPE: &str = "radial_wipe";
 pub const IRIS: &str = "iris";
 pub const BARN_DOOR: &str = "barn_door";
 pub const BLINDS: &str = "blinds";
 pub const SLIDE: &str = "slide";
 pub const GROW: &str = "grow";
+pub const ZOOM: &str = "zoom";
 pub const SQUEEZE: &str = "squeeze";
 pub const SPIRAL: &str = "spiral";
 pub const FLASH: &str = "flash";
@@ -35,6 +38,545 @@ pub const GRADIENT_WIPE: &str = "gradient_wipe";
 pub const WARP_FLOW: &str = "warp_flow";
 pub const CUBE: &str = "cube";
 pub const FLIP: &str = "flip";
+pub const FLY_IN: &str = "fly_in";
+pub const THREE_D_FLY_IN: &str = "3d_fly_in";
+pub const SHUFFLE: &str = "shuffle";
+pub const THREE_D_SHUFFLE: &str = "3d_shuffle";
+
+/// The 6 standard categories for video transitions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum TransitionCategory {
+    Dissolve,
+    Wipes,
+    Shapes,
+    Motion,
+    ThreeD,
+    Effects,
+}
+
+impl TransitionCategory {
+    pub const ALL: [TransitionCategory; 6] = [
+        TransitionCategory::Dissolve,
+        TransitionCategory::Wipes,
+        TransitionCategory::Shapes,
+        TransitionCategory::Motion,
+        TransitionCategory::ThreeD,
+        TransitionCategory::Effects,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TransitionCategory::Dissolve => "Dissolver",
+            TransitionCategory::Wipes => "Cortinas",
+            TransitionCategory::Shapes => "Formas",
+            TransitionCategory::Motion => "Movimento",
+            TransitionCategory::ThreeD => "3D",
+            TransitionCategory::Effects => "Efeitos",
+        }
+    }
+}
+
+/// A transition preset definition with its parameter assignments.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransitionPreset {
+    pub id: &'static str,
+    pub category: TransitionCategory,
+    pub name_key: &'static str,
+    pub params: BTreeMap<String, f32>,
+}
+
+impl TransitionPreset {
+    pub fn label(&self) -> &'static str {
+        self.name_key
+    }
+
+    pub fn kind(&self) -> &'static str {
+        self.id
+    }
+}
+
+/// 3D spatial transformation parameters for perspective transitions.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ThreeDTransform {
+    pub rotation_x_deg: f32,
+    pub rotation_y_deg: f32,
+    pub rotation_z_deg: f32,
+    pub depth_z: f32,
+    pub specular_light: f32,
+}
+
+impl Default for ThreeDTransform {
+    fn default() -> Self {
+        Self {
+            rotation_x_deg: 0.0,
+            rotation_y_deg: 0.0,
+            rotation_z_deg: 0.0,
+            depth_z: 0.0,
+            specular_light: 0.0,
+        }
+    }
+}
+
+impl ThreeDTransform {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_rotations(mut self, rx: f32, ry: f32, rz: f32) -> Self {
+        self.rotation_x_deg = rx;
+        self.rotation_y_deg = ry;
+        self.rotation_z_deg = rz;
+        self
+    }
+
+    pub fn with_depth(mut self, depth: f32) -> Self {
+        self.depth_z = depth;
+        self
+    }
+
+    pub fn with_specular(mut self, specular: f32) -> Self {
+        self.specular_light = specular.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Computes rotation matrix R = Rz * Ry * Rx in row-major order.
+    pub fn rotation_matrix(&self) -> [[f32; 3]; 3] {
+        let (sx, cx) = self.rotation_x_deg.to_radians().sin_cos();
+        let (sy, cy) = self.rotation_y_deg.to_radians().sin_cos();
+        let (sz, cz) = self.rotation_z_deg.to_radians().sin_cos();
+
+        [
+            [cy * cz, cz * sx * sy - cx * sz, cx * cz * sy + sx * sz],
+            [cy * sz, cx * cz + sx * sy * sz, -cz * sx + cx * sy * sz],
+            [-sy, cy * sx, cx * cy],
+        ]
+    }
+
+    /// Pure-CPU software rendering fallback applying this 3D transformation to a frame buffer.
+    pub fn apply_cpu(&self, source: &FrameBuffer) -> FrameBuffer {
+        let (width, height) = (source.width, source.height);
+        if width == 0 || height == 0 {
+            return source.clone();
+        }
+        let d_cam = 5.0;
+        let (w, h) = (width as f32, height as f32);
+        let rot = self.rotation_matrix();
+
+        render(width, height, |x, y| {
+            let sx = (x as f32 + 0.5) / w * 2.0 - 1.0;
+            let sy = (y as f32 + 0.5) / h * 2.0 - 1.0;
+            if let Some((_qz, u, v, n, q)) =
+                ray_intersect_plane(sx, sy, d_cam, 0.0, 0.0, self.depth_z, &rot)
+            {
+                let tx = (u + 1.0) * 0.5 * w;
+                let ty = (v + 1.0) * 0.5 * h;
+                let px = sample(source, tx, ty);
+                shade_lit(px, n, q, self.specular_light, d_cam)
+            } else {
+                [0.0; 4]
+            }
+        })
+    }
+}
+
+/// Trait implemented by transition renderers with thumbnail support.
+pub trait TransitionRenderer: Send + Sync {
+    fn render(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        progress: f32,
+        params: &BTreeMap<String, f32>,
+    ) -> Result<FrameBuffer, String>;
+
+    fn render_thumbnail(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        params: &BTreeMap<String, f32>,
+    ) -> FrameBuffer {
+        self.render(source, target, 0.5, params).unwrap_or_else(|_| source.clone())
+    }
+}
+
+/// Keyframe in a transition progress envelope curve.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TransitionEnvelopePoint {
+    pub time: f64,
+    pub progress: f32,
+    pub shape: TransitionEnvelopeShape,
+}
+
+/// Curve interpolation shapes for transition progress automation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum TransitionEnvelopeShape {
+    #[default]
+    Linear,
+    Fast,
+    Slow,
+    Smooth,
+    Sharp,
+    Hold,
+}
+
+impl TransitionEnvelopeShape {
+    pub fn eval(self, u: f32) -> f32 {
+        let u = if u.is_nan() { 0.0 } else { u.clamp(0.0, 1.0) };
+        match self {
+            TransitionEnvelopeShape::Linear => u,
+            TransitionEnvelopeShape::Fast => u.sqrt(),
+            TransitionEnvelopeShape::Slow => u * u,
+            TransitionEnvelopeShape::Smooth => u * u * (3.0 - 2.0 * u),
+            TransitionEnvelopeShape::Sharp => {
+                if u < 0.5 {
+                    2.0 * u * u
+                } else {
+                    1.0 - 2.0 * (1.0 - u) * (1.0 - u)
+                }
+            }
+            TransitionEnvelopeShape::Hold => {
+                if u >= 1.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+        }
+    }
+}
+
+/// Automation envelope controlling custom transition progress curves over time, clamped to 0.0..=1.0.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TransitionProgressEnvelope {
+    pub points: Vec<TransitionEnvelopePoint>,
+    pub enabled: bool,
+}
+
+impl Default for TransitionProgressEnvelope {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
+impl TransitionProgressEnvelope {
+    pub fn new(ramp_seconds: f64) -> Self {
+        let ramp = if ramp_seconds.is_finite() && ramp_seconds > 1e-6 {
+            ramp_seconds
+        } else {
+            1.0
+        };
+        Self {
+            points: vec![
+                TransitionEnvelopePoint {
+                    time: 0.0,
+                    progress: 0.0,
+                    shape: TransitionEnvelopeShape::Linear,
+                },
+                TransitionEnvelopePoint {
+                    time: ramp,
+                    progress: 1.0,
+                    shape: TransitionEnvelopeShape::Linear,
+                },
+            ],
+            enabled: true,
+        }
+    }
+
+    pub fn add_point(&mut self, time: f64, progress: f32, shape: TransitionEnvelopeShape) {
+        if !time.is_finite() {
+            return;
+        }
+        let p = if progress.is_finite() {
+            progress.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        if let Some(pos) = self.points.iter().position(|pt| (pt.time - time).abs() < 1e-6) {
+            self.points[pos].progress = p;
+            self.points[pos].shape = shape;
+        } else {
+            let pos = self.points.partition_point(|pt| pt.time < time);
+            self.points.insert(
+                pos,
+                TransitionEnvelopePoint {
+                    time,
+                    progress: p,
+                    shape,
+                },
+            );
+        }
+    }
+
+    pub fn progress_at(&self, time: f64) -> f32 {
+        if !self.enabled || self.points.is_empty() || time.is_nan() {
+            return 1.0;
+        }
+
+        if time <= self.points[0].time {
+            return self.points[0].progress.clamp(0.0, 1.0);
+        }
+
+        let last = self.points.last().unwrap();
+        if time >= last.time {
+            return last.progress.clamp(0.0, 1.0);
+        }
+
+        let idx = self.points.partition_point(|pt| pt.time < time);
+        if idx == 0 {
+            return self.points[0].progress.clamp(0.0, 1.0);
+        }
+        if idx >= self.points.len() {
+            return last.progress.clamp(0.0, 1.0);
+        }
+        let p1 = &self.points[idx];
+        let p0 = &self.points[idx - 1];
+
+        let dt = p1.time - p0.time;
+        if !dt.is_finite() || dt.abs() < 1e-6 {
+            return p0.progress.clamp(0.0, 1.0);
+        }
+
+        let u = ((time - p0.time) / dt) as f32;
+        let factor = p0.shape.eval(u);
+        let value = p0.progress + (p1.progress - p0.progress) * factor;
+        if value.is_nan() {
+            p0.progress.clamp(0.0, 1.0)
+        } else {
+            value.clamp(0.0, 1.0)
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.enabled && !self.points.is_empty()
+    }
+}
+
+/// Looks up a transition preset by its identifier or name key.
+pub fn get_preset(id: &str) -> Option<TransitionPreset> {
+    let lower = id.to_lowercase().replace(['-', ' '], "_");
+    match lower.as_str() {
+        "cross_dissolve" | "dissolve" => Some(TransitionPreset {
+            id: "cross_dissolve",
+            category: TransitionCategory::Dissolve,
+            name_key: "Cross Dissolve",
+            params: BTreeMap::new(),
+        }),
+        "linear_wipe" | "wipe" => Some(TransitionPreset {
+            id: "linear_wipe",
+            category: TransitionCategory::Wipes,
+            name_key: "Linear Wipe",
+            params: BTreeMap::from([("angle".into(), 0.0), ("softness".into(), 0.1)]),
+        }),
+        "radial_wipe" | "clock_wipe" => Some(TransitionPreset {
+            id: "radial_wipe",
+            category: TransitionCategory::Wipes,
+            name_key: "Radial Wipe",
+            params: BTreeMap::from([("start_angle".into(), 0.0), ("softness".into(), 0.05)]),
+        }),
+        "iris" => Some(TransitionPreset {
+            id: "iris",
+            category: TransitionCategory::Shapes,
+            name_key: "Iris",
+            params: BTreeMap::from([("softness".into(), 0.1)]),
+        }),
+        "push" => Some(TransitionPreset {
+            id: "push",
+            category: TransitionCategory::Motion,
+            name_key: "Push",
+            params: BTreeMap::from([("angle".into(), 0.0), ("push_off".into(), 1.0)]),
+        }),
+        "slide" => Some(TransitionPreset {
+            id: "slide",
+            category: TransitionCategory::Motion,
+            name_key: "Slide",
+            params: BTreeMap::from([("angle".into(), 0.0)]),
+        }),
+        "zoom" | "grow" => Some(TransitionPreset {
+            id: "zoom",
+            category: TransitionCategory::Shapes,
+            name_key: "Zoom",
+            params: BTreeMap::new(),
+        }),
+        "fly_in" => Some(TransitionPreset {
+            id: "fly_in",
+            category: TransitionCategory::ThreeD,
+            name_key: "3D Fly In",
+            params: BTreeMap::from([
+                ("far_z".into(), 4.0),
+                ("rotation_x".into(), 25.0),
+                ("rotation_y".into(), 35.0),
+                ("rotation_z".into(), 10.0),
+                ("specular_light".into(), 0.5),
+            ]),
+        }),
+        "3d_fly_in" => Some(TransitionPreset {
+            id: "3d_fly_in",
+            category: TransitionCategory::ThreeD,
+            name_key: "3D Fly In",
+            params: BTreeMap::from([
+                ("far_z".into(), 4.0),
+                ("rotation_x".into(), 25.0),
+                ("rotation_y".into(), 35.0),
+                ("rotation_z".into(), 10.0),
+                ("specular_light".into(), 0.5),
+            ]),
+        }),
+        "page_peel" => Some(TransitionPreset {
+            id: "page_peel",
+            category: TransitionCategory::ThreeD,
+            name_key: "Page Peel",
+            params: BTreeMap::from([("angle".into(), 0.0)]),
+        }),
+        "page_roll" => Some(TransitionPreset {
+            id: "page_roll",
+            category: TransitionCategory::ThreeD,
+            name_key: "Page Roll",
+            params: BTreeMap::from([("angle".into(), 0.0), ("radius".into(), 0.08)]),
+        }),
+        "cube" => Some(TransitionPreset {
+            id: "cube",
+            category: TransitionCategory::ThreeD,
+            name_key: "Cube",
+            params: BTreeMap::from([("angle".into(), 0.0), ("perspective".into(), 0.5)]),
+        }),
+        "shuffle" => Some(TransitionPreset {
+            id: "shuffle",
+            category: TransitionCategory::ThreeD,
+            name_key: "Shuffle",
+            params: BTreeMap::from([
+                ("extra_spins".into(), 0.0),
+                ("stagger".into(), 0.2),
+                ("specular_light".into(), 0.4),
+            ]),
+        }),
+        "3d_shuffle" => Some(TransitionPreset {
+            id: "3d_shuffle",
+            category: TransitionCategory::ThreeD,
+            name_key: "3D Shuffle",
+            params: BTreeMap::from([
+                ("extra_spins".into(), 0.0),
+                ("stagger".into(), 0.2),
+                ("specular_light".into(), 0.4),
+            ]),
+        }),
+        other => {
+            let p = crate::transition_library::preset(other)?;
+            Some(TransitionPreset {
+                id: p.id,
+                category: crate::transition_library::category(p.kind),
+                name_key: p.label,
+                params: p.values(),
+            })
+        }
+    }
+}
+
+/// Renders a two-frame transition blending from `source` (outgoing) to `target` (incoming).
+fn render_transition(
+    source: &FrameBuffer,
+    target: &FrameBuffer,
+    t: &Resolved,
+    progress: f32,
+) -> FrameBuffer {
+    if matches!(
+        t,
+        Resolved::Push { .. }
+            | Resolved::PageRoll { .. }
+            | Resolved::PagePeel { .. }
+            | Resolved::Cube { .. }
+            | Resolved::Flip { .. }
+            | Resolved::FlyIn { .. }
+            | Resolved::Shuffle { .. }
+            | Resolved::WarpFlow
+    ) {
+        apply2(Some(source), target, t, progress)
+    } else {
+        let inc = apply(target, t, progress);
+        crate::composite::blend_buffer_cpu(
+            source,
+            &inc,
+            neoveg_common::composite::CompositeMode::SourceAlpha,
+            1.0,
+        )
+    }
+}
+
+impl TransitionRenderer for TransitionPreset {
+    fn render(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        progress: f32,
+        params: &BTreeMap<String, f32>,
+    ) -> Result<FrameBuffer, String> {
+        let mut merged = self.params.clone();
+        for (k, v) in params {
+            merged.insert(k.clone(), *v);
+        }
+        let kind = match self.id {
+            "cross_dissolve" => DISSOLVE,
+            "linear_wipe" => LINEAR_WIPE,
+            "radial_wipe" => CLOCK_WIPE,
+            "iris" => IRIS,
+            "push" => PUSH,
+            "slide" => SLIDE,
+            "zoom" => GROW,
+            "3d_fly_in" | "fly_in" => FLY_IN,
+            "page_peel" => PAGE_PEEL,
+            "page_roll" => PAGE_ROLL,
+            "cube" => CUBE,
+            "shuffle" | "3d_shuffle" => SHUFFLE,
+            other => other,
+        };
+        let resolved = resolve(kind, &merged).ok_or_else(|| format!("Unknown transition preset kind: {kind}"))?;
+        Ok(render_transition(source, target, &resolved, progress))
+    }
+}
+
+impl TransitionRenderer for &str {
+    fn render(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        progress: f32,
+        params: &BTreeMap<String, f32>,
+    ) -> Result<FrameBuffer, String> {
+        let resolved = resolve(self, params).ok_or_else(|| format!("Unknown transition kind: {self}"))?;
+        Ok(render_transition(source, target, &resolved, progress))
+    }
+}
+
+impl TransitionRenderer for String {
+    fn render(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        progress: f32,
+        params: &BTreeMap<String, f32>,
+    ) -> Result<FrameBuffer, String> {
+        self.as_str().render(source, target, progress, params)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StandardTransitionRenderer;
+
+impl TransitionRenderer for StandardTransitionRenderer {
+    fn render(
+        &self,
+        source: &FrameBuffer,
+        target: &FrameBuffer,
+        progress: f32,
+        params: &BTreeMap<String, f32>,
+    ) -> Result<FrameBuffer, String> {
+        let kind = params
+            .get("transition_id")
+            .map(|_| "custom")
+            .unwrap_or(DISSOLVE);
+        let resolved = resolve(kind, params).ok_or_else(|| format!("Unknown transition: {kind}"))?;
+        Ok(render_transition(source, target, &resolved, progress))
+    }
+}
 
 const SOFTNESS: ParamSpec = ParamSpec {
     id: "softness",
@@ -404,13 +946,97 @@ pub fn transitions() -> &'static [EffectSpec] {
                     PERSPECTIVE,
                 ]),
             },
+            EffectSpec {
+                id: FLY_IN,
+                label: "Voo 3D",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "far_z",
+                        label: "Distância inicial Z",
+                        min: 0.0,
+                        max: 10.0,
+                        default: 4.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "rotation_x",
+                        label: "Rotação X",
+                        min: -180.0,
+                        max: 180.0,
+                        default: 25.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "rotation_y",
+                        label: "Rotação Y",
+                        min: -180.0,
+                        max: 180.0,
+                        default: 35.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "rotation_z",
+                        label: "Rotação Z",
+                        min: -180.0,
+                        max: 180.0,
+                        default: 10.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "specular_light",
+                        label: "Luz especular",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.5,
+                        percent: true,
+                    },
+                ]),
+            },
+            EffectSpec {
+                id: SHUFFLE,
+                label: "Embaralhar 3D",
+                params: leak(vec![
+                    ParamSpec {
+                        id: "extra_spins",
+                        label: "Giros extras",
+                        min: 0.0,
+                        max: 5.0,
+                        default: 0.0,
+                        percent: false,
+                    },
+                    ParamSpec {
+                        id: "stagger",
+                        label: "Atraso lateral",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.2,
+                        percent: true,
+                    },
+                    ParamSpec {
+                        id: "specular_light",
+                        label: "Luz especular",
+                        min: 0.0,
+                        max: 1.0,
+                        default: 0.4,
+                        percent: true,
+                    },
+                ]),
+            },
         ]
     })
 }
 
 /// The registry entry of `id`.
 pub fn spec(id: &str) -> Option<&'static EffectSpec> {
-    transitions().iter().find(|t| t.id == id)
+    let canonical = match id {
+        CROSS_DISSOLVE => DISSOLVE,
+        RADIAL_WIPE => CLOCK_WIPE,
+        ZOOM => GROW,
+        THREE_D_FLY_IN => FLY_IN,
+        THREE_D_SHUFFLE => SHUFFLE,
+        other => other,
+    };
+    transitions().iter().find(|t| t.id == canonical)
 }
 
 /// A transition as the worker receives it: the id, the values that differ from the defaults and
@@ -529,6 +1155,20 @@ pub enum Resolved {
         angle: f32,
         perspective: f32,
     },
+    /// 3D perspective fly-in transition with 3-axis rotation and specular highlight.
+    FlyIn {
+        far_z: f32,
+        rotation_x: f32,
+        rotation_y: f32,
+        rotation_z: f32,
+        specular_light: f32,
+    },
+    /// 3D perspective shuffle transition with depth exchange and specular highlight.
+    Shuffle {
+        extra_spins: f32,
+        stagger: f32,
+        specular_light: f32,
+    },
 }
 
 /// The transition with every value clamped to its range, or `None` for an unknown id.
@@ -609,6 +1249,18 @@ pub fn resolve(kind: &str, params: &BTreeMap<String, f32>) -> Option<Resolved> {
             angle: v("angle"),
             perspective: v("perspective"),
         },
+        FLY_IN | THREE_D_FLY_IN => Resolved::FlyIn {
+            far_z: v("far_z"),
+            rotation_x: v("rotation_x"),
+            rotation_y: v("rotation_y"),
+            rotation_z: v("rotation_z"),
+            specular_light: v("specular_light"),
+        },
+        SHUFFLE | THREE_D_SHUFFLE => Resolved::Shuffle {
+            extra_spins: v("extra_spins"),
+            stagger: v("stagger"),
+            specular_light: v("specular_light"),
+        },
         _ => return None,
     })
 }
@@ -663,14 +1315,29 @@ pub fn split_extent(center: f32, size: f32) -> f32 {
 /// `true` for the transitions that draw the clip before the one they reveal (the outgoing layer).
 /// With no clip before, they run on the incoming layer alone, as if the outgoing one were empty.
 pub fn needs_outgoing(kind: &str) -> bool {
-    matches!(kind, PUSH | PAGE_ROLL | PAGE_PEEL | WARP_FLOW | CUBE | FLIP)
+    matches!(
+        kind,
+        PUSH | PAGE_ROLL
+            | PAGE_PEEL
+            | WARP_FLOW
+            | CUBE
+            | FLIP
+            | FLY_IN
+            | THREE_D_FLY_IN
+            | SHUFFLE
+            | THREE_D_SHUFFLE
+    )
 }
 
 /// `true` for the transitions only the CPU draws: the GPU refuses them and the worker falls back.
 pub fn cpu_only(t: &Resolved) -> bool {
     matches!(
         t,
-        Resolved::WarpFlow | Resolved::Cube { .. } | Resolved::Flip { .. }
+        Resolved::WarpFlow
+            | Resolved::Cube { .. }
+            | Resolved::Flip { .. }
+            | Resolved::FlyIn { .. }
+            | Resolved::Shuffle { .. }
     )
 }
 
@@ -890,8 +1557,290 @@ pub fn apply2(
             perspective,
             progress,
         ),
+        Resolved::FlyIn {
+            far_z,
+            rotation_x,
+            rotation_y,
+            rotation_z,
+            specular_light,
+        } => apply_3d_fly_in(
+            outgoing,
+            incoming,
+            far_z,
+            rotation_x,
+            rotation_y,
+            rotation_z,
+            specular_light,
+            progress,
+        ),
+        Resolved::Shuffle {
+            extra_spins,
+            stagger,
+            specular_light,
+        } => apply_3d_shuffle(
+            outgoing,
+            incoming,
+            extra_spins,
+            stagger,
+            specular_light,
+            progress,
+        ),
         _ => apply(incoming, t, progress),
     }
+}
+
+fn shade_lit(px: [f32; 4], n: [f32; 3], q: [f32; 3], specular: f32, d_cam: f32) -> [f32; 4] {
+    let lx = 0.28f32;
+    let ly = -0.35f32;
+    let lz = 0.89f32;
+    let dot = (n[0] * lx + n[1] * ly + n[2] * lz).abs();
+    let diff = 0.75 + 0.25 * dot;
+
+    let vx = -q[0];
+    let vy = -q[1];
+    let vz = d_cam - q[2];
+    let v_len = (vx * vx + vy * vy + vz * vz).sqrt().max(1e-6);
+    let vx = vx / v_len;
+    let vy = vy / v_len;
+    let vz = vz / v_len;
+
+    let hx = lx + vx;
+    let hy = ly + vy;
+    let hz = lz + vz;
+    let h_len = (hx * hx + hy * hy + hz * hz).sqrt().max(1e-6);
+    let s_dot = (n[0] * (hx / h_len) + n[1] * (hy / h_len) + n[2] * (hz / h_len)).abs();
+    let spec = specular.clamp(0.0, 1.0) * s_dot.powi(12);
+
+    let a = px[3];
+    let ka = a / 255.0;
+    [
+        (px[0] * diff + spec * 255.0 * ka).min(a),
+        (px[1] * diff + spec * 255.0 * ka).min(a),
+        (px[2] * diff + spec * 255.0 * ka).min(a),
+        a,
+    ]
+}
+
+#[allow(clippy::type_complexity)]
+fn ray_intersect_plane(
+    sx: f32,
+    sy: f32,
+    d_cam: f32,
+    cx: f32,
+    cy: f32,
+    cz: f32,
+    rot: &[[f32; 3]; 3],
+) -> Option<(f32, f32, f32, [f32; 3], [f32; 3])> {
+    let nx = rot[0][2];
+    let ny = rot[1][2];
+    let nz = rot[2][2];
+
+    let denom = nx * sx + ny * sy - nz * d_cam;
+    if denom.abs() < 1e-6 {
+        return None;
+    }
+
+    let t = (nx * cx + ny * cy + nz * (cz - d_cam)) / denom;
+    if t <= 0.001 || t >= 2.5 {
+        return None;
+    }
+
+    let qx = t * sx;
+    let qy = t * sy;
+    let qz = d_cam * (1.0 - t);
+
+    let dx = qx - cx;
+    let dy = qy - cy;
+    let dz = qz - cz;
+
+    let u = rot[0][0] * dx + rot[1][0] * dy + rot[2][0] * dz;
+    let v = rot[0][1] * dx + rot[1][1] * dy + rot[2][1] * dz;
+
+    if (-1.0..=1.0).contains(&u) && (-1.0..=1.0).contains(&v) {
+        Some((qz, u, v, [nx, ny, nz], [qx, qy, qz]))
+    } else {
+        None
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_3d_fly_in(
+    outgoing: Option<&FrameBuffer>,
+    incoming: &FrameBuffer,
+    far_z: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+    rotation_z: f32,
+    specular_light: f32,
+    progress: f32,
+) -> FrameBuffer {
+    let progress = if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let (width, height) = (incoming.width, incoming.height);
+    if width == 0 || height == 0 {
+        return incoming.clone();
+    }
+    if progress >= 1.0 {
+        return incoming.clone();
+    }
+    if progress <= 0.0 {
+        return outgoing.map_or_else(|| FrameBuffer::solid(width, height, [0, 0, 0, 0]), |o| o.clone());
+    }
+
+    let d_cam = 5.0;
+    let (w, h) = (width as f32, height as f32);
+
+    let t_inc = 1.0 - progress;
+    let far = far_z.clamp(0.0, 10.0);
+    let inc_z = -far * t_inc;
+    let inc_transform = ThreeDTransform {
+        rotation_x_deg: rotation_x * t_inc,
+        rotation_y_deg: rotation_y * t_inc,
+        rotation_z_deg: rotation_z * t_inc,
+        depth_z: inc_z,
+        specular_light: specular_light * (1.0 - (2.0 * progress - 1.0).abs()),
+    };
+    let rot_inc = inc_transform.rotation_matrix();
+
+    let out_transform = ThreeDTransform {
+        rotation_x_deg: -progress * 15.0,
+        rotation_y_deg: -progress * 25.0,
+        rotation_z_deg: -progress * 5.0,
+        depth_z: -progress * 2.0,
+        specular_light: specular_light * 0.3 * (1.0 - progress),
+    };
+    let rot_out = out_transform.rotation_matrix();
+
+    render(width, height, |x, y| {
+        let sx = (x as f32 + 0.5) / w * 2.0 - 1.0;
+        let sy = (y as f32 + 0.5) / h * 2.0 - 1.0;
+
+        let hit_inc = ray_intersect_plane(sx, sy, d_cam, 0.0, 0.0, inc_z, &rot_inc).map(
+            |(qz, u, v, n, q)| {
+                let tx = (u + 1.0) * 0.5 * w;
+                let ty = (v + 1.0) * 0.5 * h;
+                let px = sample(incoming, tx, ty);
+                (qz, shade_lit(px, n, q, inc_transform.specular_light, d_cam))
+            },
+        );
+
+        let hit_out = outgoing.and_then(|out_buf| {
+            ray_intersect_plane(sx, sy, d_cam, 0.0, 0.0, out_transform.depth_z, &rot_out).map(
+                |(qz, u, v, n, q)| {
+                    let tx = (u + 1.0) * 0.5 * w;
+                    let ty = (v + 1.0) * 0.5 * h;
+                    let px = sample(out_buf, tx, ty);
+                    (qz, shade_lit(px, n, q, out_transform.specular_light, d_cam))
+                },
+            )
+        });
+
+        match (hit_inc, hit_out) {
+            (Some((qz_inc, px_inc)), Some((qz_out, px_out))) => {
+                if qz_inc >= qz_out {
+                    over(px_inc, px_out)
+                } else {
+                    over(px_out, px_inc)
+                }
+            }
+            (Some((_, px_inc)), None) => px_inc,
+            (None, Some((_, px_out))) => px_out,
+            (None, None) => [0.0; 4],
+        }
+    })
+}
+
+fn apply_3d_shuffle(
+    outgoing: Option<&FrameBuffer>,
+    incoming: &FrameBuffer,
+    extra_spins: f32,
+    stagger: f32,
+    specular_light: f32,
+    progress: f32,
+) -> FrameBuffer {
+    let progress = if progress.is_finite() {
+        progress.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let (width, height) = (incoming.width, incoming.height);
+    if width == 0 || height == 0 {
+        return incoming.clone();
+    }
+    if progress >= 1.0 {
+        return incoming.clone();
+    }
+    if progress <= 0.0 {
+        return outgoing.map_or_else(|| FrameBuffer::solid(width, height, [0, 0, 0, 0]), |o| o.clone());
+    }
+
+    let d_cam = 5.0;
+    let (w, h) = (width as f32, height as f32);
+
+    let spin = extra_spins * 360.0 * progress;
+    let out_cx = progress * (1.2 + stagger);
+    let out_cz = -progress * 2.5;
+    let out_transform = ThreeDTransform {
+        rotation_x_deg: progress * 10.0,
+        rotation_y_deg: -progress * 35.0 + spin,
+        rotation_z_deg: progress * 5.0,
+        depth_z: out_cz,
+        specular_light: specular_light * (1.0 - progress),
+    };
+    let rot_out = out_transform.rotation_matrix();
+
+    let t_inc = 1.0 - progress;
+    let inc_cx = -t_inc * (1.2 + stagger);
+    let inc_cz = -t_inc * 2.5;
+    let inc_transform = ThreeDTransform {
+        rotation_x_deg: -t_inc * 10.0,
+        rotation_y_deg: t_inc * 35.0 - spin,
+        rotation_z_deg: -t_inc * 5.0,
+        depth_z: inc_cz,
+        specular_light: specular_light * progress,
+    };
+    let rot_inc = inc_transform.rotation_matrix();
+
+    render(width, height, |x, y| {
+        let sx = (x as f32 + 0.5) / w * 2.0 - 1.0;
+        let sy = (y as f32 + 0.5) / h * 2.0 - 1.0;
+
+        let hit_inc = ray_intersect_plane(sx, sy, d_cam, inc_cx, 0.0, inc_cz, &rot_inc).map(
+            |(qz, u, v, n, q)| {
+                let tx = (u + 1.0) * 0.5 * w;
+                let ty = (v + 1.0) * 0.5 * h;
+                let px = sample(incoming, tx, ty);
+                (qz, shade_lit(px, n, q, inc_transform.specular_light, d_cam))
+            },
+        );
+
+        let hit_out = outgoing.and_then(|out_buf| {
+            ray_intersect_plane(sx, sy, d_cam, out_cx, 0.0, out_cz, &rot_out).map(
+                |(qz, u, v, n, q)| {
+                    let tx = (u + 1.0) * 0.5 * w;
+                    let ty = (v + 1.0) * 0.5 * h;
+                    let px = sample(out_buf, tx, ty);
+                    (qz, shade_lit(px, n, q, out_transform.specular_light, d_cam))
+                },
+            )
+        });
+
+        match (hit_inc, hit_out) {
+            (Some((qz_inc, px_inc)), Some((qz_out, px_out))) => {
+                if qz_inc >= qz_out {
+                    over(px_inc, px_out)
+                } else {
+                    over(px_out, px_inc)
+                }
+            }
+            (Some((_, px_inc)), None) => px_inc,
+            (None, Some((_, px_out))) => px_out,
+            (None, None) => [0.0; 4],
+        }
+    })
 }
 
 /// The 3D transitions. `cube`: the clip before is the front face of a cube and the new one the face
@@ -1072,7 +2021,9 @@ fn mask(t: &Resolved, u: f32, v: f32, aspect: f32, progress: f32) -> f32 {
         | Resolved::PageRoll { .. }
         | Resolved::PagePeel { .. }
         | Resolved::Cube { .. }
-        | Resolved::Flip { .. } => 1.0,
+        | Resolved::Flip { .. }
+        | Resolved::FlyIn { .. }
+        | Resolved::Shuffle { .. } => 1.0,
         Resolved::GradientWipe {
             pattern,
             softness,
@@ -1112,6 +2063,8 @@ pub fn apply(layer: &FrameBuffer, t: &Resolved, progress: f32) -> FrameBuffer {
             | Resolved::PagePeel { .. }
             | Resolved::Cube { .. }
             | Resolved::Flip { .. }
+            | Resolved::FlyIn { .. }
+            | Resolved::Shuffle { .. }
     ) {
         // No clip before: the outgoing layer is empty
         return apply2(None, layer, t, progress);
@@ -1483,7 +2436,7 @@ mod tests {
 
     #[test]
     fn every_registry_default_is_inside_its_range_and_every_id_resolves() {
-        assert_eq!(transitions().len(), 19);
+        assert_eq!(transitions().len(), 21);
         for t in transitions() {
             assert!(!t.label.is_empty());
             for p in t.params {
@@ -1774,5 +2727,136 @@ mod tests {
         let alone = apply2(None, &blue, &cube, 0.5);
         assert_eq!(alone.pixel(3 * w / 4, h / 2)[3], 0);
         assert_eq!(alone.pixel(w / 4, h / 2)[3], 255);
+    }
+
+    #[test]
+    fn three_d_transform_orthogonality_and_lighting() {
+        let t = ThreeDTransform::new()
+            .with_rotations(30.0, 45.0, 60.0)
+            .with_depth(3.5)
+            .with_specular(0.8);
+        assert_eq!(t.depth_z, 3.5);
+        assert_eq!(t.specular_light, 0.8);
+
+        let r = t.rotation_matrix();
+        // Check R * R^T = I
+        for i in 0..3 {
+            for j in 0..3 {
+                let mut dot = 0.0f32;
+                for k in 0..3 {
+                    dot += r[i][k] * r[j][k];
+                }
+                let expected = if i == j { 1.0 } else { 0.0 };
+                assert!((dot - expected).abs() < 1e-4, "orthogonality at {i},{j}: {dot}");
+            }
+        }
+    }
+
+    #[test]
+    fn three_d_fly_in_and_shuffle_render_cpu_fallback() {
+        let (w, h) = (48u32, 32u32);
+        let red = FrameBuffer::solid(w, h, [255, 0, 0, 255]);
+        let blue = FrameBuffer::solid(w, h, [0, 0, 255, 255]);
+        let default_params = BTreeMap::new();
+
+        for kind in [FLY_IN, SHUFFLE] {
+            assert!(needs_outgoing(kind));
+            let t = resolve(kind, &default_params).unwrap();
+            assert!(cpu_only(&t));
+
+            // Start matches outgoing frame
+            let start = apply2(Some(&red), &blue, &t, 0.0);
+            assert_eq!(start, red, "{kind} at 0.0");
+
+            // End matches incoming frame
+            let end = apply2(Some(&red), &blue, &t, 1.0);
+            assert_eq!(end, blue, "{kind} at 1.0");
+
+            // Midpoint renders composite frame with valid dimensions and non-zero pixels
+            let mid = apply2(Some(&red), &blue, &t, 0.5);
+            assert_eq!(mid.width, w);
+            assert_eq!(mid.height, h);
+            assert_eq!(mid.rgba.len(), (w * h * 4) as usize);
+
+            let has_red = mid.rgba.chunks_exact(4).any(|p| p[0] > 100);
+            let has_blue = mid.rgba.chunks_exact(4).any(|p| p[2] > 100);
+            assert!(has_red || has_blue, "{kind} has visible content");
+
+            // Without outgoing frame, incoming frame is rendered cleanly without panic
+            let solo = apply2(None, &blue, &t, 0.5);
+            assert_eq!(solo.width, w);
+            assert_eq!(solo.height, h);
+        }
+    }
+
+    #[test]
+    fn transition_progress_envelope_curves_and_clamping() {
+        let env = TransitionProgressEnvelope::new(2.0);
+        assert!(env.is_active());
+
+        // Default linear ramp: 0.0 at t=0, 0.5 at t=1.0, 1.0 at t=2.0
+        assert_eq!(env.progress_at(0.0), 0.0);
+        assert!((env.progress_at(1.0) - 0.5).abs() < 1e-4);
+        assert_eq!(env.progress_at(2.0), 1.0);
+
+        // Clamping before start and past end
+        assert_eq!(env.progress_at(-10.0), 0.0);
+        assert_eq!(env.progress_at(10.0), 1.0);
+        assert_eq!(env.progress_at(f64::NAN), 1.0);
+
+        // Multi-point shaping with Fast / Slow / Smooth
+        let mut shaped = TransitionProgressEnvelope::new(1.0);
+        shaped.add_point(0.5, 0.25, TransitionEnvelopeShape::Smooth);
+        let mid = shaped.progress_at(0.5);
+        assert!((mid - 0.25).abs() < 1e-4);
+
+        // Disabled envelope returns 1.0
+        shaped.enabled = false;
+        assert_eq!(shaped.progress_at(0.5), 1.0);
+    }
+
+    #[test]
+    fn transition_renderer_trait_and_presets() {
+        let (w, h) = (32u32, 24u32);
+        let src = FrameBuffer::solid(w, h, [200, 50, 50, 255]);
+        let tgt = FrameBuffer::solid(w, h, [50, 50, 200, 255]);
+
+        // Preset lookup
+        let preset_cross = get_preset("cross_dissolve").expect("cross_dissolve preset");
+        assert_eq!(preset_cross.category, TransitionCategory::Dissolve);
+
+        // render via TransitionRenderer trait
+        let params = BTreeMap::new();
+        let rendered = preset_cross
+            .render(&src, &tgt, 0.5, &params)
+            .expect("render succeeds");
+        assert_eq!(rendered.width, w);
+        assert_eq!(rendered.height, h);
+
+        // render_thumbnail generates at progress 0.5
+        let thumb = preset_cross.render_thumbnail(&src, &tgt, &params);
+        assert_eq!(thumb, rendered);
+
+        // All 12 standard presets exist
+        let all_12 = [
+            "cross_dissolve",
+            "linear_wipe",
+            "radial_wipe",
+            "iris",
+            "push",
+            "slide",
+            "zoom",
+            "3d_fly_in",
+            "page_peel",
+            "page_roll",
+            "cube",
+            "shuffle",
+        ];
+        for id in all_12 {
+            let p = get_preset(id).unwrap_or_else(|| panic!("missing preset {id}"));
+            assert!(!p.name_key.is_empty());
+            let thumb = p.render_thumbnail(&src, &tgt, &BTreeMap::new());
+            assert_eq!(thumb.width, w);
+        }
     }
 }

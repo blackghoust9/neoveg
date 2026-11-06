@@ -88,15 +88,15 @@ mod tests {
 
     #[test]
     fn the_summary_names_the_size_and_the_rate() {
-        let template = ProjectTemplate {
-            name: "meu".into(),
-            settings: ProjectSettings {
+        let template = ProjectTemplate::new(
+            "meu",
+            ProjectSettings {
                 width: 1920,
                 height: 1080,
                 fps: 30_000.0 / 1001.0,
                 ..ProjectSettings::default()
             },
-        };
+        );
         assert_eq!(summary(&template), "1920x1080 a 29,97 quadros/s");
         let mut whole = template;
         whole.settings.fps = 24.0;

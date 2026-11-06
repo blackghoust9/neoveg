@@ -578,11 +578,82 @@ impl MasterBusMode {
     }
 }
 
+/// Category of a project template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TemplateCategory {
+    Broadcast3d,
+    Avchd,
+    Bluray,
+    Dv,
+    Dvd,
+    Hdv,
+    Internet,
+    Social,
+    UserCustom,
+}
+
+impl TemplateCategory {
+    pub const ALL: [TemplateCategory; 9] = [
+        TemplateCategory::Broadcast3d,
+        TemplateCategory::Avchd,
+        TemplateCategory::Bluray,
+        TemplateCategory::Dv,
+        TemplateCategory::Dvd,
+        TemplateCategory::Hdv,
+        TemplateCategory::Internet,
+        TemplateCategory::Social,
+        TemplateCategory::UserCustom,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TemplateCategory::Broadcast3d => "3D",
+            TemplateCategory::Avchd => "AVCHD",
+            TemplateCategory::Bluray => "Blu-ray",
+            TemplateCategory::Dv => "DV",
+            TemplateCategory::Dvd => "DVD",
+            TemplateCategory::Hdv => "HDV",
+            TemplateCategory::Internet => "Internet / Web",
+            TemplateCategory::Social => "Redes Sociais",
+            TemplateCategory::UserCustom => "Personalizado",
+        }
+    }
+}
+
 /// A ready-made set of project settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectTemplate {
     pub name: String,
+    #[serde(default)]
+    pub is_builtin: bool,
+    #[serde(default)]
+    pub category: Option<TemplateCategory>,
     pub settings: ProjectSettings,
+}
+
+impl ProjectTemplate {
+    pub fn new(name: impl Into<String>, settings: ProjectSettings) -> Self {
+        Self {
+            name: name.into(),
+            is_builtin: false,
+            category: None,
+            settings,
+        }
+    }
+
+    pub fn builtin(
+        name: impl Into<String>,
+        category: TemplateCategory,
+        settings: ProjectSettings,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            is_builtin: true,
+            category: Some(category),
+            settings,
+        }
+    }
 }
 
 fn template(
@@ -594,6 +665,8 @@ fn template(
 ) -> ProjectTemplate {
     ProjectTemplate {
         name: name.to_owned(),
+        is_builtin: true,
+        category: None,
         settings: ProjectSettings {
             width,
             height,
@@ -602,6 +675,198 @@ fn template(
             field_order,
             ..ProjectSettings::default()
         },
+    }
+}
+
+fn categorized_template(
+    name: &str,
+    category: TemplateCategory,
+    (width, height): (u32, u32),
+    fps: f64,
+    pixel_aspect: f64,
+    field_order: FieldOrder,
+) -> ProjectTemplate {
+    ProjectTemplate {
+        name: name.to_owned(),
+        is_builtin: true,
+        category: Some(category),
+        settings: ProjectSettings {
+            width,
+            height,
+            fps,
+            pixel_aspect,
+            field_order,
+            ..ProjectSettings::default()
+        },
+    }
+}
+
+/// Generates the canonical 46 standard industry project templates matching results.md §18.3.
+pub fn canonical_46_templates() -> Vec<ProjectTemplate> {
+    use FieldOrder::{LowerFirst, Progressive, UpperFirst};
+    use TemplateCategory::*;
+
+    let (fps_23976, _fps_24, fps_25, fps_2997, fps_50, fps_5994) = (
+        24_000.0 / 1001.0,
+        24.0,
+        25.0,
+        30_000.0 / 1001.0,
+        50.0,
+        60_000.0 / 1001.0,
+    );
+
+    vec![
+        // --- 1. 3D Blu-ray (3 templates) ---
+        categorized_template("3D Blu-ray 1280x720-50p", Broadcast3d, (1280, 720), fps_50, 1.0, Progressive),
+        categorized_template("3D Blu-ray 1280x720-60p", Broadcast3d, (1280, 720), fps_5994, 1.0, Progressive),
+        categorized_template("3D Blu-ray 1920x1080-24p", Broadcast3d, (1920, 1080), fps_23976, 1.0, Progressive),
+
+        // --- 2. 3D Internet (3 templates) ---
+        categorized_template("3D Internet 1920x1080-24p", Broadcast3d, (1920, 1080), fps_23976, 1.0, Progressive),
+        categorized_template("3D Internet 1920x1080-25p", Broadcast3d, (1920, 1080), fps_25, 1.0, Progressive),
+        categorized_template("3D Internet 1920x1080-30p", Broadcast3d, (1920, 1080), fps_2997, 1.0, Progressive),
+
+        // --- 3. AVCHD (6 templates) ---
+        categorized_template("AVCHD 1440x1080-24p", Avchd, (1440, 1080), fps_23976, 4.0 / 3.0, Progressive),
+        categorized_template("AVCHD 1440x1080-50i", Avchd, (1440, 1080), fps_25, 4.0 / 3.0, UpperFirst),
+        categorized_template("AVCHD 1440x1080-60i", Avchd, (1440, 1080), fps_2997, 4.0 / 3.0, UpperFirst),
+        categorized_template("AVCHD 1920x1080-24p", Avchd, (1920, 1080), fps_23976, 1.0, Progressive),
+        categorized_template("AVCHD 1920x1080-50i", Avchd, (1920, 1080), fps_25, 1.0, UpperFirst),
+        categorized_template("AVCHD 1920x1080-60i", Avchd, (1920, 1080), fps_2997, 1.0, UpperFirst),
+
+        // --- 4. Blu-ray (6 templates) ---
+        categorized_template("Blu-ray 1440x1080-24p", Bluray, (1440, 1080), fps_23976, 4.0 / 3.0, Progressive),
+        categorized_template("Blu-ray 1440x1080-50i", Bluray, (1440, 1080), fps_25, 4.0 / 3.0, UpperFirst),
+        categorized_template("Blu-ray 1440x1080-60i", Bluray, (1440, 1080), fps_2997, 4.0 / 3.0, UpperFirst),
+        categorized_template("Blu-ray 1920x1080-24p", Bluray, (1920, 1080), fps_23976, 1.0, Progressive),
+        categorized_template("Blu-ray 1920x1080-50i", Bluray, (1920, 1080), fps_25, 1.0, UpperFirst),
+        categorized_template("Blu-ray 1920x1080-60i", Bluray, (1920, 1080), fps_2997, 1.0, UpperFirst),
+
+        // --- 5. DV (2 templates) ---
+        categorized_template("DV NTSC", Dv, (720, 480), fps_2997, 10.0 / 11.0, LowerFirst),
+        categorized_template("DV PAL", Dv, (720, 576), fps_25, 16.0 / 15.0, LowerFirst),
+
+        // --- 6. DVD (6 templates) ---
+        categorized_template("DVD 24p widescreen", Dvd, (720, 480), fps_23976, 40.0 / 33.0, Progressive),
+        categorized_template("DVD 24p", Dvd, (720, 480), fps_23976, 10.0 / 11.0, Progressive),
+        categorized_template("DVD NTSC widescreen", Dvd, (720, 480), fps_2997, 40.0 / 33.0, LowerFirst),
+        categorized_template("DVD NTSC", Dvd, (720, 480), fps_2997, 10.0 / 11.0, LowerFirst),
+        categorized_template("DVD PAL widescreen", Dvd, (720, 576), fps_25, 1.4587, UpperFirst),
+        categorized_template("DVD PAL", Dvd, (720, 576), fps_25, 16.0 / 15.0, UpperFirst),
+
+        // --- 7. HDV (11 templates) ---
+        categorized_template("HDV 1280x720-24p", Hdv, (1280, 720), fps_23976, 1.0, Progressive),
+        categorized_template("HDV 1280x720-25p", Hdv, (1280, 720), fps_25, 1.0, Progressive),
+        categorized_template("HDV 1280x720-30p", Hdv, (1280, 720), fps_2997, 1.0, Progressive),
+        categorized_template("HDV 1440x1080-24p", Hdv, (1440, 1080), fps_23976, 4.0 / 3.0, Progressive),
+        categorized_template("HDV 1440x1080-50i", Hdv, (1440, 1080), fps_25, 4.0 / 3.0, UpperFirst),
+        categorized_template("HDV 1440x1080-60i", Hdv, (1440, 1080), fps_2997, 4.0 / 3.0, UpperFirst),
+        categorized_template("HDV 3840x2160-24p", Hdv, (3840, 2160), fps_23976, 1.0, Progressive),
+        categorized_template("HDV 3840x2160-25p", Hdv, (3840, 2160), fps_25, 1.0, Progressive),
+        categorized_template("HDV 3840x2160-30p", Hdv, (3840, 2160), fps_2997, 1.0, Progressive),
+        categorized_template("HDV 3840x2160-50p", Hdv, (3840, 2160), fps_50, 1.0, Progressive),
+        categorized_template("HDV 3840x2160-60p", Hdv, (3840, 2160), fps_5994, 1.0, Progressive),
+
+        // --- 8. Internet (9 templates) ---
+        categorized_template("Internet 360-24p", Internet, (640, 360), fps_23976, 1.0, Progressive),
+        categorized_template("Internet 360-25p", Internet, (640, 360), fps_25, 1.0, Progressive),
+        categorized_template("Internet 360-30p", Internet, (640, 360), fps_2997, 1.0, Progressive),
+        categorized_template("Internet 480-24p", Internet, (854, 480), fps_23976, 1.0, Progressive),
+        categorized_template("Internet 480-25p", Internet, (854, 480), fps_25, 1.0, Progressive),
+        categorized_template("Internet 480-30p", Internet, (854, 480), fps_2997, 1.0, Progressive),
+        categorized_template("Internet 720-24p", Internet, (1280, 720), fps_23976, 1.0, Progressive),
+        categorized_template("Internet 720-25p", Internet, (1280, 720), fps_25, 1.0, Progressive),
+        categorized_template("Internet 720-30p", Internet, (1280, 720), fps_2997, 1.0, Progressive),
+    ]
+}
+
+/// Exports a project template to the serialized .vqpt format string.
+pub fn export_vqpt(template: &ProjectTemplate) -> Result<String, String> {
+    serde_json::to_string_pretty(template).map_err(|e| format!("Failed to serialize template: {e}"))
+}
+
+/// Imports a project template from a serialized .vqpt format string.
+pub fn import_vqpt(content: &str) -> Result<ProjectTemplate, String> {
+    serde_json::from_str::<ProjectTemplate>(content.trim())
+        .map_err(|e| format!("Unrecognized or corrupt .vqpt template file (ID 17437): {e}"))
+}
+
+/// Template manager handling built-in and user-custom templates with immutability guarantees.
+#[derive(Debug, Clone, Default)]
+pub struct TemplateManager {
+    custom: Vec<ProjectTemplate>,
+}
+
+impl TemplateManager {
+    pub fn new() -> Self {
+        Self { custom: Vec::new() }
+    }
+
+    pub fn with_custom(custom: Vec<ProjectTemplate>) -> Self {
+        Self { custom }
+    }
+
+    /// Returns all available templates: canonical 46 built-ins followed by general and custom templates.
+    pub fn all_templates(&self) -> Vec<ProjectTemplate> {
+        let mut list = canonical_46_templates();
+        for t in builtin_templates() {
+            if !list.iter().any(|existing| existing.name == t.name) {
+                list.push(t);
+            }
+        }
+        list.extend(self.custom.clone());
+        list
+    }
+
+    /// Finds a template by its exact name among built-ins or custom templates.
+    pub fn find_by_name(&self, name: &str) -> Option<ProjectTemplate> {
+        self.all_templates().into_iter().find(|t| t.name == name)
+    }
+
+    /// Determines whether a template with the given name is a built-in immutable template.
+    pub fn is_builtin(&self, name: &str) -> bool {
+        canonical_46_templates().iter().any(|t| t.name == name)
+            || builtin_templates().iter().any(|t| t.name == name)
+    }
+
+    /// Saves a user custom template.
+    ///
+    /// Rejects empty names (Alert ID 1578).
+    /// Rejects attempts to overwrite or modify built-in templates (Alert IDs 1580, 17365).
+    pub fn save_custom(&mut self, mut template: ProjectTemplate) -> Result<(), &'static str> {
+        let trimmed_name = template.name.trim();
+        if trimmed_name.is_empty() {
+            return Err("Can't save the template without a valid name. Please rename it before saving.");
+        }
+        if template.is_builtin || self.is_builtin(trimmed_name) {
+            return Err("Can't modify the built-in template. Please rename it before saving.");
+        }
+
+        template.name = trimmed_name.to_owned();
+        template.is_builtin = false;
+        template.category = Some(TemplateCategory::UserCustom);
+
+        if let Some(pos) = self.custom.iter().position(|t| t.name == template.name) {
+            self.custom[pos] = template;
+        } else {
+            self.custom.push(template);
+        }
+        Ok(())
+    }
+
+    /// Deletes a custom template by name.
+    ///
+    /// Rejects attempts to delete built-in templates (Alert IDs 1585, 17364).
+    pub fn delete_custom(&mut self, name: &str) -> Result<(), &'static str> {
+        if self.is_builtin(name) {
+            return Err("Can't delete the built-in template.");
+        }
+        if let Some(pos) = self.custom.iter().position(|t| t.name == name) {
+            self.custom.remove(pos);
+            Ok(())
+        } else {
+            Err("Template not found.")
+        }
     }
 }
 

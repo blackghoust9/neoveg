@@ -327,10 +327,7 @@ mod tests {
             ..ProjectSettings::default()
         };
         p.new_project_settings = Some(settings.clone());
-        p.custom_templates.push(ProjectTemplate {
-            name: "Meu 4K".into(),
-            settings,
-        });
+        p.custom_templates.push(ProjectTemplate::new("Meu 4K", settings));
         p.add_recent_project(Path::new("x.neoveg"));
         p.save(&path).unwrap();
         let back = Preferences::load(&path);
