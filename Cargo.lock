@@ -2934,6 +2934,7 @@ dependencies = [
  "neoveg_aaf",
  "neoveg_audio",
  "neoveg_common",
+ "neoveg_media",
  "neoveg_video",
  "roxmltree",
  "serde",

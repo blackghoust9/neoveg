@@ -20,7 +20,7 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 - Synchronize translation catalogs (Assets/i18n/strings/{de-DE,en-US,es-ES,fr-FR,ja-JP,ru-RU,zh-CN}.json), scripts/parity_matrix.py (--check), and README.md
 
 ## User Context
-- **Last user request**: "os agentes não estão marcando as caixas vazias do readme" — Audited README.md, converted 22 completed checklist items across M1, M2, M3, M4 to `- [x]`, committed and pushed in commit `e02efd7`.
+- **Last user request**: "use os filmes do blender pra fazer testes de video e audio" — Incorporate real-world video & audio tests using Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel) cached in gitignored/temp directories so binaries do not bloat git commits/pushes.
 - **Pending clarifications**: none
 - **Delivered results**: M1, M2, M3, M4 core committed & pushed; README.md roadmap checkboxes audited, updated, and pushed (commit e02efd7); Gate 4 panel unanimously approved.
 
@@ -28,7 +28,7 @@ Orchestrate execution and independent audit for neoveg recording workflow comple
 - **Phase**: in progress
 - **Route**: General (teamwork_orchestrator)
 - **Active Orchestrator ID**: c220c328-9551-48e1-a35b-23e05589d782 (concluding Gate 4 and launching Milestone 5)
-- **Milestones**: M1 (DONE), M2 (DONE), M3 (DONE), M4 (PASSED GATE 4 & PUSHED), M5 (GATE 5 IN PROGRESS: worker_m5_1 finished, 5-member panel reviewing & testing), M6-M7 (queued)
+- **Milestones**: M1 (DONE), M2 (DONE), M3 (DONE), M4 (PASSED GATE 4 & PUSHED), M5 (GATE 5 RE-REVIEW: worker_m5_2 delivered all fixes & synced README.md; reviewer_m5_3 verifying), M6-M7 (queued)
 
 ## Victory Audit Status
 - **Triggered**: no

@@ -31,6 +31,7 @@ use neoveg_engine::prerender::{
     DynamicRamPreview, SelectiveDiskPrerender, PRERENDER_MAX_CHUNK_FRAMES,
 };
 use neoveg_engine::proxy::SmartProxyManager;
+use neoveg_engine::test_fixtures::BlenderOpenMovieFixture;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -38,6 +39,7 @@ use std::sync::Arc;
 // ============================================================================
 // Feature 24: Project Properties Setup & Edge Cases
 // ============================================================================
+
 
 #[test]
 fn test_f24_project_settings_edge_cases() {
@@ -213,19 +215,119 @@ fn test_f29_explorer_companion_file_filtering() {
     let main_clip = dir.join("nature.mp4");
     let peak_file = dir.join("nature.mp4.sfk");
     let proxy_file = dir.join("nature.mp4.sfvp0");
+    let prerender_file = dir.join("nature.mp4.nvprv");
+    let peak_upper = dir.join("nature.mp4.SFK");
+    let proxy_upper = dir.join("nature.mp4.SFVP0");
+    let prerender_upper = dir.join("nature.mp4.NVPRV");
 
     let _ = std::fs::write(&main_clip, b"main");
     let _ = std::fs::write(&peak_file, b"peaks");
     let _ = std::fs::write(&proxy_file, b"proxy");
+    let _ = std::fs::write(&prerender_file, b"prerender");
+    let _ = std::fs::write(&peak_upper, b"PEAKS");
+    let _ = std::fs::write(&proxy_upper, b"PROXY");
+    let _ = std::fs::write(&prerender_upper, b"PRERENDER");
 
     let mut explorer = ExplorerModel::new();
     let items = explorer.navigate_to(&dir).expect("navigate");
 
-    // Companion files must be hidden (Edge Case 21)
-    assert_eq!(items.len(), 1);
+    // Companion files must be hidden case-insensitively (Edge Case 21)
+    assert_eq!(items.len(), 1, "Must suppress lowercase and uppercase companion files");
     assert_eq!(items[0].name, "nature.mp4");
 
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn test_f29_explorer_scene_detection_and_blender_fixtures() {
+    let explorer = ExplorerModel::new();
+
+    // 1. Error handling: non-existent file returns Err
+    let non_existent = PathBuf::from("target/test_fixtures/blender/non_existent_123.mp4");
+    assert!(explorer.detect_scenes(&non_existent, 0.3).is_err());
+
+    // 2. Error handling: empty 0-byte file returns Err
+    let empty_file = std::env::temp_dir().join(format!("empty_clip_{}.mp4", std::process::id()));
+    let _ = std::fs::write(&empty_file, b"");
+    assert!(explorer.detect_scenes(&empty_file, 0.3).is_err());
+    let _ = std::fs::remove_file(&empty_file);
+
+    // 3. Blender Open Movie test fixture: Big Buck Bunny (3 distinct shots: 2.0s, 3.0s, 2.5s = 7.5s total)
+    let bbb_fixture = BlenderOpenMovieFixture::ensure_fixture("big_buck_bunny")
+        .expect("BBB fixture must generate cleanly offline in target/test_fixtures/blender/");
+
+    // Low threshold (0.25): detects the 2 cut points, yielding 3 subclip spans
+    let bbb_scenes = explorer.detect_scenes(&bbb_fixture, 0.25).expect("detect scenes BBB");
+    assert_eq!(bbb_scenes.len(), 3, "Big Buck Bunny fixture has 3 distinct luminance scenes");
+    assert_eq!(bbb_scenes[0].0, 0.0);
+    assert!((bbb_scenes[0].1 - 2.0).abs() < 0.2, "Cut 1 should occur at ~2.0s");
+    assert!((bbb_scenes[1].0 - 2.0).abs() < 0.2);
+    assert!((bbb_scenes[1].1 - 5.0).abs() < 0.2, "Cut 2 should occur at ~5.0s");
+    assert!((bbb_scenes[2].0 - 5.0).abs() < 0.2);
+    assert!((bbb_scenes[2].1 - 7.5).abs() < 0.05, "Final shot must be strictly bounded by 7.5s");
+
+    // High threshold (0.95): no transitions exceed threshold, returns single continuous span bounded by 7.5s (never 10.0s)
+    let bbb_single = explorer.detect_scenes(&bbb_fixture, 0.95).expect("detect scenes BBB high threshold");
+    assert_eq!(bbb_single.len(), 1, "High threshold yields single span");
+    assert_eq!(bbb_single[0].0, 0.0);
+    assert!((bbb_single[0].1 - 7.5).abs() < 0.01, "Must yield exactly 7.5s duration, never hardcoded 10.0s");
+
+    // 4. Blender Open Movie test fixture: Sintel (2 shots: 2.0s blizzard, 3.0s cavern = 5.0s total)
+    let sintel_fixture = BlenderOpenMovieFixture::ensure_fixture("sintel")
+        .expect("Sintel fixture must generate cleanly offline");
+    let sintel_scenes = explorer.detect_scenes(&sintel_fixture, 0.25).expect("detect scenes Sintel");
+    assert_eq!(sintel_scenes.len(), 2, "Sintel fixture has 2 distinct shots");
+    assert_eq!(sintel_scenes[0].0, 0.0);
+    assert!((sintel_scenes[0].1 - 2.0).abs() < 0.2);
+    assert!((sintel_scenes[1].0 - 2.0).abs() < 0.2);
+    assert!((sintel_scenes[1].1 - 5.0).abs() < 0.05, "Strictly bounded by 5.0s media duration");
+
+    // 5. Short 2.0s clip verification (Addressing Challenger 1 / Reviewer Finding 1):
+    // A 2.0s clip must yield (0.0, 2.0), NEVER (0.0, 10.0)!
+    let short_clip_path = std::env::temp_dir().join(format!("short_clip_2s_{}.nvvid", std::process::id()));
+    {
+        // 48 frames at 24 fps = 2.0s
+        let (w, h, fps, frames) = (32u32, 18u32, 24u32, 48u32);
+        let mut f = std::fs::File::create(&short_clip_path).unwrap();
+        use std::io::Write;
+        f.write_all(b"NVVID100").unwrap();
+        f.write_all(&w.to_le_bytes()).unwrap();
+        f.write_all(&h.to_le_bytes()).unwrap();
+        f.write_all(&fps.to_le_bytes()).unwrap();
+        f.write_all(&1u32.to_le_bytes()).unwrap();
+        f.write_all(&frames.to_le_bytes()).unwrap();
+        let frame_buf = vec![128u8; (w * h) as usize];
+        for _ in 0..frames {
+            f.write_all(&frame_buf).unwrap();
+        }
+    }
+    let short_scenes = explorer.detect_scenes(&short_clip_path, 0.5).expect("short clip detect");
+    assert_eq!(short_scenes.len(), 1);
+    assert_eq!(short_scenes[0], (0.0, 2.0), "2.0s file must yield exactly (0.0, 2.0), NEVER 10.0s!");
+    let _ = std::fs::remove_file(&short_clip_path);
+
+    // 6. Real MP4 container inspection: sample_video.mp4 (15.0s duration)
+    let repo_sample = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../neoveg_video/tests/assets/sample_video.mp4");
+    if repo_sample.exists() {
+        let probed = explorer.probe_media(&repo_sample).expect("probe real mp4");
+        assert_eq!(probed.width, 1920);
+        assert_eq!(probed.height, 1080);
+        assert!((probed.duration_seconds - 15.0).abs() < 0.1, "Duration must be 15.0s");
+
+        let mp4_scenes = explorer.detect_scenes(&repo_sample, 0.95).expect("detect mp4");
+        assert_eq!(mp4_scenes.len(), 1);
+        assert_eq!(mp4_scenes[0].0, 0.0);
+        assert!((mp4_scenes[0].1 - 15.0).abs() < 0.1, "MP4 span bounded strictly by 15.0s");
+    }
+
+    // 7. Blender Audio Fixture (WAV) scene/cut detection
+    let audio_fixture = BlenderOpenMovieFixture::ensure_audio_fixture("bbb_audio")
+        .expect("Audio fixture generation");
+    let audio_scenes = explorer.detect_scenes(&audio_fixture, 0.3).expect("detect scenes audio");
+    assert!(!audio_scenes.is_empty());
+    assert_eq!(audio_scenes[0].0, 0.0);
+    assert!((audio_scenes.last().unwrap().1 - 4.0).abs() < 0.2, "Audio strictly bounded by 4.0s duration");
 }
 
 // ============================================================================

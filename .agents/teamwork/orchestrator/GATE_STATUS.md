@@ -5,7 +5,7 @@
 - Milestone 2 (M2): Video Transitions, 3D Transforms, GPU Effects & OFX Host [DONE]
 - Milestone 3 (M3): Color Grading, Color Wheels, OCIO/ACES & Color Match [DONE]
 - Milestone 4 (M4): Motion Tracking, Event Masks, Smart Mask & AI Features [DONE]
-- Milestone 5 (M5): Project Properties, Media Pool, Explorer, Render Caching & Alerts [PLANNED]
+- Milestone 5 (M5): Project Properties, Media Pool, Explorer, Render Caching & Alerts [DONE]
 - Milestone 6 (M6): Advanced Timeline Editing, Multicam & Takes [PLANNED]
 - Milestone 7 (M7): Final E2E Test Suite Pass (Tiers 1-4) & Adversarial Coverage Hardening (Tier 5) [PLANNED]
 
@@ -124,14 +124,36 @@ Gate Result: **PASS** (Milestone 4 Approved and Passed; README.md Checkboxes Syn
 
 ---
 
-## Gate — Iteration 5 (Milestone M5 Verification)
+## Gate — Iteration 5 (Milestone M5 Verification & Clearance)
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
 | worker_m5_1 | teamwork_worker | DONE (251 common + 657 engine tests passed) | handoff.md |
-| reviewer_m5_1 | teamwork_reviewer | REQUEST_CHANGES | handoff.md |
+| reviewer_m5_1 | teamwork_reviewer | REQUEST_CHANGES (remediated) | handoff.md |
 | reviewer_m5_2 | teamwork_reviewer | APPROVE | handoff.md |
-| challenger_m5_1 | teamwork_challenger | IN_PROGRESS | pending |
-| challenger_m5_2 | teamwork_challenger | IN_PROGRESS | pending |
+| challenger_m5_1 | teamwork_challenger | APPROVE (19/19 passed) | handoff.md |
+| challenger_m5_2 | teamwork_challenger | APPROVE (23/23 passed) | handoff.md |
 | auditor_m5_1 | teamwork_auditor | CLEAN | handoff.md |
+| worker_m5_2 | teamwork_worker | DONE (remediation passed) | handoff.md |
+| reviewer_m5_3 | teamwork_reviewer | APPROVE | handoff.md |
 
-Gate Result: **IN_PROGRESS**
+Gate Result: **PASS**
+- Features 24–34 fully implemented, remediated, and verified:
+  - Feature 24: Project Properties Setup (`crates/neoveg_common/src/project.rs`, Dialog 826/863/817/807 settings, ACES/OCIO, LFE lowpass, 26 stereo audio busses, 16 ruler formats, compositing gamma, 1.0 FPS preservation).
+  - Feature 25: Project Presets & Templates (`crates/neoveg_common/src/presets.rs`, 46 canonical .vqpt templates matching §18.3 across 8 categories, immutability enforcement, serde import/export).
+  - Feature 26: Media Profiles Rule Matcher (`crates/neoveg_common/src/profiles.rs`, reverse order evaluation, wildcards, 0.005 FPS tolerance, §18.4 compliance).
+  - Feature 27: Project Media Detail Columns (`crates/neoveg_engine/src/media_pool.rs`, all 23 metadata columns, multi-column sorting, search query filtering, timeline media deletion protection [Alert 17264]).
+  - Feature 28: Media Bins & Smart Search Bins (`crates/neoveg_engine/src/media_bins.rs`, root "All Media" immutability [Alerts 12878, 12889], duplicate auto-renaming, 10 Quick Tags, dynamic Smart Search Bins).
+  - Feature 29: Unified File Explorer (`crates/neoveg_engine/src/explorer.rs`, case-insensitive companion file suppression [.sfk, .sfvp0, .nvprv], preview transport player, genuine ISO BMFF/NVVID100/WAV media probing and frame/packet difference scene detection bounded strictly by media duration).
+  - Feature 30: Make Movie Guided Export Wizard (`crates/neoveg_engine/src/make_movie.rs`, 3-step wizard flow, destination presets, disk space validation, Alert 3404 empty project validation).
+  - Feature 31: Color-Coded Preview Cache Ruler (`crates/neoveg_engine/src/cache_ruler.rs`, Green/Yellow/Red spans, O(1) query fast-path, range coalescing/invalidation).
+  - Feature 32: Dynamic RAM & Selective Prerender (`crates/neoveg_engine/src/prerender.rs`, Dynamic RAM Preview [Shift+B, Alert 46259 if 0 MB], Selective Disk Prerender [Shift+M, chunks <= 300 frames, .nvprv binary format], Dialog 834 cleanup).
+  - Feature 33: Standardized Alerts Subsystem (`crates/neoveg_common/src/alerts.rs`, §10 error codes, localized parameter substitution, non-blocking queue, mock interception, 0 vendor trademarks).
+  - Feature 34: Smart Proxies & Quality Switching (`crates/neoveg_engine/src/proxy.rs`, 540p integer box downscaling, Draft/Preview proxy switching, master conforming on final render).
+- User directive integration: Blender Open Movie test fixtures (`crates/neoveg_engine/src/test_fixtures.rs`) cached in gitignored `target/test_fixtures/blender/` without repository bloat.
+- User directive integration: All Milestone 5 roadmap checkboxes in `README.md` (lines 479, 480, 481, 484, 488, 587, 601, 602, 604, 605, 607, 608) audited and verified `- [x]`.
+- Parity matrix `python scripts/parity_matrix.py --check` exited 0 (872 commands scanned, 0 unclassified).
+- Workspace compilation & Clippy: 0 errors, 0 warnings across workspace (`-j 1`, `--test-threads=1`, `neoveg_ui` tests excluded).
+- Test execution: 271 common tests passed, 659 engine tests passed, 19 adversarial properties tests passed, 23 adversarial caching/proxy tests passed.
+- Forensic Auditor verdict: CLEAN.
+- Reviewer verdicts: APPROVE.
+- Challenger verdicts: APPROVE.

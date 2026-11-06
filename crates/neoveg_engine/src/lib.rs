@@ -53,6 +53,7 @@ pub mod subclip;
 pub mod subtitles;
 pub mod switches;
 pub mod takes;
+pub mod test_fixtures;
 pub mod text_edit;
 pub mod timeline;
 pub mod track_arm;

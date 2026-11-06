@@ -89,3 +89,12 @@ User directive regarding README.md unchecked checkboxes:
   1. Check all `- [ ]` checkboxes in `README.md` corresponding to completed Milestones 1, 2, 3 (e.g. input device selection / track arming / recording with monitoring; transitions categories/presets/thumbnails/3D + GPU video effects + OFX; color grading per event / color wheels / OCIO + Color Match / S-Log/ACES) — verify each is genuinely complete (including UI wiring where applicable) and ACTUALLY edit `README.md` (`- [ ]` -> `- [x]`), then commit and push (`git commit` + `git push`).
   2. When Gate 4 finishes, immediately mark Milestone 4's checkboxes (`- [ ]` -> `- [x]`) in `README.md` as part of the Milestone 4 commit & push.
   3. Add a hard Gate requirement for EVERY milestone from now until completion: before closing any milestone, verify via `git diff` / `Select-String` on `README.md` that the corresponding `- [ ]` lines were actually changed to `- [x]` and committed/pushed to `origin/preview/version-2.1.0`. Never report an item as checked off in `README.md` without verifying the actual edit in `README.md`!
+
+
+## Follow-up — 2026-11-06T17:54:03Z
+
+**Task**: use os filmes do blender pra fazer testes de video e audio
+
+**Additional Context**:
+- Incorporate real-world video and audio tests using Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel, Elephants Dream — check local fixtures/downloads first or cache lightweight Blender open-movie sample clips in a gitignored/temp test cache directory so large media binaries do not bloat git commits/pushes on `preview/version-2.1.0`, while keeping tests reproducible if offline).
+- Keep the 8 GB RAM / `-j 1` / `--test-threads=1` budget intact and continue completing all remaining unchecked `- [ ]` checkboxes in `README.md`.

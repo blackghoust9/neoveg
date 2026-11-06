@@ -359,7 +359,7 @@ impl ProjectSettings {
     pub fn sanitize(&mut self) {
         self.width = crate::presets::clamp_size(self.width);
         self.height = crate::presets::clamp_size(self.height);
-        self.fps = if self.fps.is_finite() && self.fps > 1.0 {
+        self.fps = if self.fps.is_finite() && self.fps >= 1.0 {
             self.fps.clamp(1.0, 240.0)
         } else {
             29.97
@@ -630,5 +630,22 @@ mod tests {
                 fps: None
             })
         );
+    }
+
+    #[test]
+    fn sanitize_preserves_legitimate_one_fps_project() {
+        let mut settings = ProjectSettings {
+            fps: 1.0,
+            ..Default::default()
+        };
+        settings.sanitize();
+        assert_eq!(settings.fps, 1.0, "1.0 FPS project must be preserved");
+
+        let mut sub_one = ProjectSettings {
+            fps: 0.5,
+            ..Default::default()
+        };
+        sub_one.sanitize();
+        assert_eq!(sub_one.fps, 29.97, "FPS < 1.0 resets to default 29.97");
     }
 }

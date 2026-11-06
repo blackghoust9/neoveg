@@ -110,3 +110,17 @@ Received. Milestone 5 implementation worker worker_m5_1 dispatched for Features 
 # Sentinel Gate 5 Verification Panel Acknowledgment
 
 Received. Gate 5 verification panel confirmed active across reviewer_m5_1, reviewer_m5_2, challenger_m5_1, challenger_m5_2, and auditor_m5_1. Standing by for panel verdicts, mandatory README.md checkbox synchronization, and git commit/push to origin/preview/version-2.1.0.
+
+
+## 2026-11-06T17:54:37Z
+# User Follow-Up Directive: Blender Open Movie Test Media & Pipeline Integration
+
+**Task**: use os filmes do blender pra fazer testes de video e audio
+
+**Additional Context**:
+- Incorporate real-world video and audio tests using Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel, Elephants Dream — check local fixtures/downloads first or cache lightweight Blender open-movie sample clips in a gitignored/temp test cache directory so large media binaries do not bloat git commits/pushes on `preview/version-2.1.0`, while keeping tests reproducible if offline).
+- Keep the 8 GB RAM / `-j 1` / `--test-threads=1` budget intact and continue completing all remaining unchecked `- [ ]` checkboxes in `README.md`.
+
+Please incorporate this directive into the active roadmap (`PROJECT.md`) and testing pipeline:
+1. Ensure the remediation worker (`worker_m5_2`) or subsequent milestones incorporate Blender open-movie fixtures for real-world video and audio testing (in a gitignored cache like `target/test_fixtures/blender/` or temp directory to avoid repo bloat).
+2. Continue executing Milestone 5 remediation, Gate 5 approval, and README checkbox synchronization without delay.

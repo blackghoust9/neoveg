@@ -22,6 +22,7 @@ Neoveg is a pure clean-room Rust non-linear video editing system structured as a
 2. **CPU Fallback Strategy**: Dedicated GPU hardware or external AI services cannot be required for CI/test execution. All GPU effects, OFX plugins, and AI models have deterministic pure-CPU software fallbacks and synthetic in-memory fixtures.
 3. **Execution Budget**: Sequential execution with `-j 1` and `--test-threads=1`. `neoveg_ui` is verified exclusively with `cargo check` and `cargo clippy` (never `cargo test -p neoveg_ui`).
 4. **Clean-Room License & Trademark**: `MIT OR Apache-2.0` compliant (`deny.toml`), zero GPL/AGPL dependencies, zero third-party registered trademarks in runtime strings or user-visible text.
+5. **Real-World Test Media (Blender Open Movies)**: Real-world video and audio tests utilize Blender Open Movies (CC-BY, e.g. Big Buck Bunny, Sintel, Tears of Steel) cached in a gitignored/temp test fixtures directory (e.g. `target/test_fixtures/blender/`) or via lightweight synthetic/sample fallback frames so large binary media does not bloat git commits/pushes on `preview/version-2.1.0`.
 
 ---
 
@@ -85,7 +86,7 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
 | M2 | Video Transitions, 3D Transforms, GPU Effects & OFX Host | Features 6–10: Transition categories, presets, 3D transforms, GPU effects, and OFX | M1 | DONE |
 | M3 | Color Grading, Color Wheels, OCIO/ACES & Color Match | Features 11–16: 4-way wheels, curves, white balance, OCIO/ACES pipeline, color match | M1 | DONE |
 | M4 | Motion Tracking, Event Masks, Smart Mask & AI Features | Features 17–23: Motion tracking, geometric/Bézier masks, Smart Mask, text editing, speech-to-text, upscale, auto reframe | M1 | DONE |
-| M5 | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1 | IN_PROGRESS (worker_m5_1: c80bfd4d-ea9e-46ca-bc2b-e90520dfb453) |
+| M5 | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1 | DONE |
 | M6 | Advanced Timeline Editing, Multicam & Takes | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, and parity matrix | M2, M3, M4, M5 | PLANNED |
 | M7 | E2E Test Suite Pass (Tiers 1-4) & Adversarial Hardening (Tier 5) | Features 43–44: Pass 100% E2E test suite published in `TEST_READY.md`, followed by Tier 5 adversarial stress testing | M6, TEST_READY.md | PLANNED |
 

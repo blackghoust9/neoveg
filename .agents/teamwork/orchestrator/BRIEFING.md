@@ -112,20 +112,23 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | worker_m5_1 | teamwork_worker | M5 Implementation Worker (Features 24-34) | completed | c80bfd4d-ea9e-46ca-bc2b-e90520dfb453 |
 | reviewer_m5_1 | teamwork_reviewer | M5 Properties, Templates & Media Reviewer | completed (REQUEST_CHANGES) | 3451afb9-b790-44df-be77-d50f77b3dda9 |
 | reviewer_m5_2 | teamwork_reviewer | M5 Make Movie, Caching & Proxies Reviewer | completed (APPROVE) | a9880724-b893-4f58-8c33-adf9c6eb4e69 |
-| challenger_m5_1 | teamwork_challenger | M5 Properties & Profiles Challenger | in-progress | 9366094e-32af-43db-933c-f4f2ac75ddb0 |
-| challenger_m5_2 | teamwork_challenger | M5 Caching & Proxies Challenger | in-progress | 60df8215-37e6-4301-8f18-9f8ba42f0d9b |
+| challenger_m5_1 | teamwork_challenger | M5 Properties & Profiles Challenger | completed (APPROVE) | 9366094e-32af-43db-933c-f4f2ac75ddb0 |
+| challenger_m5_2 | teamwork_challenger | M5 Caching & Proxies Challenger | completed (APPROVE) | 60df8215-37e6-4301-8f18-9f8ba42f0d9b |
 | auditor_m5_1 | teamwork_auditor | M5 Forensic Integrity Auditor | completed (CLEAN) | 42460178-c910-425c-bfd8-5f44a703e1c4 |
+| worker_m5_2 | teamwork_worker | M5 Remediation & Sync Worker | completed | b24e9664-cb3e-449a-bca6-be0cfa39698d |
+| reviewer_m5_3 | teamwork_reviewer | M5 Remediation Re-Reviewer | completed (APPROVE) | 4818d0db-95f0-436e-8e53-63a07747ac3a |
+| worker_git_m5 | teamwork_worker | M5 Git Commit & Push Worker | in-progress | 3a7c8c5e-1112-40f2-bfb6-29644406a106 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 49 / 128
-- Pending subagents: 9366094e-32af-43db-933c-f4f2ac75ddb0, 60df8215-37e6-4301-8f18-9f8ba42f0d9b
+- Spawn count: 52 / 128
+- Pending subagents: 3a7c8c5e-1112-40f2-bfb6-29644406a106
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-1821
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-2063
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

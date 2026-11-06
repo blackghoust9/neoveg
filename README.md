@@ -476,16 +476,16 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Rastreamento de movimento, máscaras e *Smart Mask*
 
 **Projeto, mídia e saída**
-- [ ] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
-- [ ] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
-- [ ] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
+- [x] Projeto: propriedades (resolução, FPS, aspecto, espaço de cor), templates e perfis de mídia
+- [x] Janela de Mídia do Projeto (listas/miniaturas, filtros, busca, propriedades) e Explorer
+- [x] Renderização (*Make Movie*) com predefinições e pré-renderização/cache (régua verde/amarela/vermelha)
 - [x] Intercâmbio FCP7 XML, FCPXML, OpenTimelineIO (`.otio`) e EDL
 - [x] IA: edição por texto, fala para texto, *upscale*, *auto reframe*
-- [ ] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
+- [x] Alertas e diálogos padronizados (mídia ausente, codec, disco, GPU, plug-in) conforme o catálogo do `results.md` §10
 
 **Itens extras vindos dos manuais (VP10–VP21), por versão de origem**
 - [x] Modo de edição expandido (feito, `Ctrl+Alt+E`) e *rolling edit* pelo teclado (`Ctrl+Alt+Shift+PageUp/PageDown` no aparo por teclado), com visão A/B do ponto de edição (VP12)
-- [ ] Proxies inteligentes: troca automática entre original e proxy conforme a qualidade da prévia; o render usa o original (VP12)
+- [x] Proxies inteligentes: troca automática entre original e proxy conforme a qualidade da prévia; o render usa o original (VP12)
 - [x] Cadeias de efeitos de até 32 efeitos: as de **vídeo** (evento, faixa, mídia, projeto e evento de ajuste) já tinham o limite de 32 (`MAX_VIDEO_EFFECTS`); as de **áudio** (faixa, barramento e master) subiram de 8 para 32 (`neoveg_engine::effects::MAX_EFFECTS`; o mixer monta qualquer tamanho de cadeia, e o painel só bloqueia o botão de adicionar no limite). Ficam em aberto, como itens à parte logo abaixo: efeitos de áudio por evento e por mídia, marcadores Pan/Crop e Composite na cadeia, e o mascaramento de FX (retângulo, elipse, Bézier)
 - [x] Efeitos de áudio por evento e por mídia (*Event FX* e *Media FX* de áudio): uma cadeia que vale só para um evento, ou para todos os que tocam uma mídia, antes da cadeia da faixa. Na aba de efeitos de áudio, com um evento de áudio selecionado, os botões *Evento* e *Mídia* escolhem a cadeia (a da mídia roda antes da do evento, e as duas antes da da faixa). Limites: sem automação nem keyframes nas cadeias de evento e de mídia; mudar a cadeia reinicia o áudio no cursor; a latência dos efeitos é compensada lendo o clipe um pouco adiante, então o som não atrasa
 - [x] Mascaramento de FX e formas (retângulo, elipse, Bézier) nos efeitos de vídeo (VP12; as máscaras Bézier e os modos positivo e negativo do manual v21): em cada efeito do painel *Efeitos de Vídeo* há a seção **Máscara**: a forma (*Sem máscara*, *Retângulo*, *Elipse* ou *Curva de Bézier*), o centro, a largura, a altura e o giro (retângulo e elipse), os pontos da curva (X e Y em %, de 3 a 48; a curva é lisa e passa pelos pontos), a *Suavidade da borda* (até 25 % da altura) e a *Máscara negativa*, em que o efeito age fora da forma. O efeito roda na imagem inteira e só a parte que a máscara deixa passar fica (`neoveg_common::fx_mask::FxMask`, `TrackEffect::mask`, `video_effects::set_mask`, `vfx::apply_chain_cpu`); a cobertura vem do rasterizador do motor de texto, com desfoque para a borda, e a última máscara fica guardada para o quadro seguinte (`neoveg_video::fx_mask`). Vale para as cadeias de evento, faixa, mídia, projeto e evento de ajuste. Cada mudança é um passo de desfazer (arrastar vale um só). Limites: uma cadeia com máscara roda na CPU em vez de na placa de vídeo; a máscara não tem keyframes nem é desenhada sobre a prévia (os pontos se editam em números); a máscara de Bézier não gira nem muda de tamanho (os pontos já dizem onde ficam). Os 11 testes novos passam (4 da descrição em `neoveg_common`, 4 da cobertura em `neoveg_video`, 1 do motor, 1 de `vfx` e 1 do aplicativo)
@@ -584,7 +584,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 10 — Fluxos de trabalho (entrada 16)**
 - [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
-- [ ] Proxies inteligentes (troca automática conforme a qualidade da prévia; render usa o original)
+- [x] Proxies inteligentes (troca automática conforme a qualidade da prévia; render usa o original)
 - [x] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto, com os marcadores **Pan/Crop** (cadeia do evento: o que fica acima do marcador roda na imagem antes do Pan/Crop, o que fica abaixo, depois; sem o marcador tudo roda depois, como antes) e **Composite** (cadeia da faixa: acima, na camada da faixa; abaixo, no resultado da composição, que vira um ajuste logo depois da camada), como os botões Pan/Crop e Composite da cadeia de plug-ins do VEGAS. No menu *Adicionar efeito…* do painel *Efeitos de Vídeo* aparece o marcador do escopo (uma vez por cadeia); ele sobe e desce como um efeito (`neoveg_common::fx_markers`, `worker::finish_clip`, `composite_request`). Os 4 testes novos passam
 - [x] Color Match, LUTs/OpenColorIO, scopes (vectorscope, forma de onda, histograma, parada RGB)
 - [x] Projetos aninhados e eventos de ajuste; painel de rastreamento de movimento; ferramentas de IA (transcrição, edição por texto, máscara, upscale)
@@ -598,14 +598,14 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking por keyframes de volume (o por faixa já existe), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
 
 **Fase 12 — Propriedades, régua e espaço de trabalho (entradas 30 a 35)**
-- [ ] Propriedades do projeto: formato de pixel, ordem de campos, taxa de amostragem e profundidade de bits, início da régua, BPM e compasso, pastas de gravação e pré-renderização, espaço de cor (ACES/OCIO) — tudo com valor padrão para abrir projetos antigos
-- [ ] Propriedades de mídia: tipo de canal alfa (indefinido, nenhum, direto, pré-multiplicado, pré-multiplicado sujo), espaço e faixa de cor, rotação, timecode do arquivo ou personalizado, edição de várias mídias com "(valores diferentes)"
+- [x] Propriedades do projeto: formato de pixel, ordem de campos, taxa de amostragem e profundidade de bits, início da régua, BPM e compasso, pastas de gravação e pré-renderização, espaço de cor (ACES/OCIO) — tudo com valor padrão para abrir projetos antigos
+- [x] Propriedades de mídia: tipo de canal alfa (indefinido, nenhum, direto, pré-multiplicado, pré-multiplicado sujo), espaço e faixa de cor, rotação, timecode do arquivo ou personalizado, edição de várias mídias com "(valores diferentes)"
 - [x] Janela de mídia ausente com as quatro opções (pesquisar, nova localização, ignorar, ignorar todas) e janela de erro de arquivo de mídia (commits `ddebc1d` e `974d213`)
-- [ ] Formatos de régua (`RulerFormat`): amostras, tempo, segundos, tempo e quadros, quadros absolutos, compassos e tempos, pés e quadros 16/35 mm, SMPTE 23,976 / 24 / 25 / 29,97 sem e com drop-frame / 30, tempo de CD; espaçamento da grade (minutos a quadros, notas musicais) e deslocamento da régua
-- [ ] Layouts de janela nomeados (salvar, carregar, 10 atalhos, organizar) além de painéis flutuantes; janela Edit Details (tabela sobre eventos, marcadores, regiões e comandos, com colunas ordenáveis e predefinições); histórico de desfazer com lista e rótulo por comando
+- [x] Formatos de régua (`RulerFormat`): amostras, tempo, segundos, tempo e quadros, quadros absolutos, compassos e tempos, pés e quadros 16/35 mm, SMPTE 23,976 / 24 / 25 / 29,97 sem e com drop-frame / 30, tempo de CD; espaçamento da grade (minutos a quadros, notas musicais) e deslocamento da régua
+- [x] Layouts de janela nomeados (salvar, carregar, 10 atalhos, organizar) além de painéis flutuantes; janela Edit Details (tabela sobre eventos, marcadores, regiões e comandos, com colunas ordenáveis e predefinições); histórico de desfazer com lista e rótulo por comando
 - [x] Gravação de áudio (armar faixa, takes em laço, punch-in com pré/pós-roll, monitoração Off/On/Auto, metrônomo) com entrada `cpal`
-- [ ] Cache de picos por mídia em disco (equivalente aos arquivos `.sfk`), com reconstrução manual e opção para desligar; proxies de vídeo (`Draft`/`Preview` usam o proxy, `Good`/`Best` o original; automático acima de 4K)
-- [ ] Biblioteca de mídia com tags hierárquicas, paleta de tags e tags automáticas a partir do caminho da pasta
+- [x] Cache de picos por mídia em disco (equivalente aos arquivos `.sfk`), com reconstrução manual e opção para desligar; proxies de vídeo (`Draft`/`Preview` usam o proxy, `Good`/`Best` o original; automático acima de 4K)
+- [x] Biblioteca de mídia com tags hierárquicas, paleta de tags e tags automáticas a partir do caminho da pasta
 
 **Fase 13 — Atalhos de teclado (entrada 17 e AGENTS.md 4.5)**
 

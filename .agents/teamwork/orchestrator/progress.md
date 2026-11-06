@@ -1,7 +1,7 @@
 # Progress — Project Orchestrator
 
 ## Current Status
-Last visited: 2026-11-06T17:45:45Z
+Last visited: 2026-11-06T18:34:20Z
 
 - [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
 - [x] Phase 0: Survey Completed (3 Explorers)
@@ -36,9 +36,15 @@ Last visited: 2026-11-06T17:45:45Z
   - `explorer_m5_3`: Low-Spec CPU Architecture Explorer (`abd7fd7c-245e-4c31-aa6b-ec1360e1a2d0`) [completed]
 - [x] Phase 2: Milestone 5 Implementation completed:
   - `worker_m5_1`: Features 24–34 implemented across `neoveg_common` and `neoveg_engine` (251 common tests + 657 engine tests passing, 0 clippy warnings)
-- [/] Phase 2: Milestone 5 Gate 5 Verification (Reviewers, Challengers, Forensic Auditor)
-- [ ] Phase 2: Milestone 5 Commit & Push
-- [ ] Phase 2: Milestone 5 (Project Properties, Media Pool, Explorer, Cache & Alerts)
+- [x] Phase 2: Milestone 5 Gate 5 Evaluation:
+  - `reviewer_m5_2`: APPROVE
+  - `challenger_m5_1`: APPROVE (19/19 adversarial tests pass)
+  - `challenger_m5_2`: APPROVE (23/23 adversarial tests pass)
+  - `auditor_m5_1`: CLEAN (zero trademarks, clean-room licenses)
+  - `reviewer_m5_1`: REQUEST_CHANGES (scene detection stub, case-sensitive suppression, 1.0 FPS clamp)
+- [x] Phase 2: Milestone 5 Remediation & Checkbox Sync (`worker_m5_2` completed: scene detection genuine, case-insensitive companion suppression, 1.0 FPS clamp fixed, Blender fixtures added, README.md synced)
+- [x] Phase 2: Milestone 5 Targeted Re-Review (`reviewer_m5_3` APPROVE, Gate 5 PASSED)
+- [/] Phase 2: Milestone 5 Git Commit & Push (`worker_git_m5` dispatched)
 - [ ] Phase 2: Milestone 6 (Timeline Editing, Multicam, Takes, VEGAS Pro Parity & i18n Sync)
 - [ ] Phase 2: Milestone 7 (Final E2E Test Pass Tiers 1-4 & Tier 5 Adversarial Hardening)
 - [ ] Phase 3: Final build check (`build_portable.py`), parity matrix sync, and comprehensive `README.md` update
