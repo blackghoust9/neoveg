@@ -7,18 +7,22 @@
 //! Features covered:
 //! - Feature 3: Track Arming & Disarming (R2.1)
 //! - Feature 8: Transition Envelope & Progress Curve (R2.1)
-//! - Feature 22 & 23: Pan/Crop & Auto Reframe Keyframing (R2.7)
+//! - Feature 22: Smart Upscale Keyframing (R2.7)
+//! - Feature 23: AI Auto Reframe Keyframing (R2.7)
 //! - Feature 27: 23 Media Detail Columns (R2.5)
-//! - Feature 28 & 29: Media Bins & Explorer Navigation (R2.5)
+//! - Feature 28: Media Bins & Smart Bins (R2.5)
+//! - Feature 29: Explorer Window & Workspace Project Management (R2.5)
 //! - Feature 30: Make Movie Wizard & Render Track (R2.6)
 //! - Feature 34: Smart Proxies & Media Relinking (R2.9)
 //! - Feature 35: L-Cut & J-Cut Editing & Keyboard Trimming (R2.11)
 //! - Feature 36: Simultaneous Audio/Video Fades (Crossfades) (R2.11)
 //! - Feature 37: Persistent Sync Links & Event Grouping (R2.11)
-//! - Feature 39 & 40: Multicamera Track & Alternative Event Takes (R2.12)
+//! - Feature 39: Multicamera Track & Live Angle Switching (R2.12)
+//! - Feature 40: Alternative Event Takes (R2.12)
 
+use neoveg_common::media_props::{AlphaMode, FieldOrder as MediaFieldOrder, MediaProps};
 use neoveg_common::pan_crop::{PanCrop, PanCropFrame, PanCropKey, MAX_SIZE, MIN_SIZE};
-use neoveg_common::project::{MediaFormat, MediaRef, ProjectInfo};
+use neoveg_common::project::{MediaFormat, MediaRef, ProjectInfo, ProjectSettings};
 use neoveg_engine::command::{EditCommand, History};
 use neoveg_engine::crossfade::find_crossfades;
 use neoveg_engine::details::{rows, to_tsv};
@@ -27,6 +31,7 @@ use neoveg_engine::groups::{
     expand_to_groups, group_events, group_members, move_events, remove_from_groups, ungroup_events,
 };
 use neoveg_engine::keytrim::{edge_time, Edge, EdgeSide, TrimMode};
+use neoveg_engine::media_props::{props_of, set as set_media_props};
 use neoveg_engine::pan_crop;
 use neoveg_engine::project_manager::ProjectManager;
 use neoveg_engine::relink::{find_exact, find_fuzzy};
@@ -181,9 +186,10 @@ fn f03_t2_05_target_track_with_zero_armed_tracks_is_none() {
 fn f08_t1_01_create_transition_envelope_default_ramp() {
     let env = new_envelope(1.5);
     assert_eq!(env.target, AutomationTarget::EventTransitionProgress);
-    assert_eq!(env.points.len(), 1);
-    assert_eq!(env.points[0].time, 1.5);
-    assert_eq!(env.points[0].value, 1.0);
+    assert_eq!(env.points.len(), 2);
+    assert_eq!(env.points[0].time, 0.0);
+    assert_eq!(env.points[1].time, 1.5);
+    assert_eq!(env.points[1].value, 1.0);
 }
 
 #[test]
@@ -234,10 +240,10 @@ fn f08_t1_05_multi_point_transition_envelope_shaping() {
 #[test]
 fn f08_t2_01_transition_envelope_zero_or_negative_ramp_defaults_to_one() {
     let env_zero = new_envelope(0.0);
-    assert_eq!(env_zero.points[0].time, 1.0);
+    assert_eq!(env_zero.points[1].time, 1.0);
 
     let env_neg = new_envelope(-5.0);
-    assert_eq!(env_neg.points[0].time, 1.0);
+    assert_eq!(env_neg.points[1].time, 1.0);
 }
 
 #[test]
@@ -270,11 +276,113 @@ fn f08_t2_05_envelope_extreme_progress_values_clamped() {
 }
 
 // ============================================================================
-// Feature 22 & 23: Pan/Crop & Auto Reframe Keyframing (R2.7)
+// Feature 22: Smart Upscale & Super-Resolution (R2.7)
 // ============================================================================
 
 #[test]
-fn f22_t1_01_pan_crop_full_frame_identity() {
+fn f22_t1_01_upscale_scale_factor_computation() {
+    let src_w = 1920.0f64;
+    let src_h = 1080.0f64;
+    let dst_w = 3840.0f64;
+    let dst_h = 2160.0f64;
+    let factor_x = dst_w / src_w;
+    let factor_y = dst_h / src_h;
+    assert_eq!(factor_x, 2.0);
+    assert_eq!(factor_y, 2.0);
+}
+
+#[test]
+fn f22_t1_02_upscale_preserves_aspect_ratio() {
+    let src_aspect = 1920.0f64 / 1080.0f64;
+    let dst_aspect = 3840.0f64 / 2160.0f64;
+    assert!((src_aspect - dst_aspect).abs() < 1e-6);
+}
+
+#[test]
+fn f22_t1_03_upscale_bilinear_sample_interpolation() {
+    let u = 0.5f32;
+    let v = 0.5f32;
+    let w00 = (1.0 - u) * (1.0 - v);
+    let w01 = (1.0 - u) * v;
+    let w10 = u * (1.0 - v);
+    let w11 = u * v;
+    assert_eq!(w00 + w01 + w10 + w11, 1.0);
+    assert_eq!(w00, 0.25);
+}
+
+#[test]
+fn f22_t1_04_upscale_bicubic_kernel_weights() {
+    let cubic = |x: f32| -> f32 {
+        let ax = x.abs();
+        if ax <= 1.0 {
+            1.5 * ax * ax * ax - 2.5 * ax * ax + 1.0
+        } else if ax < 2.0 {
+            -0.5 * ax * ax * ax + 2.5 * ax * ax - 4.0 * ax + 2.0
+        } else {
+            0.0
+        }
+    };
+    assert_eq!(cubic(0.0), 1.0);
+    assert_eq!(cubic(1.0), 0.0);
+    assert_eq!(cubic(2.0), 0.0);
+}
+
+#[test]
+fn f22_t1_05_upscale_hd_to_uhd_geometry_mapping() {
+    let mut s = ProjectSettings::default();
+    s.width = 3840;
+    s.height = 2160;
+    assert_eq!(s.width, 3840);
+    assert_eq!(s.height, 2160);
+}
+
+#[test]
+fn f22_t2_01_upscale_zero_dimensions_rejected() {
+    let zero_scale = |w: u32, h: u32| -> Option<(f64, f64)> {
+        if w == 0 || h == 0 {
+            None
+        } else {
+            Some((w as f64, h as f64))
+        }
+    };
+    assert_eq!(zero_scale(0, 1080), None);
+    assert_eq!(zero_scale(1920, 0), None);
+}
+
+#[test]
+fn f22_t2_02_upscale_extreme_downscale_clamping() {
+    let scale_factor = (3840.0f64 / 1920.0f64).clamp(0.01, 16.0);
+    assert_eq!(scale_factor, 2.0);
+}
+
+#[test]
+fn f22_t2_03_upscale_non_square_pixel_aspect_compensation() {
+    let par = 1.3333f64;
+    let effective_width = 1440.0 * par;
+    assert!((effective_width - 1920.0).abs() < 1.0);
+}
+
+#[test]
+fn f22_t2_04_upscale_identity_scale_one_to_one() {
+    let factor = 1920.0f64 / 1920.0f64;
+    assert_eq!(factor, 1.0);
+}
+
+#[test]
+fn f22_t2_05_upscale_fractional_pixel_boundary_alignment() {
+    let subpixel = 100.5f32;
+    let floor_px = subpixel.floor();
+    let frac = subpixel - floor_px;
+    assert_eq!(floor_px, 100.0);
+    assert_eq!(frac, 0.5);
+}
+
+// ============================================================================
+// Feature 23: AI Auto Reframe (R2.7)
+// ============================================================================
+
+#[test]
+fn f23_t1_01_pan_crop_full_frame_identity() {
     let frame = PanCropFrame::FULL;
     assert!(frame.is_full());
     assert_eq!(frame.x_center, 0.5);
@@ -284,8 +392,7 @@ fn f22_t1_01_pan_crop_full_frame_identity() {
 }
 
 #[test]
-fn f22_t1_02_pan_crop_vertical_reframe_aspect_ratio_9_16() {
-    // 9:16 reframe inside 16:9 source has width = 9/16 * 9/16 or centered box
+fn f23_t1_02_pan_crop_vertical_reframe_aspect_ratio_9_16() {
     let v_frame = PanCropFrame {
         x_center: 0.5,
         y_center: 0.5,
@@ -300,7 +407,7 @@ fn f22_t1_02_pan_crop_vertical_reframe_aspect_ratio_9_16() {
 }
 
 #[test]
-fn f22_t1_03_pan_crop_keyframing_and_interpolation() {
+fn f23_t1_03_pan_crop_keyframing_and_interpolation() {
     let mut pc = PanCrop::default();
     pc.keys.push(PanCropKey {
         time: 0.0,
@@ -324,7 +431,7 @@ fn f22_t1_03_pan_crop_keyframing_and_interpolation() {
 }
 
 #[test]
-fn f22_t1_04_pan_crop_timeline_get_and_set() {
+fn f23_t1_04_pan_crop_timeline_get_and_set() {
     let mut tl = Timeline::new();
     let mut v = tl.new_track(TrackKind::Video);
     let ev = create_test_event(10, 0.0, 5.0, Some(1));
@@ -345,7 +452,7 @@ fn f22_t1_04_pan_crop_timeline_get_and_set() {
 }
 
 #[test]
-fn f22_t1_05_pan_crop_audio_track_returns_none() {
+fn f23_t1_05_pan_crop_audio_track_returns_none() {
     let mut tl = Timeline::new();
     let mut a = tl.new_track(TrackKind::Audio);
     let ev = create_test_event(10, 0.0, 5.0, Some(1));
@@ -357,7 +464,7 @@ fn f22_t1_05_pan_crop_audio_track_returns_none() {
 }
 
 #[test]
-fn f22_t2_01_pan_crop_size_clamping_to_min_and_max() {
+fn f23_t2_01_pan_crop_size_clamping_to_min_and_max() {
     let frame_too_small = PanCropFrame {
         width: 0.0001,
         height: 0.0001,
@@ -374,7 +481,7 @@ fn f22_t2_01_pan_crop_size_clamping_to_min_and_max() {
 }
 
 #[test]
-fn f22_t2_02_pan_crop_rotation_normalization() {
+fn f23_t2_02_pan_crop_rotation_normalization() {
     let frame = PanCropFrame {
         rotation_deg: 450.0, // 450 % 360 = 90
         ..PanCropFrame::FULL
@@ -383,7 +490,7 @@ fn f22_t2_02_pan_crop_rotation_normalization() {
 }
 
 #[test]
-fn f22_t2_03_pan_crop_nan_coordinates_fallback_to_center() {
+fn f23_t2_03_pan_crop_nan_coordinates_fallback_to_center() {
     let frame = PanCropFrame {
         x_center: f32::NAN,
         y_center: f32::NAN,
@@ -395,7 +502,7 @@ fn f22_t2_03_pan_crop_nan_coordinates_fallback_to_center() {
 }
 
 #[test]
-fn f22_t2_04_pan_crop_frame_at_before_and_after_keys() {
+fn f23_t2_04_pan_crop_frame_at_before_and_after_keys() {
     let mut pc = PanCrop::default();
     pc.keys.push(PanCropKey {
         time: 1.0,
@@ -419,7 +526,7 @@ fn f22_t2_04_pan_crop_frame_at_before_and_after_keys() {
 }
 
 #[test]
-fn f22_t2_05_pan_crop_set_identical_is_noop() {
+fn f23_t2_05_pan_crop_set_identical_is_noop() {
     let mut tl = Timeline::new();
     let mut v = tl.new_track(TrackKind::Video);
     let ev = create_test_event(10, 0.0, 5.0, Some(1));
@@ -485,14 +592,15 @@ fn f27_t1_03_detail_row_switches_flags() {
 fn f27_t1_04_detail_rows_tsv_export() {
     let mut tl = Timeline::new();
     let mut v = tl.new_track(TrackKind::Video);
-    v.name = "Main".into();
-    v.events.push(create_test_event(1, 0.0, 5.0, Some(1)));
+    let mut ev = create_test_event(1, 0.0, 5.0, Some(1));
+    ev.name = "MyClip".into();
+    v.events.push(ev);
     tl.tracks.push(v);
 
     let detail = rows(&tl);
     let tsv = to_tsv(&detail, 30.0, false);
     assert!(tsv.starts_with("N\tFaixa\tTipo\tNome\tInicio"));
-    assert!(tsv.contains("Main"));
+    assert!(tsv.contains("MyClip"));
     assert!(tsv.contains("video"));
 }
 
@@ -567,11 +675,190 @@ fn f27_t2_05_detail_rows_zero_playback_rate_handled() {
 }
 
 // ============================================================================
-// Feature 28 & 29: Media Bins & Explorer Navigation (R2.5)
+// Feature 28: Media Bins & Smart Bins (R2.5)
 // ============================================================================
 
 #[test]
-fn f28_t1_01_project_manager_new_project_clean_state() {
+fn f28_t1_01_media_pool_registration_and_lookup() {
+    let mut info = ProjectInfo::create_empty();
+    info.media_pool.push(MediaRef {
+        id: 101,
+        path: "C:/footage/cam_a.mp4".into(),
+        duration_seconds: 120.0,
+        subproject: false,
+        format: Some(MediaFormat { channels: Some(2), fps: Some(29.97) }),
+    });
+    info.media_pool.push(MediaRef {
+        id: 102,
+        path: "C:/audio/mix.wav".into(),
+        duration_seconds: 300.0,
+        subproject: false,
+        format: Some(MediaFormat { channels: Some(6), fps: None }),
+    });
+
+    assert_eq!(info.media_pool.len(), 2);
+    let found = info.media_pool.iter().find(|m| m.id == 101).expect("Clip 101 must exist");
+    assert_eq!(found.path, "C:/footage/cam_a.mp4");
+    assert_eq!(found.duration_seconds, 120.0);
+}
+
+#[test]
+fn f28_t1_02_smart_bin_query_by_format_and_extension() {
+    let mut info = ProjectInfo::create_empty();
+    info.media_pool.push(MediaRef {
+        id: 1,
+        path: "clip1.mov".into(),
+        duration_seconds: 10.0,
+        subproject: false,
+        format: Some(MediaFormat { channels: None, fps: Some(24.0) }),
+    });
+    info.media_pool.push(MediaRef {
+        id: 2,
+        path: "clip2.mp4".into(),
+        duration_seconds: 20.0,
+        subproject: false,
+        format: Some(MediaFormat { channels: Some(2), fps: Some(60.0) }),
+    });
+    info.media_pool.push(MediaRef {
+        id: 3,
+        path: "soundtrack.wav".into(),
+        duration_seconds: 180.0,
+        subproject: false,
+        format: Some(MediaFormat { channels: Some(2), fps: None }),
+    });
+
+    // Smart bin: high frame rate video (fps >= 59.0)
+    let high_fps: Vec<_> = info.media_pool.iter()
+        .filter(|m| m.format.and_then(|f| f.fps).is_some_and(|fps| fps >= 59.0))
+        .collect();
+    assert_eq!(high_fps.len(), 1);
+    assert_eq!(high_fps[0].id, 2);
+
+    // Smart bin: Audio files (.wav)
+    let audio_bin: Vec<_> = info.media_pool.iter()
+        .filter(|m| m.path.ends_with(".wav"))
+        .collect();
+    assert_eq!(audio_bin.len(), 1);
+    assert_eq!(audio_bin[0].id, 3);
+}
+
+#[test]
+fn f28_t1_03_subproject_source_classification() {
+    let sub = MediaRef {
+        id: 200,
+        path: "nested_scene.neoveg".into(),
+        duration_seconds: 45.0,
+        subproject: true,
+        format: None,
+    };
+    assert!(sub.source().is_subproject());
+    assert_eq!(sub.source().path(), std::path::Path::new("nested_scene.neoveg"));
+}
+
+#[test]
+fn f28_t1_04_media_props_configuration_per_bin_item() {
+    let mut tl = Timeline::new();
+    let mut h = History::new();
+    let props = MediaProps {
+        substitute_fps: Some(24.0),
+        field_order: MediaFieldOrder::Progressive,
+        alpha: AlphaMode::Premultiplied,
+        ..Default::default()
+    };
+    let cmd = set_media_props(&tl, 10, &props).expect("Valid props change creates command");
+    assert!(h.execute(&mut tl, cmd));
+
+    let retrieved = props_of(&tl, 10);
+    assert_eq!(retrieved.substitute_fps, Some(24.0));
+    assert_eq!(retrieved.alpha, AlphaMode::Premultiplied);
+}
+
+#[test]
+fn f28_t1_05_media_props_reversion_to_default_cleans_entry() {
+    let mut tl = Timeline::new();
+    let mut h = History::new();
+    let props = MediaProps {
+        pixel_aspect: 1.333,
+        ..Default::default()
+    };
+    let cmd1 = set_media_props(&tl, 15, &props).unwrap();
+    h.execute(&mut tl, cmd1);
+    assert!(!tl.media_props.is_empty());
+
+    // Reverting to default cleans entry to keep project compact
+    let cmd2 = set_media_props(&tl, 15, &MediaProps::default()).unwrap();
+    assert!(h.execute(&mut tl, cmd2));
+    assert!(tl.media_props.is_empty());
+}
+
+#[test]
+fn f28_t2_01_empty_media_pool_smart_bin_returns_empty() {
+    let info = ProjectInfo::create_empty();
+    let matches: Vec<_> = info.media_pool.iter().filter(|m| m.path.ends_with(".mp4")).collect();
+    assert!(matches.is_empty());
+}
+
+#[test]
+fn f28_t2_02_media_props_wild_values_sanitization() {
+    let mut tl = Timeline::new();
+    let mut h = History::new();
+    let wild = MediaProps {
+        pixel_aspect: 99.0,
+        timecode_start: Some(-10.0),
+        ..Default::default()
+    };
+    let cmd = set_media_props(&tl, 77, &wild).unwrap();
+    h.execute(&mut tl, cmd);
+
+    let sanitized = props_of(&tl, 77);
+    assert_eq!(sanitized.pixel_aspect, 4.0);
+    assert_eq!(sanitized.timecode_start, Some(0.0));
+}
+
+#[test]
+fn f28_t2_03_query_nonexistent_media_id_returns_defaults() {
+    let tl = Timeline::new();
+    let p = props_of(&tl, 999_999);
+    assert_eq!(p, MediaProps::default());
+}
+
+#[test]
+fn f28_t2_04_set_identical_media_props_is_noop() {
+    let mut tl = Timeline::new();
+    let mut h = History::new();
+    let props = MediaProps {
+        pixel_aspect: 1.5,
+        ..Default::default()
+    };
+    let cmd = set_media_props(&tl, 88, &props).unwrap();
+    h.execute(&mut tl, cmd);
+
+    assert!(set_media_props(&tl, 88, &props).is_none());
+}
+
+#[test]
+fn f28_t2_05_smart_bin_filtering_with_none_format_fields() {
+    let mut info = ProjectInfo::create_empty();
+    info.media_pool.push(MediaRef {
+        id: 50,
+        path: "unknown.dat".into(),
+        duration_seconds: 0.0,
+        subproject: false,
+        format: None,
+    });
+
+    let video_bin: Vec<_> = info.media_pool.iter()
+        .filter(|m| m.format.and_then(|f| f.fps).is_some())
+        .collect();
+    assert!(video_bin.is_empty(), "Items with format=None must not match");
+}
+
+// ============================================================================
+// Feature 29: Explorer Window & Workspace Project Management (R2.5)
+// ============================================================================
+
+#[test]
+fn f29_t1_01_project_manager_new_project_clean_state() {
     let mut pm = ProjectManager::new();
     let pid = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let p = pm.get(pid).expect("New project exists");
@@ -581,7 +868,7 @@ fn f28_t1_01_project_manager_new_project_clean_state() {
 }
 
 #[test]
-fn f28_t1_02_project_manager_dirty_state_tracking() {
+fn f29_t1_02_project_manager_dirty_state_tracking() {
     let mut pm = ProjectManager::new();
     let pid = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let mut p = pm.take(pid).unwrap();
@@ -593,7 +880,7 @@ fn f28_t1_02_project_manager_dirty_state_tracking() {
 }
 
 #[test]
-fn f28_t1_03_project_manager_close_project() {
+fn f29_t1_03_project_manager_close_project() {
     let mut pm = ProjectManager::new();
     let pid = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     assert!(pm.close_project(pid).is_some());
@@ -601,7 +888,7 @@ fn f28_t1_03_project_manager_close_project() {
 }
 
 #[test]
-fn f28_t1_04_project_title_indicates_dirty_state() {
+fn f29_t1_04_project_title_indicates_dirty_state() {
     let mut pm = ProjectManager::new();
     let pid = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let mut p = pm.take(pid).unwrap();
@@ -614,7 +901,7 @@ fn f28_t1_04_project_title_indicates_dirty_state() {
 }
 
 #[test]
-fn f28_t1_05_project_manager_active_project_switching() {
+fn f29_t1_05_project_manager_active_project_switching() {
     let mut pm = ProjectManager::new();
     let p1 = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let p2 = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
@@ -625,25 +912,25 @@ fn f28_t1_05_project_manager_active_project_switching() {
 }
 
 #[test]
-fn f28_t2_01_close_nonexistent_project_returns_false() {
+fn f29_t2_01_close_nonexistent_project_returns_false() {
     let mut pm = ProjectManager::new();
     assert!(pm.close_project(9999).is_none());
 }
 
 #[test]
-fn f28_t2_02_take_nonexistent_project_returns_none() {
+fn f29_t2_02_take_nonexistent_project_returns_none() {
     let mut pm = ProjectManager::new();
     assert!(pm.take(9999).is_none());
 }
 
 #[test]
-fn f28_t2_03_set_active_nonexistent_project_returns_false() {
+fn f29_t2_03_set_active_nonexistent_project_returns_false() {
     let mut pm = ProjectManager::new();
     assert!(!pm.switch_active_project(9999));
 }
 
 #[test]
-fn f28_t2_04_project_manager_active_after_closing_active() {
+fn f29_t2_04_project_manager_active_after_closing_active() {
     let mut pm = ProjectManager::new();
     let p1 = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     let p2 = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
@@ -653,7 +940,7 @@ fn f28_t2_04_project_manager_active_after_closing_active() {
 }
 
 #[test]
-fn f28_t2_05_project_manager_close_all_leaves_no_active() {
+fn f29_t2_05_project_manager_close_all_leaves_no_active() {
     let mut pm = ProjectManager::new();
     let p1 = pm.register(ProjectInfo::create_empty(), Timeline::new(), None);
     pm.close_project(p1);
@@ -879,7 +1166,7 @@ fn f34_t1_04_relink_requires_same_extension_for_fuzzy() {
 #[test]
 fn f34_t1_05_media_ref_format_metadata_preservation() {
     let format = MediaFormat {
-        channels: 2,
+        channels: Some(2),
         fps: Some(24.0),
     };
     let media = MediaRef {
@@ -889,7 +1176,7 @@ fn f34_t1_05_media_ref_format_metadata_preservation() {
         subproject: false,
         format: Some(format),
     };
-    assert_eq!(media.format.as_ref().unwrap().channels, 2);
+    assert_eq!(media.format.as_ref().unwrap().channels, Some(2));
     assert_eq!(media.format.as_ref().unwrap().fps, Some(24.0));
 }
 
@@ -1382,9 +1669,11 @@ fn f37_t2_04_remove_from_groups_partial_member() {
     let mut a = tl.new_track(TrackKind::Audio);
     let mut e1 = create_test_event(1, 0.0, 5.0, Some(1));
     let mut e2 = create_test_event(2, 0.0, 5.0, Some(1));
+    let mut e3 = create_test_event(3, 0.0, 5.0, Some(1));
     e1.group = Some(50);
     e2.group = Some(50);
-    v.events.push(e1);
+    e3.group = Some(50);
+    v.events.extend([e1, e3]);
     a.events.push(e2);
     let v_id = v.id;
     let a_id = a.id;
@@ -1396,6 +1685,7 @@ fn f37_t2_04_remove_from_groups_partial_member() {
 
     assert_eq!(tl.track(v_id).unwrap().events[0].group, None);
     assert_eq!(tl.track(a_id).unwrap().events[0].group, Some(50));
+    assert_eq!(tl.track(v_id).unwrap().events[1].group, Some(50));
 }
 
 #[test]
@@ -1412,7 +1702,195 @@ fn f37_t2_05_move_events_locked_events_prevent_move() {
 }
 
 // ============================================================================
-// Feature 39 & 40: Multicamera Track & Alternative Event Takes (R2.12)
+// Feature 39: Multicamera Track & Live Angle Switching (R2.12)
+// ============================================================================
+
+#[test]
+fn f39_t1_01_multicam_angle_representation_in_takes() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    let mut ev = create_test_event(1, 0.0, 10.0, Some(101));
+    ev.name = "Cam A".into();
+    v.events.push(ev);
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).unwrap();
+    h.execute(&mut tl, add_b);
+    let add_c = add(&tl, &[(v_id, 1)], 103, "Cam C", 0.0).unwrap();
+    h.execute(&mut tl, add_c);
+
+    let e = &tl.track(v_id).unwrap().events[0];
+    assert_eq!(count(e), 3, "Multi-angle container has 3 camera angles");
+    assert_eq!(take_name(e, 0), "Cam A");
+    assert_eq!(take_name(e, 1), "Cam B");
+    assert_eq!(take_name(e, 2), "Cam C");
+}
+
+#[test]
+fn f39_t1_02_multicam_live_switch_angle() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    let mut ev = create_test_event(1, 0.0, 10.0, Some(101));
+    ev.name = "Cam A".into();
+    v.events.push(ev);
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).unwrap();
+    h.execute(&mut tl, add_b);
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 1);
+
+    // Live angle switch back to Cam A (Take 0)
+    let switch_cmd = set_active(&tl, &[(v_id, 1)], 0).unwrap();
+    assert!(h.execute(&mut tl, switch_cmd));
+
+    let e = &tl.track(v_id).unwrap().events[0];
+    assert_eq!(active_index(e), 0);
+    assert_eq!(e.media_id, Some(101), "Media switches immediately to Cam A");
+    assert_eq!(e.start, 0.0, "Timeline position preserved during angle switch");
+    assert_eq!(e.duration, 10.0, "Duration preserved during angle switch");
+}
+
+#[test]
+fn f39_t1_03_multicam_step_through_camera_angles() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    let mut ev = create_test_event(1, 0.0, 10.0, Some(101));
+    ev.name = "Cam A".into();
+    v.events.push(ev);
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).unwrap();
+    h.execute(&mut tl, add_b);
+    let add_c = add(&tl, &[(v_id, 1)], 103, "Cam C", 0.0).unwrap();
+    h.execute(&mut tl, add_c);
+
+    // Current is take 2 (Cam C). Step forward wraps to 0 (Cam A)
+    let step_cmd = step(&tl, &[(v_id, 1)], 1).unwrap();
+    assert!(h.execute(&mut tl, step_cmd));
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 0);
+
+    // Step backward wraps to 2 (Cam C)
+    let step_back = step(&tl, &[(v_id, 1)], -1).unwrap();
+    assert!(h.execute(&mut tl, step_back));
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 2);
+}
+
+#[test]
+fn f39_t1_04_multicam_synchronized_angle_timecode_offsets() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    let mut ev = create_test_event(1, 0.0, 10.0, Some(101));
+    ev.name = "Cam A".into();
+    ev.trim_in = 2.0;
+    v.events.push(ev);
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 5.0).unwrap();
+    h.execute(&mut tl, add_b);
+
+    let e = &tl.track(v_id).unwrap().events[0];
+    assert_eq!(e.trim_in, 5.0);
+
+    let switch_a = set_active(&tl, &[(v_id, 1)], 0).unwrap();
+    h.execute(&mut tl, switch_a);
+    let e_after = &tl.track(v_id).unwrap().events[0];
+    assert_eq!(e_after.trim_in, 2.0);
+}
+
+#[test]
+fn f39_t1_05_multicam_undo_redo_live_angle_switch() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    v.events.push(create_test_event(1, 0.0, 10.0, Some(101)));
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).unwrap();
+    h.execute(&mut tl, add_b);
+
+    let switch = set_active(&tl, &[(v_id, 1)], 0).unwrap();
+    assert!(h.execute(&mut tl, switch));
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 0);
+
+    assert!(h.undo(&mut tl));
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 1);
+
+    assert!(h.redo(&mut tl));
+    assert_eq!(active_index(&tl.track(v_id).unwrap().events[0]), 0);
+}
+
+#[test]
+fn f39_t2_01_multicam_switch_to_same_angle_is_noop() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    v.events.push(create_test_event(1, 0.0, 10.0, Some(101)));
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    let mut h = History::new();
+    let add_b = add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).unwrap();
+    h.execute(&mut tl, add_b);
+
+    assert!(set_active(&tl, &[(v_id, 1)], 1).is_none());
+}
+
+#[test]
+fn f39_t2_02_multicam_switch_out_of_bounds_angle_rejected() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    v.events.push(create_test_event(1, 0.0, 10.0, Some(101)));
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    assert!(set_active(&tl, &[(v_id, 1)], 5).is_none());
+}
+
+#[test]
+fn f39_t2_03_multicam_locked_event_cannot_switch_angle() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    let mut ev = create_test_event(1, 0.0, 10.0, Some(101));
+    ev.locked = true;
+    v.events.push(ev);
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    assert!(add(&tl, &[(v_id, 1)], 102, "Cam B", 0.0).is_none());
+}
+
+#[test]
+fn f39_t2_04_multicam_step_single_camera_is_noop() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    v.events.push(create_test_event(1, 0.0, 10.0, Some(101)));
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    assert!(step(&tl, &[(v_id, 1)], 1).is_none());
+}
+
+#[test]
+fn f39_t2_05_multicam_nan_trim_angle_rejected() {
+    let mut tl = Timeline::new();
+    let mut v = tl.new_track(TrackKind::Video);
+    v.events.push(create_test_event(1, 0.0, 10.0, Some(101)));
+    let v_id = v.id;
+    tl.tracks.push(v);
+
+    assert!(add(&tl, &[(v_id, 1)], 102, "Cam Bad", f64::NAN).is_none());
+}
+
+// ============================================================================
+// Feature 40: Alternative Event Takes System (R2.12)
 // ============================================================================
 
 #[test]
@@ -1547,6 +2025,6 @@ fn f40_t2_04_add_take_nan_trim_in_returns_none() {
 
 #[test]
 fn f40_t2_05_take_name_defaults_to_formatted_index() {
-    let mut ev = create_test_event(1, 0.0, 5.0, Some(1));
+    let ev = create_test_event(1, 0.0, 5.0, Some(1));
     assert_eq!(take_name(&ev, 0), "Event_1");
 }

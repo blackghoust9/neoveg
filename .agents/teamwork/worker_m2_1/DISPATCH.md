@@ -39,3 +39,8 @@ Tasks:
    - NEVER execute `cargo test -p neoveg_ui`!
    - `python scripts/parity_matrix.py --check`
 6. Write your complete handoff report to `handoff.md` in your working directory and notify the orchestrator via `send_message`.
+
+## 2026-11-06T12:49:05Z
+**Context**: Coordination with E2E Testing Track
+**Content**: `test_writer_e2e_1` has published `TEST_READY.md` with 468 tests. In `crates/neoveg_video/src/transition_library.rs` and `transitions.rs`, please ensure your implementations of the 6 categories, presets, 3D transforms, and progress envelopes pass all unit and integration tests cleanly.
+**Action**: Implement the features and verify with `cargo test -p neoveg_video --lib -j 1 -- --test-threads=1` and `cargo test -p neoveg_ofx -j 1 -- --test-threads=1`.

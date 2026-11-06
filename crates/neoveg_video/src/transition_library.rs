@@ -7,51 +7,28 @@ use std::collections::BTreeMap;
 use crate::frame::FrameBuffer;
 use crate::transitions::{self, apply2, resolve, spec};
 
-/// Where a transition is filed in the tab.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Category {
-    Dissolve,
-    Wipes,
-    Shapes,
-    Motion,
-    ThreeD,
-    Effects,
-}
+pub use crate::transitions::{
+    get_preset, ThreeDTransform, TransitionCategory, TransitionEnvelopePoint,
+    TransitionEnvelopeShape, TransitionPreset, TransitionProgressEnvelope, TransitionRenderer,
+};
 
-impl Category {
-    /// Every category, in the order of the tab.
-    pub const ALL: [Category; 6] = [
-        Category::Dissolve,
-        Category::Wipes,
-        Category::Shapes,
-        Category::Motion,
-        Category::ThreeD,
-        Category::Effects,
-    ];
-
-    /// Name in Brazilian Portuguese.
-    pub fn label(self) -> &'static str {
-        match self {
-            Category::Dissolve => "Dissolver",
-            Category::Wipes => "Cortinas",
-            Category::Shapes => "Formas",
-            Category::Motion => "Movimento",
-            Category::ThreeD => "3D",
-            Category::Effects => "Efeitos",
-        }
-    }
-}
+/// Where a transition is filed in the tab (alias of `TransitionCategory`).
+pub type Category = TransitionCategory;
 
 /// The category of a transition (the registry id); `Effects` for an id this version does not know.
-pub fn category(id: &str) -> Category {
+pub fn category(id: &str) -> TransitionCategory {
     use transitions::*;
     match id {
-        DISSOLVE => Category::Dissolve,
-        LINEAR_WIPE | CLOCK_WIPE | BARN_DOOR | BLINDS | GRADIENT_WIPE => Category::Wipes,
-        IRIS | GROW | SPIRAL | SPLIT => Category::Shapes,
-        SLIDE | PUSH | SQUEEZE => Category::Motion,
-        PAGE_ROLL | PAGE_PEEL | CUBE | FLIP => Category::ThreeD,
-        _ => Category::Effects,
+        DISSOLVE | CROSS_DISSOLVE => TransitionCategory::Dissolve,
+        LINEAR_WIPE | CLOCK_WIPE | RADIAL_WIPE | BARN_DOOR | BLINDS | GRADIENT_WIPE => {
+            TransitionCategory::Wipes
+        }
+        IRIS | GROW | ZOOM | SPIRAL | SPLIT => TransitionCategory::Shapes,
+        SLIDE | PUSH | SQUEEZE => TransitionCategory::Motion,
+        PAGE_ROLL | PAGE_PEEL | CUBE | FLIP | FLY_IN | THREE_D_FLY_IN | SHUFFLE | THREE_D_SHUFFLE => {
+            TransitionCategory::ThreeD
+        }
+        _ => TransitionCategory::Effects,
     }
 }
 
@@ -91,8 +68,8 @@ macro_rules! preset {
 }
 
 use transitions::{
-    BARN_DOOR, BLINDS, CLOCK_WIPE, CUBE, FLIP, IRIS, LINEAR_WIPE, PAGE_PEEL, PAGE_ROLL, PUSH,
-    SLIDE, SPIRAL,
+    BARN_DOOR, BLINDS, CLOCK_WIPE, CUBE, DISSOLVE, FLIP, FLY_IN, GROW, IRIS, LINEAR_WIPE,
+    PAGE_PEEL, PAGE_ROLL, PUSH, SHUFFLE, SLIDE, SPIRAL,
 };
 
 /// Every preset, in the order of the tab.
@@ -245,6 +222,63 @@ pub const PRESETS: &[Preset] = &[
         "Virar na vertical",
         FLIP,
         [("angle", 90.0)]
+    ),
+    preset!("cross_dissolve", "Cross Dissolve", DISSOLVE, []),
+    preset!(
+        "linear_wipe",
+        "Linear Wipe",
+        LINEAR_WIPE,
+        [("angle", 0.0), ("softness", 0.1)]
+    ),
+    preset!(
+        "radial_wipe",
+        "Radial Wipe",
+        CLOCK_WIPE,
+        [("start_angle", 0.0), ("softness", 0.05)]
+    ),
+    preset!("iris", "Iris", IRIS, [("softness", 0.1)]),
+    preset!(
+        "push",
+        "Push",
+        PUSH,
+        [("angle", 0.0), ("push_off", 1.0)]
+    ),
+    preset!("slide", "Slide", SLIDE, [("angle", 0.0)]),
+    preset!("zoom", "Zoom", GROW, []),
+    preset!(
+        "3d_fly_in",
+        "3D Fly In",
+        FLY_IN,
+        [
+            ("far_z", 4.0),
+            ("rotation_x", 25.0),
+            ("rotation_y", 35.0),
+            ("rotation_z", 10.0),
+            ("specular_light", 0.5)
+        ]
+    ),
+    preset!("page_peel", "Page Peel", PAGE_PEEL, [("angle", 0.0)]),
+    preset!(
+        "page_roll",
+        "Page Roll",
+        PAGE_ROLL,
+        [("angle", 0.0), ("radius", 0.08)]
+    ),
+    preset!(
+        "cube",
+        "Cube",
+        CUBE,
+        [("angle", 0.0), ("perspective", 0.5)]
+    ),
+    preset!(
+        "shuffle",
+        "Shuffle",
+        SHUFFLE,
+        [
+            ("extra_spins", 0.0),
+            ("stagger", 0.2),
+            ("specular_light", 0.4)
+        ]
     ),
 ];
 

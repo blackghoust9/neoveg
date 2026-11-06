@@ -1701,7 +1701,9 @@ impl VfxGpu {
                         tr::Resolved::Dissolve
                         | tr::Resolved::WarpFlow
                         | tr::Resolved::Cube { .. }
-                        | tr::Resolved::Flip { .. } => Pass::TransMask,
+                        | tr::Resolved::Flip { .. }
+                        | tr::Resolved::FlyIn { .. }
+                        | tr::Resolved::Shuffle { .. } => Pass::TransMask,
                         tr::Resolved::LinearWipe { angle, softness } => {
                             (p.half, p.c, p.d) = (1, angle, softness);
                             Pass::TransMask

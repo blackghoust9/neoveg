@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-06T12:21:50Z
+# BRIEFING — 2026-11-06T12:49:40Z
 
 ## Mission
 Stabilize worktree, complete interrupted recording workflow, and implement production feature extensions across neoveg on preview/version-2.1.0 cleanly under all constraints.
@@ -18,8 +18,8 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
    - Survey phase: spawn 3 Explorers in parallel to map full scope. [COMPLETED]
    - Decompose & plan milestones in PROJECT.md and TEST_INFRA.md. [COMPLETED]
    - Milestone 1: Recording Stabilization & Trademark Sanitization. [GATE PASSED]
-   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [DISPATCHED]
-   - E2E Testing Track: E2E Test Writer actively building opaque-box test suites. [ACTIVE]
+   - E2E Testing Track: E2E Test Writer authored 468 tests and published TEST_READY.md. [COMPLETED]
+   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [IN PROGRESS]
    - Iteration loop per milestone: Explorer -> Worker -> Reviewer -> Challenger -> Auditor -> Gate check.
 3. **On failure** (in this order):
    - Retry: nudge stuck agent or re-send task
@@ -38,8 +38,8 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
   6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [pending]
   7. M6 Advanced Timeline Editing, Multicam & Takes [pending]
   8. M7 Final E2E Test Suite Validation & Adversarial Hardening [pending]
-  9. E2E Test Suite Creation (Dual Track) [in-progress]
-- **Current phase**: 2 (Milestone M2 Implementation + E2E Test Suite Creation)
+  9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
+- **Current phase**: 2 (Milestone M2 Implementation)
 - **Current focus**: Milestone 2 (Transitions, 3D, Effects, OFX) implementation
 
 ## 🔒 Key Constraints
@@ -54,9 +54,9 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 - Updated: 2026-11-06T10:44:00Z
 
 ## Key Decisions Made
-- Milestone M1 PASSED Gate 1 (Reviewer 1 APPROVE, Reviewer 2 APPROVE, Challenger 1 APPROVE, Challenger 2 APPROVE, Auditor CLEAN).
-- Updated PROJECT.md setting M1 to DONE and M2 to IN_PROGRESS.
-- Dispatched worker_m2_1 for Milestone M2 (Transitions, 3D Transforms, GPU Effects, OFX Host).
+- Milestone M1 PASSED Gate 1 (unanimous APPROVE and CLEAN).
+- test_writer_e2e_1 completed 468 opaque-box tests across 6 integration test suites and published TEST_READY.md.
+- Milestone M2 dispatched to worker_m2_1 and actively being implemented.
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
@@ -65,7 +65,7 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | spec_miner_survey_2 | teamwork_spec_miner | Results.md Feature Spec Mining | completed | aa7b1727-cf17-425e-bf11-130a1a0b7a10 |
 | explorer_survey_3 | teamwork_explorer | Crate Architecture & Compliance Survey | completed | 01f73549-2d42-4799-a212-038e2b8e77f5 |
 | worker_m1_1 | teamwork_worker | M1 Recording & Trademark Sanitization | completed | bea973a9-a61f-44fb-8dda-8b2f35be3b66 |
-| test_writer_e2e_1 | teamwork_test_writer | E2E Test Suite Creation (Tiers 1-4) | in-progress | ecd2068c-d310-48a7-86ed-895e2bf99562 |
+| test_writer_e2e_1 | teamwork_test_writer | E2E Test Suite Creation (Tiers 1-4) | completed | ecd2068c-d310-48a7-86ed-895e2bf99562 |
 | reviewer_m1_1 | teamwork_reviewer | M1 Reviewer 1 (Trademarks & i18n) | completed (APPROVE) | 25827ee1-dc98-4416-8e5e-03e1e24a3ece |
 | reviewer_m1_2 | teamwork_reviewer | M1 Reviewer 2 (Recording & Worktree) | completed (APPROVE) | 0fd879ba-b51d-4ea9-b369-8ce44a475ca2 |
 | challenger_m1_1 | teamwork_challenger | M1 Challenger 1 (Recording Stress) | completed (APPROVE) | 5561a52d-0735-4526-9b3c-ea22509d68d0 |
@@ -76,13 +76,13 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 ## Succession Status
 - Succession required: no
 - Spawn count: 11 / 16
-- Pending subagents: ecd2068c-d310-48a7-86ed-895e2bf99562, dacff6c7-fc88-450d-8906-025e0b4e13d2
+- Pending subagents: dacff6c7-fc88-450d-8906-025e0b4e13d2
 - Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-172
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-325
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-373
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 
@@ -90,6 +90,7 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\ORIGINAL_REQUEST.md — Original request verbatim
 - C:\Users\paulomatos\Documents\GitHub\neoveg\PROJECT.md — Global architecture, 44-feature inventory, 7 milestones
 - C:\Users\paulomatos\Documents\GitHub\neoveg\TEST_INFRA.md — Opaque-box E2E test suite plan & methodology
+- C:\Users\paulomatos\Documents\GitHub\neoveg\TEST_READY.md — Authoritative E2E test suite signal (468 tests passing)
 - C:\Users\paulomatos\Documents\GitHub\neoveg\DEAD_ENDS.md — Log of dead ends
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\GATE_STATUS.md — Gate status ledger
 - C:\Users\paulomatos\Documents\GitHub\neoveg\.agents\teamwork\orchestrator\DISPATCH.md — Orchestrator dispatch log

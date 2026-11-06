@@ -4,12 +4,13 @@
 //! - Tier 1: Feature Coverage (5 tests)
 //! - Tier 2: Boundary & Corner Cases (5 tests)
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use neoveg_ofx::{describe_in_child, library_of, Options};
+use neoveg_ofx::{describe_in_child, library_of, DefaultOfxHost, FrameBuffer, OfxHostContext, Options};
 
 fn host_exe() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_neoveg_ofx_host"))
@@ -149,3 +150,65 @@ fn f10_t2_05_ofx_missing_host_executable_clean_error() {
         .expect_err("Missing host executable must return descriptive error");
     assert!(!err.is_empty());
 }
+
+#[test]
+fn f10_t1_06_ofx_host_context_load_bundle_and_execute_fallback() {
+    let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
+    let plugin_id = host
+        .load_bundle(sample_library())
+        .expect("Load bundle must discover sample plugin");
+    assert_eq!(plugin_id, "com.neoveg.sample.invert");
+
+    let src = FrameBuffer::solid(8, 8, [50, 100, 150, 255]);
+    let mut params = BTreeMap::new();
+    params.insert("amount".to_string(), 1.0);
+
+    let output = host
+        .execute_effect(&plugin_id, &src, &params)
+        .expect("Execute effect succeeds");
+    assert_eq!(output.width, 8);
+    assert_eq!(output.height, 8);
+    assert_eq!(output.pixel(4, 4), [205, 155, 105, 255]);
+}
+
+#[test]
+fn f10_t1_07_ofx_host_context_parameterized_execution() {
+    let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
+    let plugin_id = host
+        .load_bundle(sample_library())
+        .expect("Load bundle succeeds");
+
+    let src = FrameBuffer::solid(4, 4, [0, 0, 0, 255]);
+    let mut params = BTreeMap::new();
+    params.insert("amount".to_string(), 0.0);
+    let out_zero = host
+        .execute_effect(&plugin_id, &src, &params)
+        .expect("Execute 0.0 succeeds");
+    assert_eq!(out_zero.pixel(1, 1), [0, 0, 0, 255]);
+
+    params.insert("amount".to_string(), 0.5);
+    let out_half = host
+        .execute_effect(&plugin_id, &src, &params)
+        .expect("Execute 0.5 succeeds");
+    assert_eq!(out_half.pixel(1, 1), [127, 127, 127, 255]);
+}
+
+#[test]
+fn f10_t2_06_ofx_host_context_missing_bundle_error() {
+    let mut host = DefaultOfxHost::new().with_host_exe(host_exe());
+    let missing = Path::new("Z:/non_existent_bundle/plugin.ofx.bundle");
+    let err = host.load_bundle(missing).expect_err("Missing bundle must return error");
+    assert!(err.contains("does not exist"));
+}
+
+#[test]
+fn f10_t2_07_ofx_host_context_unloaded_plugin_error() {
+    let host = DefaultOfxHost::new().with_host_exe(host_exe());
+    let src = FrameBuffer::solid(2, 2, [0, 0, 0, 255]);
+    let params = BTreeMap::new();
+    let err = host
+        .execute_effect("com.unloaded.plugin", &src, &params)
+        .expect_err("Unloaded plugin must fail");
+    assert!(err.contains("not found"));
+}
+
