@@ -279,6 +279,16 @@ pub fn matching_preset(kind: &str, params: &BTreeMap<String, f32>) -> Option<&'s
     })
 }
 
+/// Where in the transition the thumbnail of `kind` is taken: half way, except where half way shows
+/// nothing of it (the card of a flip is edge-on, the light of a flash covers everything).
+pub fn thumbnail_progress(kind: &str) -> f32 {
+    match kind {
+        transitions::FLIP => 0.3,
+        transitions::FLASH => 0.25,
+        _ => 0.5,
+    }
+}
+
 /// A picture for the thumbnails: a diagonal gradient with a ring and a bar, of colours that tell
 /// the two clips and the direction of a wipe apart.
 fn test_card(width: u32, height: u32, hue: [f32; 3]) -> FrameBuffer {
@@ -414,12 +424,34 @@ mod tests {
         assert!(a[0] > a[2] && b[2] > b[0], "{a:?} {b:?}");
         // Every transition draws a full, opaque picture half way
         for t in transitions::transitions() {
-            let half = preview(t.id, &none, w, h, 0.5).unwrap();
+            let half = preview(t.id, &none, w, h, thumbnail_progress(t.id)).unwrap();
             assert_eq!(half.rgba.len(), (w * h * 4) as usize);
             assert!(
                 half.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255),
                 "{}",
                 t.id
+            );
+        }
+        // Neither the card on edge nor the flash is what a thumbnail shows
+        for kind in [transitions::FLIP, transitions::FLASH] {
+            let picture = preview(kind, &none, w, h, thumbnail_progress(kind)).unwrap();
+            let lit = picture
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| p[0] < 200 || p[1] < 200 || p[2] < 200)
+                .count();
+            let dark = picture
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| p[..3] == [22, 24, 30])
+                .count();
+            assert!(
+                lit > 0 && dark < (w * h) as usize / 2,
+                "{kind}: {lit} {dark}"
             );
         }
         assert!(preview("from_the_future", &none, w, h, 0.5).is_none());

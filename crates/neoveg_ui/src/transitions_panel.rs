@@ -66,8 +66,6 @@ impl std::fmt::Debug for TransitionsPanelState {
 /// Size of a thumbnail in pixels.
 const THUMB_W: u32 = 96;
 const THUMB_H: u32 = 54;
-/// Where in the transition a thumbnail is taken.
-const THUMB_PROGRESS: f32 = 0.5;
 /// How many thumbnails are drawn in one frame, so opening the tab does not stall the window.
 const THUMBS_PER_FRAME: usize = 6;
 
@@ -90,7 +88,8 @@ impl TransitionsPanelState {
             return None;
         }
         *budget -= 1;
-        let picture = transition_library::preview(kind, params, THUMB_W, THUMB_H, THUMB_PROGRESS)?;
+        let progress = transition_library::thumbnail_progress(kind);
+        let picture = transition_library::preview(kind, params, THUMB_W, THUMB_H, progress)?;
         let image = egui::ColorImage::from_rgba_unmultiplied(
             [picture.width as usize, picture.height as usize],
             &picture.rgba,
