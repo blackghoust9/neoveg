@@ -2,7 +2,7 @@
 
 ## Milestone Status Overview
 - Milestone 1 (M1): Recording Stabilization & Trademark Sanitization [DONE]
-- Milestone 2 (M2): Video Transitions, 3D Transforms, GPU Effects & OFX Host [BLOCKED_ON_REMEDIATION]
+- Milestone 2 (M2): Video Transitions, 3D Transforms, GPU Effects & OFX Host [DONE]
 - Milestone 3 (M3): Color Grading, Color Wheels, OCIO/ACES & Color Match [PLANNED]
 - Milestone 4 (M4): Motion Tracking, Event Masks, Smart Mask & AI Features [PLANNED]
 - Milestone 5 (M5): Project Properties, Media Pool, Explorer, Render Caching & Alerts [PLANNED]
@@ -31,23 +31,28 @@ Gate Result: **PASS**
 
 ---
 
-## Gate — Iteration 1 (Milestone M2)
+## Gate — Iteration 2 (Milestone M2 Remediation)
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
-| worker_m2_1 | teamwork_worker | DONE (build passed) | handoff.md |
+| worker_m2_1 | teamwork_worker | DONE (initial build passed) | handoff.md |
 | reviewer_m2_1 | teamwork_reviewer | APPROVE | handoff.md |
 | reviewer_m2_2 | teamwork_reviewer | APPROVE | handoff.md |
-| challenger_m2_1 | teamwork_challenger | REQUEST_CHANGES | handoff.md |
+| challenger_m2_1 | teamwork_challenger | REQUEST_CHANGES (remediated) | handoff.md |
 | challenger_m2_2 | teamwork_challenger | APPROVE | handoff.md |
 | auditor_m2_1 | teamwork_auditor | CLEAN | handoff.md |
+| worker_m2_2 | teamwork_worker | DONE (remediation passed) | handoff.md |
 
-Gate Result: **FAIL** (challenger_m2_1 REQUEST_CHANGES: non-finite timestamps in `TransitionProgressEnvelope`)
+Gate Result: **PASS**
 - `worker_m2_1` implemented 6 transition categories, 12 presets, thumbnail rendering via straight-alpha `blend_buffer_cpu`, 3D spatial transformations with Blinn-Phong lighting and CPU software fallback, and OFX 1.4 host with plugin execution. Commit `3109d496`.
 - `reviewer_m2_1` approved transitions, 3D math, and envelopes.
 - `reviewer_m2_2` approved OFX host architecture and process isolation.
 - `challenger_m2_2` authored 28 stress tests in `crates/neoveg_ofx/tests/stress_host.rs` (commit `9e888b92`), all 28 passed, zero trademarks, parity matrix exit 0.
 - `auditor_m2_1` verified authentic implementation with zero facades, zero licenses, zero trademarks: CLEAN.
-- `challenger_m2_1` authored 16 stress tests in `crates/neoveg_video/tests/adversarial_transitions.rs`. Confirmed 3D transforms, presets, and thumbnails are 100% resilient. Found two edge-case defects in `TransitionProgressEnvelope`:
-  1. `add_point(f64::NAN, ...)` causes `attempt to subtract with overflow` panic at line 319 (`idx - 1` with `idx == 0`).
-  2. `add_point` with infinite timestamps causes `dt = inf`, resulting in `inf / inf = NaN`, leaking `NaN` out of `progress_at` instead of clamping to `0.0..=1.0`.
-- Remediation required: Dispatch `worker_m2_2` to add finite checks and clamp logic in `crates/neoveg_video/src/transitions.rs`.
+- `worker_m2_2` resolved the non-finite timestamp and NaN underflow edge cases in `crates/neoveg_video/src/transitions.rs` and updated `crates/neoveg_video/tests/adversarial_transitions.rs`.
+- Verification passed cleanly:
+  - `cargo check -j 1 --workspace`: exit code 0
+  - `cargo clippy -j 1 --workspace`: 0 warnings
+  - `cargo test -p neoveg_video --test adversarial_transitions -j 1 -- --test-threads=1`: 16/16 passed
+  - `cargo test -p neoveg_video --lib -j 1 -- --test-threads=1`: 180 passed, 0 failed
+  - `cargo test -p neoveg_video --test e2e_video -j 1 -- --test-threads=1`: 144 passed, 0 failed
+  - `python scripts/parity_matrix.py --check`: 872 commands mapped, exit 0

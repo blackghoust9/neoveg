@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-06T13:30:15Z
+# BRIEFING — 2026-11-06T13:45:15Z
 
 ## Mission
 Stabilize worktree, complete interrupted recording workflow, and implement production feature extensions across neoveg on preview/version-2.1.0 cleanly under all constraints, obeying VEGAS Pro semantics.
@@ -17,9 +17,10 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 2. **Dispatch & Execute**:
    - Survey phase: spawn 3 Explorers in parallel to map full scope. [COMPLETED]
    - Decompose & plan milestones in PROJECT.md and TEST_INFRA.md. [COMPLETED]
-   - Milestone 1: Recording Stabilization & Trademark Sanitization. [GATE PASSED]
+   - Milestone 1: Recording Stabilization & Trademark Sanitization. [GATE PASSED, commit 5a222723]
    - E2E Testing Track: E2E Test Writer authored 468 tests and published TEST_READY.md. [COMPLETED]
-   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [REMEDIATION DISPATCHED]
+   - Milestone 2: Video Transitions, 3D Transforms, GPU Effects & OFX Host. [GATE PASSED, committed & pushed: commit 1689178]
+   - Milestone 3: Color Grading, Color Wheels, OCIO/ACES & Color Match. [EXPLORATION IN PROGRESS]
    - Iteration loop per milestone: Explorer -> Worker -> Reviewer -> Challenger -> Auditor -> Gate check.
 3. **On failure** (in this order):
    - Retry: nudge stuck agent or re-send task
@@ -31,16 +32,16 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 4. **Succession**: Platform subagent configuration limits dispatch to worker archetypes; orchestrator manages milestones directly up to platform ceiling 128.
 - **Work items**:
   1. Survey and Codebase Mapping [done]
-  2. M1 Recording Stabilization & Trademark Sanitization [done]
-  3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [remediation active: worker_m2_2]
-  4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [pending]
+  2. M1 Recording Stabilization & Trademark Sanitization [done, commit 5a222723]
+  3. M2 Video Transitions, 3D Transforms, GPU Effects & OFX Host [done, commit 1689178]
+  4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [in-progress: exploration]
   5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [pending]
   6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [pending]
   7. M6 Advanced Timeline Editing, Multicam & Takes [pending]
   8. M7 Final E2E Test Suite Validation & Adversarial Hardening [pending]
   9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
-- **Current phase**: 2 (Milestone M2 Remediation)
-- **Current focus**: Remediation of TransitionProgressEnvelope edge cases by worker_m2_2
+- **Current phase**: 2 (Milestone M3 Exploration)
+- **Current focus**: Milestone 3 (Color Grading & OCIO/ACES) survey & architecture
 
 ## 🔒 Key Constraints
 - Pure clean-room Rust implementation compliant with MIT OR Apache-2.0 (deny.toml), zero GPL/LGPL, zero third-party trademarks in runtime strings.
@@ -58,7 +59,9 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 ## Key Decisions Made
 - Milestone M1 PASSED Gate 1 (unanimous APPROVE and CLEAN, commit 5a222723).
 - test_writer_e2e_1 completed 468 opaque-box tests across 6 integration test suites and published TEST_READY.md.
-- worker_m2_2 dispatched to fix TransitionProgressEnvelope NaN underflow and non-finite timestamp leakage.
+- Milestone M2 PASSED Gate 2 re-evaluation after worker_m2_2 remediated TransitionProgressEnvelope (16/16 adversarial tests passed).
+- worker_git_m2 committed (1689178) and pushed Milestone 2 to preview/version-2.1.0.
+- Milestone M3 dispatched to 3 parallel Explorers: explorer_m3_1 (codebase), spec_miner_m3_2 (VEGAS Pro specs/manuais), explorer_m3_3 (integration/low-spec CPU architecture).
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
@@ -79,18 +82,23 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | challenger_m2_1 | teamwork_challenger | M2 Challenger 1 (3D & Envelope Stress) | completed (REQUEST_CHANGES) | 4a43aada-c9f6-467a-a228-d03754ba3a73 |
 | challenger_m2_2 | teamwork_challenger | M2 Challenger 2 (OFX Robustness & Trademarks) | completed (APPROVE) | 62a6c271-6caa-42d3-9a4a-94df5e7768b7 |
 | auditor_m2_1 | teamwork_auditor | M2 Forensic Integrity Audit | completed (CLEAN) | efd3cb6a-9dc0-453e-9cba-8691e2000b12 |
-| worker_m2_2 | teamwork_worker | M2 Envelope Remediation Worker | in-progress | a58d9e02-4101-4677-badf-54e04f671105 |
+| worker_m2_2 | teamwork_worker | M2 Envelope Remediation Worker | completed (DONE) | a58d9e02-4101-4677-badf-54e04f671105 |
+| worker_git_m2 | teamwork_worker | M2 Git Commit & Push Worker | completed (pushed 1689178) | 157b24eb-84af-4598-9f8c-02252c2ff341 |
+| explorer_m3_1 | teamwork_explorer | M3 Codebase Explorer | completed | 1744edee-a35b-4415-910d-30fd63a45dbe |
+| spec_miner_m3_2 | teamwork_spec_miner | M3 VEGAS Pro & OCIO Spec Miner | completed | 5d0fbb4d-4667-43e7-a338-e566dc49d0f5 |
+| explorer_m3_3 | teamwork_explorer | M3 Integration & CPU Architecture Explorer | completed | 4426a1c1-c319-4e76-a7ae-b607829a46bb |
+| worker_m3_1 | teamwork_worker | M3 Color Grading & OCIO Worker | in-progress | a1f1a938-b602-4b25-8381-d4d454057571 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 17 / 128
-- Pending subagents: a58d9e02-4101-4677-badf-54e04f671105
+- Spawn count: 22 / 128
+- Pending subagents: a1f1a938-b602-4b25-8381-d4d454057571
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-708
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-878
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 

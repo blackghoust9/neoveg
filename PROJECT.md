@@ -82,8 +82,8 @@ Every feature identified during Phase 0 Survey from `ORIGINAL_REQUEST.md` and `r
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
 | M1 | Recording Stabilization & Trademark Sanitization | Features 1–5: Automated recording tests, worktree verification, and trademark removal | none | DONE |
-| M2 | Video Transitions, 3D Transforms, GPU Effects & OFX Host | Features 6–10: Transition categories, presets, 3D transforms, GPU effects, and OFX | M1 | IN_PROGRESS |
-| M3 | Color Grading, Color Wheels, OCIO/ACES & Color Match | Features 11–16: 4-way wheels, curves, white balance, OCIO/ACES pipeline, color match | M1 | PLANNED |
+| M2 | Video Transitions, 3D Transforms, GPU Effects & OFX Host | Features 6–10: Transition categories, presets, 3D transforms, GPU effects, and OFX | M1 | DONE |
+| M3 | Color Grading, Color Wheels, OCIO/ACES & Color Match | Features 11–16: 4-way wheels, curves, white balance, OCIO/ACES pipeline, color match | M1 | IN_PROGRESS |
 | M4 | Motion Tracking, Event Masks, Smart Mask & AI Features | Features 17–23: Motion tracking, geometric/Bézier masks, Smart Mask, text editing, speech-to-text, upscale, auto reframe | M1 | PLANNED |
 | M5 | Project Properties, Media Pool, Explorer, Render Caching & Alerts | Features 24–34: Project properties, templates, media profiles, 23 media columns, bins, explorer, Make Movie, cache ruler, alerts, smart proxies | M1 | PLANNED |
 | M6 | Advanced Timeline Editing, Multicam & Takes | Features 35–42: L/J cuts, simultaneous fades, sync links, multicam, takes, i18n catalogs, and parity matrix | M2, M3, M4, M5 | PLANNED |
