@@ -293,7 +293,7 @@ fn stress_invert_nan_parameter() {
 
     let out = host.execute_effect("invert", &src, &params).expect("NaN param must not crash");
     // When NaN is passed, float arithmetic with NaN saturates to 0 in Rust as u8
-    for chunk in out.rgba.chunks_exact(4) {
+    for chunk in out.rgba.as_chunks::<4>().0 {
         assert_eq!(chunk[3], 255, "Alpha channel preserved");
     }
 }
@@ -347,7 +347,7 @@ fn stress_gain_and_brightness_nan_parameter() {
 
     let out = host.execute_effect("brightness", &src, &params).expect("NaN must not panic");
     // NaN clamps to 0 in saturating cast to u8
-    for chunk in out.rgba.chunks_exact(4) {
+    for chunk in out.rgba.as_chunks::<4>().0 {
         assert_eq!(chunk[0], 0);
         assert_eq!(chunk[1], 0);
         assert_eq!(chunk[2], 0);

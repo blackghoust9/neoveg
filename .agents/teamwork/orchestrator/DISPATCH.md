@@ -45,3 +45,21 @@ Implement the requested feature extensions in the order specified:
 - [ ] Automated tests verify input device selection, track arming, and recording with monitoring.
 - [ ] Automated tests verify transitions (presets, categories, thumbnails, 3D), color wheels/OCIO, motion tracking/masks, project properties, project media/explorer, rendering/cache, AI fallbacks, standardized alerts (§10), smart proxies, color match, L/J-cuts, sync links, and multicam/takes.
 - [ ] No third-party trademarks exist in runtime strings or user-visible text.
+
+
+## 2026-11-06T13:16:41Z
+
+User follow-up directive / scope expansion for this active Teamwork run (incorporate into `PROJECT.md`, Generation 2 succession, and all current/remaining milestones without discarding completed M1/M2 work):
+
+**Task**: veja todos os itens desmarcados e veja o que ainda precisa ser feito do readme para o programa, veja se o programa tem um bom comportamento com o uso somente da cpu e em hardware limitados, veja também os problemas de comportamentos da interface gráfica com a lógica do programa e corrija os erros dela, também verifique os erros da build para que não tenha nenhum tipo de erro durante o processo, todo o programa tem que obedecer a semântica do VEGAS Pro, principalmente na interface gráfica e nos comandos do teclado, veja os manuais em C:\Users\paulomatos\Documents\GitHub\neoveg\manuais, se quiser pode pesquisar melhor sobre o funcionamento do VEGAS na internet, veja quais funcionalidades afetem a semântica do VEGAS Pro, se não afetar e for bom para o programa pode colocar, se não evite colocar e coloque as notas no readme, sempre faça os commites e pushes a cada alteração nova no projeto, faça uma atualização geral do readme de tudo que já foi feito
+
+**Additional Context**:
+- Milestones 1 and 2 are already completed / in Gate 2 review on branch `preview/version-2.1.0` in `C:\Users\paulomatos\Documents\GitHub\neoveg`.
+- Please fold all points from the user's new directive into the active execution plan (`PROJECT.md` and the Generation 2 Orchestrator handoff):
+  1. Audit ALL remaining unchecked items (`[ ]`) in `README.md` and see everything that still needs to be done for the program.
+  2. Verify and optimize CPU-only execution and behavior on limited/low-spec hardware (memory/CPU budgets, fallbacks, responsiveness).
+  3. Audit GUI (`neoveg_ui`) behavior integration with engine/core logic (`neoveg_engine`, `neoveg_audio`, `neoveg_video`, `neoveg_common`) and fix any wiring, state synchronization, or UI behavior bugs.
+  4. Verify the full build process (Cargo workspace build & `build_portable.py` checks, strictly sequential `-j 1` and `--test-threads=1`, never running `cargo test -p neoveg_ui`) so there are zero build errors or warnings.
+  5. Strictly obey VEGAS Pro semantics across the entire program — especially GUI behavior and keyboard shortcuts — consulting the reference manuals in `C:\Users\paulomatos\Documents\GitHub\neoveg\manuais` (and web documentation where needed). Evaluate features against VEGAS Pro semantics: include beneficial features that preserve VEGAS Pro semantics; avoid features that conflict with VEGAS Pro semantics and document clear notes in `README.md` explaining why. (Keep runtime UI strings free of third-party trademarks per repository policy while documenting VEGAS Pro parity/notes in `README.md`.)
+  6. Commit and push (`git commit` and `git push`) incrementally after each completed milestone / new change (including committing/pushing completed M1 & M2 changes once Gate 2 passes).
+  7. Perform a comprehensive update of `README.md` (and `scripts/parity_matrix.py --check` + 7 i18n catalogs) reflecting everything that has been completed and any semantic notes.
