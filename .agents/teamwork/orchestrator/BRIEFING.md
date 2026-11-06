@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-06T12:49:40Z
+# BRIEFING — 2026-11-06T12:52:45Z
 
 ## Mission
 Stabilize worktree, complete interrupted recording workflow, and implement production feature extensions across neoveg on preview/version-2.1.0 cleanly under all constraints.
@@ -71,18 +71,23 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | challenger_m1_1 | teamwork_challenger | M1 Challenger 1 (Recording Stress) | completed (APPROVE) | 5561a52d-0735-4526-9b3c-ea22509d68d0 |
 | challenger_m1_2 | teamwork_challenger | M1 Challenger 2 (Trademark & Parity Stress) | completed (APPROVE) | 6e5c3d0b-eef8-4199-9d1e-281c36df294b |
 | auditor_m1_1 | teamwork_auditor | M1 Forensic Integrity Audit | completed (CLEAN) | a74a6ce6-8c2f-4563-af22-dd02d7697b33 |
-| worker_m2_1 | teamwork_worker | M2 Transitions, 3D, Effects & OFX | in-progress | dacff6c7-fc88-450d-8906-025e0b4e13d2 |
+| worker_m2_1 | teamwork_worker | M2 Transitions, 3D, Effects & OFX | completed | dacff6c7-fc88-450d-8906-025e0b4e13d2 |
+| reviewer_m2_1 | teamwork_reviewer | M2 Reviewer 1 (Transitions, 3D, Envelopes) | in-progress | ba4442a7-84e9-4670-b34e-f53bcfbf5d6c |
+| reviewer_m2_2 | teamwork_reviewer | M2 Reviewer 2 (OFX Host & Fallback) | in-progress | e22d24d2-ca52-4326-a79d-979df43f80a5 |
+| challenger_m2_1 | teamwork_challenger | M2 Challenger 1 (3D & Envelope Stress) | in-progress | 4a43aada-c9f6-467a-a228-d03754ba3a73 |
+| challenger_m2_2 | teamwork_challenger | M2 Challenger 2 (OFX Robustness & Trademarks) | in-progress | 62a6c271-6caa-42d3-9a4a-94df5e7768b7 |
+| auditor_m2_1 | teamwork_auditor | M2 Forensic Integrity Audit | in-progress | efd3cb6a-9dc0-453e-9cba-8691e2000b12 |
 
 ## Succession Status
-- Succession required: no
-- Spawn count: 11 / 16
-- Pending subagents: dacff6c7-fc88-450d-8906-025e0b4e13d2
+- Succession required: yes (upon completion of current 5 subagents)
+- Spawn count: 16 / 16
+- Pending subagents: ba4442a7-84e9-4670-b34e-f53bcfbf5d6c, e22d24d2-ca52-4326-a79d-979df43f80a5, 4a43aada-c9f6-467a-a228-d03754ba3a73, 62a6c271-6caa-42d3-9a4a-94df5e7768b7, efd3cb6a-9dc0-453e-9cba-8691e2000b12
 - Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-172
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-373
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-480
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 
