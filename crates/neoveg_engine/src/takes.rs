@@ -11,7 +11,7 @@
 
 use crate::command::{EditCommand, TrackChange};
 use crate::selection::EventRef;
-use crate::timeline::{Take, Timeline, TrackEvent, TrackId};
+use crate::timeline::{Take, Timeline, TrackEvent, TrackId, TIME_EPSILON};
 
 /// How many takes the event has (an event with no list has one).
 pub fn count(event: &TrackEvent) -> usize {
@@ -178,6 +178,106 @@ pub fn delete_active(timeline: &Timeline, events: &[EventRef]) -> Option<EditCom
             event.takes.clear();
             event.active_take = 0;
         }
+        true
+    })
+}
+
+/// A container struct wrapping alternative takes for an event.
+///
+/// Encapsulates cycling through available takes (`next_take`, `prev_take`) and slipping
+/// all takes simultaneously (`slip_all_takes`) while preserving relative media offsets.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TakeContainer {
+    pub takes: Vec<Take>,
+    pub active_take: usize,
+    pub trim_in: f64,
+    pub media_id: Option<u64>,
+}
+
+impl TakeContainer {
+    pub fn new(takes: Vec<Take>, active_take: usize, trim_in: f64, media_id: Option<u64>) -> Self {
+        let active = if takes.is_empty() {
+            0
+        } else {
+            active_take.min(takes.len() - 1)
+        };
+        Self {
+            takes,
+            active_take: active,
+            trim_in: trim_in.max(0.0),
+            media_id,
+        }
+    }
+
+    pub fn from_event(ev: &TrackEvent) -> Self {
+        Self {
+            takes: ev.takes.clone(),
+            active_take: active_index(ev),
+            trim_in: ev.trim_in,
+            media_id: ev.media_id,
+        }
+    }
+
+    pub fn apply_to_event(&self, ev: &mut TrackEvent) {
+        ev.takes = self.takes.clone();
+        ev.active_take = self.active_take;
+        ev.trim_in = self.trim_in;
+        ev.media_id = self.media_id;
+    }
+
+    pub fn count(&self) -> usize {
+        self.takes.len().max(1)
+    }
+
+    pub fn next_take(&mut self) {
+        if self.takes.len() >= 2 {
+            let next = (self.active_take + 1) % self.takes.len();
+            self.load(next);
+        }
+    }
+
+    pub fn prev_take(&mut self) {
+        if self.takes.len() >= 2 {
+            let prev = (self.active_take + self.takes.len() - 1) % self.takes.len();
+            self.load(prev);
+        }
+    }
+
+    /// Slips the source media offsets of all takes in the container simultaneously by `delta_sec`.
+    pub fn slip_all_takes(&mut self, delta_sec: f64) {
+        self.trim_in = (self.trim_in + delta_sec).max(0.0);
+        for take in &mut self.takes {
+            take.trim_offset += delta_sec;
+        }
+    }
+
+    fn load(&mut self, index: usize) {
+        let base = self.trim_in;
+        let wanted = (base + self.takes[index].trim_offset).max(0.0);
+        for take in &mut self.takes {
+            take.trim_offset = base + take.trim_offset - wanted;
+        }
+        self.takes[index].trim_offset = 0.0;
+        self.media_id = self.takes[index].media_id;
+        self.trim_in = wanted;
+        self.active_take = index;
+    }
+}
+
+/// *Slip all takes*: slips the source media offsets of all takes for selected events
+/// simultaneously by `delta_sec`.
+pub fn slip_all_takes(
+    timeline: &Timeline,
+    events: &[EventRef],
+    delta_sec: f64,
+) -> Option<EditCommand> {
+    if !delta_sec.is_finite() || delta_sec.abs() <= TIME_EPSILON {
+        return None;
+    }
+    change(timeline, events, |event| {
+        let mut container = TakeContainer::from_event(event);
+        container.slip_all_takes(delta_sec);
+        container.apply_to_event(event);
         true
     })
 }
