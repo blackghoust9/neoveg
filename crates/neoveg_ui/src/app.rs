@@ -1286,7 +1286,7 @@ impl AppState {
             self.project.settings.fps,
         );
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .add_filter("XML de intercâmbio", &["xml"])
             .set_file_name(format!("{}.xml", self.project.name))
             .save_file()
         else {
@@ -1304,7 +1304,7 @@ impl AppState {
     /// File > Import FCP7 XML: places the clips whose media is in the project, as one undo step.
     fn import_fcp7(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro 7 XML", &["xml"])
+            .add_filter("XML de intercâmbio", &["xml"])
             .pick_file()
         else {
             return;
@@ -1363,7 +1363,7 @@ impl AppState {
             s.sample_rate,
         );
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro FCPXML", &["fcpxml"])
+            .add_filter("FCPXML", &["fcpxml"])
             .set_file_name(format!("{}.fcpxml", self.project.name))
             .save_file()
         else {
@@ -1381,7 +1381,7 @@ impl AppState {
     /// File > Import FCPXML: places the clips and markers whose media is in the project, as one undo step.
     fn import_fcpxml(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Final Cut Pro FCPXML", &["fcpxml", "xml"])
+            .add_filter("FCPXML", &["fcpxml", "xml"])
             .pick_file()
         else {
             return;
@@ -8405,7 +8405,10 @@ impl AppState {
                     );
                     self.playhead = self.record_start;
                     // The take goes on the armed track, if there is one
-                    if let Some(armed) = neoveg_engine::track_arm::target_track(&self.timeline) {
+                    let armed_target = recording
+                        .track_id
+                        .or_else(|| neoveg_engine::track_arm::target_track(&self.timeline));
+                    if let Some(armed) = armed_target {
                         self.selected_track = Some(armed);
                     }
                     self.status = tr_args(
@@ -8439,6 +8442,7 @@ impl AppState {
             device: self.prefs.input_device.clone(),
             monitor: self.prefs.monitor_input,
             monitor_volume: self.prefs.monitor_volume,
+            track_id: neoveg_engine::track_arm::target_track(&self.timeline),
         };
         match Recorder::start(&path, &options) {
             Ok(recorder) => {
@@ -10313,11 +10317,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     state.import_edl();
                     ui.close_menu();
                 }
-                if ui.button("XML (Final Cut Pro 7)…").clicked() {
+                if ui.button("XML de intercâmbio…").clicked() {
                     state.import_fcp7();
                     ui.close_menu();
                 }
-                if ui.button("FCPXML (Final Cut Pro)…").clicked() {
+                if ui.button("FCPXML…").clicked() {
                     state.import_fcpxml();
                     ui.close_menu();
                 }
@@ -10352,14 +10356,14 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.close_menu();
                 }
                 if ui
-                    .add_enabled(has_events, egui::Button::new("XML (Final Cut Pro 7)…"))
+                    .add_enabled(has_events, egui::Button::new("XML de intercâmbio…"))
                     .clicked()
                 {
                     state.export_fcp7();
                     ui.close_menu();
                 }
                 if ui
-                    .add_enabled(has_events, egui::Button::new("FCPXML (Final Cut Pro)…"))
+                    .add_enabled(has_events, egui::Button::new("FCPXML…"))
                     .clicked()
                 {
                     state.export_fcpxml();
@@ -12353,7 +12357,7 @@ fn aaf_export_window(ctx: &egui::Context, state: &mut AppState) {
         .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.label(tr(
-                "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).",
+                "Exportar a linha do tempo para AAF (compatível com estações de áudio e vídeo de intercâmbio).",
             ));
             ui.add_space(4.0);
             ui.checkbox(

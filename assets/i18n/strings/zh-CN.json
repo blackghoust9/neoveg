@@ -1689,7 +1689,7 @@
   "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "播放此媒体的所有事件的效果,在事件效果之前",
   "Formato RAW proprietário": "专有RAW格式",
   "Exportar AAF": "导出AAF",
-  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "将时间线导出为AAF（兼容Avid、DaVinci Resolve、Premiere Pro和Pro Tools）。",
+  "Exportar a linha do tempo para AAF (compatível com estações de áudio e vídeo de intercâmbio).": "将时间线导出为AAF（兼容交换音频和视频工作站）。",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "在AAF文件中嵌入媒体（PCM音频 / 图像）",
   "Setores de 512 bytes (compatibilidade legada)": "512字节扇区（旧版兼容性）",
   "A linha do tempo está vazia.": "时间线为空。",

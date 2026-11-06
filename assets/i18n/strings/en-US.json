@@ -1689,7 +1689,7 @@
   "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "Effects of every event that plays this media, before the ones of the event",
   "Formato RAW proprietário": "Proprietary RAW format",
   "Exportar AAF": "Export AAF",
-  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "Export timeline to AAF (compatible with Avid, DaVinci Resolve, Premiere Pro, and Pro Tools).",
+  "Exportar a linha do tempo para AAF (compatível com estações de áudio e vídeo de intercâmbio).": "Export timeline to AAF (compatible with interchange audio and video workstations).",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "Embed media in AAF file (PCM audio / images)",
   "Setores de 512 bytes (compatibilidade legada)": "512-byte sectors (legacy compatibility)",
   "A linha do tempo está vazia.": "The timeline is empty.",

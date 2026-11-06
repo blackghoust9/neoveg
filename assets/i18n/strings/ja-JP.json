@@ -1689,7 +1689,7 @@
   "Efeitos de todos os eventos que tocam esta mídia, antes dos do evento": "このメディアを再生するすべてのイベントのエフェクト(イベントのエフェクトの前)",
   "Formato RAW proprietário": "独自のRAWフォーマット",
   "Exportar AAF": "AAFをエクスポート",
-  "Exportar a linha do tempo para AAF (compatível com Avid, DaVinci Resolve, Premiere Pro e Pro Tools).": "タイムラインをAAFにエクスポート (Avid、DaVinci Resolve、Premiere Pro、Pro Tools互換)。",
+  "Exportar a linha do tempo para AAF (compatível com estações de áudio e vídeo de intercâmbio).": "タイムラインをAAFにエクスポート (相互運用オーディオおよびビデオワークステーション互換)。",
   "Embutir mídia no arquivo AAF (áudio PCM / imagens)": "AAFファイルにメディアを埋め込む (PCMオーディオ / 画像)",
   "Setores de 512 bytes (compatibilidade legada)": "512バイトセクター (レガシー互換性)",
   "A linha do tempo está vazia.": "タイムラインが空です。",
