@@ -349,10 +349,8 @@ mod tests {
         assert!(subtree(&tl, ids[4]) == vec![ids[4]] && descendants(&tl, ids[4]).is_empty());
         // MAX_LEVEL
         let mut tl = Timeline::new();
-        let mut last = 0;
         for _ in 0..12 {
             let t = tl.new_track(TrackKind::Video);
-            last = t.id;
             tl.tracks.push(t);
         }
         let mut history = History::new();
@@ -367,7 +365,15 @@ mod tests {
         let levels = effective_levels(&tl.tracks);
         assert!(levels.iter().all(|l| *l <= MAX_LEVEL));
         assert_eq!(*levels.iter().max().unwrap(), MAX_LEVEL);
-        assert!(!can_make_child(&tl, last) || levels[11] < MAX_LEVEL);
+        // A track that reached the maximum depth cannot take a child, whatever its position
+        let deepest = tl
+            .tracks
+            .iter()
+            .zip(&levels)
+            .find(|(_, level)| **level == MAX_LEVEL)
+            .map(|(track, _)| track.id)
+            .expect("a track reaches the maximum depth");
+        assert!(!can_make_child(&tl, deepest));
     }
 
     #[test]

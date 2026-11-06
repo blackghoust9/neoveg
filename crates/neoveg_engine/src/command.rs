@@ -1423,9 +1423,14 @@ mod tests {
         let r1 = history.revision();
         history.undo(&mut tl);
         assert_ne!(history.revision(), r1);
-        // a rejected command is not a change
+        // a rejected command is not a change: with nothing left to undo, `undo` refuses and the
+        // revision stays where it was
         let r2 = history.revision();
-        assert!(!history.undo(&mut Timeline::new()) || history.revision() != r2);
+        assert!(
+            !history.undo(&mut Timeline::new()),
+            "nothing to undo after the undo above"
+        );
+        assert_eq!(history.revision(), r2);
     }
 
     #[test]
