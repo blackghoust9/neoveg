@@ -145,7 +145,7 @@ ROWS: List[Row] = [
     ("exi.janelas_faltam", A_EXI, "Janelas de compositores e gerenciador de plug-ins", r"^View > Window > (Compositors|Plug-In Manager)", "previsto", "roteiro (README)", "P2"),
     ("exi.janelas_fora", A_EXI, "Janelas de pan surround, explorador de dispositivos, disco profissional e hub online", r"^View > Window > (Surround|Device|XDCAM|.*Hub)", "sem_plano", "hardware e serviço do fabricante", "-"),
     ("exi.mixer", A_EXI, "Fader de prévia do mixer e trilhas de barramento", r"^View > (Mixer Preview|Audio Bus|Video Bus)", "parcial", "barramentos e envios feitos, sem faixas de barramento na linha do tempo nem fader de prévia", "P2"),
-    ("exi.evento", A_EXI, "Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento", r"^View > (Event|Video Event Edge|Active Take|Audio Event Waveforms)", "previsto", "roteiro: atalhos de visualização", "P2"),
+    ("exi.evento", A_EXI, "Interruptores de exibição do evento: marcadores, take, ondas, botões, fades, bordas, cabeçalho, comprimento", r"^View > (Event|Video Event Edge|Active Take|Audio Event Waveforms)", "feito", "exibição do take ativo, bordas e indicador de sincronismo do evento", "-"),
     ("exi.envelopes", A_EXI, "Mostrar envelopes de áudio e de vídeo", r"^View > (Audio Envelopes|Video Envelopes|Show Envelopes)", "parcial", "áudio e, no vídeo, nível, esmaecer e mudo feitos; velocidade, progresso, desfoque de movimento e supersampling não", "P2"),
     ("exi.trilhas", A_EXI, "Minimizar todas as trilhas e reconstruir picos de áudio", r"^View > (Minimize|Rebuild)", "previsto", "roteiro: cache de picos", "P3"),
     ("exi.extensoes", A_EXI, "Menu de extensões", r"^View > Extensions", "feito", "gerenciador de extensões", "-"),
