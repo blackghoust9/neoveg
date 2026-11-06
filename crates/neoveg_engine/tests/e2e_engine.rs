@@ -773,6 +773,7 @@ fn f30_t2_04_only_events_clears_captions() {
         start: 0.0,
         end: 2.0,
         text: "Subtitle".into(),
+        speaker: None,
     });
     let filtered = only_events(&tl, &[]);
     assert!(filtered.captions.is_empty());
@@ -878,8 +879,8 @@ fn f34_t1_04_relink_requires_same_extension_for_fuzzy() {
 #[test]
 fn f34_t1_05_media_ref_format_metadata_preservation() {
     let format = MediaFormat {
-        audio_channels: 2,
-        fps: 24.0,
+        channels: 2,
+        fps: Some(24.0),
     };
     let media = MediaRef {
         id: 10,
@@ -888,8 +889,8 @@ fn f34_t1_05_media_ref_format_metadata_preservation() {
         subproject: false,
         format: Some(format),
     };
-    assert_eq!(media.format.as_ref().unwrap().audio_channels, 2);
-    assert_eq!(media.format.as_ref().unwrap().fps, 24.0);
+    assert_eq!(media.format.as_ref().unwrap().channels, 2);
+    assert_eq!(media.format.as_ref().unwrap().fps, Some(24.0));
 }
 
 #[test]
@@ -1448,7 +1449,8 @@ fn f40_t1_03_step_takes_cycles_active_take() {
     tl.tracks.push(v);
 
     let mut h = History::new();
-    h.execute(&mut tl, add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap());
+    let add_cmd = add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap();
+    h.execute(&mut tl, add_cmd);
 
     // Step forward (wrap around back to take 0)
     let step_cmd = step(&tl, &[(v_id, 1)], 1).unwrap();
@@ -1468,8 +1470,10 @@ fn f40_t1_04_set_active_take_by_index() {
     tl.tracks.push(v);
 
     let mut h = History::new();
-    h.execute(&mut tl, add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap());
-    h.execute(&mut tl, add(&tl, &[(v_id, 1)], 300, "Take 3", 0.0).unwrap());
+    let cmd1 = add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap();
+    h.execute(&mut tl, cmd1);
+    let cmd2 = add(&tl, &[(v_id, 1)], 300, "Take 3", 0.0).unwrap();
+    h.execute(&mut tl, cmd2);
 
     // Switch directly to take 0
     let cmd = set_active(&tl, &[(v_id, 1)], 0).unwrap();
@@ -1486,7 +1490,8 @@ fn f40_t1_05_delete_active_take() {
     tl.tracks.push(v);
 
     let mut h = History::new();
-    h.execute(&mut tl, add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap());
+    let add_cmd = add(&tl, &[(v_id, 1)], 200, "Take 2", 0.0).unwrap();
+    h.execute(&mut tl, add_cmd);
 
     let del_cmd = delete_active(&tl, &[(v_id, 1)]).unwrap();
     assert!(h.execute(&mut tl, del_cmd));
