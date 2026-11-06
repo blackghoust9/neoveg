@@ -50,10 +50,10 @@ Last visited: 2026-11-06T19:29:25Z
   - `explorer_m6_2`: Codebase architecture blueprint mapped across `neoveg_engine` and `neoveg_ui`.
   - `explorer_m6_3`: CPU audio cross-correlation strategy (< 100 ms, < 15 MB RAM), 7-locale translation audit (1,795 keys), and parity/roadmap audit.
 - [x] Phase 2: Milestone 6 Implementation (`worker_m6_1` completed: commit `2e3300a`, 7/7 M6 integration tests pass, 252 common tests pass, 675 engine tests pass, 0 clippy warnings, parity matrix 0 unclassified)
-- [/] Phase 2: Milestone 6 Gate Verification (`reviewer_m6_1` and `auditor_m6_1` active for wrap-up verification)
-- [ ] Phase 2: Milestone 6 Git Commit & Push
-- [ ] Phase 2: Milestone 7 (Wrap-up per 17:00 deadline)
-- [ ] Phase 3: Final build check (`build_portable.py`), parity matrix sync, and comprehensive `README.md` update
+- [x] Phase 2: Milestone 6 Gate Verification PASSED (`reviewer_m6_1` APPROVE, `auditor_m6_1` CLEAN, 7/7 integration tests, 0 clippy warnings)
+- [/] Phase 2: Milestone 6 Git Commit & Push (dispatching `worker_git_m6`)
+- [ ] Phase 2: Milestone 7 / Final Wrap-up before 17:00 (20:00Z)
+- [ ] Phase 3: Final state reporting to parent and user
 
 ## Iteration Status
-Current iteration: 5 / 32 (Milestones 1, 2, 3, 4, 5 PASSED & PUSHED)
+Current iteration: 6 / 32 (Milestones 1, 2, 3, 4, 5, 6 PASSED)

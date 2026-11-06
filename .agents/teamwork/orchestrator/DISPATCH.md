@@ -124,3 +124,16 @@ Received. Gate 5 verification panel confirmed active across reviewer_m5_1, revie
 Please incorporate this directive into the active roadmap (`PROJECT.md`) and testing pipeline:
 1. Ensure the remediation worker (`worker_m5_2`) or subsequent milestones incorporate Blender open-movie fixtures for real-world video and audio testing (in a gitignored cache like `target/test_fixtures/blender/` or temp directory to avoid repo bloat).
 2. Continue executing Milestone 5 remediation, Gate 5 approval, and README checkbox synchronization without delay.
+
+
+## 2026-11-06T19:39:37Z
+# CRITICAL USER DIRECTIVE: GRACEFUL WRAP-UP DEADLINE AT 17:00 LOCAL (20:00:00Z)
+
+**Task**: encerrar tudo as 17 horas
+
+**Protocol**:
+1. Conclude Milestone 6 immediately: let worker_m6_1 wrap up its current tests (cargo check, cargo clippy, m6_features_35_42.rs, parity_matrix.py --check, i18n sync).
+2. Do NOT launch long multi-round exploration or Milestone 7. Execute a fast, focused verification check.
+3. Ensure all genuinely completed items in README.md are marked - [x].
+4. Stage all work (git add), commit, and push to origin/preview/version-2.1.0 BEFORE 16:58 (19:58Z) so zero uncommitted changes remain.
+5. Signal completion so all crons and subagents can be terminated cleanly before 17:00 (20:00Z).

@@ -37,11 +37,11 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
   4. M3 Color Grading, Color Wheels, OCIO/ACES & Color Match [done, commit 58f4ff08]
   5. M4 Motion Tracking, Event Masks, Smart Mask & AI Features [done, commits eab85a7 & e02efd7]
   6. M5 Project Properties, Media Pool, Explorer, Render Caching & Alerts [done, commit 37840b1]
-  7. M6 Advanced Timeline Editing, Multicam & Takes [in-progress: verification panel active]
+  7. M6 Advanced Timeline Editing, Multicam & Takes [done: Gate 6 passed]
   8. M7 Final E2E Test Suite Validation & Wrap-up [pending]
   9. E2E Test Suite Creation (Dual Track) [done - TEST_READY.md published]
-- **Current phase**: 2 (Milestone M6 Focused Verification & Final Wrap-up)
-- **Current focus**: Milestone 6 Verification & Final Wrap-up (Features 35–42)
+- **Current phase**: 2 (Milestone M6 Final Wrap-up Commit & Push)
+- **Current focus**: Milestone 6 Git Commit & Push to preview/version-2.1.0
 
 ## 🔒 Key Constraints
 - Pure clean-room Rust implementation compliant with MIT OR Apache-2.0 (deny.toml), zero GPL/LGPL, zero third-party trademarks in runtime strings.
@@ -121,18 +121,22 @@ Stabilize worktree, complete interrupted recording workflow, and implement produ
 | spec_miner_m6_1 | teamwork_spec_miner | M6 VEGAS Pro & Manuals Spec Miner | completed | 8978a35d-041c-471d-b8cc-d8e4ea291679 |
 | explorer_m6_2 | teamwork_explorer | M6 Codebase Architecture Explorer | completed | 774a43b1-e5d0-4a98-9492-e07d612f2608 |
 | explorer_m6_3 | teamwork_explorer | M6 CPU & Parity Explorer | completed | 3640c522-e8d3-4e42-8eb6-7d3c03f97206 |
-| worker_m6_1 | teamwork_worker | M6 Implementation Worker (Features 35-42) | in-progress | c2a9e801-703b-4673-b5e8-893908acd249 |
+| worker_m6_1 | teamwork_worker | M6 Implementation Worker (Features 35-42) | completed | c2a9e801-703b-4673-b5e8-893908acd249 |
+| reviewer_m6_1 | teamwork_reviewer | M6 Focused Reviewer | completed (APPROVE) | 6641e0d1-0e3b-4393-8eb3-ddeeb296cd6a |
+| auditor_m6_1 | teamwork_auditor | M6 Forensic Auditor | completed (CLEAN) | 6ffde48f-1c02-4fad-b19a-9860c8089d83 |
+
+| worker_git_m6 | teamwork_worker | M6 Git Commit & Push Worker | in-progress | 74982238-c92a-4a4f-9184-8b4dca4bd102 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 56 / 128
-- Pending subagents: c2a9e801-703b-4673-b5e8-893908acd249
+- Spawn count: 59 / 128
+- Pending subagents: 74982238-c92a-4a4f-9184-8b4dca4bd102
 - Predecessor: none
 - Successor: none
 
 ## Active Timers
 - Heartbeat cron: c220c328-9551-48e1-a35b-23e05589d782/task-706
-- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-2238
+- Safety timer: c220c328-9551-48e1-a35b-23e05589d782/task-2455
 - On succession: kill all timers before spawning successor
 - On context truncation: handle timers as step 4 of the State Recovery section of your prompt says
 
