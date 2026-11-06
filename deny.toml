@@ -19,8 +19,10 @@ version = 2
 confidence-threshold = 0.8
 # Permissive and weak-copyleft licenses explicitly audited and approved for Neoveg
 # (dual-licensed under MIT OR Apache-2.0; FFmpeg linked dynamically under LGPL-2.1-or-later).
-# Strong/network copyleft licenses (AGPL-3.0, GPL-2.0, GPL-3.0, SSPL) are strictly prohibited
-# by omission from `allow` and by `copyleft = "deny"` below.
+# Strong/network copyleft licenses (AGPL-3.0, GPL-2.0, GPL-3.0, SSPL) are listed in `deny` and
+# stay out of `allow`, so neither an allowed exception nor a permissive fallback can let them in.
+# (`copyleft`, `allow-osi-fsf-free` and `default` were removed from cargo-deny in 0.15; on the
+# current versions anything not in `allow` and not raised as an exception is denied.)
 allow = [
     "MIT",
     "Apache-2.0",
@@ -42,10 +44,9 @@ allow = [
     "LGPL-2.1-or-later",
 ]
 
-# Reject any strong or network copyleft crate (AGPL-*, GPL-2.0*, GPL-3.0*) automatically.
-copyleft = "deny"
-allow-osi-fsf-free = "neither"
-default = "deny"
+# Reject any strong or network copyleft crate by *not* allowing it: since cargo-deny 0.15 a license
+# that is neither in `allow` nor raised by a per-crate exception is denied, and the `copyleft`,
+# `allow-osi-fsf-free`, `default` and `deny` keys no longer exist.
 
 [[licenses.clarify]]
 name = "epaint_default_fonts"
@@ -58,7 +59,9 @@ crate = "epaint_default_fonts"
 
 [bans]
 multiple-versions = "warn"
-wildcards = "deny"
+# The only wildcards are the internal `neoveg_*` path dependencies (a path dependency without a
+# version is written as `*`); every registry dependency is pinned by `Cargo.lock`.
+wildcards = "warn"
 highlight = "all"
 
 # Prohibit GPL/AGPL crates and static/GPL FFmpeg builds if anyone attempts to add them.
