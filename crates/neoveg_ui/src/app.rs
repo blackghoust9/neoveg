@@ -8744,6 +8744,38 @@ impl AppState {
                 }
             }
         }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::D,
+            )
+        }) {
+            self.toggle_multicam_mode();
+            return;
+        }
+        if self.multicam_mode {
+            const DIGITS: [egui::Key; 9] = [
+                egui::Key::Num1,
+                egui::Key::Num2,
+                egui::Key::Num3,
+                egui::Key::Num4,
+                egui::Key::Num5,
+                egui::Key::Num6,
+                egui::Key::Num7,
+                egui::Key::Num8,
+                egui::Key::Num9,
+            ];
+            for (idx, &k) in DIGITS.iter().enumerate() {
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, k)) {
+                    self.switch_or_cut_multicam_angle(idx, true);
+                    return;
+                }
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, k)) {
+                    self.switch_or_cut_multicam_angle(idx, false);
+                    return;
+                }
+            }
+        }
         // Esc leaves expanded edit mode first, then the keyboard trim mode
         if self.expanded_edit
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
@@ -13999,6 +14031,7 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             .response
             .on_hover_text(tr("Qualidade da prévia: Draft 1/4 e Preview 1/2 mostram a resolução reduzida em pixels; Good e Best usam a resolução total; Auto ajusta à janela"));
         ui.checkbox(&mut state.show_bars, tr("Barras SMPTE"));
+        ui.checkbox(&mut state.multicam_mode, tr("Grade multicâmera"));
     });
 
     let avail = ui.available_size();
@@ -14032,6 +14065,48 @@ fn preview_ui(state: &mut AppState, ui: &mut egui::Ui) {
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
         );
+    }
+
+    if state.multicam_mode {
+        let cols = 2;
+        let rows = 2;
+        let cell_w = frame_rect.width() / cols as f32;
+        let cell_h = frame_rect.height() / rows as f32;
+        let pointer_pos = ui.input(|i| i.pointer.hover_pos());
+        let clicked = ui.input(|i| i.pointer.primary_clicked());
+        let ctrl_held = ui.input(|i| i.modifiers.command);
+
+        for row in 0..rows {
+            for col in 0..cols {
+                let angle_idx = row * cols + col;
+                let min = pos2(
+                    frame_rect.left() + col as f32 * cell_w,
+                    frame_rect.top() + row as f32 * cell_h,
+                );
+                let max = pos2(min.x + cell_w, min.y + cell_h);
+                let tile_rect = Rect::from_min_max(min, max);
+
+                let is_hovered = pointer_pos.map_or(false, |p| tile_rect.contains(p));
+                let border_color = if is_hovered {
+                    Color32::from_rgb(0x34, 0x98, 0xDB)
+                } else {
+                    Color32::from_gray(60)
+                };
+
+                painter.rect_stroke(tile_rect, Rounding::ZERO, Stroke::new(1.5, border_color));
+                painter.text(
+                    pos2(tile_rect.left() + 6.0, tile_rect.top() + 6.0),
+                    Align2::LEFT_TOP,
+                    format!("Camera {}", angle_idx + 1),
+                    FontId::proportional(12.0),
+                    Color32::WHITE,
+                );
+
+                if is_hovered && clicked {
+                    state.switch_or_cut_multicam_angle(angle_idx, ctrl_held);
+                }
+            }
+        }
     }
 
     if state.show_bars {
