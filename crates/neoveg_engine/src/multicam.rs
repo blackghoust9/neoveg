@@ -336,7 +336,7 @@ pub fn create_multicamera_track(
 ///
 /// Returns false if angle is out of bounds or represents an empty `(no camera)` take.
 pub fn switch_angle(event: &mut TrackEvent, angle_index: usize) -> bool {
-    if angle_index >= event.takes.len() {
+    if event.locked || angle_index >= event.takes.len() {
         return false;
     }
     let take = &event.takes[angle_index];
@@ -371,6 +371,9 @@ pub fn cut_and_switch_angle(
         let ev = track.events.iter().find(|e| e.id == event_id)?.clone();
         (ev, track.events.clone())
     };
+    if ev.locked {
+        return None;
+    }
     if split_time <= ev.start + TIME_EPSILON || split_time >= ev.end() - TIME_EPSILON {
         return None;
     }
@@ -430,16 +433,20 @@ pub fn expand_multicamera_track(
         .tracks
         .iter()
         .position(|t| t.id == multicam_track_id)?;
+    // Check before removing the track at all: a container with no angle used to be deleted and
+    // then reported as a failure, losing the track.
+    let num_angles = {
+        let multicam_track = &timeline.tracks[track_idx];
+        if multicam_track.events.is_empty() {
+            return None;
+        }
+        let angles = multicam_track.events[0].takes.len();
+        if angles == 0 {
+            return None;
+        }
+        angles
+    };
     let multicam_track = timeline.tracks.remove(track_idx);
-
-    if multicam_track.events.is_empty() {
-        return None;
-    }
-
-    let num_angles = multicam_track.events[0].takes.len();
-    if num_angles == 0 {
-        return None;
-    }
 
     let mut new_tracks = Vec::new();
     for angle in 0..num_angles {

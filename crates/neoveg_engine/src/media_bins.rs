@@ -218,7 +218,7 @@ impl MediaBinTree {
         }
 
         let parent = parent_id.unwrap_or(self.root_id);
-        let unique_name = self.resolve_unique_name(parent, trimmed);
+        let unique_name = self.resolve_unique_name(parent, trimmed, None);
 
         let id = self.next_id;
         self.next_id += 1;
@@ -270,7 +270,7 @@ impl MediaBinTree {
             .get(&id)
             .and_then(|b| b.parent_id)
             .unwrap_or(self.root_id);
-        let unique_name = self.resolve_unique_name(parent_id, trimmed);
+        let unique_name = self.resolve_unique_name(parent_id, trimmed, Some(id));
 
         if let Some(bin) = self.bins.get_mut(&id) {
             bin.name = unique_name;
@@ -368,15 +368,20 @@ impl MediaBinTree {
             .map(|b| b.id)
     }
 
-    fn resolve_unique_name(&self, parent_id: BinId, base_name: &str) -> String {
+    fn resolve_unique_name(
+        &self,
+        parent_id: BinId,
+        base_name: &str,
+        except: Option<BinId>,
+    ) -> String {
         let mut name = base_name.to_string();
         let mut count = 1;
 
-        while self
-            .bins
-            .values()
-            .any(|b| b.parent_id == Some(parent_id) && b.name.eq_ignore_ascii_case(&name))
-        {
+        while self.bins.values().any(|b| {
+            Some(b.id) != except
+                && b.parent_id == Some(parent_id)
+                && b.name.eq_ignore_ascii_case(&name)
+        }) {
             name = format!("{base_name} ({count})");
             count += 1;
         }
@@ -410,6 +415,18 @@ mod tests {
 
         assert_eq!(tree.get_bin(b1).unwrap().name, "B-Roll");
         assert_eq!(tree.get_bin(b2).unwrap().name, "B-Roll (1)");
+    }
+
+    #[test]
+    fn renaming_a_bin_to_its_own_name_keeps_the_name() {
+        let mut tree = MediaBinTree::new();
+        let bin = tree.create_bin(None, "B-Roll").unwrap();
+        tree.rename_bin(bin, "B-Roll").unwrap();
+        assert_eq!(tree.get_bin(bin).unwrap().name, "B-Roll");
+        // A real clash still gets a suffix
+        let other = tree.create_bin(None, "Other").unwrap();
+        tree.rename_bin(other, "B-Roll").unwrap();
+        assert_eq!(tree.get_bin(other).unwrap().name, "B-Roll (1)");
     }
 
     #[test]

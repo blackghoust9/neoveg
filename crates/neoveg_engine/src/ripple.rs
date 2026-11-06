@@ -36,7 +36,9 @@ pub fn ripple_delete_events(timeline: &Timeline, events: &[EventRef]) -> Option<
             }
         }
         list.retain(|e| !events.contains(&(track_id, e.id)));
-        for event in list.iter_mut() {
+        // A locked event keeps its place, like everywhere else (`ripple_after` does the same); the
+        // gap then stays open in front of it.
+        for event in list.iter_mut().filter(|e| !e.locked) {
             event.start -= shift_for(event, &merged);
         }
     }
@@ -669,6 +671,23 @@ mod tests {
     }
 
     #[test]
+    fn a_locked_event_keeps_its_place_when_the_gap_before_it_closes() {
+        let (mut tl, track, ids) = timeline(); // 0-2, 2-5, 6-7, 10-12
+        tl.tracks[0].events[2].locked = true;
+        let outcome = ripple_delete_events(&tl, &[(track, ids[0])]).expect("a delete");
+        let _ = run_outcome(&mut tl, outcome);
+        // The other events move 2 s earlier; the locked one keeps its place
+        let placed: Vec<(u64, f64)> = tl.tracks[0]
+            .events
+            .iter()
+            .map(|e| (e.id, e.start))
+            .collect();
+        assert!(placed.contains(&(ids[2], 6.0)), "locked event moved");
+        assert!(placed.contains(&(ids[1], 0.0)));
+        assert!(placed.contains(&(ids[3], 8.0)));
+    }
+
+    #[test]
     fn moving_an_event_later_closes_its_gap_and_keeps_what_lies_after_the_drop() {
         let (mut tl, track, ids) = timeline(); // 0-2, 2-5, 6-7, 10-12
                                                // The first event (2 s) is dropped at 8.0, between the 6-7 one and the 10-12 one
@@ -677,22 +696,9 @@ mod tests {
         let outcome = ripple_move(&tl, track, ids[0], new, RippleScope::AffectedTracks).unwrap();
         let mut history = run_outcome(&mut tl, outcome);
         // What lay between moved 2 s earlier; what lay after the drop did not move
-        assert_eq!(
-            starts(&tl),
-            vec![0.0, 4.0, 8.0, 10.0]
-                .into_iter()
-                .filter(|_| true)
-                .collect::<Vec<_>>()
-                .len()
-                .min(4)
-                .eq(&4)
-                .then(|| {
-                    let mut v: Vec<f64> = tl.tracks[0].events.iter().map(|e| e.start).collect();
-                    v.sort_by(f64::total_cmp);
-                    v
-                })
-                .unwrap()
-        );
+        let mut starts_now = starts(&tl);
+        starts_now.sort_by(f64::total_cmp);
+        assert_eq!(starts_now, vec![0.0, 4.0, 8.0, 10.0]);
         let mut by_id: Vec<(u64, f64)> = tl.tracks[0]
             .events
             .iter()

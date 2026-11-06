@@ -438,8 +438,10 @@ fn test_f40_take_container_and_slip_all_takes() {
 
     let event = &tl.tracks[0].events[0];
     assert_eq!(event.trim_in, 2.0);
-    assert_eq!(event.takes[0].trim_offset, 2.0);
-    assert_eq!(event.takes[1].trim_offset, 3.5);
+    // The take offsets are relative to the start of the container, so slipping moves only the
+    // start: the active take keeps offset 0 and the other one keeps its 1.5 s distance.
+    assert_eq!(event.takes[0].trim_offset, 0.0);
+    assert_eq!(event.takes[1].trim_offset, 1.5);
 }
 
 // ==============================================================================================

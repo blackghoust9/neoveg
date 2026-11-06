@@ -146,6 +146,9 @@ fn clip_to(ev: &TrackEvent, range: TimeRange) -> Option<TrackEvent> {
     }
     if start > ev.start + TIME_EPSILON {
         out.fade_in = 0.0;
+        // The keyframes of the picture are measured from the start of the event: cutting the front
+        // off moves them with it, exactly as `SplitEvent` does for the right half.
+        out.pan_crop = ev.pan_crop.from_offset(start - ev.start);
         if !ev.video_effects.is_empty() {
             out.video_effects =
                 crate::video_effects::shift_chain_keyframes(&ev.video_effects, start - ev.start);
@@ -507,8 +510,11 @@ fn paste_copies(
         let mut alloc = || timeline.alloc_id();
         for track_id in tracks {
             if let Some(list) = draft.list(track_id) {
-                split_list(list, at, &mut alloc, |_| true, None);
-                for ev in list.iter_mut().filter(|e| e.start >= at - TIME_EPSILON) {
+                split_list(list, at, &mut alloc, |e| !e.locked, None);
+                for ev in list
+                    .iter_mut()
+                    .filter(|e| !e.locked && e.start >= at - TIME_EPSILON)
+                {
                     ev.start += clip.length;
                 }
             }
@@ -1265,6 +1271,27 @@ mod tests {
     }
 
     #[test]
+    fn paste_insert_leaves_locked_events_alone() {
+        let mut tl = sample();
+        let mut history = History::new();
+        // The 3-5 and 6-8 events are locked: insert mode must neither split nor push them
+        tl.tracks[0].events[1].locked = true;
+        tl.tracks[0].events[2].locked = true;
+        let clip = copy_range(
+            &tl,
+            TimeRange::new(0.0, 1.0),
+            Scope::Tracks(&[tl.tracks[0].id]),
+        )
+        .unwrap();
+        let (out, _) = paste(&mut tl, &clip, 3.5, 0, PasteMode::Insert).unwrap();
+        assert!(history.execute(&mut tl, out.command));
+        let mut now = spans(&tl, 0);
+        now.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert!(now.contains(&(3.0, 5.0)), "the locked event was split");
+        assert!(now.contains(&(6.0, 8.0)), "the locked event was pushed");
+    }
+
+    #[test]
     fn paste_repeat_end_to_end_and_every() {
         let mut tl = sample();
         let mut history = History::new();
@@ -1279,6 +1306,33 @@ mod tests {
         assert_eq!(spans(&tl, 0).last(), Some(&(45.0, 47.0)));
         assert!(paste_repeat(&mut tl, &clip, 0.0, 0, 0, RepeatSpacing::EndToEnd).is_none());
         assert!(paste_repeat(&mut tl, &clip, 0.0, 0, 2, RepeatSpacing::Every(0.0)).is_none());
+    }
+
+    #[test]
+    fn trimming_the_start_moves_the_pan_crop_keys_with_the_picture() {
+        use neoveg_common::pan_crop::{PanCrop, PanCropKey};
+        let mut ev = TrackEvent {
+            start: 10.0,
+            duration: 6.0,
+            ..TrackEvent::default()
+        };
+        ev.pan_crop = PanCrop {
+            keys: vec![
+                PanCropKey {
+                    time: 0.0,
+                    frame: Default::default(),
+                    smoothness: 0.0,
+                },
+                PanCropKey {
+                    time: 4.0,
+                    frame: Default::default(),
+                    smoothness: 0.0,
+                },
+            ],
+            stretch_to_fill: true,
+        };
+        let head = clip_to_for_tests(&ev, 12.0, 16.0).expect("the event keeps its inside");
+        assert_eq!(head.pan_crop, ev.pan_crop.from_offset(2.0));
     }
 
     #[test]

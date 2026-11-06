@@ -8,8 +8,8 @@
 //! a selection that spans a locked and an unlocked track then does its work on the unlocked one
 //! only, as an operation does with a locked event.
 
-use crate::command::{EditCommand, TrackChange, VideoFxTarget};
-use crate::timeline::{Timeline, TrackId};
+use crate::command::{EditCommand, FxTarget, TrackChange, VideoFxTarget};
+use crate::timeline::{EventId, Timeline, TrackId};
 
 /// `true` when the track exists and is locked.
 pub fn is_track_locked(timeline: &Timeline, track_id: TrackId) -> bool {
@@ -50,6 +50,18 @@ pub fn strip_locked(timeline: &Timeline, command: EditCommand) -> Option<EditCom
             target: VideoFxTarget::Event { track_id, .. },
             ..
         } if locked(&track_id) => None,
+        EditCommand::SetEffects {
+            target: FxTarget::Event { track_id, .. },
+            ..
+        } if locked(&track_id) => None,
+        EditCommand::SetEventColorGrade { track_id, .. } if locked(&track_id) => None,
+        EditCommand::RenameEvents { changes } => {
+            let kept: Vec<(TrackId, EventId, String, String)> = changes
+                .into_iter()
+                .filter(|(track_id, _, _, _)| !locked(track_id))
+                .collect();
+            (!kept.is_empty()).then_some(EditCommand::RenameEvents { changes: kept })
+        }
         EditCommand::ReplaceEvents { changes } => {
             let kept: Vec<TrackChange> = changes
                 .into_iter()
@@ -219,6 +231,42 @@ mod tests {
             after: Default::default(),
         };
         assert_eq!(strip_locked(&tl, mute.clone()), Some(mute));
+    }
+
+    #[test]
+    fn effects_colour_and_name_of_a_locked_tracks_events_are_stripped_too() {
+        let (mut tl, tracks, events) = timeline();
+        let mut history = History::new();
+        lock(&mut tl, &mut history, tracks[0]);
+        let audio_fx = EditCommand::SetEffects {
+            target: FxTarget::Event {
+                track_id: tracks[0],
+                event_id: events[0],
+            },
+            before: Vec::new(),
+            after: Vec::new(),
+        };
+        assert!(strip_locked(&tl, audio_fx).is_none());
+        let colour = EditCommand::SetEventColorGrade {
+            track_id: tracks[0],
+            event_id: events[0],
+            before: None,
+            after: None,
+        };
+        assert!(strip_locked(&tl, colour).is_none());
+        let rename = EditCommand::RenameEvents {
+            changes: vec![
+                (tracks[0], events[0], "a".into(), "b".into()),
+                (tracks[1], events[1], "a".into(), "b".into()),
+            ],
+        };
+        match strip_locked(&tl, rename) {
+            Some(EditCommand::RenameEvents { changes }) => {
+                assert_eq!(changes.len(), 1);
+                assert_eq!(changes[0].0, tracks[1]);
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

@@ -141,6 +141,10 @@ fn move_to_media_with(
             {
                 event.media_id = Some(media_id);
                 event.trim_in = 0.0;
+                // The takes belong to the old media: keeping them would point a later take switch
+                // back at the previous file with an offset that no longer means anything.
+                event.takes.clear();
+                event.active_take = 0;
                 if clear_effects {
                     event.audio_effects.clear();
                 }

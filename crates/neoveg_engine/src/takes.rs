@@ -244,11 +244,12 @@ impl TakeContainer {
     }
 
     /// Slips the source media offsets of all takes in the container simultaneously by `delta_sec`.
+    ///
+    /// Only the container start moves: the per-take offsets are relative to it (the active take's
+    /// is zero), so adding `delta_sec` to them as well would move every take but the active one by
+    /// twice the slip, and a slip clamped at zero would collapse the takes onto each other.
     pub fn slip_all_takes(&mut self, delta_sec: f64) {
         self.trim_in = (self.trim_in + delta_sec).max(0.0);
-        for take in &mut self.takes {
-            take.trim_offset += delta_sec;
-        }
     }
 
     fn load(&mut self, index: usize) {
@@ -501,9 +502,14 @@ mod tests {
         assert_eq!(container.active_take, 2);
         assert_eq!(container.media_id, Some(30));
 
-        // Slip all takes by +0.5s
+        // Slip all takes by +0.5s: the container start moves, the relative offsets stay
         container.slip_all_takes(0.5);
         assert!((container.trim_in - 5.5).abs() < 1e-9);
-        assert!((container.takes[2].trim_offset - 0.5).abs() < 1e-9);
+        assert!((container.takes[2].trim_offset).abs() < 1e-9);
+        assert!((container.takes[1].trim_offset + 2.0).abs() < 1e-9);
+        // A slip past the start of the media stops at zero and the takes stay together
+        container.slip_all_takes(-10.0);
+        assert_eq!(container.trim_in, 0.0);
+        assert!((container.takes[1].trim_offset + 2.0).abs() < 1e-9);
     }
 }
