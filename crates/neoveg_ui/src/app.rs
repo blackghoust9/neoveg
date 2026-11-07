@@ -8900,6 +8900,31 @@ impl AppState {
         if self.trim_edge_keys(ctx) {
             return;
         }
+        // Numeric keypad 8 / 2: the selected events change track, keeping their time
+        for (key, delta) in [(egui::Key::Num8, -1i32), (egui::Key::Num2, 1)] {
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key)) {
+                let refs = self.selection.refs();
+                let outcome = neoveg_engine::placement::move_to_track(&self.timeline, &refs, delta);
+                match self.apply_outcome(outcome) {
+                    Some(touched) => {
+                        self.selection.set(touched);
+                        self.status = if delta < 0 {
+                            tr("Eventos movidos para a faixa acima").into()
+                        } else {
+                            tr("Eventos movidos para a faixa abaixo").into()
+                        };
+                    }
+                    None => {
+                        self.status = if delta < 0 {
+                            tr("Não há faixa livre acima com o mesmo tipo").into()
+                        } else {
+                            tr("Não há faixa livre abaixo com o mesmo tipo").into()
+                        };
+                    }
+                }
+                return;
+            }
+        }
         // Sequences of shortcuts (`Ctrl+K Ctrl+S`): the first step waits for the next one
         if self.keymap.continues(&[]) {
             if let Some((steps, until)) = self.seq_pending.take() {

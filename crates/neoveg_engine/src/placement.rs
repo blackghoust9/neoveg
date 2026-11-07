@@ -3,6 +3,7 @@
 //! the place of an event) and *match frame* / *reverse match* (from an event to its source frame and
 //! back). Everything here is pure and returns one undoable command.
 
+use crate::command::EditCommand;
 use crate::edit::clamp_playback_rate;
 use crate::ops::{Draft, Outcome};
 use crate::selection::EventRef;
@@ -158,6 +159,54 @@ pub fn reverse_match(timeline: &Timeline, media_id: u64, source_time: f64) -> Ve
     found
 }
 
+/// *Move to the track above / below* (the numeric keypad's `8` and `2`): moves every unlocked
+/// selected event `delta` tracks (`-1` is one track towards the top of the timeline) when the
+/// destination exists, has the same kind and is not locked. One undo step; `None` when nothing can
+/// move.
+pub fn move_to_track(timeline: &Timeline, events: &[EventRef], delta: i32) -> Option<Outcome> {
+    if delta == 0 {
+        return None;
+    }
+    let movable = crate::switches::unlocked(timeline, events);
+    let mut commands = Vec::new();
+    let mut touched = Vec::new();
+    for &(track_id, event_id) in &movable {
+        let Some(index) = timeline.tracks.iter().position(|t| t.id == track_id) else {
+            continue;
+        };
+        let Some(event) = timeline.tracks[index]
+            .events
+            .iter()
+            .find(|e| e.id == event_id)
+        else {
+            continue;
+        };
+        let Some(target_index) = (index as i32 + delta)
+            .try_into()
+            .ok()
+            .filter(|i: &usize| *i < timeline.tracks.len())
+        else {
+            continue;
+        };
+        let target = &timeline.tracks[target_index];
+        if target.kind != timeline.tracks[index].kind || target.locked {
+            continue;
+        }
+        commands.push(EditCommand::EditEvent {
+            from_track: track_id,
+            to_track: target.id,
+            event_id,
+            old: event.geometry(),
+            new: event.geometry(),
+        });
+        touched.push((target.id, event_id));
+    }
+    (!commands.is_empty()).then(|| Outcome {
+        command: EditCommand::Batch(commands),
+        touched,
+    })
+}
+
 /// Applies the command of an outcome to a timeline (for tests).
 #[cfg(test)]
 fn run(timeline: &mut Timeline, outcome: &Outcome) {
@@ -194,6 +243,37 @@ mod tests {
         let (ia, ib) = (a.id, b.id);
         tl.tracks.extend([a, b]);
         (tl, ia, ib)
+    }
+
+    #[test]
+    fn moving_to_the_track_above_or_below_keeps_the_time_and_respects_the_kind() {
+        let mut tl = Timeline::new();
+        let mut top = tl.new_track(TrackKind::Video);
+        let mut mid = tl.new_track(TrackKind::Video);
+        let mut low = tl.new_track(TrackKind::Audio);
+        let event = TrackEvent {
+            id: tl.alloc_id(),
+            start: 1.0,
+            duration: 2.0,
+            media_id: Some(1),
+            ..TrackEvent::default()
+        };
+        let id = event.id;
+        mid.events.push(event);
+        let (top_id, mid_id) = (top.id, mid.id);
+        tl.tracks.extend([top, mid, low]);
+        let up = move_to_track(&tl, &[(mid_id, id)], -1).expect("a track above");
+        run(&mut tl, &up);
+        assert!(tl.track(top_id).unwrap().events.iter().any(|e| e.id == id));
+        let down = move_to_track(&tl, &[(top_id, id)], 1).expect("a track below");
+        run(&mut tl, &down);
+        assert!(tl.track(mid_id).unwrap().events.iter().any(|e| e.id == id));
+        // A video event never lands on the audio track below
+        assert!(move_to_track(&tl, &[(mid_id, id)], 1).is_none());
+        let up = move_to_track(&tl, &[(mid_id, id)], -1).expect("a track above");
+        run(&mut tl, &up);
+        // Nor leaves the top of the timeline
+        assert!(move_to_track(&tl, &[(top_id, id)], -1).is_none());
     }
 
     #[test]
