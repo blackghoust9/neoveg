@@ -940,6 +940,8 @@ struct AppState {
     trim_edge: Option<neoveg_engine::keytrim::Edge>,
     /// `Shift` with the trim keys: only the chosen event moves (the L and J cuts), not its group.
     trim_key_single: bool,
+    /// The split made by `Ctrl+Alt+Shift` + drag: track, the part before, the part after and the cut.
+    split_trim: Option<(TrackId, EventId, EventId, f64)>,
     /// What a ripple carries along (`F`, `Ctrl+F`, `Ctrl+Shift+F`); used by Auto Ripple and ripple delete.
     ripple_scope: neoveg_engine::ripple::RippleScope,
     /// The last edit that left a gap or an overlap, and the history revision it left behind:
@@ -2182,6 +2184,7 @@ impl AppState {
             auto_ripple: false,
             trim_edge: None,
             trim_key_single: false,
+            split_trim: None,
             ripple_scope: Default::default(),
             post_ripple: None,
             shuttle_speed: 1.0,
@@ -2757,8 +2760,34 @@ impl AppState {
         let Some((right_id, geometry)) = right else {
             return false;
         };
+        self.split_trim = Some((track, event, right_id, time));
         self.begin_drag((track, right_id, DragMode::TrimLeft, geometry), time);
         true
+    }
+
+    /// While the split-trim drag goes back past the cut, it trims the part before the cut instead
+    /// (the eraser follows the pointer both ways).
+    fn retarget_split_trim(&mut self, pointer: f64) {
+        let Some((track, left, right, at)) = self.split_trim else {
+            return;
+        };
+        let Some(drag) = self.drag.as_mut() else {
+            return;
+        };
+        if drag.event_id != right || drag.mode != DragMode::TrimLeft || pointer >= at {
+            return;
+        }
+        let geometry = self
+            .timeline
+            .track(track)
+            .and_then(|t| t.events.iter().find(|e| e.id == left))
+            .map(|e| e.geometry());
+        if let Some(geometry) = geometry {
+            drag.mode = DragMode::TrimRight;
+            drag.event_id = left;
+            drag.origin = geometry;
+            drag.current = geometry;
+        }
     }
 
     fn smart_split(&mut self) {
@@ -16686,6 +16715,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let snap_enabled =
                 effective_snap(state.snapping, state.drag.as_ref().map(|d| d.mode), shift);
             let threshold = f64::from(SNAP_THRESHOLD_PX) / state.pixels_per_second;
+            state.retarget_split_trim(t);
             state.update_drag(t, row_track, threshold, snap_enabled);
 
             // Scroll while the pointer rests near either end of the lane area
@@ -20074,6 +20104,20 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn the_split_trim_drag_turns_to_the_part_before_when_the_pointer_goes_back() {
+        let (mut s, track, id) = state_with_clip();
+        assert!(s.split_and_trim_at_click(track, id, 4.0));
+        // Going right: the part after the cut is trimmed
+        s.retarget_split_trim(5.0);
+        assert_eq!(s.drag.as_ref().unwrap().mode, DragMode::TrimLeft);
+        // Back past the cut: the part before is trimmed from its end
+        s.retarget_split_trim(3.0);
+        let drag = s.drag.as_ref().unwrap();
+        assert_eq!(drag.mode, DragMode::TrimRight);
+        assert_eq!(drag.event_id, id, "the part before keeps the original id");
     }
 
     #[test]
