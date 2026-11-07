@@ -20174,6 +20174,7 @@ mod tests {
         assert_eq!(s.tabs.active, Some(parent));
     }
 
+    #[test]
     fn a_sub_project_tab_knows_its_parent_until_the_parent_closes() {
         let mut s = AppState::new();
         // A link to a tab that is not open answers nothing
