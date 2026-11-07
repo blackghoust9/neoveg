@@ -3013,9 +3013,21 @@ impl AppState {
             (None, false) => ops::delete_events(&self.timeline, &refs),
             (None, true) => None,
         };
-        let hint = (self.time_selection.is_none())
-            .then(|| neoveg_engine::ripple::removal_hint(&self.timeline, &refs))
-            .flatten();
+        // The gap a removal leaves: of events, or of the time range on the tracks it touched
+        let hint = match self.time_selection {
+            None => neoveg_engine::ripple::removal_hint(&self.timeline, &refs),
+            Some(range) => {
+                let tracks: Vec<neoveg_engine::timeline::TrackId> = if refs.is_empty() {
+                    self.timeline.tracks.iter().map(|t| t.id).collect()
+                } else {
+                    let mut ids: Vec<_> = refs.iter().map(|(t, _)| *t).collect();
+                    ids.sort_unstable();
+                    ids.dedup();
+                    ids
+                };
+                neoveg_engine::ripple::range_removal_hint(range, tracks)
+            }
+        };
         if self.apply_outcome(outcome).is_some() {
             self.remember_post_ripple(hint);
         }

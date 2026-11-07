@@ -2,7 +2,7 @@
 
 use crate::command::{EditCommand, FxTarget};
 use crate::ops::{Clipboard, Draft, Outcome, PasteMode};
-use crate::selection::EventRef;
+use crate::selection::{EventRef, TimeRange};
 use crate::timeline::{EventGeometry, Timeline, TrackEvent, TrackId, TIME_EPSILON};
 use neoveg_common::i18n::tr;
 
@@ -328,6 +328,21 @@ impl RippleHint {
 
 /// The hint for removing `events` without rippling: only for one contiguous span on one track.
 /// Call it *before* the removal, while the events still exist.
+/// The gap a cut of `range` on `tracks` leaves: everything from the end of the range moves back by
+/// its length. `None` for an empty range. (`ops::remove_range` with `ripple` off leaves this gap.)
+pub fn range_removal_hint(range: TimeRange, tracks: Vec<TrackId>) -> Option<RippleHint> {
+    if range.is_empty() || tracks.is_empty() {
+        return None;
+    }
+    Some(RippleHint {
+        tracks,
+        from: range.end,
+        delta: -range.len(),
+        more: Vec::new(),
+        skip: Vec::new(),
+    })
+}
+
 pub fn removal_hint(timeline: &Timeline, events: &[EventRef]) -> Option<RippleHint> {
     let events = crate::switches::unlocked(timeline, events);
     let track_id = events.first()?.0;
@@ -658,6 +673,37 @@ mod tests {
         let id = track.id;
         tl.tracks.push(track);
         (tl, id, ids)
+    }
+
+    #[test]
+    fn a_range_cut_leaves_a_gap_that_the_remembered_hint_closes() {
+        let (mut tl, id, _) = timeline();
+        let mut h = History::new();
+        // Cut 2 s..5 s on the whole track without ripple: the event in it goes, the gap stays
+        let cut = crate::ops::remove_range(
+            &mut tl,
+            TimeRange::new(2.0, 5.0),
+            crate::ops::Scope::AllTracks,
+            false,
+        )
+        .expect("a cut");
+        assert!(h.execute(&mut tl, cut.command));
+        assert_eq!(starts(&tl), vec![0.0, 6.0, 10.0]);
+        // The hint of the cut closes the gap, and undo brings the gap back
+        let hint = range_removal_hint(TimeRange::new(2.0, 5.0), vec![id]).expect("a gap");
+        let out = hint
+            .outcome(&tl, RippleScope::AffectedTracks)
+            .expect("ripples");
+        assert!(h.execute(&mut tl, out.command));
+        assert_eq!(starts(&tl), vec![0.0, 3.0, 7.0]);
+        assert!(h.undo(&mut tl));
+        assert_eq!(starts(&tl), vec![0.0, 6.0, 10.0]);
+    }
+
+    #[test]
+    fn an_empty_range_or_no_track_leaves_no_hint() {
+        assert!(range_removal_hint(TimeRange::new(2.0, 2.0), vec![1]).is_none());
+        assert!(range_removal_hint(TimeRange::new(2.0, 5.0), Vec::new()).is_none());
     }
 
     fn starts(tl: &Timeline) -> Vec<f64> {
