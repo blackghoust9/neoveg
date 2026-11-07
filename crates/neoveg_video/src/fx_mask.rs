@@ -3,7 +3,7 @@
 //! `neoveg_common::fx_mask`; the shape is filled with the anti-aliased rasteriser of the text
 //! engine and the feather is a blur of that fill.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 use neoveg_common::fx_mask::{bezier_segments, FxMask, MaskShape};
 use neoveg_text::mask::blur;
@@ -74,27 +74,25 @@ fn compute(mask: &FxMask, w: u32, h: u32) -> Vec<f32> {
 type Cached = (u64, u32, u32, Arc<Vec<f32>>);
 
 /// The coverage of `mask` for a `w` by `h` frame, one value per pixel in rows from the top. The
-/// last one is kept: a frame of a movie asks for the same mask again and again.
+/// last one is kept: a frame of a movie asks for the same mask again and again, and every render
+/// thread keeps its own (a shared slot let one worker throw away the mask another had just built).
 pub fn coverage(mask: &FxMask, w: u32, h: u32) -> Arc<Vec<f32>> {
-    static LAST: OnceLock<Mutex<Option<Cached>>> = OnceLock::new();
+    thread_local! {
+        static LAST: std::cell::RefCell<Option<Cached>> = const { std::cell::RefCell::new(None) };
+    }
     let key = {
         use std::hash::Hasher;
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         mask.hash_into(&mut hasher);
         hasher.finish()
     };
-    let cell = LAST.get_or_init(Default::default);
-    if let Ok(guard) = cell.lock() {
-        if let Some((k, cw, ch, data)) = guard.as_ref() {
-            if (*k, *cw, *ch) == (key, w, h) {
-                return Arc::clone(data);
-            }
+    if let Some((k, cw, ch, data)) = LAST.with(|cell| cell.borrow().clone()) {
+        if (k, cw, ch) == (key, w, h) {
+            return data;
         }
     }
     let data = Arc::new(compute(mask, w, h));
-    if let Ok(mut guard) = cell.lock() {
-        *guard = Some((key, w, h, Arc::clone(&data)));
-    }
+    LAST.with(|cell| *cell.borrow_mut() = Some((key, w, h, Arc::clone(&data))));
     data
 }
 
