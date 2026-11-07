@@ -268,6 +268,16 @@ Os testes **rodam** só no Linux; os binários de macOS são apenas compilados n
 
 ## Roteiro (o que já está pronto e o que falta)
 
+### Não dá para concluir neste PC (topo do que falta)
+
+Estes itens dependem de máquinas, equipamentos ou SDKs que este computador não tem. Ficam abertos até haver como testá-los:
+
+- **Empacotamento e CI para Linux e macOS** (x64 e arm64): compilar, testar, assinar e empacotar exige máquinas Linux e macOS; aqui só há Windows.
+- **Captura de câmeras, leitores de DVD e dispositivos HDV:** exige o equipamento conectado para testar a captura.
+- **Saída para DVD e Blu-ray:** exige gravador óptico e software de autoria para validar o disco gravado.
+- **Controle MIDI e joystick para pan:** exige os controladores físicos conectados.
+- **Codecs HDV, XDCAM, RED, AVCHD, P2 e Blackmagic RAW:** dependem de decodificadores ou SDKs proprietários e de amostras reais desses equipamentos.
+
 ### Decisões
 Aqui é onde o filho chora e a mãe não vê, não há como simplesmente empurrar tudo do VEGAS pra cá, quem deve decidir isso não é só eu, e sim os outros usuários desse programa.
 - [ ] Scripting para o usuário em Rust (substituir Roslyn/Python) (Em decisão: os scripts e extensões feitos para o VEGAS são código .NET 2 e 3.5 (C#, VB.NET, JScript) e não rodam no Neoveg; falta escolher entre só Rhai com um guia de migração, um conversor Python que traduz esses scripts para Rhai, ou um host .NET 2 e 3.5 opcional e isolado, e como espelhar o modelo de objetos sem copiar nomes de outro produto).
@@ -651,7 +661,8 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [x] Corrigir deslocamentos de sincronismo A/V (adicionar fluxos ausentes, mover ou deslizar)
 - [x] Monitor de aparo (ideia do monitor de aparo do Premiere Pro CC 2015, p.322, sem tirar nenhuma forma de aparar do VEGAS: arrastar a borda, `Ctrl`+`Alt`+arrastar e o teclado numérico seguem iguais): `Exibir > Monitor de aparo` mostra lado a lado o último quadro do evento que termina no corte e o primeiro do que começa nele (cada evento sozinho, com os efeitos da faixa, desenhados numa thread à parte), os nomes e os timecodes, o vão ou a sobreposição em quadros, e botões `◀ 5`, `◀ 1`, `1 ▶`, `5 ▶` para mover o corte. Três modos: **Rolar o corte** (a regra do aparo adjacente: o que um ganha o outro perde), **Aparar a saída** (só o fim do primeiro) e **Aparar a entrada** (só o começo do segundo); cada movimento é um passo de desfazer, respeita o fim da mídia e o mínimo de um quadro, e o cursor segue o corte. *Usar o corte no cursor* troca o corte mostrado. Pega o corte sob o cursor ou dois eventos selecionados que se encontram (`neoveg_engine::trim_monitor`, `app/trim_monitor.rs`). Limites: só eventos de vídeo, sem teclas de atalho próprias e sem arrastar sobre as imagens. Os testes novos ainda não rodaram neste PC
 - [x] Exibição do comprimento do evento ao aparar e propriedades de áudio e de vídeo da mídia (arquivo único e vários)
-- [ ] Arquivos PSD em camadas (**feito**: `neoveg_video::psd` lê e decodifica `.psd` `8BPS` de 8 e 16 bits por canal em tons de cinza e RGB, bruto ou PackBits RLE, em Rust puro, e **Importar > PSD em camadas…** grava cada camada visível como PNG e a coloca na própria faixa de vídeo, na ordem do documento), Broadcast Wave, Blackmagic RAW, P2 e AVCHD; importar mídia de outro projeto
+- [x] Arquivos PSD em camadas (**feito**: `neoveg_video::psd` lê e decodifica `.psd` `8BPS` de 8 e 16 bits por canal em tons de cinza e RGB, bruto ou PackBits RLE, em Rust puro, e **Importar > PSD em camadas…** grava cada camada visível como PNG e a coloca na própria faixa de vídeo, na ordem do documento; testes: 12 em `psd` e 5 em `psd::layers`)
+- [ ] Outros formatos e importação de projeto: **Broadcast Wave** (leitura do cabeçalho `bext`, falta), importar mídia de outro projeto (falta). Blackmagic RAW, P2 e AVCHD ficam em "Não dá para concluir neste PC", no topo deste roteiro
 - [ ] Captura de tela e câmeras (dispositivos, DVD, HDV) e Hub de mídia
 - [x] Pastas de mídia (*bins*) e *smart bins* com busca automática dos arquivos gravados ou capturados
 - [x] Efeitos de terceiros em eventos (cadeia de efeitos com plug-ins externos) e eventos de ajuste
@@ -680,7 +691,7 @@ Feitas a partir deste guia (a descrição completa está nas linhas `[x]` do rot
 Ainda sem equivalente no Neoveg e que o guia cobre:
 
 - [x] **Modelos de título com texto trocável** (*Live Text*, p.441): um modelo de título cujos campos de texto são preenchidos na hora de usar; os estilos de título que já existem guardam só a aparência
-- [ ] **Pilha de preenchimento, contorno e sombra por título** (p.456): vários preenchimentos, contornos e sombras empilhados no mesmo texto, em vez de um de cada
+- [x] **Pilha de preenchimento, contorno e sombra por título** (p.456): vários preenchimentos, contornos e sombras empilhados no mesmo texto, em vez de um de cada (**feito**: `neoveg_text::title_paint::PaintStack` com `FillLayer`, `OutlineLayer` externo, centro ou interno e `ShadowLayer` com desfoque, de baixo para cima; sem camadas, valem o contorno e a sombra simples, e projetos antigos não mudam; editor "Camadas empilhadas" no diálogo de títulos. Testes: 4 em `title_paint` e `a_stack_of_outlines_and_shadows_shows_every_layer`)
 - [x] **Rolagem horizontal de títulos** (p.461): hoje há a rolagem de créditos na vertical; conferir a horizontal
 - [x] **Clipes sintéticos** (p.346): barras e tons, contagem regressiva e vídeo preto prontos para inserir (parte vem dos geradores de mídia que já existem; falta a contagem regressiva)
 - [x] **Painel de eventos de aviso** (p.368): uma lista com os avisos e erros da sessão (mídia ausente, codec, efeito ignorado) e um clique para ir ao evento; o visualizador de logs mostra o texto mas não leva ao evento
