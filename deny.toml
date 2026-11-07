@@ -13,6 +13,24 @@ all-features = true
 [advisories]
 version = 2
 yanked = "warn"
+# Accepted advisories. Each one sits in a dependency that Neoveg does not patch itself, and the
+# upgrade it needs is a larger change (egui 0.29 stack, candle 0.11). Remove an entry as soon as
+# its crate is upgraded.
+ignore = [
+    # zip 8.6.0 comes from candle-core (Whisper). The advisory has no safe upgrade. Neoveg only reads
+    # entries by name and never calls ZipArchive::extract().
+    { id = "RUSTSEC-2026-0367", reason = "zip 8.6.0 via candle-core; Neoveg never calls ZipArchive::extract()" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 8.6.0 via candle-core; Neoveg never calls ZipArchive::extract()" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 8.6.0 via candle-core; Neoveg never calls ZipArchive::extract()" },
+    { id = "RUSTSEC-2026-0429", reason = "zip 8.6.0 via candle-core; Neoveg never calls ZipArchive::extract()" },
+    # Unmaintained crates: ttf-parser and paste come from the egui 0.29 stack (and candle for paste);
+    # zbus_names, zvariant and zvariant_derive come from the file-dialog stack.
+    { id = "RUSTSEC-2024-0436", reason = "paste, via egui_dock and candle; no maintained replacement in those stacks" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser, via epaint/egui 0.29" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant, via the file-dialog stack" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names, via the file-dialog stack" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, via the file-dialog stack" },
+]
 
 [licenses]
 version = 2
