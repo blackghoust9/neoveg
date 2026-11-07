@@ -529,7 +529,7 @@ mod tests {
 
     #[test]
     fn save_and_load_round_trip_through_a_file() {
-        let dir = std::env::temp_dir().join(format!("neoveg_theme_{}", std::process::id()));
+        let dir = crate::test_scratch_dir().join(format!("theme_{}", std::process::id()));
         let path = dir.join("tema.json");
         let theme = Theme::contemporary_electric_dark();
         theme.save(&path).unwrap();

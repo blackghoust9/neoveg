@@ -151,7 +151,7 @@ mod tests {
     use super::*;
 
     fn temp(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("neoveg_keymaps_{tag}_{}", std::process::id()));
+        let dir = crate::test_scratch_dir().join(format!("keymaps_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

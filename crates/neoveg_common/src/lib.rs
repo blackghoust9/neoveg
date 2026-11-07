@@ -40,3 +40,16 @@ pub mod title_style;
 pub mod toolbar;
 pub mod transcript;
 pub mod window_layout;
+
+/// Folder for the files that the tests write: inside the repository's `target/`, not in the system
+/// temporary folder (on some Windows setups the test process cannot create folders there).
+#[cfg(test)]
+pub(crate) fn test_scratch_dir() -> std::path::PathBuf {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("target")
+        .join("neoveg_test_tmp");
+    std::fs::create_dir_all(&dir).expect("test scratch folder");
+    dir
+}

@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn an_exported_file_imports_back_and_a_wrong_file_is_refused() {
-        let dir = std::env::temp_dir().join(format!("neoveg_prefs_{}", std::process::id()));
+        let dir = crate::test_scratch_dir().join(format!("prefs_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("exported.json");
         let p = Preferences {
@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     fn new_project_settings_and_templates_survive_a_save_and_load() {
-        let dir = std::env::temp_dir().join(format!("neoveg_prefs_tpl_{}", std::process::id()));
+        let dir = crate::test_scratch_dir().join(format!("prefs_tpl_{}", std::process::id()));
         let path = dir.join("preferences.json");
         let mut p = Preferences::default();
         let settings = ProjectSettings {
