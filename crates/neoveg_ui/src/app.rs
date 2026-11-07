@@ -2734,6 +2734,16 @@ impl AppState {
         self.apply_outcome(outcome);
     }
 
+    /// `Ctrl+Alt+Shift` + click on an event: splits that event at the point clicked (the manual's
+    /// split-by-click). One undo step; the drag that follows the click is not started.
+    fn split_event_at_click(&mut self, track: TrackId, event: EventId, time: f64) {
+        let refs = [(track, event)];
+        let outcome = ops::split_at(&mut self.timeline, time, Scope::Events(&refs));
+        if self.apply_outcome(outcome).is_some() {
+            self.status = tr("Evento dividido no ponto clicado").into();
+        }
+    }
+
     fn smart_split(&mut self) {
         let Some(range) = self.time_selection.filter(|r| !r.is_empty()) else {
             self.status =
@@ -16607,6 +16617,12 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     state.click_select(level_drag.primary);
                 }
                 state.event_level_drag = Some(level_drag);
+            } else if ui.input(|i| i.modifiers.command && i.modifiers.alt && i.modifiers.shift)
+                && hit_event(state, lanes.left(), lane_top, p).is_some()
+            {
+                if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
+                    state.split_event_at_click(hit.0, hit.1, t);
+                }
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
                 // `Alt` dragging the body of an event slips its media (the reference map's rule)
                 if ui.input(|i| i.modifiers.alt && !i.modifiers.command) && hit.2 == DragMode::Move
@@ -20041,6 +20057,20 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn ctrl_alt_shift_click_splits_the_event_at_the_point_clicked() {
+        let (mut s, track, id) = state_with_clip();
+        s.split_event_at_click(track, id, 4.0);
+        let events = &s.timeline.track(track).unwrap().events;
+        assert_eq!(events.len(), 2, "one event became two");
+        let mut bounds: Vec<(f64, f64)> = events.iter().map(|e| (e.start, e.end())).collect();
+        bounds.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert!((bounds[0].1 - 4.0).abs() < 1e-9 && (bounds[1].0 - 4.0).abs() < 1e-9);
+        // One undo step brings the event back whole
+        assert!(s.history.undo(&mut s.timeline));
+        assert_eq!(s.timeline.track(track).unwrap().events.len(), 1);
     }
 
     #[test]
