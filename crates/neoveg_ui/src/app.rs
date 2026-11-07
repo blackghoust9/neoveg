@@ -16061,6 +16061,16 @@ fn scrollbar(
     asked
 }
 
+/// The label that follows the pointer while an edge of an event is dragged: the length the event
+/// would have if the drag ended now.
+fn trim_length_text(duration: f64, fps: f64, drop_frame: bool) -> String {
+    format!(
+        "{}: {}",
+        tr("Duração"),
+        seconds_to_timecode(duration.max(0.0), fps, drop_frame)
+    )
+}
+
 fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
     let now = ui.input(|i| i.time);
     ui.horizontal(|ui| {
@@ -16214,16 +16224,6 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
             }
         }
     });
-}
-
-/// The label that follows the pointer while an edge of an event is dragged: the length the event
-/// would have if the drag ended now.
-fn trim_length_text(duration: f64, fps: f64, drop_frame: bool) -> String {
-    format!(
-        "{}: {}",
-        tr("Duração"),
-        seconds_to_timecode(duration.max(0.0), fps, drop_frame)
-    )
 }
 
 fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
