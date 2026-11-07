@@ -23,6 +23,7 @@ mod media_facts_ui;
 mod media_folder;
 mod mixing_console;
 mod placement_cmds;
+mod psd_layers;
 mod pulldown_tools;
 mod render_extras;
 mod render_job;
@@ -10657,6 +10658,11 @@ fn menu_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 if ui.button(tr("Mídia…")).clicked() {
                     let ctx = ui.ctx().clone();
                     state.import_media(&ctx);
+                    ui.close_menu();
+                }
+                if ui.button(tr("PSD em camadas…")).clicked() {
+                    let ctx = ui.ctx().clone();
+                    state.import_psd_layers(&ctx);
                     ui.close_menu();
                 }
                 ui.separator();

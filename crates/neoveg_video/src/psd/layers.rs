@@ -3,6 +3,7 @@
 //! track of its own. Reads 8 and 16 bits per channel, grayscale or RGB, raw or PackBits RLE.
 
 use super::{be16, be32, err, parse_header, section, unpack, unsupported, Header};
+use std::path::{Path, PathBuf};
 
 /// One layer of a document.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -277,6 +278,52 @@ pub fn on_canvas(layer: &PsdLayer, canvas: (u32, u32)) -> Vec<u8> {
     out
 }
 
+/// Writes every visible layer of a document as a PNG of its own inside `dir` (created when it does
+/// not exist). The layers are laid out on the whole `canvas` first, so every file keeps the
+/// alignment they had in the document and can go straight to a track. Returns the files from the
+/// bottom layer to the top one, each with the name of its layer.
+pub fn export_layers_png(
+    layers: &[PsdLayer],
+    canvas: (u32, u32),
+    dir: &Path,
+) -> Result<Vec<(PathBuf, String)>, String> {
+    if canvas.0 == 0 || canvas.1 == 0 {
+        return Err("o PSD não tem largura ou altura".into());
+    }
+    std::fs::create_dir_all(dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
+    let mut out = Vec::new();
+    for (index, layer) in layers.iter().enumerate().filter(|(_, layer)| layer.visible) {
+        let rgba = on_canvas(layer, canvas);
+        let image = image::RgbaImage::from_raw(canvas.0, canvas.1, rgba)
+            .ok_or_else(|| format!("a camada {} tem um tamanho inesperado", layer.name))?;
+        let name = format!("{:02}_{}.png", index + 1, file_stem(&layer.name, index + 1));
+        let path = dir.join(name);
+        image
+            .save(&path)
+            .map_err(|e| format!("falha ao gravar {}: {e}", path.display()))?;
+        out.push((path, layer.name.clone()));
+    }
+    Ok(out)
+}
+
+/// The part of a layer name that can be a file name on every system.
+fn file_stem(name: &str, index: usize) -> String {
+    let mut stem = String::new();
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            stem.push(c.to_ascii_lowercase());
+        } else if !stem.ends_with('-') {
+            stem.push('-');
+        }
+    }
+    let stem = stem.trim_matches('-');
+    if stem.is_empty() {
+        format!("camada-{index}")
+    } else {
+        stem.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -510,5 +557,32 @@ mod tests {
         for cut in 0..psd.len() {
             let _ = decode_layers_bytes("cortado.psd", &psd[..cut]);
         }
+    }
+
+    #[test]
+    fn every_visible_layer_goes_to_a_png_of_the_whole_canvas() {
+        let psd = build(
+            (4, 4),
+            &[
+                layer("Fundo ção", (0, 0, 4, 4), [1, 2, 3]),
+                L {
+                    hidden: true,
+                    ..layer("Oculta", (0, 0, 2, 2), [9, 9, 9])
+                },
+                layer("Frente", (0, 0, 2, 2), [4, 5, 6]),
+            ],
+        );
+        let layers = decode_layers_bytes("t.psd", &psd).unwrap();
+        let dir = std::env::temp_dir().join(format!("neoveg_psd_layers_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let files = export_layers_png(&layers, (4, 4), &dir).unwrap();
+        assert_eq!(files.len(), 2, "the hidden layer is left out");
+        assert!(files[0].0.to_string_lossy().contains("fundo"));
+        assert!(files[1].0.to_string_lossy().contains("frente"));
+        for (path, _) in &files {
+            let image = image::open(path).expect("a PNG the program wrote");
+            assert_eq!((image.width(), image.height()), (4, 4));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
