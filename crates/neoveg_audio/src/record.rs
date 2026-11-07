@@ -957,6 +957,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "touches the Windows audio input: run with --ignored, one at a time (cpal/WASAPI crashes when devices are used on different threads)"]
     fn the_default_options_record_the_default_input_without_monitor() {
         let options = RecordOptions::default();
         assert!(options.device.is_none() && !options.monitor && options.track_id.is_none());
@@ -969,6 +970,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "touches the Windows audio input: run with --ignored, one at a time (cpal/WASAPI crashes when devices are used on different threads)"]
     fn interrupted_recording_workflow_with_input_selection_track_arming_and_monitoring() {
         // 1. Input device selection & probing
         let _inputs = list_inputs();

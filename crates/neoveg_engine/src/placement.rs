@@ -201,7 +201,7 @@ pub fn move_to_track(timeline: &Timeline, events: &[EventRef], delta: i32) -> Op
         });
         touched.push((target.id, event_id));
     }
-    (!commands.is_empty()).then(|| Outcome {
+    (!commands.is_empty()).then_some(Outcome {
         command: EditCommand::Batch(commands),
         touched,
     })
@@ -248,9 +248,9 @@ mod tests {
     #[test]
     fn moving_to_the_track_above_or_below_keeps_the_time_and_respects_the_kind() {
         let mut tl = Timeline::new();
-        let mut top = tl.new_track(TrackKind::Video);
+        let top = tl.new_track(TrackKind::Video);
         let mut mid = tl.new_track(TrackKind::Video);
-        let mut low = tl.new_track(TrackKind::Audio);
+        let low = tl.new_track(TrackKind::Audio);
         let event = TrackEvent {
             id: tl.alloc_id(),
             start: 1.0,

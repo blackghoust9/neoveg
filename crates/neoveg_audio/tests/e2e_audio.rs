@@ -33,6 +33,7 @@ use neoveg_audio::whisper::{
 // ============================================================================
 
 #[test]
+#[ignore = "touches the Windows audio input: run with --ignored, one at a time (cpal/WASAPI crashes when devices are used on different threads)"]
 fn f02_t1_01_list_inputs_returns_valid_unique_list() {
     let inputs = list_inputs();
     let mut deduped = inputs.clone();
@@ -69,6 +70,7 @@ fn f02_t1_03_input_info_struct_properties() {
 }
 
 #[test]
+#[ignore = "touches the Windows audio input: run with --ignored, one at a time (cpal/WASAPI crashes when devices are used on different threads)"]
 fn f02_t1_04_probe_input_headless_resilience() {
     // In headless environment without physical audio input, probe_input should return Ok or graceful Err string
     let res = probe_input(None);
@@ -101,6 +103,7 @@ fn f02_t1_05_custom_device_name_option_preserved() {
 }
 
 #[test]
+#[ignore = "touches the Windows audio input: run with --ignored, one at a time (cpal/WASAPI crashes when devices are used on different threads)"]
 fn f02_t2_01_probe_non_existent_device_name() {
     let res = probe_input(Some("NonExistentDevice_12345_XYZ"));
     // Must fall back to default input or return error string without crashing
