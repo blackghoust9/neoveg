@@ -2744,6 +2744,23 @@ impl AppState {
         }
     }
 
+    /// `Ctrl+Alt+Shift` + drag: splits the event where the drag starts and starts trimming the part
+    /// after the split point, so the drag erases what it crosses. `true` when it split.
+    fn split_and_trim_at_click(&mut self, track: TrackId, event: EventId, time: f64) -> bool {
+        self.split_event_at_click(track, event, time);
+        let right = self.timeline.track(track).and_then(|t| {
+            t.events
+                .iter()
+                .find(|e| e.id != event && (e.start - time).abs() < TIME_EPSILON)
+                .map(|e| (e.id, e.geometry()))
+        });
+        let Some((right_id, geometry)) = right else {
+            return false;
+        };
+        self.begin_drag((track, right_id, DragMode::TrimLeft, geometry), time);
+        true
+    }
+
     fn smart_split(&mut self) {
         let Some(range) = self.time_selection.filter(|r| !r.is_empty()) else {
             self.status =
@@ -16621,7 +16638,7 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 && hit_event(state, lanes.left(), lane_top, p).is_some()
             {
                 if let Some(hit) = hit_event(state, lanes.left(), lane_top, p) {
-                    state.split_event_at_click(hit.0, hit.1, t);
+                    state.split_and_trim_at_click(hit.0, hit.1, t);
                 }
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
                 // `Alt` dragging the body of an event slips its media (the reference map's rule)
@@ -20057,6 +20074,20 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn ctrl_alt_shift_drag_splits_and_starts_trimming_the_part_after_the_split() {
+        let (mut s, track, id) = state_with_clip();
+        assert!(s.split_and_trim_at_click(track, id, 4.0));
+        let events = &s.timeline.track(track).unwrap().events;
+        assert_eq!(events.len(), 2);
+        let drag = s.drag.as_ref().expect("the drag started");
+        assert_eq!(drag.mode, DragMode::TrimLeft);
+        assert!(
+            (drag.origin.start - 4.0).abs() < 1e-9,
+            "trims the part after the split point"
+        );
     }
 
     #[test]
