@@ -83,6 +83,9 @@ pub struct Preferences {
     pub snap_to_media_markers: bool,
     /// Quantize to Frames (`Alt+F8`): drags land on frame boundaries.
     pub quantize_to_frames: bool,
+    /// `Alt+Shift` dragging the body of an event slides its media (off: `Alt` alone slips it).
+    #[serde(default)]
+    pub alt_shift_drag_slides: bool,
     /// Quantize edits that only touch audio too; off leaves them between frames.
     pub quantize_audio_edits: bool,
     /// Decode videos on the graphics card when the machine can (falls back to the processor).
@@ -178,6 +181,7 @@ impl Default for Preferences {
             snap_to_all_events: true,
             snap_to_media_markers: false,
             quantize_to_frames: true,
+            alt_shift_drag_slides: false,
             quantize_audio_edits: true,
             hardware_decoding: true,
             lock_envelopes_to_events: false,

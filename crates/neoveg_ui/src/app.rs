@@ -11962,6 +11962,16 @@ fn resample_items(state: &mut AppState, ui: &mut egui::Ui) {
 /// A menu entry that runs `command`, with its shortcut and enabled state.
 /// Whether a drag snaps: `Alt` always ignores snapping; `Shift` inverts it while moving events (on
 /// edges `Shift` means "ignore the group" instead).
+/// The drag an `Alt` (or `Alt+Shift`) press on the body of an event starts, if any: `Alt` slips the
+/// media; `Alt+Shift` slides the event when the option is on, and slips otherwise.
+fn alt_body_drag_mode(alt: bool, shift: bool, shift_slides: bool) -> Option<DragMode> {
+    match (alt, shift, shift_slides) {
+        (true, true, true) => Some(DragMode::Slide),
+        (true, _, _) => Some(DragMode::Slip),
+        _ => None,
+    }
+}
+
 fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool) -> bool {
     if shift && matches!(mode, Some(DragMode::Move | DragMode::SnapOffset)) {
         !snapping
@@ -13166,6 +13176,17 @@ fn keymap_window(ctx: &egui::Context, state: &mut AppState) {
         .default_width(520.0)
         .default_height(480.0)
         .show(ctx, |ui| {
+            let mut slides = state.prefs.alt_shift_drag_slides;
+            if ui
+                .checkbox(
+                    &mut slides,
+                    tr("Alt+Shift arrastando o corpo do evento desliza o evento (sem o slip)"),
+                )
+                .changed()
+            {
+                state.prefs.alt_shift_drag_slides = slides;
+                state.persist_preferences();
+            }
             ui.horizontal(|ui| {
                 ui.label(tr("Filtro:"));
                 ui.text_edit_singleline(&mut state.keymap_filter);
@@ -16670,10 +16691,15 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                     state.split_and_trim_at_click(hit.0, hit.1, t);
                 }
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
-                // `Alt` dragging the body of an event slips its media (the reference map's rule)
-                if ui.input(|i| i.modifiers.alt && !i.modifiers.command) && hit.2 == DragMode::Move
+                // `Alt` dragging the body of an event slips its media (the reference map's rule);
+                // with `Alt+Shift` and the option on, the event slides instead
+                let (alt, shift) = ui.input(|i| (i.modifiers.alt, i.modifiers.shift));
+                if let Some(mode) =
+                    alt_body_drag_mode(alt, shift, state.prefs.alt_shift_drag_slides)
                 {
-                    hit.2 = DragMode::Slip;
+                    if hit.2 == DragMode::Move {
+                        hit.2 = mode;
+                    }
                 }
                 if ui.input(|i| i.modifiers.command) {
                     let adjacent = ui.input(|i| i.modifiers.alt);
@@ -20104,6 +20130,14 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn alt_shift_slides_only_when_the_option_is_on() {
+        assert_eq!(alt_body_drag_mode(true, true, true), Some(DragMode::Slide));
+        assert_eq!(alt_body_drag_mode(true, true, false), Some(DragMode::Slip));
+        assert_eq!(alt_body_drag_mode(true, false, true), Some(DragMode::Slip));
+        assert_eq!(alt_body_drag_mode(false, true, true), None);
     }
 
     #[test]
