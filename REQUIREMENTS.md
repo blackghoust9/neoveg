@@ -16,6 +16,7 @@ Optional tools used by QA and coverage:
 ```bash
 rustup component add llvm-tools-preview
 cargo install cargo-llvm-cov --locked      # cargo llvm-cov --workspace
+cargo install cargo-deny --locked          # cargo deny check licenses bans sources (the CI gate)
 ```
 
 Optional, only for native video decoding (`cargo build -p neoveg_video --features ffmpeg`). `ffmpeg-next` 9.x needs three things:

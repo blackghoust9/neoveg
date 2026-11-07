@@ -481,7 +481,7 @@ Neoveg enforces strict **Clean-Room Engineering**, intellectual-property isolati
 
 4. **Dual Licensing & `cargo-deny` Governance:**
    - All Neoveg workspace crates are dual-licensed under `MIT OR Apache-2.0`, backed by root `LICENSE-MIT` and `LICENSE-APACHE` (plus `LICENSE`, `AUTHORS.md`, and `third_party/README.md`).
-   - `deny.toml` (`cargo deny check licenses bans advisories sources`) enforces the approved SPDX allowlist and forbids viral/network-copyleft licenses (`AGPL-3.0*`, `GPL-2.0*`, `GPL-3.0*`).
+   - `deny.toml` (`cargo deny check licenses bans sources`, the gate CI runs; `cargo deny check advisories` on demand) enforces the approved SPDX allowlist and forbids viral/network-copyleft licenses (`AGPL-3.0*`, `GPL-2.0*`, `GPL-3.0*`). Licenses outside `allow`/`exceptions` are denied by the current cargo-deny schema.
 
 5. **FFmpeg LGPL v2.1+ Shared Dynamic Linking (`crates/neoveg_video`):**
    - `ffmpeg-next` is optional (`--features ffmpeg`) with `default-features = false` and only `codec`, `format`, `software-scaling`, and `software-resampling` enabled — `static`, `build`, `build-license-gpl`, and `build-license-nonfree` are disabled, and `crates/neoveg_video/build.rs` rejects `FFMPEG_STATIC=1` at compile time.
