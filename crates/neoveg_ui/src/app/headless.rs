@@ -1108,6 +1108,25 @@ mod audit;
 
 #[cfg(test)]
 mod tests {
+    /// Writes a demonstration project with a sub-project event to `NEOVEG_DEMO_DIR` (for a manual
+    /// check of the parent window): `NEOVEG_DEMO_DIR=<dir> cargo test -p neoveg_ui --bin neoveg
+    /// write_parent_demo -- --ignored`. The file opened is `<dir>/Documentario.neoveg`.
+    #[test]
+    #[ignore = "writes a demonstration project (set NEOVEG_DEMO_DIR)"]
+    fn write_parent_demo() {
+        let Some(dir) = std::env::var_os("NEOVEG_DEMO_DIR") else {
+            return;
+        };
+        let dir = std::path::PathBuf::from(dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ctx = super::new_context();
+        let s = super::demo_tabs(&ctx, &dir);
+        let main = s.tab_ids()[0];
+        let _ = main;
+        let path = dir.join("Documentario.neoveg");
+        neoveg_engine::project_file::save(&path, &s.project, &s.timeline).expect("saved");
+    }
+
     use super::*;
 
     #[test]
