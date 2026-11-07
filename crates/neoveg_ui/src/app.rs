@@ -20155,6 +20155,25 @@ mod tests {
     }
 
     #[test]
+    fn esc_in_a_sub_project_tab_goes_back_to_the_parent_tab() {
+        let mut s = AppState::new();
+        let parent = s.ensure_tab();
+        s.new_tab();
+        let child = s.tabs.active.expect("the new tab is active");
+        assert_ne!(child, parent);
+        s.tabs.parents.push((child, parent));
+        assert_eq!(s.parent_of_active_tab(), Some(parent));
+        press(&mut s, vec![key(egui::Key::Escape, egui::Modifiers::NONE)]);
+        assert_eq!(
+            s.tabs.active,
+            Some(parent),
+            "Esc went back to the parent tab"
+        );
+        // With no parent, Esc does nothing to the tabs
+        press(&mut s, vec![key(egui::Key::Escape, egui::Modifiers::NONE)]);
+        assert_eq!(s.tabs.active, Some(parent));
+    }
+
     fn a_sub_project_tab_knows_its_parent_until_the_parent_closes() {
         let mut s = AppState::new();
         // A link to a tab that is not open answers nothing
