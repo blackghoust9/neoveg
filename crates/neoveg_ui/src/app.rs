@@ -3609,7 +3609,7 @@ impl AppState {
 
     /// The keys of the keyboard trim mode that are not commands, so they cannot clash with the
     /// digits that choose a take: with an edge selected `1` / `3` move it a frame, `4` / `6` a pixel
-    /// (`Ctrl` stretches, `Alt` slips, `Ctrl+Alt` moves the shared cut), `7` / `9` pick the previous
+    /// (`Ctrl` stretches, `Alt` slips, `Alt+Shift` slides, `Ctrl+Alt` moves the shared cut), `7` / `9` pick the previous
     /// or next edge and `5` leaves; the wheel with `Ctrl+Shift` moves it a pixel, with `Ctrl+Shift+Alt`
     /// a frame. Returns `true` when a key or the wheel was used.
     fn trim_edge_keys(&mut self, ctx: &egui::Context) -> bool {
@@ -3624,6 +3624,7 @@ impl AppState {
         let modes = [
             (Modifiers::CTRL | Modifiers::ALT, Some(TrimMode::Roll)),
             (Modifiers::CTRL, Some(TrimMode::Stretch)),
+            (Modifiers::ALT | Modifiers::SHIFT, Some(TrimMode::Slide)),
             (Modifiers::ALT, Some(TrimMode::Slip)),
             (Modifiers::NONE, None),
         ];
