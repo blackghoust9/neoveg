@@ -40,7 +40,7 @@ struct FlatCache {
 pub(super) struct Tabs {
     manager: ProjectManager,
     /// The tab being edited (its project is in the `AppState` fields, not in the manager).
-    active: Option<ProjectId>,
+    pub(super) active: Option<ProjectId>,
     extras: HashMap<ProjectId, TabExtras>,
     /// Bumped whenever a project is saved, switched or closed: sub-projects may have changed.
     epoch: u64,
@@ -51,6 +51,8 @@ pub(super) struct Tabs {
     pub(super) pending_close: Option<ProjectId>,
     /// A `.neoveg` to open in a tab (set by a double click, carried out with the window context).
     pub(super) open_request: Option<PathBuf>,
+    /// The tab each sub-project tab was opened from: `Esc` in it goes back there.
+    pub(super) parents: Vec<(ProjectId, ProjectId)>,
     pub(super) ctx: Option<egui::Context>,
 }
 
@@ -193,6 +195,17 @@ impl AppState {
         for (id, path) in wanted {
             self.spawn_media(path, Some(id), ctx);
         }
+    }
+
+    /// The tab the active sub-project tab was opened from, while that tab is still open.
+    pub(super) fn parent_of_active_tab(&self) -> Option<ProjectId> {
+        let child = self.tabs.active?;
+        self.tabs
+            .parents
+            .iter()
+            .find(|(c, _)| *c == child)
+            .map(|(_, parent)| *parent)
+            .filter(|parent| self.tabs.manager.get(*parent).is_some())
     }
 
     pub(super) fn switch_tab(&mut self, id: ProjectId, ctx: &egui::Context) {

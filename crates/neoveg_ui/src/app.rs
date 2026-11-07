@@ -8991,6 +8991,13 @@ impl AppState {
             self.status = "Aparo por teclado encerrado".into();
             return;
         }
+        // Esc in a sub-project tab goes back to the project it was opened from
+        if let Some(parent) = self.parent_of_active_tab() {
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                self.switch_tab(parent, ctx);
+                return;
+            }
+        }
         if self.trim_edge_keys(ctx) {
             return;
         }
@@ -10418,7 +10425,21 @@ impl NeovegApp {
             .show(ctx, |ui| project_tab_bar(ui, &mut self.state));
         close_tab_window(ctx, &mut self.state);
         if let Some(path) = self.state.tabs.open_request.take() {
+            // A sub-project opened from the tab in front of it remembers that tab: `Esc` goes back
+            let from = self.state.tabs.active;
+            let is_subproject = self
+                .state
+                .project
+                .media_pool
+                .iter()
+                .any(|m| m.subproject && std::path::Path::new(&m.path) == path.as_path());
             self.state.open_path_in_tab(&path, ctx);
+            if let (true, Some(parent), Some(child)) = (is_subproject, from, self.state.tabs.active)
+            {
+                if parent != child {
+                    self.state.tabs.parents.push((child, parent));
+                }
+            }
         }
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -20130,6 +20151,17 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn a_sub_project_tab_knows_its_parent_until_the_parent_closes() {
+        let mut s = AppState::new();
+        // A link to a tab that is not open answers nothing
+        s.tabs.parents.push((7, 3));
+        s.tabs.active = Some(7);
+        assert_eq!(s.parent_of_active_tab(), None);
+        s.tabs.active = None;
+        assert_eq!(s.parent_of_active_tab(), None);
     }
 
     #[test]
