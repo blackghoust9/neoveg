@@ -16185,6 +16185,16 @@ fn toolbar_ui(state: &mut AppState, ui: &mut egui::Ui) {
     });
 }
 
+/// The label that follows the pointer while an edge of an event is dragged: the length the event
+/// would have if the drag ended now.
+fn trim_length_text(duration: f64, fps: f64, drop_frame: bool) -> String {
+    format!(
+        "{}: {}",
+        tr("Duração"),
+        seconds_to_timecode(duration.max(0.0), fps, drop_frame)
+    )
+}
+
 fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
     // The vertical scrollbar takes its own column at the right edge
     let size = vec2(
@@ -16887,6 +16897,29 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             DragMode::FadeIn | DragMode::FadeOut => egui::CursorIcon::ResizeHorizontal,
             _ => egui::CursorIcon::ResizeHorizontal,
         });
+        // While an edge is dragged the new length of the event follows the pointer.
+        if matches!(
+            drag.mode,
+            DragMode::TrimLeft
+                | DragMode::TrimRight
+                | DragMode::StretchLeft
+                | DragMode::StretchRight
+                | DragMode::RollLeft
+                | DragMode::RollRight
+        ) {
+            if let Some(p) = response.interact_pointer_pos() {
+                let text = trim_length_text(drag.current.duration, fps, drop_frame);
+                egui::Area::new(egui::Id::new("neoveg_trim_length"))
+                    .order(egui::Order::Tooltip)
+                    .fixed_pos(p + egui::vec2(14.0, 16.0))
+                    .interactable(false)
+                    .show(ui.ctx(), |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            ui.label(text);
+                        });
+                    });
+            }
+        }
     } else if let Some((_, part)) =
         response
             .hover_pos()
@@ -18198,6 +18231,13 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_length_label_of_a_trim_shows_the_timecode_of_the_draft() {
+        assert!(super::trim_length_text(2.5, 25.0, false).ends_with("00:00:02:12"));
+        // A draft that went past the other edge is not a negative length
+        assert!(super::trim_length_text(-1.0, 25.0, false).ends_with("00:00:00:00"));
+    }
+
     #[test]
     fn windows_toggle_between_front_closed_and_back() {
         let mut dock = default_dock();

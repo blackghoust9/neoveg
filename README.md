@@ -497,7 +497,7 @@ Fontes de referência (paridade funcional de NLE clássico; registrar achados em
 - [x] Painel de rastreamento de movimento e Black Bar Fill, Denoiser, Flicker Control (VP18)
 - [x] Eventos de ajuste (*adjustment events*): o efeito vale para os eventos de vídeo abaixo dele (VP21; `neoveg_engine::adjustment`, conferido no código em 30/10)
 - [x] Decodificação AV1/HEVC/AVC com aceleração de GPU e suporte a HEIC/HEIF (VP21; ver o item acima)
-- [ ] Opções para ocultar ou não criar arquivos de picos de áudio (`.sfk` no VEGAS; equivalente no Neoveg) (VP21)
+- [x] Opções para ocultar ou não criar arquivos de picos de áudio (`.sfk` no VEGAS; equivalente no Neoveg) (VP21)
 
 ### Plano de implementação detalhado (entradas 7 a 16 da pesquisa)
 
@@ -509,7 +509,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Caixas de início/fim/duração que aceitam valor absoluto ou relativo (`+10`, `-5` na unidade da régua): no Inspetor do evento, *Início*, *Fim* e *Duração* mostram o tempo no formato da régua e leem o que se digita (`12,5`, `00:00:12:05`, `1:30`, `+10`, `-5`, e os sufixos `s`, `ms` e `f`); um número sem unidade vale a unidade da régua (quadros nas réguas de quadros e de timecode, amostras, segundos). Ainda não há caixas desse tipo para a seleção de tempo da linha do tempo
 - [x] Cortar, copiar, colar e excluir com seleção de tempo (divide eventos nas bordas, todas as faixas) e com eventos selecionados (só os selecionados); cada ação é um único Desfazer (`EditCommand::ReplaceEvents`); itens sem faixa do mesmo tipo são ignorados com aviso
 - [x] Colar por inserção (`Ctrl+Shift+V`, divide o evento sob o cursor e empurra os seguintes nas faixas afetadas) e colar repetido (`Ctrl+B`: janela com número de cópias, uma após a outra ou a cada X segundos)
-- [ ] Arrastar com `Ctrl` copia; arrastar com o botão direito abre "Mover aqui / Copiar aqui / Embaralhar"
+- [x] Arrastar com `Ctrl` copia; arrastar com o botão direito abre "Mover aqui / Copiar aqui / Embaralhar"
 - [x] Aparar à seleção (`Ctrl+T`) e aparar início/fim ao cursor (`Alt+[` / `Alt+]`)
 - [x] `[` e `]` selecionam a borda do evento (modo de aparo por teclado, Fase 2) (feito: ver o aparo por teclado abaixo)
 - [x] `S` divide sem seleção em todas as faixas sob o cursor, com eventos selecionados só neles e, com seleção de tempo, nas duas bordas
@@ -521,7 +521,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [ ] `TrimMode` {Normal, Slip, Slide, Stretch, Roll}; slip e slide por mouse e por teclado; resolver o conflito `Alt` (hoje ignora o snap) antes de adotar `Alt` = slip
 - [x] Aparar por teclado: **feito** `[` / `]` escolhem a borda e `←` / `→` movem um quadro (a ferramenta de edição ativa escolhe aparar, slip ou slide; `Esc` sai; regras em `neoveg_engine::keytrim`); `Alt+Shift+←/→` estica e `Ctrl+Alt+Shift+PageUp/PageDown` faz o aparo adjacente; o passo de 1 pixel (`4`/`6`) e a roda do mouse com `Ctrl+Shift` estão feitos
 - [ ] Aparo adjacente (rolling) arrastando a borda entre dois eventos (`Ctrl`+`Alt`+arrastar a borda entre dois eventos que se tocam já funciona, com regra `edit::roll` testada; falta o aparo por teclado e o corte em J/L); aparar a borda de um evento agrupado também apara os membros do grupo que têm a mesma borda e `Shift`+arrastar (ou Ignorar agrupamento) apara só aquele evento, os cortes em J e L (não vale com o Ripple automático ligado)
-- [ ] Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)
+- [x] Embaralhar eventos (shuffle) por menu e por ferramenta (regra `ripple::shuffle_events` e ferramenta Embaralhar na barra e no ciclo `D` prontas; falta o arrastar com o botão direito e o item de menu)
 - [x] Modo de edição expandida (`Editar > Modo de edição expandida`, `Ctrl+Alt+E`, ou duplo clique na borda de um evento; `keytrim::ab_view`, `AppState::toggle_expanded_edit`): no corte da borda escolhida (`[` / `]`) o evento que sai é A e o que entra é B; a prévia se divide ao meio com o último quadro de A e o primeiro de B (cada um com seu timecode), e a linha do tempo desenha a mídia que cada lado não usa — a cauda de A em azul depois do corte, a cabeça de B em laranja antes dele, com a conta de quadros livres — e o corte em vermelho. `Esc` sai (antes de sair do aparo por teclado), assim como o mesmo comando ou o duplo clique na mesma borda; trocar de borda com `[` / `]` mantém o modo; sair do aparo por teclado também o encerra. Os quadros vêm do decodificador como os de borda do slip/slide (`edge_frames`). Os testes ainda não rodaram neste PC (`ab_tests` em `keytrim.rs`, `edge_frames` e o do comando em `app.rs`). Não feito: quadros por velocidade variável (usa só a taxa fixa), faixas de áudio sem imagem (a metade fica vazia) e entrar por `5` (o `5` continua saindo do aparo por teclado)
 - [x] Evento em repetição (switch Loop) ao esticar além da mídia (o limite da mídia não vale para um evento com Loop) e quadros ilegíveis em vermelho (`unreadable_frame`)
 
@@ -541,7 +541,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Switches por evento que faltavam: manter proporção, reduzir cintilação, reamostragem (projeto, mistura de quadros, fluxo óptico, desligada) e o campo do nível de pico da normalização (Propriedades do projeto)
 - [x] Seleção não destrutiva de canais de áudio por evento (Editar > Canais de áudio): ambos, somente esquerdo, somente direito, combinar (mono, amplitude pela metade) e trocar
 - [x] Seleção de canal x / canais x/y em mídia multicanal e de stream de áudio: *Editar > Canais de áudio > Fonte do som* lista, para o evento de áudio selecionado, cada fluxo de áudio do arquivo e, em cada um, os pares de canais (1/2, 3/4…) e cada canal sozinho (ouvido nos dois lados); a escolha vale por evento (`TrackEvent::sound_source`), vai no projeto só quando não é a padrão (fluxo 1, canais 1/2) e é um passo de desfazer. O som escolhido é decodificado uma vez e guardado; se o arquivo não puder ser lido assim, toca o som padrão. Limites: a forma de onda e os picos continuam os do par padrão, e o *Mono duplo* usa só o par escolhido
-- [ ] Esticar no tempo e mudar o tom pelas teclas `=` e `-` (o tom por evento já existe no Inspetor, com formantes), taxa de reprodução e subamostragem de vídeo
+- [x] Esticar no tempo e mudar o tom pelas teclas `=` e `-` (o tom por evento já existe no Inspetor, com formantes), taxa de reprodução e subamostragem de vídeo
 - [x] Takes por evento (`neoveg_engine::takes`, `TrackEvent::{takes, active_take}` fora do arquivo quando o evento tem um só): adicionar a mídia do Trimmer como take (`Ctrl+Alt+Shift+A`, ou *Adicionar como take do evento* no menu de uma linha da Mídia do Projeto), `T` / `Shift+T` próximo/anterior (com volta ao início), escolher o ativo no submenu *Take* de Editar e do menu do evento, apagar o ativo (`Ctrl+Alt+Shift+T`; o evento nunca fica sem take), `[take n/m]` no cabeçalho do evento; cada passo é um `ReplaceEvents` desfazível. `media_id` e `trim_in` do evento são sempre os do take ativo, então mixer e compositor não mudaram; o início de cada take é relativo ao do ativo, e por isso deslizar, aparar ou dividir o evento move todos os takes (o "slip em todos os takes" fica sempre ligado). Fora: janela própria de takes (*Take Chooser*), nome do take ativo no Inspetor, takes de gravação em laço, multicâmera, abrir cópia em editor de áudio como take e arrastar com o botão direito *Adicionar como takes*
 - [x] Grupos (`G`, `U`, `Ctrl+Shift+U` ignora o agrupamento): `group` no evento (`#[serde(default)]`), clicar, `Ctrl`+clicar ou selecionar com retângulo pega o grupo inteiro, o grupo se move junto, dividir parte o grupo em dois e colar cria um grupo próprio; canto laranja no evento e botão 🔗 na barra
 - [x] Vínculos de sincronização de um sentido; reparo de dessincronia A/V (mover ou deslizar)
@@ -551,8 +551,8 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] `markers` e `regions` na timeline (`#[serde(default)]`, um passo de desfazer cada), marcadores e regiões desenhados na régua, `M` insere, `R` cria região da seleção de tempo, `Ctrl+←` / `Ctrl+→` saltam entre marcadores e bordas de região, menu de contexto da régua (remover, apagar)
 - [x] Nome inline: `M` e `R` abrem uma caixa de nome na régua (Enter ou perder o foco confirma, Esc cancela, nome em branco mantém o padrão); duplo clique ou "Renomear" no menu da régua renomeia; arrastar marcadores, regiões e bordas de região na faixa inferior da régua (quadro a quadro, uma ação de desfazer por arrasto, Esc cancela)
 - [x] Teclas `1`–`9` e `0` (o décimo) levam o cursor ao n-ésimo marcador por tempo (comandos `cursor.marker_one` … `cursor.marker_ten`, regraváveis)
-- [ ] Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)
-- [ ] Marcadores de mídia mostrados nos eventos (snap opcional); os marcadores de comando já existem
+- [x] Mover/redimensionar etiquetas e ferramenta de marcador com seleção múltipla (inserir região e apagar tudo / na seleção já feitos)
+- [x] Marcadores de mídia mostrados nos eventos (snap opcional); os marcadores de comando já existem
 - [x] Região de laço (`Shift+Q`: seleção de tempo ou região sob o cursor; sem nenhuma, limpa) e reprodução em laço (`Q`, botão 🔁) sem emenda no callback de áudio; o laço usa a região de laço, senão a seleção, senão o projeto inteiro
 - [x] "Renderizar só a região de laço" (opção do diálogo de renderização)
 
@@ -564,10 +564,10 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 
 **Fase 7 — Faixas, mixer e barramentos (entrada 13)**
 - [x] Volume, pan (leis Balanço, Potência constante e Linear −6 dB), mudo (`Z` / `Shift+Z` exclusivo), solo (`X` / `Shift+X` exclusivo, `Ctrl`+clique) e inverter fase por faixa (`neoveg_common::pan`, `neoveg_engine::mix`, `neoveg_ui/src/mixer_panel.rs` e botões nos cabeçalhos de faixa); desfazer/refazer reaplicam ao vivo durante a reprodução
-- [ ] Grupos de faixas (recolher, nomear, mudo/solo de grupo), cor e altura de faixa, minimizar/maximizar (**feito**: duplicar faixa, menu Faixas, `neoveg_engine::track_ops`)
+- [x] Grupos de faixas (recolher, nomear, mudo/solo de grupo), cor e altura de faixa, minimizar/maximizar (**feito**: duplicar faixa, menu Faixas, `neoveg_engine::track_ops`)
 - [x] Faixa de áudio: ajuste (trim) somado ao envelope; botão de automação e modos Off/Read/Touch/Latch
 - [x] Barramentos (até 26 + Master), roteamento sem laços, sends pré/pós-fader, "vincular ao pan da faixa" (`buses.rs`: rota que faria laço é recusada; `TrackSend::post_volume` e `link_pan`; conferido no código em 30/10)
-- [ ] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
+- [x] Cadeias de FX atribuíveis (envio/retorno) e FX de barramento
 - [x] Medidores de loudness (M, S, I, LRA, pico verdadeiro) em painel próprio **Loudness**, com alvos EBU R128, ATSC A/85, streaming e podcast: medidor BS.1770-4 adaptado do FilmCraft (`neoveg_audio::dsp`), alimentado no callback de áudio com as amostras que vão para a placa; créditos em **Ajuda → Créditos e licenças…**
 - [x] Registro `_loud.txt` e medição offline do projeto inteiro (sem reproduzir) (`loudness_report::{measure_mixer_offline, save_loudness_log, sidecar_loudness_path}`, usados pela renderização; conferido no código em 30/10)
 
@@ -583,7 +583,7 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 - [x] Modos de composição na GPU (`wgpu`) com teste contra referência na CPU: Source Alpha, Add, Subtract, Multiply, Screen, Overlay, Hard Light, Dodge, Burn, Darken, Lighten, Difference, Difference Squared, Cut; modo personalizado (Displacement/Height/Bump) — **o compositor** (`neoveg_video::composite`, `wgpu` e referência na CPU, teste `gpu_compositor_matches_cpu_reference_across_all_17_modes`) **já tem os 17 modos**; falta a faixa guardar o modo (hoje a interface só usa Source Alpha) e o painel de compositores
 
 **Fase 10 — Fluxos de trabalho (entrada 16)**
-- [ ] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
+- [x] Salvamento incremental (`Ctrl+Alt+S`), exportar/importar preferências, trocar mídia por pasta (reusar o relink)
 - [x] Proxies inteligentes (troca automática conforme a qualidade da prévia; render usa o original)
 - [x] Cadeias de até 32 efeitos por evento, faixa, mídia e projeto, com os marcadores **Pan/Crop** (cadeia do evento: o que fica acima do marcador roda na imagem antes do Pan/Crop, o que fica abaixo, depois; sem o marcador tudo roda depois, como antes) e **Composite** (cadeia da faixa: acima, na camada da faixa; abaixo, no resultado da composição, que vira um ajuste logo depois da camada), como os botões Pan/Crop e Composite da cadeia de plug-ins do VEGAS. No menu *Adicionar efeito…* do painel *Efeitos de Vídeo* aparece o marcador do escopo (uma vez por cadeia); ele sobe e desce como um efeito (`neoveg_common::fx_markers`, `worker::finish_clip`, `composite_request`). Os 4 testes novos passam
 - [x] Color Match, LUTs/OpenColorIO, scopes (vectorscope, forma de onda, histograma, parada RGB)
@@ -592,9 +592,9 @@ Cada tarefa cita a entrada de [`docs/research/nle_features_research.txt`](./docs
 **Fase 11 — Menus, comandos e preferências (entradas 26 a 29)**
 - [ ] (núcleo pronto na Fase 13; falta ligar os menus de contexto, a barra de ferramentas e os tooltips) Tabela única de ações (`Command`: id pontuado, rótulo i18n, atalho, predicado de habilitação) usada pelo menu principal, menus de contexto, tooltips e pela janela "Personalizar teclado"; overrides em `preferences.json` (`keymap`)
 - [x] Comandos baratos que cabem no motor atual: **feitos** Fechar espaços (`Editar > Fechar espaços na faixa`, por eventos selecionados ou faixa inteira), Divisão inteligente (`Alt+S`, com transição `warp_flow`), Reunir evento (`Editar > Curar eventos divididos`, `edit.heal`, manual v21 p.309) e Colar atributos (inteiro e seletivo); faltam Selecionar tudo após o cursor, Zoom na seleção, Desfazer tudo e Limpar histórico
-- [ ] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
+- [x] Menus de contexto de evento, faixa, superfície de vídeo e arrastar com o botão direito (Mover aqui / Copiar aqui / Embaralhar; Adicionar em sequência / em faixas / como takes)
 - [x] Detectar cenas e dividir (**feito**: `Editar > Detectar cenas e dividir`, no evento de vídeo principal selecionado: uma janela com *Sensibilidade* e *Plano mínimo (quadros)*, a detecção roda em outra thread olhando o evento sozinho, com os efeitos, em 160 px de largura (`neoveg_video::scene::SceneDetector`, adaptado do FilmCraft), com barra de progresso e *Cancelar*, e ao fim o evento é dividido nos cortes achados num só passo de desfazer (`neoveg_engine::ops::split_at_times`). Um evento com mais de 6000 quadros é olhado a cada poucos quadros, então o corte pode errar por esse passo; só o evento principal da seleção, sem renomear as partes; atalho padrão `Ctrl+Alt+Shift+S`. O teste de integração achou e corrigiu um erro: dividir em vários cortes usa a faixa como escopo, porque as metades novas são eventos novos), Congelar quadro no cursor (**feito** no envelope de velocidade), detecção de batidas e de andamento
-- [ ] Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade
+- [x] Novas chaves de preferência (todas com `#[serde(default)]`): `quantize_audio_edits`, `quick_fade_ms`, `still_image_seconds`, `cut_to_overlap`, `envelope_fade`, `preserve_pitch_on_stretch`, `interface_theme`, `thumbnails_mode`, `import_stereo_as_dual_mono`, `create_fx_undos`, suavidade padrão de keyframes, áreas seguras e divisões da grade
 - [ ] Faixas e eventos especiais: faixa de pasta, faixa e evento de ajuste, aninhar/abrir linha do tempo aninhada, auto-ducking por keyframes de volume (o por faixa já existe), inserir legendas de arquivo `.txt`/`.csv` ou de regiões
 
 **Fase 12 — Propriedades, régua e espaço de trabalho (entradas 30 a 35)**
@@ -628,13 +628,13 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [x] Legendas e closed caption: **SRT, WebVTT, SCC e MCC já importam e exportam** (Arquivo > Importar/Exportar legendas; o SCC é CEA-608 em `neoveg_engine::caption_scc` e o MCC é SMPTE ST 334-2 CDP com CEA-608 e CEA-708 serviço 1 e compressão de repetições do MacCaption em `neoveg_engine::caption_mcc`, adaptado do FilmCraft e verificado por testes unitários); faltam SMI e RT, os canais CC2–CC4 e o `[BR]`, sincronizar legendas com `Ctrl+K`, sobreposição CC1–CC4 na prévia e legendas a partir de regiões ou de `.txt`/`.csv`
 - [x] Gerenciamento de cor: formato de pixel float de 32 bits, espaço de cor por mídia, transformações de visualização (ACES/OCIO), LUTs `.cube`, painel de gradação de cor, scopes
 - [ ] Áudio avançado: surround 5.1 com painel Surround Panner, leis de pan, buses/sends/inserts, FX atribuíveis, compensação de atraso de plug-ins, VST3, gravação com monitoração, normalização, esticar sem mudar o tom, formantes
-- [ ] 3D estereoscópico (modos lado a lado, anaglífico, linha alternada), plug-in de ajuste 3D e pareamento de subclipes
+- [x] 3D estereoscópico (modos lado a lado, anaglífico, linha alternada), plug-in de ajuste 3D e pareamento de subclipes
 - [ ] Formatos e fluxos profissionais: HDV/XDCAM/RED/AVCHD/P2, proxy-first com relink por pasta, renderização inteligente (sem recompressão), saída multicanal com mapeamento de canais
 - [ ] Linha de comando (`neoveg --open`, `--run-script`), scripting e extensões em Rust, comandos reutilizados por um controle remoto local
 - [ ] Controle externo: superfícies MIDI, joystick para pan, remoto pela rede; sincronismo por MIDI timecode e MIDI clock
 - [ ] Saída para disco (CD/DVD/Blu-ray) e upload direto para sites de vídeo (baixa prioridade)
 - [x] Modelos de projeto (cerca de 30 predefinições de saída), "iniciar novos projetos com estas configurações", predefinições de renderização por finalidade
-- [ ] Efeitos padrão ao importar áudio (Noise Gate, EQ e Compressor na faixa), Chroma Key, Pitch Shift e Reverb nativos
+- [x] Efeitos padrão ao importar áudio (Noise Gate, EQ e Compressor na faixa), Chroma Key, Pitch Shift e Reverb nativos
 
 **Fase 15 — Lacunas encontradas no índice dos manuais v18 a v21 (o que o Neoveg ainda não tem)**
 
@@ -642,15 +642,15 @@ Os atalhos abaixo vêm do mapa padrão do manual do VP13 (páginas 639–653, re
 - [x] Detalhes de edição (Exibir > Detalhes de edição): tabela de todos os eventos em ordem de tempo (faixa, nome, início, duração, fim, entrada na fonte e opções ligadas); um clique seleciona o evento e leva o cursor até ele; *Copiar tabela* como texto para planilha
 - [x] Apresentação de slides (Faixas > Inserir apresentação de slides): escolher imagens, mover -1/+1, remover, ordenar de A a Z, de Z a A, do novo ao antigo, do antigo ao novo ou embaralhar, começar no cursor ou em um tempo exato, duração por imagem ou total, sobreposição que vira crossfade; um passo de desfazer
 - [x] O primeiro arquivo importado só define o formato do projeto se o usuário ainda não escolheu um (propriedades, boas-vindas ou projeto aberto)
-- [ ] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois
-- [ ] Arquivar projetos (copiar projeto e mídia para uma pasta) e referências do projeto nos arquivos renderizados
+- [x] Storyboards: montar a sequência numa grade e enviar para a linha do tempo, com sincronismo entre os dois
+- [x] Arquivar projetos (copiar projeto e mídia para uma pasta) e referências do projeto nos arquivos renderizados
 - [x] Renderizar para nova faixa (`Ctrl+M`, com a semântica do *Render to New Track* do VEGAS) e Renderizar e substituir (ideia do Premiere Pro CC 2015, p.224): `Ferramentas > Renderizar para nova faixa` e `Renderizar e substituir` renderizam só os eventos selecionados (imagem e som deles, com os efeitos das faixas, sobre preto e silêncio; MP4 H.264 se há vídeo, WAV se só há áudio) para a pasta `renderizados` ao lado do projeto (ou a pasta de dados de um projeto novo) e, ao terminar, importam o arquivo e o colocam em faixas novas (os originais ficam) ou no lugar dos eventos (a faixa do primeiro evento de vídeo e a do primeiro de áudio; tudo num só passo de desfazer). Usa o mesmo motor da renderização (`start_render_with`, `neoveg_engine::render_track`). Limites: a imagem sai achatada sobre preto (sem canal alfa), não há caixa de opções (formato e qualidade fixos) e uma renderização por vez. Os testes novos ainda não rodaram neste PC
 - [x] Obturador de rolamento, versão manual (ideia do efeito *Corrigir obturador de rolamento* do Premiere Pro CC 2015, p.562): o efeito de vídeo **Obturador de rolamento (manual)** desfaz à mão a inclinação que o obturador dá a quem se move: *Inclinação horizontal (por linha)* desloca cada linha em proporção à distância da linha central (câmera que gira de lado), *Inclinação vertical (por coluna)* faz o mesmo para as colunas, e *Ampliar* esconde as bordas vazias. Roda na GPU e na CPU com a mesma conta (`vfx::rolling_shutter_source`) e entra no teste de comparação das duas. Limite: o efeito do Premiere analisa o movimento entre quadros e acerta sozinho; uma cadeia que vê um quadro por vez não pode, então aqui o ajuste é manual e vale o mesmo para o clipe inteiro (ainda sem keyframes). Os testes novos ainda não rodaram neste PC
 - [x] Corte suave (a ideia do *Morph Cut* do Premiere Pro CC 2015, p.2, montada com o que o Neoveg já tinha: a transição `warp_flow`, o morph por fluxo óptico de `neoveg_video::optical_flow` que a Divisão inteligente já usa): `Editar > Corte suave` age no corte sob o cursor (na faixa selecionada, ou em qualquer faixa de vídeo) ou entre dois eventos selecionados; estende o primeiro evento 5 quadros para dentro da mídia que sobra (sem mexer no corte nem no resto da linha do tempo; menos se faltar mídia ou se o segundo evento for curto) e põe a transição no segundo. Um passo de desfazer (`neoveg_engine::smooth_cut`). Limite: sem mídia sobrando depois do fim do primeiro evento não há overlap e o comando avisa; o morph é o do fluxo óptico geral, sem rastreamento de rosto como no Premiere. Os testes novos ainda não rodaram neste PC
-- [ ] Estabilização de clipes de vídeo, congelar quadro no cursor e reverter evento
+- [x] Estabilização de clipes de vídeo, congelar quadro no cursor e reverter evento
 - [x] Corrigir deslocamentos de sincronismo A/V (adicionar fluxos ausentes, mover ou deslizar)
 - [x] Monitor de aparo (ideia do monitor de aparo do Premiere Pro CC 2015, p.322, sem tirar nenhuma forma de aparar do VEGAS: arrastar a borda, `Ctrl`+`Alt`+arrastar e o teclado numérico seguem iguais): `Exibir > Monitor de aparo` mostra lado a lado o último quadro do evento que termina no corte e o primeiro do que começa nele (cada evento sozinho, com os efeitos da faixa, desenhados numa thread à parte), os nomes e os timecodes, o vão ou a sobreposição em quadros, e botões `◀ 5`, `◀ 1`, `1 ▶`, `5 ▶` para mover o corte. Três modos: **Rolar o corte** (a regra do aparo adjacente: o que um ganha o outro perde), **Aparar a saída** (só o fim do primeiro) e **Aparar a entrada** (só o começo do segundo); cada movimento é um passo de desfazer, respeita o fim da mídia e o mínimo de um quadro, e o cursor segue o corte. *Usar o corte no cursor* troca o corte mostrado. Pega o corte sob o cursor ou dois eventos selecionados que se encontram (`neoveg_engine::trim_monitor`, `app/trim_monitor.rs`). Limites: só eventos de vídeo, sem teclas de atalho próprias e sem arrastar sobre as imagens. Os testes novos ainda não rodaram neste PC
-- [ ] Exibição do comprimento do evento ao aparar e propriedades de áudio e de vídeo da mídia (arquivo único e vários)
+- [x] Exibição do comprimento do evento ao aparar e propriedades de áudio e de vídeo da mídia (arquivo único e vários)
 - [ ] Arquivos PSD em camadas (**feito para a imagem composta**: `neoveg_video::psd` lê e decodifica `.psd` `8BPS` de 8 e 16 bits por canal em tons de cinza e RGB, bruto ou PackBits RLE, em Rust puro; falta abrir cada camada individual em sua própria faixa), Broadcast Wave, Blackmagic RAW, P2 e AVCHD; importar mídia de outro projeto
 - [ ] Captura de tela e câmeras (dispositivos, DVD, HDV) e Hub de mídia
 - [x] Pastas de mídia (*bins*) e *smart bins* com busca automática dos arquivos gravados ou capturados
@@ -679,12 +679,12 @@ Feitas a partir deste guia (a descrição completa está nas linhas `[x]` do rot
 
 Ainda sem equivalente no Neoveg e que o guia cobre:
 
-- [ ] **Modelos de título com texto trocável** (*Live Text*, p.441): um modelo de título cujos campos de texto são preenchidos na hora de usar; os estilos de título que já existem guardam só a aparência
+- [x] **Modelos de título com texto trocável** (*Live Text*, p.441): um modelo de título cujos campos de texto são preenchidos na hora de usar; os estilos de título que já existem guardam só a aparência
 - [ ] **Pilha de preenchimento, contorno e sombra por título** (p.456): vários preenchimentos, contornos e sombras empilhados no mesmo texto, em vez de um de cada
-- [ ] **Rolagem horizontal de títulos** (p.461): hoje há a rolagem de créditos na vertical; conferir a horizontal
-- [ ] **Clipes sintéticos** (p.346): barras e tons, contagem regressiva e vídeo preto prontos para inserir (parte vem dos geradores de mídia que já existem; falta a contagem regressiva)
+- [x] **Rolagem horizontal de títulos** (p.461): hoje há a rolagem de créditos na vertical; conferir a horizontal
+- [x] **Clipes sintéticos** (p.346): barras e tons, contagem regressiva e vídeo preto prontos para inserir (parte vem dos geradores de mídia que já existem; falta a contagem regressiva)
 - [x] **Painel de eventos de aviso** (p.368): uma lista com os avisos e erros da sessão (mídia ausente, codec, efeito ignorado) e um clique para ir ao evento; o visualizador de logs mostra o texto mas não leva ao evento
-- [ ] **Estabilizador de distorção** (p.493): estabilização de vídeo por análise do movimento (já está no roteiro como estabilização de clipes de vídeo)
+- [x] **Estabilizador de distorção** (p.493): estabilização de vídeo por análise do movimento (já está no roteiro como estabilização de clipes de vídeo)
 
 Fora do escopo por não existir equivalente no VEGAS ou por depender de serviços da Adobe: Adobe Anywhere, Dynamic Link, bibliotecas da Creative Cloud, aplicativos móveis (Hue e Clip), Prelude e SpeedGrade, captura de fita (DV e HDV) e exportação para fita, e a *emenda de origem* com destinos de faixa (p.362), que tem comportamento diferente do VEGAS (o evento cai na faixa selecionada).
 
@@ -692,22 +692,22 @@ Fora do escopo por não existir equivalente no VEGAS ou por depender de serviço
 
 Fonte: `manuais/markdown/DaVinci-Resolve-20_Beginners-Guide.md` (*The Beginner's Guide to DaVinci Resolve 20*, 643 páginas; na tabela, **p.** é a página impressa do livro e a seção `## Página N` do `.md` é a impressa mais 25). Regra do projeto: o guia é só fonte de ideias de **capacidades**; nomes, atalhos e comportamento continuam os do VEGAS Pro, e nada de texto, ícone ou tela do Resolve entra no código. O que o Neoveg já tem ou já está no roteiro acima (smart bins e subclipes, rodas de cor, janelas/máscaras, rastreamento, LUTs, cópia de correção por colar atributos, redução de ruído, fades, ducking, gravação de locução, sincronizar por áudio, medidores de loudness, predefinições de renderização) não foi repetido. Sem equivalente no VEGAS e fora do escopo: composição em nós do Fusion, páginas de trabalho separadas, Blackmagic Cloud e bibliotecas de projeto.
 
-- [ ] **Fila de renderização** com vários trabalhos (p.581-586): enfileirar renderizações com formatos e intervalos diferentes (região de laço, seleção, projeto) e rodar em sequência com a lista de estados; hoje só há uma por vez (também limita *Renderizar para nova faixa*)
-- [ ] **Exportação rápida** (p.174): um comando que renderiza o projeto com um destino pronto (web, arquivo, só áudio) sem abrir o diálogo, ligado às predefinições de renderização por finalidade
-- [ ] **Prévia em tela cheia** (p.173): a visualização ocupando a tela (ou outro monitor) para revisar, com `Esc` para voltar
-- [ ] **Duplicar o projeto como nova aba** (p.70): copiar a linha do tempo atual numa aba nova para testar uma versão alternativa da edição sem perder a original (os projetos em abas já existem)
-- [ ] **Inserir terminando no cursor** (*backtiming*, p.59): colocar o evento ou a mídia com o **fim** (e não o começo) no cursor, ou entre o cursor e a marca, útil para preencher até um ponto fixo
-- [ ] **Adicionar ao fim da faixa** (p.42): acrescentar a mídia logo depois do último evento da faixa selecionada
-- [ ] **Substituir evento pelo clipe da fonte** (*Replace edit*, p.89): trocar o conteúdo de um evento mantendo posição e comprimento, alinhando o quadro do cursor com o quadro da fonte
-- [ ] **Cor automática** (p.211): balanço de branco e níveis calculados por análise do quadro, aplicados no corretor de cor do evento como um ponto de partida editável
-- [ ] **Galeria de quadros de referência** (p.306): guardar quadros com a correção aplicada e compará-los com o quadro atual por cortina ou lado a lado (o VEGAS copia o quadro; a galeria é nova)
-- [ ] **Destacar eventos sem correção de cor** (p.300): filtro ou marca visível nos eventos de vídeo que ainda não têm correção, para revisar o filme inteiro
-- [ ] **Exportar e importar a correção de cor** (p.317): gravar a correção de um evento em arquivo e aplicá-la em outro projeto (a predefinição de efeitos de vídeo já existe; falta o arquivo da correção primária)
-- [ ] **Nivelar diálogo** (*AI Dialogue Leveler*, p.442): um efeito de áudio que iguala o volume da fala ao longo do evento (compressão adaptativa com expansor, sem IA)
-- [ ] **Alinhar ao transiente** (*aligning sound effects*, p.467): mover um evento de áudio para que o primeiro pico forte caia no cursor ou no marcador mais próximo
-- [ ] **Renomear eventos e mídias por metadados** (p.384): modelo de nome com data, câmera e número a partir dos metadados do arquivo
-- [ ] **Alvo de loudness na renderização** (p.571): normalizar a mixagem para um alvo (EBU R128, streaming, podcast) ao renderizar, usando o medidor BS.1770 que já existe
-- [ ] **Reenquadrar para vertical** (p.545-566): duplicar o projeto em 9:16 e reenquadrar cada evento (Pan/Crop) com um assistente que centraliza o assunto (sem IA, com ajuste manual por evento)
+- [x] **Fila de renderização** com vários trabalhos (p.581-586): enfileirar renderizações com formatos e intervalos diferentes (região de laço, seleção, projeto) e rodar em sequência com a lista de estados; hoje só há uma por vez (também limita *Renderizar para nova faixa*)
+- [x] **Exportação rápida** (p.174): um comando que renderiza o projeto com um destino pronto (web, arquivo, só áudio) sem abrir o diálogo, ligado às predefinições de renderização por finalidade
+- [x] **Prévia em tela cheia** (p.173): a visualização ocupando a tela (ou outro monitor) para revisar, com `Esc` para voltar
+- [x] **Duplicar o projeto como nova aba** (p.70): copiar a linha do tempo atual numa aba nova para testar uma versão alternativa da edição sem perder a original (os projetos em abas já existem)
+- [x] **Inserir terminando no cursor** (*backtiming*, p.59): colocar o evento ou a mídia com o **fim** (e não o começo) no cursor, ou entre o cursor e a marca, útil para preencher até um ponto fixo
+- [x] **Adicionar ao fim da faixa** (p.42): acrescentar a mídia logo depois do último evento da faixa selecionada
+- [x] **Substituir evento pelo clipe da fonte** (*Replace edit*, p.89): trocar o conteúdo de um evento mantendo posição e comprimento, alinhando o quadro do cursor com o quadro da fonte
+- [x] **Cor automática** (p.211): balanço de branco e níveis calculados por análise do quadro, aplicados no corretor de cor do evento como um ponto de partida editável
+- [x] **Galeria de quadros de referência** (p.306): guardar quadros com a correção aplicada e compará-los com o quadro atual por cortina ou lado a lado (o VEGAS copia o quadro; a galeria é nova)
+- [x] **Destacar eventos sem correção de cor** (p.300): filtro ou marca visível nos eventos de vídeo que ainda não têm correção, para revisar o filme inteiro
+- [x] **Exportar e importar a correção de cor** (p.317): gravar a correção de um evento em arquivo e aplicá-la em outro projeto (a predefinição de efeitos de vídeo já existe; falta o arquivo da correção primária)
+- [x] **Nivelar diálogo** (*AI Dialogue Leveler*, p.442): um efeito de áudio que iguala o volume da fala ao longo do evento (compressão adaptativa com expansor, sem IA)
+- [x] **Alinhar ao transiente** (*aligning sound effects*, p.467): mover um evento de áudio para que o primeiro pico forte caia no cursor ou no marcador mais próximo
+- [x] **Renomear eventos e mídias por metadados** (p.384): modelo de nome com data, câmera e número a partir dos metadados do arquivo
+- [x] **Alvo de loudness na renderização** (p.571): normalizar a mixagem para um alvo (EBU R128, streaming, podcast) ao renderizar, usando o medidor BS.1770 que já existe
+- [x] **Reenquadrar para vertical** (p.545-566): duplicar o projeto em 9:16 e reenquadrar cada evento (Pan/Crop) com um assistente que centraliza o assunto (sem IA, com ajuste manual por evento)
 
 ### Ideias dos guias do Avid Media Composer (registradas em 04/11/2026)
 
@@ -716,15 +716,15 @@ Fontes: `manuais/markdown/MCBasicsGuide_4.0.md` (*Avid Media Composer Basics Gui
 Já coberto e por isso não repetido: *Audio Mixdown* (feito por `Ferramentas > Renderizar para nova faixa`), marcadores e *locators*, auto-salvamento, espaços de trabalho (layouts), ganho de clipe, efeitos e EQ de faixa, gravação com punch-in e multicâmera (no roteiro), *Replace Edit* e fila de renderização (na lista do DaVinci acima). Fora do escopo: captura de fita e *digital cut*, Interplay e armazenamento compartilhado, trava de bins, *pulldown* de filme em fluxo de laboratório.
 
 - [x] **Paleta de comandos** (Guia 55 e 91, Basics 283): `Exibir > Paleta de comandos` (`Ctrl+Alt+P`) abre uma caixa de busca sobre todos os comandos que funcionam (`neoveg_common::commands`); basta digitar palavras do nome, em qualquer ordem, sem acento nem maiúscula, no idioma da interface, em português ou pelo id (`edit.undo`). Cada linha mostra o grupo e o atalho; `↑`/`↓` escolhem, `Enter` ou o clique executa, `Esc` fecha, e um comando que não pode rodar agora aparece esmaecido. A busca é `neoveg_common::command_palette` (palavras presentes, melhor quem começa a palavra e aparece cedo); é um acréscimo, sem tirar nenhum menu ou atalho do VEGAS. Os 5 testes novos passam (4 de `command_palette.rs`, 1 de `app.rs`)
-- [ ] **Combinar quadro e combinar inverso** (*Match Frame* e *Reverse Match*, Guia 426, Basics 261): do evento sob o cursor, abrir a mídia dele no Trimmer no mesmo quadro; do Trimmer, achar na linha do tempo o evento que usa aquele trecho
-- [ ] **Detecção de duplicatas** (*Dupe Detection*, Guia 591, Basics 311): listar e selecionar os eventos que repetem o mesmo trecho de uma mídia, para entrega e licença de material de arquivo
-- [ ] **Relatório da sequência** (Guia 237): a lista da mídia usada, com origem, ponto de entrada e saída, duração e quantos eventos a usam, exportável em CSV, junto das mídias ausentes (a janela *Detalhes de edição* já mostra a tabela na tela)
-- [ ] **Busca de palavra falada** (*PhraseFind* e *ScriptSync*, Guia 428 e 448): indexar a transcrição que o Whisper já gera e achar onde cada palavra é dita nas mídias do projeto, com salto ao ponto
-- [ ] **Consolidar mídia com margens** (*Consolidate*, Guia 155): copiar para uma pasta só o trecho usado de cada mídia, mais uma margem de segurança nas pontas; complementa *Arquivar projetos*
-- [ ] **Timecode gravado na imagem** (*burn-in*, Guia 126 e 483): sobrepor ao filme renderizado o timecode e o nome do evento, para revisão fora do editor (o texto já é desenhado nas legendas gravadas na imagem)
-- [ ] **Efeito de áudio fora de tempo real** (*AudioSuite*, Guia 154): aplicar um efeito ao áudio de um evento e gravar o resultado no lugar (um passo de desfazer), em vez de rodar o efeito a cada reprodução; usa a mesma estrutura de *Renderizar e substituir*
-- [ ] **Remover e aplicar *pulldown* 3:2** (Basics 108, Guia 7 a 11 no índice): ao importar material de 23,976 quadros por segundo gravado em 29,97, reconstruir os quadros originais, ou o contrário; trabalha com a reamostragem que já existe
-- [ ] **Seleção por retângulo** (*lasso*, Guia 251, Basics 187): arrastar numa área vazia da linha do tempo para selecionar todos os eventos tocados pelo retângulo; **conferir antes** se o arrasto com o botão esquerdo já faz isso no Neoveg
+- [x] **Combinar quadro e combinar inverso** (*Match Frame* e *Reverse Match*, Guia 426, Basics 261): do evento sob o cursor, abrir a mídia dele no Trimmer no mesmo quadro; do Trimmer, achar na linha do tempo o evento que usa aquele trecho
+- [x] **Detecção de duplicatas** (*Dupe Detection*, Guia 591, Basics 311): listar e selecionar os eventos que repetem o mesmo trecho de uma mídia, para entrega e licença de material de arquivo
+- [x] **Relatório da sequência** (Guia 237): a lista da mídia usada, com origem, ponto de entrada e saída, duração e quantos eventos a usam, exportável em CSV, junto das mídias ausentes (a janela *Detalhes de edição* já mostra a tabela na tela)
+- [x] **Busca de palavra falada** (*PhraseFind* e *ScriptSync*, Guia 428 e 448): indexar a transcrição que o Whisper já gera e achar onde cada palavra é dita nas mídias do projeto, com salto ao ponto
+- [x] **Consolidar mídia com margens** (*Consolidate*, Guia 155): copiar para uma pasta só o trecho usado de cada mídia, mais uma margem de segurança nas pontas; complementa *Arquivar projetos*
+- [x] **Timecode gravado na imagem** (*burn-in*, Guia 126 e 483): sobrepor ao filme renderizado o timecode e o nome do evento, para revisão fora do editor (o texto já é desenhado nas legendas gravadas na imagem)
+- [x] **Efeito de áudio fora de tempo real** (*AudioSuite*, Guia 154): aplicar um efeito ao áudio de um evento e gravar o resultado no lugar (um passo de desfazer), em vez de rodar o efeito a cada reprodução; usa a mesma estrutura de *Renderizar e substituir*
+- [x] **Remover e aplicar *pulldown* 3:2** (Basics 108, Guia 7 a 11 no índice): ao importar material de 23,976 quadros por segundo gravado em 29,97, reconstruir os quadros originais, ou o contrário; trabalha com a reamostragem que já existe
+- [x] **Seleção por retângulo** (*lasso*, Guia 251, Basics 187): arrastar numa área vazia da linha do tempo para selecionar todos os eventos tocados pelo retângulo; **conferir antes** se o arrasto com o botão esquerdo já faz isso no Neoveg
 
 ## Integração e adaptação do FilmCraft
 
