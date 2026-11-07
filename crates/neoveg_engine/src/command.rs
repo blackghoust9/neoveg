@@ -1423,14 +1423,24 @@ mod tests {
         let r1 = history.revision();
         history.undo(&mut tl);
         assert_ne!(history.revision(), r1);
-        // a rejected command is not a change: with nothing left to undo, `undo` refuses and the
-        // revision stays where it was
+        // a rejected command is not a change: the timeline refuses it, the history does not record
+        // it and the revision stays where it was
         let r2 = history.revision();
-        assert!(
-            !history.undo(&mut Timeline::new()),
-            "nothing to undo after the undo above"
-        );
+        assert!(!history.execute(
+            &mut tl,
+            EditCommand::MoveEvent {
+                track_id,
+                event_id: 999_999,
+                old_start: 0.0,
+                new_start: 1.0,
+            }
+        ));
         assert_eq!(history.revision(), r2);
+        // and an undo with nothing to undo is refused the same way
+        let mut empty = History::new();
+        let r3 = empty.revision();
+        assert!(!empty.undo(&mut tl));
+        assert_eq!(empty.revision(), r3);
     }
 
     #[test]
