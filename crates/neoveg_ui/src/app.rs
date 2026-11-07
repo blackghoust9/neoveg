@@ -938,6 +938,8 @@ struct AppState {
     auto_ripple: bool,
     /// Edge selected by the keyboard trim mode (`[` / `]`); `←` / `→` then nudge it a frame.
     trim_edge: Option<neoveg_engine::keytrim::Edge>,
+    /// `Shift` with the trim keys: only the chosen event moves (the L and J cuts), not its group.
+    trim_key_single: bool,
     /// What a ripple carries along (`F`, `Ctrl+F`, `Ctrl+Shift+F`); used by Auto Ripple and ripple delete.
     ripple_scope: neoveg_engine::ripple::RippleScope,
     /// The last edit that left a gap or an overlap, and the history revision it left behind:
@@ -2179,6 +2181,7 @@ impl AppState {
             layout_chord: None,
             auto_ripple: false,
             trim_edge: None,
+            trim_key_single: false,
             ripple_scope: Default::default(),
             post_ripple: None,
             shuttle_speed: 1.0,
@@ -3626,6 +3629,7 @@ impl AppState {
             (Modifiers::CTRL, Some(TrimMode::Stretch)),
             (Modifiers::ALT | Modifiers::SHIFT, Some(TrimMode::Slide)),
             (Modifiers::ALT, Some(TrimMode::Slip)),
+            (Modifiers::SHIFT, None),
             (Modifiers::NONE, None),
         ];
         // (key, direction, by pixel?)
@@ -3638,6 +3642,7 @@ impl AppState {
         for (modifiers, mode) in modes {
             for (key, direction, by_pixel) in steps {
                 if ctx.input_mut(|i| i.consume_key(modifiers, key)) {
+                    self.trim_key_single = modifiers == Modifiers::SHIFT;
                     if by_pixel {
                         self.nudge_trim_edge_pixels(direction, ppp, mode);
                     } else {
@@ -3705,14 +3710,34 @@ impl AppState {
             EditTool::Slide => TrimMode::Slide,
             EditTool::Normal | EditTool::Shuffle => TrimMode::Normal,
         });
-        let outcome = nudge(
-            &self.timeline,
-            edge,
-            seconds,
-            mode,
-            1.0 / fps,
-            &|track, event| self.source_len(track, event),
-        );
+        let single = std::mem::take(&mut self.trim_key_single);
+        // A plain trim key moves the edge of the event's group too, as the mouse does; `Shift` moves
+        // only the event (the L and J cuts)
+        let grouped = !single && mode == TrimMode::Normal && {
+            let event = (edge.track, edge.event);
+            neoveg_engine::groups::group_members(&self.timeline, event).len() > 1
+        };
+        let outcome = if grouped {
+            let time =
+                neoveg_engine::keytrim::edge_time(&self.timeline, edge).unwrap_or(0.0) + seconds;
+            neoveg_engine::groups::trim_group_edge(
+                &self.timeline,
+                (edge.track, edge.event),
+                edge.side == neoveg_engine::keytrim::EdgeSide::Start,
+                time,
+                1.0 / fps,
+                &|track, event| self.source_len(track, event),
+            )
+        } else {
+            nudge(
+                &self.timeline,
+                edge,
+                seconds,
+                mode,
+                1.0 / fps,
+                &|track, event| self.source_len(track, event),
+            )
+        };
         if outcome.is_none() {
             self.status =
                 "A borda não pode ir mais longe (mídia, evento bloqueado, 1 quadro ou sem vizinho colado)".into();
@@ -20016,6 +20041,61 @@ mod tests {
 
     fn run(s: &mut AppState, command: Command) {
         s.run_command(command, &egui::Context::default(), 0.0);
+    }
+
+    #[test]
+    fn the_plain_trim_keys_move_the_group_and_shift_moves_only_the_event() {
+        use neoveg_engine::keytrim::{Edge, EdgeSide};
+        let mut s = AppState::new();
+        s.add_track(TrackKind::Video);
+        let video = s.selected_track.unwrap();
+        s.add_track(TrackKind::Audio);
+        let audio = s.selected_track.unwrap();
+        s.project.media_pool.push(MediaRef {
+            subproject: false,
+            format: None,
+            id: 1,
+            path: "x.mp4".into(),
+            duration_seconds: 10.0,
+        });
+        let ev_v = add_event(&mut s, video, 2.0, 4.0);
+        let ev_a = add_event(&mut s, audio, 2.0, 4.0);
+        let group =
+            neoveg_engine::groups::group_events(&mut s.timeline, &[(video, ev_v), (audio, ev_a)])
+                .expect("a group");
+        assert!(s.history.execute(&mut s.timeline, group.command));
+        let end_of = |s: &AppState, track, event| {
+            s.timeline
+                .track(track)
+                .unwrap()
+                .events
+                .iter()
+                .find(|e| e.id == event)
+                .unwrap()
+                .end()
+        };
+        let edge = Edge {
+            track: video,
+            event: ev_v,
+            side: EdgeSide::End,
+        };
+        // A plain key trims the end of the whole group
+        s.trim_edge = Some(edge);
+        s.nudge_trim_edge_seconds(-0.5, None);
+        assert!((end_of(&s, video, ev_v) - 5.5).abs() < 1e-9);
+        assert!(
+            (end_of(&s, audio, ev_a) - 5.5).abs() < 1e-9,
+            "the group follows"
+        );
+        // With Shift only the chosen event moves (an L or J cut)
+        s.trim_edge = Some(edge);
+        s.trim_key_single = true;
+        s.nudge_trim_edge_seconds(-0.5, None);
+        assert!((end_of(&s, video, ev_v) - 5.0).abs() < 1e-9);
+        assert!(
+            (end_of(&s, audio, ev_a) - 5.5).abs() < 1e-9,
+            "the partner stays"
+        );
     }
 
     #[test]
