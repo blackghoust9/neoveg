@@ -11881,10 +11881,7 @@ fn resample_items(state: &mut AppState, ui: &mut egui::Ui) {
 /// A menu entry that runs `command`, with its shortcut and enabled state.
 /// Whether a drag snaps: `Alt` always ignores snapping; `Shift` inverts it while moving events (on
 /// edges `Shift` means "ignore the group" instead).
-fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool, alt: bool) -> bool {
-    if alt {
-        return false;
-    }
+fn effective_snap(snapping: bool, mode: Option<DragMode>, shift: bool) -> bool {
     if shift && matches!(mode, Some(DragMode::Move | DragMode::SnapOffset)) {
         !snapping
     } else {
@@ -16586,6 +16583,11 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
                 }
                 state.event_level_drag = Some(level_drag);
             } else if let Some(mut hit) = hit_event(state, lanes.left(), lane_top, p) {
+                // `Alt` dragging the body of an event slips its media (the reference map's rule)
+                if ui.input(|i| i.modifiers.alt && !i.modifiers.command) && hit.2 == DragMode::Move
+                {
+                    hit.2 = DragMode::Slip;
+                }
                 if ui.input(|i| i.modifiers.command) {
                     let adjacent = ui.input(|i| i.modifiers.alt);
                     hit.2 = match (hit.2, adjacent) {
@@ -16622,13 +16624,9 @@ fn timeline_canvas(state: &mut AppState, ui: &mut egui::Ui, canvas_h: f32) {
             let row_track = (row >= 0.0)
                 .then(|| state.timeline.tracks.get(row as usize).map(|t| t.id))
                 .flatten();
-            let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
-            let snap_enabled = effective_snap(
-                state.snapping,
-                state.drag.as_ref().map(|d| d.mode),
-                shift,
-                alt,
-            );
+            let shift = ui.input(|i| i.modifiers.shift);
+            let snap_enabled =
+                effective_snap(state.snapping, state.drag.as_ref().map(|d| d.mode), shift);
             let threshold = f64::from(SNAP_THRESHOLD_PX) / state.pixels_per_second;
             state.update_drag(t, row_track, threshold, snap_enabled);
 
@@ -19021,27 +19019,26 @@ mod tests {
     }
 
     #[test]
-    fn shift_inverts_snapping_only_while_moving_and_alt_always_ignores_it() {
+    fn shift_inverts_snapping_only_while_moving_and_alt_does_not_touch_it() {
         use DragMode::*;
-        assert!(effective_snap(true, Some(Move), false, false));
+        assert!(effective_snap(true, Some(Move), false));
         assert!(
-            !effective_snap(true, Some(Move), true, false),
+            !effective_snap(true, Some(Move), true),
             "Shift turns it off while moving"
         );
         assert!(
-            effective_snap(false, Some(Move), true, false),
+            effective_snap(false, Some(Move), true),
             "and on when it is off"
         );
         assert!(
-            effective_snap(true, Some(TrimRight), true, false),
+            effective_snap(true, Some(TrimRight), true),
             "on an edge Shift is for groups"
         );
-        assert!(!effective_snap(true, Some(Move), false, true));
         assert!(
-            !effective_snap(false, Some(Move), true, true),
-            "Alt wins over Shift"
+            effective_snap(true, Some(Slip), false),
+            "Alt (slip) keeps the snapping"
         );
-        assert!(effective_snap(true, None, true, false));
+        assert!(effective_snap(true, None, true));
     }
 
     #[test]
