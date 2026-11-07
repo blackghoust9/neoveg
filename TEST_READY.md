@@ -3,8 +3,8 @@
 ## Status
 - **Test Suite Status**: **READY & VERIFIED PASSING**
 - **Execution Date**: 2026-11-06 (re-run after the review fixes of the same day)
-- **Test Count**: **508 opaque-box E2E tests** (Tiers 1–4, the suites listed below) and **2,075+ tests** in the non-UI crates together with the unit and Tier 5 adversarial suites — 0 failures, 0 panics.
-- **Target Exclusions**: `neoveg_ui` (per specification: the E2E opaque-box suite is headless CLI/engine execution only; the interface has its own unit tests, run apart, many of them drawing windows)
+- **Test Count**: **2,550 tests in 48 test binaries** across the whole workspace, including the `neoveg_ui` unit tests — 0 failures, 0 panics. The opaque-box E2E suites of Tiers 1–4 listed below carry **508** of them.
+- **Target Exclusions**: none in the final run: the gate `cargo test --workspace` also runs the `neoveg_ui` tests (the interface has its own suite, drawn-offscreen in CI under Xvfb).
 - **Hardware Prerequisites**: **ZERO** (100% headless CPU execution; no physical GPU, audio hardware, or external AI services required)
 
 ---
