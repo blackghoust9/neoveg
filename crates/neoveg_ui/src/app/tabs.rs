@@ -197,6 +197,76 @@ impl AppState {
         }
     }
 
+    /// While a sub-project tab is open, a window shows the timeline of the project it came from,
+    /// read-only, with the events that play it highlighted. `Voltar ao pai` opens that tab.
+    pub(super) fn parent_view_window(&mut self, ctx: &egui::Context) {
+        let Some(parent) = self.parent_of_active_tab() else {
+            return;
+        };
+        let title = self.tab_title(parent);
+        let child = self.project_path.clone();
+        let Some(project) = self.tabs.manager.get(parent) else {
+            return;
+        };
+        let pool = &project.info.media_pool;
+        let is_child = |media: Option<u64>| {
+            media.is_some_and(|id| {
+                pool.iter().any(|m| {
+                    m.id == id
+                        && m.subproject
+                        && child.as_deref().is_some_and(|c| Path::new(&m.path) == c)
+                })
+            })
+        };
+        let view = neoveg_engine::parent_view::parent_view(&project.timeline, is_child);
+        let mut go_back = false;
+        egui::Window::new(tr_args("Projeto pai: {}", &[&title]))
+            .default_width(520.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                if ui.button(tr("Voltar ao pai")).clicked() {
+                    go_back = true;
+                }
+                if view.tracks.is_empty() {
+                    ui.weak(tr("O projeto pai não tem faixas."));
+                }
+                let label_w = 120.0;
+                let row_h = 22.0;
+                let width = (ui.available_width() - label_w).max(100.0);
+                let scale = if view.length > 0.0 {
+                    width / view.length as f32
+                } else {
+                    1.0
+                };
+                for (index, track) in view.tracks.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.add_sized([label_w, row_h], egui::Label::new(&track.name).truncate());
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(width, row_h), egui::Sense::hover());
+                        ui.painter()
+                            .rect_filled(rect, 2.0, egui::Color32::from_gray(40));
+                        for event in view.events.iter().filter(|e| e.track == index) {
+                            let x0 = rect.left() + event.start as f32 * scale;
+                            let x1 = (rect.left() + event.end as f32 * scale).max(x0 + 1.0);
+                            let span = egui::Rect::from_min_max(
+                                egui::pos2(x0, rect.top() + 2.0),
+                                egui::pos2(x1, rect.bottom() - 2.0),
+                            );
+                            let color = if event.is_child {
+                                egui::Color32::from_rgb(0, 162, 237)
+                            } else {
+                                egui::Color32::from_rgb(90, 90, 110)
+                            };
+                            ui.painter().rect_filled(span, 2.0, color);
+                        }
+                    });
+                }
+            });
+        if go_back {
+            self.switch_tab(parent, ctx);
+        }
+    }
+
     /// The tab the active sub-project tab was opened from, while that tab is still open.
     pub(super) fn parent_of_active_tab(&self) -> Option<ProjectId> {
         let child = self.tabs.active?;

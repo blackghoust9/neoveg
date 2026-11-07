@@ -10424,6 +10424,7 @@ impl NeovegApp {
         egui::TopBottomPanel::top("project_tabs")
             .show(ctx, |ui| project_tab_bar(ui, &mut self.state));
         close_tab_window(ctx, &mut self.state);
+        self.state.parent_view_window(ctx);
         if let Some(path) = self.state.tabs.open_request.take() {
             // A sub-project opened from the tab in front of it remembers that tab: `Esc` goes back
             let from = self.state.tabs.active;

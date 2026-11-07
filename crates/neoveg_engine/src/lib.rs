@@ -51,6 +51,7 @@ pub mod navigation;
 pub mod ops;
 pub mod otio;
 pub mod pan_crop;
+pub mod parent_view;
 pub mod placement;
 pub mod prerender;
 pub mod project_file;
